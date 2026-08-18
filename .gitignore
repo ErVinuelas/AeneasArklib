@@ -1,0 +1,87 @@
+# This repository holds exactly two things: the `hachi` Rust crate and the Lean
+# proofs about its Aeneas-extracted model. Everything else in this directory --
+# the ArkLib clone, the extraction binaries, and every build tree -- is either
+# third-party, machine-local, or derived, and is listed below. `make setup`
+# obtains the parts that are not in git.
+#
+# `hachi/benches/` is tracked in full, the frozen `genesis/` crate included --
+# it is source, not output. No timings are committed anywhere: criterion's own
+# output lands under `hachi/target/criterion`, which `target/` covers, and the
+# optional `JSON=` report is covered at the root. Every figure is re-derived by
+# the next run, on the machine that will act on it.
+
+
+# --- Not tracked, obtained or generated locally ------------------------------
+#
+# No checkout below is needed to build the proofs, and none is a submodule.
+# `hachi/lakefile.lean` fetches both dependencies from git and Lake keeps its
+# own copies under `hachi/.lake/packages/`, at the revisions pinned in
+# `hachi/lake-manifest.json`. That manifest is the only thing a clone needs.
+
+# The one that still matters, and only for `make extract`: the charon and aeneas
+# binaries that regenerate `hachi/lean/Generated.lean`. One of them blows past
+# GitHub's 100 MB file limit. `make setup` downloads them.
+/toolchain/
+
+# Reference clones only, read by nothing: Lake fetches ArkLib itself, and the
+# `cpoly` field layer arrives as a cargo dependency (see NOTES.md).
+/ArkLib/
+/AeneasCompPoly/
+
+
+# --- Derived output ----------------------------------------------------------
+
+# `make` bookkeeping: stamps recording what `make setup` has already done, and
+# the `lake build` log that `make build` scans for `sorry`. Deleting it costs
+# nothing but a re-run of `make setup`, which re-checks rather than re-downloads.
+/.make/
+
+# Rust build tree. Also where criterion writes, under hachi/target/criterion.
+target/
+
+# Lake build tree, and the dependency sources Lake fetches into it.
+.lake/
+
+# Compiled Lean, in case any lands outside .lake/.
+*.olean
+*.ilean
+
+# Charon's output, the intermediate half of the extraction pipeline: charon
+# writes hachi/generated.llbc, then aeneas turns it into
+# hachi/lean/Generated.lean. `make extract` regenerates both.
+#
+# `lean/Generated.lean` itself IS tracked, and has to be: reproducing it needs
+# the ./toolchain binaries above, which are not in the repo, so a clone that
+# only has Lean must still be able to build the proofs.
+*.llbc
+
+# Bench reports. `make run-bench JSON=out.json` writes one relative to wherever
+# make was invoked, which is this directory. A report is a statement about one
+# machine at one moment and is worthless to a reader on another, so none of them
+# is ever committed. Root-scoped: `hachi/lake-manifest.json` is tracked.
+/*.json
+
+# The frozen baseline is built as a path dependency of `hachi`, so it normally
+# has no lock file of its own; running cargo inside it directly leaves one.
+# `hachi/Cargo.lock` IS tracked, deliberately -- benchmark numbers are only
+# comparable across runs if the dependency graph criterion is built from is
+# pinned along with the toolchain.
+/hachi/benches/genesis/Cargo.lock
+/hachi/benches/candidate/Cargo.lock
+
+
+# --- Editor, tooling and OS noise --------------------------------------------
+
+__pycache__/
+*.py[co]
+.mypy_cache/
+.ruff_cache/
+
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Tool permissions granted on one machine.
+/.claude/settings.local.json

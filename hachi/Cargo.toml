@@ -1,0 +1,119 @@
+[package]
+name = "hachi"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "Apache-2.0"
+description = "The Hachi lattice-based multilinear polynomial commitment scheme (NOZ26) over the power-of-two cyclotomic ring, with a machine-checked Lean equivalence proof against the ArkLib formalization"
+repository = "https://github.com/ErVinuelas/AeneasArklib"
+keywords = ["lattice", "polynomial-commitment", "cyclotomic", "formal-verification"]
+categories = ["cryptography", "mathematics", "no-std"]
+# `benches/genesis` and `benches/candidate` are packages of their own nested
+# in this one (see dev-dependencies). Excluding them keeps `cargo package`
+# from trying to vendor further manifests inside this crate's tarball.
+exclude = ["benches/genesis", "benches/candidate"]
+
+# Every bench target is declared below, so an unrecognised file dropped into
+# `benches/` becomes a hard error instead of a silent extra binary -- and
+# `benches/support/` stays what it is, a shared module rather than a target.
+autobenches = false
+# Every test target is declared below too. Not pedantry: `cargo bench` selects
+# *every* target with `bench = true`, and that flag defaults to true on the lib
+# and on each auto-discovered integration test. Left alone, `cargo bench` hands
+# criterion's `--sample-size` to libtest, which rejects it and fails the run.
+autotests = false
+
+[lib]
+name = "hachi"
+path = "src/lib.rs"
+# There are no `#[bench]` functions here; the benchmarks are the criterion
+# targets below. See `autotests` above for why this has to be said out loud.
+bench = false
+
+[[test]]
+name = "params_semantics"
+bench = false
+
+# This is the thing Aeneas extracts, so every entry here has to survive charon.
+# The field layer is NOT reimplemented: `Fp` (the Hachi prime `2^32 - 99`) and
+# `Ext4` come from AeneasCompPoly's `cpoly` crate, which already carries their
+# Lean equivalence proofs.
+#
+# Charon *can* follow this across the crate boundary, but only when told to:
+# `make extract` passes `--include 'cpoly::_'`, without which every `cpoly` item
+# arrives in `lean/Generated.lean` as an `axiom`. That was the open question of
+# Workstream 0 and it is settled -- NOTES.md § "The cpoly dependency" records
+# both extractions and why vendoring `field.rs` turned out to be unnecessary.
+#
+# Pinned by `rev`, not left on the default branch, and the reason is the frozen
+# bench baseline rather than reproducibility of the build (`Cargo.lock` already
+# gives that). `benches/genesis/` is append-only and must never change behaviour
+# or speed once frozen; a field layer that could move under it would break that
+# guarantee silently. Bumping this rev is therefore a deliberate act with a
+# re-baseline attached, not a `cargo update`.
+[dependencies]
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }
+
+# `cargo build --lib` -- all that `charon cargo --preset=aeneas -- --lib` asks
+# for -- does not build dev-dependencies, so nothing here reaches
+# `lean/Generated.lean`. Checked, not assumed: `make extract` reports
+# `unchanged` with these present.
+[dev-dependencies]
+# criterion **0.7**, not 0.8, and the version is load-bearing. Cargo resolves the
+# whole dependency graph before it builds anything, so a dev-dependency whose
+# `rust-version` exceeds the active toolchain fails `cargo test` even though the
+# tests never link it. 0.8 declares 1.86; this repository's benchmark toolchain
+# is a 1.85-era nightly, so 0.8 here breaks `make test` outright. 0.7 declares
+# 1.80 and is otherwise a drop-in.
+#
+# `default-features = false` drops `plotters` and `rayon`: a thread pool spinning
+# up between cases is measurement noise bought for a picture nobody reads.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+# The frozen first translation of this crate. `make run-bench` measures it and
+# `hachi` back to back so a "vs genesis" reading is a comparison made now, on
+# this machine, rather than against a remembered number. Append-only: freezing an
+# already-optimized body would silently report all its gains as zero, forever.
+hachi-genesis = { path = "benches/genesis" }
+# The candidate slot: at rest a byte-copy of `src/`, overwritten by the
+# optimization loop in its worktree so a candidate and the champion are measured
+# in the same criterion session. Always compiled (a path dependency has to
+# resolve), but timed only under `--features candidate`.
+hachi-candidate = { path = "benches/candidate" }
+
+[features]
+# Adds the `candidate` variant to every bench case, for `make run-bench CANDIDATE=1`.
+candidate = []
+
+# Benchmarks are the fitness function of this project, so their build is pinned
+# rather than left to whatever cargo defaults to this month.
+#
+# `codegen-units = 1` is for *comparability* before speed: with 16, which
+# functions land together -- and so which get inlined -- shifts with unrelated
+# edits, and that shift is indistinguishable from an optimization.
+#
+# `lto = "fat"` is not the usual "fat is a bit faster" choice; it is load-bearing
+# for the A/B comparison. AeneasCompPoly measured byte-identical code in two
+# crates reading 28% apart under `lto = "thin"`, reproducibly: thin LTO optimizes
+# the two crates in separate modules and made different vectorization decisions
+# for the same source. Fat LTO merges them before optimizing. A benchmark that
+# reports a 28% difference between two copies of one function is not a slow
+# benchmark, it is a wrong one -- do not move this to `thin` for build times.
+[profile.bench]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = false
+
+[[bench]]
+name = "params"
+harness = false
+
+# Warn rather than deny: `make extract` builds this crate with charon's own
+# rustc, and a lint that is only a style opinion must never be able to stop the
+# extraction. `unsafe_code` and `missing_docs` are the two that do matter, and
+# they are `forbid`/`deny` in src/lib.rs where they travel with the source.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+must_use_candidate = "allow"
+missing_panics_doc = "allow"
+manual_div_ceil = "allow"
