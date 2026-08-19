@@ -7,16 +7,17 @@ and keeping them apart is the point of this directory.
   specification with no errors. So every statement is well-formed at this crate's
   parameters, and each one is about the specification's own definitions rather than
   a paraphrase of them — a mistranslation would show up here as a type error.
-* *Not proved*: each theorem's proof is `sorry` (37 of them at the time of
-  writing). That is why this directory is **not** a source root of the `HachiEquiv`
-  Lake library (see `hachi/lakefile.lean`): `lake build` does not look at it, so
-  `make build`'s "no errors, no `sorry`" cannot be diluted by anything here. Hard
+* *Not proved*: nearly every theorem's proof is `sorry` (35 of them at the time of
+  writing; `RqBridge.mul_spec` is the exception). That is why this directory is **not**
+  a source root of the `HachiEquiv` Lake library (see `hachi/lakefile.lean`): `lake
+  build` does not look at it, so `make build`'s "no errors, no `sorry`" cannot be
+  diluted by anything here. Hard
   rule 5 of this project is that no `sorry` may sit anywhere `Check.lean` reaches.
 
 What *is* proved lives in `lean/` and is audited: the base field
-(`lean/Field.lean`) and the coefficient level of the ring (`lean/Ring.lean`,
-everything but `mul`). `lean/Check.lean` § 4 prints the axiom dependencies of each,
-and they come out as the three Lean kernel axioms and nothing else.
+(`lean/Field.lean`) and the whole coefficient level of the ring (`lean/Ring.lean`, `mul`
+included). `lean/Check.lean` § 4 prints the axiom dependencies of each, and they come out
+as the three Lean kernel axioms and nothing else.
 
 ## The files
 
@@ -27,8 +28,8 @@ Its *definitions* are proved, and they are the useful part: `toRq` (a coefficien
 vector read as an element of `Rq Φ`), `toRq_coeff` (its coefficients, via ArkLib's
 `ofFinCoeff_coeff`), and `toRq_eq_iff` (two represented elements are equal exactly
 when their coefficients agree below `N`). Given those, most of the `sorry`s below
-them are short: `add_spec` is `Ring.add_spec` plus ArkLib's `add_val`. The
-exception is `mul_spec`, whose plan is written out at the end of the file.
+them are short: `add_spec` is `Ring.add_spec` plus ArkLib's `add_val`. The exception was
+`mul_spec`, and it is now proved -- so the file's remaining `sorry`s are all bookkeeping.
 
 **`Scheme.lean`** — the same for `linalg`, `gadget` and `commit`, including the
 structure bridges (`toParams`, `toDecompSpec`, `toOpening`) that let

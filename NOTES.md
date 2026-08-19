@@ -494,9 +494,9 @@ Result (ControlFlow (ring.Rq × (alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
 ```
 
 which says exactly what the invariant has to be about: a partial convolution held
-in a `Vec` that is being written through `index_mut`. That is why `mul_spec` is
-the one obligation in `lean-wip/Ring.lean` with a written-out proof plan rather
-than a one-line strategy note.
+in a `Vec` that is being written through `index_mut`. That is the shape
+`Ring.mul_loop1_loop0_spec` proves, and the only place in the development where the
+accumulator moves by `Vec.set` rather than by `push`.
 
 **The `Vec` model covers what these modules use, and nothing more.**
 `alloc.vec.Vec.new`, `.push`, `.len`, `.index` and `.index_mut` all appear in
@@ -621,10 +621,11 @@ down is what settled a question in the Rust:
   satisfied by a verifier that rejects everything — the one failure mode no
   correctness test can see.
 
-The hard obligation is `mul_spec`: a schoolbook convolution with the `X^N = -1`
+The hard obligation was `mul_spec`: a schoolbook convolution with the `X^N = -1`
 sign folded into the inner loop, against `reduce (a.val * b.val)` via `modByMonic`.
-Its proof plan is written out in the file. Nothing here is checked; see the first
-entry of this section, and `lean-wip/README.md` for the promotion procedure.
+It is proved — the coefficient half in `lean/Ring.lean` and audited, the `modByMonic`
+half here. Nothing else in this file is checked; see the first entry of this section,
+and `lean-wip/README.md` for the promotion procedure.
 
 ---
 
@@ -768,18 +769,19 @@ audited library, `make build` passing means:
 | `Fp` operator impls (`add`, `sub`, `mul`, `neg`) total and equal to `ZMod q` arithmetic | `lean/Field.lean` | **proved** |
 | `Fp::new` reduces (so `Red` is an invariant of construction) and `toK` is injective on reduced words | `lean/Field.lean` | **proved** |
 | `Rq::zero`, `add`, `sub`, `neg`, `scalar_mul` total, length-preserving, coefficientwise correct | `lean/Ring.lean` | **proved** |
-| `Rq::mul` (the negacyclic convolution) | `lean-wip/RqBridge.lean` | stated, plan written |
-| the lift of the above to ArkLib's `Rq Φ` | `lean-wip/RqBridge.lean` | stated; its *definitions* (`toRq`, `toRq_coeff`, `toRq_eq_iff`) proved |
+| `Rq::mul` (the negacyclic convolution) coefficientwise correct | `lean/Ring.lean` | **proved** |
+| `Rq::mul` against ArkLib's `Mul (Rq Φ)`, i.e. `modByMonic` against `X^N + 1` | `lean-wip/RqBridge.lean` | **proved** (unchecked by `make build`) |
+| the lift of the rest to ArkLib's `Rq Φ` | `lean-wip/RqBridge.lean` | stated; its *definitions* (`toRq`, `toRq_coeff`, `toRq_eq_iff`) proved |
 | `linalg`, `gadget`, `commit` | `lean-wip/Scheme.lean` | stated |
 
-Eleven `#print axioms` lines in `Check.lean` § 4 report
+Twelve `#print axioms` lines in `Check.lean` § 4 report
 `[propext, Classical.choice, Quot.sound]` for every proved spec — the three kernel
 axioms the README's trusted computing base names, and nothing else. No `sorryAx`,
 and no axiom from an un-whitelisted `cpoly` item.
 
 **Both `lean-wip` files typecheck**, which is a weaker claim than proved and a
 stronger one than plausible: `lake env lean` elaborates them against the pinned
-ArkLib specification with no errors, so all 37 remaining obligations are well-formed
+ArkLib specification with no errors, so all 35 remaining obligations are well-formed
 statements about the specification's own definitions at this crate's parameters. A
 mistranslation would have surfaced as a type error rather than waiting for a proof
 attempt.

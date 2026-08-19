@@ -13,8 +13,8 @@ is rather than where the statement is:
 | | where | status |
 |---|---|---|
 | `Fp` operator impls total and equal to `ZMod q` arithmetic | `lean/Field.lean` | **proved** |
-| ring operations total, length-preserving, coefficientwise correct | `lean/Ring.lean` | **partly proved** (`zero`, `add`) |
-| those coefficient facts lifted to `Rq Φ` | *this file* | stated |
+| ring operations total, length-preserving, coefficientwise correct | `lean/Ring.lean` | **proved** |
+| those coefficient facts lifted to `Rq Φ` | *this file* | stated, except `mul_spec` |
 
 Lifting is bookkeeping, and the two lemmas that do it are `toRq_coeff` (a
 coefficient of `toRq v` is the corresponding `coeffK v`, by ArkLib's
@@ -25,7 +25,12 @@ plus ArkLib's `add_val` — which says the reduction in `Rq.mk` does nothing for
 sum of two reduced representatives, i.e. exactly that addition is coefficientwise
 on both sides.
 
-`mul_spec` is the one that is not bookkeeping; its proof plan is at the bottom.
+`mul_spec` is the one that is not bookkeeping, and it is **proved**: the coefficient-level
+work is `Ring.mul_spec` (the nested loop invariants of the negacyclic convolution), and
+what this file adds is `mul_two_block` -- that reducing modulo `X^N + 1` is exactly the
+two-block fold with a minus sign, which is the specification's side of what the Rust does
+inline. ArkLib proves that identity too, but `private`ly, inside
+`NormBounds/MicciancioYoung.lean`, so it is re-proved here rather than imported.
 
 ## The one thing to check before trusting a statement here
 
@@ -125,6 +130,65 @@ theorem toRq_eq_iff (v w : ring.Rq) :
     · simp only [if_pos hk, h k hk]
     · simp only [if_neg hk]
 
+/-! ## The modulus as a Mathlib polynomial
+
+`mul_spec` is the only obligation that has to look inside `φ` rather than only at its
+degree: `modByMonic` is a `Polynomial` operation, so the three facts below are what carry
+`Φ.φ` across the `CPolynomial`/`Polynomial` boundary. -/
+
+/-- `φ = X^N + 1` as a Mathlib polynomial. `powTwoCyclotomic_toPoly` states it at
+`X^{2^α}`; the `norm_num` is what turns `2^6` into this crate's `N`. -/
+theorem phi_toPoly : Φ.φ.toPoly = (Polynomial.X : Polynomial (ZMod q)) ^ N + 1 := by
+  rw [show Φ.φ = (powTwoCyclotomic (R := ZMod q) α).φ from rfl,
+    CyclotomicModulus.powTwoCyclotomic_toPoly]
+  norm_num
+
+/-- `deg φ = N` as a `WithBot ℕ`. The `natDegree` version is `phi_natDegree`; this is the
+form the degree bounds on reduced representatives come in. -/
+theorem phi_degree : Φ.φ.toPoly.degree = (N : WithBot ℕ) := by
+  rw [phi_toPoly,
+    show ((Polynomial.X : Polynomial (ZMod q)) ^ N + 1)
+      = Polynomial.X ^ N + Polynomial.C 1 by rw [Polynomial.C_1]]
+  exact Polynomial.degree_X_pow_add_C (by norm_num) 1
+
+/-- **Negacyclic two-block coefficient identity.**  Reducing a polynomial of degree `< 2n`
+modulo the monic `X^n + 1` mixes only the coefficient blocks `k` and `n + k`. -/
+theorem coeff_modByMonic_X_pow_add_one {R : Type*} [CommRing R] [Nontrivial R] {n : ℕ}
+    (hn : 0 < n) (P : Polynomial R) (hP : P.natDegree < 2 * n) {k : ℕ} (hk : k < n) :
+    (P %ₘ (Polynomial.X ^ n + 1)).coeff k = P.coeff k - P.coeff (n + k) := by
+  classical
+  open Polynomial in
+  set g : Polynomial R := X ^ n + 1 with hgdef
+  have hg : g.Monic := by rw [hgdef, ← C_1]; exact monic_X_pow_add_C (1 : R) hn.ne'
+  have hgdeg : g.degree = (n : ℕ) := by rw [hgdef, ← C_1]; exact degree_X_pow_add_C hn 1
+  have hgnd : g.natDegree = n := by rw [hgdef, ← C_1]; exact natDegree_X_pow_add_C
+  set Q : Polynomial R := P /ₘ g with hQdef
+  have hsum : P %ₘ g + g * Q = P := modByMonic_add_div P g
+  have hQnd : Q.natDegree < n := by
+    have hh : Q.natDegree = P.natDegree - n := by rw [hQdef, natDegree_divByMonic P hg, hgnd]
+    omega
+  have hRrlt : (P %ₘ g).degree < (n : WithBot ℕ) := by
+    rw [← hgdeg]; exact degree_modByMonic_lt P hg
+  have hcoeff : ∀ m : ℕ, P.coeff m
+      = (P %ₘ g).coeff m + ((if n ≤ m then Q.coeff (m - n) else 0) + Q.coeff m) := by
+    intro m
+    have hgQ : g * Q = Q * X ^ n + Q := by rw [hgdef]; ring
+    have hP' : P = (P %ₘ g) + (Q * X ^ n + Q) := by rw [← hgQ, hsum]
+    conv_lhs => rw [hP']
+    rw [coeff_add, coeff_add, coeff_mul_X_pow']
+  have hk' : ¬ n ≤ k := by omega
+  have hPk := hcoeff k
+  rw [if_neg hk'] at hPk
+  have hPnk := hcoeff (n + k)
+  rw [if_pos (Nat.le_add_right n k)] at hPnk
+  have hRr0 : (P %ₘ g).coeff (n + k) = 0 :=
+    coeff_eq_zero_of_degree_lt (lt_of_lt_of_le hRrlt (by exact_mod_cast Nat.le_add_right n k))
+  have hQ0 : Q.coeff (n + k) = 0 :=
+    coeff_eq_zero_of_natDegree_lt (lt_of_lt_of_le hQnd (Nat.le_add_right n k))
+  have hsub : n + k - n = k := by omega
+  rw [hsub, hRr0, hQ0] at hPnk
+  rw [hPk, hPnk]; ring
+
 /-! ## The obligations
 
 Each is the corresponding `lean/Ring.lean` theorem lifted through `toRq_eq_iff`,
@@ -201,30 +265,80 @@ theorem copy_spec (a : ring.Rq) (ha : Wf a) :
     ring.Rq.copy a ⦃ z => Wf z ∧ toRq z = toRq a ⦄ := by
   sorry
 
-/-- `Rq::mul` — **the substantial one.** The Rust is a schoolbook convolution that
-folds the wraparound in as it goes: the term `aᵢbⱼ` is *added* into slot `i + j`
-when that is below `N` and *subtracted* from slot `i + j - N` otherwise. The
-specification's `Mul` is `Rq.mk Φ (a.val * b.val)`, i.e. the raw `CPolynomial`
-product followed by `modByMonic` against `X^N + 1`.
+/-- The product of two reduced representatives, coefficientwise: the raw `CPolynomial`
+product folded at `N` with a minus sign. This is the specification side of the sign the
+Rust folds in as it goes -- a public re-proof of ArkLib's `coeff_mul_rq_two_block`, which
+is `private` to `NormBounds/MicciancioYoung.lean` and so cannot be imported. -/
+theorem mul_two_block (x y : Rq Φ) {k : ℕ} (hk : k < N) :
+    (x * y).1.coeff k
+      = (x.1.toPoly * y.1.toPoly).coeff k - (x.1.toPoly * y.1.toPoly).coeff (N + k) := by
+  have hN : 0 < N := by norm_num
+  have hnd : ∀ z : Rq Φ, z.1.toPoly.natDegree < N := by
+    intro z
+    by_cases h : z.1.toPoly = 0
+    · rw [h, Polynomial.natDegree_zero]; exact hN
+    · rw [Polynomial.natDegree_lt_iff_degree_lt h]
+      calc z.1.toPoly.degree < Φ.φ.toPoly.degree := Φ.degree_toPoly_lt_of_reduced z.2
+        _ = (N : WithBot ℕ) := phi_degree
+  have hmul : (x * y).1 = Φ.reduce (x.1 * y.1) := rfl
+  rw [hmul, CompPoly.CPolynomial.coeff_toPoly, Φ.reduce_toPoly,
+    CompPoly.CPolynomial.toPoly_mul, phi_toPoly]
+  refine coeff_modByMonic_X_pow_add_one hN _ ?_ hk
+  calc (x.1.toPoly * y.1.toPoly).natDegree
+      ≤ x.1.toPoly.natDegree + y.1.toPoly.natDegree := Polynomial.natDegree_mul_le
+    _ < 2 * N := by have := hnd x; have := hnd y; omega
 
-Proof plan, for whoever finishes it. Three steps, and only the middle one is work:
+/-- For a well-formed vector the `if k < N` in `toRq_coeff` is vacuous: past the end the
+vector reads `0` and so does `coeffK`, so the represented polynomial agrees with `coeffK`
+at *every* index. -/
+private theorem toRq_coeff_eq_coeffK {v : ring.Rq} (hv : Wf v) (m : ℕ) :
+    (toRq v).1.coeff m = coeffK v m := by
+  rw [toRq_coeff]
+  by_cases hm : m < N
+  · rw [if_pos hm]
+  · rw [if_neg hm, coeffK_of_ge (by rw [hv.1]; exact Nat.le_of_not_lt hm)]
 
-1. **The loops.** Two nested `loop.spec_decr_nat`s, as in `lean/Ring.lean`'s
-   `add_loop_spec` but with the accumulator threaded through `index_mut` rather
-   than `push`. The inner invariant is the partial convolution: after `j`
-   iterations of the pass for row `i`, slot `k` holds
-   `Σ_{i' < i, j' < N} ± aᵢ'bⱼ' + Σ_{j' < j} ± aᵢbⱼ'`, the sign being negative
-   exactly when `i' + j' ≥ N`. Totality is `Field.fp_add_spec` /
-   `fp_sub_spec` / `fp_mul_spec` at every step, plus `i + j < 2N` not overflowing
-   `Usize`, which `scalar_tac` gets from the loop bounds.
-2. **The closed form.** The result satisfies
-   `coeffK c k = Σ_{i+j=k} aᵢbⱼ - Σ_{i+j=k+N} aᵢbⱼ`, and what has to be shown is
-   that this is the `k`-th coefficient of `(a * b) %ₘ (X^N + 1)`. The way in is
-   `Rq.lean`'s `reduce_toPoly` (reduction *is* `%ₘ`) plus `X^N ≡ -1`; ArkLib's
-   `Subfield/Basis.lean` has the power-of-two coefficient machinery.
-3. **The lift**, exactly as for `add_spec`: `toRq_eq_iff` and `Rq.mk_mul`. -/
+/-- Coefficient `k` of the specification's product of two represented vectors is the
+coefficient-level `negConv`: the step that closes the gap between the spec's `modByMonic`
+and the Rust's wraparound. -/
+theorem coeff_toRq_mul (a b : ring.Rq) (ha : Wf a) (hb : Wf b) {k : ℕ} (hk : k < N) :
+    (toRq a * toRq b).1.coeff k = negConv a b k := by
+  -- The two-block identity turns the `Rq` product into a difference of two raw
+  -- `Polynomial` coefficients, and `Polynomial.coeff_mul` turns each into an
+  -- antidiagonal sum — which is exactly the shape of `negConv`.
+  have hsum : ∀ m : ℕ,
+      (∑ p ∈ Finset.antidiagonal m,
+        (toRq a).1.toPoly.coeff p.1 * (toRq b).1.toPoly.coeff p.2)
+      = ∑ p ∈ Finset.antidiagonal m, coeffK a p.1 * coeffK b p.2 := by
+    intro m
+    refine Finset.sum_congr rfl fun p _ => ?_
+    rw [← CPolynomial.coeff_toPoly, ← CPolynomial.coeff_toPoly,
+      toRq_coeff_eq_coeffK ha, toRq_coeff_eq_coeffK hb]
+  rw [mul_two_block _ _ hk, Polynomial.coeff_mul, Polynomial.coeff_mul, hsum, hsum, negConv]
+
+/-- `Rq::mul` -- **the substantial one.** The Rust is a schoolbook convolution that folds
+the wraparound in as it goes: the term `aᵢbⱼ` is *added* into slot `i + j` when that is
+below `N` and *subtracted* from slot `i + j - N` otherwise. The specification's `Mul` is
+`Rq.mk Φ (a.val * b.val)`, i.e. the raw `CPolynomial` product followed by `modByMonic`
+against `X^N + 1`.
+
+The three steps are the three lemmas it rests on. `Ring.mul_spec` is the work: the nested
+loop invariants, and the coefficientwise closed form `negConv`. `mul_two_block` is the
+specification side of the same fold -- that reducing modulo `X^N + 1` subtracts the block
+at `N + k` from the block at `k`, and nothing else. `coeff_toRq_mul` is the two meeting,
+through `Polynomial.coeff_mul`. What is left here is extensionality:
+`CPolynomial.eq_iff_coeff` below `N`, and `Rq.coeff_eq_zero_of_natDegree_le` above it. -/
 theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
     ring.Rq.mul a b ⦃ c => Wf c ∧ toRq c = toRq a * toRq b ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.mul_spec a b ha hb)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hcoef k hk, coeff_toRq_mul a b ha hb hk]
+  · rw [toRq_coeff, if_neg hk]
+    exact (Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)).symm
 
 end HachiEquiv.RqBridge

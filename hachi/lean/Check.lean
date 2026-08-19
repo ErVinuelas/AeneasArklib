@@ -300,11 +300,11 @@ printed here is a build failure rather than a silent debt. The expected output i
 the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 `Quot.sound`, which are the ones the README's trusted computing base names.
 
-What is here: the base field (`lean/Field.lean`), and the coefficient level of the
-ring (`lean/Ring.lean`) except for `mul`. What is not: `Rq::mul`, and everything
-about `Rq Φ`, `linalg`, `gadget` and `commit` -- those are stated in `lean-wip/` and
-not proved, and each adds its `#print axioms` line here as it lands, which is step 3
-of the promotion procedure in `lean-wip/README.md`. -/
+What is here: the base field (`lean/Field.lean`), and the whole coefficient level of
+the ring (`lean/Ring.lean`), `mul` included. What is not: everything about `Rq Φ`,
+`linalg`, `gadget` and `commit` -- those are stated in `lean-wip/` and not proved, and
+each adds its `#print axioms` line here as it lands, which is step 3 of the promotion
+procedure in `lean-wip/README.md`. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
@@ -315,12 +315,14 @@ of the promotion procedure in `lean-wip/README.md`. -/
 
 -- The ring layer, at the coefficient level (`lean/Ring.lean`): each operation
 -- total, length-preserving, and coefficientwise equal to `ZMod q` arithmetic.
--- `mul` is absent because it is not proved -- it is the negacyclic convolution, and
--- its plan is in `lean-wip/Ring.lean`.
+-- `mul` is the negacyclic convolution, so its coefficientwise statement is `negConv`:
+-- the `k`-th antidiagonal of the raw product minus its `(N + k)`-th, which is
+-- `(a * b) mod (X^N + 1)` written out.
 #print axioms HachiEquiv.Ring.zero_spec
 #print axioms HachiEquiv.Ring.add_spec
 #print axioms HachiEquiv.Ring.sub_spec
 #print axioms HachiEquiv.Ring.neg_spec
 #print axioms HachiEquiv.Ring.scalar_mul_spec
+#print axioms HachiEquiv.Ring.mul_spec
 
 end HachiEquiv.Check

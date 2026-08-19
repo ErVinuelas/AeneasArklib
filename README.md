@@ -40,15 +40,17 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > `make build` passes, and it now checks real equivalence proofs. Proved and
 > audited: the base field ([`lean/Field.lean`](hachi/lean/Field.lean) — the four
-> `Fp` operator impls total and equal to `ZMod q` arithmetic) and the coefficient
-> level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — `zero`, `add`,
-> `sub`, `neg`, `scalar_mul` total, length-preserving and coefficientwise correct).
+> `Fp` operator impls total and equal to `ZMod q` arithmetic) and the whole
+> coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — `zero`,
+> `add`, `sub`, `neg`, `scalar_mul` and `mul` total, length-preserving and
+> coefficientwise correct, `mul` being the negacyclic convolution).
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all eleven proved specs: the three Lean kernel axioms, nothing else.
+> of all twelve proved specs: the three Lean kernel axioms, nothing else.
 >
-> The remaining obligations — `Rq::mul`, the lift to ArkLib's `Rq Φ`, and all of
-> `linalg`/`gadget`/`commit` — are *stated* but not proved, in
+> The remaining obligations — the lift of the ring layer to ArkLib's `Rq Φ` (bar
+> `mul`, which is proved) and all of `linalg`/`gadget`/`commit` — are *stated* but
+> not proved, in
 > [`hachi/lean-wip/`](hachi/lean-wip/): deliberately not a Lake root, so their
 > `sorry`s cannot dilute what `make build` guarantees. They do **typecheck** against
 > the pinned specification, which is what makes them statements about ArkLib's own
