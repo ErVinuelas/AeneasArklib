@@ -154,10 +154,16 @@ dependencies = [
 [[package]]
 name = "hachi-candidate"
 version = "0.0.0"
+dependencies = [
+ "cpoly",
+]
 
 [[package]]
 name = "hachi-genesis"
 version = "0.0.0"
+dependencies = [
+ "cpoly",
+]
 
 [[package]]
 name = "half"

@@ -34,6 +34,22 @@ bench = false
 name = "params_semantics"
 bench = false
 
+[[test]]
+name = "ring_semantics"
+bench = false
+
+[[test]]
+name = "linalg_semantics"
+bench = false
+
+[[test]]
+name = "gadget_semantics"
+bench = false
+
+[[test]]
+name = "commit_semantics"
+bench = false
+
 # This is the thing Aeneas extracts, so every entry here has to survive charon.
 # The field layer is NOT reimplemented: `Fp` (the Hachi prime `2^32 - 99`) and
 # `Ext4` come from AeneasCompPoly's `cpoly` crate, which already carries their
@@ -105,7 +121,19 @@ codegen-units = 1
 debug = false
 
 [[bench]]
-name = "params"
+name = "ring"
+harness = false
+
+[[bench]]
+name = "linalg"
+harness = false
+
+[[bench]]
+name = "gadget"
+harness = false
+
+[[bench]]
+name = "commit"
 harness = false
 
 # Warn rather than deny: `make extract` builds this crate with charon's own
@@ -117,3 +145,50 @@ pedantic = { level = "warn", priority = -1 }
 must_use_candidate = "allow"
 missing_panics_doc = "allow"
 manual_div_ceil = "allow"
+
+# The four below are `allow` because clippy's suggestion is *worse* for the
+# extraction, which is this crate's purpose. Each is a real style rule elsewhere.
+#
+# `ptr_arg` wants `&[T]` where the code says `&Vec<T>`. The Aeneas `Vec` model is
+# what `lean/Generated.lean` is written against (`alloc.vec.Vec`, with `len`,
+# `index` and `push`); a slice argument adds a coercion at every call site for the
+# proofs to carry.
+ptr_arg = "allow"
+# `assign_op_pattern` wants `acc += x` where the code says `acc = acc + x`. The
+# latter extracts as a call to the field's `Add` impl, which is the operation the
+# specs are about; `+=` routes through `AddAssign`, a second impl with its own
+# extracted body saying the same thing.
+assign_op_pattern = "allow"
+# `cast_lossless` wants `u128::from(x)` where the code says `x as u128`. The cast
+# extracts as `lift (UScalar.cast .U128 x)`, which Aeneas models directly; `From`
+# is a trait call to be stepped through instead.
+cast_lossless = "allow"
+# `needless_range_loop` wants iterator adaptors, which have no Aeneas model at all
+# (`src/lib.rs` § "Style notes"). Index loops are the house style for that reason.
+needless_range_loop = "allow"
+
+# Naming and documentation opinions this crate does not share.
+#
+# `doc_markdown` wants backticks around every camel-case word, which here are
+# mostly proper nouns -- ArkLib, CompPoly, QuadEval, Greyhound. Backticking a
+# project's name renders it as code and reads as though it were an identifier.
+doc_markdown = "allow"
+# `len_without_is_empty`: `Rq::len` is the ring degree and `PolyVec::len` a
+# dimension. Neither type can be empty in any state this crate constructs, so an
+# `is_empty` would be a method that always answers `false` -- and `Vec::is_empty`
+# has no Aeneas model either.
+len_without_is_empty = "allow"
+# `len_zero` wants `Vec::is_empty`, which has no Aeneas model (see `Rq::copy`).
+len_zero = "allow"
+# `if_not_else` wants the negated guard swapped with its `else`. The guard-first
+# form is deliberate: the shape check that would make an operation meaningless
+# comes before the loop, which is the order the equivalence statements read in
+# (hypothesis, then body).
+if_not_else = "allow"
+# `return_self_not_must_use`: every function here is pure and its result is the
+# only reason to call it, which is why `must_use_candidate` is already allowed.
+return_self_not_must_use = "allow"
+# `many_single_char_names`: `i`, `j`, `k`, `e`, `n` are the index names the
+# specification itself uses (`coeff k`, `digit c e`), and matching them is what
+# makes a loop readable next to the Lean it mirrors.
+many_single_char_names = "allow"

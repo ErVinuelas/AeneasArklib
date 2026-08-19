@@ -118,19 +118,32 @@ $(STAMPS):
 # Lean side: elan, then the dependency graph pinned in lake-manifest.json, then
 # Mathlib's prebuilt oleans. Re-runs if either pin file moves -- notably after a
 # `lake update`.
+#
+# The elan install is delegated to scripts/install-lean.sh rather than inlined,
+# because it has a fallback worth explaining at length: elan's own host and Lean's
+# release host are separate from GitHub, and a sandbox with an egress allowlist
+# commonly permits GitHub and nothing else. The script tries the normal path first
+# and unpacks the GitHub release assets if it is refused. It cannot do the same for
+# the olean cache below -- there is no GitHub mirror of that -- which is why the
+# failure there is a warning and not an error.
 $(LEAN_STAMP): $(PKG)/lean-toolchain $(PKG)/lake-manifest.json | $(STAMPS)
 	@echo '==> Lean toolchain and dependencies'
 	@set -euo pipefail; \
-	if ! command -v elan >/dev/null; then \
-	  echo '    installing elan (Lean toolchain manager)'; \
-	  curl -fsSL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none; \
-	fi; \
+	'$(CURDIR)/scripts/install-lean.sh' '$(PKG)/lean-toolchain'; \
 	echo "    elan $$(elan --version | awk '{print $$2}'), toolchain $$(cat $(PKG)/lean-toolchain)"
 	@set -euo pipefail; cd $(PKG); \
 	if ! lake exe cache get; then \
 	  echo 'warning: `lake exe cache get` failed. The build will still work, but it' >&2; \
-	  echo '         will compile Mathlib from source, which takes hours. Re-run' >&2; \
-	  echo '         `make setup` to retry the cache download.' >&2; \
+	  echo '         will compile Mathlib (and ArkLib) from source, which takes hours.' >&2; \
+	  echo '         Re-run `make setup` to retry the cache download.' >&2; \
+	  echo '' >&2; \
+	  echo '         If every object failed with a 403 or a refused CONNECT, this is' >&2; \
+	  echo '         not a transient error: the cache lives on cache.lean-lang.org, and' >&2; \
+	  echo '         an egress policy that allows only GitHub blocks all of it. There is' >&2; \
+	  echo '         no mirror to fall back to (scripts/install-lean.sh handles the' >&2; \
+	  echo '         toolchain that way, but cannot do it for oleans), so on such a host' >&2; \
+	  echo '         the source build is the only route -- budget hours, and see' >&2; \
+	  echo '         NOTES.md "What this environment could and could not check".' >&2; \
 	fi
 	@set -euo pipefail; \
 	backend='$(PKG)/.lake/packages/aeneas'; \
