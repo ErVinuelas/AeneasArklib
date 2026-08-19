@@ -60,4 +60,4 @@ package «HachiEquiv» where
 @[default_target]
 lean_lib «HachiEquiv» where
   srcDir := "lean"
-  roots := #[`Generated, `Check]
+  roots := #[`Generated, `Field, `Ring, `Check]

@@ -9,11 +9,20 @@
 //! well means a bad parameter edit fails in seconds rather than at the end of a
 //! Lean build.
 //!
-//! This is also the whole of `make test` for now, since Workstream 0 implements
-//! no operations.
+//! The dimensions and norm bounds added for the commitment layer are checked the
+//! same way, and for two further reasons: `GAMMA` and `BETA_SQ` are *derived*
+//! quantities written as literals (Aeneas models `const` arithmetic as fallible,
+//! so a derived form would extract as a `Result`), and `KAPPA` sits on a ceiling
+//! that only holds at this modulus.
+
+// Every assertion here is *about* a constant -- that is the file's purpose, so
+// clippy's "this assertion has a constant value" is the expected state and not a
+// finding. The cast is to `u32` for `pow`, on values below 64.
+#![allow(clippy::assertions_on_constants, clippy::cast_possible_truncation)]
 
 use hachi::params::{
-    EXT_DEGREE, EXT_W, GADGET_BASE, GADGET_DIGITS, Q, RING_DEGREE, RING_LOG_DEGREE,
+    BETA_SQ, BLOCKS, EXT_DEGREE, EXT_W, GADGET_BASE, GADGET_DIGITS, GAMMA, INNER_ROWS, KAPPA,
+    MESSAGE_ROWS, OUTER_ROWS, Q, RING_DEGREE, RING_LOG_DEGREE,
 };
 
 /// `a * b mod m` without overflow, for `m < 2^32`.
@@ -127,4 +136,69 @@ fn gadget_digits_are_minimal() {
 #[test]
 fn q_agrees_with_the_field_layer() {
     assert_eq!(Q, cpoly::field::P);
+}
+
+/// `GAMMA` is the `ℓ∞` bound the honest decomposition meets, which
+/// `Gadget/Norms.lean`'s `gadgetDecompose_zmod_vecLInftyNorm_le` proves to be
+/// `b - 1`. It is a literal in `params.rs`, so nothing but this keeps it in step
+/// with the base.
+#[test]
+fn gamma_is_the_digit_bound() {
+    assert_eq!(GAMMA, GADGET_BASE - 1);
+}
+
+/// The digit bound above holds only under `b - 1 ≤ q/2` (`zmodDigit_natAbs_le`),
+/// which is what stops a small *non-negative* digit from wrapping to a negative
+/// centered representative.
+#[test]
+fn digit_bound_side_condition_holds() {
+    assert!(GADGET_BASE - 1 <= Q / 2);
+}
+
+/// `BETA_SQ` is `(messageRows · messageDigits) · (deg φ) · (b-1)²`, the
+/// `ℓ₂²` bound of `gadgetDecompose_zmod_vecL2NormSq_le` at these dimensions.
+/// Also a literal, for the same reason as `GAMMA`.
+#[test]
+fn beta_sq_is_the_honest_l2_bound() {
+    let expected =
+        (MESSAGE_ROWS * GADGET_DIGITS) as u128 * RING_DEGREE as u128 * u128::from(GAMMA).pow(2);
+    assert_eq!(BETA_SQ, expected);
+}
+
+/// `KAPPA` is capped by the Lyubashevsky-Seiler invertibility lemma
+/// (`isUnit_of_l1Norm_le`), which needs `κ² < q`: that is what turns the
+/// verifier's `0 < ‖c‖₁ ≤ κ` into the invertibility a weak opening actually
+/// requires. `κ` is a rejection threshold, so `params.rs` takes the ceiling --
+/// and both halves of that claim are checked: it is legal, and one more would
+/// not be.
+#[test]
+fn kappa_is_the_invertibility_ceiling() {
+    assert!(u128::from(KAPPA).pow(2) < u128::from(Q));
+    assert!(u128::from(KAPPA + 1).pow(2) >= u128::from(Q));
+}
+
+/// The other half of that lemma's hypothesis: `q % 8 = 5`. Unlike `κ`, this is
+/// not a choice -- it is a property of the Hachi prime, and without it the
+/// invertibility argument (and so the meaning of the `κ` check) is gone.
+#[test]
+fn q_is_five_mod_eight() {
+    assert_eq!(Q % 8, 5);
+}
+
+/// The honest challenge is `c = 1`, whose `ℓ₁` norm is `1`; the verifier's
+/// `0 < ‖c‖₁ ≤ κ` must admit it, or nothing this crate produces would verify.
+#[test]
+fn the_honest_challenge_is_admissible() {
+    assert!(KAPPA >= 1);
+}
+
+/// The matrix dimensions are the ones the specification's `PublicParams` shapes
+/// are built from, and each has to be at least 2 for the structure it exists to
+/// exercise -- more than one row, more than one block -- to be exercised at all.
+#[test]
+fn dimensions_are_nondegenerate() {
+    assert!(MESSAGE_ROWS >= 2);
+    assert!(INNER_ROWS >= 2);
+    assert!(OUTER_ROWS >= 2);
+    assert!(BLOCKS >= 2);
 }

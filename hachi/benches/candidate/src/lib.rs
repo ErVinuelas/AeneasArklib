@@ -1,4 +1,4 @@
-//! The optimization loop's **candidate slot**, currently empty.
+//! The optimization loop's **candidate slot**.
 //!
 //! At rest this crate is a byte-copy of `hachi/src/` — a null candidate, so a
 //! default `make run-bench` measures exactly what it measured before the slot
@@ -6,9 +6,11 @@
 //! candidate under test, which is what lets a candidate and the current champion
 //! be measured *in the same criterion session* rather than across two runs.
 //!
-//! It is empty now because `hachi/src/` holds no operation worth optimizing yet:
-//! the parameters are `const`s and `smoke.rs` is a throwaway extraction probe.
-//! The slot fills when the first real module lands.
+//! It holds the four bottom-layer modules, byte-identical to `hachi/src/`.
+//!
+//! The `cpoly` dependency is taken here for the same reason it is taken in
+//! `benches/genesis/` (see that crate's `src/lib.rs`): the frozen and copied
+//! modules use `Fp`, and `hachi`'s pin is what keeps the slot comparable.
 //!
 //! Unlike `benches/genesis/`, nothing here is append-only or historically
 //! meaningful — it is scratch space, and every run overwrites it. The one rule
@@ -21,3 +23,13 @@
 #![allow(warnings, clippy::all, clippy::pedantic)]
 
 extern crate alloc;
+
+pub mod params;
+
+pub mod ring;
+
+pub mod linalg;
+
+pub mod gadget;
+
+pub mod commit;

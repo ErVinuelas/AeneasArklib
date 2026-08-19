@@ -5,11 +5,12 @@
 //!
 //! # Status
 //!
-//! Workstream 0: the scaffold. What is here is [`params`] -- every parameter of
-//! the scheme as a `const` -- and [`smoke`], a temporary probe that exists only
-//! to answer whether charon can follow the `cpoly` dependency across the crate
-//! boundary. No part of the scheme itself is implemented yet. [`smoke`] goes
-//! away when the first real module lands.
+//! The spec-stable bottom layers of the scheme: the ring, the linear algebra
+//! over it, the Ajtai gadget and the inner-outer commitment. The protocol layer
+//! (the per-link provers and verifiers -- QuadEval fold, ring switching,
+//! zero-check, sumcheck, final evaluation) is deliberately absent: its ArkLib
+//! specification still has unfilled definitional parameters, so there is nothing
+//! stable to be equivalent *to* yet.
 //!
 //! # Layout
 //!
@@ -18,6 +19,17 @@
 //! `hachi.<module>.<item>` (see `lean/Generated.lean`).
 //!
 //! * [`params`] -- the parameters, and where each one comes from.
+//! * [`ring`] -- `R_q = Z_q[X] / (X^N + 1)`, the negacyclic ring
+//!   (`Data/Lattices/CyclotomicRing/Rq.lean`).
+//! * [`linalg`] -- vectors and matrices over `R_q`
+//!   (`Data/Lattices/Vectors.lean`).
+//! * [`gadget`] -- base-`b` digit decomposition and the gadget matrix `G`
+//!   (`Commitments/Functional/Hachi/Gadget/Core.lean`).
+//! * [`commit`] -- the inner-outer Ajtai commitment and its weak-opening
+//!   verifier (`Commitments/Functional/Hachi/InnerOuter/Scheme.lean`).
+//!
+//! The layering is strict and bottom-up: `linalg` uses `ring`, `gadget` uses
+//! both, `commit` uses all three. Nothing reaches back up.
 //!
 //! The coefficient field is *not* in this crate. `Fp` (the Hachi prime
 //! `2^32 - 99`) and its quartic extension `Ext4` come from the `cpoly` crate of
@@ -62,10 +74,26 @@
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![warn(missing_debug_implementations)]
+// Deliberately off, and measured rather than assumed. A `Debug` impl -- derived
+// or hand-written -- is extracted like any other code, and it brings
+// `core::fmt::Formatter`, `Dyn.mk` and `debug_tuple_field1_finish` into
+// `lean/Generated.lean` with it. Aeneas *does* model all three
+// (`Aeneas/Std/Core/Fmt.lean`), so this is not a case of an axiom sneaking in;
+// it is that the extracted model is the thing the equivalence proofs are about,
+// and formatting plumbing in it is four items per type that no proof will ever
+// mention. The types here are compared with `equals` and printed by the test
+// helpers that need them. See NOTES.md § "Derives extract, and are still not
+// worth it".
+#![allow(missing_debug_implementations)]
 
 extern crate alloc;
 
 pub mod params;
 
-pub mod smoke;
+pub mod ring;
+
+pub mod linalg;
+
+pub mod gadget;
+
+pub mod commit;

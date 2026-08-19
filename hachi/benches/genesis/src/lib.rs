@@ -1,12 +1,12 @@
-//! **Frozen, and currently empty.** The first translation of every `hachi`
-//! operation, kept so that the optimization loop always has a starting point it
-//! can *re-measure* rather than merely remember.
+//! **Frozen.** The first translation of every `hachi` operation, kept so that the
+//! optimization loop always has a starting point it can *re-measure* rather than
+//! merely remember.
 //!
-//! Nothing is frozen here yet. Workstream 0 built the scaffold; the only code in
-//! `hachi/src/` besides the parameters is `smoke.rs`, a throwaway extraction
-//! probe, and freezing a throwaway into an append-only baseline is precisely the
-//! mistake this file's contract exists to prevent. The first entry arrives with
-//! the first real module.
+//! The first entries are the four bottom-layer modules -- `ring`, `linalg`,
+//! `gadget`, `commit` -- plus the `params` they read, frozen in the commit that
+//! introduced them. Nothing was frozen before that: the scaffold's only code was
+//! a throwaway extraction probe, and freezing a throwaway into an append-only
+//! baseline is precisely the mistake this file's contract exists to prevent.
 //!
 //! # Why a whole crate exists for this
 //!
@@ -43,15 +43,26 @@
 //!    *frozen* arithmetic below it, not today's. So "vs genesis" is the cumulative
 //!    improvement over the first translation of the whole call chain.
 //!
-//! # The open question this crate has with the field layer
+//! # The field layer: how the "no dependencies" rule was settled
 //!
 //! Point 4 and the "no dependencies, ever" rule in `Cargo.toml` pull against the
-//! way `hachi` currently reaches its coefficient field. `hachi` depends on the
-//! `cpoly` crate for `Fp`/`Ext4`, so a frozen copy of a `hachi` module that uses
-//! the field cannot compile here without that same dependency — and taking it
-//! would mean the baseline drifts whenever `cpoly` does, which is exactly what
-//! point 1 forbids. Vendoring the field into `hachi/src/` resolves it; depending
-//! on `cpoly` as a crate does not. See NOTES.md § "The cpoly dependency".
+//! way `hachi` reaches its coefficient field: `hachi` depends on the `cpoly`
+//! crate for `Fp`, so a frozen copy of a `hachi` module cannot compile here
+//! without that same dependency.
+//!
+//! Resolved in favour of taking the dependency, at `hachi`'s own pinned `rev`.
+//! What the rule protects against is *drift* -- a baseline whose speed changes
+//! without anyone freezing anything -- and a `rev` pin cannot drift: moving it is
+//! an edit to `hachi/Cargo.toml`, which NOTES.md § "The cpoly dependency" already
+//! designates a deliberate act with a re-baseline attached. The alternatives were
+//! both worse: vendoring `field.rs` into `hachi/src/` would undo the Workstream 0
+//! decision that the field is a dependency rather than a copy, and freezing a
+//! *second* copy of it here would put two implementations of the field in one
+//! bench binary and invite the two from diverging silently.
+//!
+//! This paragraph was written before anything was frozen, which is why editing it
+//! did not break contract point 1: there was no measurement yet for it to rewrite
+//! the history of.
 
 #![no_std]
 #![forbid(unsafe_code)]
@@ -61,3 +72,13 @@
 #![allow(warnings, clippy::all, clippy::pedantic)]
 
 extern crate alloc;
+
+pub mod params;
+
+pub mod ring;
+
+pub mod linalg;
+
+pub mod gadget;
+
+pub mod commit;

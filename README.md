@@ -27,11 +27,40 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
-> **Status: scaffold.** Workstream 0 is complete — the toolchain round-trips
-> (`make setup && make extract && make build`), the field layer is wired, and the
-> parameters are fixed and checked. No operation of the scheme is implemented
-> yet, so there are no equivalence proofs yet either. [`NOTES.md`](NOTES.md)
-> records what was decided and what was deferred.
+> **Status: the bottom layers are implemented, tested and extracted; the
+> equivalence proofs are stated but not proved.**
+>
+> Four modules are in place — [`ring`](hachi/src/ring.rs) (the negacyclic ring
+> `R_q = Z_q[X]/(X^N+1)`), [`linalg`](hachi/src/linalg.rs),
+> [`gadget`](hachi/src/gadget.rs) (base-`b` digit decomposition and the gadget
+> matrix) and [`commit`](hachi/src/commit.rs) (the inner-outer Ajtai commitment
+> and its weak-opening verifier). 66 tests pass, including perfect correctness and
+> every rejection path of the verifier; `make extract` produces a model with no
+> axioms and no opaque bodies; each module has a criterion bench.
+>
+> `make build` passes, and it now checks real equivalence proofs. Proved and
+> audited: the base field ([`lean/Field.lean`](hachi/lean/Field.lean) — the four
+> `Fp` operator impls total and equal to `ZMod q` arithmetic) and the coefficient
+> level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — `zero`, `add`,
+> `sub`, `neg`, `scalar_mul` total, length-preserving and coefficientwise correct).
+> [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
+> discharge the specification's side conditions, and prints the axiom dependencies
+> of all eleven proved specs: the three Lean kernel axioms, nothing else.
+>
+> The remaining obligations — `Rq::mul`, the lift to ArkLib's `Rq Φ`, and all of
+> `linalg`/`gadget`/`commit` — are *stated* but not proved, in
+> [`hachi/lean-wip/`](hachi/lean-wip/): deliberately not a Lake root, so their
+> `sorry`s cannot dilute what `make build` guarantees. They do **typecheck** against
+> the pinned specification, which is what makes them statements about ArkLib's own
+> definitions rather than paraphrases of them.
+> [`NOTES.md`](NOTES.md) § "The Lean side does build here" scores every claim in
+> this repository as verified or not, and
+> [`lean-wip/README.md`](hachi/lean-wip/README.md) says what has to happen before
+> a file moves into the audited library.
+>
+> The protocol layer (per-link provers and verifiers) is deliberately absent: its
+> ArkLib specification still has unfilled definitional parameters, so there is
+> nothing stable to be equivalent to.
 
 ## Usage
 
@@ -46,7 +75,12 @@ make run-bench # time every operation
 
 A fresh clone needs `make setup` once. It takes a few minutes, and installs
 nothing system-wide: the extraction binaries go in `./toolchain`, the rest into
-the per-user directories elan and rustup manage.
+the per-user directories elan and rustup manage. On a host whose egress policy
+allows only GitHub it still works — [`scripts/install-lean.sh`](scripts/install-lean.sh)
+falls back to the GitHub release assets for elan and the toolchain — with one
+caveat it cannot fix: the Mathlib olean cache has no GitHub mirror, so `lake exe
+cache get` fails there and Mathlib and ArkLib compile from source, which is hours
+rather than minutes. `make setup` says so and continues.
 
 `make build` fails if any declaration under `lean/` uses `sorry`, or if `sorryAx`
 turns up in the axiom dependencies `Check.lean` prints.
@@ -60,13 +94,19 @@ elsewhere.
 ```
 Makefile              setup, build, test, extraction, benchmarks
 NOTES.md              decisions, spec observations, Aeneas surprises
+scripts/
+  install-lean.sh     elan + the pinned toolchain, from GitHub if the usual
+                      hosts are blocked (used by `make setup`)
 toolchain/            charon and aeneas, put there by `make setup`; not in git
 
 hachi/
   Cargo.toml          the `hachi` crate: a library, one dependency (cpoly)
-  src/                the Rust implementation
+  src/                the Rust implementation, strictly bottom-up
     params.rs         every parameter of the scheme, as consts
-    smoke.rs          TEMPORARY: the cross-crate extraction probe
+    ring.rs           R_q = Z_q[X]/(X^N + 1), the negacyclic ring
+    linalg.rs         vectors and matrices over R_q
+    gadget.rs         base-b digit decomposition, the gadget matrix G, and G⁻¹
+    commit.rs         the inner-outer Ajtai commitment, its weak verifier, the norms
   tests/              Rust-side semantics tests, one per src/ module
   benches/            criterion benchmarks, one file per src/ module
     genesis/          the frozen first translation; append-only, never edited
@@ -76,7 +116,14 @@ hachi/
   lean/
     Generated.lean    the extracted model -- DERIVED by `make extract`, never hand-edit
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
+  lean-wip/           the equivalence development, NOT a Lake root and NOT audited
+    Ring.lean         the representation bridge, and the ring layer's obligations
+    Scheme.lean       the linalg / gadget / commit obligations
 ```
+
+Each module names the ArkLib file it is a translation of, and each operation the
+definition it mirrors, in its docstring. The correspondence is the point of the
+repository, so it is written down where the code is rather than only in a proof.
 
 ## The field layer comes from cpoly
 

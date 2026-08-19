@@ -15,6 +15,10 @@ path = "src/lib.rs"
 # doctest still names the crate it was copied from.
 doctest = false
 
-# No dependencies, ever. A frozen baseline that could drift with a dependency
-# would not be frozen. See src/lib.rs for what this rules out.
+# One dependency, and only because the frozen modules cannot compile without it:
+# `hachi` reaches its coefficient field through `cpoly`, so a frozen copy of a
+# `hachi` module needs the same field. Pinned to the *same* `rev` as
+# `hachi/Cargo.toml`, which is what makes it compatible with the "no drift" rule
+# this crate is really about -- see src/lib.rs for the full reasoning.
 [dependencies]
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }

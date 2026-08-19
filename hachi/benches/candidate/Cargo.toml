@@ -12,7 +12,10 @@ path = "src/lib.rs"
 # Same reasoning as hachi-genesis: the module files are copies of `hachi/src/*.rs`.
 doctest = false
 
-# No dependencies, ever — the slot must reach the bench binary through the
-# identical compilation path as `hachi` and `hachi-genesis` (same profile, same
-# LTO decision), and a dependency of its own would break that symmetry.
+# One dependency, and only because the copied modules cannot compile without it:
+# `hachi` reaches its coefficient field through `cpoly`, so a copy of a `hachi`
+# module needs the same field. Pinned to the *same* `rev` as `hachi/Cargo.toml`,
+# so the slot stays on the identical compilation path as `hachi` and
+# `hachi-genesis` -- see benches/genesis/src/lib.rs for the full reasoning.
 [dependencies]
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }
