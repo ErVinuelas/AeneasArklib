@@ -27,8 +27,8 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
-> **Status: the bottom layers are implemented, tested and extracted; the
-> equivalence proofs are stated but not proved.**
+> **Status: the bottom layers are implemented, tested and extracted; the ring layer's
+> equivalence with the specification is proved, the scheme layer is stated but not proved.**
 >
 > Four modules are in place — [`ring`](hachi/src/ring.rs) (the negacyclic ring
 > `R_q = Z_q[X]/(X^N+1)`), [`linalg`](hachi/src/linalg.rs),
@@ -41,19 +41,22 @@ in structure and in method, and depends on it for the coefficient field.
 > `make build` passes, and it now checks real equivalence proofs. Proved and
 > audited: the base field ([`lean/Field.lean`](hachi/lean/Field.lean) — the four
 > `Fp` operator impls total and equal to `ZMod q` arithmetic) and the whole
-> coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — `zero`,
-> `add`, `sub`, `neg`, `scalar_mul` and `mul` total, length-preserving and
-> coefficientwise correct, `mul` being the negacyclic convolution).
+> coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — all
+> thirteen operations total, length-preserving and coefficientwise correct, `mul`
+> being the negacyclic convolution and `equals`/`is_zero` being decision procedures
+> proved correct in both directions).
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all twelve proved specs: the three Lean kernel axioms, nothing else.
+> of all nineteen proved specs: the three Lean kernel axioms, nothing else.
 >
-> The remaining obligations — the lift of the ring layer to ArkLib's `Rq Φ` (bar
-> `mul`, which is proved) and all of `linalg`/`gadget`/`commit` — are *stated* but
-> not proved, in
-> [`hachi/lean-wip/`](hachi/lean-wip/): deliberately not a Lake root, so their
-> `sorry`s cannot dilute what `make build` guarantees. They do **typecheck** against
-> the pinned specification, which is what makes them statements about ArkLib's own
+> The lift of that ring layer to ArkLib's `Rq Φ`
+> ([`hachi/lean-wip/RqBridge.lean`](hachi/lean-wip/RqBridge.lean)) is **also proved** —
+> 26 theorems, same three axioms — but is *not yet checked*: `lean-wip/` is deliberately
+> not a Lake root, so `make build` never looks at it. Promoting that file into the audited
+> library is the next step. What remains merely *stated* is all of
+> `linalg`/`gadget`/`commit`, in
+> [`hachi/lean-wip/Scheme.lean`](hachi/lean-wip/Scheme.lean). Both files **typecheck**
+> against the pinned specification, which is what makes them statements about ArkLib's own
 > definitions rather than paraphrases of them.
 > [`NOTES.md`](NOTES.md) § "The Lean side does build here" scores every claim in
 > this repository as verified or not, and

@@ -791,4 +791,435 @@ theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   intro k hk
   rw [hzcoef k hk, rowsSum_full a b ha hb k]
 
+
+/-! ## Construction and observation
+
+The six arithmetic operations above are the ring structure; these seven are how an
+element is built, read and compared. All of them are `push`/read loops of the same shape
+as `zero_loop` and `add_loop` -- none uses the `Vec.set` accumulator that made `mul` hard
+-- so what is worth attention here is the *statements* rather than the proofs:
+
+* `from_coeffs_spec` is quantified over an arbitrary input length, because that is where
+  its totality lives: the loop truncates at `N` and zero-pads below it, and neither
+  branch may be assumed away. `coeffK` being `0` past the end of a vector is what lets
+  both branches land on the same `coeffK v k`.
+* `coeff_spec` needs no loop and no length hypothesis beyond `Wf`: the Rust bounds-checks
+  and returns `Fp::ZERO` out of range, which is exactly `coeffK`'s own convention.
+* `equals_spec` and `is_zero_spec` are `↔`, not implications. The rejection direction is
+  the half a wrong implementation would satisfy -- an `equals` that always answered
+  `false` proves the forward direction of both -- and it is the half `Simple.verify`
+  depends on. The Rust compares through `Fp::to_u64`, so the content of these two is
+  `toK_inj_of_Red`: on *reduced* words, equality of words is equality in `ZMod q`. Drop
+  `Red` and the theorems are false, not merely unprovable.
+-/
+
+/-! ## `Rq::constant` and `Rq::one` -/
+
+theorem constant_loop_spec (c : cpoly.field.Fp) (n : Std.Usize)
+    (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize)
+    (hc : Red c) (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hred : ∀ u ∈ out.val, Red u)
+    (hcoef : ∀ k, k < i.val → coeffK out k = if k = 0 then toK c else 0) :
+    ring.Rq.constant_loop c n out i
+      ⦃ z => z.val.length = n.val ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ k, k < n.val → coeffK z k = if k = 0 then toK c else 0 ⦄ := by
+  rw [ring.Rq.constant_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧
+      (∀ u ∈ s.1.val, Red u) ∧
+      ∀ k, k < s.2.val → coeffK s.1 k = if k = 0 then toK c else 0)
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hred1, hcoef1⟩
+    dsimp only at hi1 hlen1 hred1 hcoef1
+    simp only [ring.Rq.constant_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      by_cases h0 : i1 = 0#usize
+      · -- slot `0`: the pushed word is `c` itself.
+        rw [if_pos h0]
+        have hi1v : i1.val = 0 := by scalar_tac
+        step as ⟨o2, ho2⟩
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+        · rw [ho2, hi2, List.length_append, hlen1]; simp
+        · intro u hu
+          rw [ho2] at hu
+          rcases List.mem_append.mp hu with h | h
+          · exact hred1 u h
+          · rw [List.mem_singleton.mp h]; exact hc
+        · intro k hk
+          rw [hi2, hi1v] at hk
+          have hk0 : k = 0 := by omega
+          subst hk0
+          rw [if_pos rfl]
+          have hcc := coeffK_append_eq ho2
+          rw [hlen1, hi1v] at hcc
+          exact hcc
+        · scalar_tac
+      · -- every later slot: the pushed word is `Fp::ZERO`.
+        rw [if_neg h0]
+        have hi1v : i1.val ≠ 0 := by scalar_tac
+        step as ⟨o2, ho2⟩
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+        · rw [ho2, hi2, List.length_append, hlen1]; simp
+        · intro u hu
+          rw [ho2] at hu
+          rcases List.mem_append.mp hu with h | h
+          · exact hred1 u h
+          · rw [List.mem_singleton.mp h]; exact Red_zero
+        · intro k hk
+          rw [hi2] at hk
+          rcases Nat.lt_or_ge k i1.val with hklt | hkge
+          · rw [coeffK_append_lt ho2 (by omega), hcoef1 k hklt]
+          · have hkeq : k = o1.val.length := by omega
+            rw [hkeq, coeffK_append_eq ho2, toK_zero, if_neg (by omega)]
+        · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hcoef1⟩
+  · exact ⟨hi, hlen, hred, hcoef⟩
+
+theorem constant_spec (c : cpoly.field.Fp) (hc : Red c) :
+    ring.Rq.constant c
+      ⦃ z => Wf z ∧ ∀ k, k < N → coeffK z k = if k = 0 then toK c else 0 ⦄ := by
+  rw [ring.Rq.constant]
+  simp only [bind_ok_id]
+  apply spec_mono (constant_loop_spec c params.RING_DEGREE
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hc (by simp) (by simp)
+    (by intro u hu; simp at hu) (by intro k hk; simp at hk))
+  rintro z ⟨hzlen, hzred, hzcoef⟩
+  refine ⟨⟨?_, hzred⟩, ?_⟩
+  · rw [hzlen, params_RING_DEGREE_val]
+  · intro k hk
+    exact hzcoef k (by rw [params_RING_DEGREE_val]; exact hk)
+
+theorem one_spec :
+    ring.Rq.one ⦃ z => Wf z ∧ ∀ k, k < N → coeffK z k = if k = 0 then 1 else 0 ⦄ := by
+  rw [ring.Rq.one]
+  apply spec_mono (constant_spec cpoly.field.Fp.ONE Red_one)
+  rintro z ⟨hz, hzcoef⟩
+  refine ⟨hz, ?_⟩
+  intro k hk
+  rw [hzcoef k hk, toK_one]
+
+
+/-! ## `Rq::from_coeffs` -/
+
+theorem from_coeffs_loop_spec (v : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+    (m : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize)
+    (hm : m.val = v.val.length) (hv : ∀ u ∈ v.val, Red u)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hred : ∀ u ∈ out.val, Red u)
+    (hcoef : ∀ k, k < i.val → coeffK out k = coeffK v k) :
+    ring.Rq.from_coeffs_loop v n m out i
+      ⦃ z => z.val.length = n.val ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ k, k < n.val → coeffK z k = coeffK v k ⦄ := by
+  rw [ring.Rq.from_coeffs_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧
+      (∀ u ∈ s.1.val, Red u) ∧
+      ∀ k, k < s.2.val → coeffK s.1 k = coeffK v k)
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hred1, hcoef1⟩
+    dsimp only at hi1 hlen1 hred1 hcoef1
+    simp only [ring.Rq.from_coeffs_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      by_cases hltm : i1 < m
+      · rw [if_pos hltm]
+        have hiv : i1.val < v.val.length := by scalar_tac
+        step as ⟨f, hf⟩
+        have hRf : Red f := hf ▸ hv _ (List.getElem_mem hiv)
+        step as ⟨o2, ho2⟩
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+        · rw [ho2, hi2, List.length_append, hlen1]; simp
+        · intro u hu
+          rw [ho2] at hu
+          rcases List.mem_append.mp hu with h | h
+          · exact hred1 u h
+          · rw [List.mem_singleton.mp h]; exact hRf
+        · intro k hk
+          rw [hi2] at hk
+          rcases Nat.lt_or_ge k i1.val with hklt | hkge
+          · rw [coeffK_append_lt ho2 (by omega), hcoef1 k hklt]
+          · have hkeq : k = o1.val.length := by omega
+            rw [hkeq, coeffK_append_eq ho2, hlen1, coeffK_of_lt hiv, hf]
+        · scalar_tac
+      · rw [if_neg hltm]
+        have hgev : v.val.length ≤ i1.val := by scalar_tac
+        step as ⟨o2, ho2⟩
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+        · rw [ho2, hi2, List.length_append, hlen1]; simp
+        · intro u hu
+          rw [ho2] at hu
+          rcases List.mem_append.mp hu with h | h
+          · exact hred1 u h
+          · rw [List.mem_singleton.mp h]; exact Red_zero
+        · intro k hk
+          rw [hi2] at hk
+          rcases Nat.lt_or_ge k i1.val with hklt | hkge
+          · rw [coeffK_append_lt ho2 (by omega), hcoef1 k hklt]
+          · have hkeq : k = o1.val.length := by omega
+            rw [hkeq, coeffK_append_eq ho2, hlen1, toK_zero,
+              coeffK_of_ge hgev]
+        · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      rw [heq] at hlen1 hcoef1
+      exact ⟨hlen1, hred1, hcoef1⟩
+  · exact ⟨hi, hlen, hred, hcoef⟩
+
+theorem from_coeffs_spec (v : ring.Rq) (hv : ∀ u ∈ v.val, Red u) :
+    ring.Rq.from_coeffs v ⦃ z => Wf z ∧ ∀ k, k < N → coeffK z k = coeffK v k ⦄ := by
+  rw [ring.Rq.from_coeffs]
+  simp only [bind_ok_id]
+  apply spec_mono (from_coeffs_loop_spec v params.RING_DEGREE (alloc.vec.Vec.len v)
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+    (by simp) hv (by simp) (by simp) (by intro u hu; simp at hu)
+    (by intro k hk; simp at hk))
+  rintro z ⟨hzlen, hzred, hzcoef⟩
+  refine ⟨⟨?_, hzred⟩, ?_⟩
+  · rw [hzlen, params_RING_DEGREE_val]
+  · intro k hk
+    exact hzcoef k (by rw [params_RING_DEGREE_val]; exact hk)
+
+theorem coeff_spec (v : ring.Rq) (k : Std.Usize) (hv : Wf v) :
+    ring.Rq.coeff v k ⦃ c => Red c ∧ toK c = coeffK v k.val ⦄ := by
+  obtain ⟨hlen, hred⟩ := hv
+  rw [ring.Rq.coeff]
+  by_cases hlt : k < alloc.vec.Vec.len v
+  · rw [if_pos hlt]
+    have hkb : k.val < v.val.length := by scalar_tac
+    step as ⟨c, hc⟩
+    exact ⟨hc ▸ Red_getElem hred hkb, by rw [hc, coeffK_of_lt hkb]⟩
+  · rw [if_neg hlt, WP.spec_ok]
+    have hkb : v.val.length ≤ k.val := by scalar_tac
+    exact ⟨Red_zero, by rw [toK_zero, coeffK_of_ge hkb]⟩
+
+theorem equals_loop_spec (v w : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+    (i : Std.Usize) (same : Bool)
+    (hnv : n.val ≤ v.val.length) (hnw : n.val ≤ w.val.length)
+    (hv : ∀ u ∈ v.val, Red u) (hw : ∀ u ∈ w.val, Red u)
+    (hi : i.val ≤ n.val)
+    (hinv : same = true ↔ ∀ k, k < i.val → coeffK v k = coeffK w k) :
+    ring.Rq.equals_loop v w n i same
+      ⦃ r => r = true ↔ ∀ k, k < n.val → coeffK v k = coeffK w k ⦄ := by
+  rw [ring.Rq.equals_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.1.val)
+    (fun s => s.1.val ≤ n.val ∧
+      (s.2 = true ↔ ∀ k, k < s.1.val → coeffK v k = coeffK w k))
+  · rintro ⟨i1, s1⟩ ⟨hi1, hs1⟩
+    dsimp only at hi1 hs1
+    simp only [ring.Rq.equals_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hiv : i1.val < v.val.length := by scalar_tac
+      have hiw : i1.val < w.val.length := by scalar_tac
+      step as ⟨a, ha⟩
+      simp only [cpoly.field.Fp.to_u64]
+      step as ⟨b, hb⟩
+      have hRa : Red a := ha ▸ hv _ (List.getElem_mem hiv)
+      have hRb : Red b := hb ▸ hw _ (List.getElem_mem hiw)
+      have hcv : coeffK v i1.val = toK a := by rw [coeffK_of_lt hiv, ha]
+      have hcw : coeffK w i1.val = toK b := by rw [coeffK_of_lt hiw, hb]
+      split
+      · -- the two words differ: the flag is set to `false`, and it stays correct
+        -- because coefficient `i1` is a genuine witness of inequality.
+        next hcond =>
+        simp only [bne_iff_ne, ne_eq] at hcond
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        simp only [Bool.false_eq_true, false_iff]
+        intro hall
+        apply hcond
+        apply Std.UScalar.eq_imp
+        rw [← toK_inj_of_Red hRa hRb, ← hcv, ← hcw]
+        exact hall i1.val (by omega)
+      · -- the two words agree: the flag is unchanged, and the range it certifies
+        -- grows by the one index just checked.
+        next hcond =>
+        simp only [bne_iff_ne, ne_eq, not_not] at hcond
+        step as ⟨i2, hi2⟩
+        have heq : coeffK v i1.val = coeffK w i1.val := by rw [hcv, hcw, hcond]
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        constructor
+        · intro hs k hk
+          rw [hi2] at hk
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hk' | hk'
+          · exact hs1.mp hs k hk'
+          · rw [hk']; exact heq
+        · intro hall
+          exact hs1.mpr (fun k hk => hall k (by scalar_tac))
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      rw [heq] at hs1
+      exact hs1
+  · exact ⟨hi, hinv⟩
+
+theorem equals_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
+    ring.Rq.equals a b ⦃ r => r = true ↔ ∀ k, k < N → coeffK a k = coeffK b k ⦄ := by
+  obtain ⟨halen, hared⟩ := ha
+  obtain ⟨hblen, hbred⟩ := hb
+  rw [ring.Rq.equals]
+  have hn : (alloc.vec.Vec.len a).val = N := by simp [halen]
+  have hm : (alloc.vec.Vec.len b).val = N := by simp [hblen]
+  -- Under `Wf` both vectors have length `N`, so the early `return false` is dead.
+  have hlen : alloc.vec.Vec.len a = alloc.vec.Vec.len b :=
+    Std.UScalar.eq_imp _ _ (by rw [hn, hm])
+  rw [if_neg (by simp [hlen])]
+  apply spec_mono (equals_loop_spec a b (alloc.vec.Vec.len a) 0#usize true
+    (by simp) (by simp [halen, hblen]) hared hbred (by simp) (by simp))
+  intro r hr
+  rw [hn] at hr
+  exact hr
+
+/-- `Fp::to_u64` is the identity on the representation (`Fp := U64`); no `@[step]`
+lemma is registered for it, so the loop body needs it spelled out. -/
+private theorem to_u64_id (f : cpoly.field.Fp) :
+    cpoly.field.Fp.to_u64 f ⦃ x => x = f ⦄ := by
+  rw [cpoly.field.Fp.to_u64, WP.spec_ok]
+
+/-- A coefficient of a vector vanishes in `ZMod q` exactly when its word is the zero
+word — the step that turns the Rust's `to_u64() != 0` test into a statement about
+`coeffK`. Injectivity of `toK` on reduced words is what makes it an `↔`. -/
+private theorem coeffK_eq_zero_iff {v : alloc.vec.Vec cpoly.field.Fp} {k : ℕ}
+    (hk : k < v.val.length) (hred : Red v.val[k]) :
+    coeffK v k = 0 ↔ (v.val[k]).val = 0 := by
+  rw [coeffK_of_lt hk, ← toK_zero, toK_inj_of_Red hred Red_zero, cpoly_Fp_ZERO_val]
+
+theorem is_zero_loop_spec (v : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+    (i : Std.Usize) (zero : Bool)
+    (hnv : n.val ≤ v.val.length) (hv : ∀ u ∈ v.val, Red u)
+    (hi : i.val ≤ n.val)
+    (hinv : zero = true ↔ ∀ k, k < i.val → coeffK v k = 0) :
+    ring.Rq.is_zero_loop v n i zero
+      ⦃ r => r = true ↔ ∀ k, k < n.val → coeffK v k = 0 ⦄ := by
+  rw [ring.Rq.is_zero_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.1.val)
+    (fun s => s.1.val ≤ n.val ∧ (s.2 = true ↔ ∀ k, k < s.1.val → coeffK v k = 0))
+  · rintro ⟨i1, z1⟩ ⟨hi1, hz1⟩
+    dsimp only at hi1 hz1
+    simp only [ring.Rq.is_zero_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hiv : i1.val < v.val.length := by scalar_tac
+      have hRv : Red v.val[i1.val] := hv _ (List.getElem_mem hiv)
+      have hzi : coeffK v i1.val = 0 ↔ (v.val[i1.val]).val = 0 :=
+        coeffK_eq_zero_iff hiv hRv
+      step as ⟨f, hf⟩
+      step with to_u64_id f as ⟨w, hw⟩
+      by_cases hbne : (w != 0#u64) = true
+      · -- the word read is nonzero: the flag drops to `false`, and it must, because
+        -- coefficient `i1` is the witness that not all of them vanish.
+        rw [if_pos hbne]
+        have hwne : w.val ≠ 0 := by scalar_tac
+        have hfne : (v.val[i1.val]).val ≠ 0 := by rw [← hf, ← hw]; exact hwne
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        constructor
+        · intro h; simp at h
+        · intro h
+          exact absurd (hzi.mp (h i1.val (by scalar_tac))) hfne
+      · -- the word read is zero: the flag is unchanged, and the range it certifies
+        -- grows by the one index just checked.
+        rw [if_neg hbne]
+        have hw0 : w.val = 0 := by
+          simp only [Bool.not_eq_true, bne_eq_false_iff_eq] at hbne; scalar_tac
+        have hf0 : (v.val[i1.val]).val = 0 := by rw [← hf, ← hw]; exact hw0
+        step as ⟨i2, hi2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [hi2]
+        constructor
+        · intro h k hk
+          rcases Nat.lt_or_ge k i1.val with hk1 | hk2
+          · exact hz1.mp h k hk1
+          · have hke : k = i1.val := by omega
+            rw [hke]; exact hzi.mpr hf0
+        · intro h
+          exact hz1.mpr (fun k hk => h k (by omega))
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      rw [heq] at hz1
+      exact hz1
+  · exact ⟨hi, hinv⟩
+
+/-- `Rq::is_zero` — the all-coefficients-zero test, total, and exactly the predicate
+it is supposed to decide. No length guard in the Rust: the loop runs over `self`'s own
+length, which `Wf` pins to `N`. -/
+theorem is_zero_spec (a : ring.Rq) (ha : Wf a) :
+    ring.Rq.is_zero a ⦃ r => r = true ↔ ∀ k, k < N → coeffK a k = 0 ⦄ := by
+  obtain ⟨halen, hared⟩ := ha
+  rw [ring.Rq.is_zero]
+  have hn : (alloc.vec.Vec.len a).val = N := by simp [halen]
+  apply spec_mono (is_zero_loop_spec a (alloc.vec.Vec.len a) 0#usize true
+    (by simp) hared (by simp) (by simp))
+  intro r hr
+  rw [hn] at hr
+  exact hr
+
+theorem copy_loop_spec (v : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+    (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize)
+    (hnv : n.val ≤ v.val.length) (hv : ∀ u ∈ v.val, Red u)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hred : ∀ u ∈ out.val, Red u)
+    (hcoef : ∀ k, k < i.val → coeffK out k = coeffK v k) :
+    ring.Rq.copy_loop v n out i
+      ⦃ z => z.val.length = n.val ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ k, k < n.val → coeffK z k = coeffK v k ⦄ := by
+  rw [ring.Rq.copy_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧
+      (∀ u ∈ s.1.val, Red u) ∧
+      ∀ k, k < s.2.val → coeffK s.1 k = coeffK v k)
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hred1, hcoef1⟩
+    dsimp only at hi1 hlen1 hred1 hcoef1
+    simp only [ring.Rq.copy_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hiv : i1.val < v.val.length := by scalar_tac
+      step as ⟨a, ha⟩
+      have hRa : Red a := ha ▸ hv _ (List.getElem_mem hiv)
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRa
+      · intro k hk
+        rw [hi2] at hk
+        rcases Nat.lt_or_ge k i1.val with hklt | hkge
+        · rw [coeffK_append_lt ho2 (by omega), hcoef1 k hklt]
+        · have hkeq : k = o1.val.length := by omega
+          rw [hkeq, coeffK_append_eq ho2, hlen1, coeffK_of_lt hiv, ha]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hcoef1⟩
+  · exact ⟨hi, hlen, hred, hcoef⟩
+
+theorem copy_spec (a : ring.Rq) (ha : Wf a) :
+    ring.Rq.copy a ⦃ z => Wf z ∧ ∀ k, k < N → coeffK z k = coeffK a k ⦄ := by
+  obtain ⟨halen, hared⟩ := ha
+  rw [ring.Rq.copy]
+  simp only [bind_ok_id]
+  apply spec_mono (copy_loop_spec a (alloc.vec.Vec.len a)
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+    (by simp) hared (by simp) (by simp) (by intro u hu; simp at hu)
+    (by intro k hk; simp at hk))
+  rintro z ⟨hzlen, hzred, hzcoef⟩
+  have hn : (alloc.vec.Vec.len a).val = N := by simp [halen]
+  refine ⟨⟨?_, hzred⟩, ?_⟩
+  · rw [hzlen, hn]
+  · intro k hk
+    exact hzcoef k (by rw [hn]; exact hk)
+
 end HachiEquiv.Ring

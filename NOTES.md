@@ -770,21 +770,26 @@ audited library, `make build` passing means:
 | `Fp::new` reduces (so `Red` is an invariant of construction) and `toK` is injective on reduced words | `lean/Field.lean` | **proved** |
 | `Rq::zero`, `add`, `sub`, `neg`, `scalar_mul` total, length-preserving, coefficientwise correct | `lean/Ring.lean` | **proved** |
 | `Rq::mul` (the negacyclic convolution) coefficientwise correct | `lean/Ring.lean` | **proved** |
-| `Rq::mul` against ArkLib's `Mul (Rq Φ)`, i.e. `modByMonic` against `X^N + 1` | `lean-wip/RqBridge.lean` | **proved** (unchecked by `make build`) |
-| the lift of the rest to ArkLib's `Rq Φ` | `lean-wip/RqBridge.lean` | stated; its *definitions* (`toRq`, `toRq_coeff`, `toRq_eq_iff`) proved |
+| `Rq::constant`, `one`, `from_coeffs`, `coeff`, `equals`, `is_zero`, `copy` at the coefficient level | `lean/Ring.lean` | **proved** |
+| all thirteen operations lifted to ArkLib's `Rq Φ`, `mul` (i.e. `modByMonic` against `X^N + 1`) included | `lean-wip/RqBridge.lean` | **proved** (unchecked by `make build`) |
 | `linalg`, `gadget`, `commit` | `lean-wip/Scheme.lean` | stated |
 
-Twelve `#print axioms` lines in `Check.lean` § 4 report
+Nineteen `#print axioms` lines in `Check.lean` § 4 report
 `[propext, Classical.choice, Quot.sound]` for every proved spec — the three kernel
 axioms the README's trusted computing base names, and nothing else. No `sorryAx`,
 and no axiom from an un-whitelisted `cpoly` item.
 
-**Both `lean-wip` files typecheck**, which is a weaker claim than proved and a
-stronger one than plausible: `lake env lean` elaborates them against the pinned
-ArkLib specification with no errors, so all 35 remaining obligations are well-formed
-statements about the specification's own definitions at this crate's parameters. A
-mistranslation would have surfaced as a type error rather than waiting for a proof
-attempt.
+**Both `lean-wip` files typecheck, and `RqBridge.lean` is now fully proved** — 26
+theorems, every one reporting the three kernel axioms. It is not yet *checked*: the file
+is not a Lake root, so `make build` never looks at it and a change under it could break it
+silently. Promoting it (the procedure in `lean-wip/README.md`) is what would close that
+gap, and it is the obvious next step.
+
+`Scheme.lean`'s 23 obligations remain stated only. Typechecking is a weaker claim than
+proved and a stronger one than plausible: `lake env lean` elaborates them against the
+pinned ArkLib specification with no errors, so each is a well-formed statement about the
+specification's own definitions at this crate's parameters. A mistranslation would have
+surfaced as a type error rather than waiting for a proof attempt.
 
 ### Two things that made the proofs go through
 

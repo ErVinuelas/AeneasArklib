@@ -300,11 +300,12 @@ printed here is a build failure rather than a silent debt. The expected output i
 the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 `Quot.sound`, which are the ones the README's trusted computing base names.
 
-What is here: the base field (`lean/Field.lean`), and the whole coefficient level of
-the ring (`lean/Ring.lean`), `mul` included. What is not: everything about `Rq Φ`,
-`linalg`, `gadget` and `commit` -- those are stated in `lean-wip/` and not proved, and
-each adds its `#print axioms` line here as it lands, which is step 3 of the promotion
-procedure in `lean-wip/README.md`. -/
+What is here: the base field (`lean/Field.lean`), and the whole coefficient level of the
+ring (`lean/Ring.lean`) -- all thirteen operations. What is not: the `Rq Φ` bridge, which
+*is* proved but lives in `lean-wip/RqBridge.lean` and so is not built (promoting it, and
+adding its lines here, is steps 2-4 of the procedure in `lean-wip/README.md`); and
+`linalg`, `gadget` and `commit`, which are stated in `lean-wip/Scheme.lean` and not
+proved. Each adds its `#print axioms` line here as it lands. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
@@ -324,5 +325,15 @@ procedure in `lean-wip/README.md`. -/
 #print axioms HachiEquiv.Ring.neg_spec
 #print axioms HachiEquiv.Ring.scalar_mul_spec
 #print axioms HachiEquiv.Ring.mul_spec
+
+-- Construction and observation: how an element is built, read and compared.
+-- `equals` and `is_zero` are `↔`, so the rejection direction is audited too.
+#print axioms HachiEquiv.Ring.constant_spec
+#print axioms HachiEquiv.Ring.one_spec
+#print axioms HachiEquiv.Ring.from_coeffs_spec
+#print axioms HachiEquiv.Ring.coeff_spec
+#print axioms HachiEquiv.Ring.equals_spec
+#print axioms HachiEquiv.Ring.is_zero_spec
+#print axioms HachiEquiv.Ring.copy_spec
 
 end HachiEquiv.Check

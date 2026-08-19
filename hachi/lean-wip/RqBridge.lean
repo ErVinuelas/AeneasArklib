@@ -2,10 +2,12 @@
 The **`Rq Φ` bridge**: what remains between the coefficient-level ring layer
 (`lean/Ring.lean`, proved) and ArkLib's `CyclotomicModulus.Rq Φ`.
 
-Unchecked. See `lean-wip/README.md` for why this file is outside the audited
-library and what has to happen before it moves into `lean/`.
+**Proved, but not yet checked by `make build`**: every theorem below is complete and
+`#print axioms` gives the three kernel axioms for each, but this file is still outside the
+Lake library, so nothing here is re-verified on every build. `lean-wip/README.md` § "Promoting
+a file out of here" is the procedure that changes that; steps 2-5 of it remain to be done.
 
-## What is already proved, and what is left
+## What is proved, and where the work was
 
 The development is split at the coefficient level, and the split is where the work
 is rather than where the statement is:
@@ -14,7 +16,7 @@ is rather than where the statement is:
 |---|---|---|
 | `Fp` operator impls total and equal to `ZMod q` arithmetic | `lean/Field.lean` | **proved** |
 | ring operations total, length-preserving, coefficientwise correct | `lean/Ring.lean` | **proved** |
-| those coefficient facts lifted to `Rq Φ` | *this file* | stated, except `mul_spec` |
+| those coefficient facts lifted to `Rq Φ` | *this file* | **proved** |
 
 Lifting is bookkeeping, and the two lemmas that do it are `toRq_coeff` (a
 coefficient of `toRq v` is the corresponding `coeffK v`, by ArkLib's
@@ -36,8 +38,10 @@ inline. ArkLib proves that identity too, but `private`ly, inside
 
 That it is not vacuous. Each says the extracted operation *succeeds* (the triple
 implies `∃ r, m = ok r`) and that its `toRq` is the ArkLib operation applied to the
-`toRq`s of the inputs — so a `sorry`'d theorem here is a claim about behaviour, not
-a definition, and filling the proof cannot change what it claims.
+`toRq`s of the inputs — a claim about behaviour, not a definition. Two of them,
+`equals_spec` and `is_zero_spec`, are `↔` rather than implications for the same reason:
+the rejection direction is the half a broken implementation would still satisfy, and it is
+the half `Simple.verify` rests on.
 -/
 import Ring
 import ArkLib.Commitments.Functional.Hachi.InnerOuter.Arithmetic
@@ -189,53 +193,165 @@ theorem coeff_modByMonic_X_pow_add_one {R : Type*} [CommRing R] [Nontrivial R] {
   rw [hsub, hRr0, hQ0] at hPnk
   rw [hPk, hPnk]; ring
 
+/-- `CPolynomial.C 1 = 1`.  CompPoly has `coeff_C` and `coeff_one` but no `C_1`, so this
+goes through extensionality. -/
+theorem C_one : (CompPoly.CPolynomial.C (1 : ZMod q)) = 1 := by
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [CompPoly.CPolynomial.coeff_C, CompPoly.CPolynomial.coeff_one]
+
+/-- ArkLib has no `one_val`. `(1 : Rq Φ)` is `Rq.mk Φ 1` and `constRq Φ 1` is
+`Rq.mk Φ (C 1)`; they agree only through `C_one`, which is what `one_spec` needs. -/
+theorem one_eq_constRq : (1 : Rq Φ) = Rq.constRq Φ 1 := by
+  rw [Rq.constRq, C_one]; rfl
+
+/-- A vector whose coefficients below `N` are `c` at slot `0` and zero elsewhere
+represents the constant `constRq Φ c`.  Both `constant_spec` and `one_spec` are this
+lemma; the only work is matching the bounded `if k < N` of `toRq_coeff` against the
+unbounded `if k = 0` of `coeff_C`, which is a case split on `k < N` plus `0 < N`. -/
+private theorem toRq_eq_constRq {z : ring.Rq} {c : ZMod q}
+    (hcoef : ∀ k, k < N → coeffK z k = if k = 0 then c else 0) :
+    toRq z = Rq.constRq Φ c := by
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [Rq.constRq_val Φ (by rw [phi_natDegree]; norm_num),
+    CompPoly.CPolynomial.coeff_C]
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hcoef k hk]
+  · have hN : 0 < N := by norm_num
+    have hk0 : ¬ k = 0 := by omega
+    rw [toRq_coeff, if_neg hk, if_neg hk0]
+
+/-- `toRq v` is the zero of `Rq Φ` exactly when the represented coefficients below `N`
+all vanish. The `is_zero` analogue of `toRq_eq_iff`: forward by reading coefficients
+through `toRq_coeff`, backward by extensionality against `Rq.zero_val`. -/
+private theorem toRq_eq_zero_iff (v : ring.Rq) :
+    toRq v = 0 ↔ ∀ k < N, coeffK v k = 0 := by
+  constructor
+  · intro h k hk
+    have h2 : (toRq v).1.coeff k = (0 : Rq Φ).1.coeff k := by rw [h]
+    rw [toRq_coeff, if_pos hk, Rq.zero_val, CompPoly.CPolynomial.coeff_zero] at h2
+    exact h2
+  · intro h
+    apply Subtype.ext
+    rw [Rq.zero_val, CompPoly.CPolynomial.eq_iff_coeff]
+    intro k
+    rw [toRq_coeff, CompPoly.CPolynomial.coeff_zero]
+    by_cases hk : k < N
+    · rw [if_pos hk, h k hk]
+    · rw [if_neg hk]
+
 /-! ## The obligations
 
-Each is the corresponding `lean/Ring.lean` theorem lifted through `toRq_eq_iff`,
-except `mul_spec`. -/
+Each is the corresponding `lean/Ring.lean` theorem lifted to `Rq Φ`. Three shapes recur:
+`toRq_eq_iff` where both sides are a `toRq` (`copy`, `from_coeffs`); `Subtype.ext` plus
+`CPolynomial.eq_iff_coeff` where the right-hand side is an ArkLib operation, with
+`toRq_coeff_eq_coeffK` below `N` and `Rq.coeff_eq_zero_of_natDegree_le` above it (the
+arithmetic ops, and `mul`); and `Iff.trans` for the two decision procedures. -/
 
 /-- `Rq::zero` — the zero of `Rq Φ`. From `Ring.zero_spec` plus `Rq.zero_val`. -/
 theorem zero_spec : ring.Rq.zero ⦃ z => Wf z ∧ toRq z = 0 ⦄ := by
-  sorry
+  apply spec_mono HachiEquiv.Ring.zero_spec
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  -- `Ring.zero_spec` is unguarded, so there is no `k < N` split to make: the
+  -- coefficient is `0` in both branches of `toRq_coeff`, and so is that of `(0 : Rq Φ)`.
+  rw [toRq_coeff, hcoef k, ite_self, Rq.zero_val, CompPoly.CPolynomial.coeff_zero]
 
 /-- `Rq::add` — ArkLib's `Add` instance. From `Ring.add_spec` plus the spec's
 `add_val`, which is what says the reduction in `Rq.mk` does nothing here. -/
 theorem add_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
     ring.Rq.add a b ⦃ c => Wf c ∧ toRq c = toRq a + toRq b ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.add_spec a b ha hb)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  -- `add_val` says the reduction in `Rq.mk` does nothing on already-reduced
+  -- representatives, so the specification side is coefficientwise too; the three
+  -- `if k < N` guards of `toRq_coeff` are then the same guard, split once.
+  rw [Rq.add_val, CompPoly.CPolynomial.coeff_add]
+  simp only [toRq_coeff]
+  split_ifs with hk
+  · exact hcoef k hk
+  · rw [add_zero]
 
 /-- `Rq::sub` — coefficientwise; the specification's `sub_val`. -/
 theorem sub_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
     ring.Rq.sub a b ⦃ c => Wf c ∧ toRq c = toRq a - toRq b ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.sub_spec a b ha hb)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [Rq.sub_val, CompPoly.CPolynomial.coeff_sub]
+  simp only [toRq_coeff]
+  split_ifs with hk
+  · exact hcoef k hk
+  · rw [sub_zero]
 
 /-- `Rq::neg` — coefficientwise; the specification's `neg_val`. -/
 theorem neg_spec (a : ring.Rq) (ha : Wf a) :
     ring.Rq.neg a ⦃ c => Wf c ∧ toRq c = - toRq a ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.neg_spec a ha)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [Rq.neg_val, CompPoly.CPolynomial.coeff_neg]
+  simp only [toRq_coeff]
+  split_ifs with hk
+  · exact hcoef k hk
+  · rw [neg_zero]
 
 /-- `Rq::constant` — ArkLib's `constRq`. No reduction happens on either side:
 `deg (C c) = 0 < deg φ` (the spec's `constRq_val`), and the Rust puts `c` in slot
 `0` and zeros elsewhere. -/
 theorem constant_spec (c : cpoly.field.Fp) (hc : Red c) :
     ring.Rq.constant c ⦃ z => Wf z ∧ toRq z = Rq.constRq Φ (toK c) ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.constant_spec c hc)
+  rintro z ⟨hz, hcoef⟩
+  exact ⟨hz, toRq_eq_constRq hcoef⟩
 
 /-- `Rq::one` — the multiplicative identity, which is `constant Fp::ONE`. -/
 theorem one_spec : ring.Rq.one ⦃ z => Wf z ∧ toRq z = 1 ⦄ := by
-  sorry
+  apply spec_mono HachiEquiv.Ring.one_spec
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  rw [one_eq_constRq]
+  exact toRq_eq_constRq hcoef
 
 /-- `Rq::from_coeffs` — ArkLib's `ofFinCoeff`, zero-padded and truncated to `N`.
 Stated over an arbitrary input length, since that is what makes the Rust total. -/
 theorem from_coeffs_spec (v : ring.Rq) (hv : ∀ u ∈ v.val, Red u) :
     ring.Rq.from_coeffs v ⦃ z => Wf z ∧ toRq z = Rq.ofFinCoeff Φ N (coeffK v) ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.from_coeffs_spec v hv)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  show toRq z = toRq v
+  rw [toRq_eq_iff]
+  exact hcoef
 
 /-- `Rq::coeff` — ArkLib's `coeffHom`. Zero at and beyond `N`, which on the
 specification side is `coeff_eq_zero_of_natDegree_le` rather than a convention. -/
 theorem coeff_spec (v : ring.Rq) (k : Std.Usize) (hv : Wf v) :
     ring.Rq.coeff v k ⦃ c => Red c ∧ toK c = (toRq v).1.coeff k.val ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.coeff_spec v k hv)
+  rintro c ⟨hc, hval⟩
+  refine ⟨hc, ?_⟩
+  -- `toRq_coeff_eq_coeffK` is stated further down the file, so its one-line proof is
+  -- repeated here: below `N` the `if` fires, and at or above it `Wf v` makes both sides `0`.
+  rw [hval, toRq_coeff]
+  by_cases hk : k.val < N
+  · rw [if_pos hk]
+  · rw [if_neg hk, coeffK_of_ge (by rw [hv.1]; exact Nat.le_of_not_lt hk)]
 
 /-- `Rq::scalar_mul` — multiplication by a constant. The specification has no
 primitive for this: the corresponding operation is `constRq c * x`, whose
@@ -244,7 +360,18 @@ the gadget layer use it where the spec writes
 `Rq.constRq Φ (base ^ e) * v j`. -/
 theorem scalar_mul_spec (a : ring.Rq) (c : cpoly.field.Fp) (ha : Wf a) (hc : Red c) :
     ring.Rq.scalar_mul a c ⦃ z => Wf z ∧ toRq z = Rq.constRq Φ (toK c) * toRq a ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.scalar_mul_spec a c ha hc)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hcoef k hk,
+      Rq.constRq_mul_coeff Φ (by rw [phi_natDegree]; norm_num),
+      toRq_coeff, if_pos hk]
+  · rw [toRq_coeff, if_neg hk]
+    exact (Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)).symm
 
 /-- `Rq::equals` — decides equality of two represented elements.
 
@@ -253,17 +380,25 @@ is the operation the verifier's equality check corresponds to, and a one-way
 implication would be satisfied by an `equals` that always answered `false`. -/
 theorem equals_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
     ring.Rq.equals a b ⦃ r => r = true ↔ toRq a = toRq b ⦄ := by
-  sorry
+  -- Not a weakening but a transport: the coefficient-level `↔` composed with the
+  -- extensionality `↔`, both read left to right.
+  apply spec_mono (HachiEquiv.Ring.equals_spec a b ha hb)
+  intro r hr
+  exact hr.trans (toRq_eq_iff a b).symm
 
 /-- `Rq::is_zero`. -/
 theorem is_zero_spec (a : ring.Rq) (ha : Wf a) :
     ring.Rq.is_zero a ⦃ r => r = true ↔ toRq a = 0 ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.is_zero_spec a ha)
+  intro r hr
+  exact hr.trans (toRq_eq_zero_iff a).symm
 
 /-- `Rq::copy`. -/
 theorem copy_spec (a : ring.Rq) (ha : Wf a) :
     ring.Rq.copy a ⦃ z => Wf z ∧ toRq z = toRq a ⦄ := by
-  sorry
+  apply spec_mono (HachiEquiv.Ring.copy_spec a ha)
+  rintro z ⟨hz, hcoef⟩
+  exact ⟨hz, (toRq_eq_iff z a).2 hcoef⟩
 
 /-- The product of two reduced representatives, coefficientwise: the raw `CPolynomial`
 product folded at `N` with a minus sign. This is the specification side of the sign the
@@ -291,7 +426,7 @@ theorem mul_two_block (x y : Rq Φ) {k : ℕ} (hk : k < N) :
 /-- For a well-formed vector the `if k < N` in `toRq_coeff` is vacuous: past the end the
 vector reads `0` and so does `coeffK`, so the represented polynomial agrees with `coeffK`
 at *every* index. -/
-private theorem toRq_coeff_eq_coeffK {v : ring.Rq} (hv : Wf v) (m : ℕ) :
+theorem toRq_coeff_eq_coeffK {v : ring.Rq} (hv : Wf v) (m : ℕ) :
     (toRq v).1.coeff m = coeffK v m := by
   rw [toRq_coeff]
   by_cases hm : m < N
