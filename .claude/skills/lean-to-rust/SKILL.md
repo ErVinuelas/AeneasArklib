@@ -162,9 +162,9 @@ translate *that* definition with these same six moves.
 * An extraction pass per the `aeneas-extract` skill: zero axioms, loop-state
   shapes diffed, names skimmed. `--include 'cpoly::_'` is not optional.
 * **A new public operation owes its Aeneas obligation, written down.** What
-  the audited library covers today is `Fp` and the whole coefficient level of
-  `ring` — nineteen `#print axioms` lines in `hachi/lean/Check.lean` § 4 —
-  while `hachi/lean-wip/RqBridge.lean` is proved but unchecked and
+  the audited library covers today is `Fp`, the whole coefficient level of
+  `ring`, and its lift to ArkLib's `Rq Φ` (`hachi/lean/RqBridge.lean`) —
+  thirty-two `#print axioms` lines in `hachi/lean/Check.lean` § 4 — while
   `hachi/lean-wip/Scheme.lean` is stated only. So the invariant to protect is
   not "every operation has a proved spec" but "no operation arrives without
   its statement": land the Rust together with at least a *typechecked*

@@ -1087,3 +1087,22 @@ This is recorded here rather than only in the skills because it is a fact about
 the parameters, and the next person to read "an NTT would replace this" deserves
 to meet it in the same file as the parameter choices. A candidate proposing a
 transform has to name its root of unity, and no such root exists below order 4.
+
+---
+
+## `RqBridge.lean` is promoted: proved now also means checked
+
+**Status entry, superseding the "proved (unchecked by `make build`)" row of
+§ "What is proved, as of the end of this session".** `RqBridge.lean` has moved
+from `lean-wip/` to `lean/`, through the procedure in `lean-wip/README.md`:
+it is a root of the `HachiEquiv` library in `hachi/lakefile.lean`, `Check.lean`
+imports it, and § 4 prints one `#print axioms` line per headline spec — all
+thirteen operations, thirty-two audit lines in total now. A change under it
+(to `lean/Ring.lean`, to the ArkLib pin) is a build failure from here on, not
+a silent break.
+
+One practical consequence for `lean-wip/`: `Scheme.lean`'s `import RqBridge`
+now resolves through the built library, so the `/tmp/wiplib` `LEAN_PATH` detour
+its README used to prescribe is gone — `lake build` then
+`lake env lean lean-wip/Scheme.lean` is the whole workflow. `Scheme.lean`'s 23
+obligations remain stated only, and are the last debt in that directory.

@@ -105,7 +105,7 @@ and expect the second to eat part of the first.
 The proof route to plan for: state the splitting identity at the coefficient
 level against `negConv`, the closed form `hachi/lean/Ring.lean` already proves
 `Rq::mul` computes, and lift to ArkLib's `Mul (Rq Φ)` through
-`hachi/lean-wip/RqBridge.lean` only if the `Rq Φ`-level statement is what the
+`hachi/lean/RqBridge.lean` only if the `Rq Φ`-level statement is what the
 candidate claims.
 
 ## Invariants to keep green

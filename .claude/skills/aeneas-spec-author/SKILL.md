@@ -13,7 +13,7 @@ composes are documented in `hachi/lean/Field.lean`'s header; the translation
 model and `@[step]` machinery in the `aeneas-lean-core` skill; the loop-spec
 template in the `proof-patterns` skill. The proved files `lean/Field.lean`
 and `lean/Ring.lean` are the style exemplars — a new spec should read as if
-it always lived beside them — and `lean-wip/RqBridge.lean` is the exemplar
+it always lived beside them — and `lean/RqBridge.lean` is the exemplar
 for the lift. When the representation-function pattern below stops fitting,
 read the `aeneas-equivalence-bridges` skill before inventing anything.
 
@@ -78,7 +78,7 @@ before any spec leans on it.
 *The development splits at the coefficient level.* `lean/Ring.lean` states
 each operation total, length-preserving and coefficientwise correct against
 `ZMod q` arithmetic (`coeffK`, `negConv`), importing `Generated` and `Field`
-and **no ArkLib at all**; `lean-wip/RqBridge.lean` lifts each of those to
+and **no ArkLib at all**; `lean/RqBridge.lean` lifts each of those to
 `Rq Φ` via `toRq`. That is deliberate — the hard half is checkable against a
 tiny import surface and could therefore be audited before the bridge existed
 (`NOTES.md` § "Two things that made the proofs go through"). A
@@ -114,7 +114,7 @@ Author both halves, and say in the deliverable which of the two is proved.
 3. **Representation layer before any statement.** Reuse the house
    functions, bottom-up: `toK` / `Red` on field words (`lean/Field.lean`),
    `coeffK` / `Wf` on coefficient vectors (`lean/Ring.lean`), `toRq`
-   (`lean-wip/RqBridge.lean`), `toVec` / `WfVec` / `toMat` / `WfMat`
+   (`lean/RqBridge.lean`), `toVec` / `WfVec` / `toMat` / `WfMat`
    (`lean-wip/Scheme.lean`). A genuinely new extracted type gets, in this
    order and before its first spec: a representation **function**, its
    invariant predicate, the coefficient kit (`coeffK_of_lt`,
@@ -219,7 +219,6 @@ Author both halves, and say in the deliverable which of the two is proved.
    that no stray `axiom` from an un-whitelisted `cpoly` item crept in.
    Until promotion, "proved" means less than it sounds: nothing re-checks
    the file, so a change to `lean/Ring.lean` can break it silently.
-   `lean-wip/RqBridge.lean` is exactly in that state today.
 10. **Champion re-spec** (accepted optimization, regenerated
     `Generated.lean`): headline statement text is carried over verbatim (the
     one rule); extracted names are re-read off `Generated.lean`, since a

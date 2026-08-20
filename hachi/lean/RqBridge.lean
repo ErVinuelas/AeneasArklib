@@ -1,11 +1,10 @@
 /-
-The **`Rq Φ` bridge**: what remains between the coefficient-level ring layer
-(`lean/Ring.lean`, proved) and ArkLib's `CyclotomicModulus.Rq Φ`.
+The **`Rq Φ` bridge**: the step from the coefficient-level ring layer
+(`lean/Ring.lean`, proved) to ArkLib's `CyclotomicModulus.Rq Φ`.
 
-**Proved, but not yet checked by `make build`**: every theorem below is complete and
-`#print axioms` gives the three kernel axioms for each, but this file is still outside the
-Lake library, so nothing here is re-verified on every build. `lean-wip/README.md` § "Promoting
-a file out of here" is the procedure that changes that; steps 2-5 of it remain to be done.
+**Proved and audited**: every theorem below is complete, this file is a root of the
+`HachiEquiv` Lake library, and `lean/Check.lean` § 4 prints the axiom dependencies of
+each headline spec -- the three Lean kernel axioms and nothing else.
 
 ## What is proved, and where the work was
 

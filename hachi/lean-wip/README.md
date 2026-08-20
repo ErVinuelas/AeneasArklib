@@ -1,41 +1,27 @@
 # `lean-wip/` — the equivalence obligations that are not proved yet
 
-**Everything here typechecks; `RqBridge.lean` is now also fully proved, `Scheme.lean` is
-not.** Typechecking and proving are different claims, and keeping them apart is the point
-of this directory.
+**Everything here typechecks; nothing here is proved.** Typechecking and proving are
+different claims, and keeping them apart is the point of this directory.
 
-* *Typechecks*: `lake env lean` elaborates both files against the pinned ArkLib
+* *Typechecks*: `lake env lean` elaborates the file against the pinned ArkLib
   specification with no errors. So every statement is well-formed at this crate's
   parameters, and each one is about the specification's own definitions rather than
   a paraphrase of them — a mistranslation would show up here as a type error.
-* *Not proved*: 23 `sorry`s remain, all of them in `Scheme.lean`; `RqBridge.lean` has
-  none. That is why this directory is **not** a source root of the `HachiEquiv` Lake
-  library (see `hachi/lakefile.lean`): `lake build` does not look at it, so `make build`'s
-  "no errors, no `sorry`" cannot be diluted by anything here. Hard rule 5 of this project
-  is that no `sorry` may sit anywhere `Check.lean` reaches.
+* *Not proved*: 23 `sorry`s remain, all in `Scheme.lean`. That is why this directory
+  is **not** a source root of the `HachiEquiv` Lake library (see `hachi/lakefile.lean`):
+  `lake build` does not look at it, so `make build`'s "no errors, no `sorry`" cannot be
+  diluted by anything here. Hard rule 5 of this project is that no `sorry` may sit
+  anywhere `Check.lean` reaches.
 
-  `RqBridge.lean` being proved therefore means less than it sounds until it is *promoted*:
-  until then nothing re-checks it, and a change to `lean/Ring.lean` could break it
-  silently. The procedure at the end of this file is what turns it into a checked claim.
-
-What is proved *and audited* lives in `lean/`: the base field (`lean/Field.lean`) and the
+What is proved *and audited* lives in `lean/`: the base field (`lean/Field.lean`), the
 whole coefficient level of the ring (`lean/Ring.lean`, `mul` included — all thirteen
-operations). `lean/Check.lean` § 4 prints the axiom dependencies of each, and they come out
-as the three Lean kernel axioms and nothing else.
+operations), and those thirteen lifted to ArkLib's `Rq Φ` (`lean/RqBridge.lean`, promoted
+out of this directory by the procedure below). `lean/Check.lean` § 4 prints the axiom
+dependencies of each, and they come out as the three Lean kernel axioms and nothing else.
 
-## The files
+## The file
 
-**`RqBridge.lean`** — the bridge from the proved coefficient layer to ArkLib's
-`CyclotomicModulus.Rq Φ`, plus one obligation per `src/ring.rs` operation.
-
-Its *definitions* are proved, and they are the useful part: `toRq` (a coefficient
-vector read as an element of `Rq Φ`), `toRq_coeff` (its coefficients, via ArkLib's
-`ofFinCoeff_coeff`), and `toRq_eq_iff` (two represented elements are equal exactly
-when their coefficients agree below `N`). Given those, most of the lifts are short: `add_spec` is `Ring.add_spec` plus ArkLib's
-`add_val`. The exception was `mul_spec`, whose content is the negacyclic fold; it too is
-proved. The file now has no `sorry`s.
-
-**`Scheme.lean`** — the same for `linalg`, `gadget` and `commit`, including the
+**`Scheme.lean`** — the obligations for `linalg`, `gadget` and `commit`, including the
 structure bridges (`toParams`, `toDecompSpec`, `toOpening`) that let
 `verify_weak_spec` be stated against the specification's own `verify_weak` rather
 than a restatement of its checks.
@@ -66,16 +52,19 @@ than a restatement of its checks.
 
 ## Working here
 
-`lean-wip` is not on the module search path, so a file that imports another one in
-this directory needs it built first:
+`Scheme.lean`'s `import RqBridge` now resolves through the built library (RqBridge
+was promoted), so checking it is just:
 
 ```sh
 cd hachi
-lake env lean -o /tmp/wiplib/RqBridge.olean lean-wip/RqBridge.lean
-LEAN_PATH="$(lake env printenv LEAN_PATH):/tmp/wiplib" lake env lean lean-wip/Scheme.lean
+lake build   # so the library's .oleans are current
+lake env lean lean-wip/Scheme.lean
 ```
 
-Set `autoImplicit false` in every file here. Both files needed it: with it on, an
+(Before the promotion this needed a `/tmp/wiplib` `LEAN_PATH` detour to build
+`RqBridge.olean` by hand — a file here importing another file here still would.)
+
+Set `autoImplicit false` in every file here. Both original files needed it: with it on, an
 unknown identifier in a binder becomes an implicitly bound variable, so a missing
 `open` turns a statement about `q` into a statement about *any* natural number.
 That is how a spec silently becomes vacuous, and it has already happened once in

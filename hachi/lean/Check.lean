@@ -1,6 +1,7 @@
 import Generated
 import Field
 import Ring
+import RqBridge
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 
 /-!
@@ -31,10 +32,11 @@ What it audits, in four sections:
 4. the axiom dependencies of every proved spec, which is what makes a `sorryAx`
    a build failure rather than a silent debt.
 
-§ 4 is the one that grows: it lists the base-field specs (`lean/Field.lean`), which
-are proved. The ring, gadget and commitment obligations are *stated* in
-`lean-wip/` and not proved, so they are deliberately absent from it -- see
-`lean-wip/README.md` for the promotion procedure.
+§ 4 is the one that grows: it lists the base-field specs (`lean/Field.lean`), the
+coefficient-level ring specs (`lean/Ring.lean`) and their lifts to ArkLib's `Rq Φ`
+(`lean/RqBridge.lean`), all proved. The `linalg`, `gadget` and `commit` obligations
+are *stated* in `lean-wip/Scheme.lean` and not proved, so they are deliberately
+absent from it -- see `lean-wip/README.md` for the promotion procedure.
 -/
 
 -- Off, and load-bearing for an audit file specifically. With `autoImplicit` on (the
@@ -300,12 +302,11 @@ printed here is a build failure rather than a silent debt. The expected output i
 the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 `Quot.sound`, which are the ones the README's trusted computing base names.
 
-What is here: the base field (`lean/Field.lean`), and the whole coefficient level of the
-ring (`lean/Ring.lean`) -- all thirteen operations. What is not: the `Rq Φ` bridge, which
-*is* proved but lives in `lean-wip/RqBridge.lean` and so is not built (promoting it, and
-adding its lines here, is steps 2-4 of the procedure in `lean-wip/README.md`); and
-`linalg`, `gadget` and `commit`, which are stated in `lean-wip/Scheme.lean` and not
-proved. Each adds its `#print axioms` line here as it lands. -/
+What is here: the base field (`lean/Field.lean`), the whole coefficient level of the
+ring (`lean/Ring.lean`) -- all thirteen operations -- and those thirteen lifted to
+ArkLib's `Rq Φ` (`lean/RqBridge.lean`). What is not: `linalg`, `gadget` and `commit`,
+which are stated in `lean-wip/Scheme.lean` and not proved. Each adds its
+`#print axioms` line here as it lands. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
@@ -335,5 +336,24 @@ proved. Each adds its `#print axioms` line here as it lands. -/
 #print axioms HachiEquiv.Ring.equals_spec
 #print axioms HachiEquiv.Ring.is_zero_spec
 #print axioms HachiEquiv.Ring.copy_spec
+
+-- The `Rq Φ` bridge (`lean/RqBridge.lean`): the same thirteen operations, with the
+-- coefficient facts lifted to ArkLib's ring -- each says `toRq` of the result is the
+-- ArkLib operation applied to the `toRq`s of the inputs. `mul_spec`'s lift is the
+-- two-block negacyclic fold (`mul_two_block`), i.e. reduction modulo `X^N + 1`.
+#print axioms HachiEquiv.RqBridge.zero_spec
+#print axioms HachiEquiv.RqBridge.add_spec
+#print axioms HachiEquiv.RqBridge.sub_spec
+#print axioms HachiEquiv.RqBridge.neg_spec
+#print axioms HachiEquiv.RqBridge.scalar_mul_spec
+#print axioms HachiEquiv.RqBridge.mul_spec
+
+#print axioms HachiEquiv.RqBridge.constant_spec
+#print axioms HachiEquiv.RqBridge.one_spec
+#print axioms HachiEquiv.RqBridge.from_coeffs_spec
+#print axioms HachiEquiv.RqBridge.coeff_spec
+#print axioms HachiEquiv.RqBridge.equals_spec
+#print axioms HachiEquiv.RqBridge.is_zero_spec
+#print axioms HachiEquiv.RqBridge.copy_spec
 
 end HachiEquiv.Check

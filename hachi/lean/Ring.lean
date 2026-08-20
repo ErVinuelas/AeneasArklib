@@ -10,7 +10,7 @@ and that statement needs one more step than what is here. This file proves the p
 that is *work*: the loop invariants, the totality of every `u64` intermediate, and
 the coefficient semantics of each operation. Lifting a coefficient statement to an
 element of `Rq Φ` is then bookkeeping through ArkLib's `ofFinCoeff_coeff` and
-`Subtype.ext`, and it lives in `lean-wip/RqBridge.lean` with the rest of the
+`Subtype.ext`, and it lives in `lean/RqBridge.lean` with the rest of the
 `Rq Φ`-level statements.
 
 The split is deliberate: this half is checkable against a much smaller import
@@ -755,7 +755,7 @@ theorem rowsSum_full (a b : ring.Rq) (ha : Wf a) (hb : Wf b) (k : ℕ) :
 /-- `Rq::mul` -- the negacyclic product: total, length-preserving, and coefficientwise
 `negConv`, the `k`-th antidiagonal of the raw product minus its `(N + k)`-th.
 
-`lean-wip/RqBridge.lean` is what turns that into the statement about ArkLib's
+`lean/RqBridge.lean` is what turns that into the statement about ArkLib's
 `Mul (Rq Φ)`; the reduction the specification performs with `modByMonic` is exactly the
 minus sign the Rust folds in as it goes. -/
 theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :

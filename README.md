@@ -44,19 +44,17 @@ in structure and in method, and depends on it for the coefficient field.
 > coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — all
 > thirteen operations total, length-preserving and coefficientwise correct, `mul`
 > being the negacyclic convolution and `equals`/`is_zero` being decision procedures
-> proved correct in both directions).
+> proved correct in both directions), and the lift of that ring layer to ArkLib's
+> `Rq Φ` ([`lean/RqBridge.lean`](hachi/lean/RqBridge.lean) — each operation's `toRq`
+> is the ArkLib operation applied to the `toRq`s of the inputs, `mul` against
+> `modByMonic (X^N + 1)` included).
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all nineteen proved specs: the three Lean kernel axioms, nothing else.
+> of all thirty-two proved specs: the three Lean kernel axioms, nothing else.
 >
-> The lift of that ring layer to ArkLib's `Rq Φ`
-> ([`hachi/lean-wip/RqBridge.lean`](hachi/lean-wip/RqBridge.lean)) is **also proved** —
-> 26 theorems, same three axioms — but is *not yet checked*: `lean-wip/` is deliberately
-> not a Lake root, so `make build` never looks at it. Promoting that file into the audited
-> library is the next step. What remains merely *stated* is all of
-> `linalg`/`gadget`/`commit`, in
-> [`hachi/lean-wip/Scheme.lean`](hachi/lean-wip/Scheme.lean). Both files **typecheck**
-> against the pinned specification, which is what makes them statements about ArkLib's own
+> What remains merely *stated* is all of `linalg`/`gadget`/`commit`, in
+> [`hachi/lean-wip/Scheme.lean`](hachi/lean-wip/Scheme.lean). That file **typechecks**
+> against the pinned specification, which is what makes it statements about ArkLib's own
 > definitions rather than paraphrases of them.
 > [`NOTES.md`](NOTES.md) § "The Lean side does build here" scores every claim in
 > this repository as verified or not, and
@@ -129,9 +127,11 @@ hachi/
   lakefile.lean       Lean library, srcDir `lean/`
   lean/
     Generated.lean    the extracted model -- DERIVED by `make extract`, never hand-edit
+    Field.lean        the base field `Fp` against `ZMod q` -- proved
+    Ring.lean         the ring operations at the coefficient level -- proved
+    RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           the equivalence development, NOT a Lake root and NOT audited
-    RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved, unchecked
     Scheme.lean       the linalg / gadget / commit obligations -- stated only
     README.md         what has to happen before a file moves into lean/
 ```

@@ -57,13 +57,8 @@ those files.
 
 Untraveled repository: no campaign has run here, and `logs/ledger.jsonl` is
 empty. The outstanding proof debt a campaign can be pointed at today is exactly
-two files, and both are real work rather than scaffolding:
+one file, and it is real work rather than scaffolding:
 
-* `hachi/lean-wip/RqBridge.lean` — the lift of the proved coefficient layer to
-  ArkLib's `Rq Φ`. **Proved** (26 theorems, three kernel axioms) but
-  **unchecked**: promoting it per the procedure above is the shortest complete
-  campaign available, and until it happens a change to `hachi/lean/Ring.lean`
-  can break it silently.
 * `hachi/lean-wip/Scheme.lean` — the `linalg` / `gadget` / `commit`
   obligations, **stated only** (23 `sorry`s), typechecked against the pinned
   ArkLib. `gadget_mul_spec` and `verify_weak_spec` are the two worth reading
@@ -71,8 +66,9 @@ two files, and both are real work rather than scaffolding:
   own `gadgetMul_apply`, the second is an *equality* of decisions, so a
   reject-everything verifier cannot satisfy it).
 
-Proved and audited already: `hachi/lean/Field.lean` and `hachi/lean/Ring.lean`
-— nineteen headline specs, axioms exactly the three kernel ones.
+Proved and audited already: `hachi/lean/Field.lean`, `hachi/lean/Ring.lean`
+and `hachi/lean/RqBridge.lean` — thirty-two headline specs, axioms exactly
+the three kernel ones.
 
 ## The procedure
 
@@ -99,7 +95,7 @@ Proved and audited already: `hachi/lean/Field.lean` and `hachi/lean/Ring.lean`
    `aeneas-equivalence-bridges` before any relation is invented. Two local
    mechanics: the coefficient level and the `Rq Φ` level are separate files on
    purpose (`lean/Ring.lean` proves the loop invariants and totality against a
-   small import surface; `lean-wip/RqBridge.lean` does the `ofFinCoeff_coeff`
+   small import surface; `lean/RqBridge.lean` does the `ofFinCoeff_coeff`
    bookkeeping on top), so a spec belongs at the level where its work is; and
    the `Opt` definitions of a Lean-side champion live in `hachi/lean/Opt.lean`,
    which **does not exist yet** — the first `lean-opt` run creates it *and*

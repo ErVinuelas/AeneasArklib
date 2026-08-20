@@ -121,11 +121,10 @@ each `sorry`, then the `hachi/lean/Check.lean` § 4 axiom audit. `main` only eve
 receives a green module.
 
 > There is real debt to point it at today, independent of any optimization:
-> [`hachi/lean-wip/RqBridge.lean`](hachi/lean-wip/RqBridge.lean) is proved but
-> unchecked (it is deliberately outside the Lake roots), and
 > [`hachi/lean-wip/Scheme.lean`](hachi/lean-wip/Scheme.lean) is stated only.
 > [`hachi/lean-wip/README.md`](hachi/lean-wip/README.md) says what promotion into
-> the audited library requires.
+> the audited library requires — the procedure `RqBridge.lean` (now
+> `hachi/lean/RqBridge.lean`, proved and audited) has already been through.
 
 **`autonomy-harness` — run unattended.** Under `/loop`, each iteration picks the
 next operation by headroom, runs a route end to end, proves the result, and

@@ -80,11 +80,11 @@ Every candidate consists of a change to `hachi/lean/Opt.lean`, its
      `(N + k)`-th — `(a·b) mod (X^N + 1)` written out). Use only the
      representation maps the audited files already own: `toK`, `Red`
      (`Field.lean`), `coeffK`, `Wf`, `contrib`, `rowsSum`, `negConv`
-     (`Ring.lean`). `toRq` / `toRq_coeff` / `toRq_eq_iff` in
-     `hachi/lean-wip/RqBridge.lean` are proved but **not yet audited**, so a
-     lemma resting on them rests on unchecked ground: prefer the `Ring.lean`
-     level, and if the `Rq Φ` level is genuinely needed, say so in the note
-     and treat the bridge's promotion as a prerequisite.
+     (`Ring.lean`), `toRq` / `toRq_coeff` / `toRq_eq_iff`
+     (`hachi/lean/RqBridge.lean`). Prefer the `Ring.lean` level all the same —
+     a coefficient-level lemma has the smaller import surface, and the spec
+     split (the `aeneas-spec-author` skill) puts the work there; reach for the
+     `Rq Φ` level only when that is what the candidate genuinely claims.
 
    Note what this lemma is *not*. The audited statements about the shipped
    code are Aeneas triples over the extracted monadic model
