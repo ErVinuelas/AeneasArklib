@@ -70,10 +70,11 @@ in structure and in method, and depends on it for the coefficient field.
 ## Usage
 
 ```sh
-make setup     # install everything: elan, the Lean dependencies, rust, the extraction binaries
-make build     # check the proofs
-make extract   # regenerate hachi/lean/Generated.lean from src/
-make run-bench # time every operation
+make setup       # install everything: elan, the Lean dependencies, rust, the extraction binaries
+make build       # check the proofs
+make extract     # regenerate hachi/lean/Generated.lean from src/
+make run-bench   # time every operation against its frozen first translation
+make bench-check # verify that frozen baseline against git, and bench coverage
 ```
 
 `make` on its own lists the targets.
@@ -99,6 +100,10 @@ elsewhere.
 ```
 Makefile              setup, build, test, extraction, benchmarks
 NOTES.md              decisions, spec observations, Aeneas surprises
+INSTRUCTIONS.md       the skill catalogue: what to invoke, and what it asks
+.claude/skills/       the written procedures the pipeline runs, one per directory
+logs/
+  ledger.jsonl        append-only candidate and campaign rows (currently empty)
 scripts/
   install-lean.sh     elan + the pinned toolchain, from GitHub if the usual
                       hosts are blocked (used by `make setup`)
@@ -114,6 +119,10 @@ hachi/
     commit.rs         the inner-outer Ajtai commitment, its weak verifier, the norms
   tests/              Rust-side semantics tests, one per src/ module
   benches/            criterion benchmarks, one file per src/ module
+    support/          the corpus, the digest oracle, and the case macros
+    harness.py        stamping, the integrity gates, and the run report
+    rustitems.py      the item scanner both gates read spans from
+    exclusions.toml   mirrored items that deliberately have no benchmark
     genesis/          the frozen first translation; append-only, never edited
     candidate/        the optimization loop's A/B slot
 
@@ -122,8 +131,9 @@ hachi/
     Generated.lean    the extracted model -- DERIVED by `make extract`, never hand-edit
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           the equivalence development, NOT a Lake root and NOT audited
-    Ring.lean         the representation bridge, and the ring layer's obligations
-    Scheme.lean       the linalg / gadget / commit obligations
+    RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved, unchecked
+    Scheme.lean       the linalg / gadget / commit obligations -- stated only
+    README.md         what has to happen before a file moves into lean/
 ```
 
 Each module names the ArkLib file it is a translation of, and each operation the
@@ -155,6 +165,45 @@ ring or the field, and every parameter a `const` in
 instantiates a generic ArkLib statement at fixed values. Which values are forced
 by a dependency and which are choices is recorded per-constant there, and
 summarized in [`NOTES.md`](NOTES.md) § "Chosen parameters".
+
+## The benchmark baseline is checked, not trusted
+
+Speed is the other half of the point, and it is measured against
+[`hachi/benches/genesis/`](hachi/benches/genesis) — a real crate holding the
+*first* translation of every operation, compiled the same way `hachi` is and
+measured in the **same criterion session**, so a "vs genesis" reading is a
+comparison made now rather than a remembered number. Nothing is ever compared
+across runs.
+
+That only means something if the frozen text cannot move, so it is verified
+rather than promised. Every frozen item carries a `// @genesis <sha> <date>`
+stamp, and `make bench-check` proves three things before any measurement is
+believed:
+
+* **`check-genesis`** — each frozen item, *attributes included*, is byte-for-byte
+  what `hachi/src` held at the commit its stamp names. An edited baseline would
+  make every past and present "vs genesis" figure wrong, silently and
+  retroactively; `make run-bench` therefore refuses to run without this.
+* **`check-candidate`** — the A/B slot
+  ([`hachi/benches/candidate/`](hachi/benches/candidate)) is a *null* candidate at
+  rest: byte-copies of `hachi/src`, no symlink, no extra file, `lib.rs` and
+  `Cargo.toml` pinned to git.
+* **`coverage --strict`** — every item whose docstring claims to mirror an ArkLib
+  definition is either benchmarked or excluded *by name, with a reason*, in
+  [`hachi/benches/exclusions.toml`](hachi/benches/exclusions.toml). Silence is not
+  an exclusion.
+
+Each case also has exactly one body, which the harness either times or runs once
+and digests; the digests of `hachi`, the frozen copy and the candidate slot must
+agree *before* anything is timed. So an "optimization" that changes an answer
+fails the run instead of being reported as a speedup.
+
+What this machinery does **not** yet have is a local calibration. No
+measurement-grade run has happened here — the noise floor the accept rule uses is
+inherited from [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
+and is documented as borrowed where it is used. See [`NOTES.md`](NOTES.md)
+§ "Benchmark numbers from this session are not measurement-grade", and
+[`INSTRUCTIONS.md`](INSTRUCTIONS.md) for the procedures that act on all of this.
 
 ## Dependencies and pins
 

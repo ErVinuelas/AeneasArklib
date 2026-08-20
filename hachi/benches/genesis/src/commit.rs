@@ -65,6 +65,7 @@ use crate::ring::Rq;
 // Centered norms
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::centered_abs
 /// The absolute value of a field element's *centered* representative (spec:
 /// `(c.valMinAbs).natAbs`, via `zmodCenteredView`,
 /// `CyclotomicRing/Norms.lean:48`).
@@ -73,7 +74,6 @@ use crate::ring::Rq;
 /// `(-q/2, q/2]`; taking the absolute value of that is the same as folding the
 /// upper half of `[0, q)` back down, which is what this does. `q` is odd, so
 /// `q/2 = (q-1)/2` and the fold has no fixed point to get wrong.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn centered_abs(c: Fp) -> u64 {
     let q: u64 = params::Q;
     let half: u64 = q / 2;
@@ -85,11 +85,11 @@ pub fn centered_abs(c: Fp) -> u64 {
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::l1_norm
 /// The centered `ℓ₁` norm of a ring element (spec: `Rq.l1Norm`,
 /// `NormBounds/Basic.lean:82`): `Σₖ |cₖ|` over the `deg φ` coefficients.
 ///
 /// Cannot overflow: at most `RING_DEGREE = 64` terms, each below `q/2 < 2^31`.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn l1_norm(a: &Rq) -> u64 {
     let n: usize = params::RING_DEGREE;
     let mut acc: u64 = 0;
@@ -101,12 +101,12 @@ pub fn l1_norm(a: &Rq) -> u64 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::l_infty_norm
 /// The centered `ℓ∞` norm of a ring element (spec: `Rq.lInftyNorm`,
 /// `NormBounds/Basic.lean:87`): `maxₖ |cₖ|`.
 ///
 /// The spec's `Finset.sup` over an empty range is `0`, which is what an empty
 /// loop leaves in the accumulator here.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn l_infty_norm(a: &Rq) -> u64 {
     let n: usize = params::RING_DEGREE;
     let mut best: u64 = 0;
@@ -121,6 +121,7 @@ pub fn l_infty_norm(a: &Rq) -> u64 {
     best
 }
 
+// @genesis d664190 2026-08-19 — commit::l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a ring element (spec: `Rq.l2NormSq`,
 /// `NormBounds/Basic.lean:78`): `Σₖ |cₖ|²`.
 ///
@@ -132,7 +133,6 @@ pub fn l_infty_norm(a: &Rq) -> u64 {
 /// equivalence proof has to establish (the extracted model is fallible: an
 /// overflow there is `Result.fail`, and a spec that only holds for short inputs
 /// would leave the verifier's own rejection path unproved).
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn l2_norm_sq(a: &Rq) -> u128 {
     let n: usize = params::RING_DEGREE;
     let mut acc: u128 = 0;
@@ -145,9 +145,9 @@ pub fn l2_norm_sq(a: &Rq) -> u128 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::vec_l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a vector (spec: `vecL2NormSq`,
 /// `NormBounds/Basic.lean:91`): the sum of the entrywise norms.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn vec_l2_norm_sq(v: &PolyVec) -> u128 {
     let n: usize = v.len();
     let mut acc: u128 = 0;
@@ -159,9 +159,9 @@ pub fn vec_l2_norm_sq(v: &PolyVec) -> u128 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::vec_l_infty_norm
 /// The centered `ℓ∞` norm of a vector (spec: `vecLInftyNorm`,
 /// `NormBounds/Basic.lean:95`): the largest entrywise norm.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
     let n: usize = v.len();
     let mut best: u64 = 0;
@@ -180,20 +180,20 @@ pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
 // The scheme's data
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::PublicParams
 /// The two Ajtai matrices (spec: `PublicParams`, `Scheme.lean:94`).
 ///
 /// `inner_matrix` is `A`, of shape `INNER_ROWS × (MESSAGE_ROWS · GADGET_DIGITS)`;
 /// `outer_matrix` is `B`, of shape
 /// `OUTER_ROWS × (BLOCKS · (INNER_ROWS · GADGET_DIGITS))`.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub struct PublicParams {
     inner_matrix: PolyMatrix,
     outer_matrix: PolyMatrix,
 }
 
 impl PublicParams {
+    // @genesis d664190 2026-08-19 — commit::PublicParams::new
     /// Bundle the inner and outer matrices.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn new(inner_matrix: PolyMatrix, outer_matrix: PolyMatrix) -> PublicParams {
         PublicParams {
             inner_matrix,
@@ -201,30 +201,30 @@ impl PublicParams {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::PublicParams::inner_matrix
     /// The inner Ajtai matrix `A`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn inner_matrix(&self) -> &PolyMatrix {
         &self.inner_matrix
     }
 
+    // @genesis d664190 2026-08-19 — commit::PublicParams::outer_matrix
     /// The outer Ajtai matrix `B`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn outer_matrix(&self) -> &PolyMatrix {
         &self.outer_matrix
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::Decomp
 /// The committer-produced decomposition data `(sᵢ, t̂ᵢ)ᵢ` (spec: `Decomp`,
 /// `Scheme.lean:104`), without the challenge.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub struct Decomp {
     message: Vec<PolyVec>,
     inner_decomp: Vec<PolyVec>,
 }
 
 impl Decomp {
+    // @genesis d664190 2026-08-19 — commit::Decomp::new
     /// Bundle per-block decomposed messages and inner decompositions.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn new(message: Vec<PolyVec>, inner_decomp: Vec<PolyVec>) -> Decomp {
         Decomp {
             message,
@@ -232,53 +232,53 @@ impl Decomp {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::blocks
     /// The number of blocks.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn blocks(&self) -> usize {
         self.message.len()
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::message
     /// The decomposed message `sᵢ` of block `i`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn message(&self, i: usize) -> &PolyVec {
         &self.message[i]
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomp
     /// The inner decomposition `t̂ᵢ` of block `i`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn inner_decomp(&self, i: usize) -> &PolyVec {
         &self.inner_decomp[i]
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomps
     /// The inner decompositions as blocks, for flattening.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn inner_decomps(&self) -> &Vec<PolyVec> {
         &self.inner_decomp
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::Opening
 /// A Hachi/Greyhound weak opening `(sᵢ, t̂ᵢ, cᵢ)ᵢ` (spec: `Opening`,
 /// `Scheme.lean:115`).
 ///
 /// The specification's `Opening` *extends* `Decomp`; composition is the same
 /// data, reached as `opening.decomp()`.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub struct Opening {
     decomp: Decomp,
     challenge: PolyVec,
 }
 
 impl Opening {
+    // @genesis d664190 2026-08-19 — commit::Opening::new
     /// Pair decomposition data with per-block challenges.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn new(decomp: Decomp, challenge: PolyVec) -> Opening {
         Opening { decomp, challenge }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::honest
     /// The honest opening: the decomposition with the trivial challenge
     /// `cᵢ = 1`, which is what `commitmentScheme.commit` produces
     /// (`Scheme.lean:229`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn honest(decomp: Decomp) -> Opening {
         let blocks: usize = decomp.blocks();
         let mut ones: Vec<Rq> = Vec::new();
@@ -293,14 +293,14 @@ impl Opening {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::decomp
     /// The underlying decomposition data.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn decomp(&self) -> &Decomp {
         &self.decomp
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::challenge
     /// The challenge `cᵢ` of block `i`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
     pub fn challenge(&self, i: usize) -> &Rq {
         self.challenge.get(i)
     }
@@ -310,6 +310,7 @@ impl Opening {
 // Commit
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::derived_message
 /// The message block derived from the decomposition data: `mᵢ = G · sᵢ` (spec:
 /// `derivedMessage`, `Scheme.lean:148`, i.e. [NOZ26] Eq. (13)).
 ///
@@ -317,7 +318,6 @@ impl Opening {
 /// `Simple.commit`; [`gadget::gadget_mul`] is the same map by `gadgetMul_apply`,
 /// and is the form that does `O(rows · digits)` work instead of
 /// `O(rows² · digits)`.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
     let blocks: usize = decomp.blocks();
     let rows: usize = params::MESSAGE_ROWS;
@@ -330,6 +330,7 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
     out
 }
 
+// @genesis d664190 2026-08-19 — commit::generate_decomps
 /// Honest decomposition generation (spec: `generateDecomps`,
 /// `Scheme.lean:157`): `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
 ///
@@ -339,7 +340,6 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
 /// two slots exist because the specification allows different digit counts for
 /// them; here they coincide (see [`params::GADGET_DIGITS`]), so one function
 /// serves both and `ofDigits` has no computational content left to translate.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     let blocks: usize = m.len();
     let mut ss: Vec<PolyVec> = Vec::new();
@@ -355,19 +355,19 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     Decomp::new(ss, ts)
 }
 
+// @genesis d664190 2026-08-19 — commit::commit_with_decomps
 /// The outer commitment computed from the decomposition data (spec:
 /// `commitWithDecomps`, `Scheme.lean:166`): `u = B · flatten(t̂)`.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn commit_with_decomps(pp: &PublicParams, decomp: &Decomp) -> PolyVec {
     let flat: PolyVec = linalg::flatten_blocks(decomp.inner_decomps());
     pp.outer_matrix().mat_vec_mul(&flat)
 }
 
+// @genesis d664190 2026-08-19 — commit::commit
 /// Commit to a message: generate the honest decomposition and return it with the
 /// outer commitment (spec: `commitmentScheme.commit`, `Scheme.lean:227`, minus
 /// the `OracleComp` wrapper and with the challenge left to
 /// [`Opening::honest`]).
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
     let decomp: Decomp = generate_decomps(pp, m);
     let u: PolyVec = commit_with_decomps(pp, &decomp);
@@ -378,6 +378,7 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 // Verify
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::verify_weak
 /// Verify a weak opening against the outer commitment `u` (spec:
 /// `verify_weak`, `Scheme.lean:194`).
 ///
@@ -399,7 +400,6 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 /// specification, which is a `&&` of `List.all` over eagerly-`decide`d
 /// propositions, and it keeps the control flow (and so the extracted model) a
 /// straight line.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn verify_weak(pp: &PublicParams, u: &PolyVec, opening: &Opening) -> bool {
     let decomp: &Decomp = opening.decomp();
     let blocks: usize = decomp.blocks();
@@ -439,10 +439,10 @@ pub fn verify_weak(pp: &PublicParams, u: &PolyVec, opening: &Opening) -> bool {
     ok
 }
 
+// @genesis d664190 2026-08-19 — commit::verify
 /// Verify an opening against a claimed message (spec:
 /// `commitmentScheme.verify`, `Scheme.lean:231`): the message must be the one
 /// derived from the opening, and the weak checks must pass.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/commit.rs
 pub fn verify(pp: &PublicParams, m: &Vec<PolyVec>, u: &PolyVec, opening: &Opening) -> bool {
     let derived: Vec<PolyVec> = derived_message(opening.decomp());
     let blocks: usize = m.len();

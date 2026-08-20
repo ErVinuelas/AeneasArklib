@@ -45,18 +45,18 @@ use cpoly::Fp;
 
 use crate::params;
 
+// @genesis d664190 2026-08-19 — ring::Rq
 /// An element of `R_q = Z_q[X] / (X^N + 1)`, as its `N` coefficients,
 /// little-endian in `X`.
 ///
 /// Mirrors ArkLib's `CyclotomicModulus.Rq Φ` at `Φ = hachiModulus q α`; see the
 /// module header for why a fixed-length vector is the right presentation of that
 /// subtype.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
 pub struct Rq(Vec<Fp>);
 
 impl Rq {
+    // @genesis d664190 2026-08-19 — ring::Rq::zero
     /// The zero element (spec: the `Zero (Rq Φ)` instance, `Rq.lean:107`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn zero() -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();
@@ -68,19 +68,19 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::one
     /// The multiplicative identity (spec: the `One (Rq Φ)` instance,
     /// `Rq.lean:108`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn one() -> Rq {
         Rq::constant(Fp::ONE)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::constant
     /// The constant polynomial `C c` (spec: `Rq.constRq`, `Rq.lean:353`).
     ///
     /// The spec's `constRq_val` records that no reduction happens here, since
     /// `deg (C c) = 0 < deg φ`; correspondingly this is just `c` in the
     /// zeroth slot.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn constant(c: Fp) -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();
@@ -96,6 +96,7 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::from_coeffs
     /// The element with the given coefficients (spec: `Rq.ofFinCoeff`,
     /// `Rq.lean:269`, at `N = deg φ`).
     ///
@@ -103,7 +104,6 @@ impl Rq {
     /// `RING_DEGREE` on are dropped, which is what makes this total: the spec's
     /// `ofFinCoeff_coeff` reads `if k < N then c k else 0`, and its side
     /// condition `N ≤ deg φ` holds with equality here.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn from_coeffs(coeffs: &Vec<Fp>) -> Rq {
         let n: usize = params::RING_DEGREE;
         let m: usize = coeffs.len();
@@ -120,11 +120,11 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::coeff
     /// The `k`-th coefficient (spec: `Rq.coeffHom`, `Rq.lean:260`).
     ///
     /// Zero at and beyond `RING_DEGREE`, which is the spec's
     /// `coeff_eq_zero_of_natDegree_le` rather than a convention chosen here.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn coeff(&self, k: usize) -> Fp {
         if k < self.0.len() {
             self.0[k]
@@ -133,12 +133,13 @@ impl Rq {
         }
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::len
     /// The number of coefficients: `RING_DEGREE`, for anything this module built.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::equals
     /// Coefficientwise equality.
     ///
     /// This, not `==`, is the equality the scheme uses: it is what
@@ -151,7 +152,6 @@ impl Rq {
     /// The comparison goes through [`Fp::to_u64`] rather than `Fp`'s own `==`
     /// for the same reason, one layer down. Both representatives are reduced, so
     /// comparing the words is comparing the field elements.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn equals(&self, rhs: &Rq) -> bool {
         let n: usize = self.0.len();
         if n != rhs.0.len() {
@@ -169,8 +169,8 @@ impl Rq {
         }
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::is_zero
     /// Is this the zero element?
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn is_zero(&self) -> bool {
         let n: usize = self.0.len();
         let mut i: usize = 0;
@@ -184,6 +184,7 @@ impl Rq {
         zero
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::copy
     /// An independent copy.
     ///
     /// Hand-rolled rather than `#[derive(Clone)]`, which would go through
@@ -192,7 +193,6 @@ impl Rq {
     /// is not among them would arrive as an opaque function -- a copy about which
     /// nothing is known, in the middle of a proof that needs to know the copy is
     /// a copy. A `push` loop is transparent and costs the same.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn copy(&self) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -204,10 +204,10 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::add
     /// Coefficientwise addition (spec: the `Add (Rq Φ)` instance,
     /// `Rq.lean:109`; that it is coefficientwise -- that the reduction in
     /// `Rq.mk` does nothing -- is the spec's `add_val`, `Rq.lean:246`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn add(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -219,9 +219,9 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::sub
     /// Coefficientwise subtraction (spec: `Rq.lean:112`, coefficientwise by
     /// `sub_val`, `Rq.lean:231`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn sub(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -233,9 +233,9 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::neg
     /// Coefficientwise negation (spec: `Rq.lean:111`, coefficientwise by
     /// `neg_val`, `Rq.lean:239`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn neg(&self) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -247,6 +247,7 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::scalar_mul
     /// Multiplication by a field scalar.
     ///
     /// Spec: multiplication by a constant, `Rq.constRq Φ c * x`, whose
@@ -254,7 +255,6 @@ impl Rq {
     /// operation of its own because the gadget matrix is built entirely from
     /// constants (`gadgetEntry` is `constRq (base ^ e)`), so this is the shape
     /// the gadget product wants -- not a special case anyone has to recognise.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn scalar_mul(&self, c: Fp) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -266,6 +266,7 @@ impl Rq {
         Rq(out)
     }
 
+    // @genesis d664190 2026-08-19 — ring::Rq::mul
     /// The negacyclic product (spec: the `Mul (Rq Φ)` instance, `Rq.lean:110`,
     /// which is `reduce (a.val * b.val)`).
     ///
@@ -276,7 +277,6 @@ impl Rq {
     /// output already reduced, with no second pass.
     ///
     /// `i + j` cannot overflow: both are below `N = 64`.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/ring.rs
     pub fn mul(&self, rhs: &Rq) -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();

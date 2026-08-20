@@ -598,7 +598,9 @@ re-derived from the formulas above when the dimensions move, not carried over.
 **Status.** `hachi/lean-wip/` holds the representation bridge and the statement of
 every equivalence obligation the four modules owe:
 
-* `Ring.lean` — the parameters as Lean numbers with their instances, the base-field
+* `Ring.lean` (renamed `RqBridge.lean` when its proofs landed; the name below is the
+  one it had when this entry was written) — the parameters as Lean numbers with
+  their instances, the base-field
   bridge (`toK`, `Red`, and the four `Fp` operator specs re-derived because
   `cpoly`'s `Field.lean` is not importable at v4.31.0 — see the Workstream 0 entry
   on that), the ring bridge (`Wf`, `coeffFun`, `toRq`, `toRq_coeff`,
@@ -902,3 +904,186 @@ a baseline to compare a future candidate against.
 This also supersedes the caveat in § "Benchmark numbers from this session are not
 measurement-grade": the numbers are now taken on an idle machine, and the problem
 turns out not to have been the competing build.
+
+# The AeneasCompPoly skills, ported
+
+[AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly) carries 33
+skills in `.claude/skills/` — written procedures for the two loops this
+repository also runs: optimize an operation until a benchmark says it is faster,
+then prove the optimized Rust equivalent to the specification. This repository
+already followed that method in structure; what it lacked was the method written
+down, and the enforcement the written method assumes. Both are now here, together
+with [`INSTRUCTIONS.md`](INSTRUCTIONS.md) as the catalogue.
+
+## What was actually missing, as opposed to differently book-kept
+
+Most of the gap was bookkeeping: the same disciplines, recorded in prose here and
+in schemas there. Three things were not.
+
+**The genesis stamps were decorative.** Every frozen item carried
+`// @genesis (this file's introducing commit) 2026-08-18 — <path>` — a
+placeholder that reads to a human as provenance while satisfying nothing. There
+was no `check-genesis`, so nothing compared the frozen text against git, and
+`make run-bench` had no gate: an edited baseline would have made every past and
+future "vs genesis" figure wrong, silently and retroactively. This was the one
+place the repository was *weaker* than its own documentation claimed, not merely
+less mechanised. `make bench-stamp` now derives the stamps from history and
+`make bench-check` verifies them; all **81** frozen items resolved, 74 to
+`d664190` (where the four modules landed) and 7 to `4409640` (the `params.rs`
+consts already in final form at Workstream 0). Genesis was byte-identical to
+`hachi/src` at the time, so this was a clean first stamping rather than a repair.
+
+**The coverage gate would have been vacuous.** `coverage --strict` requires every
+item claiming to mirror an ArkLib definition to be benchmarked or excluded by
+name with a checkable reason. The claim is a ``Mirrors `<name>` `` docstring
+line, and there was exactly **one** in the whole crate (on `ring::Rq`), even
+though every module doc already carried a spec-to-here correspondence table with
+`file:line` references. A gate over one item passes trivially — which in a
+repository whose TCB table warns about "a spec that quantifies over an
+uninterpreted symbol, and so says nothing" is the wrong kind of green. There are
+now **40** markers, every ArkLib name confirmed against the pinned spec at
+`hachi/.lake/packages/Arklib/`. The 14 `params.rs` consts are deliberately
+unmarked: a const is a *value chosen for a generic parameter*, not a translation
+of a definition, and marking one would claim `RING_LOG_DEGREE` *is*
+`hachiModulus` rather than its argument `α`.
+
+**There was no digest oracle.** A bench case can measure less than it claims, or
+measure the wrong thing, and both make a number go down — the direction an
+autonomous loop reads as success. The bench layer now runs one body per case,
+which the harness either times or runs once and digests, and asserts that
+`hachi`, the frozen copy and the candidate slot agree *before* timing anything.
+
+## The 5% accept floor is borrowed, and no host here has yet earned it
+
+The accept rule the skills enforce — only a recentered, within-run
+`CANDIDATE=1` delta, over a 5% floor, vetoed above 10% A/B bias — comes with
+numbers that were measured on AeneasCompPoly's machine, not ours. Every skill
+says so where it uses one; `harness.py`'s `MIN_EFFECT` comment says so at length.
+Nothing here has been swept.
+
+That matters more than a missing calibration usually would, because the one run
+this repository has completed failed the harness's own self-test: § "The first
+benchmark run, and what it says about the harness" recorded controls at
+15%/14%/10% and byte-identical source reading 59% and 39% apart, i.e. a run
+`USABLE_BIAS_MAX` would have refused outright. So the honest status is not "the
+floor is untuned" but "no instrument here has yet resolved anything the floor
+could gate", and the skills are written to expect the veto to fire rather than to
+be surprised by it.
+
+**And that run and this port were not on the same machine**, which is why the
+sentence above says "no host" rather than "this host". The earlier readings came
+from a 4-core cloud container; the port was done on a 16-core Ryzen 8845HS. A
+first smoke run here (`ring/mul` plus the four controls) put the worst control at
+**3.5%**, comfortably inside the veto — encouraging, and *not* evidence, for two
+independent reasons: a `lake build` was running during it (load 1.82/16), which
+is exactly the contention the machine-serialization rule exists to forbid, and
+one filtered run of one row is not a sweep. Nothing from it is recorded as a
+result. It does mean the 10–15% figures should not be read as a property of the
+harness: they are a property of that container, and the instrument's real floor
+here is unmeasured in both directions.
+
+The controls were rebuilt during the port, and the obvious hypothesis for the
+10–15% readings **did not survive contact with the old data.** Two of the three
+controls were sub-microsecond (`Rq::zero()` at 212 ns in `ring`, 297 ns in
+`commit`), which is where timer and scheduling noise dominate, and
+AeneasCompPoly sizes its own control near 19 µs *and* makes it allocate on the
+explicit ground that a too-quiet control flatters the harness while its number is
+what every real row must clear. So "the control was too cheap" was the natural
+diagnosis. But the `linalg` control in that same run was **already** a
+`PolyVec::zeros(128)` at 27.9 µs — properly sized by exactly this standard — and
+it read **14%**, no better than the 212 ns one's 15%. One properly-sized control
+reading as badly as two cheap ones is evidence the noise is not about control
+size.
+
+The controls were nonetheless made uniform — `_control/<binary>` is now
+`PolyVec::zeros(128)` in every bench binary, ~15.6–18.9 µs, one separately
+compiled copy per variant crate so it sees code layout *and* timing order, which
+is both halves of what the recentering claims to divide out. That is a
+correctness argument about what the instrument measures, not a fix for the floor,
+and it should not be recorded as one.
+
+What remains is the cheapest experiment available, and it is still unrun: the
+candidate slot is null and genesis is byte-identical to `hachi/src`, so a full
+`make run-bench` on a quiet machine measures nothing but that machine's own
+noise, and **every row of it must read noise**. The worst row that does not is
+this repository's floor. Until that exists, `MIN_EFFECT` is a borrowed number and
+the residual-noise question is open.
+
+One trap the new control carries, documented in `benches/support/mod.rs` rather
+than left to be discovered: `PolyVec::zeros` fills with `Rq::zero`, which is
+itself now a benched row. So a candidate that rewrites `Rq::zero` moves the
+control. That fails closed rather than silently — `harness.py` computes the bias
+veto from the worst pairwise control delta *before* printing any verdict, and
+`ring/zero` is then the row that explains why — but it is the reason a control
+must never be an operation on the optimization loop's path.
+
+## An Aeneas surprise: a docstring edit moves `Generated.lean`
+
+Adding the 40 `Mirrors` lines changed `hachi/lean/Generated.lean` by **304
+line-pairs** — and every single one is a `Source:` span, zero code lines, zero
+axioms. Aeneas records each declaration's provenance as a `file, lines a:b-c:d`
+comment, so *any* edit that shifts a line number in `hachi/src` rewrites the
+model even when the program is identical.
+
+Two consequences worth knowing before they cost someone an afternoon. A
+comment-only change to `src/` obliges a re-extraction: skip it and the next
+`make extract` reports `regenerated`, which is exactly the signature of toolchain
+drift and is the first thing extraction triage chases. And the determinism
+contract — `make extract` on unchanged Rust must report `unchanged` — is
+therefore a claim about the *working tree*, not about the program: it was
+restored here by regenerating (verified: re-running now reports `unchanged`, and
+the diff contains no code line).
+
+Relatedly, the ten `Source:` lines that name the `cpoly` checkout are written as
+`/cargo/git/checkouts/<url-hash>/<short-rev>/…`, a path charon normalises. So the
+cross-crate whitelist costs nothing in determinism — but the `cpoly` **rev is
+visible in the artifact**, and bumping it regenerates those ten lines with no code
+change at all.
+
+## Deliberately not done
+
+`hachi/lean/Opt.lean` does not exist, and `Opt` is not in `roots`. The Lean-side
+optimization skills create both on their first run — with the `Check.lean` §4
+`#print axioms` line that goes with them — and that is a checkable step better
+left to the procedure that owns it than pre-empted by an empty module. No
+optimization pass has run, so `logs/ledger.jsonl` is empty, and no skill implies
+otherwise: there are no past champions or campaigns here to reason from.
+
+`.claude/settings.json` denies `git commit`, which is what makes "agents stage,
+the user commits" enforced rather than trusted — the same move as the stamps, one
+level up.
+
+# The parameters forbid a radix-2 NTT
+
+**Observation, found while porting the optimization skills, and it retires the
+obvious first candidate.** [`hachi/benches/ring.rs`](hachi/benches/ring.rs)
+describes `Rq::mul` — the schoolbook `O(N²)` negacyclic convolution at `N = 64` —
+as "the operation an NTT would replace, so this reading is the baseline any such
+optimization has to beat *and* carry an equivalence proof for". ArkLib's own
+`CyclotomicRing` tree carries a `TODO add proper NTT multiplication here`. So a
+number-theoretic transform is the first thing anyone will reach for.
+
+At these parameters it does not exist. A radix-2 negacyclic NTT of length `N`
+needs a primitive `2N`-th root of unity in the coefficient field, i.e.
+`2N | q - 1`. Here `N = 64`, so it needs `128 | q - 1`, and:
+
+| | |
+|---|---|
+| `q = 2^32 - 99` | `4294967197` |
+| `q - 1` | `4294967196 = 2² · 1073741799` |
+| `v₂(q - 1)` | **2** — the largest 2-power root of unity has order 4, not 128 |
+| `v₂(q⁴ - 1)` | **4** — so `cpoly`'s quartic extension does not rescue it either |
+
+Two consequences. The complexity-class win on the hot path is **not** a
+transform: what remains at this modulus is a convolution *split* (Karatsuba over
+`a = a₀ + X^{N/2}a₁`, three half-length products instead of four, and the
+negacyclic relation `X^N ≡ −1` folds the wrap-around for free), or a change of
+carrier, or a different modulus. And the modulus is not ours to change: `Q` is
+`cpoly`'s Hachi prime, forced by the dependency (§ "Chosen parameters"), so
+"pick an NTT-friendly prime" is an upstream question about `cpoly` and the
+[NOZ26] parameter set, not a local optimization.
+
+This is recorded here rather than only in the skills because it is a fact about
+the parameters, and the next person to read "an NTT would replace this" deserves
+to meet it in the same file as the parameter choices. A candidate proposing a
+transform has to name its root of unity, and no such root exists below order 4.

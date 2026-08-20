@@ -46,10 +46,17 @@ use alloc::vec::Vec;
 use crate::ring::Rq;
 
 /// A vector over `R_q` (spec: `PolyVec (Rq Φ) k`, `Vectors.lean:39`).
+///
+/// Mirrors ArkLib's `PolyVec (Rq Φ) k`; the spec carries the length `k` in the
+/// type and this carries it in the `Vec`, which is the container difference the
+/// module header describes.
 pub struct PolyVec(Vec<Rq>);
 
 /// A matrix over `R_q`, as its rows (spec: `PolyMatrix (Rq Φ) rows cols`,
 /// `Vectors.lean:42`).
+///
+/// Mirrors ArkLib's `PolyMatrix (Rq Φ) rows cols`, which is Mathlib's `Matrix`
+/// over `Fin rows` and `Fin cols`; here it is the list of rows.
 ///
 /// Every row is expected to have the same length; that is the matrix's column
 /// count, and like the ring's degree invariant it is a property of construction
@@ -118,6 +125,9 @@ impl PolyVec {
 
     /// Entrywise addition (spec: the `Pi` instance, used through
     /// `matVecMul_add` and the norm-difference lemmas).
+    ///
+    /// Mirrors ArkLib's `Pi` addition on `PolyVec (Rq Φ) k` -- the canonical
+    /// instance set `Vectors.lean` adopts rather than defining its own.
     pub fn add(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -131,6 +141,8 @@ impl PolyVec {
 
     /// Entrywise subtraction (spec: the `Pi` instance; this is the vector whose
     /// norm `sub_l2NormSq_le` bounds).
+    ///
+    /// Mirrors ArkLib's `Pi` subtraction on `PolyVec (Rq Φ) k`.
     pub fn sub(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -145,6 +157,8 @@ impl PolyVec {
     /// Left scalar multiplication by a ring element (spec: `scalarVecMul`,
     /// `Vectors.lean:91`).
     ///
+    /// Mirrors ArkLib's `scalarVecMul`.
+    ///
     /// This is the `cᵢ •ᵥ sᵢ` of the weak verifier's shortness check.
     pub fn scalar_mul(&self, c: &Rq) -> PolyVec {
         let n: usize = self.0.len();
@@ -158,6 +172,8 @@ impl PolyVec {
     }
 
     /// The dot product `Σᵢ uᵢ · vᵢ` (spec: `dot`, `Vectors.lean:77`).
+    ///
+    /// Mirrors ArkLib's `dot`.
     ///
     /// The spec sums a `List` (so, right-nested: `x₀ + (x₁ + (… + 0))`) while
     /// this accumulates left. `R_q` is commutative and associative, so the two
@@ -213,6 +229,8 @@ impl PolyMatrix {
     /// The matrix-vector product `A *ᵥ v` (spec: `matVecMul`,
     /// `Vectors.lean:81`), each entry the dot product of a row with `v`.
     ///
+    /// Mirrors ArkLib's `matVecMul`.
+    ///
     /// This is the Ajtai commitment itself: `Simple.commit Φ A s = A *ᵥ s`
     /// (`Ajtai/Simple/Scheme.lean:38`).
     pub fn mat_vec_mul(&self, v: &PolyVec) -> PolyVec {
@@ -229,6 +247,8 @@ impl PolyMatrix {
 
 /// Flatten equal-width blocks into one vector, in block order (spec:
 /// `PolyVec.flattenBlocks`, `Vectors.lean:49`).
+///
+/// Mirrors ArkLib's `PolyVec.flattenBlocks`.
 ///
 /// Entry `width·i + w` of the result is entry `w` of block `i`, which is what
 /// `flattenBlocks xs (finProdFinEquiv (i, w)) = xs i w` says once

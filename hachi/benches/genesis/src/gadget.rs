@@ -46,6 +46,7 @@ use crate::linalg::{PolyMatrix, PolyVec};
 use crate::params;
 use crate::ring::Rq;
 
+// @genesis d664190 2026-08-19 — gadget::digit_at
 /// The `e`-th base-`b` digit of a field element (spec:
 /// `zmodDigitDecomposition.digit c e`, `Gadget/Core.lean:115`).
 ///
@@ -56,7 +57,6 @@ use crate::ring::Rq;
 /// Agrees with the spec at *every* `e`, not just below the digit length: for
 /// `e` past the length of `Nat.digits b c.val` the spec's `getD` returns its `0`
 /// default, and so does the division here once the quotient has run out.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn digit_at(c: Fp, e: usize) -> Fp {
     let b: u64 = params::GADGET_BASE;
     let mut rest: u64 = c.to_u64();
@@ -68,6 +68,7 @@ pub fn digit_at(c: Fp, e: usize) -> Fp {
     Fp::new(rest % b)
 }
 
+// @genesis d664190 2026-08-19 — gadget::digit_decompose
 /// All [`params::GADGET_DIGITS`] digits of a field element, little-endian (spec:
 /// the `digit` field of `zmodDigitDecomposition` as a whole).
 ///
@@ -75,7 +76,6 @@ pub fn digit_at(c: Fp, e: usize) -> Fp {
 /// `DigitDecomposition`) is what makes this a decomposition rather than an
 /// arbitrary map, and it needs `q ≤ b ^ digits`; [`params::GADGET_DIGITS`]
 /// records that this holds here.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn digit_decompose(c: Fp) -> Vec<Fp> {
     let digits: usize = params::GADGET_DIGITS;
     let mut out: Vec<Fp> = Vec::new();
@@ -87,12 +87,12 @@ pub fn digit_decompose(c: Fp) -> Vec<Fp> {
     out
 }
 
+// @genesis d664190 2026-08-19 — gadget::base_pow
 /// `bᵉ` in the coefficient field.
 ///
 /// Modular, by repeated multiplication: the spec's `base ^ e` is a power taken in
 /// `ZMod q`, so a `u64` power would be a different function as soon as `bᵉ`
 /// reaches the modulus.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn base_pow(e: usize) -> Fp {
     let b: Fp = Fp::new(params::GADGET_BASE);
     let mut acc: Fp = Fp::ONE;
@@ -104,10 +104,10 @@ pub fn base_pow(e: usize) -> Fp {
     acc
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_entry
 /// Entry `(i, j)` of the gadget matrix (spec: `gadgetEntry`,
 /// `Gadget/Core.lean:139`): the ring constant `C(b^(j mod digits))` when
 /// `j / digits = i`, and `0` otherwise.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn gadget_entry(i: usize, j: usize) -> Rq {
     let digits: usize = params::GADGET_DIGITS;
     if j / digits == i {
@@ -117,6 +117,7 @@ pub fn gadget_entry(i: usize, j: usize) -> Rq {
     }
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_matrix
 /// The gadget matrix `G = I_rows ⊗ [1, b, …, b^(digits-1)]`, of shape
 /// `rows × (rows · digits)` (spec: `gadgetMatrix`, `Gadget/Core.lean:143`).
 ///
@@ -124,7 +125,6 @@ pub fn gadget_entry(i: usize, j: usize) -> Rq {
 /// checks `A sᵢ = G t̂ᵢ` by passing `gadgetMatrix Φ base innerRows innerDigits`
 /// to `Simple.verify`, i.e. as an ordinary Ajtai matrix. [`gadget_mul`] is the
 /// structured form to use everywhere else.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn gadget_matrix(rows: usize) -> PolyMatrix {
     let digits: usize = params::GADGET_DIGITS;
     let cols: usize = rows * digits;
@@ -143,6 +143,7 @@ pub fn gadget_matrix(rows: usize) -> PolyMatrix {
     PolyMatrix::new(out)
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_mul
 /// The gadget product `G · v` (spec: `gadgetMul`, `Gadget/Core.lean:147`).
 ///
 /// Row `i` is `Σ_{e<digits} bᵉ · v[digits·i + e]`, which is the specification's
@@ -152,7 +153,6 @@ pub fn gadget_matrix(rows: usize) -> PolyMatrix {
 /// product.
 ///
 /// `v` is expected to have `rows · digits` entries.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
     let digits: usize = params::GADGET_DIGITS;
     let mut out: Vec<Rq> = Vec::new();
@@ -171,6 +171,7 @@ pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_decompose
 /// The gadget inverse `G⁻¹` (spec: `gadgetDecompose`, `Gadget/Core.lean:207`,
 /// instantiated at `zmodDigitDecomposition`).
 ///
@@ -179,7 +180,6 @@ pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
 /// `x.len() · digits` entries, and `gadget_mul(x.len(), ·)` inverts it -- the
 /// specification's `IsLawfulGadgetDecomposition` (`:152`), proved of this
 /// decomposition in `gadgetDecompose_lawful` (`:221`).
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/gadget.rs
 pub fn gadget_decompose(x: &PolyVec) -> PolyVec {
     let digits: usize = params::GADGET_DIGITS;
     let degree: usize = params::RING_DEGREE;

@@ -49,6 +49,8 @@ use crate::ring::Rq;
 /// The `e`-th base-`b` digit of a field element (spec:
 /// `zmodDigitDecomposition.digit c e`, `Gadget/Core.lean:115`).
 ///
+/// Mirrors ArkLib's `zmodDigitDecomposition.digit` at one `e`.
+///
 /// `⌊c / bᵉ⌋ mod b`, computed by repeated division so that no power of `b` is
 /// ever formed -- `b^digits` can exceed the modulus, and `Nat.digits` on the spec
 /// side never forms it either.
@@ -69,6 +71,9 @@ pub fn digit_at(c: Fp, e: usize) -> Fp {
 
 /// All [`params::GADGET_DIGITS`] digits of a field element, little-endian (spec:
 /// the `digit` field of `zmodDigitDecomposition` as a whole).
+///
+/// Mirrors ArkLib's `zmodDigitDecomposition.digit` at every `e < digits`, as
+/// one vector.
 ///
 /// The reconstruction law `Σₑ bᵉ · digit c e = c` (the `reconstruct` field of
 /// `DigitDecomposition`) is what makes this a decomposition rather than an
@@ -104,6 +109,8 @@ pub fn base_pow(e: usize) -> Fp {
 /// Entry `(i, j)` of the gadget matrix (spec: `gadgetEntry`,
 /// `Gadget/Core.lean:139`): the ring constant `C(b^(j mod digits))` when
 /// `j / digits = i`, and `0` otherwise.
+///
+/// Mirrors ArkLib's `gadgetEntry`.
 pub fn gadget_entry(i: usize, j: usize) -> Rq {
     let digits: usize = params::GADGET_DIGITS;
     if j / digits == i {
@@ -115,6 +122,8 @@ pub fn gadget_entry(i: usize, j: usize) -> Rq {
 
 /// The gadget matrix `G = I_rows ⊗ [1, b, …, b^(digits-1)]`, of shape
 /// `rows × (rows · digits)` (spec: `gadgetMatrix`, `Gadget/Core.lean:143`).
+///
+/// Mirrors ArkLib's `gadgetMatrix`.
 ///
 /// Materialized only where the specification materializes it: `verify_weak`
 /// checks `A sᵢ = G t̂ᵢ` by passing `gadgetMatrix Φ base innerRows innerDigits`
@@ -139,6 +148,8 @@ pub fn gadget_matrix(rows: usize) -> PolyMatrix {
 }
 
 /// The gadget product `G · v` (spec: `gadgetMul`, `Gadget/Core.lean:147`).
+///
+/// Mirrors ArkLib's `gadgetMul`.
 ///
 /// Row `i` is `Σ_{e<digits} bᵉ · v[digits·i + e]`, which is the specification's
 /// `gadgetMul_apply` (`:177`) read as a definition. Multiplication by the ring
@@ -167,6 +178,8 @@ pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
 
 /// The gadget inverse `G⁻¹` (spec: `gadgetDecompose`, `Gadget/Core.lean:207`,
 /// instantiated at `zmodDigitDecomposition`).
+///
+/// Mirrors ArkLib's `gadgetDecompose` at `zmodDigitDecomposition`.
 ///
 /// Slot `e` of block `i` is the ring element whose `k`-th coefficient is the
 /// `e`-th digit of the `k`-th coefficient of `x[i]`. The output has

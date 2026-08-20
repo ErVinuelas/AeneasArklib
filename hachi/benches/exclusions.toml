@@ -1,0 +1,59 @@
+# Mirrored items that deliberately have no benchmark.
+#
+# `make bench-check` requires every item in `hachi/src` whose docstring carries a
+# ``Mirrors `<ArkLib name>` `` line to be either benched -- a `// @covers` marker
+# on a `bench_case!` -- or listed here. Silence is not an exclusion: an operation
+# nobody measures is one the optimization loop cannot notice a regression in, and
+# "we forgot" and "it is not worth measuring" must not look the same from the
+# outside.
+#
+# The bar for a line here is that a criterion run on the item would measure the
+# *harness* rather than the item: a type with no runtime, or straight-line code
+# with no loop and no allocation. It is NOT "this seemed slow to benchmark" and
+# it is NOT "this is not on the hot path" -- `commit::verify` is the most
+# expensive thing in the crate and `commit::l1_norm` is nobody's hot path, and
+# both are benched. If an item does real work at any size, bench it.
+#
+# Each entry must say *why*, in a form that can be checked by reading the item.
+#
+# The 14 `const`s in `hachi/src/params.rs` are absent from this file on purpose:
+# they carry no `Mirrors` marker, because a const is a *value chosen for a
+# generic ArkLib parameter* rather than a translation of a definition
+# (`RING_LOG_DEGREE` is the argument `α` of `hachiModulus`, not `hachiModulus`).
+# Never mirrored, so never owed a bench, so nothing to excuse -- and `params` is
+# the one module with no `[[bench]]` target at all.
+
+[exclusions]
+
+# -- types -------------------------------------------------------------------
+#
+# A struct declaration has no runtime, and `rustitems.benchable()` excludes
+# `struct` outright, so these can never be benched even in principle: a marker
+# on a type always implies a line here. The operations over each type are
+# benched individually.
+
+"ring::Rq" = "a type declaration, not code -- the negacyclic ring's fourteen operations are benched separately"
+"linalg::PolyVec" = "a type declaration, not code; its operations are benched separately"
+"linalg::PolyMatrix" = "a type declaration, not code; `mat_vec_mul` is where its runtime is"
+"commit::PublicParams" = "a type declaration, not code -- a pair of gadget matrices; building it is `PublicParams::new`, which mirrors nothing"
+"commit::Decomp" = "a type declaration, not code -- the decomposition record `generate_decomps` produces, and that is the benched item"
+"commit::Opening" = "a type declaration, not code -- the opening record `verify_weak` consumes, and that is the benched item"
+
+# -- O(1) by inspection ------------------------------------------------------
+#
+# Straight-line code: no loop, no allocation, no call that has either. A case
+# over one of these would time the `black_box` around it. Both bodies are short
+# enough to check the claim by reading them.
+
+"ring::Rq::coeff" = """
+one bounds compare and one index (`hachi/src/ring.rs`): `if k < self.0.len()
+{ self.0[k] } else { Fp::ZERO }`. No loop, no allocation. It is also measured
+through every operation above it -- `mul` alone performs `N²` coefficient
+reads -- so a regression here could not hide."""
+
+"commit::centered_abs" = """
+one shift, one compare, one subtraction on a single `Fp` (`hachi/src/commit.rs`):
+`q / 2` folds at compile time because `Q` is a `const`, leaving
+`if v <= half { v } else { q - v }`. Per-coefficient work with no loop of its
+own; it is measured at scale through `l1_norm`, `l_infty_norm` and
+`l2_norm_sq`, all three of which are benched."""

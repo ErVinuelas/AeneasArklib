@@ -45,28 +45,28 @@ use alloc::vec::Vec;
 
 use crate::ring::Rq;
 
+// @genesis d664190 2026-08-19 — linalg::PolyVec
 /// A vector over `R_q` (spec: `PolyVec (Rq Φ) k`, `Vectors.lean:39`).
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
 pub struct PolyVec(Vec<Rq>);
 
+// @genesis d664190 2026-08-19 — linalg::PolyMatrix
 /// A matrix over `R_q`, as its rows (spec: `PolyMatrix (Rq Φ) rows cols`,
 /// `Vectors.lean:42`).
 ///
 /// Every row is expected to have the same length; that is the matrix's column
 /// count, and like the ring's degree invariant it is a property of construction
 /// rather than a checked precondition (see [`crate::ring`]).
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
 pub struct PolyMatrix(Vec<PolyVec>);
 
 impl PolyVec {
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::new
     /// Wrap a vector of ring elements.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn new(entries: Vec<Rq>) -> PolyVec {
         PolyVec(entries)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::zeros
     /// The all-zero vector of the given length.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn zeros(k: usize) -> PolyVec {
         let mut out: Vec<Rq> = Vec::new();
         let mut i: usize = 0;
@@ -77,20 +77,20 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::len
     /// The number of entries.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::get
     /// The `i`-th entry.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn get(&self, i: usize) -> &Rq {
         &self.0[i]
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::copy
     /// An independent copy (hand-rolled; see [`Rq::copy`]).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn copy(&self) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -102,11 +102,11 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::equals
     /// Entrywise equality.
     ///
     /// This is what `Simple.verify` decides (`Ajtai/Simple/Scheme.lean:46`,
     /// `decide (commit Φ A s = c)`): equality of two commitment vectors.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn equals(&self, rhs: &PolyVec) -> bool {
         let n: usize = self.0.len();
         if n != rhs.0.len() {
@@ -124,9 +124,9 @@ impl PolyVec {
         }
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::add
     /// Entrywise addition (spec: the `Pi` instance, used through
     /// `matVecMul_add` and the norm-difference lemmas).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn add(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -138,9 +138,9 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::sub
     /// Entrywise subtraction (spec: the `Pi` instance; this is the vector whose
     /// norm `sub_l2NormSq_le` bounds).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn sub(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -152,11 +152,11 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::scalar_mul
     /// Left scalar multiplication by a ring element (spec: `scalarVecMul`,
     /// `Vectors.lean:91`).
     ///
     /// This is the `cᵢ •ᵥ sᵢ` of the weak verifier's shortness check.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn scalar_mul(&self, c: &Rq) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -168,6 +168,7 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::dot
     /// The dot product `Σᵢ uᵢ · vᵢ` (spec: `dot`, `Vectors.lean:77`).
     ///
     /// The spec sums a `List` (so, right-nested: `x₀ + (x₁ + (… + 0))`) while
@@ -178,7 +179,6 @@ impl PolyVec {
     /// Over the shorter of the two lengths, which makes the operation total; the
     /// spec's version is only defined at equal lengths, so the equivalence
     /// statement carries that as a hypothesis.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn dot(&self, rhs: &PolyVec) -> Rq {
         let n: usize = if self.0.len() <= rhs.0.len() {
             self.0.len()
@@ -197,21 +197,21 @@ impl PolyVec {
 }
 
 impl PolyMatrix {
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::new
     /// Wrap a list of rows.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn new(rows: Vec<PolyVec>) -> PolyMatrix {
         PolyMatrix(rows)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::rows
     /// The number of rows.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn rows(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::cols
     /// The number of columns: the length of row `0`, and `0` for a matrix with
     /// no rows.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn cols(&self) -> usize {
         if self.0.len() == 0 {
             0
@@ -220,18 +220,18 @@ impl PolyMatrix {
         }
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::row
     /// The `i`-th row.
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn row(&self, i: usize) -> &PolyVec {
         &self.0[i]
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::mat_vec_mul
     /// The matrix-vector product `A *ᵥ v` (spec: `matVecMul`,
     /// `Vectors.lean:81`), each entry the dot product of a row with `v`.
     ///
     /// This is the Ajtai commitment itself: `Simple.commit Φ A s = A *ᵥ s`
     /// (`Ajtai/Simple/Scheme.lean:38`).
-    // @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
     pub fn mat_vec_mul(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -244,6 +244,7 @@ impl PolyMatrix {
     }
 }
 
+// @genesis d664190 2026-08-19 — linalg::flatten_blocks
 /// Flatten equal-width blocks into one vector, in block order (spec:
 /// `PolyVec.flattenBlocks`, `Vectors.lean:49`).
 ///
@@ -252,7 +253,6 @@ impl PolyMatrix {
 /// `finProdFinEquiv`'s value is unfolded (see the module header). So this is
 /// concatenation, and the width never has to be passed in -- it is each block's
 /// own length, and the blocks are expected to agree on it.
-// @genesis (this file's introducing commit) 2026-08-18 -- hachi/src/linalg.rs
 pub fn flatten_blocks(blocks: &Vec<PolyVec>) -> PolyVec {
     let nblocks: usize = blocks.len();
     let mut out: Vec<Rq> = Vec::new();

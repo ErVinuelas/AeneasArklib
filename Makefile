@@ -97,7 +97,11 @@ help:
 	@echo '    build          check the Lean proofs -- fails on any error or `sorry`'
 	@echo '    extract        regenerate hachi/lean/Generated.lean from hachi/src/'
 	@echo '    test           run the Rust-side semantics tests'
-	@echo '    run-bench      time every operation with criterion'
+	@echo '    run-bench      time every operation against its frozen first translation'
+	@echo '    bench-check    check the frozen baseline against git, and bench coverage'
+	@echo '    bench-stamp    re-derive the @genesis stamps after freezing a function'
+	@echo '    bench-coverage report which mirrored items are benched, without failing'
+	@echo '    ledger-check   validate logs/ledger.jsonl against the last commit'
 	@echo '    clean          drop build output, keeping fetched dependencies'
 	@echo ''
 	@echo '  Variables:'
@@ -105,6 +109,7 @@ help:
 	@echo '    BENCH=<regex>  bench only the cases whose id matches this regex'
 	@echo '    CANDIDATE=1    also time the candidate slot, for the optimization loop'
 	@echo '    CHARON=<path>  charon binary for `extract` (default ./toolchain/charon)'
+	@echo '    JSON=<path>    also write the bench report as JSON, for an agent'
 	@echo ''
 
 # --- setup -------------------------------------------------------------------
@@ -305,11 +310,64 @@ extract: check-toolchain | $(STAMPS)
 # below checks this pin against it: charon and the benchmarks must agree, or the
 # pin is stale.
 BENCH_TOOLCHAIN := nightly-2026-06-01
+HARNESS         := $(PKG)/benches/harness.py
 
-.PHONY: run-bench bench-toolchain
+.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check
+
+# Statistics cannot rescue a corrupted baseline, so the integrity checks run
+# before any measurement and are a hard gate.
+#
+# Three questions, in the order a wrong answer does damage:
+#
+#   check-genesis    is every frozen item byte-for-byte what hachi/src held at the
+#                    commit its `@genesis` stamp names -- attributes included? An
+#                    edited baseline makes every "vs genesis" number ever printed
+#                    wrong, retroactively and silently.
+#   check-candidate  is the A/B slot a null candidate (byte-copies of hachi/src),
+#                    with no symlink, no extra file, and lib.rs/Cargo.toml pinned
+#                    to git? A slot that diverged at rest means the next
+#                    CANDIDATE=1 run benches a stale diff as the challenger.
+#   coverage         is every item claiming to mirror an ArkLib definition either
+#                    benched or excluded by name with a reason? Silence is not an
+#                    exclusion: an operation nobody measures is one the loop
+#                    cannot notice a regression in.
+#
+# Coverage is `--strict` here and merely reported by `run-bench`: an unmeasured
+# operation makes the picture incomplete, while an edited genesis makes the
+# picture wrong.
+bench-check:
+	@set -euo pipefail; \
+	python3 '$(HARNESS)' check-genesis; \
+	python3 '$(HARNESS)' check-candidate; \
+	python3 '$(HARNESS)' coverage --strict
+
+# Re-derive the `// @genesis <sha> <date>` annotations from git history, then
+# re-check them. Run after copying a newly translated function into
+# hachi/benches/genesis/src/ -- and note the ordering the stamps force: the text
+# must already be in a commit, because the stamp records that commit's sha. So
+# the sequence is commit the translation and the frozen copy together, run this,
+# then commit the stamp lines *separately*. Never `--amend` the first commit
+# instead: the stamp stores its sha, and an amend orphans it.
+bench-stamp:
+	@python3 '$(HARNESS)' stamp-genesis
+	@python3 '$(HARNESS)' check-genesis
+
+# The coverage report on its own, non-strict -- for reading, not for gating.
+bench-coverage:
+	@python3 '$(HARNESS)' coverage -v
+
+# The ledger's gate: row schema, append-only against the last committed state.
+# `logs/ledger.jsonl` is where candidate verdicts and verification campaigns are
+# recorded; run this before writing any commit plan that touches it.
+ledger-check:
+	@python3 .claude/skills/skill-lab/references/ledger_check.py --against HEAD
 
 bench-toolchain:
 	@set -euo pipefail; \
+	if ! command -v python3 >/dev/null; then \
+	  echo 'error: python3 not found; benches/harness.py needs it (stdlib only).' >&2; \
+	  exit 1; \
+	fi; \
 	if ! command -v rustup >/dev/null; then \
 	  echo 'error: rustup not found. Run `make setup`.' >&2; exit 1; \
 	fi; \
@@ -330,22 +388,50 @@ bench-toolchain:
 
 #   make run-bench                  every bench, one full-rigour pass
 #   make run-bench BENCH=gadget     only cases whose id matches this regex
+#   make run-bench JSON=out.json    also write the report as JSON, for an agent
 #   make run-bench CANDIDATE=1      also time the candidate slot (benches/candidate)
 #
 # CANDIDATE=1 (exactly `1`: any other value, including 0, disables) is the
 # optimization loop's mode: the slot holds a candidate's code (in the loop's
 # worktree; at rest it is a byte-copy of hachi/src) so that a candidate and the
-# champion are measured in the same criterion session.
+# champion are measured in the same criterion session, and the report gains
+# `candidate` and `cand vs now` columns. The accept decision is made on the
+# *recentered* `cand vs now`: each bench binary's own `_control` case measures
+# the slot's signed identical-code lean in that same run, and it is divided out
+# before any verdict. Pass BENCH='<op>|_control' alongside it -- a candidate case
+# in a binary whose control did not run gets no verdict at all and the report
+# exits 2, so the filter advice is enforced rather than hoped for.
+#
+# There is one mode and one pass. Reduced sampling is deliberately not offered:
+# on byte-identical code it returns non-noise verdicts while printing exactly
+# what a full run prints, and a mode whose output cannot be told apart from a
+# trustworthy one is not a shortcut.
 #
 # Benchmarking needs the machine to itself. A build running alongside it -- from
 # this repo or any other project -- corrupts the measurement, so check the machine
 # before a run (`ps -eo command | grep -c "[b]in/lean"` plus the load average)
 # and wait for someone else's build rather than racing it.
+#
+# The start time is stamped before cargo runs so the report contains only what
+# this invocation measured. Without it a `BENCH=` filter would silently republish
+# stale rows for everything it skipped, which is the most plausible way this
+# harness could come to lie.
 run-bench: bench-toolchain
 	@set -euo pipefail; \
-	cd $(PKG) && rustup run '$(BENCH_TOOLCHAIN)' cargo bench --benches \
-	  $(if $(filter 1,$(CANDIDATE)),--features candidate,) -- \
-	  $(if $(BENCH),'$(BENCH)',)
+	python3 '$(HARNESS)' check-genesis
+	@set -euo pipefail; \
+	python3 '$(HARNESS)' check-candidate
+	@set -euo pipefail; \
+	python3 '$(HARNESS)' coverage || true
+	@set -euo pipefail; \
+	started=$$(date +%s); \
+	( cd $(PKG) && rustup run '$(BENCH_TOOLCHAIN)' cargo bench --benches \
+	    $(if $(filter 1,$(CANDIDATE)),--features candidate,) -- \
+	    $(if $(BENCH),'$(BENCH)',) ); \
+	python3 '$(HARNESS)' report \
+	  --toolchain '$(BENCH_TOOLCHAIN)' \
+	  --since "$$started" \
+	  $(if $(JSON),--json '$(JSON)',)
 
 # --- clean -------------------------------------------------------------------
 
