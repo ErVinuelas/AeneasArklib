@@ -1,0 +1,21 @@
+[package]
+name = "hachi-candidate"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "The bench harness's candidate slot: at rest a byte-copy of hachi/src (a null candidate), overwritten by the optimization loop inside its worktree so a candidate and the current champion can be measured in the same criterion session"
+
+[lib]
+name = "hachi_candidate"
+path = "src/lib.rs"
+# Same reasoning as hachi-genesis: the module files are copies of `hachi/src/*.rs`.
+doctest = false
+
+# One dependency, and only because the copied modules cannot compile without it:
+# `hachi` reaches its coefficient field through `cpoly`, so a copy of a `hachi`
+# module needs the same field. Pinned to the *same* `rev` as `hachi/Cargo.toml`,
+# so the slot stays on the identical compilation path as `hachi` and
+# `hachi-genesis` -- see benches/genesis/src/lib.rs for the full reasoning.
+[dependencies]
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }

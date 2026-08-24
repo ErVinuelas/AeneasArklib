@@ -1,0 +1,1242 @@
+#!/usr/bin/env python3
+"""Everything `make run-bench` needs that is not the measuring itself.
+
+    stamp-genesis   fill in `// @genesis <sha> <date>` annotations by asking git
+                    which commit first contained each frozen item
+    check-genesis   prove every frozen item, attributes included, is byte-for-byte
+                    what `hachi/src` held at the commit its annotation names
+    check-candidate prove the candidate slot (`benches/candidate/src`) is a null
+                    candidate: byte-copies of `hachi/src`, module for module
+    coverage        pair every `Mirrors ArkLib.X` item with a bench case or an
+                    explicit, reasoned exclusion
+    report          read criterion's output and compare each operation against
+                    its frozen first translation, measured in the same run —
+                    plus, under CANDIDATE=1, the candidate slot against both
+
+There is one measurement mode and one round. Reduced sampling is not offered: on
+byte-identical code it returns non-noise verdicts while printing exactly what a
+full run prints, and a mode whose output cannot be told apart from a trustworthy
+one is not a shortcut. Repeat-and-median is not offered either: it would assume
+per-round errors are independent, which they are not when a machine settles into
+a slower state and stays there -- in that case the median across rounds selects
+the corrupted value.
+
+Standard library only, on purpose: the benchmark harness must not need a package
+install to work, and a dependency that changes under it is a dependency that can
+move the numbers.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import hashlib
+import json
+import math
+import os
+import platform
+import re
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import rustitems as R  # noqa: E402
+
+BENCHES = Path(__file__).resolve().parent      # hachi/benches
+PKG = BENCHES.parent                           # hachi
+ROOT = PKG.parent                              # the repository, for git
+SRC = PKG / "src"
+GENESIS_SRC = BENCHES / "genesis" / "src"
+CRITERION = PKG / "target" / "criterion"
+EXCLUSIONS = BENCHES / "exclusions.toml"
+
+# Every module of the crate, in dependency order. A fixed tuple rather than a
+# directory scan, so that adding a module is a deliberate edit here and not
+# something that happens by dropping a file in -- the same reason
+# `hachi/Cargo.toml` sets `autobenches = false`.
+#
+# `params` carries no bench binary: its items are `const`s the compiler folds,
+# so there is nothing to time. It is still listed, because it is frozen into
+# genesis and copied into the candidate slot like every other module, and
+# `check-genesis`/`check-candidate` are what this tuple drives. Its items are
+# ruled out of `coverage` by name in `exclusions.toml`, which is the difference
+# between "not worth measuring" and "forgotten".
+MODULES = ("params", "ring", "linalg", "gadget", "commit")
+
+# Items whose text is worth freezing and annotating. `impl` headers and
+# associated `type`s are structure, not code that runs.
+ANNOTATED_KINDS = ("fn", "const fn", "const", "struct", "enum")
+
+ANNOT = re.compile(r"^\s*//\s*@genesis\s+(?P<sha>[0-9a-f]{7,40})\s+(?P<date>\d{4}-\d{2}-\d{2})\b")
+# Any line that *claims* to be a genesis annotation, well-formed or not. A
+# placeholder ("@genesis (this file's introducing commit) 2026-08-18") reads to a
+# human as provenance while satisfying nothing, so `stamp-genesis` has to be able
+# to find and replace one rather than leaving it beside the real stamp. Every
+# frozen item in this repository started life with exactly such a placeholder.
+ANNOT_ANY = re.compile(r"^\s*//\s*@genesis\b")
+# The rest of the line, not `\S+`: an item path here is a Rust type expression
+# and half of them contain spaces (`ring::<Rq as Add>::add`).
+COVERS = re.compile(r"^\s*//\s*@covers\s+(?P<path>.+?)\s*$")
+# `bench_case!(c, "<group>", <case fn>, [...])` -- the only form the bench files
+# use, and the only thing a `@covers` marker is allowed to sit on.
+BENCH_CASE = re.compile(r"^\s*bench_case!\(\s*c\s*,\s*\"(?P<group>[^\"]+)\"\s*,\s*(?P<fn>\w+)\s*,")
+# ``Mirrors `ArkLib.Qualified.Name` `` in a doc comment: the claim that an item is
+# a translation of a specific specification definition, and so the thing
+# `coverage` holds against a bench case or a named exclusion.
+#
+# Backticks are required, and the reason is that ArkLib names take arguments:
+# the house form is ``Mirrors ArkLib's `CyclotomicModulus.Rq Φ` at `Φ = …` ``
+# (`hachi/src/ring.rs`), and an unbracketed `\S+` capture would read "ArkLib's"
+# as the definition name. The optional "ArkLib's" is tolerated because that is
+# how the prose reads; `_mirror_name` below takes the leading token of what the
+# backticks hold, so an applied name resolves to the definition it applies.
+MIRRORS = re.compile(r"Mirrors\s+(?:ArkLib(?:'s)?\s+)?`(?P<name>[^`]+)`")
+
+# A change smaller than this is never called a win, however tight the intervals.
+# It exists so that a long run of 1% "improvements" cannot ratchet the champion
+# forward on noise alone.
+#
+# 5%, and it is a target rather than a description of what this harness resolves.
+# The number is INHERITED, not measured here: AeneasCompPoly, which this harness
+# is a port of, swept a full run of byte-identical code -- where every row must
+# read 0% -- and found a worst row of 6.10%, a p90 of 2.90%, and a worst control
+# of 3.40%. 6% was the value that covered its observed noise; 5% was set as
+# something for the sampling parameters to be tuned towards, and that tuning was
+# never done there either.
+#
+# **This repository has not run that sweep.** No claim below has been checked on
+# this machine, and `NOTES.md` § "Benchmark numbers from this session are not
+# measurement-grade" is the standing record that nothing measured here so far is
+# a result. So the honest reading of this constant is: a floor borrowed from a
+# sister project with comparable case shapes, pending a local calibration.
+# Treat a verdict between 5% and 6% as unproven rather than as a result, and do
+# not read this constant as evidence that the harness resolves 5% effects.
+#
+# The first local calibration is a full run of byte-identical code (which is
+# exactly what `make run-bench` does today, since the candidate slot is null and
+# genesis is byte-identical to `hachi/src`): every row must read noise, and the
+# worst row that does not is this repository's own floor. Until that run exists
+# and its numbers are written into `NOTES.md`, this line is a borrowed one.
+#
+# What the residue was upstream, so a local tuning is not attempted blind: it was
+# per-row and per-run, a different row each time, i.e. machine noise rather than
+# one broken case. Nothing computable from within a single run removes it.
+#
+# One structural note that does transfer, because it is about case shape rather
+# than about a machine: a row whose timed loop is mostly scaffolding cannot
+# resolve a small effect in the operation it names. Upstream's base-field rows ran
+# ~17 instructions per element of which the operation was 4, so even a real 50%
+# speedup moved the row only a few percent. The analogous risk here is the cheap
+# `ring` operations (`coeff`, `len`, `equals` on unequal inputs); the fix is to
+# measure them at a size where they are not sub-microsecond, never to lower this
+# floor.
+MIN_EFFECT = 0.05
+
+# Cases under this prefix run byte-identical code in both variants, so whatever
+# they measure as a difference is the harness lying to itself. See the note in
+# `cmd_report` and `benches/support/mod.rs § control_workload`.
+CONTROL_PREFIX = "_control/"
+
+# Above this A/B bias the run is thrown away rather than reported: if two copies
+# of the same function disagree by more than this, nothing the run says about two
+# *different* functions means anything.
+USABLE_BIAS_MAX = 0.10
+
+
+# ---------------------------------------------------------------------------
+# git
+# ---------------------------------------------------------------------------
+
+
+def git(*args: str, check: bool = True) -> str:
+    p = subprocess.run(
+        ["git", "-C", str(ROOT), *args], capture_output=True, text=True, check=False
+    )
+    if check and p.returncode:
+        raise RuntimeError(f"git {' '.join(args)} failed: {p.stderr.strip()}")
+    return p.stdout
+
+
+def commits_oldest_first() -> list[str]:
+    return git("log", "--reverse", "--format=%H").split()
+
+
+def commit_date(sha: str) -> str:
+    return git("log", "-1", "--format=%cs", sha).strip()
+
+
+def short(sha: str) -> str:
+    return git("rev-parse", "--short", sha).strip()
+
+
+def blob_at(sha: str, basename: str) -> str | None:
+    """The crate's own `<basename>` as it stood at `sha`.
+
+    Not path-pinned to `hachi/src/`, so that a future move of the crate does not
+    blind the archaeology to everything before it -- but every candidate path
+    under `benches/` is excluded first, and that exclusion is load-bearing rather
+    than tidiness. This repository contains up to four files named `ring.rs`:
+    the real one, the frozen copy in `benches/genesis/src/`, the slot copy in
+    `benches/candidate/src/`, and the *bench case file* `benches/ring.rs`. The
+    frozen and slot copies contain the frozen text by construction, so admitting
+    them here would let `check-genesis` verify a snapshot against itself and
+    call any edited baseline intact -- the exact failure this module exists to
+    prevent.
+    """
+    out = git("ls-tree", "-r", "--name-only", sha, check=False)
+    paths = [
+        p
+        for p in out.split()
+        if (p.endswith("/" + basename) or p == basename) and "/benches/" not in p
+    ]
+    if not paths:
+        return None
+    paths.sort(key=lambda p: (0 if p.startswith("hachi/src/") else 1, len(p)))
+    return git("show", f"{sha}:{paths[0]}", check=False)
+
+
+def head_state() -> dict:
+    """The commit the measured code came from, and whether it is really that commit.
+
+    `hachi/benches` counts as measured code -- it holds the cases *and* the frozen
+    genesis crate, and editing either changes the number as surely as editing the
+    function under test.
+    """
+    paths = ("hachi/src", "hachi/benches")
+    dirty = bool(git("status", "--porcelain", "--", *paths).strip())
+    return {"sha": short("HEAD"), "src_dirty": dirty}
+
+
+# ---------------------------------------------------------------------------
+# genesis: stamping and checking
+# ---------------------------------------------------------------------------
+
+
+def _frozen_text(lines: list[str], it: R.Item) -> str:
+    """The bytes `check-genesis` holds against git: the item *and its attributes*.
+
+    `rustitems.Item.text` starts at the signature line, so attributes sit outside
+    it. They are not decoration -- `#[inline(never)]`, `#[cold]` and
+    `#[repr(align(N))]` each change what a benchmark measures -- so a frozen item
+    whose attributes went unchecked could be made arbitrarily slower while still
+    passing the gate that exists to stop exactly that, and every "vs genesis"
+    number would then report a speedup nobody wrote.
+
+    Only the contiguous `#[...]` run immediately above the signature is taken.
+    That is where rustfmt puts attributes and where all of this crate's are; the
+    `// @genesis` annotation is inserted at the *top* of the lead, above the doc
+    comment, so it never lands inside the run. Doc comments stay outside the
+    check on purpose: they cannot move a measurement, and freezing prose would
+    make the baseline unmaintainable.
+    """
+    k = it.start
+    while k > it.lead_start and lines[k - 1].lstrip().startswith("#["):
+        k -= 1
+    return "".join(lines[k : it.start]) + it.text
+
+
+def _annotated_items(
+    path: Path, module: str
+) -> list[tuple[R.Item, str | None, str | None, int | None, str]]:
+    """Each annotatable item in a frozen file, with its annotation and frozen text.
+
+    The annotation sits inside the item's lead block -- `_lead_start` walks up
+    over it along with the doc comments -- so this searches the lead rather than
+    the lines above it.
+
+    `at` is the line of the annotation *claim*, well-formed or not: a line that
+    says `@genesis` without a resolvable sha yields `sha is None` (so
+    `check-genesis` fails and `stamp-genesis` acts) while still reporting its
+    position, which is what lets a placeholder be replaced instead of
+    accumulating a second annotation beside it.
+    """
+    src = path.read_text()
+    lines = src.splitlines(keepends=True)
+    out = []
+    for it in R.flatten(R.scan(src, module)):
+        if it.kind not in ANNOTATED_KINDS:
+            continue
+        sha = date = None
+        at = None
+        for k in range(it.lead_start, it.start):
+            m = ANNOT.match(lines[k])
+            if m:
+                sha, date, at = m.group("sha"), m.group("date"), k
+                break
+            if at is None and ANNOT_ANY.match(lines[k]):
+                at = k
+        out.append((it, sha, date, at, _frozen_text(lines, it)))
+    return out
+
+
+def _first_commit_containing(basename: str, text: str, history: list[str]) -> str | None:
+    for sha in history:
+        blob = blob_at(sha, basename)
+        if blob and text in blob:
+            return sha
+    return None
+
+
+def cmd_stamp_genesis(args) -> int:
+    history = commits_oldest_first()
+    head = git("rev-parse", "HEAD").strip()
+    changed = 0
+    for module in MODULES:
+        path = GENESIS_SRC / f"{module}.rs"
+        basename = f"{module}.rs"
+        src = path.read_text()
+        lines = src.splitlines(keepends=True)
+        inserts: list[tuple[int, str]] = []
+        deletes: list[int] = []
+        for it, sha, _, at, frozen in _annotated_items(path, module):
+            if sha and not args.force:
+                continue
+            if at is not None:
+                deletes.append(at)
+            found = _first_commit_containing(basename, frozen, history)
+            if found is None:
+                print(
+                    f"  ! {it.path}: no commit contains this text verbatim. Either it is\n"
+                    f"    uncommitted, or the frozen copy has been edited. Not stamping.",
+                    file=sys.stderr,
+                )
+                continue
+            if found == head and head_state()["src_dirty"]:
+                print(f"  ! {it.path}: only matches the working tree, not a commit.", file=sys.stderr)
+                continue
+            indent = " " * it.indent
+            inserts.append(
+                (it.lead_start, f"{indent}// @genesis {short(found)} {commit_date(found)} — {it.path}\n")
+            )
+        # Bottom-up, so an edit never moves a line another edit still points at.
+        edits = [(n, "del", "") for n in deletes] + [(n, "ins", t) for n, t in inserts]
+        for at, kind, text in sorted(edits, key=lambda e: (-e[0], e[1])):
+            if kind == "del":
+                del lines[at]
+            else:
+                lines.insert(at, text)
+        if inserts:
+            path.write_text("".join(lines))
+            changed += len(inserts)
+            print(f"  {module}.rs: stamped {len(inserts)} item(s)")
+    print(f"==> {changed} annotation(s) written" if changed else "==> nothing to stamp")
+    return 0
+
+
+def cmd_check_genesis(args) -> int:
+    """The integrity check the whole design rests on.
+
+    Every frozen item must (a) carry an annotation, (b) name a real commit, and
+    (c) be byte-for-byte what `hachi/src` held at that commit -- its attributes
+    included, which is what `_frozen_text` is for. If any of the three fails, the
+    baseline is not the baseline and every 'vs genesis' number printed since it
+    broke is wrong.
+
+    What is deliberately *not* checked: doc comments, `use` lines, `impl`
+    headers, and anything in `lib.rs`. None of them can change what a benchmark
+    measures without also changing an item's own text or failing to compile.
+    """
+    problems: list[str] = []
+    checked = 0
+    for module in MODULES:
+        path = GENESIS_SRC / f"{module}.rs"
+        if not path.exists():
+            problems.append(f"{module}: frozen copy hachi/benches/genesis/src/{module}.rs is missing")
+            continue
+        for it, sha, date, _, frozen in _annotated_items(path, module):
+            if sha is None:
+                problems.append(
+                    f"{it.path}: no `// @genesis <sha> <date>` annotation. "
+                    f"Run `make bench-stamp`, or add it by hand."
+                )
+                continue
+            blob = blob_at(sha, f"{module}.rs")
+            if blob is None:
+                problems.append(f"{it.path}: commit {sha} has no {module}.rs")
+                continue
+            if frozen not in blob:
+                what = "text or attributes" if frozen != it.text else "text"
+                problems.append(
+                    f"{it.path}: frozen {what} do NOT match {module}.rs at {sha}. "
+                    f"Genesis is append-only and must never be edited "
+                    f"(hachi/benches/genesis/src/{module}.rs:{it.start + 1})."
+                )
+                continue
+            actual = commit_date(sha)
+            if date != actual:
+                problems.append(f"{it.path}: annotation says {date}, commit {sha} is {actual}")
+                continue
+            checked += 1
+
+    live = {it.path for m in MODULES for it in R.flatten(R.scan((SRC / f"{m}.rs").read_text(), m))
+            if it.kind in ANNOTATED_KINDS}
+    frozen = {it.path for m in MODULES if (GENESIS_SRC / f"{m}.rs").exists()
+              for it, _, _, _, _ in _annotated_items(GENESIS_SRC / f"{m}.rs", m)}
+    missing = sorted(live - frozen)
+    if missing:
+        problems.append(
+            "these items exist in hachi/src but have no frozen counterpart, so they have\n"
+            "    no baseline to be measured against. Copy the FIRST translation of each into\n"
+            "    hachi/benches/genesis/src/ verbatim, then `make bench-stamp`:\n"
+            + "".join(f"      {p}\n" for p in missing).rstrip()
+        )
+
+    if problems:
+        print("==> genesis check FAILED", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        return 1
+    print(f"==> genesis intact: {checked} frozen item(s) verified against git")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# candidate slot
+# ---------------------------------------------------------------------------
+
+
+CANDIDATE_SRC = BENCHES / "candidate" / "src"
+
+
+def cmd_check_candidate(args) -> int:
+    """At rest, the candidate slot holds byte-copies of `hachi/src` — a null
+    candidate. The slot is overwritten only inside the loop's worktree; a
+    diverged copy in this tree means a run landed without restoring it, and the
+    next `CANDIDATE=1` run would silently bench a stale diff as the champion's
+    challenger. (On the measurement path itself, `report` fingerprints the slot
+    so numbers stay attributable even mid-loop.)
+
+    Adversarial review (2026-08-11) closed three loopholes the first version
+    left open, all of the shape "the checked bytes are not the compiled bytes":
+
+    * `lib.rs` is compiled code, not just documentation — a `#[path]` redirect
+      or an extra `mod` there swaps entire modules while the byte-copies sit
+      unused. So `lib.rs` and `Cargo.toml` are pinned to git (HEAD, or the
+      index before their first commit): changes to them land as reviewed
+      commits, never as loop edits.
+    * A symlink at a module path passes any self-comparison forever, and the
+      loop's overwrite would then write through it into `hachi/src` itself.
+      No entry in the slot may be a symlink.
+    * An extra file in `src/` is reachable from a redirected `lib.rs`, so the
+      directory must contain exactly the four expected files.
+    """
+    problems: list[str] = []
+
+    expected = {f"{m}.rs" for m in MODULES} | {"lib.rs"}
+    if CANDIDATE_SRC.exists():
+        entries = {p.name for p in CANDIDATE_SRC.iterdir() if p.name != ".DS_Store"}
+        for extra in sorted(entries - expected):
+            problems.append(
+                f"unexpected entry benches/candidate/src/{extra} — the slot holds exactly "
+                f"{sorted(expected)}, nothing else can be allowed to compile."
+            )
+        for name in sorted(expected | entries):
+            p = CANDIDATE_SRC / name
+            if p.is_symlink():
+                problems.append(
+                    f"benches/candidate/src/{name} is a symlink — a symlinked slot passes every "
+                    f"byte-compare trivially, and the loop's overwrite would write through it."
+                )
+    else:
+        problems.append("hachi/benches/candidate/src is missing")
+
+    for module in MODULES:
+        live, frozen = SRC / f"{module}.rs", CANDIDATE_SRC / f"{module}.rs"
+        if not frozen.exists():
+            problems.append(
+                f"{module}: candidate copy hachi/benches/candidate/src/{module}.rs is missing"
+            )
+        elif frozen.is_symlink():
+            pass  # already reported above
+        elif live.read_bytes() != frozen.read_bytes():
+            problems.append(
+                f"{module}: benches/candidate/src/{module}.rs differs from hachi/src/{module}.rs. "
+                f"The slot is null at rest — restore it with "
+                f"`cp hachi/src/{module}.rs hachi/benches/candidate/src/`."
+            )
+
+    # lib.rs and Cargo.toml must match what git holds: HEAD if committed there,
+    # else the index (their introducing change is staged before it lands).
+    for rel_path in ("hachi/benches/candidate/src/lib.rs", "hachi/benches/candidate/Cargo.toml"):
+        f = ROOT / rel_path
+        if not f.exists():
+            problems.append(f"{rel_path} is missing")
+            continue
+        pinned = git("show", f"HEAD:{rel_path}", check=False)
+        if not pinned:
+            pinned = git("show", f":{rel_path}", check=False)
+        if not pinned:
+            problems.append(
+                f"{rel_path} is neither committed nor staged — the slot's fixed files are "
+                f"pinned to git; `git add` them before trusting this check."
+            )
+        elif f.read_text() != pinned:
+            problems.append(
+                f"{rel_path} differs from its git-pinned content. The slot's lib.rs and "
+                f"Cargo.toml are fixed; land changes to them as reviewed commits, never as "
+                f"loop edits."
+            )
+
+    if problems:
+        print("==> candidate slot check FAILED", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        return 1
+    print(
+        f"==> candidate slot null: {len(MODULES)} module(s) byte-identical to hachi/src, "
+        f"lib.rs+Cargo.toml git-pinned, no extras, no symlinks"
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# coverage
+# ---------------------------------------------------------------------------
+
+
+def _mirror_name(captured: str) -> str:
+    """The definition an applied ArkLib name refers to.
+
+    ``Mirrors ArkLib's `CyclotomicModulus.Rq Φ` `` names the definition
+    `CyclotomicModulus.Rq`, applied at `Φ`. The arguments matter to a reader and
+    not to the coverage question, so only the head is kept.
+    """
+    return captured.split()[0] if captured.split() else captured
+
+
+def mirrored_items() -> dict[str, str]:
+    """Live items whose doc comment claims to mirror an ArkLib definition.
+
+    Only the item's own lead block is searched, never the module header. A
+    module doc that names ten ArkLib definitions in a correspondence table is
+    documentation; a marker on an item is a claim about *that item*, and it is
+    claims that get held against a bench row.
+    """
+    out: dict[str, str] = {}
+    for module in MODULES:
+        src = (SRC / f"{module}.rs").read_text()
+        lines = src.splitlines()
+        for it in R.flatten(R.scan(src, module)):
+            if it.kind not in ANNOTATED_KINDS:
+                continue
+            lead = "\n".join(lines[it.lead_start : it.start])
+            m = MIRRORS.search(lead)
+            if m:
+                out[it.path] = _mirror_name(m.group("name"))
+    return out
+
+
+def covered_paths() -> tuple[dict[str, list[str]], list[str]]:
+    """`// @covers <path>` markers, each bound to the `bench_case!` it sits on.
+
+    A marker is a claim about one *row*, so it has to name one. A marker left
+    behind after its case was deleted, or one that has drifted onto the wrong
+    case, is the one failure mode a coverage check exists to catch.
+
+    Returns a `{path: [file]}` mapping, plus the attachment problems, which
+    `--strict` fails on. Three of them:
+
+    * a marker with no `bench_case!` beneath it (blank lines are allowed between,
+      anything else is not),
+    * a `bench_case!` with no marker above it -- except `_control/*`, which
+      measures the harness rather than the crate,
+    * a marker whose module disagrees with its case's group id, e.g.
+      `@covers linalg::PolyVec::dot` sitting on `"ring/..."`.
+
+    What this still cannot check is that the case *body* calls the item named:
+    that needs a Rust parser, which `rustitems` deliberately is not.
+    """
+    out: dict[str, list[str]] = {}
+    problems: list[str] = []
+
+    def orphan(name: str, at: int, path: str) -> None:
+        problems.append(
+            f"{name}:{at + 1}: `@covers {path}` is not attached to a `bench_case!`. "
+            f"A marker claims one row, so it must sit directly above one."
+        )
+
+    for f in sorted(BENCHES.glob("*.rs")):
+        pending: list[tuple[int, str]] = []
+        for i, line in enumerate(f.read_text().splitlines()):
+            m = COVERS.match(line)
+            if m:
+                pending.append((i, m.group("path")))
+                continue
+            b = BENCH_CASE.match(line)
+            if b:
+                group = b.group("group")
+                if group.startswith(CONTROL_PREFIX):
+                    for at, path in pending:
+                        problems.append(
+                            f"{f.name}:{at + 1}: `@covers {path}` sits on the control case "
+                            f"`{group}`, which measures the harness, not the crate."
+                        )
+                elif not pending:
+                    problems.append(
+                        f"{f.name}:{i + 1}: `bench_case!` for `{group}` has no `// @covers` "
+                        f"above it, so nothing records which item it measures."
+                    )
+                for at, path in pending:
+                    out.setdefault(path, []).append(f.name)
+                    mod, group_mod = path.split("::", 1)[0], group.split("/", 1)[0]
+                    if mod != group_mod:
+                        problems.append(
+                            f"{f.name}:{at + 1}: `@covers {path}` is in module `{mod}` but "
+                            f"sits on bench case `{group}`, which is in `{group_mod}`."
+                        )
+                pending = []
+                continue
+            if line.strip():
+                for at, path in pending:
+                    orphan(f.name, at, path)
+                pending = []
+        for at, path in pending:
+            orphan(f.name, at, path)
+    return out, problems
+
+
+def exclusions() -> dict[str, str]:
+    if not EXCLUSIONS.exists():
+        return {}
+    return tomllib.loads(EXCLUSIONS.read_text()).get("exclusions", {})
+
+
+def all_item_paths() -> set[str]:
+    return {
+        it.path
+        for m in MODULES
+        for it in R.flatten(R.scan((SRC / f"{m}.rs").read_text(), m))
+    }
+
+
+def cmd_coverage(args) -> int:
+    """Is every translated ArkLib definition accounted for?
+
+    Two different questions, and only the first is about mirrors:
+
+    * A **mirrored** item must be benched or excluded by name. Silence is not an
+      exclusion -- an operation nobody measures is one the loop cannot notice a
+      regression in.
+    * A `@covers` path must **name a real item**, and must sit on a real
+      `bench_case!` in the same module. Benching something that claims no
+      `Mirrors` docstring is fine and often right (`Fp::mul` mirrors nothing and
+      is the hottest code in the crate); pointing at an item that does not exist,
+      or at no row at all, silently drops the coverage claim the marker made.
+    """
+    mirrors, (covers, bind_problems), excl = mirrored_items(), covered_paths(), exclusions()
+    live = all_item_paths()
+
+    uncovered = sorted(p for p in mirrors if p not in covers and p not in excl)
+    stale_excl = sorted(p for p in excl if p not in live)
+    both = sorted(p for p in excl if p in covers)
+    dangling = sorted(p for p in covers if p not in live)
+    extra = sorted(p for p in covers if p in live and p not in mirrors)
+
+    print(
+        f"==> coverage: {len(mirrors)} mirrored item(s), "
+        f"{len([p for p in mirrors if p in covers])} benched, "
+        f"{len([p for p in mirrors if p in excl])} excluded by name, "
+        f"{len(uncovered)} UNACCOUNTED FOR"
+        f"  (+{len(extra)} non-mirrored item(s) benched as well)"
+    )
+    for p in uncovered:
+        print(f"  - {p}  (mirrors {mirrors[p]}) has no bench and no exclusion")
+    for p in both:
+        print(f"  - {p} is both benched and excluded; drop one")
+    for p in stale_excl:
+        print(f"  - exclusion {p} names no item in hachi/src -- renamed or removed?")
+    for p in dangling:
+        print(f"  - `@covers {p}` in {', '.join(covers[p])} names no item in hachi/src")
+    for p in bind_problems:
+        print(f"  - {p}")
+
+    if args.verbose:
+        for p in sorted(mirrors):
+            where = "bench" if p in covers else ("excluded" if p in excl else "MISSING")
+            print(f"    {where:9} {p}  ->  {mirrors[p]}")
+
+    if args.strict and (uncovered or both or stale_excl or dangling or bind_problems):
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# machine + toolchain fingerprint
+# ---------------------------------------------------------------------------
+
+
+def sysctl(key: str) -> str:
+    p = subprocess.run(["sysctl", "-n", key], capture_output=True, text=True, check=False)
+    return p.stdout.strip()
+
+
+def cpu_model() -> str:
+    """The CPU's marketing name, on either platform this repository is built on.
+
+    Linux first, because that is where these benchmarks run; `sysctl` is kept for
+    macOS, where AeneasCompPoly's calibration numbers were taken. Neither is load
+    bearing for a verdict -- the fingerprint exists so a report can be told apart
+    from one taken on another machine, since no number here is comparable across
+    two of them.
+    """
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return sysctl("machdep.cpu.brand_string") or platform.processor() or "unknown"
+
+
+def machine() -> dict:
+    cpu = cpu_model()
+    info = {
+        "hostname": platform.node(),
+        "os": f"{platform.system()} {platform.release()}",
+        "arch": platform.machine(),
+        "cpu": cpu,
+        "cores": os.cpu_count(),
+    }
+    ident = "|".join(str(info[k]) for k in ("hostname", "arch", "cpu", "cores"))
+    info["id"] = hashlib.sha256(ident.encode()).hexdigest()[:12]
+    return info
+
+
+def toolchain(name: str) -> dict:
+    p = subprocess.run(
+        ["rustup", "run", name, "rustc", "--version"], capture_output=True, text=True, check=False
+    )
+    return {"name": name, "rustc": p.stdout.strip() or "unknown"}
+
+
+def run_id(since: float, mach: dict, tc: dict, cases: dict) -> str:
+    """A stable identifier for one measurement run, for a ledger row to cite.
+
+    A ledger row records a *delta*, and a delta is only checkable if the run it
+    came from can be named. `logs/ledger.jsonl`'s schema therefore requires a
+    `run` on every measurement row, and
+    `.claude/skills/skill-lab/references/ledger_check.py` enforces its shape --
+    so this is where the id has to be minted. An agent that invented one would
+    be citing a run nobody can identify, which is worse than citing nothing.
+
+    Two properties, both deliberate:
+
+    * **The timestamp is the run's start, not the report's.** `make run-bench`
+      stamps the clock before `cargo bench` and passes it as `--since`, so the id
+      names when the measuring began.
+    * **Re-reporting the same criterion state reproduces the id.** The digest is
+      over what identifies the run rather than over its numbers: the machine, the
+      toolchain, the source commit, and the exact set of case/variant pairs
+      measured. Upstream has a documented case of re-deriving a run's numbers
+      through a fixed harness on unchanged criterion state; that must not mint a
+      second identity for one measurement, and a `--json` re-report of the same
+      run must be recognisable as the same run.
+    """
+    stamp = datetime.datetime.fromtimestamp(since).astimezone().strftime("%Y%m%dT%H%M%z")
+    pairs = sorted(f"{case}:{variant}" for case, vs in cases.items() for variant in vs)
+    ident = "|".join([mach["id"], tc["rustc"], head_state()["sha"], *pairs])
+    return f"{stamp}-{hashlib.sha256(ident.encode()).hexdigest()[:8]}"
+
+
+# ---------------------------------------------------------------------------
+# criterion output
+# ---------------------------------------------------------------------------
+
+
+def read_criterion(root: Path | None = None) -> dict[str, dict[str, dict]]:
+    """{case_id: {variant: stats}} for every benchmark criterion just wrote.
+
+    `benchmark.json` carries the ids criterion itself parsed, so nothing here has
+    to reverse-engineer a directory name.
+
+    `slope_ns` is the **slope** of criterion's linear regression through the
+    (iterations, time) samples, falling back to the mean when criterion used flat
+    sampling and so produced no slope. It is the estimate criterion itself
+    prints, and `lo_ns`/`hi_ns` are its interval, which is what `disjoint`
+    compares. It is the better of criterion's own two -- the regression absorbs
+    the fixed per-sample overhead and is far less sensitive to the occasional
+    scheduler or thermal outlier than the mean -- so it is what `ns` falls back
+    to when `_robust` cannot read `sample.json`. The reported `ns` itself comes
+    from `_robust`.
+    """
+    root = root or CRITERION
+    cases: dict[str, dict[str, dict]] = {}
+    if not root.exists():
+        return cases
+    for bj in root.rglob("new/benchmark.json"):
+        ej = bj.parent / "estimates.json"
+        if not ej.exists():
+            continue
+        b = json.loads(bj.read_text())
+        e = json.loads(ej.read_text())
+        group, variant, value = b.get("group_id"), b.get("function_id"), b.get("value_str")
+        if not group or not variant:
+            continue
+        est = e.get("slope") or e["mean"]
+        case = f"{group}/{value}" if value else group
+        stats = {
+            "slope_ns": est["point_estimate"],
+            "lo_ns": est["confidence_interval"]["lower_bound"],
+            "hi_ns": est["confidence_interval"]["upper_bound"],
+            "estimator": "slope" if e.get("slope") else "mean",
+            "mean_ns": e["mean"]["point_estimate"],
+            "std_dev_ns": e["std_dev"]["point_estimate"],
+            "mtime": ej.stat().st_mtime,
+        }
+        stats.update(_robust(bj.parent / "sample.json"))
+        stats.setdefault("ns", stats["slope_ns"])
+        cases.setdefault(case, {})[variant] = stats
+    return cases
+
+
+def _robust(sample_json: Path) -> dict:
+    """A contention-robust point estimate, from criterion's raw samples.
+
+    Two decisions, and both were measured rather than argued.
+
+    **Which end of the distribution.** Criterion's headline slope, and its mean,
+    describe the *centre* of the sample distribution. On a developer's machine
+    that centre is largely a description of what else was running: this
+    repository's calibration run, taken at load average 7.75 on 8 cores, inflated
+    every case by 50-180% and produced confidence intervals that were narrow,
+    disjoint, and meaningless. Contention only ever makes code look *slower*, so
+    the informative end is the fast one. Swept over a full run of byte-identical
+    code, where every row must read 0%, the centre estimators are the worst of
+    the lot -- worst row 24.5% for the mean, 22.3% for the median, 14.1% for
+    criterion's slope, against 10.9% for the fast end.
+
+    **Which samples.** Criterion samples *linearly*: sample `k` runs the routine
+    `k * d` times. For a case near a millisecond the budget forces `d = 1`, so the
+    first samples are single executions, and a percentile taken over all 100
+    samples is dominated by exactly the observations with no averaging in them.
+
+    So: keep the samples criterion gave at least half the maximum iteration
+    count, then average the three fastest of those. Three rather than one because
+    a single sample, even a 50-iteration one, should not decide a row; three
+    rather than a percentile because the sweep put it ahead on the tail that
+    matters -- over a full run of byte-identical code it leaves 2 rows above 3%,
+    and a worst control of 0.12%.
+
+    Falls back to the slope when `sample.json` is missing or malformed, which is
+    the only reason the caller's `setdefault` exists.
+    """
+    try:
+        s = json.loads(sample_json.read_text())
+        pairs = [(t / i, i) for t, i in zip(s["times"], s["iters"]) if i]
+    except (OSError, ValueError, KeyError, ZeroDivisionError):
+        return {}
+    if not pairs:
+        return {}
+    cutoff = max(i for _, i in pairs) / 2
+    settled = sorted(p for p, i in pairs if i >= cutoff) or sorted(p for p, _ in pairs)
+    per = sorted(p for p, _ in pairs)
+    n = len(per)
+    return {
+        "ns": sum(settled[:3]) / len(settled[:3]),
+        "min_ns": settled[0],
+        "median_ns": per[(n - 1) // 2],
+        "samples": n,
+        "settled_samples": len(settled),
+    }
+
+
+def fmt_time(ns: float) -> str:
+    for unit, scale in (("s", 1e9), ("ms", 1e6), ("µs", 1e3), ("ns", 1.0)):
+        if ns >= scale:
+            return f"{ns / scale:.3g}{unit}"
+    return f"{ns:.3g}ns"
+
+
+def rel(new: float, old: float) -> float:
+    return (new - old) / old if old else math.inf
+
+
+def disjoint(a: dict, b: dict) -> bool:
+    """Do the two 95% confidence intervals for the mean fail to overlap?"""
+    return a["hi_ns"] < b["lo_ns"] or b["hi_ns"] < a["lo_ns"]
+
+
+# ---------------------------------------------------------------------------
+# report
+# ---------------------------------------------------------------------------
+
+
+def cmd_report(args) -> int:
+    cases = read_criterion()
+    if not cases:
+        print("error: no criterion output under hachi/target/criterion.", file=sys.stderr)
+        return 1
+
+    mach = machine()
+    tc = toolchain(args.toolchain)
+
+    # Only look at cases this run actually refreshed. Criterion keeps the results
+    # of benchmarks that a `BENCH=` filter skipped, and reporting one of those as
+    # if it had just been measured is precisely the lie this harness exists to
+    # prevent -- it would show a filtered-out case "unchanged" while its code was
+    # being rewritten. `make run-bench` stamps the wall clock before it starts and
+    # passes it here, so the cut is exact rather than a guess about mtimes.
+    # The cut is per *variant*, not per case: a `CANDIDATE=1` run leaves
+    # candidate estimates on disk, and a later default run must not lose a case
+    # to that leftover — nor report it. A variant measured before the run
+    # started is dropped; a case with nothing fresh left disappears entirely.
+    if args.since is not None:
+        fresh = {
+            k: {var: s for var, s in v.items() if s["mtime"] >= args.since}
+            for k, v in cases.items()
+        }
+        stale = {k for k, v in fresh.items() if not v}
+        cases = {k: v for k, v in fresh.items() if v}
+        if not cases:
+            print(
+                "error: criterion wrote no results after the run started. Did every\n"
+                "       benchmark get filtered out by BENCH=?",
+                file=sys.stderr,
+            )
+            return 1
+        if stale:
+            print(f"  (skipping {len(stale)} case(s) not measured in this run)")
+
+    rows, control = [], []
+    for case in sorted(cases):
+        now, gen = cases[case].get("now"), cases[case].get("genesis")
+        cand = cases[case].get("candidate")
+        is_control = case.startswith(CONTROL_PREFIX)
+        # A control missing a variant still yields the pairwise deltas its
+        # remaining variants support — throwing it away would discard exactly
+        # the identical-code evidence that can veto a run. A *real* case
+        # without `now` has nothing to say and becomes an error row.
+        if now is None and not is_control:
+            rows.append({"case": case, "error": "no `now` measurement"})
+            continue
+        row: dict = {"case": case}
+        if now is not None:
+            row["now_ns"] = now["ns"]
+
+        if gen is None:
+            if not is_control:
+                row["genesis_missing"] = True
+        else:
+            row["genesis_ns"] = gen["ns"]
+            if now is not None:
+                row["vs_genesis"] = rel(now["ns"], gen["ns"])
+                # Criterion's own interval, on its own estimator. `vs_genesis`
+                # above is a ratio of `_robust` estimates, so the two do not
+                # have to agree; this is exported for a reader who wants
+                # criterion's view, and no verdict is derived from it.
+                row["vs_genesis_sig"] = disjoint(now, gen)
+
+        # The candidate slot (benches/candidate, timed under CANDIDATE=1).
+        # `cand_vs_now` is the raw delta of the accept pair; the verdict is
+        # never taken from it directly — see the recentering below.
+        if cand is not None:
+            row["candidate_ns"] = cand["ns"]
+            if now is not None:
+                row["cand_vs_now"] = rel(cand["ns"], now["ns"])
+                row["cand_vs_now_sig"] = disjoint(cand, now)
+            if gen is not None:
+                row["cand_vs_genesis"] = rel(cand["ns"], gen["ns"])
+
+        (control if is_control else rows).append(row)
+
+    # There is exactly one comparison here, and it is made entirely within this
+    # run: `now` against the frozen first translation, measured back to back on
+    # the same machine at the same temperature by the same compiler.
+    #
+    # Nothing is compared across runs, and nothing is kept that would let it be:
+    # a comparison across runs inherits the *difference* in machine conditions
+    # between two moments possibly days apart, and on an ordinary desktop that
+    # difference dwarfs anything the code does. A measurement that cannot resolve
+    # the effect it exists to detect is not a conservative measurement, it is a
+    # distraction with a number attached.
+    #
+    # `JSON=<path>` writes this run's full numbers if something downstream wants
+    # to keep them; the harness itself keeps nothing between runs.
+    #
+    # What remains is the A/B bias: the `_control/*` cases, one per bench binary,
+    # where BOTH variants run byte-identical code from `benches/support`. Whatever
+    # they differ by is the harness itself -- criterion runs `now` to completion
+    # before it starts `genesis`, so a CPU warming up across those seconds looks
+    # exactly like a code change. It is measured every run rather than assumed.
+    #
+    # The **worst** control is taken, not the median. Three controls is not a
+    # distribution to draw a central tendency from, and a single copy of one
+    # function disagreeing with itself by more than the limit is exactly the
+    # thing that should veto a run.
+    #
+    # It is a flat threshold, not a per-case one. Matching each case to the
+    # control nearest its duration sounds careful and is not: with the real cases
+    # spanning four orders of magnitude, most rows would be thresholded by
+    # extrapolation from a control up to 100x away. One control, one number,
+    # applied to everything, is the honest shape of what is known.
+    # Every pairwise delta of a control is identical code, so every one of them
+    # is a bias measurement — with the candidate slot active that is three pairs
+    # per control instead of one, and the worst still vetoes the run.
+    DELTAS = ("vs_genesis", "cand_vs_now", "cand_vs_genesis")
+    biases = [abs(r[k]) for r in control for k in DELTAS if k in r]
+    bias = max(biases) if biases else None
+    usable = bias is None or bias <= USABLE_BIAS_MAX
+    t_genesis = max(MIN_EFFECT, bias or 0.0)
+
+    # The accept column is different from the other two, and the difference was
+    # found by adversarial review, not foresight (2026-08-11): the candidate
+    # variant sits at a fixed position in every case, so code layout and timing
+    # order give `cand_vs_now` a *signed, systematic* lean — measured at −3.6%
+    # on byte-identical code the day the slot landed. A symmetric threshold
+    # cannot contain a signed offset: with the documented per-row noise
+    # (σ ≈ 1.8%), a null candidate leaning −3.6% crosses a 5% "faster" bar with
+    # ~20% probability per row, and a true +8% regression reads as noise.
+    #
+    # So the verdict is taken from the RECENTERED delta: each bench binary's
+    # own `_control` measures the lean on identical code in this same run, and
+    # the row's ratio is divided out by it. After recentering the null is
+    # zero-centered again and the flat 5% floor means what it says (~2σ√2 of
+    # the documented row noise; the recentering term itself carries one row's
+    # noise, hence the √2). The lean is per *binary*, not global: layout is a
+    # property of the linked binary. A control's own adjusted value is 0 by
+    # construction — its raw magnitudes still feed the veto above.
+    #
+    # Fail closed: a candidate row in a binary whose control did not measure a
+    # lean THIS run gets no verdict at all, and the run exits 2 — an accept
+    # column with no fairness instrument behind it must never look green.
+    leans: dict[str, float] = {}
+    for r in control:
+        if "cand_vs_now" in r:
+            parts = r["case"].split("/")
+            if len(parts) >= 2:
+                leans[parts[1]] = r["cand_vs_now"]
+
+    def case_binary(row: dict) -> str:
+        parts = row["case"].split("/")
+        return parts[1] if row["case"].startswith(CONTROL_PREFIX) else parts[0]
+
+    for row in rows + control:
+        row["threshold_vs_genesis"] = t_genesis
+        for k in ("vs_genesis", "cand_vs_genesis"):
+            if k in row:
+                d = row[k]
+                row[k + "_verdict"] = (
+                    "unusable" if not usable
+                    else ("faster" if d < 0 else "slower") if abs(d) >= t_genesis
+                    else "noise"
+                )
+        if "cand_vs_now" in row:
+            b = case_binary(row)
+            if b in leans:
+                adj = (1.0 + row["cand_vs_now"]) / (1.0 + leans[b]) - 1.0
+                row["cand_lean"] = leans[b]
+                row["cand_vs_now_adj"] = adj
+                row["cand_vs_now_verdict"] = (
+                    "unusable" if not usable
+                    else ("faster" if adj < 0 else "slower") if abs(adj) >= MIN_EFFECT
+                    else "noise"
+                )
+            else:
+                row["cand_vs_now_verdict"] = "unvalidated"
+
+    cand_unvalidated = [r["case"] for r in rows if r.get("cand_vs_now_verdict") == "unvalidated"]
+
+    # Which code the slot actually held, so the numbers above are attributable
+    # to a diff rather than to whatever a previous session left behind. The
+    # at-rest gate is `check-candidate`; this is the measurement-path witness.
+    slot = None
+    if any("candidate_ns" in r for r in rows + control):
+        slot = {"diverged": [], "sha": {}}
+        for m in MODULES:
+            f = CANDIDATE_SRC / f"{m}.rs"
+            if not f.exists():
+                slot["diverged"].append(m)
+                continue
+            data = f.read_bytes()
+            slot["sha"][m] = hashlib.sha256(data).hexdigest()[:12]
+            live = SRC / f"{m}.rs"
+            if not live.exists() or data != live.read_bytes():
+                slot["diverged"].append(m)
+
+    rid = run_id(args.since, mach, tc, cases)
+    _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot, rid)
+
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps({"run": rid,
+                        "rows": rows, "control": control, "machine": mach, "toolchain": tc,
+                        "ab_bias": bias, "usable": usable,
+                        "threshold_vs_genesis": t_genesis,
+                        "cand_leans": leans or None,
+                        "candidate_slot": slot}, indent=2)
+        )
+
+    if cand_unvalidated:
+        print(
+            f"\n==> CANDIDATE VERDICTS UNVALIDATED. {len(cand_unvalidated)} case(s) measured a "
+            f"candidate in a binary whose `_control` did not run this pass:\n"
+            f"    {', '.join(cand_unvalidated[:6])}\n"
+            f"    The accept column has no fairness instrument behind it. Re-run with\n"
+            f"    BENCH='<op>|_control' so every binary's control is measured.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if not usable:
+        print(
+            f"\n==> RUN NOT USABLE. Identical code measured {bias * 100:.1f}% apart, over the "
+            f"{USABLE_BIAS_MAX * 100:.0f}% limit.\n"
+            f"    No verdict above should be acted on. Close what else is running and repeat;\n"
+            f"    if it persists on an idle machine, the harness is at fault, not the machine.",
+            file=sys.stderr,
+        )
+        return 2
+
+    return 0
+
+
+def _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot=None, rid=None) -> None:
+    print()
+    print(f"  machine   {mach['cpu']} · {mach['cores']} cores · {mach['os']} · id {mach['id']}")
+    print(f"  toolchain {tc['rustc']}")
+    print(f"  rustflags {os.environ.get('RUSTFLAGS', '') or '(none)'}")
+    g = head_state()
+    print(f"  source    {g['sha']}{' +uncommitted' if g['src_dirty'] else ''}")
+    if rid:
+        print(f"  run       {rid}  <- cite this in a ledger row; a row without it is unattributable")
+    print()
+
+    w = max((len(r["case"]) for r in rows + control), default=10)
+    has_cand = any("candidate_ns" in r for r in rows + control)
+
+    def line(r) -> str:
+        gen = fmt_time(r["genesis_ns"]) if "genesis_ns" in r else "—"
+        out = f"  {r['case'].ljust(w)}  {gen:>10}  {fmt_time(r['now_ns']):>10}"
+        if has_cand:
+            cand = fmt_time(r["candidate_ns"]) if "candidate_ns" in r else "—"
+            out += f"  {cand:>10}"
+        out += f"  {_delta(r, 'vs_genesis'):>18}"
+        if has_cand:
+            out += f"  {_delta_cand(r):>18}"
+        return out
+
+    hdr = f"  {'case'.ljust(w)}  {'genesis':>10}  {'now':>10}"
+    dash = f"  {'-' * w}  {'-' * 10}  {'-' * 10}"
+    if has_cand:
+        hdr, dash = hdr + f"  {'candidate':>10}", dash + f"  {'-' * 10}"
+    hdr += f"  {'vs genesis':>18}"
+    dash += f"  {'-' * 18}"
+    if has_cand:
+        hdr, dash = hdr + f"  {'cand vs now':>18}", dash + f"  {'-' * 18}"
+    print(hdr)
+    print(dash)
+    for r in rows:
+        if "error" in r:
+            print(f"  {r['case'].ljust(w)}  {r['error']}")
+            continue
+        print(line(r))
+
+    print()
+    print("  harness self-test — all variants run identical code, so these should read 0%")
+    for r in control:
+        print(line(r))
+    if not control:
+        print("  (none ran — `vs genesis` is unvalidated for this run)")
+
+    print()
+    print("  times average the 3 fastest of criterion's settled samples (those given at least")
+    print("  half the maximum iteration count), which is robust to background load; criterion's")
+    print("  own output above reports its regression slope and reads higher.")
+    print("  Only the `vs genesis` column is a comparison; an absolute time is not comparable")
+    print("  to another run's, nor to another row's.")
+    print()
+    if bias is None:
+        print("  A/B bias     unknown  — no `_control/*` case ran, so `vs genesis` is unvalidated")
+    else:
+        print(f"  A/B bias     {bias * 100:5.1f}%  worst of the identical-code controls, applied "
+              f"as a flat threshold")
+    cand_leans = {r["case"].split("/")[1]: r["cand_lean"] for r in control if "cand_lean" in r}
+    if cand_leans:
+        lstr = "  ".join(f"{b} {v * 100:+.1f}%" for b, v in sorted(cand_leans.items()))
+        print(f"  cand lean    {lstr}")
+        print("               the slot's signed identical-code offset, measured per binary by its")
+        print("               control and divided out of `cand vs now` before any verdict; a")
+        print("               control's own adjusted value is 0 by construction")
+    if slot is not None:
+        if slot["diverged"]:
+            shas = ", ".join(f"{m} {slot['sha'].get(m, 'missing')}" for m in slot["diverged"])
+            print(f"  slot         diverged from hachi/src: {shas}")
+            print("               the candidate numbers above belong to that diff — keep the sha with them")
+        else:
+            print("  slot         ≡ hachi/src (null candidate) — candidate rows are a harness self-test")
+    if not usable:
+        print(f"\n  FAILED: identical code measured {bias * 100:.1f}% apart within this run "
+              f"(limit {USABLE_BIAS_MAX * 100:.0f}%).")
+        print("  Every verdict above is marked unusable and nothing was recorded.")
+    elif bias is not None and bias > MIN_EFFECT:
+        print(f"\n  Note: {bias * 100:.1f}% is what a change has to beat on this run. "
+              f"A quieter machine\n  brings it down; nothing inside the harness does.")
+    if any(r.get("genesis_missing") for r in rows):
+        missing = [r["case"] for r in rows if r.get("genesis_missing")]
+        print(f"\n  {len(missing)} case(s) have no genesis variant: {', '.join(missing[:6])}")
+        print("  Those rows have no baseline at all — freeze the operation into hachi/benches/genesis.")
+
+
+def _delta(row: dict, key: str) -> str:
+    if key not in row:
+        return "—"
+    d, verdict = row[key], row.get(key + "_verdict", "")
+    mark = {"faster": "▼", "slower": "▲", "noise": "·", "unusable": "✗"}.get(verdict, " ")
+    return f"{d * 100:+7.1f}% {mark} {verdict}"
+
+
+def _delta_cand(row: dict) -> str:
+    """The accept column prints the *recentered* delta — the number the verdict
+    is actually taken from; the raw ratio stays in the JSON."""
+    if "cand_vs_now_adj" in row:
+        d, verdict = row["cand_vs_now_adj"], row.get("cand_vs_now_verdict", "")
+        mark = {"faster": "▼", "slower": "▲", "noise": "·", "unusable": "✗"}.get(verdict, " ")
+        return f"{d * 100:+7.1f}% {mark} {verdict}"
+    if "cand_vs_now" in row:
+        return f"{row['cand_vs_now'] * 100:+7.1f}% ✗ unvalidated"
+    return "—"
+
+
+# ---------------------------------------------------------------------------
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("stamp-genesis")
+    s.add_argument("--force", action="store_true", help="re-derive annotations that already exist")
+    s.set_defaults(func=cmd_stamp_genesis)
+
+    s = sub.add_parser("check-genesis")
+    s.set_defaults(func=cmd_check_genesis)
+
+    s = sub.add_parser("check-candidate")
+    s.set_defaults(func=cmd_check_candidate)
+
+    s = sub.add_parser("coverage")
+    s.add_argument("--strict", action="store_true", help="exit non-zero if anything is unaccounted for")
+    s.add_argument("-v", "--verbose", action="store_true", help="list every mirrored item and its status")
+    s.set_defaults(func=cmd_coverage)
+
+    s = sub.add_parser("report")
+    s.add_argument("--toolchain", default="stable")
+    s.add_argument("--json", help="also write the report as JSON here")
+    # Required, not defaulted: without a start stamp the report would mix
+    # criterion state from different runs — a candidate measured last week
+    # against a `now` measured today is exactly the cross-run comparison this
+    # harness exists to refuse. Re-generating a past run's report is done by
+    # passing that run's original stamp, never by omitting it.
+    s.add_argument("--since", type=float, required=True, metavar="EPOCH",
+                   help="ignore criterion results written before this unix time "
+                        "(the Makefile stamps it just before `cargo bench` starts)")
+    s.set_defaults(func=cmd_report)
+
+    args = ap.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

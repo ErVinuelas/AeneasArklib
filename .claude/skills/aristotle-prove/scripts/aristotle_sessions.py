@@ -439,10 +439,18 @@ def safely_extract(archive: Path, destination: Path) -> None:
 
 
 def candidate_paths(root: Path, result_root: Path, targets: list[Target]) -> dict[str, Path]:
+    # Aristotle archives wrap the project in a single top-level directory of
+    # its own naming (e.g. `hachi_aristotle/`); descend into it when the
+    # project-relative path is not at the archive root itself.
+    search_roots = [result_root]
+    entries = [entry for entry in result_root.iterdir() if entry.is_dir()]
+    if len(entries) == 1:
+        search_roots.append(entries[0])
     candidates: dict[str, Path] = {}
     for target in targets:
-        candidate = result_root / path_within_project(target)
-        if not candidate.is_file():
+        relative = path_within_project(target)
+        candidate = next((base / relative for base in search_roots if (base / relative).is_file()), None)
+        if candidate is None:
             raise SessionError(f"Downloaded Aristotle result does not contain target file: {target.path}")
         candidates[target.path] = candidate
     return candidates
