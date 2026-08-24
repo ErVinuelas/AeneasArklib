@@ -2,6 +2,7 @@ import Generated
 import Field
 import Ring
 import RqBridge
+import Scheme
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 
 /-!
@@ -32,11 +33,12 @@ What it audits, in four sections:
 4. the axiom dependencies of every proved spec, which is what makes a `sorryAx`
    a build failure rather than a silent debt.
 
-§ 4 is the one that grows: it lists the base-field specs (`lean/Field.lean`), the
-coefficient-level ring specs (`lean/Ring.lean`) and their lifts to ArkLib's `Rq Φ`
-(`lean/RqBridge.lean`), all proved. The `linalg`, `gadget` and `commit` obligations
-are *stated* in `lean-wip/Scheme.lean` and not proved, so they are deliberately
-absent from it -- see `lean-wip/README.md` for the promotion procedure.
+§ 4 now covers the whole development: the base-field specs (`lean/Field.lean`), the
+coefficient-level ring specs (`lean/Ring.lean`), their lifts to ArkLib's `Rq Φ`
+(`lean/RqBridge.lean`), and the `linalg`, `gadget` and `commit` layers
+(`lean/Scheme.lean`) up to perfect correctness of the extracted scheme. Every one is
+proved, so `lean-wip/` is empty; the procedure for promoting a file into here, should
+a later one land there first, is in `lean-wip/README.md`.
 -/
 
 -- Off, and load-bearing for an audit file specifically. With `autoImplicit` on (the
@@ -302,11 +304,12 @@ printed here is a build failure rather than a silent debt. The expected output i
 the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 `Quot.sound`, which are the ones the README's trusted computing base names.
 
-What is here: the base field (`lean/Field.lean`), the whole coefficient level of the
-ring (`lean/Ring.lean`) -- all thirteen operations -- and those thirteen lifted to
-ArkLib's `Rq Φ` (`lean/RqBridge.lean`). What is not: `linalg`, `gadget` and `commit`,
-which are stated in `lean-wip/Scheme.lean` and not proved. Each adds its
-`#print axioms` line here as it lands. -/
+What is here is now everything: the base field (`lean/Field.lean`), the whole
+coefficient level of the ring (`lean/Ring.lean`) -- all thirteen operations -- those
+thirteen lifted to ArkLib's `Rq Φ` (`lean/RqBridge.lean`), and `linalg`, `gadget` and
+`commit` (`lean/Scheme.lean`), ending at `honest_verifies`: an honest commitment and
+its honest opening verify. Nothing is left stated-but-unproved, so there is no
+counterpart list of absences to keep here. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
@@ -355,5 +358,61 @@ which are stated in `lean-wip/Scheme.lean` and not proved. Each adds its
 #print axioms HachiEquiv.RqBridge.equals_spec
 #print axioms HachiEquiv.RqBridge.is_zero_spec
 #print axioms HachiEquiv.RqBridge.copy_spec
+
+-- The linear algebra (`lean/Scheme.lean`): the `PolyVec`/`PolyMatrix` operations,
+-- each stated against the ArkLib function of the same job rather than a
+-- restatement of it. `flatten_blocks_spec` carries a capacity hypothesis, and
+-- `poly_vec_equals_spec` is an `↔`, so its rejection direction is audited too.
+#print axioms HachiEquiv.Scheme.dot_spec
+#print axioms HachiEquiv.Scheme.vec_add_spec
+#print axioms HachiEquiv.Scheme.vec_sub_spec
+#print axioms HachiEquiv.Scheme.scalar_vec_mul_spec
+#print axioms HachiEquiv.Scheme.mat_vec_mul_spec
+#print axioms HachiEquiv.Scheme.flatten_blocks_spec
+#print axioms HachiEquiv.Scheme.poly_vec_equals_spec
+
+-- The gadget (`lean/Scheme.lean`): digit extraction, the base powers, the gadget
+-- matrix entries, and the two directions of the decomposition. `base_pow_spec` is
+-- the one that says the exponentiation happens in `ZMod q` and not in `u64`.
+#print axioms HachiEquiv.Scheme.digit_at_spec
+#print axioms HachiEquiv.Scheme.base_pow_spec
+#print axioms HachiEquiv.Scheme.gadget_entry_spec
+#print axioms HachiEquiv.Scheme.gadget_mul_spec
+#print axioms HachiEquiv.Scheme.gadget_decompose_spec
+
+-- The gadget is lawful, as a statement about the *Rust*: the extracted
+-- `gadget_mul` inverts the extracted `gadget_decompose`. This is the claim the
+-- scheme's correctness rests on, so its axiom line is worth reading separately
+-- from the two specs it is a corollary of.
+#print axioms HachiEquiv.Scheme.gadget_round_trip
+
+-- The centered norms (`lean/Scheme.lean`): `valMinAbs`, not the canonical
+-- representative -- and each spec is a totality claim as much as an equality,
+-- since the accumulators are fixed-width. `l2_norm_sq_spec` is total outright
+-- (`u128` is wide enough for one ring element); the vector version carries the
+-- capacity hypothesis that makes it so.
+#print axioms HachiEquiv.Scheme.centered_abs_spec
+#print axioms HachiEquiv.Scheme.l1_norm_spec
+#print axioms HachiEquiv.Scheme.l_infty_norm_spec
+#print axioms HachiEquiv.Scheme.l2_norm_sq_spec
+#print axioms HachiEquiv.Scheme.vec_l2_norm_sq_spec
+#print axioms HachiEquiv.Scheme.vec_l_infty_norm_spec
+
+-- The inner-outer commitment (`lean/Scheme.lean`), against the specification's own
+-- `InnerOuter` definitions through the structure bridges (`toParams`,
+-- `toDecompSpec`, `toOpening`). `verify_weak_spec` is an equality of *decisions*:
+-- an implication in the accepting direction would be satisfied by a verifier that
+-- rejects everything, so only the equality puts the rejection paths in the claim.
+#print axioms HachiEquiv.Scheme.generate_decomps_spec
+#print axioms HachiEquiv.Scheme.derived_message_spec
+#print axioms HachiEquiv.Scheme.commit_with_decomps_spec
+#print axioms HachiEquiv.Scheme.verify_weak_spec
+#print axioms HachiEquiv.Scheme.commit_spec
+#print axioms HachiEquiv.Scheme.honest_spec
+
+-- Perfect correctness of the extracted scheme: an honest commitment and its honest
+-- opening verify. The top of the composition -- it reaches every line above -- so
+-- this is the single line whose axiom set summarises the whole development.
+#print axioms HachiEquiv.Scheme.honest_verifies
 
 end HachiEquiv.Check

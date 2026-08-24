@@ -56,19 +56,26 @@ those files.
 ## Where the debt currently sits
 
 Untraveled repository: no campaign has run here, and `logs/ledger.jsonl` is
-empty. The outstanding proof debt a campaign can be pointed at today is exactly
-one file, and it is real work rather than scaffolding:
+empty. **There is no standing proof debt.** `hachi/lean-wip/` is empty and the
+audited library covers every layer that exists — `hachi/lean/Field.lean`,
+`Ring.lean`, `RqBridge.lean` and `Scheme.lean` (`linalg` / `gadget` / `commit`),
+fifty-eight headline specs, axioms exactly the three kernel ones, ending at
+`Scheme.honest_verifies`: perfect correctness of the extracted scheme.
 
-* `hachi/lean-wip/Scheme.lean` — the `linalg` / `gadget` / `commit`
-  obligations, **stated only** (23 `sorry`s), typechecked against the pinned
-  ArkLib. `gadget_mul_spec` and `verify_weak_spec` are the two worth reading
-  before proving (`lean-wip/README.md` says why: the first turns on the spec's
-  own `gadgetMul_apply`, the second is an *equality* of decisions, so a
-  reject-everything verifier cannot satisfy it).
+So a campaign here is triggered by *change*, not by backlog: an accepted champion
+whose Rust moved, or a regenerated `Generated.lean` that broke the specs standing
+against it. Two things in `Scheme.lean` are worth reading before restating
+anything above the ring, because they are what a careless repair would quietly
+lose:
 
-Proved and audited already: `hachi/lean/Field.lean`, `hachi/lean/Ring.lean`
-and `hachi/lean/RqBridge.lean` — thirty-two headline specs, axioms exactly
-the three kernel ones.
+* `verify_weak_spec` is an **equality** of decisions, not an implication — a
+  reject-everything verifier satisfies the accepting direction, so weakening it to
+  `→` would silently void the rejection paths;
+* four specs there carry side conditions that exist only because the Aeneas model
+  is finite (`Usize.max` vector capacity, the `u128` norm accumulator). Each keeps
+  its original false statement in a comment beside it with the counterexample. A
+  restatement that drops one of those hypotheses is not a simplification; it is
+  false. NOTES.md § "The scheme layer is proved, and checked" lists all four.
 
 ## The procedure
 

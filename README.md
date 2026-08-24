@@ -27,8 +27,9 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
-> **Status: the bottom layers are implemented, tested and extracted; the ring layer's
-> equivalence with the specification is proved, the scheme layer is stated but not proved.**
+> **Status: the bottom layers are implemented, tested and extracted, and the whole
+> commitment scheme's equivalence with the specification is proved and
+> build-enforced — up to perfect correctness.**
 >
 > Four modules are in place — [`ring`](hachi/src/ring.rs) (the negacyclic ring
 > `R_q = Z_q[X]/(X^N+1)`), [`linalg`](hachi/src/linalg.rs),
@@ -38,28 +39,36 @@ in structure and in method, and depends on it for the coefficient field.
 > every rejection path of the verifier; `make extract` produces a model with no
 > axioms and no opaque bodies; each module has a criterion bench.
 >
-> `make build` passes, and it now checks real equivalence proofs. Proved and
-> audited: the base field ([`lean/Field.lean`](hachi/lean/Field.lean) — the four
-> `Fp` operator impls total and equal to `ZMod q` arithmetic) and the whole
-> coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean) — all
-> thirteen operations total, length-preserving and coefficientwise correct, `mul`
-> being the negacyclic convolution and `equals`/`is_zero` being decision procedures
-> proved correct in both directions), and the lift of that ring layer to ArkLib's
-> `Rq Φ` ([`lean/RqBridge.lean`](hachi/lean/RqBridge.lean) — each operation's `toRq`
-> is the ArkLib operation applied to the `toRq`s of the inputs, `mul` against
-> `modByMonic (X^N + 1)` included).
+> `make build` passes, and every layer it checks is proved:
+>
+> * the base field ([`lean/Field.lean`](hachi/lean/Field.lean)) — the four `Fp`
+>   operator impls total and equal to `ZMod q` arithmetic;
+> * the coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean)) —
+>   all thirteen operations total, length-preserving and coefficientwise correct,
+>   `mul` being the negacyclic convolution and `equals`/`is_zero` being decision
+>   procedures proved correct in both directions;
+> * the lift of that ring layer to ArkLib's `Rq Φ`
+>   ([`lean/RqBridge.lean`](hachi/lean/RqBridge.lean)) — each operation's `toRq` is
+>   the ArkLib operation applied to the `toRq`s of the inputs, `mul` against
+>   `modByMonic (X^N + 1)` included;
+> * `linalg`, `gadget` and `commit` ([`lean/Scheme.lean`](hachi/lean/Scheme.lean)) —
+>   the vector and matrix operations, both directions of the gadget (including
+>   `gadget_round_trip`: the extracted `gadget_mul` inverts the extracted
+>   `gadget_decompose`), the four centered norms, and the commitment against the
+>   specification's own `InnerOuter` definitions. `verify_weak_spec` is an equality
+>   of *decisions*, so the rejection paths are part of the claim rather than
+>   outside it, and the composition ends at `honest_verifies`: **perfect
+>   correctness of the extracted scheme** — an honest commitment and its honest
+>   opening verify.
+>
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all thirty-two proved specs: the three Lean kernel axioms, nothing else.
->
-> What remains merely *stated* is all of `linalg`/`gadget`/`commit`, in
-> [`hachi/lean-wip/Scheme.lean`](hachi/lean-wip/Scheme.lean). That file **typechecks**
-> against the pinned specification, which is what makes it statements about ArkLib's own
-> definitions rather than paraphrases of them.
-> [`NOTES.md`](NOTES.md) § "The Lean side does build here" scores every claim in
-> this repository as verified or not, and
-> [`lean-wip/README.md`](hachi/lean-wip/README.md) says what has to happen before
-> a file moves into the audited library.
+> of all fifty-eight proved specs: the three Lean kernel axioms, nothing else.
+> [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
+> proved — is empty, and its [README](hachi/lean-wip/README.md) holds the procedure
+> for promoting the next file that lands there. [`NOTES.md`](NOTES.md)
+> § "The scheme layer is proved, and checked" scores every claim in this repository
+> as verified or not.
 >
 > The protocol layer (per-link provers and verifiers) is deliberately absent: its
 > ArkLib specification still has unfilled definitional parameters, so there is
@@ -130,10 +139,10 @@ hachi/
     Field.lean        the base field `Fp` against `ZMod q` -- proved
     Ring.lean         the ring operations at the coefficient level -- proved
     RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
+    Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
-  lean-wip/           the equivalence development, NOT a Lake root and NOT audited
-    Scheme.lean       the linalg / gadget / commit obligations -- stated only
-    README.md         what has to happen before a file moves into lean/
+  lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
+    README.md         what has to happen before a file moves into lean/ (empty otherwise)
 ```
 
 Each module names the ArkLib file it is a translation of, and each operation the

@@ -1,15 +1,17 @@
 /-
 The **upper layers** of the equivalence: linear algebra, the gadget, and the
-inner-outer commitment. Statements only, on the bridge from `Ring.lean`.
-
-Unchecked, and outside the audited library; see `lean-wip/README.md`.
+inner-outer commitment. Proved, on the bridge from `Ring.lean`, and part of the
+audited library -- `lean/Check.lean` § 4 prints the axiom dependencies of every
+headline spec below, so a `sorry` here is a `make build` failure.
 
 ## Why the statements are the deliverable
 
 Each theorem below fixes what the corresponding Rust function has to mean, in the
-specification's own vocabulary, before any proof exists. That is worth having on
-its own: it is where a mistranslation shows up. Two of them earn their place
-already, because writing them down is what settled a design question in the Rust:
+specification's own vocabulary. That was worth having before any proof existed --
+it is where a mistranslation shows up -- and it is still what the proofs are worth:
+a proof is only as strong as the statement it closes. Two of them earn their place
+on the statement alone, because writing them down is what settled a design question
+in the Rust:
 
 * `gadget_mul_spec` states agreement with `gadgetMul`, which is
   `gadgetMatrix *ᵥ v` — a *matrix* product. The Rust computes the per-block digit

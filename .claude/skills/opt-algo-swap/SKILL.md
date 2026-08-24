@@ -29,8 +29,10 @@ per-block digit sum directly rather than the general matrix product its spec
 line names, which is `O(rows · digits)` instead of `O(rows² · digits)` — and
 that is legitimate only because ArkLib *proves* the two equal in
 `gadgetMul_apply` (`Gadget/Core.lean:177`), which the docstring cites. The
-obligation is still owed on this side: it is one of the statements
-`hachi/lean-wip/Scheme.lean` makes and does not yet prove.
+obligation on this side is now discharged: `gadget_mul_spec` in
+`hachi/lean/Scheme.lean` is proved, and that ArkLib lemma is the load-bearing step
+of its proof — which is the point. A swap is only free when the spec library
+already ships the equality; otherwise the proof debt is yours.
 
 AeneasCompPoly carries the counterexample. Its `eval` is Horner's method while
 its `Mirrors` line names the naive fold, because the swap was made during

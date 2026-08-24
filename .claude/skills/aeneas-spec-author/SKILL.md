@@ -115,7 +115,7 @@ Author both halves, and say in the deliverable which of the two is proved.
    functions, bottom-up: `toK` / `Red` on field words (`lean/Field.lean`),
    `coeffK` / `Wf` on coefficient vectors (`lean/Ring.lean`), `toRq`
    (`lean/RqBridge.lean`), `toVec` / `WfVec` / `toMat` / `WfMat`
-   (`lean-wip/Scheme.lean`). A genuinely new extracted type gets, in this
+   (`lean/Scheme.lean`). A genuinely new extracted type gets, in this
    order and before its first spec: a representation **function**, its
    invariant predicate, the coefficient kit (`coeffK_of_lt`,
    `coeffK_of_ge`, `coeffK_append_lt`, `coeffK_append_eq`, `coeffK_set`,

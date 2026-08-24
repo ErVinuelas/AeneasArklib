@@ -386,10 +386,11 @@ excluding it by name with a reason. `.claude/skills/rust-bench` is the procedure
   `roots` in `hachi/lakefile.lean` and a `#print axioms` line to `Check.lean`
   § 4.
 * **Every public operation has a spec**, at both levels — the coefficient level
-  and the `Rq Φ` lift. This holds today for `ring` (thirteen operations, proved
-  and audited; the lift proved but unchecked) and for nothing above it:
-  `linalg`, `gadget` and `commit` are *stated only*, in `lean-wip/Scheme.lean`.
-  Adding API adds obligations to both files.
+  and the `Rq Φ` lift. This holds today for all four modules: `ring` (thirteen
+  operations at the coefficient level, plus the lift in `lean/RqBridge.lean`) and
+  `linalg` / `gadget` / `commit` (`lean/Scheme.lean`), every one proved and
+  audited. Adding API adds obligations to both levels, and there is no longer a
+  stated-only tier to park them in.
 * **`cargo clippy --all-targets` clean** under `pedantic`. Where a lint is wrong
   for this crate, `allow` it **with a one-line reason** naming the extraction
   consequence, at the narrowest scope.

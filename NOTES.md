@@ -1106,3 +1106,83 @@ now resolves through the built library, so the `/tmp/wiplib` `LEAN_PATH` detour
 its README used to prescribe is gone — `lake build` then
 `lake env lean lean-wip/Scheme.lean` is the whole workflow. `Scheme.lean`'s 23
 obligations remain stated only, and are the last debt in that directory.
+
+---
+
+## The scheme layer is proved, and checked
+
+**Status entry, superseding the `lean-wip/Scheme.lean` rows of § "What is proved, as
+of the end of this session" and § "`RqBridge.lean` is promoted".** `Scheme.lean` has
+moved from `lean-wip/` to `lean/` through the same procedure: it is a root of the
+`HachiEquiv` library, `Check.lean` imports it, and § 4 prints one `#print axioms`
+line per headline spec. The 23 obligations that were "stated only" are proved, and
+`lean-wip/` is now empty.
+
+**Definition of done, rescored.** Column (c) no longer splits into halves — the
+audit compiles *and* the equivalence proofs are checked, for every module.
+
+| | (a) tests | (b) extracted | (c) audit + proofs | (d) bench |
+|---|---|---|---|---|
+| `ring` | ✔ | ✔ | ✔ | ✔ |
+| `linalg` | ✔ | ✔ | ✔ | ✔ |
+| `gadget` | ✔ | ✔ | ✔ | ✔ |
+| `commit` | ✔ | ✔ | ✔ | ✔ |
+
+Fifty-eight `#print axioms` lines in `Check.lean` § 4 report
+`[propext, Classical.choice, Quot.sound]`: 6 for `Field.lean`, 13 for `Ring.lean`,
+13 for `RqBridge.lean`, 26 for `Scheme.lean`. No `sorryAx`, and no axiom from an
+un-whitelisted `cpoly` item.
+
+**What the top of the composition says.** The last line is
+`Scheme.honest_verifies`: for an honest commitment and its honest opening, the
+extracted `commit::verify_weak` returns `true`. It reaches every other line above
+it, so its axiom set summarises the development. Two features of the statements
+below it are what make that worth having rather than tautological:
+
+* `verify_weak_spec` is an **equality of decisions**, not an implication. An
+  implication in the accepting direction is satisfied by a verifier that rejects
+  everything — the failure a correctness test cannot see. Only the equality puts the
+  rejection paths inside the claim, which is what makes `honest_verifies` a
+  statement about *this* verifier rather than about some verifier.
+* `gadget_round_trip` is about the *Rust*: the extracted `gadget_mul` inverts the
+  extracted `gadget_decompose`. It is the one claim at this layer a reader can also
+  check against the test suite
+  (`tests/gadget_semantics.rs::gadget_mul_inverts_gadget_decompose`), and it is
+  where the scheme's correctness rests.
+
+**Four statements were weakened to be true, and each is recorded in place.** The
+originals are kept verbatim in comments beside the theorems that replaced them,
+with the counterexample that killed them — the pattern is worth naming because in
+every case the falsity was an artefact of the Aeneas model's fixed-width and
+capacity invariants, not of the Rust's intent:
+
+* `flatten_blocks_spec` gained `hsize : blocks * width ≤ Usize.max`. The output has
+  `blocks * width` entries and `alloc.vec.Vec` admits lengths only up to
+  `Usize.max`; hypotheses bounding `blocks` and `width` separately do not bound
+  their product, so the final `push` could `fail`.
+* `gadget_decompose_spec` gained `hmax : 32 * rows ≤ Usize.max`, for the same reason
+  one level down: the Rust pushes `32 * rows` ring elements, and the input `x` bounds
+  only `rows`. This one is the mildest of the four, and worth the distinction: the
+  postcondition already asserts `WfVec (rows * 32) z`, which forces `32 * rows` below
+  `Usize.max` anyway, so the hypothesis takes away nothing the conclusion did not
+  already carry.
+* `vec_l2_norm_sq_spec` gained `hsize : k * (N * (q / 2) ^ 2) ≤ U128.max`. `u128` is
+  wide enough for one ring element's `ℓ₂²` norm (`N · (q/2)² < 2^68`) but not for a
+  vector of up to `Usize.max` of them.
+* `verify_weak_spec` gained `hoc : WfVec 2 o.challenge`. The verifier indexes
+  `opening.challenge[i]` and takes its `ℓ₁` norm, and the `Opening` type carries no
+  shape condition on that field — with an empty `challenge` the left-hand side is
+  `fail`, so no postcondition holds of it. The only one of the four that is not an
+  arithmetic bound: it is a shape invariant the extracted struct simply does not have.
+
+At the crate's concrete dimensions all four side conditions are discharged at the
+call sites, by `decide` or `scalar_tac` on numerals. They are model artefacts rather
+than gaps in the Rust: `usize` capacity and `u128` width are where a proof about a
+Rust program has to meet the machine.
+
+**What is left.** Not the scheme layer. The protocol layer (per-link provers and
+verifiers) is still blocked upstream on unfilled definitional parameters in its
+ArkLib specification, and the optimization loop's ledger is still empty — no
+measurement-grade bench run has happened on this host (§ "The 5% accept floor is
+borrowed"). `Rq::mul` remains the hot path, and § "Deliberately not done" records
+why the transform everyone reaches for does not exist at this modulus.
