@@ -1,0 +1,153 @@
+# CI for the Lean side: the extraction-determinism gate and the proof build.
+# Both jobs run Makefile targets verbatim -- `make extract` and `make build`
+# self-install what they need (the pinned aeneas/charon release, charon's
+# rustc, elan, the Mathlib olean cache), so this file only adds triggers,
+# caching and the diff gate.
+#
+#   extract   regenerate hachi/lean/Generated.lean from hachi/src/ and fail if
+#             it differs from what is committed. This catches "edited the Rust,
+#             forgot to re-extract" -- the most likely silent desync between the
+#             crate and the proofs. Needs no Mathlib; a few minutes.
+#   proofs    `make build`: lake build plus the sorry-gate on the log. Slow the
+#             first time (ArkLib and friends build from source; Mathlib comes
+#             prebuilt via `lake exe cache get`), then minutes once hachi/.lake
+#             is cached. The cache key is the pin files, which move only under
+#             a deliberate `lake update` -- exactly when a rebuild is due.
+#
+# Kept separate from rust.yml on purpose: a cold Lean cache must never delay
+# the fast Rust feedback. `workflow_dispatch` exists to warm the cache manually
+# after a pin bump, without having to push a commit.
+#
+# Cache budget: GitHub allows 10 GB per repository, shared with rust.yml's
+# caches. hachi/.lake is ~8.5 GB uncompressed and is the dominant tenant; the
+# Mathlib .ltar store (~/.cache/mathlib, ~3 GB more) is deliberately NOT cached
+# to stay under the cap -- `lake exe cache get` re-downloads it in a couple of
+# minutes and then finds everything "already decompressed" against .lake.
+
+name: lean
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hachi/src/**'
+      - 'hachi/lean/**'
+      - 'hachi/Cargo.toml'
+      - 'hachi/Cargo.lock'
+      - 'hachi/lakefile.lean'
+      - 'hachi/lake-manifest.json'
+      - 'hachi/lean-toolchain'
+      - 'Makefile'
+      - 'scripts/**'
+      - '.github/workflows/lean.yml'
+  pull_request:
+    paths:
+      - 'hachi/src/**'
+      - 'hachi/lean/**'
+      - 'hachi/Cargo.toml'
+      - 'hachi/Cargo.lock'
+      - 'hachi/lakefile.lean'
+      - 'hachi/lake-manifest.json'
+      - 'hachi/lean-toolchain'
+      - 'Makefile'
+      - 'scripts/**'
+      - '.github/workflows/lean.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extract:
+    name: extraction determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The release tag lives in the Makefile (AENEAS_TAG); read it there
+      # rather than keep a second copy, same as rust.yml does for the bench
+      # channel. It keys the binary cache, so a pin bump refetches on its own.
+      - name: Read the aeneas pin
+        id: pin
+        run: |
+          tag=$(sed -n 's/^AENEAS_TAG[[:space:]]*:=[[:space:]]*//p' Makefile | tr -d '[:space:]')
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      # The unpacked charon/aeneas release (~124 MB download). `make extract`
+      # adopts an existing ./toolchain after verifying the binaries self-report
+      # the pinned commit, so a stale cache entry cannot silently be used.
+      - name: Cache the extraction binaries
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: aeneas-${{ runner.os }}-${{ steps.pin.outputs.tag }}
+
+      # Downloads the binaries if the cache missed, installs charon's rustc
+      # nightly, runs charon + aeneas, and rewrites hachi/lean/Generated.lean.
+      - name: Regenerate the model
+        run: make extract
+
+      # The gate: extraction must be a fixpoint of the committed tree. If this
+      # fails, the Rust changed without `make extract` being re-run (or the
+      # regenerated file was not committed) -- the printed diff is what the
+      # commit is missing.
+      - name: Generated.lean must match the commit
+        run: |
+          if ! git diff --exit-code -- hachi/lean/Generated.lean; then
+            echo '' >&2
+            echo 'error: `make extract` changed hachi/lean/Generated.lean (diff above).' >&2
+            echo '       The committed model is stale: re-run `make extract` locally and' >&2
+            echo '       commit the regenerated file with the Rust change -- then re-check' >&2
+            echo '       the proofs with `make build`, since they are stated against it.' >&2
+            exit 1
+          fi
+
+  # Proofs are only meaningful against a Generated.lean that matches the Rust,
+  # so a stale model skips the expensive job rather than "passing" on it.
+  proofs:
+    name: lake build, no sorry
+    needs: extract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner ships ~15 GB of preinstalled SDKs this job never touches;
+      # dropping them makes room for .lake (~8.5 GB) plus the elan toolchain.
+      - name: Make room on the runner
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+
+      - name: Cache elan
+        uses: actions/cache@v4
+        with:
+          path: ~/.elan
+          key: elan-${{ runner.os }}-${{ hashFiles('hachi/lean-toolchain') }}
+
+      # restore/save are split so a first cold build that fails or times out
+      # still banks whatever it compiled (the save step runs on `always()`);
+      # the next run resumes instead of starting over. The restore-keys prefix
+      # serves the same purpose across pin bumps: an older .lake is a better
+      # starting point than an empty one, and lake rebuilds what moved.
+      - name: Restore hachi/.lake
+        id: lake
+        uses: actions/cache/restore@v4
+        with:
+          path: hachi/.lake
+          key: lake-${{ runner.os }}-${{ hashFiles('hachi/lean-toolchain', 'hachi/lake-manifest.json') }}
+          restore-keys: |
+            lake-${{ runner.os }}-
+
+      # Installs elan if the cache missed, fetches the Mathlib oleans, checks
+      # the aeneas-backend/binary commit invariant, builds every module in
+      # hachi/lean/, and fails on any error or `sorry` in this development.
+      - name: Check the proofs
+        run: make build
+
+      - name: Save hachi/.lake
+        if: always() && steps.lake.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: hachi/.lake
+          key: lake-${{ runner.os }}-${{ hashFiles('hachi/lean-toolchain', 'hachi/lake-manifest.json') }}

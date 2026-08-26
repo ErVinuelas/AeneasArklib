@@ -1,0 +1,110 @@
+# CI for the Rust side of this repository: the `hachi` crate and the bench
+# harness's integrity gates. Each job runs a check the Makefile already
+# defines; this file adds no policy of its own beyond promoting clippy's
+# warnings to errors (the Makefile keeps them at `warn` so a style opinion can
+# never stop `make extract` -- see hachi/Cargo.toml § [lints.clippy]).
+#
+# Deliberately absent, for now:
+#   - `make run-bench`: benchmarks need a quiet machine to themselves; a shared
+#     CI runner produces numbers that look like measurements and are not. The
+#     benches are compiled here (`cargo bench --no-run`) but never run.
+#   - `make extract` determinism and `make build` (the Lean proofs): both are
+#     wanted eventually, but they pull in the aeneas/charon binaries and (for
+#     `build`) a Mathlib build, so they belong in their own workflow with their
+#     own caching story.
+#
+# The toolchain is read from the Makefile's BENCH_TOOLCHAIN pin rather than
+# written down again here: that pin must match the channel charon ships with
+# (the Makefile's `bench-toolchain` target enforces it locally), and a third
+# copy of it in this file would be one more place to forget during a bump.
+
+name: rust
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The five semantics test suites: the Rust-side ground truth that each
+  # translation computes what its ArkLib mirror defines. Same invocation as
+  # `make test`, on the pinned channel.
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: |
+          channel=$(sed -n 's/^BENCH_TOOLCHAIN[[:space:]]*:=[[:space:]]*//p' Makefile | tr -d '[:space:]')
+          test -n "$channel"
+          rustup toolchain install --profile minimal --no-self-update "$channel"
+          rustup default "$channel"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hachi
+      - name: Run the semantics tests
+        working-directory: hachi
+        run: cargo test
+      # The benchmarks are this project's fitness function, so every change
+      # must at least keep them compiling -- `--features candidate` included,
+      # so the A/B slot's timing paths build too. `--no-run` on purpose; see
+      # the header.
+      - name: Compile the benchmarks
+        working-directory: hachi
+        run: cargo bench --no-run --features candidate
+
+  # hachi/Cargo.toml already curates the lint set (pedantic on, with documented
+  # allows where clippy's advice is wrong for the extraction), so any warning
+  # that survives that curation is signal -- here it is an error.
+  clippy:
+    name: cargo clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: |
+          channel=$(sed -n 's/^BENCH_TOOLCHAIN[[:space:]]*:=[[:space:]]*//p' Makefile | tr -d '[:space:]')
+          test -n "$channel"
+          rustup toolchain install --profile minimal --no-self-update "$channel" --component clippy
+          rustup default "$channel"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hachi
+      - name: Lint everything, warnings as errors
+        working-directory: hachi
+        run: cargo clippy --all-targets --features candidate -- -D warnings
+
+  # The harness's own gates, no Rust toolchain involved (python3 stdlib + git):
+  #
+  #   bench-check    genesis frozen items byte-identical to their stamped
+  #                  commits, candidate slot null, bench coverage accounted for
+  #   ledger-check   logs/ledger.jsonl row schema, and append-only -- on a PR,
+  #                  against the base branch, so a rewritten row is caught even
+  #                  when the PR's own history is internally consistent
+  #
+  # check-genesis resolves `git show <sha>:<path>` against the stamped commits,
+  # so this needs the full history, not a shallow clone.
+  integrity:
+    name: bench & ledger integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Genesis, candidate slot and coverage gates
+        run: make bench-check
+      - name: Ledger schema and append-only gate
+        run: |
+          against=HEAD
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            against='origin/${{ github.base_ref }}'
+          fi
+          python3 .claude/skills/skill-lab/references/ledger_check.py --against "$against"
