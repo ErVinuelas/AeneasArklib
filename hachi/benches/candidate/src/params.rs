@@ -156,6 +156,45 @@ pub const GAMMA: u64 = 1;
 /// `commit::vec_l2_norm_sq`.
 pub const BETA_SQ: u128 = 8_192;
 
+/// The number of *low* (first) variables `nl` of the evaluation split: the
+/// `r` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xl` half.
+///
+/// **Derived**, not free: the split's reshaped coefficient matrix is
+/// `2^nl × 2^nh` (`Hachi/EvalSplit.lean:151`), and its consumer pins the shape
+/// -- `derivedMsgMatrix` is `PolyMatrix (Rq Φ) (2^r) (2^m)`
+/// (`QuadEval/Reduction.lean:193`) with `2^r = blocks`. At [`BLOCKS`]` = 2`
+/// that forces `nl = 1`.
+pub const ML_VARS_LOW: usize = 1;
+
+/// The number of *high* (last) variables `nh` of the evaluation split: the
+/// `m` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xh` half.
+///
+/// **Derived** (see [`ML_VARS_LOW`]): the matrix column count is
+/// `2^nh = messageRows`, and at [`MESSAGE_ROWS`]` = 4` that forces `nh = 2`.
+pub const ML_VARS_HIGH: usize = 2;
+
+/// `2^ML_VARS_LOW = 2`: the row count of the reshaped coefficient matrix, the
+/// length of the outer monomial basis `mb(xl)`, and (by the consumer's shape)
+/// equal to [`BLOCKS`].
+///
+/// A literal, not `1 << ML_VARS_LOW`, for the reason [`RING_DEGREE`] is a
+/// literal; the relations are checked in `tests/params_semantics.rs` and
+/// `lean/Check.lean` § 1.
+pub const ML_LOW_LEN: usize = 2;
+
+/// `2^ML_VARS_HIGH = 4`: the column count of the reshaped coefficient matrix,
+/// the length of the inner monomial basis `mb(xh)`, and (by the consumer's
+/// shape) equal to [`MESSAGE_ROWS`].
+///
+/// A literal (see [`ML_LOW_LEN`]).
+pub const ML_HIGH_LEN: usize = 4;
+
+/// `2^(ML_VARS_LOW + ML_VARS_HIGH) = 8`: the coefficient count of a committed
+/// multilinear polynomial, i.e. `ML_LOW_LEN * ML_HIGH_LEN`.
+///
+/// A literal (see [`ML_LOW_LEN`]).
+pub const ML_POLY_LEN: usize = 8;
+
 /// The `ℓ₁` bound `κ` on a challenge, checked by `verify_weak`.
 ///
 /// **Chosen at its ceiling.** The specification's only constraint on `κ` is the

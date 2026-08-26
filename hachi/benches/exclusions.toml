@@ -16,7 +16,7 @@
 #
 # Each entry must say *why*, in a form that can be checked by reading the item.
 #
-# The 14 `const`s in `hachi/src/params.rs` are absent from this file on purpose:
+# The 19 `const`s in `hachi/src/params.rs` are absent from this file on purpose:
 # they carry no `Mirrors` marker, because a const is a *value chosen for a
 # generic ArkLib parameter* rather than a translation of a definition
 # (`RING_LOG_DEGREE` is the argument `α` of `hachiModulus`, not `hachiModulus`).
@@ -38,6 +38,8 @@
 "commit::PublicParams" = "a type declaration, not code -- a pair of gadget matrices; building it is `PublicParams::new`, which mirrors nothing"
 "commit::Decomp" = "a type declaration, not code -- the decomposition record `generate_decomps` produces, and that is the benched item"
 "commit::Opening" = "a type declaration, not code -- the opening record `verify_weak` consumes, and that is the benched item"
+"evalsplit::MlPoly" = "a type declaration, not code -- the monomial-coefficient vector; its reshape and evaluation are benched separately"
+"evalsplit::MlEvals" = "a type declaration, not code -- the hypercube-value vector; its reshape and evaluation are benched separately"
 
 # -- O(1) by inspection ------------------------------------------------------
 #
@@ -57,3 +59,13 @@ one shift, one compare, one subtraction on a single `Fp` (`hachi/src/commit.rs`)
 `if v <= half { v } else { q - v }`. Per-coefficient work with no loop of its
 own; it is measured at scale through `l1_norm`, `l_infty_norm` and
 `l2_norm_sq`, all three of which are benched."""
+
+"evalsplit::split_equiv" = """
+one `usize` multiplication by a const and one addition
+(`hachi/src/evalsplit.rs`): `y + ML_LOW_LEN * x`. No loop, no allocation; it is
+also measured through both reshapes, which call it per entry."""
+
+"evalsplit::split_equiv_inv" = """
+one `usize` division and one remainder by a const
+(`hachi/src/evalsplit.rs`): `(k / ML_LOW_LEN, k % ML_LOW_LEN)`. No loop, no
+allocation; measured through `to_polynomial`, which calls it per entry."""

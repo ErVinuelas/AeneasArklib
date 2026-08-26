@@ -63,7 +63,7 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # `check-genesis`/`check-candidate` are what this tuple drives. Its items are
 # ruled out of `coverage` by name in `exclusions.toml`, which is the difference
 # between "not worth measuring" and "forgotten".
-MODULES = ("params", "ring", "linalg", "gadget", "commit")
+MODULES = ("params", "ring", "linalg", "gadget", "commit", "evalsplit")
 
 # Items whose text is worth freezing and annotating. `impl` headers and
 # associated `type`s are structure, not code that runs.

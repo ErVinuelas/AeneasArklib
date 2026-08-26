@@ -225,16 +225,25 @@ the plan interleaves:
 * **Forgetting the slot sync.** `make bench-check` fails on `check-candidate`
   the moment `hachi/src` gains an item the slot lacks. Byte-copy, same change,
   every time.
-* **A new module, not just a new item.** `MODULES` is a fixed 5-tuple in
-  `harness.py` (`params`, `ring`, `linalg`, `gadget`, `commit`); a sixth module
-  means extending it, the slot's exactly-six-files check, both slots' `lib.rs`,
-  a declared `[[bench]]` in `hachi/Cargo.toml` (`autobenches = false`: an
-  undeclared bench file is *silent* — `rust-bench`), and the corpus in
-  `support/`. Note the asymmetry that makes this easy to get wrong: there are
-  five modules but only four bench targets, because `params.rs` is frozen and
-  checked yet has no bench file. Untraveled here — the five modules were born
-  together, before the harness existed. Expect to amend this skill the first
-  time it happens.
+* **A new module, not just a new item.** `MODULES` is a fixed tuple in
+  `harness.py` (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`);
+  a further module means extending it, both slots' `lib.rs`, a declared
+  `[[bench]]` **and a declared `[[test]]`** in `hachi/Cargo.toml`
+  (`autobenches = false` *and* `autotests = false`: an undeclared bench file is
+  silent, and an undeclared test file silently never runs — the second one is
+  the trap, because `cargo test` still exits green). Note the asymmetry that
+  makes this easy to get wrong: `params.rs` is frozen and checked yet has no
+  bench file. Traveled once, for `evalsplit` (the sixth module): the slot
+  file-count and null-slot checks all derive from `MODULES`, so the tuple edit
+  was the only `harness.py` change; the shared corpus in `benches/support/` is
+  module-agnostic and needed nothing. Two more lessons from that pass: the
+  ``Mirrors`` scanner's regex is `Mirrors (ArkLib's)? \`name\`` — a
+  parenthetical between "Mirrors" and the backticks (e.g. for a CompPoly-owned
+  name) makes the marker *invisible* to the coverage gate rather than failing
+  it, so check the `coverage` count moved by exactly the number of new markers;
+  and new items appended to an existing frozen genesis module go in verbatim
+  (extract the block programmatically from `hachi/src`, never retype), leaving
+  the module's stale frozen header comments alone.
 * **Working around the run-bench gate.** A "quick number" from `cargo bench`
   before the commits exist has no genesis variant, no control, no threshold — it
   is exactly the un-validated absolute time `rust-bench` forbids reasoning from.

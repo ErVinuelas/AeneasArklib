@@ -157,6 +157,25 @@ macro_rules! define_cases {
                 support::run(m, || black_box(&a).mat_vec_mul(black_box(&u)), d_polyvec)
             }
 
+            /// `uᵀ M v` at the evaluation split's own shape: `ML_LOW_LEN` rows
+            /// (the parameter is the column count). One `mat_vec_mul` plus one
+            /// `dot`, so `rows·cols + rows` ring products.
+            pub fn split_form(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let rows = hc::params::ML_LOW_LEN;
+                let mut entries = Vec::with_capacity(rows);
+                for i in 0..rows {
+                    entries.push(vec_of(0x0F0F_0000_0000_0000 + i as u64, cols));
+                }
+                let a = PolyMatrix::new(entries);
+                let u = vec_of(0x0A0A_0A0A_0000_0001, rows);
+                let v = vec_of(0x0B0B_0B0B_0000_0002, cols);
+                support::run(
+                    m,
+                    || black_box(&a).split_form(black_box(&u), black_box(&v)),
+                    d_rq,
+                )
+            }
+
             /// `width` is one block's width, `BLOCKS` blocks of it -- the shape
             /// `commit_with_decomps` flattens.
             pub fn flatten_blocks(m: Mode<'_, '_>, width: usize) -> u64 {
@@ -217,6 +236,10 @@ fn linalg_benches(c: &mut Criterion) {
 
     // @covers linalg::PolyMatrix::mat_vec_mul
     bench_case!(c, "linalg/mat_vec_mul", mat_vec_mul, [width]);
+
+    // The evaluation split's bilinear form, at its consumer's column count.
+    // @covers linalg::PolyMatrix::split_form
+    bench_case!(c, "linalg/split_form", split_form, [hachi::params::ML_HIGH_LEN]);
 
     // @covers linalg::flatten_blocks
     bench_case!(c, "linalg/flatten_blocks", flatten_blocks, [block]);

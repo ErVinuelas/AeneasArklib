@@ -139,6 +139,29 @@ example : 1 ≤ params.KAPPA.val := by simp [params.KAPPA]
 -- 4`, which is what makes the quartic extension a field.
 example : params.Q.val % 4 = 1 := by simp [params.Q]
 
+-- The evaluation-split shapes. The two variable counts are the `r`/`m` of the
+-- Hachi bridge (`QuadEval/Bridge.lean`), and the three lengths are literals in
+-- `params.rs` (a `1 << n` const would extract as a `Result`; see `RING_DEGREE`),
+-- so both the power-of-two relations and the consumer's shape constraints --
+-- the reshaped matrix is `blocks × messageRows` (`derivedMsgMatrix`,
+-- `QuadEval/Reduction.lean`) -- are checked rather than structural.
+example : params.ML_VARS_LOW = 1#usize := by simp [params.ML_VARS_LOW]
+example : params.ML_VARS_HIGH = 2#usize := by simp [params.ML_VARS_HIGH]
+example : params.ML_LOW_LEN = 2#usize := by simp [params.ML_LOW_LEN]
+example : params.ML_HIGH_LEN = 4#usize := by simp [params.ML_HIGH_LEN]
+example : params.ML_POLY_LEN = 8#usize := by simp [params.ML_POLY_LEN]
+
+example : params.ML_LOW_LEN.val = 2 ^ params.ML_VARS_LOW.val := by
+  simp [params.ML_LOW_LEN, params.ML_VARS_LOW]
+example : params.ML_HIGH_LEN.val = 2 ^ params.ML_VARS_HIGH.val := by
+  simp [params.ML_HIGH_LEN, params.ML_VARS_HIGH]
+example : params.ML_POLY_LEN.val = params.ML_LOW_LEN.val * params.ML_HIGH_LEN.val := by
+  simp [params.ML_POLY_LEN, params.ML_LOW_LEN, params.ML_HIGH_LEN]
+example : params.ML_LOW_LEN.val = params.BLOCKS.val := by
+  simp [params.ML_LOW_LEN, params.BLOCKS]
+example : params.ML_HIGH_LEN.val = params.MESSAGE_ROWS.val := by
+  simp [params.ML_HIGH_LEN, params.MESSAGE_ROWS]
+
 /-! ## 2. The `cpoly` field layer is transparent, not axiomatized
 
 This is the finding of Workstream 0 and the reason the field is a cargo
@@ -214,7 +237,7 @@ example (a b : cpoly.field.Fp) :
 -- arrives with the first real spec. The structural equality above is the claim
 -- that matters for § 2 anyway: it is the one an `axiom` cannot satisfy.
 
-/-! ## 2b. The four modules arrived, with the shapes the proofs will need
+/-! ## 2b. The modules arrived, with the shapes the proofs will need
 
 Structural, not mathematical: each check below is a type ascription or an `rfl`,
 and what it rules out is a module that silently failed to extract, or extracted
@@ -263,6 +286,28 @@ example (pp : commit.PublicParams) (u : linalg.PolyVec) (o : commit.Opening) : R
 -- supposed to reject rather than crash on.
 example (a : ring.Rq) : Result Std.U128 := commit.l2_norm_sq a
 example : params.BETA_SQ.val = 8192 := by simp [params.BETA_SQ]
+
+-- The evaluation-split layer. The two polynomial newtypes are `@[reducible]`
+-- `Vec` aliases like the three containers above -- two spec types
+-- (`CMlPolynomial` / `CMlPolynomialEval`) over one carrier, so two names for
+-- `Vec ring.Rq` here.
+example : evalsplit.MlPoly = alloc.vec.Vec ring.Rq := rfl
+example : evalsplit.MlEvals = alloc.vec.Vec ring.Rq := rfl
+
+example (x y : Std.Usize) : Result Std.Usize := evalsplit.split_equiv x y
+example (k : Std.Usize) : Result (Std.Usize × Std.Usize) := evalsplit.split_equiv_inv k
+example (w : linalg.PolyVec) : Result linalg.PolyVec := evalsplit.monomial_basis w
+example (w : linalg.PolyVec) : Result linalg.PolyVec := evalsplit.lagrange_basis w
+example (p : evalsplit.MlPoly) : Result linalg.PolyMatrix := evalsplit.MlPoly.to_matrix p
+example (m : linalg.PolyMatrix) : Result evalsplit.MlPoly := evalsplit.to_polynomial m
+example (m : linalg.PolyMatrix) (u v : linalg.PolyVec) : Result ring.Rq :=
+  linalg.PolyMatrix.split_form m u v
+example (p : evalsplit.MlPoly) (xl xh : linalg.PolyVec) : Result ring.Rq :=
+  evalsplit.MlPoly.eval_split p xl xh
+example (v : evalsplit.MlEvals) : Result linalg.PolyMatrix :=
+  evalsplit.MlEvals.to_matrix_eval v
+example (v : evalsplit.MlEvals) (xl xh : linalg.PolyVec) : Result ring.Rq :=
+  evalsplit.MlEvals.eval_split_eval v xl xh
 
 /-! ## 3. The specification side is reachable, and agrees on the ring degree
 

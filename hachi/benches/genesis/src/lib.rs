@@ -82,3 +82,5 @@ pub mod linalg;
 pub mod gadget;
 
 pub mod commit;
+
+pub mod evalsplit;

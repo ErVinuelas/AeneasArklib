@@ -1309,3 +1309,70 @@ summary line is now `honest_verifies_full`: perfect correctness at
 `commit::verify` itself. `make build` passes — no errors, no `sorry` — so all
 eight are enforced from here on. `lean-wip/` is empty again, and its README and
 the root README are updated to match.
+
+---
+
+# Workstream 2: the evaluation split (`evalsplit`, the sixth module)
+
+## What was onboarded, and the two decisions that shaped it
+
+`Hachi/EvalSplit.lean` — `splitEquiv`, `toMatrix`, `toPolynomial`, `evalSplit`,
+`toMatrixEval`, `evalSplitEval`, plus their chain (`splitForm` from
+`Vectors.lean:178` into `linalg`, and the two CompPoly bases `monomialBasis` /
+`lagrangeBasis` at `R = Rq Φ`). Sorry-free and definition-stable at the pin;
+checked against upstream PR #782 ("perfect correctness of the nonrecursive
+Hachi"), which does not touch this file and only adds lemmas to its
+dependencies. Its sibling `QuadEval/Gadgets.lean` was deliberately **not**
+onboarded: its definitions are parametric in a `DigitDecomposition`, and #782
+switches the honest layer to the new `balancedZmodDigitDecomposition` and pins
+`dRows`/`zDigits` — translating it now would freeze the unsigned-digit
+instantiation into an append-only baseline just before the spec abandons it.
+
+**The carrier is `Rq`, not the extension field.** The plausible reuse — cpoly's
+`multilinear.rs` (`MultilinearPoly`, `monomial_basis`, `dot`) — is over `Ext4`,
+and the consumer pins the other choice: the bridge works with
+`CMlPolynomial (Rq Φ) (r + m)` and `derivedMsgMatrix : PolyMatrix (Rq Φ) (2^r)
+(2^m)` (`QuadEval/Bridge.lean:104`, `QuadEval/Reduction.lean:193`). So the
+bases and reshapes are implemented over `Rq` with this crate's own ring/linalg
+layer, and the `Ext4` multilinear layer stays what it is — the §3 packing
+layer's tool, protocol-side, out of scope.
+
+**The split dimensions are derived, not chosen.** `2^nl` = matrix rows =
+`blocks` and `2^nh` = columns = `messageRows` (same citations), so at
+`BLOCKS = 2` / `MESSAGE_ROWS = 4` the crate gets `ML_VARS_LOW = 1`,
+`ML_VARS_HIGH = 2`, length-8 polynomials. Five new consts, all literals with
+relations checked in `tests/params_semantics.rs` and `Check.lean` § 1 —
+including `ML_LOW_LEN = BLOCKS` and `ML_HIGH_LEN = MESSAGE_ROWS`, the two that
+tie the split to the commitment's shape.
+
+## The sixth module, and what extending the harness actually took
+
+`MODULES` in `harness.py` grew to a 6-tuple, and that edit turned out to be the
+*only* harness change: the slot file-count check, the null-slot report and the
+stamping all derive from the tuple. The rest was mechanical and enumerable:
+`pub mod evalsplit;` in both slot `lib.rs` (append-only in genesis), a
+`[[bench]]` **and** `[[test]]` declaration in `hachi/Cargo.toml` — both
+`auto*` flags are off, and the test one is the trap: an undeclared
+`tests/evalsplit_semantics.rs` silently never runs while `cargo test` stays
+green. Caught here because the suite count did not move.
+
+A second silent-gate near-miss, worth its own sentence: the coverage scanner's
+`Mirrors` regex accepts only `Mirrors (ArkLib's)? \`name\``, so the four
+markers written as ``Mirrors ArkLib's (CompPoly's) `…` `` were *invisible* to
+`coverage --strict` — 0 unaccounted, wrong denominator. The tell was the
+mirrored count moving by 8 when 12 markers were added. Rewritten to put the
+backticked name immediately after "Mirrors"; the parenthetical now follows the
+name.
+
+## Status at the end of the session
+
+(a) 80 tests green (was 66), clippy-pedantic clean; (b) extracted — 47 new
+definitions, zero axioms, determinism `unchanged`, no existing definition
+moved, loop states in the known 2/3-tuple classes; `Check.lean` § 1 gained the
+five-const block and § 2b the eleven shape ascriptions; (c) equivalence
+statements: 12 theorems in `lean-wip/EvalSplit.lean`, typechecked with zero
+errors (`sorry` warnings only) — the recorded proof debt of this onboarding;
+(d) bench: 8 new cases (7 in `benches/evalsplit.rs` + `linalg/split_form`) plus
+the module's `_control`, 4 by-name exclusions. Genesis and candidate slots hold
+the new items verbatim; stamps and the birth run wait on commit 1 per the
+op-genesis choreography.

@@ -50,6 +50,10 @@ bench = false
 name = "commit_semantics"
 bench = false
 
+[[test]]
+name = "evalsplit_semantics"
+bench = false
+
 # This is the thing Aeneas extracts, so every entry here has to survive charon.
 # The field layer is NOT reimplemented: `Fp` (the Hachi prime `2^32 - 99`) and
 # `Ext4` come from AeneasCompPoly's `cpoly` crate, which already carries their
@@ -134,6 +138,10 @@ harness = false
 
 [[bench]]
 name = "commit"
+harness = false
+
+[[bench]]
+name = "evalsplit"
 harness = false
 
 # Warn rather than deny: `make extract` builds this crate with charon's own

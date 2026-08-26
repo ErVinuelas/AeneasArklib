@@ -22,7 +22,8 @@
 
 use hachi::params::{
     BETA_SQ, BLOCKS, EXT_DEGREE, EXT_W, GADGET_BASE, GADGET_DIGITS, GAMMA, INNER_ROWS, KAPPA,
-    MESSAGE_ROWS, OUTER_ROWS, Q, RING_DEGREE, RING_LOG_DEGREE,
+    MESSAGE_ROWS, ML_HIGH_LEN, ML_LOW_LEN, ML_POLY_LEN, ML_VARS_HIGH, ML_VARS_LOW, OUTER_ROWS, Q,
+    RING_DEGREE, RING_LOG_DEGREE,
 };
 
 /// `a * b mod m` without overflow, for `m < 2^32`.
@@ -201,4 +202,17 @@ fn dimensions_are_nondegenerate() {
     assert!(INNER_ROWS >= 2);
     assert!(OUTER_ROWS >= 2);
     assert!(BLOCKS >= 2);
+}
+
+/// The evaluation-split shape constants are the powers of two their variable
+/// counts claim, and match the consumer's shape: the reshaped matrix is
+/// `blocks × messageRows` (`derivedMsgMatrix`, `QuadEval/Reduction.lean:193`),
+/// so `2^nl = BLOCKS` and `2^nh = MESSAGE_ROWS`.
+#[test]
+fn evalsplit_shape_constants_are_consistent() {
+    assert_eq!(1usize << ML_VARS_LOW, ML_LOW_LEN);
+    assert_eq!(1usize << ML_VARS_HIGH, ML_HIGH_LEN);
+    assert_eq!(ML_LOW_LEN * ML_HIGH_LEN, ML_POLY_LEN);
+    assert_eq!(ML_LOW_LEN, BLOCKS);
+    assert_eq!(ML_HIGH_LEN, MESSAGE_ROWS);
 }

@@ -27,9 +27,12 @@
 //!   (`Commitments/Functional/Hachi/Gadget/Core.lean`).
 //! * [`commit`] -- the inner-outer Ajtai commitment and its weak-opening
 //!   verifier (`Commitments/Functional/Hachi/InnerOuter/Scheme.lean`).
+//! * [`evalsplit`] -- the multilinear evaluation split `uᵀ M v`
+//!   (`Commitments/Functional/Hachi/EvalSplit.lean`).
 //!
 //! The layering is strict and bottom-up: `linalg` uses `ring`, `gadget` uses
-//! both, `commit` uses all three. Nothing reaches back up.
+//! both, `commit` uses all three, `evalsplit` uses `ring` and `linalg`.
+//! Nothing reaches back up.
 //!
 //! The coefficient field is *not* in this crate. `Fp` (the Hachi prime
 //! `2^32 - 99`) and its quartic extension `Ext4` come from the `cpoly` crate of
@@ -97,3 +100,5 @@ pub mod linalg;
 pub mod gadget;
 
 pub mod commit;
+
+pub mod evalsplit;

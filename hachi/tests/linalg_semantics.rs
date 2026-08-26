@@ -175,3 +175,26 @@ fn matrix_shape_accessors() {
     assert_eq!(empty.rows(), 0);
     assert_eq!(empty.cols(), 0);
 }
+
+/// `split_form M u v = uᵀ M v`, against the flat double sum
+/// `Σᵢ Σⱼ (uᵢ · Mᵢⱼ) · vⱼ` -- associated the other way round (the crate
+/// computes `uᵢ · (Σⱼ Mᵢⱼ vⱼ)` through `dot` and `mat_vec_mul`), so the two
+/// agree by ring algebra rather than by shared structure.
+#[test]
+fn split_form_is_the_double_sum() {
+    let mut rng = Lcg::new(0x5F_0001);
+    let m = rng.next_poly_matrix(2, 4);
+    let u = rng.next_poly_vec(2);
+    let v = rng.next_poly_vec(4);
+
+    let mut want = Rq::zero();
+    for i in 0..2 {
+        for j in 0..4 {
+            let left = u.get(i).mul(m.row(i).get(j));
+            want = want.add(&left.mul(v.get(j)));
+        }
+    }
+
+    let got = m.split_form(&u, &v);
+    assert!(got.equals(&want), "got {}, want {}", show(&got), show(&want));
+}

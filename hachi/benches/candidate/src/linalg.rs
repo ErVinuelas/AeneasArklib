@@ -2,21 +2,23 @@
 //!
 //! Reference specification: `ArkLib/Data/Lattices/Vectors.lean`.
 //!
-//! # Only what the two consumers use
+//! # Only what the consumers use
 //!
-//! `Vectors.lean` is larger than this module. It also carries `matMul`,
-//! `splitForm` and the transpose/composition lemmas around them, which exist for
-//! the evaluation argument -- moving a gadget factor between the witness and the
-//! basis side of `uᵀ M v` (Hachi [NOZ26] eq. 12 → 15). That is the protocol
-//! layer, which is out of scope here, and every one of those operations would be
-//! dead code with an equivalence proof attached. What is below is exactly the
-//! surface `Gadget/Core.lean` and `InnerOuter/Scheme.lean` reach for:
+//! `Vectors.lean` is larger than this module. It also carries `matMul` and the
+//! transpose/composition lemmas, which exist for moving a gadget factor between
+//! the witness and the basis side of `uᵀ M v` (Hachi [NOZ26] eq. 12 → 15).
+//! Those are still out of scope: every one would be dead code with an
+//! equivalence proof attached. `splitForm` itself *was* in that list until the
+//! evaluation split ([`crate::evalsplit`]) arrived as a consumer; it is below
+//! now. What is here is exactly the surface `Gadget/Core.lean`,
+//! `InnerOuter/Scheme.lean` and `Hachi/EvalSplit.lean` reach for:
 //!
 //! | spec | here |
 //! |---|---|
 //! | `dot` (`Vectors.lean:77`) | [`PolyVec::dot`] |
 //! | `matVecMul` (`:81`) | [`PolyMatrix::mat_vec_mul`] |
 //! | `scalarVecMul` (`:91`) | [`PolyVec::scalar_mul`] |
+//! | `splitForm` (`:178`) | [`PolyMatrix::split_form`] |
 //! | `PolyVec.flattenBlocks` (`:49`) | [`flatten_blocks`] |
 //! | `Pi` add / sub | [`PolyVec::add`] / [`PolyVec::sub`] |
 //!
@@ -242,6 +244,20 @@ impl PolyMatrix {
             i += 1;
         }
         PolyVec(out)
+    }
+
+    /// The split bilinear form `⟨u, M *ᵥ v⟩ = uᵀ M v` (spec: `splitForm`,
+    /// `Vectors.lean:178`).
+    ///
+    /// Mirrors ArkLib's `splitForm`.
+    ///
+    /// This is the shape of the Hachi evaluation equation: the multilinear
+    /// evaluation split states `eval p (xl ++ xh)` as `splitForm` of the
+    /// reshaped coefficient matrix against the two monomial bases
+    /// (`Hachi/EvalSplit.lean:173`, consumed by [`crate::evalsplit`]).
+    pub fn split_form(&self, u: &PolyVec, v: &PolyVec) -> Rq {
+        let mv: PolyVec = self.mat_vec_mul(v);
+        u.dot(&mv)
     }
 }
 

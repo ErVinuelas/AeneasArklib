@@ -242,6 +242,19 @@ impl PolyMatrix {
         }
         PolyVec(out)
     }
+    /// The split bilinear form `⟨u, M *ᵥ v⟩ = uᵀ M v` (spec: `splitForm`,
+    /// `Vectors.lean:178`).
+    ///
+    /// Mirrors ArkLib's `splitForm`.
+    ///
+    /// This is the shape of the Hachi evaluation equation: the multilinear
+    /// evaluation split states `eval p (xl ++ xh)` as `splitForm` of the
+    /// reshaped coefficient matrix against the two monomial bases
+    /// (`Hachi/EvalSplit.lean:173`, consumed by [`crate::evalsplit`]).
+    pub fn split_form(&self, u: &PolyVec, v: &PolyVec) -> Rq {
+        let mv: PolyVec = self.mat_vec_mul(v);
+        u.dot(&mv)
+    }
 }
 
 // @genesis d664190 2026-08-19 — linalg::flatten_blocks
