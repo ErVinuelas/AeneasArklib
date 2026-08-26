@@ -1,5 +1,0 @@
-# The root .gitignore already covers these for git; this file exists because
-# aristotlelib reads the *project-dir* .gitignore when packing an upload, and
-# without it the whole Rust build tree lands in the Aristotle tarball.
-target/
-generated.llbc
