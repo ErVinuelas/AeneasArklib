@@ -53,7 +53,7 @@ fn pow_mod(mut base: u64, mut exp: u64, m: u64) -> u64 {
 #[test]
 fn q_is_prime() {
     assert!(Q > 1);
-    assert!(Q % 2 == 1);
+    assert_eq!(Q % 2, 1);
     let mut d = 3u64;
     while d * d <= Q {
         assert!(Q % d != 0, "Q is divisible by {d}");
