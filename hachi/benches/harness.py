@@ -282,6 +282,13 @@ def _first_commit_containing(basename: str, text: str, history: list[str]) -> st
 def cmd_stamp_genesis(args) -> int:
     history = commits_oldest_first()
     head = git("rev-parse", "HEAD").strip()
+    # Snapshot the dirtiness ONCE, before any stamp is written: the stamps this
+    # command writes land under `hachi/benches`, which `head_state` counts as
+    # measured code, so re-evaluating per item would let the first module's
+    # stamps dirty the tree and poison the guard for every later module. That
+    # is the normal case under the freeze choreography (stamp immediately after
+    # the introducing commit, i.e. `found == head` for every new item).
+    src_dirty = head_state()["src_dirty"]
     changed = 0
     for module in MODULES:
         path = GENESIS_SRC / f"{module}.rs"
@@ -303,7 +310,7 @@ def cmd_stamp_genesis(args) -> int:
                     file=sys.stderr,
                 )
                 continue
-            if found == head and head_state()["src_dirty"]:
+            if found == head and src_dirty:
                 print(f"  ! {it.path}: only matches the working tree, not a commit.", file=sys.stderr)
                 continue
             indent = " " * it.indent
