@@ -242,6 +242,7 @@ impl PolyMatrix {
         }
         PolyVec(out)
     }
+    // @genesis afa0140 2026-08-26 — linalg::PolyMatrix::split_form
     /// The split bilinear form `⟨u, M *ᵥ v⟩ = uᵀ M v` (spec: `splitForm`,
     /// `Vectors.lean:178`).
     ///

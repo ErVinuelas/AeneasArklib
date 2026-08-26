@@ -186,6 +186,7 @@ pub const BETA_SQ: u128 = 8_192;
 /// honest challenge `c = 1` has `‖1‖₁ = 1` and passes either way.
 pub const KAPPA: u64 = 65_535;
 
+// @genesis afa0140 2026-08-26 — params::ML_VARS_LOW
 /// The number of *low* (first) variables `nl` of the evaluation split: the
 /// `r` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xl` half.
 ///
@@ -196,6 +197,7 @@ pub const KAPPA: u64 = 65_535;
 /// that forces `nl = 1`.
 pub const ML_VARS_LOW: usize = 1;
 
+// @genesis afa0140 2026-08-26 — params::ML_VARS_HIGH
 /// The number of *high* (last) variables `nh` of the evaluation split: the
 /// `m` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xh` half.
 ///
@@ -203,6 +205,7 @@ pub const ML_VARS_LOW: usize = 1;
 /// `2^nh = messageRows`, and at [`MESSAGE_ROWS`]` = 4` that forces `nh = 2`.
 pub const ML_VARS_HIGH: usize = 2;
 
+// @genesis afa0140 2026-08-26 — params::ML_LOW_LEN
 /// `2^ML_VARS_LOW = 2`: the row count of the reshaped coefficient matrix, the
 /// length of the outer monomial basis `mb(xl)`, and (by the consumer's shape)
 /// equal to [`BLOCKS`].
@@ -212,6 +215,7 @@ pub const ML_VARS_HIGH: usize = 2;
 /// `lean/Check.lean` § 1.
 pub const ML_LOW_LEN: usize = 2;
 
+// @genesis afa0140 2026-08-26 — params::ML_HIGH_LEN
 /// `2^ML_VARS_HIGH = 4`: the column count of the reshaped coefficient matrix,
 /// the length of the inner monomial basis `mb(xh)`, and (by the consumer's
 /// shape) equal to [`MESSAGE_ROWS`].
@@ -219,6 +223,7 @@ pub const ML_LOW_LEN: usize = 2;
 /// A literal (see [`ML_LOW_LEN`]).
 pub const ML_HIGH_LEN: usize = 4;
 
+// @genesis afa0140 2026-08-26 — params::ML_POLY_LEN
 /// `2^(ML_VARS_LOW + ML_VARS_HIGH) = 8`: the coefficient count of a committed
 /// multilinear polynomial, i.e. `ML_LOW_LEN * ML_HIGH_LEN`.
 ///
