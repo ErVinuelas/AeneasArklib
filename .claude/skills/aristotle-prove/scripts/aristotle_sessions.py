@@ -309,6 +309,10 @@ def sdk() -> tuple[Any, Any, Any]:
     try:
         project_module = importlib.import_module("aristotlelib.project")
         task_module = importlib.import_module("aristotlelib.agent_task")
+        # The SDK's default 30s httpx timeout aborts the project-archive upload
+        # (~tens of MB once .lake deps are packed) with a bare "Request failed:".
+        api_request_module = importlib.import_module("aristotlelib.api_request")
+        api_request_module.DEFAULT_TIMEOUT_SECONDS = 900
         return project_module.Project, project_module.AgentQuestionsSetting, task_module.TaskStatus
     except ModuleNotFoundError as initial_error:
         if os.environ.get("ARISTOTLE_SESSION_REEXEC"):
