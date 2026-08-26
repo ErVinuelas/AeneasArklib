@@ -739,6 +739,92 @@ theorem digit_at_spec (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.
   dsimp only
   rw [hcv, Nat.getD_digits _ _ (by norm_num), hm, hr, hb]
 
+/-! ### `gadget::digit_decompose`
+
+`digit_at` at every position, which is the whole of the claim: the Rust runs the
+same halving loop 32 times over, and the specification's `dd.digit` indexes
+`Nat.digits 2 c.val`. `digit_at_spec` is the per-position statement; this is the
+vector of them, and the reason it earns a statement of its own is that a reader
+cannot otherwise tell whether the *order* agrees -- slot `e` has to be digit `e`,
+least-significant first, and a reversed accumulation would leave `digit_at_spec`
+true and this false.
+
+The representation is `Ring.coeffK`, not a new function: the output is an
+`alloc.vec.Vec cpoly.field.Fp`, which is exactly `coeffK`'s domain.
+
+Hypotheses: `Red c` only. The fail-point walk closes without a value bound --
+`gadget::digit_at` is total (its loop just divides `e` times; the `e.val < 32` of
+`digit_at_spec` feeds the `Fin 32` index of its postcondition, not a fail point,
+and the loop guard `e < digits` supplies it at `digits = GADGET_DIGITS = 32`);
+the 32 `Vec.push`es are bounded by a numeral; and `e + 1#usize` is under the
+guard. -/
+
+/-- The loop of `gadget::digit_decompose`: after `e` turns the accumulator holds
+digits `0 … e-1`, in order. -/
+theorem digit_decompose_loop_spec (c : cpoly.field.Fp) (digits : Std.Usize)
+    (out : alloc.vec.Vec cpoly.field.Fp) (e : Std.Usize)
+    (hc : Red c) (hdig : digits.val = 32) (he : e.val ≤ 32)
+    (hlen : out.val.length = e.val) (hred : ∀ u ∈ out.val, Red u)
+    (hval : ∀ (t : ℕ) (ht : t < 32), t < e.val →
+      coeffK out t = dd.digit (toK c) ⟨t, ht⟩) :
+    gadget.digit_decompose_loop c digits out e
+      ⦃ z => z.val.length = 32 ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ (t : ℕ) (ht : t < 32), coeffK z t = dd.digit (toK c) ⟨t, ht⟩ ⦄ := by
+  rw [gadget.digit_decompose_loop]
+  apply loop.spec_decr_nat (fun s => digits.val - s.2.val)
+    (fun s => s.2.val ≤ 32 ∧ s.1.val.length = s.2.val ∧ (∀ u ∈ s.1.val, Red u) ∧
+      ∀ (t : ℕ) (ht : t < 32), t < s.2.val →
+        coeffK s.1 t = dd.digit (toK c) ⟨t, ht⟩)
+  · rintro ⟨o1, e1⟩ ⟨he1, hlen1, hred1, hval1⟩
+    dsimp only at he1 hlen1 hred1 hval1
+    simp only [gadget.digit_decompose_loop.body]
+    by_cases hlt : e1 < digits
+    · rw [if_pos hlt]
+      have he1lt : e1.val < 32 := by rw [← hdig]; scalar_tac
+      step with digit_at_spec c e1 hc he1lt as ⟨f, hRf, hf⟩
+      have hcap : o1.val.length < Usize.max := by rw [hlen1]; scalar_tac
+      step as ⟨o2, ho2⟩
+      step as ⟨e2, he2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, he2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro t ht htlt
+        rw [he2] at htlt
+        rcases Nat.lt_or_ge t e1.val with h | h
+        · rw [coeffK_append_lt ho2 (by omega : t < o1.val.length)]
+          exact hval1 t ht h
+        · have hteq : t = e1.val := by omega
+          subst hteq
+          conv_lhs => rw [← hlen1]
+          rw [coeffK_append_eq ho2]
+          exact hf
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : e1.val = 32 := by scalar_tac
+      refine ⟨by rw [hlen1, heq], hred1, ?_⟩
+      intro t ht
+      exact hval1 t ht (by omega)
+  · exact ⟨he, hlen, hred, hval⟩
+
+/-- `gadget::digit_decompose` — ArkLib's `zmodDigitDecomposition.digit` at every
+`e < digits`, as a vector: slot `e` is digit `e` of `c`'s canonical
+representative, least-significant first. -/
+theorem digit_decompose_spec (c : cpoly.field.Fp) (hc : Red c) :
+    gadget.digit_decompose c
+      ⦃ z => z.val.length = 32 ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ e : Fin 32, coeffK z e.val = dd.digit (toK c) e ⦄ := by
+  simp only [gadget.digit_decompose]
+  apply spec_mono (digit_decompose_loop_spec c params.GADGET_DIGITS
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hc (by simp [params.GADGET_DIGITS])
+    (by simp) (by simp) (by intro u hu; simp at hu) (by intro t ht h; simp at h))
+  rintro z ⟨h1, h2, h3⟩
+  exact ⟨h1, h2, fun e => h3 e.val e.isLt⟩
+
 /-- The loop of `gadget::base_pow`: the accumulator is `bⁱ` after `i` turns. -/
 theorem base_pow_loop_spec (e : Std.Usize) (b : cpoly.field.Fp) (acc : cpoly.field.Fp)
     (i : Std.Usize) (hb : Red b) (hbv : toK b = (2 : ZMod q)) (hacc : Red acc)
@@ -804,6 +890,175 @@ theorem gadget_entry_spec (i j : Std.Usize) :
       have : i1.val = i.val := by rw [hi1, hd, h]
       scalar_tac
     rw [hz, gadgetEntry, if_neg hcond]
+
+/-! ### `gadget::gadget_matrix`
+
+The materialized gadget matrix `G = I_rows ⊗ [1, 2, …, 2³¹]`. `gadget_mul` is the
+map `v ↦ G *ᵥ v` computed without building `G`, and `gadget_mul_spec` below
+proves that against `gadgetMul`; this states that the *materialized* matrix is
+`gadgetMatrix` itself. Both are needed and neither implies the other: the
+`gadget_mul` route could agree with `gadgetMul` while `gadget_matrix` built a
+transposed or misaligned `G`, and before this statement
+`tests/gadget_semantics.rs`'s `gadget_matrix_has_the_tensor_layout` and the
+`via_matrix` cross-check were the only things pinning it.
+
+Hypotheses: `hmax : rows * 32 ≤ Usize.max` is earned. The fail point is the first
+line of the extracted body, `let cols ← rows * params.GADGET_DIGITS` -- a checked
+`Usize` multiplication, and `r`'s own carrier invariant bounds `rows` but not
+`32 * rows`. It is minimal: with it, the outer `Vec.push` (`rows` entries) and the
+inner one (`cols` entries, and `cols` is a `Usize`) are both bounded, and
+`gadget_entry` is total. -/
+
+/-- The inner loop of `gadget::gadget_matrix`: row `i` is filled left to right
+with the gadget entries of that row. -/
+theorem gadget_matrix_loop0_loop0_spec {rows : ℕ} (cols i : Std.Usize)
+    (row : alloc.vec.Vec ring.Rq) (j : Std.Usize)
+    (hi : i.val < rows) (hcols : cols.val = rows * 32)
+    (hj : j.val ≤ rows * 32) (hlen : row.val.length = j.val)
+    (hwf : ∀ x ∈ row.val, Wf x)
+    (hval : ∀ (t : ℕ) (ht : t < rows * 32), t < j.val →
+      toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i.val, hi⟩ ⟨t, ht⟩) :
+    gadget.gadget_matrix_loop0_loop0 cols i row j
+      ⦃ z => z.val.length = rows * 32 ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ (t : ℕ) (ht : t < rows * 32),
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32)
+                ⟨i.val, hi⟩ ⟨t, ht⟩ ⦄ := by
+  rw [gadget.gadget_matrix_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => cols.val - s.2.val)
+    (fun s => s.2.val ≤ rows * 32 ∧ s.1.val.length = s.2.val ∧
+      (∀ x ∈ s.1.val, Wf x) ∧
+      ∀ (t : ℕ) (ht : t < rows * 32), t < s.2.val →
+        toRq (s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i.val, hi⟩ ⟨t, ht⟩)
+  · rintro ⟨row1, j1⟩ ⟨hj1, hlen1, hwf1, hval1⟩
+    dsimp only at hj1 hlen1 hwf1 hval1
+    simp only [gadget.gadget_matrix_loop0_loop0.body]
+    by_cases hlt : j1 < cols
+    · rw [if_pos hlt]
+      have hj1lt : j1.val < rows * 32 := by rw [← hcols]; scalar_tac
+      have hcap : row1.val.length < Usize.max := by rw [hlen1]; scalar_tac
+      step with gadget_entry_spec i j1 as ⟨z, hWz, hz⟩
+      step as ⟨row2, hrow2⟩
+      step as ⟨j2, hj2⟩
+      have hget : row2.val.getD j1.val (alloc.vec.Vec.new cpoly.field.Fp) = z := by
+        rw [hrow2, ← hlen1]; exact getD_append_eq _ _ _
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [hrow2, hj2, List.length_append, hlen1]; simp
+      · intro x hx
+        rw [hrow2] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hwf1 x h
+        · rw [List.mem_singleton.mp h]; exact hWz
+      · intro t ht htlt
+        rw [hj2] at htlt
+        rcases Nat.lt_or_ge t j1.val with hlow | hhigh
+        · rw [hrow2, getD_append_lt _ _ _ (by omega)]
+          exact hval1 t ht hlow
+        · have hteq : t = j1.val := by omega
+          subst hteq
+          rw [hget]
+          exact hz rows hi hj1lt
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = rows * 32 := by rw [← hcols]; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, fun t ht => hval1 t ht (by omega)⟩
+  · exact ⟨hj, hlen, hwf, hval⟩
+
+/-- The outer loop of `gadget::gadget_matrix`: the accumulator holds the rows of
+`gadgetMatrix` already built. -/
+theorem gadget_matrix_loop0_spec {rows : ℕ} (r cols : Std.Usize)
+    (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hr : r.val = rows) (hcols : cols.val = rows * 32) (hi : i.val ≤ rows)
+    (hlen : out.val.length = i.val)
+    (hwf : ∀ y ∈ out.val, WfVec (rows * 32) y)
+    (hval : ∀ (s : ℕ) (hs : s < rows), s < i.val →
+      toVec (k := rows * 32) (out.val.getD s (alloc.vec.Vec.new ring.Rq))
+        = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨s, hs⟩) :
+    gadget.gadget_matrix_loop0 r cols out i
+      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, WfVec (rows * 32) y) ∧
+        ∀ (s : ℕ) (hs : s < rows),
+          toVec (k := rows * 32) (z.val.getD s (alloc.vec.Vec.new ring.Rq))
+            = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨s, hs⟩ ⦄ := by
+  rw [gadget.gadget_matrix_loop0]
+  apply loop.spec_decr_nat (fun s => r.val - s.2.val)
+    (fun s => s.2.val ≤ rows ∧ s.1.val.length = s.2.val ∧
+      (∀ y ∈ s.1.val, WfVec (rows * 32) y) ∧
+      (∀ (t : ℕ) (ht : t < rows), t < s.2.val →
+        toVec (k := rows * 32) (s.1.val.getD t (alloc.vec.Vec.new ring.Rq))
+          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨t, ht⟩))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [gadget.gadget_matrix_loop0.body]
+    by_cases hlt : i1 < r
+    · rw [if_pos hlt]
+      have hi1lt : i1.val < rows := by rw [← hr]; scalar_tac
+      step with gadget_matrix_loop0_loop0_spec (rows := rows) cols i1
+        (alloc.vec.Vec.new ring.Rq) 0#usize hi1lt hcols (by simp) (by simp)
+        (by intro x hx; simp at hx) (by intro t ht h; simp at h)
+        as ⟨z, hzlen, hzwf, hzval⟩
+      simp only [linalg.PolyVec.new]
+      have hcap : o1.val.length < Usize.max := by rw [hlen1]; scalar_tac
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      have hrow : toVec (k := rows * 32) z
+          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨i1.val, hi1lt⟩ := by
+        funext t
+        show toRq (z.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
+          = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i1.val, hi1lt⟩ t
+        exact hzval t.val t.isLt
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact ⟨hzlen, hzwf⟩
+      · intro t ht h
+        rw [hi2] at h
+        rcases Nat.lt_or_ge t i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t ht hjlt]
+        · have hget : (o1.val ++ [z]).getD t (alloc.vec.Vec.new ring.Rq) = z := by
+            rw [show t = o1.val.length from by omega]
+            exact getD_append_eq _ _ _
+          have hfin : (⟨t, ht⟩ : Fin rows) = ⟨i1.val, hi1lt⟩ := by
+            simp only [Fin.mk.injEq]; omega
+          rw [ho2, hget, hfin]
+          exact hrow
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = rows := by rw [← hr] at hi1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, fun t ht => hval1 t ht (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- `gadget::gadget_matrix` — ArkLib's `gadgetMatrix` at base `2` and 32 digits:
+the materialized `G = I_rows ⊗ [1, 2, …, 2³¹]`.
+
+`hmax` is the capacity side condition of the column count; see the section note
+for the fail point it discharges. -/
+theorem gadget_matrix_spec {rows : ℕ} (r : Std.Usize) (hr : r.val = rows)
+    (hmax : rows * 32 ≤ Usize.max) :
+    gadget.gadget_matrix r
+      ⦃ a => WfMat rows (rows * 32) a ∧
+        toMat (rows := rows) (cols := rows * 32) a
+          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⦄ := by
+  rw [gadget.gadget_matrix]
+  have hgd : (params.GADGET_DIGITS).val = 32 := by simp [params.GADGET_DIGITS]
+  have hfit : r.val * (params.GADGET_DIGITS).val ≤ Usize.max := by rw [hgd, hr]; exact hmax
+  step as ⟨cols, hcols⟩
+  have hcols32 : cols.val = rows * 32 := by rw [hcols, hgd, hr]
+  step with gadget_matrix_loop0_spec (rows := rows) r cols
+    (alloc.vec.Vec.new linalg.PolyVec) 0#usize hr hcols32 (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro s hs h; simp at h)
+    as ⟨z, hzlen, hzwf, hzval⟩
+  simp only [linalg.PolyMatrix.new, WP.spec_ok]
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [toMat_apply]
+  exact hzval i.val i.isLt
 
 /-- The inner loop of `gadget::gadget_mul`: the accumulator is the base-weighted sum
 over the digit slots of block `i` already visited. -/
@@ -2236,5 +2491,198 @@ theorem honest_verifies (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.Pol
     rw [hod]; exact hdspec
   · show toVec (k := 2) u = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec o.decomp)
     rw [hod]; exact huspec
+
+/-! ### `commit::verify` — the full verifier
+
+The scheme's full verifier: the claimed message must be the one the opening
+determines (`derivedMessage opening.toDecomp = m`), *and* the weak checks must
+pass. `honest_verifies` above reaches only `verify_weak`, so this is the
+top-level API of `commit.rs` — the one function in the crate a caller would
+actually invoke.
+
+**Why `verify_spec` does not name the bundled scheme.** The ArkLib name here is
+a structure *field*: `InnerOuter.commitmentScheme`'s `verify`. The bundle
+carries two `SampleableType` instance arguments that its `setup` field needs
+and its `verify` field does not, and no instance exists at these types (the
+elaborator: `failed to synthesize SampleableType (Simple.PublicParams Φ ?rows
+(?cols * 32))`). Taking the two as instance binders of `verify_spec` would not
+make the theorem vacuous — the `verify` field never mentions them, so the
+bundled statement is the same claim and is dischargeable from `verify_spec`'s
+own proof term. What it would make the theorem is *unusable*: with binders no
+caller can ever eliminate it, because no instance exists to supply. So the
+postcondition names the two ArkLib definitions the `verify` field is built
+from — `InnerOuter.derivedMessage` and `InnerOuter.verify_weak` — in the
+field's own `List.finRange` / `decide` / `&&` shape, so a reader can diff it
+line-for-line against `InnerOuter/Scheme.lean`. It implies the bundled form
+outright and becomes it the moment ArkLib gains the instances. The cost,
+recorded in `NOTES.md` as well: alone among the headline specs, this one does
+not move automatically if ArkLib restructures `commitmentScheme.verify`.
+
+**Hypotheses, and none of them is new** — but three of them are load-bearing
+for the *truth* of the equality, not only for totality. `hpp`, `hoc` and `ho`
+are exactly `verify_weak_spec`'s side conditions, inherited because the body
+calls `verify_weak` on every path. The other three each have a falsifying
+witness without them, all of the same shape: the representation functions are
+`Fin`-indexed, so `toVec (k := 4)` and `toVec (k := 2)` are blind to entries a
+too-long carrier hides and pad a too-short one with zeros, while the extracted
+`PolyVec::equals` rejects on the raw length test — so the two sides can decide
+differently. `hm.1` (a longer or shorter `m` flips the outer length test),
+`hm.2` (a block of the wrong inner width flips `equals` inside the loop), and
+`hu` (a longer `u` flips `verify_weak`'s final outer-commitment comparison).
+Without any one of them the equality of decisions is false, not merely
+unprovable. -/
+
+/-- The loop of `commit::verify`: the accumulated `Bool` decides exactly whether
+the derived and claimed message blocks agree at the blocks already visited. -/
+theorem verify_loop_spec (m derived : alloc.vec.Vec linalg.PolyVec)
+    (blocks : Std.Usize) (ok1 : Bool) (i : Std.Usize)
+    (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x)
+    (hd : derived.val.length = 2 ∧ ∀ x ∈ derived.val, WfVec 4 x)
+    (hb : blocks.val = 2) (hi : i.val ≤ 2)
+    (hok : ok1 = true ↔ ∀ j < i.val,
+      toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq))) :
+    commit.verify_loop m derived blocks ok1 i
+      ⦃ r => r = true ↔ ∀ j < 2,
+        toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  rw [commit.verify_loop]
+  apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
+    (fun s => s.2.val ≤ 2 ∧ (s.1 = true ↔ ∀ j < s.2.val,
+      toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
+  · rintro ⟨b1, i1⟩ ⟨hi1, hb1⟩
+    dsimp only at hi1 hb1
+    simp only [commit.verify_loop.body]
+    by_cases hlt : i1 < blocks
+    · rw [if_pos hlt]
+      have hilt : i1.val < 2 := by rw [← hb]; scalar_tac
+      have hdlt : i1.val < derived.val.length := by rw [hd.1]; exact hilt
+      have hmlt : i1.val < m.val.length := by rw [hm.1]; exact hilt
+      step as ⟨pv, hpv⟩
+      step as ⟨pv1, hpv1⟩
+      have hWpv : WfVec 4 pv := by rw [hpv]; exact hd.2 _ (List.getElem_mem hdlt)
+      have hWpv1 : WfVec 4 pv1 := by rw [hpv1]; exact hm.2 _ (List.getElem_mem hmlt)
+      step with poly_vec_equals_spec (k := 4) pv pv1 hWpv hWpv1 as ⟨bb, hbb⟩
+      have hite : (if bb then ok b1 else ok (false : Bool)) ⦃ z => z = (b1 && bb) ⦄ := by
+        cases bb
+        · rw [if_neg (by simp), WP.spec_ok]; simp
+        · rw [if_pos (by simp), WP.spec_ok]; simp
+      step with hite as ⟨b2, hb2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by omega, ?_, ?_⟩
+      · rw [hb2, hi2, Bool.and_eq_true, hb1, hbb, hpv, hpv1]
+        constructor
+        · rintro ⟨h1, h2⟩ j hj
+          rcases Nat.lt_or_ge j i1.val with h | h
+          · exact h1 j h
+          · have hje : j = i1.val := by omega
+            subst hje
+            rw [List.getD_eq_getElem _ _ hdlt, List.getD_eq_getElem _ _ hmlt]
+            exact h2
+        · intro h
+          refine ⟨fun j hj => h j (by omega), ?_⟩
+          have h2 := h i1.val (by omega)
+          rwa [List.getD_eq_getElem _ _ hdlt, List.getD_eq_getElem _ _ hmlt] at h2
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
+      rw [← heq]; exact hb1
+  · exact ⟨hi, hok⟩
+
+/-- `commit::verify` — ArkLib's `InnerOuter.commitmentScheme.verify`, as an
+equality of *decisions*.
+
+The right-hand side is the `verify` field's own body at this crate's parameters
+(`base = 2`, `βSq = 8192`, `γ = 1`, `κ = 65535`), naming
+`InnerOuter.derivedMessage` and `InnerOuter.verify_weak` rather than the bundled
+`commitmentScheme`; the section note above records why the bundle cannot be
+mentioned here and what that costs. -/
+theorem verify_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
+    (u : linalg.PolyVec) (o : commit.Opening)
+    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x)
+    (hu : WfVec 2 u) (hoc : WfVec 2 o.challenge) (ho : WfDecomp o.decomp) :
+    commit.verify pp m u o
+      ⦃ r => r = ((List.finRange 2).all (fun i =>
+                    decide (InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
+                      = toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+                  && InnerOuter.verify_weak Φ (2 : ZMod q) 8192 1 65535
+                      (toParams pp) (toVec (k := 2) u) (toOpening o)) ⦄ := by
+  have hlm : m.val.length = 2 := hm.1
+  rw [commit.verify]
+  simp only [commit.Opening.impl.decomp]
+  step with derived_message_spec o.decomp ho as ⟨derived, hdlen, hdwf, hder⟩
+  have hWder : derived.val.length = 2 ∧ ∀ x ∈ derived.val, WfVec 4 x := ⟨hdlen, hdwf⟩
+  have hld : derived.val.length = 2 := hdlen
+  have h1 : (alloc.vec.Vec.len derived).val = 2 := by simpa using hld
+  have h2 : (alloc.vec.Vec.len m).val = 2 := by simpa using hlm
+  have hne : (alloc.vec.Vec.len derived != alloc.vec.Vec.len m) = false := by
+    simp only [bne_eq_false_iff_eq]
+    scalar_tac
+  rw [hne, if_neg (by simp)]
+  step with verify_loop_spec m derived (alloc.vec.Vec.len m) true 0#usize hm hWder
+    h2 (by simp) (by simp) as ⟨ok1, hok1⟩
+  step with verify_weak_spec pp u o hpp hu hoc ho as ⟨b, hb⟩
+  have hite : (if b then ok ok1 else ok (false : Bool)) ⦃ z => z = (ok1 && b) ⦄ := by
+    cases b
+    · rw [if_neg (by simp), WP.spec_ok]; simp
+    · rw [if_pos (by simp), WP.spec_ok]; simp
+  apply spec_mono hite
+  intro r hr
+  have hder' : ∀ i : Fin 2,
+      InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
+        = toVec (k := 4) (derived.val.getD i.val (alloc.vec.Vec.new ring.Rq)) :=
+    fun i => (congrFun hder i).symm
+  have hA : ok1 = ((List.finRange 2).all (fun i =>
+      decide (InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
+        = toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))) := by
+    rw [Bool.eq_iff_iff, hok1, List.all_eq_true]
+    simp only [List.mem_finRange, decide_eq_true_eq, forall_const]
+    constructor
+    · intro h i
+      exact (hder' i).trans (h i.val i.isLt)
+    · intro h j hj
+      exact (hder' ⟨j, hj⟩).symm.trans (h ⟨j, hj⟩)
+  rw [hr, hb, hA]
+
+/-- **Perfect correctness at the crate's top-level API**: an honest commitment
+and its honest opening pass `commit::verify` itself -- the derived-message check
+included -- not only `verify_weak`. `honest_verifies` above reaches `verify_weak`
+because `verify` had no spec when it was proved; with `verify_spec` in hand this
+is the composition a caller actually runs. The message half closes by
+`gadgetDecompose_lawful`: the honest committer's blocks are `sᵢ = G⁻¹(mᵢ)`, so
+the derived message `G · sᵢ` is `mᵢ` back. -/
+theorem honest_verifies_full (pp : commit.PublicParams)
+    (m : alloc.vec.Vec linalg.PolyVec)
+    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x) :
+    (do
+      let (u, d) ← commit.commit pp m
+      let o ← commit.Opening.honest d
+      commit.verify pp m u o) ⦃ r => r = true ⦄ := by
+  step with commit_spec pp m hpp hm as ⟨u, d, hWu, hWd, hdspec, huspec⟩
+  step with honest_spec d hWd as ⟨o, hod, hWoc, hocv⟩
+  apply spec_mono (verify_spec pp m u o hpp hm hWu hWoc (by rw [hod]; exact hWd))
+  intro r hr
+  have hdeg : 1 ≤ Φ.φ.natDegree := by rw [RqBridge.phi_natDegree]; norm_num
+  have hlaw : ∀ x : PolyVec (Rq Φ) 4,
+      gadgetMul Φ (2 : ZMod q) (gadgetDecompose Φ dd x) = x :=
+    gadgetDecompose_lawful Φ (by norm_num) hdeg dd
+  rw [hr, Bool.and_eq_true]
+  refine ⟨?_, ?_⟩
+  · rw [List.all_eq_true]
+    intro i _
+    rw [decide_eq_true_eq]
+    show InnerOuter.derivedMessage Φ (2 : ZMod q) (toDecompSpec o.decomp) i = _
+    rw [hod, hdspec]
+    exact hlaw _
+  · exact verify_weak_honest (toParams pp)
+      (fun i : Fin 2 => toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
+      (toOpening o) _
+      (by show toDecompSpec o.decomp = _; rw [hod]; exact hdspec) hocv
+      (by
+        show toVec (k := 2) u
+          = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec o.decomp)
+        rw [hod]; exact huspec)
 
 end HachiEquiv.Scheme

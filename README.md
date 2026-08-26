@@ -54,16 +54,20 @@ in structure and in method, and depends on it for the coefficient field.
 > * `linalg`, `gadget` and `commit` ([`lean/Scheme.lean`](hachi/lean/Scheme.lean)) —
 >   the vector and matrix operations, both directions of the gadget (including
 >   `gadget_round_trip`: the extracted `gadget_mul` inverts the extracted
->   `gadget_decompose`), the four centered norms, and the commitment against the
->   specification's own `InnerOuter` definitions. `verify_weak_spec` is an equality
+>   `gadget_decompose`, and the materialized `gadget_matrix` *is* `gadgetMatrix`,
+>   tensor layout and all), the digit vector `digit_decompose` in specification
+>   order, the four centered norms, and the commitment against the
+>   specification's own `InnerOuter` definitions. `verify_weak_spec` and
+>   `verify_spec` — the full verifier a caller actually invokes — are equalities
 >   of *decisions*, so the rejection paths are part of the claim rather than
->   outside it, and the composition ends at `honest_verifies`: **perfect
->   correctness of the extracted scheme** — an honest commitment and its honest
->   opening verify.
+>   outside it, and the composition ends at `honest_verifies_full`: **perfect
+>   correctness of the extracted scheme at its top-level API** — an honest
+>   commitment and its honest opening pass `commit::verify`, derived-message
+>   check included.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all fifty-eight proved specs: the three Lean kernel axioms, nothing else.
+> of all sixty-two proved specs: the three Lean kernel axioms, nothing else.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is empty, and its [README](hachi/lean-wip/README.md) holds the procedure
 > for promoting the next file that lands there. [`NOTES.md`](NOTES.md)

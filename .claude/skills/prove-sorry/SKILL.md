@@ -3,11 +3,9 @@ name: prove-sorry
 description: End-to-end workflow for filling a `sorry` in a Lean 4 spec of Aeneas-extracted Rust code (Aeneas triples `m ⦃ r => post r ⦄` relating generated Result-monad code to a reference implementation). First audits whether the statement is even TRUE (hunts for counterexamples such as checked-arithmetic overflow in the Aeneas model), gates any weakening statement change (stronger hypotheses, weaker conclusion) on explicit user approval, decomposes the proof into a typechecked scaffold of sub-lemmas, proves them with parallel Opus agents via the Workflow tool, then adversarially verifies statements, hypotheses, and proofs, and folds lessons back into itself. Use when asked to prove, fill, or fix a `sorry` in an Aeneas verification project (imports of `Aeneas.Std`, `Generated.lean`-style extracted models, `⦃ ⦄` triples).
 ---
 
-<!-- Vendored from the user-level skill at ~/.claude/skills/prove-sorry so the
-     repo's proving engine is git-versioned like every other skill here (the
-     project-level copy is the one loaded in this repo). Phase 6 self-improvement
-     applies to THIS copy; a lesson general enough for other Aeneas repos is
-     worth mirroring to the user-level copy by hand. -->
+<!-- Vendored from ~/.claude/skills/prove-sorry so the repo's proving engine is
+     git-versioned; this project-level copy is the one loaded here and the one
+     Phase 6 edits. Mirror generally-useful lessons to the user-level copy. -->
 
 # prove-sorry — Aeneas spec proofs: audit, decompose, prove, verify, self-improve
 
@@ -25,22 +23,12 @@ show the candidates and ask the next single selection question. Resolve the
 file and declaration before Phase 0; do not silently choose among several
 open theorems.
 
-**Agent invocation:** bypass the dialogue with exactly one of these named
-requests:
-
-```yaml
-agent_request:
-  target: <file path and theorem declaration>
-```
-
-```yaml
-agent_request:
-  list_open: true
-```
-
-Validate the selected form. Return a missing, ambiguous, or nonexistent target
-to the invoking agent rather than asking the human. The statement-change
-approval gate below remains a human interaction even in agent mode.
+**Agent invocation:** bypass the dialogue with exactly one named request —
+`agent_request: {target: <file path and theorem declaration>}` or
+`agent_request: {list_open: true}`. Validate the selected form. Return a
+missing, ambiguous, or nonexistent target to the invoking agent rather than
+asking the human. The statement-change approval gate below remains a human
+interaction even in agent mode.
 
 ## Division of labor (fixed)
 
@@ -111,6 +99,14 @@ is where specs die; walk EVERY operation on EVERY path and ask what makes it
   to discharge the no-overflow side conditions of the field ops?
 - Quantifier direction; vacuity (are the hypotheses jointly satisfiable?);
   canonicalization/trimming conventions differing between model and reference.
+- **`Fin`-indexed representation functions are blind to carrier length** (they
+  pad short carriers, ignore long ones) while extracted code length-tests the
+  raw list — an equality-of-decisions spec is FALSE, not merely unprovable,
+  without a length hypothesis per length-tested carrier, inner widths included.
+- **Unsatisfiable instance binders ≠ vacuity:** binders the reference field
+  never uses leave the claim the same, true, and clean-axiomed — the defect is
+  that no caller can eliminate it. State the field's body; the binder form
+  follows outright.
 
 **If you find a counterexample:**
 
@@ -166,7 +162,9 @@ If the statement is fine as-is, say so in the report and continue.
    COPY of the real file as the work file (its out file then holds the full
    modified declaration text).
 3. Assign attempt counts: 1 for routine pieces, 2 independent attempts (one
-   skeleton-following, one diversity-seeking) for the hard ones.
+   skeleton-following, one diversity-seeking) for the hard ones. A lemma with a
+   near-isomorphic neighbor proof to imitate counts as routine even when it is
+   the headline; reserve second attempts for statements no neighbor exemplifies.
 
 ## Phase 3 — Prove in parallel (Workflow tool)
 
@@ -177,20 +175,14 @@ JSON schema into the prompt and requiring the reply to be exactly one matching
 JSON object (validate it yourself); with no subagent mechanism at all, prove
 the lemmas sequentially yourself and say so in the report. Key contract:
 
-- Each prover: `model: 'opus'`, `effort: 'xhigh'`. It copies the scaffold to a
-  **private** work file, replaces ONLY its own lemma's `sorry` (other sorried
+- Each prover: `model: 'opus'`, `effort: 'xhigh'`; it works on a **private**
+  copy of the scaffold, replaces ONLY its own lemma's `sorry` (other sorried
   lemmas usable as black boxes), self-verifies with `lake env lean`, and
-  writes a pasteable final text (helpers + theorem, no imports) to a private
-  out file.
-- Hard rules in every prompt (full list in the template's PREAMBLE): never modify
-  repo files, the scaffold, or `.lake`; never run `lake build`; never change
-  any theorem STATEMENT (report a counterexample instead if convinced one is
-  false); no `sorry`, `native_decide`, new `axiom`s, or other escapes.
-- Success criterion, stated exactly: zero `error:` lines from `lake env lean`,
-  and the `declaration uses sorry` warning for the agent's OWN lemma gone
-  (warnings for the other scaffold lemmas are expected).
-- Structured output: `{lemma, compiles, outFile, workFile, helperNames, notes}`
-  — `notes` carries surprises and, on failure, the exact remaining goal.
+  writes a pasteable out file. The template's PREAMBLE carries the hard rules
+  (never modify repo files/scaffold/`.lake`, never `lake build`, never change
+  a STATEMENT — report a counterexample instead, no `sorry`/`native_decide`/
+  axioms/escapes), the exact success criterion (zero `error:` lines, own
+  `sorry` warning gone, others expected), and the structured-output schema.
 - Feed each prompt the Phase-0 verified API facts, the reading list (neighbor
   proofs to imitate), and the appendix gotchas.
 - Escalation: a lemma with no compiling attempt goes to a repair agent
@@ -239,24 +231,17 @@ Adapt `references/verify-workflow.js`: four independent audit lenses
 does whatever nobody checked. Auditors verify with `lake env lean` only; the
 integrity lens alone may run `lake build`. Lenses:
 
-1. **Faithfulness & vacuity** — does the statement assert what a reader wants
-   (the Aeneas triple carries SUCCESS — confirm no vacuous reading)? Is each
-   sub-lemma's hypothesis set satisfiable? Instantiate concretely.
-2. **Hypothesis audit** — necessity (re-check the disproof), minimality
-   (attempt weaker forms in scratch), sufficiency (enumerate EVERY `fail`/
-   `div` point on the code path — checked arithmetic, pushes, indexing — and
-   confirm the hypotheses exclude each), downstream breakage. If no statement
-   change was made, repurpose this lens: audit the ORIGINAL hypotheses for
-   sufficiency and downstream impact, and whether the theorem could be stated
-   more strongly.
-3. **Empirical cross-check** — `#eval` both sides on concrete inputs: the
-   extracted function (expect `ok …`) against the reference implementation.
-   Cover empty/degenerate, small generic, and the domain's edge behavior
-   (modular wraparound near the prime, inputs where canonicalization/trimming
-   fires). Any disagreement is critical. `native_decide` stays banned.
-4. **Proof integrity** — build, axiom closure of every theorem, hidden
-   escapes, composition seams (invariant seeds match what producers
-   guarantee), loop measures genuinely decrease.
+1. **Faithfulness & vacuity** — the statement asserts what a reader wants
+   (SUCCESS included), hypotheses satisfiable, instantiated concretely.
+2. **Hypothesis audit** — necessity, minimality, sufficiency against every
+   `fail`/`div` point, downstream breakage; with no statement change, audit
+   the ORIGINAL hypotheses and whether the theorem could be stated stronger.
+3. **Empirical cross-check** — `#eval` both sides on concrete inputs, from
+   degenerate through the domain's edge behavior; disagreement is critical.
+4. **Proof integrity** — build, axiom closures, hidden escapes, composition
+   seams, loop measures.
+The template's lens prompts carry the full per-lens instructions; keep them in
+sync with the target domain (name its edge behaviors in the empirical lens).
 
 Triage yourself: **fix critical and major findings before reporting.** A known
 major pattern: a new precondition without a matching postcondition breaks
@@ -329,8 +314,14 @@ line). Complete sentences — the reader did not watch the run.
 - Pointwise-update invariants: characterize the whole updated abstraction once
   (`have : ∀ k, coeff (set …) k = if k = idx then new else old k`) via
   `List.getElem_set` + in/out-of-range coefficient lemmas, then case-split.
-- `rw` fails on `l[i]` under a list equality (dependent motive) — use a
-  `getElem_of_list_eq`-style helper if the file has one.
+- `rw` fails under dependent motives: on `l[i]` beneath a list equality (use a
+  `getElem_of_list_eq`-style helper if the file has one), and on goals whose
+  `⟨t, ht⟩ : Fin n` proof term mentions the rewritten index — there `subst` the
+  index equality, aim `conv_lhs => rw [← hlen]` at one side, and let proof
+  irrelevance close residual `Fin.mk` mismatches via plain `exact`.
+- `step as ⟨…⟩` on the FINAL bind also consumes a trailing `ok`, leaving the
+  pure postcondition as the goal; only step-less positions (the loop exit
+  branch) need `rw [if_neg h, WP.spec_ok]`.
 - Nat subtraction truncates: guard convolution-style sums with `if i ≤ k` and
   reach for `omega` on every side condition.
 - Scalar types carry their range in the type: `n.val ≤ Usize.max` is free,

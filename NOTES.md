@@ -1186,3 +1186,126 @@ ArkLib specification, and the optimization loop's ledger is still empty — no
 measurement-grade bench run has happened on this host (§ "The 5% accept floor is
 borrowed"). `Rq::mul` remains the hot path, and § "Deliberately not done" records
 why the transform everyone reaches for does not exist at this modulus.
+
+---
+
+## Three mirrored operations were never stated, and the coverage gate cannot see it
+
+**Finding, and a gap in a gate rather than in a proof.** § "The scheme layer is
+proved, and checked" says nothing is left stated-but-unproved. That was true of
+everything that had been *stated*. Three public functions of `hachi/src` carry a
+``Mirrors `<ArkLib name>` `` docstring, are extracted into `Generated.lean`, are
+benchmarked — and had no equivalence statement anywhere:
+
+| Rust | mirrors | why it matters |
+|---|---|---|
+| `commit::verify` | `InnerOuter.commitmentScheme.verify` | the scheme's full verifier; `honest_verifies` reaches only `verify_weak` |
+| `gadget::gadget_matrix` | `gadgetMatrix` | `gadget_mul_spec` can hold while the materialized `G` is transposed |
+| `gadget::digit_decompose` | `zmodDigitDecomposition.digit`, at every `e` | `digit_at_spec` can hold while the digit *order* is reversed |
+
+**The gate that should have caught it, doesn't.** `make bench-check`'s
+`coverage --strict` requires every mirrored item to be benched or excluded by name
+with a reason — and that is all it requires. Nothing requires a mirrored item to be
+*specified*. So "40 `Mirrors` markers, 58 audited specs" looks like comfortable
+surplus and is not a comparison of the two sets at all. The asymmetry is worth
+closing in `harness.py`: the same scan that proves an item is benched can prove a
+`_spec` mentioning it exists, and until it does, "mirrored" and "specified" have to
+be reconciled by hand.
+
+The seven statements (three headline, four loop specs) are staged in
+`hachi/lean-wip/SchemeGaps.lean`, typechecked with zero errors, and promote into
+`lean/Scheme.lean`.
+
+**`verify_spec` cannot name the bundled scheme, and the reason is an instance.**
+ArkLib's verifier is a structure *field* — `InnerOuter.commitmentScheme`'s
+`verify` — and `commitmentScheme` carries two `SampleableType` instance arguments
+that its `setup` field needs and its `verify` field does not. `SampleableType β`
+demands a `ProbComp β` that is uniform with full support, i.e. a uniform sampler
+over a matrix of `Rq Φ`, and neither ArkLib nor CompPoly has one at these types
+(the elaborator: `failed to synthesize SampleableType (Simple.PublicParams Φ
+?rows (?cols * 32))`).
+
+Taking the two as hypotheses would have been the wrong repair, and it is worth
+naming why, because it looks harmless: an instance argument nobody can supply makes
+the theorem **vacuously** true, and it would then print a clean
+`[propext, Classical.choice, Quot.sound]` line in `Check.lean` § 4 while claiming
+nothing. That is exactly the failure § 1–§ 3 of that file exist to catch, arriving
+by a route none of them watches.
+
+So `verify_spec` states the `verify` field's own body at this crate's parameters,
+naming `InnerOuter.derivedMessage` and `InnerOuter.verify_weak` in the field's own
+`List.finRange` / `decide` / `&&` shape. **The cost, recorded because it is a real
+one:** alone among the headline specs, this statement does not move automatically
+if ArkLib restructures `commitmentScheme.verify` — the type error that would catch
+a mistranslation elsewhere will not fire here. An ArkLib bump wants this theorem
+re-read by hand. It becomes the bundled form, by `rfl`, the moment those instances
+exist.
+
+**`hm.1` is load-bearing, not defensive.** `verify_spec` hypothesizes
+`m.val.length = 2`, and without it the equality of decisions is *false* rather than
+merely unprovable: the specification's message is `Fin 2`-indexed, so a shorter `m`
+is represented with zero-padded blocks, and the specification can then accept a
+message the extracted verifier rejects on its length test. The other four
+hypotheses (`hpp`, `hu`, `hoc`, `ho`) are `verify_weak_spec`'s, inherited
+unconditionally: the extracted body calls `verify_weak` on *both* branches of the
+length test, because the Rust sets `ok = false` and falls through rather than
+returning early.
+
+---
+
+## The three gap statements are proved, and two of their recorded rationales were wrong
+
+**Status entry, extending § "Three mirrored operations were never stated".** The
+seven statements staged in `hachi/lean-wip/SchemeGaps.lean` are now proved: zero
+errors, zero `sorry` warnings under `lake env lean`, and every theorem's axiom
+closure is `[propext, Classical.choice, Quot.sound]`. An eighth theorem was added,
+`honest_verifies_full`: perfect correctness restated at `commit::verify` itself —
+the derived-message check included — closing the observation that
+`honest_verifies` reaches only `verify_weak`. The file awaits promotion
+(steps 2–5 of `lean-wip/README.md`).
+
+An adversarial audit (four lenses plus a critic, each backing claims with
+compiled scratch files) found no defect in any proof or statement, and two
+defects in the *prose* this log had recorded about them:
+
+* **The vacuity rationale for `verify_spec`'s unbundled right-hand side was
+  false.** § "Three mirrored operations…" says instance binders nobody can supply
+  would make the theorem "vacuously true… while claiming nothing". The critic
+  refuted this by compiling the bundled-form statement under the two
+  `SampleableType` binders and discharging it with `verify_spec`'s own proof
+  term: the `verify` field never mentions the instances, so the binder form is
+  the *same* claim, true and clean-axiomed. The real cost of the binder form is
+  different and remains decisive: no instance exists, so no caller could ever
+  eliminate the theorem — unusable, not vacuous. The unbundled statement stands;
+  the reason in `SchemeGaps.lean`'s docstring is corrected.
+* **The hypothesis accounting undersold two load-bearing hypotheses.** The same
+  section credits only `hm.1` as load-bearing for the truth of the equality of
+  decisions. The audit exhibited falsifying witnesses for `hm.2` (a block of the
+  wrong inner width flips the extracted `equals` while `toVec (k := 4)` cannot
+  see the discrepancy) and `hu` (a lengthened `u` flips `verify_weak`'s outer
+  comparison while `toVec (k := 2) u` is unchanged). All three share one
+  mechanism — `Fin`-indexed representation functions are blind to carrier-length
+  deviations the extracted length tests reject — now recorded in the file's
+  section note.
+
+**To revisit:** promotion moves the three headline specs (and
+`honest_verifies_full`) into `Check.lean` § 4; the four loop lemmas stay out of
+§ 4, which has never audited loop specs.
+
+---
+
+## The gap statements are promoted
+
+**Status entry, closing § "The three gap statements are proved".**
+`lean-wip/SchemeGaps.lean` is gone: its eight theorems now live in
+`lean/Scheme.lean` beside their siblings — the `digit_decompose` pair after
+`digit_at_spec`, the `gadget_matrix` trio after `gadget_entry_spec`, and the
+`verify` pair plus `honest_verifies_full` after `honest_verifies` — each with
+its section note, the bundled-scheme rationale included. `Check.lean` § 4 gained
+four `#print axioms` lines (`digit_decompose_spec`, `gadget_matrix_spec`,
+`verify_spec`, `honest_verifies_full`; the four loop lemmas stay out of § 4 per
+its headline-only rule), bringing the audited count to sixty-two, and its
+summary line is now `honest_verifies_full`: perfect correctness at
+`commit::verify` itself. `make build` passes — no errors, no `sorry` — so all
+eight are enforced from here on. `lean-wip/` is empty again, and its README and
+the root README are updated to match.

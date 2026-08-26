@@ -1,12 +1,14 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
 **Currently empty.** Everything that passed through here has been promoted: the
-representation bridge (`lean/RqBridge.lean`) and the scheme layer
-(`lean/Scheme.lean`). The audited library now covers the base field, both levels of
-the ring, and `linalg`/`gadget`/`commit` up to `honest_verifies` — perfect
-correctness of the extracted scheme. `lean/Check.lean` § 4 prints the axiom
-dependencies of all fifty-eight headline specs, and they come out as the three Lean
-kernel axioms and nothing else.
+representation bridge (`lean/RqBridge.lean`), the scheme layer
+(`lean/Scheme.lean`), and the scheme-gap statements (`SchemeGaps.lean`, folded
+into `lean/Scheme.lean` beside their siblings). The audited library now covers
+the base field, both levels of the ring, and `linalg`/`gadget`/`commit` up to
+`honest_verifies_full` — perfect correctness of the extracted scheme at its
+top-level API, `commit::verify` itself. `lean/Check.lean` § 4 prints the axiom
+dependencies of all sixty-two headline specs, and they come out as the three
+Lean kernel axioms and nothing else.
 
 The directory stays because the distinction it exists for still matters, and the
 next operation to be specified will want it.

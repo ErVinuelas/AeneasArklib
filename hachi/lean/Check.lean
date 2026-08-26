@@ -307,8 +307,9 @@ the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 What is here is now everything: the base field (`lean/Field.lean`), the whole
 coefficient level of the ring (`lean/Ring.lean`) -- all thirteen operations -- those
 thirteen lifted to ArkLib's `Rq Φ` (`lean/RqBridge.lean`), and `linalg`, `gadget` and
-`commit` (`lean/Scheme.lean`), ending at `honest_verifies`: an honest commitment and
-its honest opening verify. Nothing is left stated-but-unproved, so there is no
+`commit` (`lean/Scheme.lean`), ending at `honest_verifies_full`: an honest commitment
+and its honest opening pass `commit::verify` itself, the crate's top-level API,
+derived-message check included. Nothing is left stated-but-unproved, so there is no
 counterpart list of absences to keep here. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
@@ -371,12 +372,18 @@ counterpart list of absences to keep here. -/
 #print axioms HachiEquiv.Scheme.flatten_blocks_spec
 #print axioms HachiEquiv.Scheme.poly_vec_equals_spec
 
--- The gadget (`lean/Scheme.lean`): digit extraction, the base powers, the gadget
--- matrix entries, and the two directions of the decomposition. `base_pow_spec` is
--- the one that says the exponentiation happens in `ZMod q` and not in `u64`.
+-- The gadget (`lean/Scheme.lean`): digit extraction (per position and as the
+-- full 32-digit vector), the base powers, the gadget matrix (entrywise and
+-- materialized), and the two directions of the decomposition. `base_pow_spec` is
+-- the one that says the exponentiation happens in `ZMod q` and not in `u64`;
+-- `digit_decompose_spec` is the one that pins the digit *order* (slot `e` is
+-- digit `e`, least-significant first), and `gadget_matrix_spec` the tensor
+-- layout of the materialized `G`, which `gadget_mul_spec` alone cannot see.
 #print axioms HachiEquiv.Scheme.digit_at_spec
+#print axioms HachiEquiv.Scheme.digit_decompose_spec
 #print axioms HachiEquiv.Scheme.base_pow_spec
 #print axioms HachiEquiv.Scheme.gadget_entry_spec
+#print axioms HachiEquiv.Scheme.gadget_matrix_spec
 #print axioms HachiEquiv.Scheme.gadget_mul_spec
 #print axioms HachiEquiv.Scheme.gadget_decompose_spec
 
@@ -407,12 +414,16 @@ counterpart list of absences to keep here. -/
 #print axioms HachiEquiv.Scheme.derived_message_spec
 #print axioms HachiEquiv.Scheme.commit_with_decomps_spec
 #print axioms HachiEquiv.Scheme.verify_weak_spec
+#print axioms HachiEquiv.Scheme.verify_spec
 #print axioms HachiEquiv.Scheme.commit_spec
 #print axioms HachiEquiv.Scheme.honest_spec
 
--- Perfect correctness of the extracted scheme: an honest commitment and its honest
--- opening verify. The top of the composition -- it reaches every line above -- so
--- this is the single line whose axiom set summarises the whole development.
+-- Perfect correctness of the extracted scheme, twice over: `honest_verifies`
+-- through the weak verifier, and `honest_verifies_full` through `commit::verify`
+-- itself -- the crate's top-level API, derived-message check included. The
+-- latter is the top of the composition -- it reaches every line above -- so it
+-- is the single line whose axiom set summarises the whole development.
 #print axioms HachiEquiv.Scheme.honest_verifies
+#print axioms HachiEquiv.Scheme.honest_verifies_full
 
 end HachiEquiv.Check

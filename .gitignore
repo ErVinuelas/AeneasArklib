@@ -36,6 +36,13 @@
 # nothing but a re-run of `make setup`, which re-checks rather than re-downloads.
 /.make/
 
+# Per-session working copies downloaded from the Aristotle proof service:
+# baseline/pre-incorporation snapshots plus the returned result tree. Anything
+# worth keeping from a session is integrated into the tracked Lean files at
+# check time, and the session itself is recorded in logs/aristotle-sessions.jsonl,
+# so these gigabyte-scale trees are pure scratch.
+/.aristotle-artifacts/
+
 # Rust build tree. Also where criterion writes, under hachi/target/criterion.
 target/
 
