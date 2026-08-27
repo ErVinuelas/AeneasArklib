@@ -3,6 +3,7 @@ import Field
 import Ring
 import RqBridge
 import Scheme
+import EvalSplit
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 
 /-!
@@ -35,10 +36,11 @@ What it audits, in four sections:
 
 § 4 now covers the whole development: the base-field specs (`lean/Field.lean`), the
 coefficient-level ring specs (`lean/Ring.lean`), their lifts to ArkLib's `Rq Φ`
-(`lean/RqBridge.lean`), and the `linalg`, `gadget` and `commit` layers
-(`lean/Scheme.lean`) up to perfect correctness of the extracted scheme. Every one is
-proved, so `lean-wip/` is empty; the procedure for promoting a file into here, should
-a later one land there first, is in `lean-wip/README.md`.
+(`lean/RqBridge.lean`), the `linalg`, `gadget` and `commit` layers
+(`lean/Scheme.lean`) up to perfect correctness of the extracted scheme, and the
+multilinear evaluation layer (`lean/EvalSplit.lean`). Every one is proved, so
+`lean-wip/` is empty; the procedure for promoting a file into here, should a later
+one land there first, is in `lean-wip/README.md`.
 -/
 
 -- Off, and load-bearing for an audit file specifically. With `autoImplicit` on (the
@@ -351,11 +353,13 @@ the three Lean kernel axioms and nothing else: `propext`, `Classical.choice`,
 
 What is here is now everything: the base field (`lean/Field.lean`), the whole
 coefficient level of the ring (`lean/Ring.lean`) -- all thirteen operations -- those
-thirteen lifted to ArkLib's `Rq Φ` (`lean/RqBridge.lean`), and `linalg`, `gadget` and
+thirteen lifted to ArkLib's `Rq Φ` (`lean/RqBridge.lean`), `linalg`, `gadget` and
 `commit` (`lean/Scheme.lean`), ending at `honest_verifies_full`: an honest commitment
 and its honest opening pass `commit::verify` itself, the crate's top-level API,
-derived-message check included. Nothing is left stated-but-unproved, so there is no
-counterpart list of absences to keep here. -/
+derived-message check included -- and the multilinear evaluation layer
+(`lean/EvalSplit.lean`), the `evalsplit` module and `linalg::split_form` against
+ArkLib's `Hachi.evalSplit`/`evalSplitEval`. Nothing is left stated-but-unproved, so
+there is no counterpart list of absences to keep here. -/
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
@@ -470,5 +474,28 @@ counterpart list of absences to keep here. -/
 -- is the single line whose axiom set summarises the whole development.
 #print axioms HachiEquiv.Scheme.honest_verifies
 #print axioms HachiEquiv.Scheme.honest_verifies_full
+
+-- The multilinear evaluation layer (`lean/EvalSplit.lean`): the `evalsplit`
+-- module and `linalg::split_form`, against ArkLib's split-evaluation definitions
+-- at the crate's `nl = 1, nh = 2`. The index helpers are stated against
+-- `Nat.testBit` and `Hachi.splitEquiv` (both directions), the bases against
+-- `CMlPolynomial.monomialBasis` / `CMlPolynomialEval.lagrangeBasis`, the
+-- reshapes against `Hachi.toMatrix`/`toPolynomial`/`toMatrixEval`, and the two
+-- headline evaluations against `Hachi.evalSplit`/`evalSplitEval` -- which carry
+-- the `CMlPolynomial.eval` reading through ArkLib's own `evalSplit_eq_eval`.
+-- `two_pow_spec` (and everything stated through it) carries the one
+-- model-artefact hypothesis `2 ^ n ≤ Usize.max`; the rest are exact.
+#print axioms HachiEquiv.EvalSplit.two_pow_spec
+#print axioms HachiEquiv.EvalSplit.test_bit_spec
+#print axioms HachiEquiv.EvalSplit.split_equiv_spec
+#print axioms HachiEquiv.EvalSplit.split_equiv_inv_spec
+#print axioms HachiEquiv.EvalSplit.monomial_basis_spec
+#print axioms HachiEquiv.EvalSplit.lagrange_basis_spec
+#print axioms HachiEquiv.EvalSplit.split_form_spec
+#print axioms HachiEquiv.EvalSplit.to_matrix_spec
+#print axioms HachiEquiv.EvalSplit.to_polynomial_spec
+#print axioms HachiEquiv.EvalSplit.to_matrix_eval_spec
+#print axioms HachiEquiv.EvalSplit.eval_split_spec
+#print axioms HachiEquiv.EvalSplit.eval_split_eval_spec
 
 end HachiEquiv.Check

@@ -67,7 +67,7 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all sixty-two proved specs: the three Lean kernel axioms, nothing else.
+> of all seventy-four proved specs: the three Lean kernel axioms, nothing else.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is empty, and its [README](hachi/lean-wip/README.md) holds the procedure
 > for promoting the next file that lands there. [`NOTES.md`](NOTES.md)

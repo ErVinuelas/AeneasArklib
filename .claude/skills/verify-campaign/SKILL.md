@@ -58,9 +58,11 @@ those files.
 Untraveled repository: no campaign has run here, and `logs/ledger.jsonl` is
 empty. **There is no standing proof debt.** `hachi/lean-wip/` is empty and the
 audited library covers every layer that exists — `hachi/lean/Field.lean`,
-`Ring.lean`, `RqBridge.lean` and `Scheme.lean` (`linalg` / `gadget` / `commit`),
-fifty-eight headline specs, axioms exactly the three kernel ones, ending at
-`Scheme.honest_verifies`: perfect correctness of the extracted scheme.
+`Ring.lean`, `RqBridge.lean`, `Scheme.lean` (`linalg` / `gadget` / `commit`) and
+`EvalSplit.lean` (the multilinear evaluation layer), seventy-four headline
+specs, axioms exactly the three kernel ones, ending at
+`Scheme.honest_verifies_full`: perfect correctness of the extracted scheme at
+`commit::verify` itself.
 
 So a campaign here is triggered by *change*, not by backlog: an accepted champion
 whose Rust moved, or a regenerated `Generated.lean` that broke the specs standing

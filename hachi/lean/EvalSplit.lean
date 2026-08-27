@@ -1,10 +1,12 @@
 /-
 # Equivalence statements for `hachi/src/evalsplit.rs` (and `linalg::split_form`)
 
-**All statements are now proved.** This file typechecks against the
-pinned ArkLib specification, which is the claim staging here makes (see
-`lean-wip/README.md`): each statement is well-formed at this crate's parameters
-and about the specification's own definitions.
+**All statements are proved.** Staged in `lean-wip/` as statements-only during
+the EvalSplit onboarding, proved by Aristotle (session `cc7674ce`, see
+`logs/aristotle-sessions.jsonl`), and promoted here: each statement is
+well-formed at this crate's parameters, about the specification's own
+definitions, and now carries its proof. `lean/Check.lean` § 4 audits the axiom
+dependencies of the twelve headline specs.
 
 The vocabulary is `lean/Scheme.lean`'s (`Wf`/`WfVec`/`WfMat`, `toRq`/`toVec`/
 `toMat`), extended with the two `Vector`-valued representation maps the
