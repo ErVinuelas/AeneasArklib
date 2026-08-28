@@ -2,21 +2,23 @@
 //!
 //! Reference specification: `ArkLib/Data/Lattices/Vectors.lean`.
 //!
-//! # Only what the two consumers use
+//! # Only what the consumers use
 //!
-//! `Vectors.lean` is larger than this module. It also carries `matMul`,
-//! `splitForm` and the transpose/composition lemmas around them, which exist for
-//! the evaluation argument -- moving a gadget factor between the witness and the
-//! basis side of `uᵀ M v` (Hachi [NOZ26] eq. 12 → 15). That is the protocol
-//! layer, which is out of scope here, and every one of those operations would be
-//! dead code with an equivalence proof attached. What is below is exactly the
-//! surface `Gadget/Core.lean` and `InnerOuter/Scheme.lean` reach for:
+//! `Vectors.lean` is larger than this module. It also carries `matMul` and the
+//! transpose/composition lemmas, which exist for moving a gadget factor between
+//! the witness and the basis side of `uᵀ M v` (Hachi [NOZ26] eq. 12 → 15).
+//! Those are still out of scope: every one would be dead code with an
+//! equivalence proof attached. `splitForm` itself *was* in that list until the
+//! evaluation split ([`crate::evalsplit`]) arrived as a consumer; it is below
+//! now. What is here is exactly the surface `Gadget/Core.lean`,
+//! `InnerOuter/Scheme.lean` and `Hachi/EvalSplit.lean` reach for:
 //!
 //! | spec | here |
 //! |---|---|
 //! | `dot` (`Vectors.lean:77`) | [`PolyVec::dot`] |
 //! | `matVecMul` (`:81`) | [`PolyMatrix::mat_vec_mul`] |
 //! | `scalarVecMul` (`:91`) | [`PolyVec::scalar_mul`] |
+//! | `splitForm` (`:178`) | [`PolyMatrix::split_form`] |
 //! | `PolyVec.flattenBlocks` (`:49`) | [`flatten_blocks`] |
 //! | `Pi` add / sub | [`PolyVec::add`] / [`PolyVec::sub`] |
 //!
@@ -45,13 +47,18 @@ use alloc::vec::Vec;
 
 use crate::ring::Rq;
 
-// @genesis d664190 2026-08-19 — linalg::PolyVec
 /// A vector over `R_q` (spec: `PolyVec (Rq Φ) k`, `Vectors.lean:39`).
+///
+/// Mirrors ArkLib's `PolyVec (Rq Φ) k`; the spec carries the length `k` in the
+/// type and this carries it in the `Vec`, which is the container difference the
+/// module header describes.
 pub struct PolyVec(Vec<Rq>);
 
-// @genesis d664190 2026-08-19 — linalg::PolyMatrix
 /// A matrix over `R_q`, as its rows (spec: `PolyMatrix (Rq Φ) rows cols`,
 /// `Vectors.lean:42`).
+///
+/// Mirrors ArkLib's `PolyMatrix (Rq Φ) rows cols`, which is Mathlib's `Matrix`
+/// over `Fin rows` and `Fin cols`; here it is the list of rows.
 ///
 /// Every row is expected to have the same length; that is the matrix's column
 /// count, and like the ring's degree invariant it is a property of construction
@@ -59,13 +66,11 @@ pub struct PolyVec(Vec<Rq>);
 pub struct PolyMatrix(Vec<PolyVec>);
 
 impl PolyVec {
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::new
     /// Wrap a vector of ring elements.
     pub fn new(entries: Vec<Rq>) -> PolyVec {
         PolyVec(entries)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::zeros
     /// The all-zero vector of the given length.
     pub fn zeros(k: usize) -> PolyVec {
         let mut out: Vec<Rq> = Vec::new();
@@ -77,19 +82,16 @@ impl PolyVec {
         PolyVec(out)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::len
     /// The number of entries.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::get
     /// The `i`-th entry.
     pub fn get(&self, i: usize) -> &Rq {
         &self.0[i]
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::copy
     /// An independent copy (hand-rolled; see [`Rq::copy`]).
     pub fn copy(&self) -> PolyVec {
         let n: usize = self.0.len();
@@ -102,7 +104,6 @@ impl PolyVec {
         PolyVec(out)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::equals
     /// Entrywise equality.
     ///
     /// This is what `Simple.verify` decides (`Ajtai/Simple/Scheme.lean:46`,
@@ -124,9 +125,11 @@ impl PolyVec {
         }
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::add
     /// Entrywise addition (spec: the `Pi` instance, used through
     /// `matVecMul_add` and the norm-difference lemmas).
+    ///
+    /// Mirrors ArkLib's `Pi` addition on `PolyVec (Rq Φ) k` -- the canonical
+    /// instance set `Vectors.lean` adopts rather than defining its own.
     pub fn add(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -138,9 +141,10 @@ impl PolyVec {
         PolyVec(out)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::sub
     /// Entrywise subtraction (spec: the `Pi` instance; this is the vector whose
     /// norm `sub_l2NormSq_le` bounds).
+    ///
+    /// Mirrors ArkLib's `Pi` subtraction on `PolyVec (Rq Φ) k`.
     pub fn sub(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
         let mut out: Vec<Rq> = Vec::new();
@@ -152,9 +156,10 @@ impl PolyVec {
         PolyVec(out)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::scalar_mul
     /// Left scalar multiplication by a ring element (spec: `scalarVecMul`,
     /// `Vectors.lean:91`).
+    ///
+    /// Mirrors ArkLib's `scalarVecMul`.
     ///
     /// This is the `cᵢ •ᵥ sᵢ` of the weak verifier's shortness check.
     pub fn scalar_mul(&self, c: &Rq) -> PolyVec {
@@ -168,8 +173,9 @@ impl PolyVec {
         PolyVec(out)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyVec::dot
     /// The dot product `Σᵢ uᵢ · vᵢ` (spec: `dot`, `Vectors.lean:77`).
+    ///
+    /// Mirrors ArkLib's `dot`.
     ///
     /// The spec sums a `List` (so, right-nested: `x₀ + (x₁ + (… + 0))`) while
     /// this accumulates left. `R_q` is commutative and associative, so the two
@@ -197,19 +203,16 @@ impl PolyVec {
 }
 
 impl PolyMatrix {
-    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::new
     /// Wrap a list of rows.
     pub fn new(rows: Vec<PolyVec>) -> PolyMatrix {
         PolyMatrix(rows)
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::rows
     /// The number of rows.
     pub fn rows(&self) -> usize {
         self.0.len()
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::cols
     /// The number of columns: the length of row `0`, and `0` for a matrix with
     /// no rows.
     pub fn cols(&self) -> usize {
@@ -220,15 +223,15 @@ impl PolyMatrix {
         }
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::row
     /// The `i`-th row.
     pub fn row(&self, i: usize) -> &PolyVec {
         &self.0[i]
     }
 
-    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::mat_vec_mul
     /// The matrix-vector product `A *ᵥ v` (spec: `matVecMul`,
     /// `Vectors.lean:81`), each entry the dot product of a row with `v`.
+    ///
+    /// Mirrors ArkLib's `matVecMul`.
     ///
     /// This is the Ajtai commitment itself: `Simple.commit Φ A s = A *ᵥ s`
     /// (`Ajtai/Simple/Scheme.lean:38`).
@@ -242,7 +245,7 @@ impl PolyMatrix {
         }
         PolyVec(out)
     }
-    // @genesis afa0140 2026-08-26 — linalg::PolyMatrix::split_form
+
     /// The split bilinear form `⟨u, M *ᵥ v⟩ = uᵀ M v` (spec: `splitForm`,
     /// `Vectors.lean:178`).
     ///
@@ -258,9 +261,10 @@ impl PolyMatrix {
     }
 }
 
-// @genesis d664190 2026-08-19 — linalg::flatten_blocks
 /// Flatten equal-width blocks into one vector, in block order (spec:
 /// `PolyVec.flattenBlocks`, `Vectors.lean:49`).
+///
+/// Mirrors ArkLib's `PolyVec.flattenBlocks`.
 ///
 /// Entry `width·i + w` of the result is entry `w` of block `i`, which is what
 /// `flattenBlocks xs (finProdFinEquiv (i, w)) = xs i w` says once

@@ -111,7 +111,7 @@ def cpoly.field.Fp.Insts.CoreOpsArithNegFp.neg
   ok i1
 
 /-- [hachi::params::Q]
-    Source: 'src/params.rs', lines 30:0-30:33
+    Source: 'src/params.rs', lines 51:0-51:33
     Visibility: public -/
 @[global_simps, irreducible] def params.Q : Std.U64 := 4294967197#u64
 
@@ -144,12 +144,12 @@ def ring.Rq.coeff
   else ok cpoly.field.Fp.ZERO
 
 /-- [hachi::params::RING_DEGREE]
-    Source: 'src/params.rs', lines 67:0-67:34
+    Source: 'src/params.rs', lines 88:0-88:36
     Visibility: public -/
-@[global_simps, irreducible] def params.RING_DEGREE : Std.Usize := 64#usize
+@[global_simps, irreducible] def params.RING_DEGREE : Std.Usize := 1024#usize
 
 /-- [hachi::commit::l1_norm]: loop body 0:
-    Source: 'src/commit.rs', lines 100:4-103:5
+    Source: 'src/commit.rs', lines 101:4-104:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.l1_norm_loop.body
@@ -166,7 +166,7 @@ def commit.l1_norm_loop.body
   else ok (done acc)
 
 /-- [hachi::commit::l1_norm]: loop 0:
-    Source: 'src/commit.rs', lines 100:4-103:5
+    Source: 'src/commit.rs', lines 101:4-104:5
     Visibility: public -/
 @[rust_loop]
 def commit.l1_norm_loop
@@ -178,14 +178,14 @@ def commit.l1_norm_loop
     (acc, k)
 
 /-- [hachi::commit::l1_norm]:
-    Source: 'src/commit.rs', lines 96:0-105:1
+    Source: 'src/commit.rs', lines 97:0-106:1
     Visibility: public -/
 @[reducible]
 def commit.l1_norm (a : ring.Rq) : Result Std.U64 := do
   commit.l1_norm_loop a params.RING_DEGREE 0#u64 0#usize
 
 /-- [hachi::commit::l_infty_norm]: loop body 0:
-    Source: 'src/commit.rs', lines 118:4-124:5
+    Source: 'src/commit.rs', lines 119:4-125:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.l_infty_norm_loop.body
@@ -204,7 +204,7 @@ def commit.l_infty_norm_loop.body
   else ok (done best)
 
 /-- [hachi::commit::l_infty_norm]: loop 0:
-    Source: 'src/commit.rs', lines 118:4-124:5
+    Source: 'src/commit.rs', lines 119:4-125:5
     Visibility: public -/
 @[rust_loop]
 def commit.l_infty_norm_loop
@@ -216,14 +216,14 @@ def commit.l_infty_norm_loop
     (best, k)
 
 /-- [hachi::commit::l_infty_norm]:
-    Source: 'src/commit.rs', lines 114:0-126:1
+    Source: 'src/commit.rs', lines 115:0-127:1
     Visibility: public -/
 @[reducible]
 def commit.l_infty_norm (a : ring.Rq) : Result Std.U64 := do
   commit.l_infty_norm_loop a params.RING_DEGREE 0#u64 0#usize
 
 /-- [hachi::commit::l2_norm_sq]: loop body 0:
-    Source: 'src/commit.rs', lines 145:4-149:5
+    Source: 'src/commit.rs', lines 147:4-151:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.l2_norm_sq_loop.body
@@ -242,7 +242,7 @@ def commit.l2_norm_sq_loop.body
   else ok (done acc)
 
 /-- [hachi::commit::l2_norm_sq]: loop 0:
-    Source: 'src/commit.rs', lines 145:4-149:5
+    Source: 'src/commit.rs', lines 147:4-151:5
     Visibility: public -/
 @[rust_loop]
 def commit.l2_norm_sq_loop
@@ -254,7 +254,7 @@ def commit.l2_norm_sq_loop
     (acc, k)
 
 /-- [hachi::commit::l2_norm_sq]:
-    Source: 'src/commit.rs', lines 141:0-151:1
+    Source: 'src/commit.rs', lines 143:0-153:1
     Visibility: public -/
 @[reducible]
 def commit.l2_norm_sq (a : ring.Rq) : Result Std.U128 := do
@@ -280,7 +280,7 @@ def linalg.PolyVec.len (self : linalg.PolyVec) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::commit::vec_l2_norm_sq]: loop body 0:
-    Source: 'src/commit.rs', lines 161:4-164:5
+    Source: 'src/commit.rs', lines 163:4-166:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.vec_l2_norm_sq_loop.body
@@ -297,7 +297,7 @@ def commit.vec_l2_norm_sq_loop.body
   else ok (done acc)
 
 /-- [hachi::commit::vec_l2_norm_sq]: loop 0:
-    Source: 'src/commit.rs', lines 161:4-164:5
+    Source: 'src/commit.rs', lines 163:4-166:5
     Visibility: public -/
 @[rust_loop]
 def commit.vec_l2_norm_sq_loop
@@ -309,14 +309,14 @@ def commit.vec_l2_norm_sq_loop
     (acc, i)
 
 /-- [hachi::commit::vec_l2_norm_sq]:
-    Source: 'src/commit.rs', lines 157:0-166:1
+    Source: 'src/commit.rs', lines 159:0-168:1
     Visibility: public -/
 def commit.vec_l2_norm_sq (v : linalg.PolyVec) : Result Std.U128 := do
   let n ← linalg.PolyVec.len v
   commit.vec_l2_norm_sq_loop v n 0#u128 0#usize
 
 /-- [hachi::commit::vec_l_infty_norm]: loop body 0:
-    Source: 'src/commit.rs', lines 176:4-182:5
+    Source: 'src/commit.rs', lines 178:4-184:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.vec_l_infty_norm_loop.body
@@ -335,7 +335,7 @@ def commit.vec_l_infty_norm_loop.body
   else ok (done best)
 
 /-- [hachi::commit::vec_l_infty_norm]: loop 0:
-    Source: 'src/commit.rs', lines 176:4-182:5
+    Source: 'src/commit.rs', lines 178:4-184:5
     Visibility: public -/
 @[rust_loop]
 def commit.vec_l_infty_norm_loop
@@ -347,7 +347,7 @@ def commit.vec_l_infty_norm_loop
     (best, i)
 
 /-- [hachi::commit::vec_l_infty_norm]:
-    Source: 'src/commit.rs', lines 172:0-184:1
+    Source: 'src/commit.rs', lines 174:0-186:1
     Visibility: public -/
 def commit.vec_l_infty_norm (v : linalg.PolyVec) : Result Std.U64 := do
   let n ← linalg.PolyVec.len v
@@ -360,14 +360,14 @@ def commit.vec_l_infty_norm (v : linalg.PolyVec) : Result Std.U64 := do
 def linalg.PolyMatrix := alloc.vec.Vec linalg.PolyVec
 
 /-- [hachi::commit::PublicParams]
-    Source: 'src/commit.rs', lines 198:0-201:1
+    Source: 'src/commit.rs', lines 200:0-203:1
     Visibility: public -/
 structure commit.PublicParams where
   inner_matrix : linalg.PolyMatrix
   outer_matrix : linalg.PolyMatrix
 
 /-- [hachi::commit::{hachi::commit::PublicParams}::new]:
-    Source: 'src/commit.rs', lines 205:4-210:5
+    Source: 'src/commit.rs', lines 207:4-212:5
     Visibility: public -/
 def commit.PublicParams.new
   (inner_matrix : linalg.PolyMatrix) (outer_matrix : linalg.PolyMatrix) :
@@ -376,28 +376,28 @@ def commit.PublicParams.new
   ok { inner_matrix, outer_matrix }
 
 /-- [hachi::commit::{hachi::commit::PublicParams}::inner_matrix]:
-    Source: 'src/commit.rs', lines 213:4-215:5
+    Source: 'src/commit.rs', lines 215:4-217:5
     Visibility: public -/
 def commit.PublicParams.impl.inner_matrix
   (self : commit.PublicParams) : Result linalg.PolyMatrix := do
   ok self.inner_matrix
 
 /-- [hachi::commit::{hachi::commit::PublicParams}::outer_matrix]:
-    Source: 'src/commit.rs', lines 218:4-220:5
+    Source: 'src/commit.rs', lines 220:4-222:5
     Visibility: public -/
 def commit.PublicParams.impl.outer_matrix
   (self : commit.PublicParams) : Result linalg.PolyMatrix := do
   ok self.outer_matrix
 
 /-- [hachi::commit::Decomp]
-    Source: 'src/commit.rs', lines 227:0-230:1
+    Source: 'src/commit.rs', lines 229:0-232:1
     Visibility: public -/
 structure commit.Decomp where
   message : alloc.vec.Vec linalg.PolyVec
   inner_decomp : alloc.vec.Vec linalg.PolyVec
 
 /-- [hachi::commit::{hachi::commit::Decomp}::new]:
-    Source: 'src/commit.rs', lines 234:4-239:5
+    Source: 'src/commit.rs', lines 236:4-241:5
     Visibility: public -/
 def commit.Decomp.new
   (message : alloc.vec.Vec linalg.PolyVec)
@@ -407,13 +407,13 @@ def commit.Decomp.new
   ok { message, inner_decomp }
 
 /-- [hachi::commit::{hachi::commit::Decomp}::blocks]:
-    Source: 'src/commit.rs', lines 242:4-244:5
+    Source: 'src/commit.rs', lines 244:4-246:5
     Visibility: public -/
 def commit.Decomp.blocks (self : commit.Decomp) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self.message)
 
 /-- [hachi::commit::{hachi::commit::Decomp}::message]:
-    Source: 'src/commit.rs', lines 247:4-249:5
+    Source: 'src/commit.rs', lines 249:4-251:5
     Visibility: public -/
 def commit.Decomp.impl.message
   (self : commit.Decomp) (i : Std.Usize) : Result linalg.PolyVec := do
@@ -421,7 +421,7 @@ def commit.Decomp.impl.message
     self.message i
 
 /-- [hachi::commit::{hachi::commit::Decomp}::inner_decomp]:
-    Source: 'src/commit.rs', lines 252:4-254:5
+    Source: 'src/commit.rs', lines 254:4-256:5
     Visibility: public -/
 def commit.Decomp.impl.inner_decomp
   (self : commit.Decomp) (i : Std.Usize) : Result linalg.PolyVec := do
@@ -429,21 +429,21 @@ def commit.Decomp.impl.inner_decomp
     self.inner_decomp i
 
 /-- [hachi::commit::{hachi::commit::Decomp}::inner_decomps]:
-    Source: 'src/commit.rs', lines 257:4-259:5
+    Source: 'src/commit.rs', lines 259:4-261:5
     Visibility: public -/
 def commit.Decomp.inner_decomps
   (self : commit.Decomp) : Result (alloc.vec.Vec linalg.PolyVec) := do
   ok self.inner_decomp
 
 /-- [hachi::commit::Opening]
-    Source: 'src/commit.rs', lines 269:0-272:1
+    Source: 'src/commit.rs', lines 271:0-274:1
     Visibility: public -/
 structure commit.Opening where
   decomp : commit.Decomp
   challenge : linalg.PolyVec
 
 /-- [hachi::commit::{hachi::commit::Opening}::new]:
-    Source: 'src/commit.rs', lines 276:4-278:5
+    Source: 'src/commit.rs', lines 278:4-280:5
     Visibility: public -/
 def commit.Opening.new
   (decomp : commit.Decomp) (challenge : linalg.PolyVec) :
@@ -507,7 +507,7 @@ def linalg.PolyVec.new
   ok entries
 
 /-- [hachi::commit::{hachi::commit::Opening}::honest]: loop body 0:
-    Source: 'src/commit.rs', lines 287:8-290:9
+    Source: 'src/commit.rs', lines 289:8-292:9
     Visibility: public -/
 @[rust_loop_body]
 def commit.Opening.honest_loop.body
@@ -524,7 +524,7 @@ def commit.Opening.honest_loop.body
   else ok (done ones)
 
 /-- [hachi::commit::{hachi::commit::Opening}::honest]: loop 0:
-    Source: 'src/commit.rs', lines 287:8-290:9
+    Source: 'src/commit.rs', lines 289:8-292:9
     Visibility: public -/
 @[rust_loop]
 def commit.Opening.honest_loop
@@ -536,7 +536,7 @@ def commit.Opening.honest_loop
     (ones, i)
 
 /-- [hachi::commit::{hachi::commit::Opening}::honest]:
-    Source: 'src/commit.rs', lines 283:4-295:5
+    Source: 'src/commit.rs', lines 285:4-297:5
     Visibility: public -/
 def commit.Opening.honest
   (decomp : commit.Decomp) : Result commit.Opening := do
@@ -547,23 +547,23 @@ def commit.Opening.honest
   ok { decomp, challenge := pv }
 
 /-- [hachi::commit::{hachi::commit::Opening}::decomp]:
-    Source: 'src/commit.rs', lines 298:4-300:5
+    Source: 'src/commit.rs', lines 300:4-302:5
     Visibility: public -/
 def commit.Opening.impl.decomp
   (self : commit.Opening) : Result commit.Decomp := do
   ok self.decomp
 
 /-- [hachi::commit::{hachi::commit::Opening}::challenge]:
-    Source: 'src/commit.rs', lines 303:4-305:5
+    Source: 'src/commit.rs', lines 305:4-307:5
     Visibility: public -/
 def commit.Opening.impl.challenge
   (self : commit.Opening) (i : Std.Usize) : Result ring.Rq := do
   linalg.PolyVec.get self.challenge i
 
 /-- [hachi::params::MESSAGE_ROWS]
-    Source: 'src/params.rs', lines 102:0-102:34
+    Source: 'src/params.rs', lines 124:0-124:37
     Visibility: public -/
-@[global_simps, irreducible] def params.MESSAGE_ROWS : Std.Usize := 4#usize
+@[global_simps, irreducible] def params.MESSAGE_ROWS : Std.Usize := 1024#usize
 
 /-- [hachi::ring::{hachi::ring::Rq}::scalar_mul]: loop body 0:
     Source: 'src/ring.rs', lines 267:8-270:9
@@ -693,17 +693,17 @@ def ring.Rq.zero : Result ring.Rq := do
   ok out
 
 /-- [hachi::params::GADGET_DIGITS]
-    Source: 'src/params.rs', lines 90:0-90:36
+    Source: 'src/params.rs', lines 113:0-113:35
     Visibility: public -/
-@[global_simps, irreducible] def params.GADGET_DIGITS : Std.Usize := 32#usize
+@[global_simps, irreducible] def params.GADGET_DIGITS : Std.Usize := 8#usize
 
 /-- [hachi::params::GADGET_BASE]
-    Source: 'src/params.rs', lines 75:0-75:31
+    Source: 'src/params.rs', lines 97:0-97:32
     Visibility: public -/
-@[global_simps, irreducible] def params.GADGET_BASE : Std.U64 := 2#u64
+@[global_simps, irreducible] def params.GADGET_BASE : Std.U64 := 16#u64
 
 /-- [hachi::gadget::base_pow]: loop body 0:
-    Source: 'src/gadget.rs', lines 102:4-105:5
+    Source: 'src/gadget.rs', lines 109:4-112:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.base_pow_loop.body
@@ -718,7 +718,7 @@ def gadget.base_pow_loop.body
   else ok (done acc)
 
 /-- [hachi::gadget::base_pow]: loop 0:
-    Source: 'src/gadget.rs', lines 102:4-105:5
+    Source: 'src/gadget.rs', lines 109:4-112:5
     Visibility: public -/
 @[rust_loop]
 def gadget.base_pow_loop
@@ -730,14 +730,14 @@ def gadget.base_pow_loop
     (acc, i)
 
 /-- [hachi::gadget::base_pow]:
-    Source: 'src/gadget.rs', lines 98:0-107:1
+    Source: 'src/gadget.rs', lines 105:0-114:1
     Visibility: public -/
 def gadget.base_pow (e : Std.Usize) : Result cpoly.field.Fp := do
   let b ← cpoly.field.Fp.new params.GADGET_BASE
   gadget.base_pow_loop e b cpoly.field.Fp.ONE 0#usize
 
 /-- [hachi::gadget::gadget_mul]: loop body 1:
-    Source: 'src/gadget.rs', lines 168:8-172:9
+    Source: 'src/gadget.rs', lines 175:8-179:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_mul_loop0_loop0.body
@@ -758,7 +758,7 @@ def gadget.gadget_mul_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::gadget::gadget_mul]: loop 1:
-    Source: 'src/gadget.rs', lines 168:8-172:9
+    Source: 'src/gadget.rs', lines 175:8-179:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_mul_loop0_loop0
@@ -771,7 +771,7 @@ def gadget.gadget_mul_loop0_loop0
     (acc, e)
 
 /-- [hachi::gadget::gadget_mul]: loop body 0:
-    Source: 'src/gadget.rs', lines 165:4-175:5
+    Source: 'src/gadget.rs', lines 172:4-182:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_mul_loop0.body
@@ -790,7 +790,7 @@ def gadget.gadget_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_mul]: loop 0:
-    Source: 'src/gadget.rs', lines 165:4-175:5
+    Source: 'src/gadget.rs', lines 172:4-182:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_mul_loop0
@@ -803,7 +803,7 @@ def gadget.gadget_mul_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_mul]:
-    Source: 'src/gadget.rs', lines 161:0-177:1
+    Source: 'src/gadget.rs', lines 168:0-184:1
     Visibility: public -/
 def gadget.gadget_mul
   (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec := do
@@ -813,7 +813,7 @@ def gadget.gadget_mul
   linalg.PolyVec.new out
 
 /-- [hachi::commit::derived_message]: loop body 0:
-    Source: 'src/commit.rs', lines 326:4-329:5
+    Source: 'src/commit.rs', lines 328:4-331:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.derived_message_loop.body
@@ -832,7 +832,7 @@ def commit.derived_message_loop.body
   else ok (done out)
 
 /-- [hachi::commit::derived_message]: loop 0:
-    Source: 'src/commit.rs', lines 326:4-329:5
+    Source: 'src/commit.rs', lines 328:4-331:5
     Visibility: public -/
 @[rust_loop]
 def commit.derived_message_loop
@@ -846,7 +846,7 @@ def commit.derived_message_loop
     (out, i)
 
 /-- [hachi::commit::derived_message]:
-    Source: 'src/commit.rs', lines 321:0-331:1
+    Source: 'src/commit.rs', lines 323:0-333:1
     Visibility: public -/
 def commit.derived_message
   (decomp : commit.Decomp) : Result (alloc.vec.Vec linalg.PolyVec) := do
@@ -1126,7 +1126,7 @@ def ring.Rq.from_coeffs
   ok out
 
 /-- [hachi::gadget::digit_at]: loop body 0:
-    Source: 'src/gadget.rs', lines 65:4-68:5
+    Source: 'src/gadget.rs', lines 72:4-75:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.digit_at_loop.body
@@ -1140,7 +1140,7 @@ def gadget.digit_at_loop.body
   else ok (done rest)
 
 /-- [hachi::gadget::digit_at]: loop 0:
-    Source: 'src/gadget.rs', lines 65:4-68:5
+    Source: 'src/gadget.rs', lines 72:4-75:5
     Visibility: public -/
 @[rust_loop]
 def gadget.digit_at_loop
@@ -1152,7 +1152,7 @@ def gadget.digit_at_loop
     (rest, i)
 
 /-- [hachi::gadget::digit_at]:
-    Source: 'src/gadget.rs', lines 61:0-70:1
+    Source: 'src/gadget.rs', lines 68:0-77:1
     Visibility: public -/
 def gadget.digit_at
   (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp := do
@@ -1162,7 +1162,7 @@ def gadget.digit_at
   cpoly.field.Fp.new i
 
 /-- [hachi::gadget::gadget_decompose]: loop body 2:
-    Source: 'src/gadget.rs', lines 200:12-203:13
+    Source: 'src/gadget.rs', lines 207:12-210:13
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0_loop0_loop0.body
@@ -1182,7 +1182,7 @@ def gadget.gadget_decompose_loop0_loop0_loop0.body
   else ok (done coeffs)
 
 /-- [hachi::gadget::gadget_decompose]: loop 2:
-    Source: 'src/gadget.rs', lines 200:12-203:13
+    Source: 'src/gadget.rs', lines 207:12-210:13
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0_loop0_loop0
@@ -1196,7 +1196,7 @@ def gadget.gadget_decompose_loop0_loop0_loop0
     (coeffs, k)
 
 /-- [hachi::gadget::gadget_decompose]: loop body 1:
-    Source: 'src/gadget.rs', lines 197:8-206:9
+    Source: 'src/gadget.rs', lines 204:8-213:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0_loop0.body
@@ -1217,7 +1217,7 @@ def gadget.gadget_decompose_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_decompose]: loop 1:
-    Source: 'src/gadget.rs', lines 197:8-206:9
+    Source: 'src/gadget.rs', lines 204:8-213:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0_loop0
@@ -1231,7 +1231,7 @@ def gadget.gadget_decompose_loop0_loop0
     (out, e)
 
 /-- [hachi::gadget::gadget_decompose]: loop body 0:
-    Source: 'src/gadget.rs', lines 195:4-208:5
+    Source: 'src/gadget.rs', lines 202:4-215:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0.body
@@ -1249,7 +1249,7 @@ def gadget.gadget_decompose_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_decompose]: loop 0:
-    Source: 'src/gadget.rs', lines 195:4-208:5
+    Source: 'src/gadget.rs', lines 202:4-215:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0
@@ -1263,7 +1263,7 @@ def gadget.gadget_decompose_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_decompose]:
-    Source: 'src/gadget.rs', lines 189:0-210:1
+    Source: 'src/gadget.rs', lines 196:0-217:1
     Visibility: public -/
 def gadget.gadget_decompose (x : linalg.PolyVec) : Result linalg.PolyVec := do
   let rows ← linalg.PolyVec.len x
@@ -1273,7 +1273,7 @@ def gadget.gadget_decompose (x : linalg.PolyVec) : Result linalg.PolyVec := do
   linalg.PolyVec.new out
 
 /-- [hachi::commit::generate_decomps]: loop body 0:
-    Source: 'src/commit.rs', lines 350:4-356:5
+    Source: 'src/commit.rs', lines 352:4-358:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.generate_decomps_loop.body
@@ -1300,7 +1300,7 @@ def commit.generate_decomps_loop.body
   else ok (done (ss, ts))
 
 /-- [hachi::commit::generate_decomps]: loop 0:
-    Source: 'src/commit.rs', lines 350:4-356:5
+    Source: 'src/commit.rs', lines 352:4-358:5
     Visibility: public -/
 @[rust_loop]
 def commit.generate_decomps_loop
@@ -1315,7 +1315,7 @@ def commit.generate_decomps_loop
     (ss, ts, i)
 
 /-- [hachi::commit::generate_decomps]:
-    Source: 'src/commit.rs', lines 345:0-358:1
+    Source: 'src/commit.rs', lines 347:0-360:1
     Visibility: public -/
 def commit.generate_decomps
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
@@ -1451,7 +1451,7 @@ def linalg.flatten_blocks
   ok out
 
 /-- [hachi::commit::commit_with_decomps]:
-    Source: 'src/commit.rs', lines 364:0-367:1
+    Source: 'src/commit.rs', lines 366:0-369:1
     Visibility: public -/
 def commit.commit_with_decomps
   (pp : commit.PublicParams) (decomp : commit.Decomp) :
@@ -1463,7 +1463,7 @@ def commit.commit_with_decomps
   linalg.PolyMatrix.mat_vec_mul pm flat
 
 /-- [hachi::commit::commit]:
-    Source: 'src/commit.rs', lines 376:0-380:1
+    Source: 'src/commit.rs', lines 378:0-382:1
     Visibility: public -/
 def commit.commit
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
@@ -1474,24 +1474,25 @@ def commit.commit
   ok (u, decomp)
 
 /-- [hachi::params::KAPPA]
-    Source: 'src/params.rs', lines 212:0-212:30
+    Source: 'src/params.rs', lines 258:0-258:26
     Visibility: public -/
-@[global_simps, irreducible] def params.KAPPA : Std.U64 := 65535#u64
+@[global_simps, irreducible] def params.KAPPA : Std.U64 := 32#u64
 
 /-- [hachi::params::BETA_SQ]
-    Source: 'src/params.rs', lines 157:0-157:32
+    Source: 'src/params.rs', lines 196:0-196:50
     Visibility: public -/
-@[global_simps, irreducible] def params.BETA_SQ : Std.U128 := 8192#u128
+@[global_simps, irreducible]
+def params.BETA_SQ : Std.U128 := 163966054471565312#u128
 
 /-- [hachi::params::GAMMA]
-    Source: 'src/params.rs', lines 139:0-139:25
+    Source: 'src/params.rs', lines 166:0-166:26
     Visibility: public -/
-@[global_simps, irreducible] def params.GAMMA : Std.U64 := 1#u64
+@[global_simps, irreducible] def params.GAMMA : Std.U64 := 16#u64
 
 /-- [hachi::params::INNER_ROWS]
-    Source: 'src/params.rs', lines 108:0-108:32
+    Source: 'src/params.rs', lines 133:0-133:32
     Visibility: public -/
-@[global_simps, irreducible] def params.INNER_ROWS : Std.Usize := 2#usize
+@[global_simps, irreducible] def params.INNER_ROWS : Std.Usize := 1#usize
 
 /-- [hachi::linalg::{hachi::linalg::PolyVec}::scalar_mul]: loop body 0:
     Source: 'src/linalg.rs', lines 169:8-172:9
@@ -1633,7 +1634,7 @@ def linalg.PolyVec.equals
   else linalg.PolyVec.equals_loop self rhs n 0#usize true
 
 /-- [hachi::commit::verify_weak]: loop body 0:
-    Source: 'src/commit.rs', lines 416:4-435:5
+    Source: 'src/commit.rs', lines 418:4-437:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_weak_loop.body
@@ -1670,7 +1671,7 @@ def commit.verify_weak_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify_weak]: loop 0:
-    Source: 'src/commit.rs', lines 416:4-435:5
+    Source: 'src/commit.rs', lines 418:4-437:5
     Visibility: public -/
 @[rust_loop]
 def commit.verify_weak_loop
@@ -1684,7 +1685,7 @@ def commit.verify_weak_loop
     (ok1, i)
 
 /-- [hachi::commit::verify_weak]:
-    Source: 'src/commit.rs', lines 410:0-447:1
+    Source: 'src/commit.rs', lines 412:0-449:1
     Visibility: public -/
 def commit.verify_weak
   (pp : commit.PublicParams) (u : linalg.PolyVec) (opening : commit.Opening) :
@@ -1707,7 +1708,7 @@ def commit.verify_weak
   else ok false
 
 /-- [hachi::commit::verify]: loop body 0:
-    Source: 'src/commit.rs', lines 462:8-467:9
+    Source: 'src/commit.rs', lines 464:8-469:9
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_loop.body
@@ -1732,7 +1733,7 @@ def commit.verify_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify]: loop 0:
-    Source: 'src/commit.rs', lines 462:8-467:9
+    Source: 'src/commit.rs', lines 464:8-469:9
     Visibility: public -/
 @[rust_loop]
 def commit.verify_loop
@@ -1745,7 +1746,7 @@ def commit.verify_loop
     (ok1, i)
 
 /-- [hachi::commit::verify]:
-    Source: 'src/commit.rs', lines 454:0-473:1
+    Source: 'src/commit.rs', lines 456:0-475:1
     Visibility: public -/
 def commit.verify
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
@@ -1770,9 +1771,9 @@ def commit.verify
     else ok false
 
 /-- [hachi::params::ML_LOW_LEN]
-    Source: 'src/params.rs', lines 183:0-183:32
+    Source: 'src/params.rs', lines 224:0-224:35
     Visibility: public -/
-@[global_simps, irreducible] def params.ML_LOW_LEN : Std.Usize := 2#usize
+@[global_simps, irreducible] def params.ML_LOW_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::evalsplit::split_equiv]:
     Source: 'src/evalsplit.rs', lines 66:0-68:1
@@ -2089,9 +2090,9 @@ def evalsplit.MlPoly.get
   alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) self k
 
 /-- [hachi::params::ML_HIGH_LEN]
-    Source: 'src/params.rs', lines 190:0-190:33
+    Source: 'src/params.rs', lines 231:0-231:36
     Visibility: public -/
-@[global_simps, irreducible] def params.ML_HIGH_LEN : Std.Usize := 4#usize
+@[global_simps, irreducible] def params.ML_HIGH_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::new]:
     Source: 'src/linalg.rs', lines 207:4-209:5
@@ -2204,9 +2205,10 @@ def evalsplit.MlPoly.eval_split
   linalg.PolyMatrix.split_form m bl bh
 
 /-- [hachi::params::ML_POLY_LEN]
-    Source: 'src/params.rs', lines 196:0-196:33
+    Source: 'src/params.rs', lines 237:0-237:41
     Visibility: public -/
-@[global_simps, irreducible] def params.ML_POLY_LEN : Std.Usize := 8#usize
+@[global_simps, irreducible]
+def params.ML_POLY_LEN : Std.Usize := 1048576#usize
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::row]:
     Source: 'src/linalg.rs', lines 227:4-229:5
@@ -2374,7 +2376,7 @@ def evalsplit.MlEvals.eval_split_eval
   linalg.PolyMatrix.split_form m bl bh
 
 /-- [hachi::gadget::digit_decompose]: loop body 0:
-    Source: 'src/gadget.rs', lines 86:4-89:5
+    Source: 'src/gadget.rs', lines 93:4-96:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.digit_decompose_loop.body
@@ -2392,7 +2394,7 @@ def gadget.digit_decompose_loop.body
   else ok (done out)
 
 /-- [hachi::gadget::digit_decompose]: loop 0:
-    Source: 'src/gadget.rs', lines 86:4-89:5
+    Source: 'src/gadget.rs', lines 93:4-96:5
     Visibility: public -/
 @[rust_loop]
 def gadget.digit_decompose_loop
@@ -2405,7 +2407,7 @@ def gadget.digit_decompose_loop
     (out, e)
 
 /-- [hachi::gadget::digit_decompose]:
-    Source: 'src/gadget.rs', lines 82:0-91:1
+    Source: 'src/gadget.rs', lines 89:0-98:1
     Visibility: public -/
 @[reducible]
 def gadget.digit_decompose
@@ -2414,7 +2416,7 @@ def gadget.digit_decompose
     cpoly.field.Fp) 0#usize
 
 /-- [hachi::gadget::gadget_entry]:
-    Source: 'src/gadget.rs', lines 114:0-121:1
+    Source: 'src/gadget.rs', lines 121:0-128:1
     Visibility: public -/
 def gadget.gadget_entry (i : Std.Usize) (j : Std.Usize) : Result ring.Rq := do
   let i1 ← j / params.GADGET_DIGITS
@@ -2426,7 +2428,7 @@ def gadget.gadget_entry (i : Std.Usize) (j : Std.Usize) : Result ring.Rq := do
   else ring.Rq.zero
 
 /-- [hachi::gadget::gadget_matrix]: loop body 1:
-    Source: 'src/gadget.rs', lines 140:8-143:9
+    Source: 'src/gadget.rs', lines 147:8-150:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_matrix_loop0_loop0.body
@@ -2444,7 +2446,7 @@ def gadget.gadget_matrix_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::gadget::gadget_matrix]: loop 1:
-    Source: 'src/gadget.rs', lines 140:8-143:9
+    Source: 'src/gadget.rs', lines 147:8-150:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_matrix_loop0_loop0
@@ -2457,7 +2459,7 @@ def gadget.gadget_matrix_loop0_loop0
     (row, j)
 
 /-- [hachi::gadget::gadget_matrix]: loop body 0:
-    Source: 'src/gadget.rs', lines 137:4-146:5
+    Source: 'src/gadget.rs', lines 144:4-153:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_matrix_loop0.body
@@ -2478,7 +2480,7 @@ def gadget.gadget_matrix_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_matrix]: loop 0:
-    Source: 'src/gadget.rs', lines 137:4-146:5
+    Source: 'src/gadget.rs', lines 144:4-153:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_matrix_loop0
@@ -2491,7 +2493,7 @@ def gadget.gadget_matrix_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_matrix]:
-    Source: 'src/gadget.rs', lines 132:0-148:1
+    Source: 'src/gadget.rs', lines 139:0-155:1
     Visibility: public -/
 def gadget.gadget_matrix (rows : Std.Usize) : Result linalg.PolyMatrix := do
   let cols ← rows * params.GADGET_DIGITS
@@ -2688,39 +2690,39 @@ def linalg.PolyMatrix.cols (self : linalg.PolyMatrix) : Result Std.Usize := do
     linalg.PolyVec.len pv
 
 /-- [hachi::params::EXT_DEGREE]
-    Source: 'src/params.rs', lines 37:0-37:32
+    Source: 'src/params.rs', lines 58:0-58:32
     Visibility: public -/
 @[global_simps, irreducible] def params.EXT_DEGREE : Std.Usize := 4#usize
 
 /-- [hachi::params::EXT_W]
-    Source: 'src/params.rs', lines 43:0-43:25
+    Source: 'src/params.rs', lines 64:0-64:25
     Visibility: public -/
 @[global_simps, irreducible] def params.EXT_W : Std.U64 := 2#u64
 
 /-- [hachi::params::RING_LOG_DEGREE]
-    Source: 'src/params.rs', lines 54:0-54:37
+    Source: 'src/params.rs', lines 75:0-75:38
     Visibility: public -/
-@[global_simps, irreducible] def params.RING_LOG_DEGREE : Std.Usize := 6#usize
+@[global_simps, irreducible] def params.RING_LOG_DEGREE : Std.Usize := 10#usize
 
 /-- [hachi::params::OUTER_ROWS]
-    Source: 'src/params.rs', lines 115:0-115:32
+    Source: 'src/params.rs', lines 140:0-140:32
     Visibility: public -/
-@[global_simps, irreducible] def params.OUTER_ROWS : Std.Usize := 2#usize
+@[global_simps, irreducible] def params.OUTER_ROWS : Std.Usize := 1#usize
 
 /-- [hachi::params::BLOCKS]
-    Source: 'src/params.rs', lines 122:0-122:28
+    Source: 'src/params.rs', lines 147:0-147:31
     Visibility: public -/
-@[global_simps, irreducible] def params.BLOCKS : Std.Usize := 2#usize
+@[global_simps, irreducible] def params.BLOCKS : Std.Usize := 1024#usize
 
 /-- [hachi::params::ML_VARS_LOW]
-    Source: 'src/params.rs', lines 167:0-167:33
+    Source: 'src/params.rs', lines 206:0-206:34
     Visibility: public -/
-@[global_simps, irreducible] def params.ML_VARS_LOW : Std.Usize := 1#usize
+@[global_simps, irreducible] def params.ML_VARS_LOW : Std.Usize := 10#usize
 
 /-- [hachi::params::ML_VARS_HIGH]
-    Source: 'src/params.rs', lines 174:0-174:34
+    Source: 'src/params.rs', lines 215:0-215:35
     Visibility: public -/
-@[global_simps, irreducible] def params.ML_VARS_HIGH : Std.Usize := 2#usize
+@[global_simps, irreducible] def params.ML_VARS_HIGH : Std.Usize := 10#usize
 
 /-- [hachi::ring::{hachi::ring::Rq}::len]:
     Source: 'src/ring.rs', lines 141:4-143:5

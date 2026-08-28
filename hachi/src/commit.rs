@@ -92,7 +92,8 @@ pub fn centered_abs(c: Fp) -> u64 {
 ///
 /// Mirrors ArkLib's `Rq.l1Norm`.
 ///
-/// Cannot overflow: at most `RING_DEGREE = 64` terms, each below `q/2 < 2^31`.
+/// Cannot overflow: at most `RING_DEGREE = 1024` terms, each below
+/// `q/2 < 2^31`, so the sum stays below `2^41`.
 pub fn l1_norm(a: &Rq) -> u64 {
     let n: usize = params::RING_DEGREE;
     let mut acc: u64 = 0;
@@ -131,8 +132,9 @@ pub fn l_infty_norm(a: &Rq) -> u64 {
 /// Mirrors ArkLib's `Rq.l2NormSq`.
 ///
 /// `u128`, and that is forced rather than cautious: a single centered
-/// coefficient can reach `q/2 ≈ 2^31`, so one square approaches `2^62` and 64 of
-/// them overflow `u64`. The specification sums in `ℕ`, which has no such ceiling;
+/// coefficient can reach `q/2 ≈ 2^31`, so one square approaches `2^62` and a
+/// vector of them overflows `u64`. The specification sums in `ℕ`, which has no
+/// such ceiling;
 /// `u128` is what makes this function *total* at every input rather than only at
 /// the short ones an honest committer produces -- and totality is what the
 /// equivalence proof has to establish (the extracted model is fallible: an
@@ -386,8 +388,8 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 /// Verify a weak opening against the outer commitment `u` (spec:
 /// `verify_weak`, `Scheme.lean:194`).
 ///
-/// Mirrors ArkLib's `InnerOuter.verify_weak` at `βSq = 8192`, `γ = 1`,
-/// `κ = 65535`.
+/// Mirrors ArkLib's `InnerOuter.verify_weak` at the values `params.rs` fixes
+/// for `βSq`, `γ` and `κ`.
 ///
 /// Per block `i`:
 ///

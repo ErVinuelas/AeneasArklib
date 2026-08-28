@@ -73,17 +73,17 @@ namespace HachiEquiv.Check
 example : params.Q = 4294967197#u64 := by simp [params.Q]
 example : params.EXT_DEGREE = 4#usize := by simp [params.EXT_DEGREE]
 example : params.EXT_W = 2#u64 := by simp [params.EXT_W]
-example : params.RING_LOG_DEGREE = 6#usize := by simp [params.RING_LOG_DEGREE]
-example : params.RING_DEGREE = 64#usize := by simp [params.RING_DEGREE]
-example : params.GADGET_BASE = 2#u64 := by simp [params.GADGET_BASE]
-example : params.GADGET_DIGITS = 32#usize := by simp [params.GADGET_DIGITS]
-example : params.MESSAGE_ROWS = 4#usize := by simp [params.MESSAGE_ROWS]
-example : params.INNER_ROWS = 2#usize := by simp [params.INNER_ROWS]
-example : params.OUTER_ROWS = 2#usize := by simp [params.OUTER_ROWS]
-example : params.BLOCKS = 2#usize := by simp [params.BLOCKS]
-example : params.GAMMA = 1#u64 := by simp [params.GAMMA]
-example : params.BETA_SQ = 8192#u128 := by simp [params.BETA_SQ]
-example : params.KAPPA = 65535#u64 := by simp [params.KAPPA]
+example : params.RING_LOG_DEGREE = 10#usize := by simp [params.RING_LOG_DEGREE]
+example : params.RING_DEGREE = 1024#usize := by simp [params.RING_DEGREE]
+example : params.GADGET_BASE = 16#u64 := by simp [params.GADGET_BASE]
+example : params.GADGET_DIGITS = 8#usize := by simp [params.GADGET_DIGITS]
+example : params.MESSAGE_ROWS = 1024#usize := by simp [params.MESSAGE_ROWS]
+example : params.INNER_ROWS = 1#usize := by simp [params.INNER_ROWS]
+example : params.OUTER_ROWS = 1#usize := by simp [params.OUTER_ROWS]
+example : params.BLOCKS = 1024#usize := by simp [params.BLOCKS]
+example : params.GAMMA = 16#u64 := by simp [params.GAMMA]
+example : params.BETA_SQ = 163966054471565312#u128 := by simp [params.BETA_SQ]
+example : params.KAPPA = 32#u64 := by simp [params.KAPPA]
 
 -- `RING_DEGREE` is a literal in Rust (a shift would extract as a `Result`; see
 -- the docstring in `params.rs`), so the relation to `RING_LOG_DEGREE` is not
@@ -99,7 +99,7 @@ example : params.Q.val ≤ params.GADGET_BASE.val ^ params.GADGET_DIGITS.val := 
   simp [params.Q, params.GADGET_BASE, params.GADGET_DIGITS]
 
 -- ... and `digits` is minimal: one fewer would not cover the modulus, which is
--- what pins it to 32 rather than merely permitting it.
+-- what pins it to 8 rather than merely permitting it.
 example : params.GADGET_BASE.val ^ (params.GADGET_DIGITS.val - 1) < params.Q.val := by
   simp [params.Q, params.GADGET_BASE, params.GADGET_DIGITS]
 
@@ -110,28 +110,50 @@ example : params.GADGET_BASE.val ^ (params.GADGET_DIGITS.val - 1) < params.Q.val
 example : params.GADGET_BASE.val - 1 ≤ params.Q.val / 2 := by
   simp [params.Q, params.GADGET_BASE]
 
--- `GAMMA` is that same bound `b - 1`, and `BETA_SQ` is
--- `(messageRows · digits) · (deg φ) · (b-1)²` --
--- `gadgetDecompose_zmod_vecLInftyNorm_le` and
--- `gadgetDecompose_zmod_vecL2NormSq_le` at these dimensions. Both are literals in
--- `params.rs` (Aeneas models `const` arithmetic as fallible, so the derived forms
--- would extract as `Result`s), so the derivation is checked rather than structural.
-example : params.GAMMA.val = params.GADGET_BASE.val - 1 := by
+-- `GAMMA` and `BETA_SQ` are the *weak-opening* bounds of ArkLib's
+-- paper-parameter mapping (`QuadEval/Soundness.lean`, Hachi Lemma 8):
+-- `γ̄ = b` (the paper's `S_b` box relaxed to the symmetric `ℓ∞` ball) and
+-- `βSq = quadEvalBetaSq γ b τ d m δ` at `γ := b` --
+-- `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with the paper's `τ = 4`
+-- ([NOZ26] Fig. 9), the `z`-decomposition digit count, whose only appearance
+-- in this crate is inside this derived literal. Both are literals in
+-- `params.rs` (Aeneas models `const` arithmetic as fallible, so the derived
+-- forms would extract as `Result`s), so the derivation is checked rather than
+-- structural.
+example : params.GAMMA.val = params.GADGET_BASE.val := by
   simp [params.GAMMA, params.GADGET_BASE]
 
 example : params.BETA_SQ.val
-    = params.MESSAGE_ROWS.val * params.GADGET_DIGITS.val * params.RING_DEGREE.val
-        * (params.GADGET_BASE.val - 1) ^ 2 := by
+    = 4 * ((params.MESSAGE_ROWS.val * params.GADGET_DIGITS.val)
+        * (params.RING_DEGREE.val
+            * ((1 + params.GADGET_BASE.val + params.GADGET_BASE.val ^ 2
+                + params.GADGET_BASE.val ^ 3) * params.GAMMA.val) ^ 2)) := by
+  simp [params.BETA_SQ, params.MESSAGE_ROWS, params.GADGET_DIGITS, params.RING_DEGREE,
+    params.GADGET_BASE, params.GAMMA]
+
+-- ... and the *honest* bounds sit strictly inside them: the honest
+-- decomposition's digit bound is `b - 1 = 15 < 16 = γ`
+-- (`gadgetDecompose_zmod_vecLInftyNorm_le`), and its `ℓ₂²` bound
+-- `(messageRows · digits) · (deg φ) · (b-1)² = 1887436800` is ~8.7·10⁷ below
+-- `βSq` (`gadgetDecompose_zmod_vecL2NormSq_le`). The slack is the design: it
+-- is what admits the protocol's *extracted* openings.
+example : params.GADGET_BASE.val - 1 < params.GAMMA.val := by
+  simp [params.GADGET_BASE, params.GAMMA]
+
+example : params.MESSAGE_ROWS.val * params.GADGET_DIGITS.val * params.RING_DEGREE.val
+    * (params.GADGET_BASE.val - 1) ^ 2 ≤ params.BETA_SQ.val := by
   simp [params.BETA_SQ, params.MESSAGE_ROWS, params.GADGET_DIGITS, params.RING_DEGREE,
     params.GADGET_BASE]
 
 -- `KAPPA` is capped by `isUnit_of_l1Norm_le` (`NormBounds/LyubashevskySeiler.lean`),
 -- which turns the verifier's `0 < ‖c‖₁ ≤ κ` into the invertibility a weak opening
--- actually requires -- given `q % 8 = 5` and `κ² < q`. Both halves, and the fact
--- that `params.rs` sits on the ceiling rather than near it:
+-- actually requires -- given `q % 8 = 5` and `κ² < q`. `params.rs` no longer sits
+-- on that ceiling (`⌊√q⌋ = 65535`): the value is the weak-opening bound
+-- `ω̄ = 2ω = 32` at [NOZ26] Fig. 9's `ω = 16` (extracted openings carry challenge
+-- *differences*), so `κ² < q` here is exactly ArkLib Lemma 8's own hypothesis
+-- `hκ : (2ω)² < q`.
 example : params.Q.val % 8 = 5 := by simp [params.Q]
 example : params.KAPPA.val ^ 2 < params.Q.val := by simp [params.KAPPA, params.Q]
-example : params.Q.val ≤ (params.KAPPA.val + 1) ^ 2 := by simp [params.KAPPA, params.Q]
 
 -- The honest challenge is `c = 1`, and `Rq.l1Norm_one` gives `‖1‖₁ = 1`; the
 -- verifier's upper bound has to admit it or nothing this crate produces verifies.
@@ -147,11 +169,11 @@ example : params.Q.val % 4 = 1 := by simp [params.Q]
 -- so both the power-of-two relations and the consumer's shape constraints --
 -- the reshaped matrix is `blocks × messageRows` (`derivedMsgMatrix`,
 -- `QuadEval/Reduction.lean`) -- are checked rather than structural.
-example : params.ML_VARS_LOW = 1#usize := by simp [params.ML_VARS_LOW]
-example : params.ML_VARS_HIGH = 2#usize := by simp [params.ML_VARS_HIGH]
-example : params.ML_LOW_LEN = 2#usize := by simp [params.ML_LOW_LEN]
-example : params.ML_HIGH_LEN = 4#usize := by simp [params.ML_HIGH_LEN]
-example : params.ML_POLY_LEN = 8#usize := by simp [params.ML_POLY_LEN]
+example : params.ML_VARS_LOW = 10#usize := by simp [params.ML_VARS_LOW]
+example : params.ML_VARS_HIGH = 10#usize := by simp [params.ML_VARS_HIGH]
+example : params.ML_LOW_LEN = 1024#usize := by simp [params.ML_LOW_LEN]
+example : params.ML_HIGH_LEN = 1024#usize := by simp [params.ML_HIGH_LEN]
+example : params.ML_POLY_LEN = 1048576#usize := by simp [params.ML_POLY_LEN]
 
 example : params.ML_LOW_LEN.val = 2 ^ params.ML_VARS_LOW.val := by
   simp [params.ML_LOW_LEN, params.ML_VARS_LOW]
@@ -287,7 +309,7 @@ example (pp : commit.PublicParams) (u : linalg.PolyVec) (o : commit.Opening) : R
 -- would overflow -- i.e. *fail* in this model -- on inputs the verifier is
 -- supposed to reject rather than crash on.
 example (a : ring.Rq) : Result Std.U128 := commit.l2_norm_sq a
-example : params.BETA_SQ.val = 8192 := by simp [params.BETA_SQ]
+example : params.BETA_SQ.val = 163966054471565312 := by simp [params.BETA_SQ]
 
 -- The evaluation-split layer. The two polynomial newtypes are `@[reducible]`
 -- `Vec` aliases like the three containers above -- two spec types
@@ -333,11 +355,11 @@ example {R : Type} [Field R] [BEq R] [LawfulBEq R] :
   rw [powTwoCyclotomic_natDegree]
   simp [params.RING_LOG_DEGREE, params.RING_DEGREE]
 
--- The conductor is `2^(α+1)`, i.e. the modulus really is the `128`th cyclotomic
+-- The conductor is `2^(α+1)`, i.e. the modulus really is the `2048`th cyclotomic
 -- polynomial at our `α` -- recorded because the Hachi norm bounds are stated
 -- about `X^{2^α} + 1` specifically and would not hold of another modulus.
 example {R : Type} [Field R] [BEq R] [LawfulBEq R] :
-    (powTwoCyclotomic (R := R) params.RING_LOG_DEGREE.val).conductor = 128 := by
+    (powTwoCyclotomic (R := R) params.RING_LOG_DEGREE.val).conductor = 2048 := by
   simp [powTwoCyclotomic, params.RING_LOG_DEGREE]
 
 /-! ## 4. Axiom audit

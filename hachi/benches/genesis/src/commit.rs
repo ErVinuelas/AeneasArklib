@@ -65,10 +65,12 @@ use crate::ring::Rq;
 // Centered norms
 // ---------------------------------------------------------------------------
 
-// @genesis d664190 2026-08-19 — commit::centered_abs
 /// The absolute value of a field element's *centered* representative (spec:
 /// `(c.valMinAbs).natAbs`, via `zmodCenteredView`,
 /// `CyclotomicRing/Norms.lean:48`).
+///
+/// Mirrors ArkLib's `zmodCenteredView` at one coefficient, up to the `natAbs`
+/// the norms below take of it.
 ///
 /// `ZMod.valMinAbs` sends a residue to its unique representative in
 /// `(-q/2, q/2]`; taking the absolute value of that is the same as folding the
@@ -85,11 +87,13 @@ pub fn centered_abs(c: Fp) -> u64 {
     }
 }
 
-// @genesis d664190 2026-08-19 — commit::l1_norm
 /// The centered `ℓ₁` norm of a ring element (spec: `Rq.l1Norm`,
 /// `NormBounds/Basic.lean:82`): `Σₖ |cₖ|` over the `deg φ` coefficients.
 ///
-/// Cannot overflow: at most `RING_DEGREE = 64` terms, each below `q/2 < 2^31`.
+/// Mirrors ArkLib's `Rq.l1Norm`.
+///
+/// Cannot overflow: at most `RING_DEGREE = 1024` terms, each below
+/// `q/2 < 2^31`, so the sum stays below `2^41`.
 pub fn l1_norm(a: &Rq) -> u64 {
     let n: usize = params::RING_DEGREE;
     let mut acc: u64 = 0;
@@ -101,9 +105,10 @@ pub fn l1_norm(a: &Rq) -> u64 {
     acc
 }
 
-// @genesis d664190 2026-08-19 — commit::l_infty_norm
 /// The centered `ℓ∞` norm of a ring element (spec: `Rq.lInftyNorm`,
 /// `NormBounds/Basic.lean:87`): `maxₖ |cₖ|`.
+///
+/// Mirrors ArkLib's `Rq.lInftyNorm`.
 ///
 /// The spec's `Finset.sup` over an empty range is `0`, which is what an empty
 /// loop leaves in the accumulator here.
@@ -121,13 +126,15 @@ pub fn l_infty_norm(a: &Rq) -> u64 {
     best
 }
 
-// @genesis d664190 2026-08-19 — commit::l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a ring element (spec: `Rq.l2NormSq`,
 /// `NormBounds/Basic.lean:78`): `Σₖ |cₖ|²`.
 ///
+/// Mirrors ArkLib's `Rq.l2NormSq`.
+///
 /// `u128`, and that is forced rather than cautious: a single centered
-/// coefficient can reach `q/2 ≈ 2^31`, so one square approaches `2^62` and 64 of
-/// them overflow `u64`. The specification sums in `ℕ`, which has no such ceiling;
+/// coefficient can reach `q/2 ≈ 2^31`, so one square approaches `2^62` and a
+/// vector of them overflows `u64`. The specification sums in `ℕ`, which has no
+/// such ceiling;
 /// `u128` is what makes this function *total* at every input rather than only at
 /// the short ones an honest committer produces -- and totality is what the
 /// equivalence proof has to establish (the extracted model is fallible: an
@@ -145,9 +152,10 @@ pub fn l2_norm_sq(a: &Rq) -> u128 {
     acc
 }
 
-// @genesis d664190 2026-08-19 — commit::vec_l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a vector (spec: `vecL2NormSq`,
 /// `NormBounds/Basic.lean:91`): the sum of the entrywise norms.
+///
+/// Mirrors ArkLib's `vecL2NormSq`.
 pub fn vec_l2_norm_sq(v: &PolyVec) -> u128 {
     let n: usize = v.len();
     let mut acc: u128 = 0;
@@ -159,9 +167,10 @@ pub fn vec_l2_norm_sq(v: &PolyVec) -> u128 {
     acc
 }
 
-// @genesis d664190 2026-08-19 — commit::vec_l_infty_norm
 /// The centered `ℓ∞` norm of a vector (spec: `vecLInftyNorm`,
 /// `NormBounds/Basic.lean:95`): the largest entrywise norm.
+///
+/// Mirrors ArkLib's `vecLInftyNorm`.
 pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
     let n: usize = v.len();
     let mut best: u64 = 0;
@@ -180,8 +189,10 @@ pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
 // The scheme's data
 // ---------------------------------------------------------------------------
 
-// @genesis d664190 2026-08-19 — commit::PublicParams
 /// The two Ajtai matrices (spec: `PublicParams`, `Scheme.lean:94`).
+///
+/// Mirrors ArkLib's `InnerOuter.PublicParams` at the dimensions [`params`]
+/// fixes; the specification is generic in all six of them.
 ///
 /// `inner_matrix` is `A`, of shape `INNER_ROWS × (MESSAGE_ROWS · GADGET_DIGITS)`;
 /// `outer_matrix` is `B`, of shape
@@ -192,7 +203,6 @@ pub struct PublicParams {
 }
 
 impl PublicParams {
-    // @genesis d664190 2026-08-19 — commit::PublicParams::new
     /// Bundle the inner and outer matrices.
     pub fn new(inner_matrix: PolyMatrix, outer_matrix: PolyMatrix) -> PublicParams {
         PublicParams {
@@ -201,29 +211,27 @@ impl PublicParams {
         }
     }
 
-    // @genesis d664190 2026-08-19 — commit::PublicParams::inner_matrix
     /// The inner Ajtai matrix `A`.
     pub fn inner_matrix(&self) -> &PolyMatrix {
         &self.inner_matrix
     }
 
-    // @genesis d664190 2026-08-19 — commit::PublicParams::outer_matrix
     /// The outer Ajtai matrix `B`.
     pub fn outer_matrix(&self) -> &PolyMatrix {
         &self.outer_matrix
     }
 }
 
-// @genesis d664190 2026-08-19 — commit::Decomp
 /// The committer-produced decomposition data `(sᵢ, t̂ᵢ)ᵢ` (spec: `Decomp`,
 /// `Scheme.lean:104`), without the challenge.
+///
+/// Mirrors ArkLib's `InnerOuter.Decomp`.
 pub struct Decomp {
     message: Vec<PolyVec>,
     inner_decomp: Vec<PolyVec>,
 }
 
 impl Decomp {
-    // @genesis d664190 2026-08-19 — commit::Decomp::new
     /// Bundle per-block decomposed messages and inner decompositions.
     pub fn new(message: Vec<PolyVec>, inner_decomp: Vec<PolyVec>) -> Decomp {
         Decomp {
@@ -232,34 +240,31 @@ impl Decomp {
         }
     }
 
-    // @genesis d664190 2026-08-19 — commit::Decomp::blocks
     /// The number of blocks.
     pub fn blocks(&self) -> usize {
         self.message.len()
     }
 
-    // @genesis d664190 2026-08-19 — commit::Decomp::message
     /// The decomposed message `sᵢ` of block `i`.
     pub fn message(&self, i: usize) -> &PolyVec {
         &self.message[i]
     }
 
-    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomp
     /// The inner decomposition `t̂ᵢ` of block `i`.
     pub fn inner_decomp(&self, i: usize) -> &PolyVec {
         &self.inner_decomp[i]
     }
 
-    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomps
     /// The inner decompositions as blocks, for flattening.
     pub fn inner_decomps(&self) -> &Vec<PolyVec> {
         &self.inner_decomp
     }
 }
 
-// @genesis d664190 2026-08-19 — commit::Opening
 /// A Hachi/Greyhound weak opening `(sᵢ, t̂ᵢ, cᵢ)ᵢ` (spec: `Opening`,
 /// `Scheme.lean:115`).
+///
+/// Mirrors ArkLib's `InnerOuter.Opening`.
 ///
 /// The specification's `Opening` *extends* `Decomp`; composition is the same
 /// data, reached as `opening.decomp()`.
@@ -269,13 +274,11 @@ pub struct Opening {
 }
 
 impl Opening {
-    // @genesis d664190 2026-08-19 — commit::Opening::new
     /// Pair decomposition data with per-block challenges.
     pub fn new(decomp: Decomp, challenge: PolyVec) -> Opening {
         Opening { decomp, challenge }
     }
 
-    // @genesis d664190 2026-08-19 — commit::Opening::honest
     /// The honest opening: the decomposition with the trivial challenge
     /// `cᵢ = 1`, which is what `commitmentScheme.commit` produces
     /// (`Scheme.lean:229`).
@@ -293,13 +296,11 @@ impl Opening {
         }
     }
 
-    // @genesis d664190 2026-08-19 — commit::Opening::decomp
     /// The underlying decomposition data.
     pub fn decomp(&self) -> &Decomp {
         &self.decomp
     }
 
-    // @genesis d664190 2026-08-19 — commit::Opening::challenge
     /// The challenge `cᵢ` of block `i`.
     pub fn challenge(&self, i: usize) -> &Rq {
         self.challenge.get(i)
@@ -310,9 +311,10 @@ impl Opening {
 // Commit
 // ---------------------------------------------------------------------------
 
-// @genesis d664190 2026-08-19 — commit::derived_message
 /// The message block derived from the decomposition data: `mᵢ = G · sᵢ` (spec:
 /// `derivedMessage`, `Scheme.lean:148`, i.e. [NOZ26] Eq. (13)).
+///
+/// Mirrors ArkLib's `InnerOuter.derivedMessage`.
 ///
 /// The specification applies the materialized message gadget matrix through
 /// `Simple.commit`; [`gadget::gadget_mul`] is the same map by `gadgetMul_apply`,
@@ -330,9 +332,11 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
     out
 }
 
-// @genesis d664190 2026-08-19 — commit::generate_decomps
 /// Honest decomposition generation (spec: `generateDecomps`,
 /// `Scheme.lean:157`): `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
+///
+/// Mirrors ArkLib's `InnerOuter.generateDecomps` at
+/// `Decomposition.ofDigits dd dd`.
 ///
 /// Both steps are the same base-`b` gadget inverse, which is the specification's
 /// `Decomposition.ofDigits` (`Scheme.lean:131`) instantiating its two
@@ -355,19 +359,22 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     Decomp::new(ss, ts)
 }
 
-// @genesis d664190 2026-08-19 — commit::commit_with_decomps
 /// The outer commitment computed from the decomposition data (spec:
 /// `commitWithDecomps`, `Scheme.lean:166`): `u = B · flatten(t̂)`.
+///
+/// Mirrors ArkLib's `InnerOuter.commitWithDecomps`.
 pub fn commit_with_decomps(pp: &PublicParams, decomp: &Decomp) -> PolyVec {
     let flat: PolyVec = linalg::flatten_blocks(decomp.inner_decomps());
     pp.outer_matrix().mat_vec_mul(&flat)
 }
 
-// @genesis d664190 2026-08-19 — commit::commit
 /// Commit to a message: generate the honest decomposition and return it with the
 /// outer commitment (spec: `commitmentScheme.commit`, `Scheme.lean:227`, minus
 /// the `OracleComp` wrapper and with the challenge left to
 /// [`Opening::honest`]).
+///
+/// Mirrors ArkLib's `InnerOuter.commitmentScheme.commit`, minus the wrapper and
+/// the challenge as above.
 pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
     let decomp: Decomp = generate_decomps(pp, m);
     let u: PolyVec = commit_with_decomps(pp, &decomp);
@@ -378,9 +385,11 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 // Verify
 // ---------------------------------------------------------------------------
 
-// @genesis d664190 2026-08-19 — commit::verify_weak
 /// Verify a weak opening against the outer commitment `u` (spec:
 /// `verify_weak`, `Scheme.lean:194`).
+///
+/// Mirrors ArkLib's `InnerOuter.verify_weak` at the values `params.rs` fixes
+/// for `βSq`, `γ` and `κ`.
 ///
 /// Per block `i`:
 ///
@@ -439,10 +448,11 @@ pub fn verify_weak(pp: &PublicParams, u: &PolyVec, opening: &Opening) -> bool {
     ok
 }
 
-// @genesis d664190 2026-08-19 — commit::verify
 /// Verify an opening against a claimed message (spec:
 /// `commitmentScheme.verify`, `Scheme.lean:231`): the message must be the one
 /// derived from the opening, and the weak checks must pass.
+///
+/// Mirrors ArkLib's `InnerOuter.commitmentScheme.verify`.
 pub fn verify(pp: &PublicParams, m: &Vec<PolyVec>, u: &PolyVec, opening: &Opening) -> bool {
     let derived: Vec<PolyVec> = derived_message(opening.decomp());
     let blocks: usize = m.len();

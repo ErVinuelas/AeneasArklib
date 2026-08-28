@@ -26,8 +26,15 @@
 //! and `Gadget/Norms.lean`'s `zmodDigit_natAbs_le` then bounds each digit's
 //! centered absolute value by `b - 1` -- under the side condition `b - 1 ≤ q/2`,
 //! which is exactly what stops a small non-negative digit from wrapping to a
-//! negative representative. At `b = 2` the digits are `{0, 1}` and the bound is
-//! `1`. See NOTES.md § "The digits are not balanced".
+//! negative representative. At `b = 16` the digits are `{0, …, 15}` and the
+//! bound is `15`. See NOTES.md § "The digits are not balanced".
+//!
+//! This makes the decomposition **not paper-faithful** at `b = 16`: [NOZ26]
+//! uses *balanced* base-16 digits in `[-8, 7]`, so honest commitment outputs
+//! and norm sizes differ from the paper's implementation (harmless at the old
+//! `b = 2`, where the bounds coincide). The pinned ArkLib has only the
+//! unsigned form; the fix trigger -- upstream `balancedZmodDigitDecomposition`,
+//! PR #782 -- is recorded in NOTES.md § "The digits are not balanced".
 //!
 //! # Index layout
 //!

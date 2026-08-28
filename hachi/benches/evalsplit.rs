@@ -1,14 +1,22 @@
-//! Wall-clock time for the multilinear evaluation split.
+//! Wall-clock time for the multilinear evaluation split -- at *reduced* point
+//! sizes, by signed-off policy exception.
 //!
-//! Sizes are the scheme's own: the point halves are `ML_VARS_LOW = 1` and
-//! `ML_VARS_HIGH = 2` coordinates (so the bases are length `2` and `4`), the
-//! coefficient vector is `ML_POLY_LEN = 8`, and the reshaped matrix is
-//! `ML_LOW_LEN × ML_HIGH_LEN = 2 × 4` -- the `derivedMsgMatrix` shape. The
-//! basis cases are parameterized by the *variable count* `n`, which is what the
-//! naive per-entry product's cost (`n · 2^n` ring muls) scales in.
+//! At the [NOZ26] Fig. 9 parameters the scheme's own sizes are out of a
+//! criterion run's reach: the point halves are `ML_VARS_LOW = ML_VARS_HIGH =
+//! 10` coordinates, so one basis is `2^10` schoolbook `ring::mul`s of `2^20`
+//! field operations each (seconds per iteration), and the reshape/evaluation
+//! cases build `ML_POLY_LEN = 2^20` ring elements (~8 GiB) before multiplying
+//! `2^20` more. Policy, per PLAN_PAPER_PARAMS.md Decision 3 (signed off
+//! 2026-08-28):
 //!
-//! `eval_split` is the composite row (`to_matrix` + two bases + `split_form`);
-//! its parts are also benched individually so a regression can be localized.
+//! * the two *shape-generic* basis cases stay, at reduced variable counts
+//!   (4 and 6) that are NOT the scheme's -- the rows measure the per-entry
+//!   cost shape (`n · 2^n` ring muls at the real `RING_DEGREE = 1024`), not
+//!   the scheme-scale total, and say so here rather than pretending;
+//! * the const-bound reshape/evaluation cases are excluded by name in
+//!   `exclusions.toml`; their bodies are retained below, unregistered, for
+//!   the day a sub-quadratic `ring::mul` champion lands.
+//!
 //! Everything with ring multiplications in it is `ring::mul` in a loop, as
 //! everywhere above the ring; the two reshapes are the exceptions
 //! (`Rq::copy` in a loop, no arithmetic).
@@ -29,6 +37,11 @@ macro_rules! define_cases {
             // `support::run`'s digest argument is `Fn(&R) -> u64`; see
             // `benches/linalg.rs` for why the digests take references.
             #![allow(clippy::trivially_copy_pass_by_ref)]
+            // The reshape/evaluation case bodies are kept but not registered:
+            // at the [NOZ26] Fig. 9 parameters they are excluded by policy (see
+            // the module doc and `exclusions.toml`), and they return verbatim
+            // when a sub-quadratic `ring::mul` lands.
+            #![allow(dead_code)]
 
             use std::hint::black_box;
 
@@ -224,30 +237,25 @@ fn evalsplit_benches(c: &mut Criterion) {
     // The run's sanity check; see `benches/linalg.rs`.
     bench_case!(c, "_control/evalsplit", control, [support::CONTROL_N]);
 
-    // The two point-half sizes: the bases are computed at `nl` and `nh`
-    // coordinates, so both sizes the scheme uses appear as rows.
-    let nl = hachi::params::ML_VARS_LOW;
-    let nh = hachi::params::ML_VARS_HIGH;
-    // The reshape/evaluation cases carry the polynomial length as their
-    // (single) size label; the shapes inside are the `params` constants.
-    let len = hachi::params::ML_POLY_LEN;
+    // REDUCED sizes, not the scheme's (`ML_VARS_LOW = ML_VARS_HIGH = 10` puts
+    // one basis at `2^10` schoolbook d=1024 ring muls -- seconds per
+    // iteration). 4 and 6 keep two points on the `n · 2^n` curve so the
+    // exponential shape stays visible; the module doc records the policy
+    // exception and its sign-off.
+    let n_small = 4;
+    let n_large = 6;
 
     // @covers evalsplit::monomial_basis
-    bench_case!(c, "evalsplit/monomial_basis", monomial_basis, [nl, nh]);
+    bench_case!(c, "evalsplit/monomial_basis", monomial_basis, [n_small, n_large]);
     // @covers evalsplit::lagrange_basis
-    bench_case!(c, "evalsplit/lagrange_basis", lagrange_basis, [nl, nh]);
+    bench_case!(c, "evalsplit/lagrange_basis", lagrange_basis, [n_small, n_large]);
 
-    // @covers evalsplit::MlPoly::to_matrix
-    bench_case!(c, "evalsplit/to_matrix", to_matrix, [len]);
-    // @covers evalsplit::to_polynomial
-    bench_case!(c, "evalsplit/to_polynomial", to_polynomial, [len]);
-    // @covers evalsplit::MlEvals::to_matrix_eval
-    bench_case!(c, "evalsplit/to_matrix_eval", to_matrix_eval, [len]);
-
-    // @covers evalsplit::MlPoly::eval_split
-    bench_case!(c, "evalsplit/eval_split", eval_split, [len]);
-    // @covers evalsplit::MlEvals::eval_split_eval
-    bench_case!(c, "evalsplit/eval_split_eval", eval_split_eval, [len]);
+    // The reshape/evaluation cases (`to_matrix`, `to_polynomial`,
+    // `to_matrix_eval`, `eval_split`, `eval_split_eval`) are excluded at the
+    // Fig. 9 parameters: their shapes are the `params` constants
+    // (`ML_POLY_LEN = 2^20` ring elements, ~8 GiB per corpus, and `2^20` ring
+    // muls per evaluation), so no input can make them criterion-sized. See
+    // `exclusions.toml` and NOTES.md ("Adopting the paper's parameters").
 }
 
 criterion_group! {

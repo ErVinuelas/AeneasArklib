@@ -194,6 +194,116 @@ workstreams, which would name the concrete specs and presumably the parameter
 set, were not included in the brief as received. `α`, and the commitment matrix
 dimensions that are not in `params.rs` at all yet, need that input.
 
+### Superseded 2026-08-28: the paper's commitment/eval-split dimensions are adopted
+
+The open question above is answered: the repository now uses the *commitment
+and evaluation-split* dimensions of the [NOZ26] Fig. 9 benchmark parameter set
+(the ℓ = 30 row), adopted per `PLAN_PAPER_PARAMS.md` so that this crate's
+measurements are about the same scheme the paper measured -- with the verifier
+bounds taken not from Fig. 9 directly but from ArkLib's paper-parameter mapping
+for the *weak-opening* relation (see below), and with two honesty caveats
+recorded at the end of this entry. The field layer (`Q = 2^32 - 99`,
+`EXT_DEGREE = 4`, `EXT_W = 2`) was already the paper's; everything else moved:
+
+| const | old | new | Fig. 9 name |
+|---|---|---|---|
+| `RING_LOG_DEGREE` (`α`) | 6 | **10** | `d = 1024 = 2^α` |
+| `GADGET_BASE` | 2 | **16** | `b` |
+| `GADGET_DIGITS` | 32 | **8** | forced: `16^8 = 2^32 ≥ q`, `16^7 < q` |
+| `GAMMA` | 1 | **16** | ArkLib weak-opening `γ̄ = b` (Soundness.lean) |
+| `BETA_SQ` | 8192 | **163 966 054 471 565 312** | ArkLib `quadEvalBetaSq b b τ d m δ` at `τ = 4` |
+| `MESSAGE_ROWS` | 4 | **1024** | `2^m`, `m = 10` |
+| `BLOCKS` | 2 | **1024** | `2^r`, `r = 10` |
+| `INNER_ROWS` | 2 | **1** | `n_A` |
+| `OUTER_ROWS` | 2 | **1** | `n_B` |
+| `KAPPA` | 65535 | **32** | ArkLib weak-opening `ω̄ = 2ω`, `ω = 16` |
+| `ML_VARS_LOW/HIGH` | 1/2 | **10/10** | `r`/`m`; `ℓ - α = 20` variables ✓ |
+| `ML_*_LEN` | 2/4/8 | **1024/1024/1048576** | literals for `2^10`, `2^10`, `2^20` |
+
+Decisions taken with the user (2026-08-28; the bound values were then corrected
+the same day after the user's review -- see "The verifier bounds are the
+weak-opening triple" below):
+
+* **`KAPPA` off the invertibility ceiling.** `κ` used to sit at
+  `⌊√q⌋ = 65535`, the most permissive legal value; it now carries the
+  weak-opening bound. `kappa_is_the_invertibility_ceiling` became
+  `kappa_is_legal_for_invertibility` (legality `κ² < q` -- ArkLib Lemma 8's own
+  `hκ : (2ω)² < q` -- plus the `2ω` relation), and the matching ceiling example
+  was dropped from `lean/Check.lean` § 1.
+* **`INNER_ROWS = OUTER_ROWS = 1`.** `dimensions_are_nondegenerate` now asserts
+  only `≥ 1` for the two Ajtai row counts (a single row is the paper's shape,
+  not a degenerate one); the multi-row index-computation duty is carried by
+  `BLOCKS = MESSAGE_ROWS = 1024`.
+* **Full-const tests and benches are opt-in** — see below.
+
+**The verifier bounds are the weak-opening triple, not the honest-case one.**
+The first cut of this flip set `(κ, γ, βSq) = (16, 15, 1 887 436 800)` -- the
+paper's sampled-challenge bound `ω` and the honest unsigned decomposition's own
+norms. The user's review caught the category error: those are the bounds an
+honest `c = 1` opening meets, not the ones the extraction protocol's weak
+openings must be verified against. ArkLib documents the intended mapping
+explicitly (`QuadEval/Soundness.lean`, "Paper parameter mapping", Hachi
+Lemma 8): `(βSq, γ, κ) = (quadEvalBetaSq γ b τ d m δ at γ := b, b, 2ω)` --
+extracted openings carry challenge *differences* (`≤ 2ω`), the paper's `S_b`
+box is relaxed to the symmetric ball `γ = b`, and `βSq` is ArkLib's deliberate
+squared-`ℓ₂` replacement for the paper's `β̄ = 2·b^τ`, which at
+`(γ = b = 16, τ = 4, d = 1024, m = 10, δ = 8)` evaluates to
+`4·(2^10·8)·(1024·(4369·16)²) = 163 966 054 471 565 312 ≈ 1.64·10^17`. A
+verifier at the honest-case values would reject extracted openings the ArkLib
+`relIn` admits. The honest bounds now sit strictly inside (`15 < 16`;
+`1 887 436 800` is ~8.7·10^7 below `βSq`), which also means **no admissible
+challenge can push an honest opening past `βSq`** -- the `ℓ₂²` rejection test
+became `an_overlong_message_decomposition_is_rejected`, and the slot-rewrite
+tests moved to `+2b/-2` so they clear `γ = b` strictly.
+
+**No repo counterpart** (the protocol layer is deliberately absent, `lib.rs`
+§ Status): the paper's `n_D`/matrix `D`, the `z` norm bound 30583, and the
+sparse-challenge count `c = 16`. `τ = 4` (the `z`-decomposition expansion)
+appears in exactly one place -- inside `BETA_SQ`'s derived literal, per the
+mapping above -- and nowhere else; no other constants were invented, and the
+`z`-machinery itself arrives with the protocol layer.
+
+**The gadget decomposition is not paper-faithful at `b = 16`.** The paper uses
+balanced base-16 digits in `[-8, 7]`; the pinned ArkLib
+(`zmodDigitDecomposition`) -- and therefore this crate, by hard rule 1 -- uses
+unsigned digits in `{0, …, 15}` (§ "The digits are not balanced"). Harmless at
+`b = 2`, where the two representations carry essentially the same bound; at
+`b = 16` it changes the honest decomposition outputs (and so commitment
+values), the honest norm sizes, and the norm side of the paper's argument for
+`n_A = n_B = 1`. The fix trigger is recorded: upstream ArkLib PR #782 switches
+the honest layer to `balancedZmodDigitDecomposition` (the reason
+`QuadEval/Gadgets.lean` was never onboarded, § Workstream 2), and adopting it
+here is an ArkLib pin bump plus a gadget-layer re-verification, not a local
+edit. Until then, cross-implementation comparisons with the paper are
+dimension-for-dimension, not output-for-output.
+
+**Test policy at paper scale (the Phase 4 deviation).** A full-const message is
+`BLOCKS × MESSAGE_ROWS = 2^20` ring elements of 1024 coefficients (~8 GiB), and
+one `commit` is ~2^23 schoolbook ring products of ~2^20 field ops each — hours.
+The full-pipeline tests in `commit_semantics.rs` / `evalsplit_semantics.rs` are
+therefore `#[ignore]`d (run on demand: `cargo test --release -- --ignored`, on
+a machine sized for them), with the tamper/shortness logic they exercised kept
+live in shape-generic property tests over small ad-hoc vectors. This is a
+recorded deviation from the repo habit that tests exercise the real consts.
+
+**Bench policy at paper scale.** The scheme-level `commit` cases and the
+const-bound `evalsplit` reshape/evaluation cases are excluded by a signed-off
+policy exception (`benches/exclusions.toml`, new section, with the arithmetic);
+the two shape-generic basis cases run at reduced variable counts (4 and 6) with
+the deviation stated in the bench file; `CONTROL_N` moved 128 → 8192 with the
+block width it is pinned to. All of it returns the moment a sub-quadratic
+`ring::mul` champion lands — which the parameter flip turns from optional into
+the single highest-leverage optimization in the repository (`opt-algo-swap`,
+the Karatsuba/convolution-split candidate).
+
+**Genesis re-freeze.** Every frozen baseline was measured at the old
+parameters, so genesis was re-frozen to the new first translations under the
+re-freeze carve-out (see `.claude/skills/rust-bench`): `logs/ledger.jsonl` was
+empty and no measurement had been published against the old baselines, so there
+was no history to rewrite. **No benchmark reading taken before this flip is
+comparable to one taken after it** — including every number in § "The first
+benchmark run", which was already labelled sizing information.
+
 ---
 
 ## Aeneas surprises
@@ -381,8 +491,19 @@ At `b = 2` the two bounds coincide numerically (`b - 1 = 1`, `b/2 = 1`), so the
 distinction costs nothing today and would cost correctness at any larger base.
 `tests/gadget_semantics.rs::digits_are_the_plain_base_b_digits_of_the_representative`
 pins the digits to the non-negative form against an independent computation, and
-`params.rs`'s `GAMMA` is `b - 1` with the side condition checked in
-`params_semantics.rs` and `lean/Check.lean` § 1.
+the honest digit bound `b - 1` sits strictly inside `params.rs`'s weak-opening
+`GAMMA = b`, with the side condition checked in `params_semantics.rs` and
+`lean/Check.lean` § 1.
+
+**Update 2026-08-28, at `b = 16` this stopped being harmless.** The paper's own
+decomposition is *balanced* base-16 (digits in `[-8, 7]`), so with the Fig. 9
+dimensions adopted (§ "Chosen parameters") the unsigned form now diverges from
+the paper's implementation in commitment outputs, honest norm sizes, and the
+norm side of the `n_A = n_B = 1` justification -- see the caveat recorded in
+the superseding parameters entry. The fix is upstream: ArkLib PR #782's
+`balancedZmodDigitDecomposition` (already the reason `QuadEval/Gadgets.lean`
+was not onboarded, § Workstream 2); adopting it is an ArkLib pin bump plus a
+gadget-layer re-verification.
 
 ---
 

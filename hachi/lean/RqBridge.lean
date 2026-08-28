@@ -64,7 +64,7 @@ namespace HachiEquiv.RqBridge
 is the cyclotomic index and the instances ArkLib's `Rq` needs. -/
 
 /-- The cyclotomic index `α`; the ring degree is `N = 2^α`. -/
-abbrev α : ℕ := 6
+abbrev α : ℕ := 10
 
 instance : Fact (Nat.Prime q) := ⟨by norm_num⟩
 
@@ -140,7 +140,7 @@ degree: `modByMonic` is a `Polynomial` operation, so the three facts below are w
 `Φ.φ` across the `CPolynomial`/`Polynomial` boundary. -/
 
 /-- `φ = X^N + 1` as a Mathlib polynomial. `powTwoCyclotomic_toPoly` states it at
-`X^{2^α}`; the `norm_num` is what turns `2^6` into this crate's `N`. -/
+`X^{2^α}`; the `norm_num` is what turns `2^10` into this crate's `N`. -/
 theorem phi_toPoly : Φ.φ.toPoly = (Polynomial.X : Polynomial (ZMod q)) ^ N + 1 := by
   rw [show Φ.φ = (powTwoCyclotomic (R := ZMod q) α).φ from rfl,
     CyclotomicModulus.powTwoCyclotomic_toPoly]
@@ -399,6 +399,9 @@ theorem copy_spec (a : ring.Rq) (ha : Wf a) :
   rintro z ⟨hz, hcoef⟩
   exact ⟨hz, (toRq_eq_iff z a).2 hcoef⟩
 
+-- Elaboration here recurses in the size of `N` (the two-block fold unifies through
+-- `X ^ 1024`); the default 512 sufficed at `N = 64`, the Fig. 9 degree does not.
+set_option maxRecDepth 16384 in
 /-- The product of two reduced representatives, coefficientwise: the raw `CPolynomial`
 product folded at `N` with a minus sign. This is the specification side of the sign the
 Rust folds in as it goes -- a public re-proof of ArkLib's `coeff_mul_rq_two_block`, which

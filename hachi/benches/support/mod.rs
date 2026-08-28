@@ -133,7 +133,7 @@
 //! row that says why. The same argument is what rules out using one of the real
 //! hot operations as the control.
 //!
-//! ## Why it is 128 entries and not one element
+//! ## Why it is a block-width vector and not one element
 //!
 //! Because a control's number is the threshold every real row must clear, so it
 //! has to be a row of the same kind. Two ways to get that wrong, and this
@@ -148,14 +148,17 @@
 //!   allocation and a drop inside the timed loop. A control over a borrowed slice
 //!   would report a fraction of the spread those rows actually show.
 //!
-//! `PolyVec::zeros(128)` is both: 64 KiB across 128 independent `Vec` growth
-//! sequences, ~28 us, which is where the polynomial rows the loop acts on live.
+//! `PolyVec::zeros(CONTROL_N)` is both: at the [NOZ26] Fig. 9 block width
+//! (8192 entries of 1024 coefficients, 64 MiB) it is a low-millisecond case,
+//! which is where the polynomial rows the loop acts on live at these
+//! parameters. (Pre-Fig. 9 it was `PolyVec::zeros(128)`, ~28 us -- same design,
+//! old block width.)
 //!
 //! **What resizing does not fix.** These are this repository's own prior
 //! readings, from NOTES.md § "The first benchmark run, and what it says about the
 //! harness", on an idle 4-core cloud container: the controls read 15%
 //! (`ring`, 212 ns), 14% (`linalg`, 27.9 us) and 10% (`commit`, 297 ns) -- and
-//! the 27.9 us one, which was already `PolyVec::zeros(128)`, was no better than
+//! the 27.9 us one, which was already a block-width `PolyVec::zeros`, was no better than
 //! the 212 ns ones. So the resize makes the control *representative*; it is not a
 //! fix for the floor, and that run's own diagnosis (no CPU pinning, no isolation
 //! from neighbours, invisible steal time) still stands. `harness.py`'s
@@ -207,12 +210,16 @@ const _: () = assert!(Q == hachi_candidate::params::Q);
 ///
 /// See the module header § "The A/B fairness control" for what the control is and
 /// why it is `PolyVec::zeros`. This is the length, and the choice is a duration
-/// and a footprint rather than a round number: 128 entries of `RING_DEGREE`
-/// coefficients is 8192 `Fp` -- 64 KiB, 128 separate `Vec` growth sequences --
-/// and NOTES.md § "The first benchmark run" measured exactly this case at
-/// **27.9 us**. That is the low-microsecond band the real polynomial rows the
-/// optimization loop acts on live in, and it is 130x the 212 ns the old
-/// `ring`/`commit` controls ran at.
+/// and a footprint rather than a round number: it is pinned (below) to the
+/// decomposed-block width `MESSAGE_ROWS · GADGET_DIGITS`, which at the [NOZ26]
+/// Fig. 9 parameters is 8192 entries of `RING_DEGREE = 1024` coefficients --
+/// 64 MiB, 8192 separate `Vec` growth sequences, a low-millisecond case. That
+/// is the band the real rows live in at these parameters (one d = 1024
+/// schoolbook `ring::mul` is ~2^20 field ops, and the vector lifts walk the
+/// same 8192-wide block this control allocates). The pre-Fig. 9 value was 128
+/// (the old block width, measured at 27.9 us in NOTES.md § "The first
+/// benchmark run"); no number taken against it is comparable to one taken
+/// against this.
 ///
 /// One size rather than several, because no small set of controls can cover this
 /// suite: the real cases span 20 ns (`ring/equals`) to 8 ms (`commit/verify_weak`),
@@ -223,9 +230,9 @@ const _: () = assert!(Q == hachi_candidate::params::Q);
 /// is known.
 ///
 /// A literal rather than the product, so the number that appears in the criterion
-/// case id (`_control/ring/128`) is readable here; the relation is checked below,
+/// case id (`_control/ring/8192`) is readable here; the relation is checked below,
 /// which is the same trade `params::RING_DEGREE` makes.
-pub const CONTROL_N: usize = 128;
+pub const CONTROL_N: usize = 8192;
 
 const _: () = assert!(CONTROL_N == hachi::params::MESSAGE_ROWS * hachi::params::GADGET_DIGITS);
 

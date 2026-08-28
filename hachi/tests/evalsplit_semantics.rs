@@ -15,6 +15,21 @@
 //! * the **which-half-is-which** convention -- `xl` is the first variables and
 //!   the matrix rows; swapping the halves is invisible at symmetric points, so
 //!   every point here is asymmetric.
+//!
+//! # Scale policy
+//!
+//! At the [NOZ26] Fig. 9 parameters a committed polynomial has
+//! `ML_POLY_LEN = 2^20` ring-element coefficients (~8 GiB), and one
+//! `eval_split` is ~2^20 schoolbook ring products. Every test that builds a
+//! full-const polynomial is `#[ignore]`d rather than deleted: the bodies stay
+//! correct at the real consts (their expectations are stated as index laws,
+//! not old-shape tables) and run on demand
+//! (`cargo test --release -- --ignored`) on a machine sized for them. The
+//! pure index-arithmetic tests and the basis-kernel tests, which are
+//! shape-generic or cheap, stay live -- including small-ad-hoc-point variants
+//! of the properties whose full-const versions are ignored. This is a
+//! recorded deviation from the repo habit that tests exercise the real
+//! consts; see NOTES.md § "Chosen parameters" and `commit_semantics.rs`.
 
 mod support;
 
@@ -32,8 +47,8 @@ fn bit(i: usize, j: usize) -> bool {
 }
 
 /// `split_equiv (x, y) = y + 2^nl · x`, checked against the little-endian bit
-/// layout: at `nl = 1` the low bit of the flat index is `y` and the remaining
-/// bits are `x`.
+/// layout: the low `nl` bits of the flat index are `y` and the remaining bits
+/// are `x`.
 #[test]
 fn split_equiv_matches_the_le_bit_layout() {
     for x in 0..ML_HIGH_LEN {
@@ -117,7 +132,9 @@ fn lagrange_basis_matches_the_kernel_formula() {
 
 /// Partition of unity: the Lagrange kernel sums to 1 over the hypercube at any
 /// point -- a property of the definition the entry-by-entry test cannot state.
+/// At the full variable count (`nl + nh = 20`, a 2^20-element basis).
 #[test]
+#[ignore = "full-const scale (a 2^20-ring-element basis, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
 fn lagrange_basis_sums_to_one() {
     let mut lcg = Lcg::new(0xE5_03);
     let w = lcg.next_poly_vec(ML_VARS_LOW + ML_VARS_HIGH);
@@ -129,12 +146,29 @@ fn lagrange_basis_sums_to_one() {
     assert!(sum.equals(&Rq::one()), "sum: {}", show(&sum));
 }
 
-/// The reshape's orientation, pinned entry by entry with distinguishable
-/// constants: coefficient `k` lands at row `k % 2`, column `k / 2`, so the
-/// expected rows are `[p₀, p₂, p₄, p₆]` and `[p₁, p₃, p₅, p₇]`. A transposed
-/// reshape (rows `[p₀..p₃]`, `[p₄..p₇]`) passes both round trips; it fails
-/// here.
+/// The same partition of unity at a small ad-hoc point (`lagrange_basis` is
+/// generic in the point length): the live stand-in for the ignored full-const
+/// version above.
 #[test]
+fn lagrange_basis_sums_to_one_at_a_small_point() {
+    let mut lcg = Lcg::new(0xE5_13);
+    let w = lcg.next_poly_vec(4);
+    let lb = lagrange_basis(&w);
+    assert_eq!(lb.len(), 16);
+    let mut sum = Rq::zero();
+    for i in 0..lb.len() {
+        sum = sum.add(lb.get(i));
+    }
+    assert!(sum.equals(&Rq::one()), "sum: {}", show(&sum));
+}
+
+/// The reshape's orientation, pinned entry by entry with distinguishable
+/// constants: coefficient `k` lands at row `k mod 2^nl`, column `k >> nl`, so
+/// entry `(i, j)` must hold coefficient `(j << nl) | i` -- the expectation is
+/// the index law itself, by shift-and-mask, not the crate's `split_equiv`. A
+/// transposed reshape passes both round trips; it fails here.
+#[test]
+#[ignore = "full-const scale (a 2^20-ring-element polynomial, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
 fn to_matrix_places_coefficients_along_the_split() {
     let mut coeffs = Vec::new();
     for k in 0..ML_POLY_LEN {
@@ -145,14 +179,10 @@ fn to_matrix_places_coefficients_along_the_split() {
 
     assert_eq!(m.rows(), ML_LOW_LEN);
     assert_eq!(m.cols(), ML_HIGH_LEN);
-    let expected = [[1u64, 3, 5, 7], [2u64, 4, 6, 8]];
-    for (i, row) in expected.iter().enumerate() {
-        for (j, want) in row.iter().enumerate() {
-            assert_eq!(
-                m.row(i).get(j).coeff(0).to_u64(),
-                *want,
-                "entry ({i}, {j})"
-            );
+    for i in 0..ML_LOW_LEN {
+        for j in 0..ML_HIGH_LEN {
+            let want = ((j << ML_VARS_LOW) | i) as u64 + 1;
+            assert_eq!(m.row(i).get(j).coeff(0).to_u64(), want, "entry ({i}, {j})");
         }
     }
 }
@@ -160,6 +190,7 @@ fn to_matrix_places_coefficients_along_the_split() {
 /// `to_matrix_eval` follows the same layout (a distinct spec definition; the
 /// test keeps the two bodies from drifting apart).
 #[test]
+#[ignore = "full-const scale (a 2^20-ring-element vector, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
 fn to_matrix_eval_places_values_along_the_split() {
     let mut values = Vec::new();
     for k in 0..ML_POLY_LEN {
@@ -167,20 +198,17 @@ fn to_matrix_eval_places_values_along_the_split() {
     }
     let v = MlEvals::new(values);
     let m = v.to_matrix_eval();
-    let expected = [[1u64, 3, 5, 7], [2u64, 4, 6, 8]];
-    for (i, row) in expected.iter().enumerate() {
-        for (j, want) in row.iter().enumerate() {
-            assert_eq!(
-                m.row(i).get(j).coeff(0).to_u64(),
-                *want,
-                "entry ({i}, {j})"
-            );
+    for i in 0..ML_LOW_LEN {
+        for j in 0..ML_HIGH_LEN {
+            let want = ((j << ML_VARS_LOW) | i) as u64 + 1;
+            assert_eq!(m.row(i).get(j).coeff(0).to_u64(), want, "entry ({i}, {j})");
         }
     }
 }
 
 /// The two reshapes are mutually inverse on random data, both ways round.
 #[test]
+#[ignore = "full-const scale (two 2^20-ring-element structures, ~16 GiB); see the module doc -- run with cargo test --release -- --ignored"]
 fn to_polynomial_inverts_to_matrix() {
     let mut lcg = Lcg::new(0xE5_04);
 
@@ -209,6 +237,7 @@ fn to_polynomial_inverts_to_matrix() {
 /// no basis vector. The point halves are asymmetric so a swapped `(xl, xh)`
 /// fails.
 #[test]
+#[ignore = "full-const scale (a 2^20-term direct sum of ring products); see the module doc -- run with cargo test --release -- --ignored"]
 fn eval_split_agrees_with_a_direct_monomial_sum() {
     let mut lcg = Lcg::new(0xE5_05);
     let mut coeffs = Vec::new();
@@ -247,6 +276,7 @@ fn eval_split_agrees_with_a_direct_monomial_sum() {
 /// `evalSplitEval_eq_eval`, same shape of reference with the Lagrange factor
 /// `(bit ? xⱼ : 1 - xⱼ)` at every position.
 #[test]
+#[ignore = "full-const scale (a 2^20-term direct sum of ring products); see the module doc -- run with cargo test --release -- --ignored"]
 fn eval_split_eval_agrees_with_a_direct_lagrange_sum() {
     let mut lcg = Lcg::new(0xE5_06);
     let mut values = Vec::new();
@@ -285,10 +315,16 @@ fn eval_split_eval_agrees_with_a_direct_lagrange_sum() {
 }
 
 /// The multilinear extension interpolates: at a Boolean point the split
-/// evaluation returns the stored hypercube value at that vertex -- for every
-/// vertex, with the vertex index reassembled by `split_equiv`'s own layout
-/// (low bits = `xl`).
+/// evaluation returns the stored hypercube value at that vertex -- with the
+/// vertex index reassembled by `split_equiv`'s own layout (low bits = `xl`).
+///
+/// Sampled vertices, not the full sweep: at 2^20 vertices with each
+/// evaluation itself ~2^20 ring products, exhaustion is out of reach even on
+/// demand. The vertices are fixed and asymmetric in both halves (0 and
+/// all-ones catch a stuck evaluator; the mixed ones catch a swapped or
+/// bit-reversed half).
 #[test]
+#[ignore = "full-const scale (a 2^20-ring-element vector, ~8 GiB, ~2^20 ring products per vertex); see the module doc -- run with cargo test --release -- --ignored"]
 fn eval_split_eval_interpolates_the_hypercube() {
     let mut lcg = Lcg::new(0xE5_07);
     let mut values = Vec::new();
@@ -297,7 +333,8 @@ fn eval_split_eval_interpolates_the_hypercube() {
     }
     let v = MlEvals::new(values);
 
-    for k in 0..ML_POLY_LEN {
+    let vertices = [0usize, 1, ML_POLY_LEN - 1, 0b0000_0110_1001 % ML_POLY_LEN, (ML_POLY_LEN - 1) >> 3];
+    for k in vertices {
         let mut xl = Vec::new();
         for j in 0..ML_VARS_LOW {
             xl.push(if bit(k, j) { Rq::one() } else { Rq::zero() });

@@ -13,6 +13,22 @@
 //! Public parameters are constructed explicitly from a seeded generator: the
 //! specification's `setup` samples them, and deriving them from a seed is a design
 //! decision this crate has not made (see the module header of `src/commit.rs`).
+//!
+//! # Scale policy
+//!
+//! At the [NOZ26] Fig. 9 parameters a full-const message is
+//! `BLOCKS × MESSAGE_ROWS = 2^20` ring elements of 1024 coefficients each
+//! (~8 GiB), and one `commit` is ~2^23 schoolbook ring products -- hours of
+//! arithmetic and tens of GiB once the decompositions exist. Every test that
+//! builds a full-const message is therefore `#[ignore]`d rather than deleted:
+//! the bodies stay correct at the real consts and run on demand
+//! (`cargo test --release -- --ignored`) on a machine sized for them. The
+//! *logic* they exercised -- digit-level tampering breaking the gadget
+//! relation, the slot rewrite that preserves it while breaking shortness -- is
+//! kept live below in shape-generic property tests over small ad-hoc vectors,
+//! through the same `gadget`/`linalg` functions the pipeline calls. This is a
+//! recorded deviation from the repo habit that tests exercise the real consts;
+//! see NOTES.md § "Chosen parameters".
 
 mod support;
 
@@ -23,8 +39,8 @@ use hachi::commit::{
 };
 use hachi::linalg::{flatten_blocks, PolyVec};
 use hachi::params::{
-    BETA_SQ, BLOCKS, GADGET_DIGITS, GAMMA, INNER_ROWS, KAPPA, MESSAGE_ROWS, OUTER_ROWS, Q,
-    RING_DEGREE,
+    BETA_SQ, BLOCKS, GADGET_BASE, GADGET_DIGITS, GAMMA, INNER_ROWS, KAPPA, MESSAGE_ROWS,
+    OUTER_ROWS, Q, RING_DEGREE,
 };
 use hachi::ring::Rq;
 use support::{rq_from_u64s, show_vec, Lcg};
@@ -122,6 +138,7 @@ fn l2_norm_sq_does_not_overflow_at_the_maximum() {
 /// verify -- the computational content of `InnerOuter/Correctness.lean`'s
 /// `perfectlyCorrect`.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn honest_commitments_verify() {
     for seed in [1u64, 2, 3] {
         let pp = params_from_seed(0xA000 + seed);
@@ -144,6 +161,7 @@ fn honest_commitments_verify() {
 /// `derivedMessage` ([NOZ26] Eq. (13)). This is what lets a weak opening not
 /// store the message.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn the_message_is_derived_from_the_decomposition() {
     let pp = params_from_seed(0xC001);
     let m = message_from_seed(0xC002);
@@ -163,6 +181,7 @@ fn the_message_is_derived_from_the_decomposition() {
 /// The honest decomposition is short, which is *why* verification accepts it:
 /// `‖t̂‖∞ ≤ γ` on the flattening, and `‖sᵢ‖₂² ≤ βSq` per block.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn the_honest_decomposition_meets_the_verifier_bounds() {
     let pp = params_from_seed(0xC003);
     let m = message_from_seed(0xC004);
@@ -181,6 +200,7 @@ fn the_honest_decomposition_meets_the_verifier_bounds() {
 /// `commit` is `commit_with_decomps` of what `generate_decomps` produced --
 /// i.e. the two entry points agree.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn commit_agrees_with_commit_with_decomps() {
     let pp = params_from_seed(0xC005);
     let m = message_from_seed(0xC006);
@@ -195,6 +215,7 @@ fn commit_agrees_with_commit_with_decomps() {
 /// A tampered coefficient in the inner decomposition breaks the inner gadget
 /// relation `A sᵢ = G t̂ᵢ`, and the verifier says so.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn a_tampered_inner_decomposition_is_rejected() {
     let pp = params_from_seed(0xD001);
     let m = message_from_seed(0xD002);
@@ -226,6 +247,7 @@ fn a_tampered_inner_decomposition_is_rejected() {
 /// A tampered decomposed message breaks both the gadget relation and the derived
 /// message, so both the weak verifier and the full one reject.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn a_tampered_message_decomposition_is_rejected() {
     let pp = params_from_seed(0xD003);
     let m = message_from_seed(0xD004);
@@ -254,6 +276,7 @@ fn a_tampered_message_decomposition_is_rejected() {
 /// A commitment to a different message does not verify against this opening --
 /// the property binding is about, here in its trivial (honest) direction.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn an_opening_does_not_verify_against_the_wrong_commitment() {
     let pp = params_from_seed(0xD005);
     let m = message_from_seed(0xD006);
@@ -272,6 +295,7 @@ fn an_opening_does_not_verify_against_the_wrong_commitment() {
 /// The full verifier ties the opening to a *claimed* message, so a correct
 /// opening against the wrong claim is rejected even though the weak checks pass.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn the_full_verifier_checks_the_claimed_message() {
     let pp = params_from_seed(0xD008);
     let m = message_from_seed(0xD009);
@@ -292,19 +316,23 @@ fn the_full_verifier_checks_the_claimed_message() {
 /// after adding `b·(one) - ...`; the simplest witness is to replace `t̂ᵢ` by a
 /// vector whose gadget product is the same but whose coefficients are large,
 /// which is what the digit slots `(e, e+1)` allow -- `b·(slot e) = slot (e+1)`.
-/// Here `b = 2`: moving one unit from slot `e+1` into two units of slot `e`
-/// preserves `Σ bᵉ·t̂ₑ` while pushing `‖t̂‖∞` to 2.
+/// Here `b = 16`: moving two units from slot `e+1` into 32 units of slot `e`
+/// preserves `Σ bᵉ·t̂ₑ` while pushing `‖t̂‖∞` to at least 32 > γ = 16. (Two
+/// units, not one: γ is the weak-opening bound `b`, and one unit could land an
+/// honest zero digit exactly *on* it.)
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn a_long_inner_decomposition_is_rejected_even_when_the_relation_holds() {
     let pp = params_from_seed(0xD00B);
     let m = message_from_seed(0xD00C);
     let (_, decomp) = commit(&pp, &m);
 
     // Rebuild t̂ with the digit-slot rewrite above applied to block 0's first
-    // gadget block: slot 0 += 2·1, slot 1 -= 1. The gadget sum is unchanged
-    // (2^0·2 - 2^1·1 = 0) but slot 0 now has a coefficient of magnitude ≥ 2.
+    // gadget block: slot 0 += 2b, slot 1 -= 2. The gadget sum is unchanged
+    // (b^0·2b - b^1·2 = 0) but slot 0, an honest digit in {0, …, b-1}, now has
+    // a coefficient of magnitude ≥ 2b = 32, which exceeds γ = b = 16.
+    let two_b = rq_from_u64s(&[2 * GADGET_BASE]);
     let two = rq_from_u64s(&[2]);
-    let one = Rq::one();
     let mut messages = Vec::new();
     let mut inners = Vec::new();
     for i in 0..decomp.blocks() {
@@ -313,9 +341,9 @@ fn a_long_inner_decomposition_is_rejected_even_when_the_relation_holds() {
         let mut entries = Vec::new();
         for j in 0..t.len() {
             if i == 0 && j == 0 {
-                entries.push(t.get(j).add(&two));
+                entries.push(t.get(j).add(&two_b));
             } else if i == 0 && j == 1 {
-                entries.push(t.get(j).sub(&one));
+                entries.push(t.get(j).sub(&two));
             } else {
                 entries.push(t.get(j).copy());
             }
@@ -346,6 +374,7 @@ fn a_long_inner_decomposition_is_rejected_even_when_the_relation_holds() {
 /// with `‖c‖₁ > κ` fails the upper bound. Both are checked with an otherwise
 /// honest opening, so the challenge is the only thing that can reject.
 #[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
 fn inadmissible_challenges_are_rejected() {
     let pp = params_from_seed(0xD00D);
     let m = message_from_seed(0xD00E);
@@ -386,29 +415,134 @@ fn inadmissible_challenges_are_rejected() {
     );
 }
 
-/// And the `ℓ₂²` check on the scaled message: a challenge that is admissible on
-/// its own (`0 < ‖c‖₁ ≤ κ`) but blows up `‖c·sᵢ‖₂²` must be rejected.
+/// And the `ℓ₂²` check on the scaled message. At the weak-opening bound
+/// (`βSq = quadEvalBetaSq …` ≈ 1.64·10¹⁷) no *admissible challenge* can push an
+/// honest decomposition past it -- the slack is the design, checked in
+/// `params_semantics::beta_sq_admits_the_honest_decomposition` -- so the
+/// rejection witness is a *long message half*: a `Decomp` whose gadget
+/// relation, `ℓ∞` bound and outer commitment are all honest-by-construction
+/// (t̂ and u are recomputed from it), but whose message vectors sit at the
+/// centered maximum `q/2` per coefficient, far past βSq.
 #[test]
-fn a_challenge_that_lengthens_the_message_is_rejected() {
+#[ignore = "full-const scale (~64 GiB decomposition, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+fn an_overlong_message_decomposition_is_rejected() {
     let pp = params_from_seed(0xD00F);
-    let m = message_from_seed(0xD010);
-    let (u, decomp) = commit(&pp, &m);
 
-    // c = 1000: ‖c‖₁ = 1000 ≤ κ, but scaling every coefficient of sᵢ by 1000
-    // takes ‖c·sᵢ‖₂² well past βSq (the honest value sits *on* βSq).
-    let c = rq_from_u64s(&[1000]);
-    assert!(l1_norm(&c) <= KAPPA);
-    let mut challenges = Vec::new();
+    // Every coefficient at the centered maximum. Not a gadget decomposition of
+    // anything -- the point is that verify_weak cannot know that: every check
+    // but the ℓ₂² bound passes by construction.
+    let mut coeffs = Vec::new();
+    for _ in 0..RING_DEGREE {
+        coeffs.push(Fp::new(Q / 2));
+    }
+    let worst = Rq::from_coeffs(&coeffs);
+
+    let width = MESSAGE_ROWS * GADGET_DIGITS;
     let mut messages = Vec::new();
     let mut inners = Vec::new();
-    for i in 0..decomp.blocks() {
-        challenges.push(c.copy());
-        messages.push(decomp.message(i).copy());
-        inners.push(decomp.inner_decomp(i).copy());
+    for _ in 0..BLOCKS {
+        let mut entries = Vec::new();
+        for _ in 0..width {
+            entries.push(worst.copy());
+        }
+        let s = PolyVec::new(entries);
+        // Honest inner decomposition *of this s*: the gadget relation and the
+        // ℓ∞ bound on t̂ hold, so the ℓ₂² check is the only one that can fire.
+        let inner = pp.inner_matrix().mat_vec_mul(&s);
+        inners.push(hachi::gadget::gadget_decompose(&inner));
+        messages.push(s);
     }
-    let opening = Opening::new(Decomp::new(messages, inners), PolyVec::new(challenges));
+    let long = Decomp::new(messages, inners);
+    assert!(
+        hachi::commit::vec_l2_norm_sq(long.message(0)) > BETA_SQ,
+        "the constructed message half is not actually long"
+    );
+
+    let u = commit_with_decomps(&pp, &long);
+    let opening = Opening::honest(long);
     assert!(
         !verify_weak(&pp, &u, &opening),
-        "a challenge that lengthens the message verified"
+        "an overlong message decomposition verified"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Shape-generic property tests (the live stand-ins for the ignored pipeline
+// tests above; see the module doc's "Scale policy")
+// ---------------------------------------------------------------------------
+
+/// The digit-tamper logic of `a_tampered_inner_decomposition_is_rejected`,
+/// through the same functions the verifier calls but at a small ad-hoc shape:
+/// adding 1 to any single slot of an honest decomposition changes the
+/// recomposition `G · t̂`, because slot `j` contributes `b^(j mod digits)` to
+/// row `j / digits` and nothing cancels it. This is what makes the verifier's
+/// gadget-relation check able to see a tampered coefficient at all.
+#[test]
+fn a_tampered_digit_slot_changes_the_recomposition() {
+    let rows = 3;
+    let mut rng = Lcg::new(0xE001);
+    let x = rng.next_poly_vec(rows);
+    let t = hachi::gadget::gadget_decompose(&x);
+    assert_eq!(t.len(), rows * GADGET_DIGITS);
+    assert!(hachi::gadget::gadget_mul(rows, &t).equals(&x));
+
+    for j in 0..t.len() {
+        let mut entries = Vec::new();
+        for k in 0..t.len() {
+            if k == j {
+                entries.push(t.get(k).add(&Rq::one()));
+            } else {
+                entries.push(t.get(k).copy());
+            }
+        }
+        let tampered = PolyVec::new(entries);
+        assert!(
+            !hachi::gadget::gadget_mul(rows, &tampered).equals(&x),
+            "tampering slot {j} left the recomposition unchanged"
+        );
+    }
+}
+
+/// The long-decomposition logic of
+/// `a_long_inner_decomposition_is_rejected_even_when_the_relation_holds`, at a
+/// small ad-hoc shape: the slot rewrite `slot e += 2b, slot e+1 -= 2` preserves
+/// `G · t̂` exactly (`b^e·2b - b^(e+1)·2 = 0`) while pushing a coefficient of
+/// magnitude ≥ 2b = 32 past `γ = b = 16`. (Two units, not one: one unit could
+/// land an honest zero digit exactly *on* the weak-opening bound.) The gadget
+/// relation alone therefore does not enforce shortness -- the verifier's
+/// separate `ℓ∞` check is what the ignored test shows rejecting this, and this
+/// is the mechanism it uses.
+#[test]
+fn the_slot_rewrite_preserves_the_relation_but_not_shortness() {
+    let rows = 2;
+    let mut rng = Lcg::new(0xE002);
+    let x = rng.next_poly_vec(rows);
+    let t = hachi::gadget::gadget_decompose(&x);
+
+    let two_b = rq_from_u64s(&[2 * GADGET_BASE]);
+    let two = rq_from_u64s(&[2]);
+    let mut entries = Vec::new();
+    for k in 0..t.len() {
+        if k == 0 {
+            entries.push(t.get(k).add(&two_b));
+        } else if k == 1 {
+            entries.push(t.get(k).sub(&two));
+        } else {
+            entries.push(t.get(k).copy());
+        }
+    }
+    let long = PolyVec::new(entries);
+
+    assert!(
+        hachi::gadget::gadget_mul(rows, &long).equals(&x),
+        "the slot rewrite changed the recomposition"
+    );
+    assert!(
+        hachi::commit::vec_l_infty_norm(&long) > GAMMA,
+        "the slot rewrite did not break shortness"
+    );
+    assert!(
+        hachi::commit::vec_l_infty_norm(&t) <= GAMMA,
+        "the honest decomposition was not short to begin with"
     );
 }

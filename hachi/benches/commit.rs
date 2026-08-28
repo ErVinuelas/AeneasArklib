@@ -1,33 +1,26 @@
-//! Wall-clock time for the commitment itself, end to end.
+//! Wall-clock time for the commitment layer's norms -- and, by policy exception,
+//! *not* for the commitment itself.
 //!
-//! These are the only readings in the repository that correspond to something a
-//! user of the scheme would wait for: `commit` (decompose, inner-commit,
-//! decompose again, outer-commit), `verify_weak` (per-block norms and gadget
-//! relation, then the outer product) and `verify` (`verify_weak` plus the derived
-//! message check). Everything else timed here is one of their parts, present so
-//! that a change in the total can be attributed.
-//!
-//! All three are dominated by `linalg::mat_vec_mul` and so by `ring::mul`: at
-//! these dimensions a single commit does `BLOCKS · (INNER_ROWS · MESSAGE_ROWS ·
-//! GADGET_DIGITS) + OUTER_ROWS · (BLOCKS · INNER_ROWS · GADGET_DIGITS)` ring
-//! products. The norms are `O(coefficients)` and should be invisible next to
-//! that -- if a `norm` case ever becomes comparable to `commit`, the ring product
-//! got much faster or a norm got much slower.
+//! The end-to-end readings (`commit`, `verify_weak`, `verify` and their parts)
+//! are what a user of the scheme would wait for, and at the [NOZ26] Fig. 9
+//! parameters they are excluded: a single commit does `BLOCKS · (INNER_ROWS ·
+//! MESSAGE_ROWS · GADGET_DIGITS) + OUTER_ROWS · (BLOCKS · INNER_ROWS ·
+//! GADGET_DIGITS) ≈ 2^23` schoolbook `ring::mul`s of `2^20` field operations
+//! each -- hours per criterion iteration -- and even one block pays the
+//! const-bound `MESSAGE_ROWS · GADGET_DIGITS = 8192` products through `A`.
+//! Their case bodies are retained below, unregistered, for the day a
+//! sub-quadratic `ring::mul` champion lands; the exclusion is recorded with its
+//! sign-off in `exclusions.toml` and NOTES.md ("Adopting the paper's
+//! parameters").
 //!
 //! # Sizes
 //!
-//! Three families, each the dimension its operation actually loops over:
+//! Two families, each the dimension its operation actually loops over:
 //!
-//! * `RING_DEGREE = 64` for the three element-level norms, which walk one ring
-//!   element's coefficients.
-//! * `MESSAGE_ROWS · GADGET_DIGITS = 128` for the two vector lifts, which walk a
-//!   decomposed message block.
-//! * `BLOCKS = 2` for everything scheme-level. Every other dimension of those
-//!   rows -- the two matrix shapes, the message width -- is taken from the
-//!   variant's own `params`, because they are `A` and `B` and not knobs. The
-//!   outer matrix's width is derived from the parameter (`blocks · (INNER_ROWS ·
-//!   GADGET_DIGITS)`), so the shape stays consistent if the row is ever measured
-//!   at a second block count.
+//! * `RING_DEGREE = 1024` for the three element-level norms, which walk one
+//!   ring element's coefficients.
+//! * `MESSAGE_ROWS · GADGET_DIGITS = 8192` for the two vector lifts, which walk
+//!   a decomposed message block.
 //!
 //! # Sampling
 //!
@@ -53,6 +46,14 @@ macro_rules! define_cases {
             // a `Copy` scalar has to take it by reference. That is the bound's
             // shape, not a choice this file makes.
             #![allow(clippy::trivially_copy_pass_by_ref)]
+            // The scheme-level case bodies (`check`, `generate_decomps`,
+            // `commit_with_decomps`, `derived_message`, `commit`, `verify_weak`,
+            // `verify`) and their digests are kept but not registered: at the
+            // [NOZ26] Fig. 9 parameters they are excluded by policy (see the
+            // note in `commit_benches` and `exclusions.toml`), and they return
+            // verbatim when a sub-quadratic `ring::mul` lands. `dead_code` is
+            // allowed for exactly that retention.
+            #![allow(dead_code)]
 
             use std::hint::black_box;
 
@@ -354,10 +355,13 @@ define_cases!(genesis, hachi_genesis);
 define_cases!(candidate, hachi_candidate);
 
 fn commit_benches(c: &mut Criterion) {
-    now::check();
-    genesis::check();
-    #[cfg(feature = "candidate")]
-    candidate::check();
+    // `check()` (the honest-opening gate) is NOT run here any more: it performs a
+    // full `commit` + `generate_decomps`, which at the [NOZ26] Fig. 9 widths is
+    // minutes of schoolbook arithmetic per variant, and no scheme-level case
+    // remains timed in this binary to be guarded by it. The digest assertions on
+    // the norm cases below still cross-check the three variants; the
+    // honest-opening property itself is `tests/commit_semantics.rs`'s
+    // `honest_commitments_verify`, run on demand (`--ignored`).
 
     // The run's sanity check: identical source in every variant, so anything it
     // reads is the harness disagreeing with itself. Runs first, while the machine
@@ -366,7 +370,6 @@ fn commit_benches(c: &mut Criterion) {
 
     let degree = hachi::params::RING_DEGREE;
     let width = hachi::params::MESSAGE_ROWS * hachi::params::GADGET_DIGITS;
-    let blocks = hachi::params::BLOCKS;
 
     // @covers commit::l1_norm
     bench_case!(c, "commit/l1_norm", l1_norm, [degree]);
@@ -379,29 +382,27 @@ fn commit_benches(c: &mut Criterion) {
     // @covers commit::vec_l_infty_norm
     bench_case!(c, "commit/vec_l_infty_norm", vec_l_infty_norm, [width]);
 
-    // @covers commit::generate_decomps
-    bench_case!(c, "commit/generate_decomps", generate_decomps, [blocks]);
-    // @covers commit::commit_with_decomps
-    bench_case!(c, "commit/commit_with_decomps", commit_with_decomps, [blocks]);
-    // @covers commit::derived_message
-    bench_case!(c, "commit/derived_message", derived_message, [blocks]);
-    // @covers commit::commit
-    bench_case!(c, "commit/commit", commit, [blocks]);
-
-    // @covers commit::verify_weak
-    bench_case!(c, "commit/verify_weak", verify_weak, [blocks]);
-    // @covers commit::verify
-    bench_case!(c, "commit/verify", verify, [blocks]);
+    // The six scheme-level cases (`generate_decomps`, `commit_with_decomps`,
+    // `derived_message`, `commit`, `verify_weak`, `verify`) are excluded at the
+    // [NOZ26] Fig. 9 parameters: every one of them pays >= `MESSAGE_ROWS *
+    // GADGET_DIGITS = 8192` schoolbook `ring::mul`s *per message block* through
+    // the const-bound matrix/gadget widths, which is tens of seconds per
+    // criterion iteration at any block count, and hours at `BLOCKS = 1024`. See
+    // `exclusions.toml` for the signed-off policy exception and NOTES.md
+    // ("Adopting the paper's parameters") for the arithmetic; they return the
+    // moment a sub-quadratic `ring::mul` champion lands.
 }
 
 criterion_group! {
     // The only per-binary override of `support::criterion_config`, and it is
     // arithmetic rather than taste. Criterion samples linearly: 100 samples cost
-    // `100·101/2 = 5050` executions of the routine. `commit` and `verify` are
-    // milliseconds here, so 100 samples would need ~30s per variant per row and
-    // the binary would run for half an hour. 50 samples is 1275 executions, which
-    // fits the 10s window with the same statistics criterion's intervals assume,
-    // just fewer of them.
+    // `100·101/2 = 5050` executions of the routine. The vector-lift norms walk
+    // `8192 · 1024` coefficients (tens of milliseconds here), so 100 samples
+    // would need minutes per variant per row. 50 samples is 1275 executions,
+    // which fits the 10s window with the same statistics criterion's intervals
+    // assume, just fewer of them. (The override predates the Fig. 9 parameter
+    // adoption -- it was sized for the since-excluded `commit`/`verify` rows --
+    // and the arithmetic happens to carry over to the lifts at the new widths.)
     //
     // Nothing else changes: the warm-up and the noise threshold stay as
     // `support::criterion_config` sets them, so the only difference between this

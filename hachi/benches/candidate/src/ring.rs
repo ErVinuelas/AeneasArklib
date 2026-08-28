@@ -282,7 +282,7 @@ impl Rq {
     /// spec performs with `modByMonic`; folding it in here is what keeps the
     /// output already reduced, with no second pass.
     ///
-    /// `i + j` cannot overflow: both are below `N = 64`.
+    /// `i + j` cannot overflow: both are below `N = 1024`.
     pub fn mul(&self, rhs: &Rq) -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();

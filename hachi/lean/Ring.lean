@@ -36,8 +36,8 @@ open HachiEquiv.Field
 
 namespace HachiEquiv.Ring
 
-/-- The ring degree `N = 2^α = 64`: the number of coefficients in one element. -/
-abbrev N : ℕ := 64
+/-- The ring degree `N = 2^α = 1024`: the number of coefficients in one element. -/
+abbrev N : ℕ := 1024
 
 /-- The extracted `RING_DEGREE` is `N`. `params.RING_DEGREE` is `irreducible`, so
 this is the way in, and it is what every loop bound below is rewritten with. -/
@@ -449,7 +449,7 @@ that is the shape `Polynomial.coeff_mul` produces, which is what the `Rq Φ` bri
 
 Totality is the usual argument (`Red` on every word the loop reads) plus one fact the
 other operations do not need: `i + j` is a *checked* `Usize` addition, and it cannot
-overflow because both indices are below `N = 64`. -/
+overflow because both indices are below `N = 1024`. -/
 
 /-- The signed contribution of the term `u * bⱼ` to slot `k`, when `u` is the `i`-th
 coefficient of the left factor: `+` when `i + j = k`, `−` when `i + j = N + k`, and
@@ -718,7 +718,7 @@ private theorem contrib_eq_sub (u : ZMod q) (b : ring.Rq) (i j k : ℕ) :
     contrib u b i j k
       = (if i + j = k then u * coeffK b j else 0)
         - (if i + j = N + k then u * coeffK b j else 0) := by
-  have hN : N = 64 := rfl
+  have hN : N = 1024 := rfl
   unfold contrib
   split_ifs with h₁ h₂ h₃ <;> first | omega | ring
 

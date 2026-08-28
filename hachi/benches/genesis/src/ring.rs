@@ -45,7 +45,6 @@ use cpoly::Fp;
 
 use crate::params;
 
-// @genesis d664190 2026-08-19 — ring::Rq
 /// An element of `R_q = Z_q[X] / (X^N + 1)`, as its `N` coefficients,
 /// little-endian in `X`.
 ///
@@ -55,8 +54,9 @@ use crate::params;
 pub struct Rq(Vec<Fp>);
 
 impl Rq {
-    // @genesis d664190 2026-08-19 — ring::Rq::zero
     /// The zero element (spec: the `Zero (Rq Φ)` instance, `Rq.lean:107`).
+    ///
+    /// Mirrors ArkLib's `Zero (Rq Φ)` instance.
     pub fn zero() -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();
@@ -68,15 +68,17 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::one
     /// The multiplicative identity (spec: the `One (Rq Φ)` instance,
     /// `Rq.lean:108`).
+    ///
+    /// Mirrors ArkLib's `One (Rq Φ)` instance.
     pub fn one() -> Rq {
         Rq::constant(Fp::ONE)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::constant
     /// The constant polynomial `C c` (spec: `Rq.constRq`, `Rq.lean:353`).
+    ///
+    /// Mirrors ArkLib's `Rq.constRq`.
     ///
     /// The spec's `constRq_val` records that no reduction happens here, since
     /// `deg (C c) = 0 < deg φ`; correspondingly this is just `c` in the
@@ -96,9 +98,10 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::from_coeffs
     /// The element with the given coefficients (spec: `Rq.ofFinCoeff`,
     /// `Rq.lean:269`, at `N = deg φ`).
+    ///
+    /// Mirrors ArkLib's `Rq.ofFinCoeff` at `N = deg φ`.
     ///
     /// Coefficients beyond `coeffs.len()` are zero and coefficients from
     /// `RING_DEGREE` on are dropped, which is what makes this total: the spec's
@@ -120,8 +123,9 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::coeff
     /// The `k`-th coefficient (spec: `Rq.coeffHom`, `Rq.lean:260`).
+    ///
+    /// Mirrors ArkLib's `Rq.coeffHom`.
     ///
     /// Zero at and beyond `RING_DEGREE`, which is the spec's
     /// `coeff_eq_zero_of_natDegree_le` rather than a convention chosen here.
@@ -133,13 +137,11 @@ impl Rq {
         }
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::len
     /// The number of coefficients: `RING_DEGREE`, for anything this module built.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::equals
     /// Coefficientwise equality.
     ///
     /// This, not `==`, is the equality the scheme uses: it is what
@@ -169,7 +171,6 @@ impl Rq {
         }
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::is_zero
     /// Is this the zero element?
     pub fn is_zero(&self) -> bool {
         let n: usize = self.0.len();
@@ -184,7 +185,6 @@ impl Rq {
         zero
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::copy
     /// An independent copy.
     ///
     /// Hand-rolled rather than `#[derive(Clone)]`, which would go through
@@ -204,10 +204,11 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::add
     /// Coefficientwise addition (spec: the `Add (Rq Φ)` instance,
     /// `Rq.lean:109`; that it is coefficientwise -- that the reduction in
     /// `Rq.mk` does nothing -- is the spec's `add_val`, `Rq.lean:246`).
+    ///
+    /// Mirrors ArkLib's `Add (Rq Φ)` instance.
     pub fn add(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -219,9 +220,10 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::sub
     /// Coefficientwise subtraction (spec: `Rq.lean:112`, coefficientwise by
     /// `sub_val`, `Rq.lean:231`).
+    ///
+    /// Mirrors ArkLib's `Sub (Rq Φ)` instance.
     pub fn sub(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -233,9 +235,10 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::neg
     /// Coefficientwise negation (spec: `Rq.lean:111`, coefficientwise by
     /// `neg_val`, `Rq.lean:239`).
+    ///
+    /// Mirrors ArkLib's `Neg (Rq Φ)` instance.
     pub fn neg(&self) -> Rq {
         let n: usize = self.0.len();
         let mut out: Vec<Fp> = Vec::new();
@@ -247,8 +250,10 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::scalar_mul
     /// Multiplication by a field scalar.
+    ///
+    /// Mirrors ArkLib's `Rq.constRq Φ c * x`, multiplication by a ring
+    /// constant.
     ///
     /// Spec: multiplication by a constant, `Rq.constRq Φ c * x`, whose
     /// coefficientwise action is `constRq_mul_coeff` (`Rq.lean:369`). Kept as an
@@ -266,9 +271,10 @@ impl Rq {
         Rq(out)
     }
 
-    // @genesis d664190 2026-08-19 — ring::Rq::mul
     /// The negacyclic product (spec: the `Mul (Rq Φ)` instance, `Rq.lean:110`,
     /// which is `reduce (a.val * b.val)`).
+    ///
+    /// Mirrors ArkLib's `Mul (Rq Φ)` instance.
     ///
     /// Schoolbook: for each pair `(i, j)` the term `aᵢbⱼ` lands in slot `i + j`,
     /// and when `i + j ≥ N` it lands in slot `i + j - N` with a *minus* sign,
@@ -276,7 +282,7 @@ impl Rq {
     /// spec performs with `modByMonic`; folding it in here is what keeps the
     /// output already reduced, with no second pass.
     ///
-    /// `i + j` cannot overflow: both are below `N = 64`.
+    /// `i + j` cannot overflow: both are below `N = 1024`.
     pub fn mul(&self, rhs: &Rq) -> Rq {
         let n: usize = params::RING_DEGREE;
         let mut out: Vec<Fp> = Vec::new();

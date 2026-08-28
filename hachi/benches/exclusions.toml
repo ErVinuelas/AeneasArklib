@@ -10,9 +10,18 @@
 # The bar for a line here is that a criterion run on the item would measure the
 # *harness* rather than the item: a type with no runtime, or straight-line code
 # with no loop and no allocation. It is NOT "this seemed slow to benchmark" and
-# it is NOT "this is not on the hot path" -- `commit::verify` is the most
-# expensive thing in the crate and `commit::l1_norm` is nobody's hot path, and
-# both are benched. If an item does real work at any size, bench it.
+# it is NOT "this is not on the hot path" -- `commit::l1_norm` is nobody's hot
+# path and it is benched. If an item does real work at any size, bench it.
+#
+# One signed-off exception class exists alongside that bar (the "infeasible at
+# [NOZ26] Fig. 9 scale" section below): operations whose cost is pinned by the
+# `params.rs` constants to hours per criterion iteration under schoolbook
+# `ring::mul`. That is a *policy* exception -- explicitly not "seemed slow" but
+# "provably cannot complete" -- decided by the user on 2026-08-28
+# (PLAN_PAPER_PARAMS.md, Decision 3) and recorded in NOTES.md ("Adopting the
+# paper's parameters"). Every entry in that section names the arithmetic that
+# makes it infeasible and the condition for its removal: a sub-quadratic
+# `ring::mul` champion landing.
 #
 # Each entry must say *why*, in a form that can be checked by reading the item.
 #
@@ -69,3 +78,71 @@ also measured through both reshapes, which call it per entry."""
 one `usize` division and one remainder by a const
 (`hachi/src/evalsplit.rs`): `(k / ML_LOW_LEN, k % ML_LOW_LEN)`. No loop, no
 allocation; measured through `to_polynomial`, which calls it per entry."""
+
+# -- infeasible at [NOZ26] Fig. 9 scale (signed-off policy exception) ---------
+#
+# See the header for the bar this section is an exception to, the sign-off, and
+# the removal condition. Common arithmetic: one schoolbook `ring::mul` at
+# `RING_DEGREE = 1024` is `2^20` field operations (~2-4 ms); one message block
+# is `MESSAGE_ROWS · GADGET_DIGITS = 8192` ring elements wide, so anything that
+# multiplies through the inner matrix `A` (`1 × 8192`) pays >= 8192 ring muls
+# (~tens of seconds) *per block*, at any block count -- and the scheme has
+# `BLOCKS = 1024` of them. The case bodies are retained (unregistered) in the
+# bench files, and the semantics they exercised run on demand via the
+# `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
+
+"commit::generate_decomps" = """
+per block: one `gadget_decompose` (8192 digit loops), one `A · s` (8192 ring
+muls, ~25 s at d = 1024 schoolbook), one more decompose. Hours at the scheme's
+`BLOCKS = 1024`; tens of seconds per iteration even at one block. Excluded per
+the Fig. 9 policy exception (header) until a sub-quadratic `ring::mul` lands."""
+
+"commit::commit_with_decomps" = """
+`B · flatten(t̂)`: `BLOCKS · (INNER_ROWS · GADGET_DIGITS) = 8192` ring muls,
+~25 s per iteration at d = 1024 schoolbook. Excluded per the Fig. 9 policy
+exception (header) until a sub-quadratic `ring::mul` lands."""
+
+"commit::derived_message" = """
+per block: `gadget_mul` at `MESSAGE_ROWS = 1024` rows -- 8192 ring muls
+(~25 s) per block, `BLOCKS = 1024` blocks. Excluded per the Fig. 9 policy
+exception (header) until a sub-quadratic `ring::mul` lands."""
+
+"commit::commit" = """
+`generate_decomps` + `commit_with_decomps`: ~2^23 ring muls at the scheme's
+shapes -- hours per criterion iteration. Excluded per the Fig. 9 policy
+exception (header) until a sub-quadratic `ring::mul` lands."""
+
+"commit::verify_weak" = """
+per block: the challenge scaling `c · sᵢ` alone is 8192 ring muls (~25 s).
+Excluded per the Fig. 9 policy exception (header) until a sub-quadratic
+`ring::mul` lands."""
+
+"commit::verify" = """
+`verify_weak` plus `derived_message` plus the per-block equality -- strictly
+more than either excluded part. Excluded per the Fig. 9 policy exception
+(header) until a sub-quadratic `ring::mul` lands."""
+
+"evalsplit::MlPoly::to_matrix" = """
+no arithmetic, but the shape is const-bound: `ML_POLY_LEN = 2^20` ring copies
+of 1024 coefficients each -- an ~8 GiB corpus built per variant before a
+single sample. Excluded per the Fig. 9 policy exception (header); returns with
+witness streaming or a smaller committed-polynomial parameter set."""
+
+"evalsplit::to_polynomial" = """
+the inverse reshape of `to_matrix`, same const-bound `2^20`-element, ~8 GiB
+shape. Excluded per the Fig. 9 policy exception (header)."""
+
+"evalsplit::MlEvals::to_matrix_eval" = """
+the value-vector reshape, same const-bound `2^20`-element, ~8 GiB shape as
+`to_matrix`. Excluded per the Fig. 9 policy exception (header)."""
+
+"evalsplit::MlPoly::eval_split" = """
+reshape + two bases + `split_form`: the bilinear form alone is
+`ML_LOW_LEN · ML_HIGH_LEN = 2^20` ring muls (~an hour at d = 1024 schoolbook),
+on an ~8 GiB corpus. Excluded per the Fig. 9 policy exception (header) until a
+sub-quadratic `ring::mul` lands."""
+
+"evalsplit::MlEvals::eval_split_eval" = """
+the Lagrange twin of `eval_split`, same `2^20` ring-mul bilinear form on the
+same ~8 GiB shape. Excluded per the Fig. 9 policy exception (header) until a
+sub-quadratic `ring::mul` lands."""

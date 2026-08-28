@@ -12,8 +12,8 @@
 //! The dimensions and norm bounds added for the commitment layer are checked the
 //! same way, and for two further reasons: `GAMMA` and `BETA_SQ` are *derived*
 //! quantities written as literals (Aeneas models `const` arithmetic as fallible,
-//! so a derived form would extract as a `Result`), and `KAPPA` sits on a ceiling
-//! that only holds at this modulus.
+//! so a derived form would extract as a `Result`), and `KAPPA` has a legality
+//! ceiling (`κ² < q`) that only holds at this modulus.
 
 // Every assertion here is *about* a constant -- that is the file's purpose, so
 // clippy's "this assertion has a constant value" is the expected state and not a
@@ -120,7 +120,7 @@ fn gadget_digits_cover_the_modulus() {
 
 /// ... and `digits` is the *smallest* count that does, so the gadget is not
 /// carrying a digit that is provably always zero. This is what pins
-/// `GADGET_DIGITS` to 32 rather than merely permitting it.
+/// `GADGET_DIGITS` to 8 rather than merely permitting it.
 #[test]
 fn gadget_digits_are_minimal() {
     let one_fewer = (GADGET_BASE as u128).pow(GADGET_DIGITS as u32 - 1);
@@ -139,13 +139,16 @@ fn q_agrees_with_the_field_layer() {
     assert_eq!(Q, cpoly::field::P);
 }
 
-/// `GAMMA` is the `ℓ∞` bound the honest decomposition meets, which
-/// `Gadget/Norms.lean`'s `gadgetDecompose_zmod_vecLInftyNorm_le` proves to be
-/// `b - 1`. It is a literal in `params.rs`, so nothing but this keeps it in step
-/// with the base.
+/// `GAMMA` is the weak-opening `ℓ∞` bound `γ̄ = b` of ArkLib's paper-parameter
+/// mapping (`QuadEval/Soundness.lean`: the paper's `S_b` box relaxed to the
+/// symmetric ball `‖·‖∞ ≤ b`). It is a literal in `params.rs`, so nothing but
+/// this keeps it in step with the base -- and the honest decomposition's own
+/// bound `b - 1` (`gadgetDecompose_zmod_vecLInftyNorm_le`) must sit strictly
+/// inside it, or honest openings would need the slack they do not have.
 #[test]
-fn gamma_is_the_digit_bound() {
-    assert_eq!(GAMMA, GADGET_BASE - 1);
+fn gamma_is_the_weak_opening_bound() {
+    assert_eq!(GAMMA, GADGET_BASE);
+    assert!(GADGET_BASE - 1 < GAMMA);
 }
 
 /// The digit bound above holds only under `b - 1 ≤ q/2` (`zmodDigit_natAbs_le`),
@@ -156,26 +159,47 @@ fn digit_bound_side_condition_holds() {
     assert!(GADGET_BASE - 1 <= Q / 2);
 }
 
-/// `BETA_SQ` is `(messageRows · messageDigits) · (deg φ) · (b-1)²`, the
-/// `ℓ₂²` bound of `gadgetDecompose_zmod_vecL2NormSq_le` at these dimensions.
-/// Also a literal, for the same reason as `GAMMA`.
+/// `BETA_SQ` is ArkLib's `quadEvalBetaSq γ b τ d m δ` at `γ := b` (Hachi
+/// Lemma 8's `4·B_z`, `QuadEval/Soundness.lean`):
+/// `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with the paper's `τ = 4`
+/// ([NOZ26] Fig. 9) -- `τ`'s only appearance in this crate. Also a literal,
+/// for the same reason as `GAMMA`.
 #[test]
-fn beta_sq_is_the_honest_l2_bound() {
-    let expected =
-        (MESSAGE_ROWS * GADGET_DIGITS) as u128 * RING_DEGREE as u128 * u128::from(GAMMA).pow(2);
-    assert_eq!(BETA_SQ, expected);
+fn beta_sq_is_the_weak_opening_bound() {
+    const TAU: u32 = 4;
+    let geom: u128 = (0..TAU).map(|u| u128::from(GADGET_BASE).pow(u)).sum();
+    let z_l2_sq =
+        (MESSAGE_ROWS * GADGET_DIGITS) as u128 * (RING_DEGREE as u128 * (geom * u128::from(GAMMA)).pow(2));
+    assert_eq!(BETA_SQ, 4 * z_l2_sq);
+}
+
+/// ... and the honest decomposition's own `ℓ₂²` bound
+/// (`gadgetDecompose_zmod_vecL2NormSq_le` at these dimensions, with the honest
+/// digit bound `b - 1`) sits far inside it -- the slack is what admits the
+/// protocol's *extracted* openings, and it is why no admissible challenge can
+/// push an honest opening past `BETA_SQ`.
+#[test]
+fn beta_sq_admits_the_honest_decomposition() {
+    let honest = (MESSAGE_ROWS * GADGET_DIGITS) as u128
+        * RING_DEGREE as u128
+        * u128::from(GADGET_BASE - 1).pow(2);
+    assert_eq!(honest, 1_887_436_800);
+    assert!(honest <= BETA_SQ);
 }
 
 /// `KAPPA` is capped by the Lyubashevsky-Seiler invertibility lemma
 /// (`isUnit_of_l1Norm_le`), which needs `κ² < q`: that is what turns the
 /// verifier's `0 < ‖c‖₁ ≤ κ` into the invertibility a weak opening actually
-/// requires. `κ` is a rejection threshold, so `params.rs` takes the ceiling --
-/// and both halves of that claim are checked: it is legal, and one more would
-/// not be.
+/// requires. `params.rs` no longer sits on that ceiling (`⌊√q⌋ = 65535`): the
+/// value is the weak-opening bound `ω̄ = 2ω = 32` at [NOZ26] Fig. 9's `ω = 16`
+/// (extracted openings carry challenge *differences*), so the checkable facts
+/// are legality -- ArkLib Lemma 8's own `hκ : (2ω)² < q` -- and the relation
+/// to `ω`.
 #[test]
-fn kappa_is_the_invertibility_ceiling() {
+fn kappa_is_legal_for_invertibility() {
+    // ArkLib Lemma 8's `hκ : (2ω)² < q`, at the paper's ω = 16.
+    assert_eq!(KAPPA, 2 * 16);
     assert!(u128::from(KAPPA).pow(2) < u128::from(Q));
-    assert!(u128::from(KAPPA + 1).pow(2) >= u128::from(Q));
 }
 
 /// The other half of that lemma's hypothesis: `q % 8 = 5`. Unlike `κ`, this is
@@ -194,13 +218,17 @@ fn the_honest_challenge_is_admissible() {
 }
 
 /// The matrix dimensions are the ones the specification's `PublicParams` shapes
-/// are built from, and each has to be at least 2 for the structure it exists to
-/// exercise -- more than one row, more than one block -- to be exercised at all.
+/// are built from. `BLOCKS` and `MESSAGE_ROWS` must be at least 2 so that the
+/// per-block and per-row structure -- more than one row, more than one block --
+/// is exercised at all; at [NOZ26] Fig. 9 they are 1024 and carry that duty
+/// alone. The Ajtai row counts are the paper's `n_A = n_B = 1`, so for them
+/// only nonzero-ness is checkable: a single Ajtai row is a legal (and the
+/// paper's) shape, not a degenerate one.
 #[test]
 fn dimensions_are_nondegenerate() {
     assert!(MESSAGE_ROWS >= 2);
-    assert!(INNER_ROWS >= 2);
-    assert!(OUTER_ROWS >= 2);
+    assert!(INNER_ROWS >= 1);
+    assert!(OUTER_ROWS >= 1);
     assert!(BLOCKS >= 2);
 }
 

@@ -6,11 +6,18 @@
 //! # Status
 //!
 //! The spec-stable bottom layers of the scheme: the ring, the linear algebra
-//! over it, the Ajtai gadget and the inner-outer commitment. The protocol layer
-//! (the per-link provers and verifiers -- QuadEval fold, ring switching,
+//! over it, the Ajtai gadget and the inner-outer commitment. The dimensions are
+//! the paper's benchmark set ([NOZ26] Fig. 9, the ℓ = 30 row) and the verifier
+//! bounds are ArkLib's weak-opening mapping for it, as of 2026-08-28 -- with
+//! the gadget-decomposition caveat recorded in `params.rs`; see NOTES.md
+//! § "Chosen parameters". The protocol
+//! layer (the per-link provers and verifiers -- QuadEval fold, ring switching,
 //! zero-check, sumcheck, final evaluation) is deliberately absent: its ArkLib
 //! specification still has unfilled definitional parameters, so there is nothing
-//! stable to be equivalent *to* yet.
+//! stable to be equivalent *to* yet. Its Fig. 9 constants (`n_D`/matrix `D`,
+//! the `z` norm bound 30583, the sparse-challenge count `c = 16`) therefore
+//! have no counterpart in `params.rs` either; `τ = 4` appears in exactly one
+//! place, inside `BETA_SQ`'s derived weak-opening literal (see `params.rs`).
 //!
 //! # Layout
 //!

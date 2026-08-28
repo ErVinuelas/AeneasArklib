@@ -86,16 +86,17 @@ fn digits_reconstruct_the_element() {
 }
 
 /// `base_pow` is a power in `Z_q`, not in `u64`: it has to keep working once
-/// `bᵉ` passes the modulus. At `b = 2` and `digits = 32` it does not, so the test
-/// checks the modular behaviour directly at an exponent that does.
+/// `bᵉ` passes the modulus. At `b = 16` and `digits = 8` the in-gadget
+/// exponents stay below it (`16^7 = 2^28 < q`), so the test checks the modular
+/// behaviour directly at the first exponent that does not.
 #[test]
 fn base_pow_is_modular() {
     assert_eq!(base_pow(0).to_u64(), 1);
     assert_eq!(base_pow(1).to_u64(), GADGET_BASE);
-    assert_eq!(base_pow(31).to_u64(), 1 << 31);
-    // 2^32 = 4294967296 = Q + 99.
-    assert_eq!(base_pow(32).to_u64(), 99);
-    assert_eq!(base_pow(33).to_u64(), 198);
+    assert_eq!(base_pow(7).to_u64(), 1 << 28);
+    // 16^8 = 2^32 = 4294967296 = Q + 99.
+    assert_eq!(base_pow(8).to_u64(), 99);
+    assert_eq!(base_pow(9).to_u64(), 1584);
 }
 
 /// The gadget matrix is `I_rows ⊗ [1, b, …, b^(digits-1)]`: entry `(i, j)` is
@@ -165,36 +166,44 @@ fn gadget_mul_inverts_gadget_decompose() {
 }
 
 /// The decomposition is *short*: every entry's centered `ℓ∞` norm is at most
-/// `b - 1 = GAMMA`, which is `gadgetDecompose_zmod_vecLInftyNorm_le`. Without
-/// this the round trip above would be arithmetic with no cryptographic content.
+/// the honest digit bound `b - 1` (`gadgetDecompose_zmod_vecLInftyNorm_le`),
+/// which sits strictly inside the weak-opening `GAMMA = b`. Without this the
+/// round trip above would be arithmetic with no cryptographic content.
 #[test]
 fn the_decomposition_is_l_infty_short() {
     let mut rng = Lcg::new(0xDEAD_BEEF_CAFE_0006);
     let x = rng.next_poly_vec(MESSAGE_ROWS);
     let decomposed = gadget_decompose(&x);
+    let honest = GADGET_BASE - 1;
+    assert!(honest < GAMMA);
     assert!(
-        vec_l_infty_norm(&decomposed) <= GAMMA,
-        "‖G⁻¹(x)‖∞ = {} exceeds γ = {GAMMA}",
+        vec_l_infty_norm(&decomposed) <= honest,
+        "‖G⁻¹(x)‖∞ = {} exceeds b - 1 = {honest}",
         vec_l_infty_norm(&decomposed)
     );
     // Entrywise too, which is the form the spec's per-block lemma takes.
     for j in 0..decomposed.len() {
-        assert!(l_infty_norm(decomposed.get(j)) <= GAMMA);
+        assert!(l_infty_norm(decomposed.get(j)) <= honest);
     }
 }
 
-/// ... and `ℓ₂²`-short, by `(rows·digits)·(deg φ)·(b-1)²`, which at these
-/// parameters is exactly `BETA_SQ`.
+/// ... and `ℓ₂²`-short, by the honest bound `(rows·digits)·(deg φ)·(b-1)²`
+/// (`gadgetDecompose_zmod_vecL2NormSq_le` with the honest digit bound `b - 1`,
+/// NOT `GAMMA = b`), which sits far inside the weak-opening `BETA_SQ` -- the
+/// verifier's slack for extracted openings, checked as such in
+/// `params_semantics::beta_sq_admits_the_honest_decomposition`.
 #[test]
 fn the_decomposition_meets_the_l2_bound() {
     let mut rng = Lcg::new(0xDEAD_BEEF_CAFE_0007);
     let x = rng.next_poly_vec(MESSAGE_ROWS);
     let decomposed = gadget_decompose(&x);
-    let bound = (MESSAGE_ROWS * GADGET_DIGITS) as u128 * RING_DEGREE as u128 * u128::from(GAMMA).pow(2);
-    assert_eq!(bound, BETA_SQ);
+    let honest = (MESSAGE_ROWS * GADGET_DIGITS) as u128
+        * RING_DEGREE as u128
+        * u128::from(GADGET_BASE - 1).pow(2);
+    assert!(honest <= BETA_SQ);
     assert!(
-        vec_l2_norm_sq(&decomposed) <= bound,
-        "‖G⁻¹(x)‖₂² = {} exceeds {bound}",
+        vec_l2_norm_sq(&decomposed) <= honest,
+        "‖G⁻¹(x)‖₂² = {} exceeds {honest}",
         vec_l2_norm_sq(&decomposed)
     );
 }

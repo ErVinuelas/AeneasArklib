@@ -12,10 +12,31 @@
 //!
 //! # Provenance of each value
 //!
-//! Two of the four groups below are pinned by something outside this crate; two
-//! are choices this crate makes. The distinction matters when reading a proof:
-//! a pinned value cannot move without breaking a dependency, while a chosen one
-//! can, and the spec-side hypothesis it has to satisfy is recorded with it.
+//! Every value below is pinned by something outside this crate: the field
+//! layer (`Q`, `EXT_DEGREE`, `EXT_W`) by the `cpoly` dependency; the
+//! dimensions (`RING_LOG_DEGREE`, `GADGET_BASE`/`GADGET_DIGITS`, the row,
+//! block and split counts) by the Hachi paper's benchmark parameter set
+//! ([NOZ26] Fig. 9, the ℓ = 30 row); and the verifier bounds (`KAPPA`,
+//! `GAMMA`, `BETA_SQ`) by ArkLib's paper-parameter mapping for the
+//! *weak-opening* relation (`QuadEval/Soundness.lean`, Hachi Lemma 8:
+//! `(βSq, γ, κ) = (quadEvalBetaSq b b τ d m δ, b, 2ω)`) -- bounds the
+//! protocol's *extracted* openings must meet, which is why each strictly
+//! exceeds its honest-case value. The `ML_*` lengths are derived
+//! arithmetically; the spec-side hypothesis each value has to satisfy is
+//! recorded with it.
+//!
+//! Two honesty caveats on "the paper's parameters". First, this is the
+//! paper's *commitment and evaluation-split* parameter set only: the protocol
+//! layer is absent (`lib.rs` § Status), and with it Fig. 9's matrix `D`/`n_D`,
+//! the `z` bound 30583, and the sparse-challenge weight c = 16 (`τ = 4`
+//! appears solely inside `BETA_SQ`'s derived literal). Second, the gadget
+//! decomposition itself is **not** paper-faithful at `b = 16`: the paper uses
+//! balanced digits in `[-8, 7]`, while the pinned ArkLib
+//! (`zmodDigitDecomposition`) -- and therefore this crate -- uses unsigned
+//! digits in `{0, …, 15}`, which changes honest commitment outputs and norm
+//! sizes relative to the paper's implementation. See NOTES.md § "The digits
+//! are not balanced" and the fix trigger recorded there (upstream ArkLib's
+//! `balancedZmodDigitDecomposition`, PR #782).
 
 /// The modulus `q`: the "Hachi prime" `2^32 - 99 = 4294967197`.
 ///
@@ -45,107 +66,125 @@ pub const EXT_W: u64 = 2;
 /// The cyclotomic index `α`: the commitment ring is
 /// `R_q = Z_q[X] / (X^{2^α} + 1)`.
 ///
-/// **Chosen.** The spec (`InnerOuter/Arithmetic.lean`, `hachiModulus q α`) admits
-/// any `α`. The ring degree `2^α` is the width of every coefficient vector in
-/// this crate, so it is a performance parameter as much as a security one;
-/// `α = 6` gives the degree-64 ring that the Greyhound/Hachi line of work uses.
-/// See NOTES.md § "Chosen parameters" -- this is the value most likely to be
-/// revised once the concrete parameter set is fixed.
-pub const RING_LOG_DEGREE: usize = 6;
+/// **Pinned** by [NOZ26] Fig. 9 (the ℓ = 30 parameter set): `α = 10`, the
+/// degree-1024 ring of the paper's benchmark implementation. The spec
+/// (`InnerOuter/Arithmetic.lean`, `hachiModulus q α`) admits any `α`, so this
+/// pin is a comparability requirement rather than a spec-side one: the point of
+/// matching the paper is that this crate's measurements are about the same
+/// scheme the paper measured. See NOTES.md § "Chosen parameters".
+pub const RING_LOG_DEGREE: usize = 10;
 
-/// The ring degree `2^α = 64`: the number of `Z_q` coefficients in one element of
-/// `R_q`.
+/// The ring degree `2^α = 1024`: the number of `Z_q` coefficients in one element
+/// of `R_q`.
 ///
 /// A literal, not `1 << RING_LOG_DEGREE`, and that is an extraction concession
 /// rather than a preference: Aeneas models a shift as fallible, so the shifted
 /// form extracts as `Result Std.Usize` and every Lean use of it would have to
 /// bind and discharge a side condition that is plainly true. As a literal it
-/// extracts as `def params.RING_DEGREE : Std.Usize := 64#usize`.
+/// extracts as `def params.RING_DEGREE : Std.Usize := 1024#usize`.
 ///
 /// `params_semantics::ring_degree_is_a_power_of_two` is what keeps the two in
 /// step; see NOTES.md § "Aeneas surprises".
-pub const RING_DEGREE: usize = 64;
+pub const RING_DEGREE: usize = 1024;
 
 /// The gadget base `b`.
 ///
-/// **Chosen**, but constrained: `Gadget/Core.lean`'s `zmodDigitDecomposition`
-/// requires `1 < b`, and `Gadget/Norms.lean`'s shortness bounds are stated in
-/// terms of it. `b = 2` is the binary gadget, which gives the shortest digits
-/// (each in `{0, 1}`) at the cost of the most of them.
-pub const GADGET_BASE: u64 = 2;
+/// **Pinned** by [NOZ26] Fig. 9: `b = 16`, the paper's decomposition base. The
+/// spec-side constraint is `1 < b` (`Gadget/Core.lean`'s
+/// `zmodDigitDecomposition`), and `Gadget/Norms.lean`'s shortness bounds are
+/// stated in terms of it: each digit lies in `{0, …, 15}`, trading digit size
+/// for digit count against the binary gadget.
+pub const GADGET_BASE: u64 = 16;
 
 /// The gadget digit count `digits`.
 ///
-/// **Chosen**, and it is the choice that discharges the spec's side condition:
-/// `zmodDigitDecomposition` needs `q ≤ b ^ digits` so that every residue fits in
-/// `digits` base-`b` digits. Here `2^32 = 4294967296 ≥ 4294967197 = q`, with 99
-/// to spare -- so 32 binary digits are exactly enough, and 31 would not be.
+/// **Pinned** by [NOZ26] Fig. 9 (`b = 16`, 8 digits), and it still discharges
+/// the spec's side condition: `zmodDigitDecomposition` needs `q ≤ b ^ digits`
+/// so that every residue fits in `digits` base-`b` digits. Here
+/// `16^8 = 2^32 = 4294967296 ≥ 4294967197 = q`, with 99 to spare -- so 8
+/// base-16 digits are exactly enough, and 7 (`16^7 = 2^28 < q`) would not be.
 ///
 /// The specification carries *two* digit counts, `messageDigits` and
 /// `innerDigits` (`InnerOuter/Scheme.lean`), and admits different values for
 /// them. Here they coincide, and not by preference: both decompositions are of
 /// `Rq` elements over the same `ZMod q`, so both need `q ≤ b ^ digits`, and at
-/// `b = 2` that forces 32 on each. One constant therefore serves both; see
+/// `b = 16` that forces 8 on each. One constant therefore serves both; see
 /// NOTES.md § "One digit count, not two".
-pub const GADGET_DIGITS: usize = 32;
+pub const GADGET_DIGITS: usize = 8;
 
 /// The number of `R_q` rows in one message block: `messageRows` of the
 /// specification.
 ///
-/// **Chosen.** This and the four dimensions below are the shapes of the two
-/// Ajtai matrices, which the specification leaves entirely free
-/// (`PublicParams`, `InnerOuter/Scheme.lean:94`, is generic in all six). They
-/// are the *smallest* values that still exercise every index computation in the
-/// scheme -- more than one row, more than one block, and a gadget expansion
-/// wide enough to be worth flattening -- rather than a security-grade parameter
-/// set, which needs [NOZ26]'s ℓ=30 table (NOTES.md § "Chosen parameters").
-pub const MESSAGE_ROWS: usize = 4;
+/// **Pinned** by [NOZ26] Fig. 9: `2^m` at the paper's `m = 10`. This and the
+/// three dimensions below are the shapes of the two Ajtai matrices, which the
+/// specification leaves entirely free (`PublicParams`,
+/// `InnerOuter/Scheme.lean:94`, is generic in all six); the paper's ℓ = 30 set
+/// fixes them, and at this scale one message block is `1024 × 1024` `Z_q`
+/// coefficients (NOTES.md § "Chosen parameters").
+pub const MESSAGE_ROWS: usize = 1024;
 
 /// The number of `R_q` rows the inner Ajtai matrix `A` produces: `innerRows`.
 ///
-/// **Chosen** (see [`MESSAGE_ROWS`]). `A` is `INNER_ROWS × (MESSAGE_ROWS *
-/// GADGET_DIGITS)`, i.e. `2 × 128` here.
-pub const INNER_ROWS: usize = 2;
+/// **Pinned** by [NOZ26] Fig. 9: the paper's `n_A = 1`. `A` is
+/// `INNER_ROWS × (MESSAGE_ROWS * GADGET_DIGITS)`, i.e. `1 × 8192` here -- a
+/// single Ajtai row, which is all the paper's ring dimension needs for
+/// binding. The multi-row index computations this used to exercise at the old
+/// toy shape are carried by [`BLOCKS`] and [`MESSAGE_ROWS`] instead.
+pub const INNER_ROWS: usize = 1;
 
 /// The number of `R_q` rows the outer Ajtai matrix `B` produces: `outerRows`.
 ///
-/// **Chosen** (see [`MESSAGE_ROWS`]). `B` is `OUTER_ROWS × (BLOCKS *
-/// (INNER_ROWS * GADGET_DIGITS))`, i.e. `2 × 128` here. The commitment is a
-/// vector of this many ring elements.
-pub const OUTER_ROWS: usize = 2;
+/// **Pinned** by [NOZ26] Fig. 9: the paper's `n_B = 1` (see [`INNER_ROWS`]).
+/// `B` is `OUTER_ROWS × (BLOCKS * (INNER_ROWS * GADGET_DIGITS))`, i.e.
+/// `1 × 8192` here. The commitment is a vector of this many ring elements.
+pub const OUTER_ROWS: usize = 1;
 
 /// The number of message blocks committed together: `blocks`.
 ///
-/// **Chosen** (see [`MESSAGE_ROWS`]). Must exceed 1 for the per-block loop of
-/// `verify_weak` and the block flattening of `commitWithDecomps` to be doing
-/// anything.
-pub const BLOCKS: usize = 2;
+/// **Pinned** by [NOZ26] Fig. 9: `2^r` at the paper's `r = 10`. Exceeds 1, so
+/// the per-block loop of `verify_weak` and the block flattening of
+/// `commitWithDecomps` are still exercised (and then some).
+pub const BLOCKS: usize = 1024;
 
 /// The `ℓ∞` bound `γ` on the flattened inner decomposition, checked by
 /// `verify_weak`.
 ///
-/// **Derived**, not chosen: `Gadget/Norms.lean`'s
-/// `gadgetDecompose_zmod_vecLInftyNorm_le` proves the honest decomposition
-/// satisfies `‖t̂‖∞ ≤ b - 1`, and at `b = 2` that is `1`. Every digit of a
-/// binary decomposition is `0` or `1`, and the centered view leaves both alone,
-/// so this is exact rather than slack -- an honest opening sits on the bound.
+/// **Pinned** by ArkLib's paper-parameter mapping for the weak-opening
+/// relation, `γ̄ = b` (`QuadEval/Soundness.lean`, "Paper parameter mapping":
+/// the paper's Eq. (20) checks the box `S_b` -- centered coefficients in
+/// `[⌈-b/2⌉, ⌈b/2⌉-1]` -- which ArkLib's symmetric model relaxes to
+/// `‖·‖∞ ≤ γ` with `γ := b`). This is a bound extracted openings must meet,
+/// not the honest ceiling: this crate's honest (unsigned-digit) decomposition
+/// satisfies the strictly smaller `‖t̂‖∞ ≤ b - 1 = 15`
+/// (`Gadget/Norms.lean`'s `gadgetDecompose_zmod_vecLInftyNorm_le`), so an
+/// honest opening passes with slack 1.
 ///
-/// A literal `1` rather than `GADGET_BASE - 1`, for the reason
-/// [`RING_DEGREE`] is a literal: Aeneas models a `const` subtraction as
-/// fallible, so the derived form would extract as `Result Std.U64` and every
-/// Lean use would carry a side condition that is plainly true. The relation to
-/// [`GADGET_BASE`] is checked instead, in `tests/params_semantics.rs` and
+/// A literal `16` rather than `GADGET_BASE`, for the reason [`RING_DEGREE`]
+/// is a literal (a derived form would extract through `Result`); the relation
+/// to [`GADGET_BASE`] is checked in `tests/params_semantics.rs` and
 /// `lean/Check.lean` § 1.
-pub const GAMMA: u64 = 1;
+pub const GAMMA: u64 = 16;
 
 /// The squared-`ℓ₂` bound `βSq` on the challenge-scaled message, checked by
 /// `verify_weak`.
 ///
-/// **Derived** from the same file: `gadgetDecompose_zmod_vecL2NormSq_le` bounds
-/// the honest per-block decomposition by
-/// `(messageRows · messageDigits) · (deg φ) · (b - 1)²`, which here is
-/// `4 · 32 · 64 · 1 = 8192`. The honest challenge is `c = 1`, and scaling by it
-/// changes nothing, so this is the bound the honest committer meets.
+/// **Pinned** by ArkLib's paper-parameter mapping for the weak-opening
+/// relation: `quadEvalBetaSq γ b τ d m δ` at `γ := b`
+/// (`QuadEval/Soundness.lean`, Hachi Lemma 8's `βSq := 4·B_z`) --
+///
+/// ```text
+/// 4 · (2^m · δ) · (d · ((Σ_{u<τ} b^u) · γ)²)
+///   = 4 · (1024 · 8) · (1024 · (4369 · 16)²) = 163966054471565312
+/// ```
+///
+/// with `τ = 4` the paper's `z`-decomposition digit count ([NOZ26] Fig. 9).
+/// `τ` enters only this derived literal: the `z`-machinery itself is protocol
+/// layer and absent (see `lib.rs` § Status). This is the bound on the
+/// *extracted* `c̄ⱼ •ᵥ sⱼ` (a difference of two `z`-recompositions), which is
+/// why it dwarfs the honest case: the honest decomposition at `c = 1` sits at
+/// `(1024 · 8) · 1024 · 15² = 1887436800`, about 8.7 · 10⁷ times below the
+/// bound. ArkLib deliberately states this as a squared-`ℓ₂` bound rather than
+/// the paper's `ℓ∞`-style `β̄ = 2·b^τ` (see `quadEvalZL2SqBound`).
 ///
 /// A literal, for the reason [`GAMMA`] is one; the product it stands for is
 /// checked in `tests/params_semantics.rs` and `lean/Check.lean` § 1.
@@ -154,7 +193,7 @@ pub const GAMMA: u64 = 1;
 /// a single centered coefficient can be as large as `q/2`, so one squared
 /// coefficient approaches `2^62` and a vector of them overflows `u64`. See
 /// `commit::vec_l2_norm_sq`.
-pub const BETA_SQ: u128 = 8_192;
+pub const BETA_SQ: u128 = 163_966_054_471_565_312;
 
 /// The number of *low* (first) variables `nl` of the evaluation split: the
 /// `r` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xl` half.
@@ -162,51 +201,58 @@ pub const BETA_SQ: u128 = 8_192;
 /// **Derived**, not free: the split's reshaped coefficient matrix is
 /// `2^nl × 2^nh` (`Hachi/EvalSplit.lean:151`), and its consumer pins the shape
 /// -- `derivedMsgMatrix` is `PolyMatrix (Rq Φ) (2^r) (2^m)`
-/// (`QuadEval/Reduction.lean:193`) with `2^r = blocks`. At [`BLOCKS`]` = 2`
-/// that forces `nl = 1`.
-pub const ML_VARS_LOW: usize = 1;
+/// (`QuadEval/Reduction.lean:193`) with `2^r = blocks`. At [`BLOCKS`]` = 1024`
+/// that forces `nl = 10` -- the paper's `r` ([NOZ26] Fig. 9).
+pub const ML_VARS_LOW: usize = 10;
 
 /// The number of *high* (last) variables `nh` of the evaluation split: the
 /// `m` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xh` half.
 ///
 /// **Derived** (see [`ML_VARS_LOW`]): the matrix column count is
-/// `2^nh = messageRows`, and at [`MESSAGE_ROWS`]` = 4` that forces `nh = 2`.
-pub const ML_VARS_HIGH: usize = 2;
+/// `2^nh = messageRows`, and at [`MESSAGE_ROWS`]` = 1024` that forces
+/// `nh = 10` -- the paper's `m` ([NOZ26] Fig. 9). Together the split covers
+/// the `ℓ - α = 30 - 10 = 20` `R_q`-variables of the ℓ = 30 set.
+pub const ML_VARS_HIGH: usize = 10;
 
-/// `2^ML_VARS_LOW = 2`: the row count of the reshaped coefficient matrix, the
-/// length of the outer monomial basis `mb(xl)`, and (by the consumer's shape)
-/// equal to [`BLOCKS`].
+/// `2^ML_VARS_LOW = 1024`: the row count of the reshaped coefficient matrix,
+/// the length of the outer monomial basis `mb(xl)`, and (by the consumer's
+/// shape) equal to [`BLOCKS`].
 ///
 /// A literal, not `1 << ML_VARS_LOW`, for the reason [`RING_DEGREE`] is a
 /// literal; the relations are checked in `tests/params_semantics.rs` and
 /// `lean/Check.lean` § 1.
-pub const ML_LOW_LEN: usize = 2;
+pub const ML_LOW_LEN: usize = 1024;
 
-/// `2^ML_VARS_HIGH = 4`: the column count of the reshaped coefficient matrix,
-/// the length of the inner monomial basis `mb(xh)`, and (by the consumer's
-/// shape) equal to [`MESSAGE_ROWS`].
+/// `2^ML_VARS_HIGH = 1024`: the column count of the reshaped coefficient
+/// matrix, the length of the inner monomial basis `mb(xh)`, and (by the
+/// consumer's shape) equal to [`MESSAGE_ROWS`].
 ///
 /// A literal (see [`ML_LOW_LEN`]).
-pub const ML_HIGH_LEN: usize = 4;
+pub const ML_HIGH_LEN: usize = 1024;
 
-/// `2^(ML_VARS_LOW + ML_VARS_HIGH) = 8`: the coefficient count of a committed
-/// multilinear polynomial, i.e. `ML_LOW_LEN * ML_HIGH_LEN`.
+/// `2^(ML_VARS_LOW + ML_VARS_HIGH) = 1048576`: the coefficient count of a
+/// committed multilinear polynomial, i.e. `ML_LOW_LEN * ML_HIGH_LEN`.
 ///
 /// A literal (see [`ML_LOW_LEN`]).
-pub const ML_POLY_LEN: usize = 8;
+pub const ML_POLY_LEN: usize = 1_048_576;
 
 /// The `ℓ₁` bound `κ` on a challenge, checked by `verify_weak`.
 ///
-/// **Chosen at its ceiling.** The specification's only constraint on `κ` is the
-/// one it needs for the challenge to be *invertible*, which is what a weak
-/// opening really requires ([NOZ26] §4.1): `isUnit_of_l1Norm_le`
+/// **Pinned** by ArkLib's paper-parameter mapping for the weak-opening
+/// relation, `κ = ω̄ = 2ω = 32` at the paper's `ω = 16` ([NOZ26] Fig. 9;
+/// `QuadEval/Soundness.lean`, "Paper parameter mapping"). Not `ω` itself:
+/// `ω` bounds a *sampled* challenge, but the openings the extraction produces
+/// carry *differences* of two sampled challenges, and the triangle inequality
+/// gives those `‖c̄‖₁ ≤ 2ω`. Well inside the legality ceiling the
+/// specification needs for the challenge to be *invertible*, which is what a
+/// weak opening really requires ([NOZ26] §4.1): `isUnit_of_l1Norm_le`
 /// (`NormBounds/LyubashevskySeiler.lean:344`) turns `0 < ‖c‖₁ ≤ κ` into
 /// `IsUnit c` provided `q % 8 = 5` and `κ² < q`. Here `q % 8 = 5` holds, and
-/// `κ² < q` caps `κ` at `⌊√q⌋ = 65535`.
+/// `κ² = 1024 < q` with room to spare (the ceiling is `⌊√q⌋ = 65535`; this
+/// crate used to sit on it, before the paper's values were adopted) -- the
+/// same `(2ω)² < q` hypothesis ArkLib's Lemma 8 statement carries as `hκ`.
 ///
-/// `κ` is a *rejection* threshold, so this is the most permissive legal value:
-/// anything larger would admit challenges the invertibility lemma cannot cover.
-/// The protocol layer (out of scope here -- its Lean spec is not frozen) is what
-/// will lower it to the sparse challenges an actual reduction samples; the
-/// honest challenge `c = 1` has `‖1‖₁ = 1` and passes either way.
-pub const KAPPA: u64 = 65_535;
+/// The challenge *sampler* the paper pairs with `ω` (c = 16 sparse
+/// coefficients) lives in the protocol layer, which is out of scope here; the
+/// honest challenge `c = 1` has `‖1‖₁ = 1` and passes.
+pub const KAPPA: u64 = 32;

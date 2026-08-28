@@ -687,19 +687,19 @@ specification indexes into `Nat.digits`. The missing lemma is
 /-- The instantiated digit decomposition at this crate's parameters. Its two side
 conditions are `1 < b` and `q ≤ b ^ digits`, which `lean/Check.lean` § 1 checks of
 the extracted constants. -/
-def dd : DigitDecomposition (R := ZMod q) (2 : ZMod q) 32 :=
-  zmodDigitDecomposition 2 32 (by norm_num) (by norm_num)
+def dd : DigitDecomposition (R := ZMod q) (16 : ZMod q) 8 :=
+  zmodDigitDecomposition 16 8 (by norm_num) (by norm_num)
 
-/-- The loop of `gadget::digit_at`: after `i` halvings the remaining word is
-`c / 2ⁱ`. -/
+/-- The loop of `gadget::digit_at`: after `i` divisions by 16 the remaining
+word is `c / 16ⁱ`. -/
 theorem digit_at_loop_spec (e : Std.Usize) (rest : Std.U64) (i : Std.Usize) (c0 : ℕ)
-    (hi : i.val ≤ e.val) (hrest : rest.val = c0 / 2 ^ i.val) :
+    (hi : i.val ≤ e.val) (hrest : rest.val = c0 / 16 ^ i.val) :
     gadget.digit_at_loop e params.GADGET_BASE rest i
-      ⦃ z => z.val = c0 / 2 ^ e.val ⦄ := by
-  have hb : (params.GADGET_BASE).val = 2 := by simp [params.GADGET_BASE]
+      ⦃ z => z.val = c0 / 16 ^ e.val ⦄ := by
+  have hb : (params.GADGET_BASE).val = 16 := by simp [params.GADGET_BASE]
   rw [gadget.digit_at_loop]
   apply loop.spec_decr_nat (fun s => e.val - s.2.val)
-    (fun s => s.2.val ≤ e.val ∧ s.1.val = c0 / 2 ^ s.2.val)
+    (fun s => s.2.val ≤ e.val ∧ s.1.val = c0 / 16 ^ s.2.val)
   · rintro ⟨r1, i1⟩ ⟨hi1, hval1⟩
     dsimp only at hi1 hval1
     simp only [gadget.digit_at_loop.body]
@@ -719,9 +719,9 @@ theorem digit_at_loop_spec (e : Std.Usize) (rest : Std.U64) (i : Std.Usize) (c0 
 /-- `gadget::digit_at` — the specification's `digit c e`, at every `e`: past the
 length of `Nat.digits b c.val` the specification's `getD` returns its default and
 the Rust's quotient has run out, so both are `0`. -/
-theorem digit_at_spec (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.val < 32) :
+theorem digit_at_spec (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.val < 8) :
     gadget.digit_at c e ⦃ d => Red d ∧ toK d = dd.digit (toK c) ⟨e.val, he⟩ ⦄ := by
-  have hb : (params.GADGET_BASE).val = 2 := by simp [params.GADGET_BASE]
+  have hb : (params.GADGET_BASE).val = 16 := by simp [params.GADGET_BASE]
   have hcv : (toK c).val = c.val := by
     simp only [toK, ZMod.val_natCast]
     exact Nat.mod_eq_of_lt hc
@@ -742,8 +742,8 @@ theorem digit_at_spec (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.
 /-! ### `gadget::digit_decompose`
 
 `digit_at` at every position, which is the whole of the claim: the Rust runs the
-same halving loop 32 times over, and the specification's `dd.digit` indexes
-`Nat.digits 2 c.val`. `digit_at_spec` is the per-position statement; this is the
+same divide-by-16 loop 8 times over, and the specification's `dd.digit` indexes
+`Nat.digits 16 c.val`. `digit_at_spec` is the per-position statement; this is the
 vector of them, and the reason it earns a statement of its own is that a reader
 cannot otherwise tell whether the *order* agrees -- slot `e` has to be digit `e`,
 least-significant first, and a reversed accumulation would leave `digit_at_spec`
@@ -753,34 +753,34 @@ The representation is `Ring.coeffK`, not a new function: the output is an
 `alloc.vec.Vec cpoly.field.Fp`, which is exactly `coeffK`'s domain.
 
 Hypotheses: `Red c` only. The fail-point walk closes without a value bound --
-`gadget::digit_at` is total (its loop just divides `e` times; the `e.val < 32` of
-`digit_at_spec` feeds the `Fin 32` index of its postcondition, not a fail point,
-and the loop guard `e < digits` supplies it at `digits = GADGET_DIGITS = 32`);
-the 32 `Vec.push`es are bounded by a numeral; and `e + 1#usize` is under the
+`gadget::digit_at` is total (its loop just divides `e` times; the `e.val < 8` of
+`digit_at_spec` feeds the `Fin 8` index of its postcondition, not a fail point,
+and the loop guard `e < digits` supplies it at `digits = GADGET_DIGITS = 8`);
+the 8 `Vec.push`es are bounded by a numeral; and `e + 1#usize` is under the
 guard. -/
 
 /-- The loop of `gadget::digit_decompose`: after `e` turns the accumulator holds
 digits `0 … e-1`, in order. -/
 theorem digit_decompose_loop_spec (c : cpoly.field.Fp) (digits : Std.Usize)
     (out : alloc.vec.Vec cpoly.field.Fp) (e : Std.Usize)
-    (hc : Red c) (hdig : digits.val = 32) (he : e.val ≤ 32)
+    (hc : Red c) (hdig : digits.val = 8) (he : e.val ≤ 8)
     (hlen : out.val.length = e.val) (hred : ∀ u ∈ out.val, Red u)
-    (hval : ∀ (t : ℕ) (ht : t < 32), t < e.val →
+    (hval : ∀ (t : ℕ) (ht : t < 8), t < e.val →
       coeffK out t = dd.digit (toK c) ⟨t, ht⟩) :
     gadget.digit_decompose_loop c digits out e
-      ⦃ z => z.val.length = 32 ∧ (∀ u ∈ z.val, Red u) ∧
-        ∀ (t : ℕ) (ht : t < 32), coeffK z t = dd.digit (toK c) ⟨t, ht⟩ ⦄ := by
+      ⦃ z => z.val.length = 8 ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ (t : ℕ) (ht : t < 8), coeffK z t = dd.digit (toK c) ⟨t, ht⟩ ⦄ := by
   rw [gadget.digit_decompose_loop]
   apply loop.spec_decr_nat (fun s => digits.val - s.2.val)
-    (fun s => s.2.val ≤ 32 ∧ s.1.val.length = s.2.val ∧ (∀ u ∈ s.1.val, Red u) ∧
-      ∀ (t : ℕ) (ht : t < 32), t < s.2.val →
+    (fun s => s.2.val ≤ 8 ∧ s.1.val.length = s.2.val ∧ (∀ u ∈ s.1.val, Red u) ∧
+      ∀ (t : ℕ) (ht : t < 8), t < s.2.val →
         coeffK s.1 t = dd.digit (toK c) ⟨t, ht⟩)
   · rintro ⟨o1, e1⟩ ⟨he1, hlen1, hred1, hval1⟩
     dsimp only at he1 hlen1 hred1 hval1
     simp only [gadget.digit_decompose_loop.body]
     by_cases hlt : e1 < digits
     · rw [if_pos hlt]
-      have he1lt : e1.val < 32 := by rw [← hdig]; scalar_tac
+      have he1lt : e1.val < 8 := by rw [← hdig]; scalar_tac
       step with digit_at_spec c e1 hc he1lt as ⟨f, hRf, hf⟩
       have hcap : o1.val.length < Usize.max := by rw [hlen1]; scalar_tac
       step as ⟨o2, ho2⟩
@@ -805,7 +805,7 @@ theorem digit_decompose_loop_spec (c : cpoly.field.Fp) (digits : Std.Usize)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : e1.val = 32 := by scalar_tac
+      have heq : e1.val = 8 := by scalar_tac
       refine ⟨by rw [hlen1, heq], hred1, ?_⟩
       intro t ht
       exact hval1 t ht (by omega)
@@ -816,8 +816,8 @@ theorem digit_decompose_loop_spec (c : cpoly.field.Fp) (digits : Std.Usize)
 representative, least-significant first. -/
 theorem digit_decompose_spec (c : cpoly.field.Fp) (hc : Red c) :
     gadget.digit_decompose c
-      ⦃ z => z.val.length = 32 ∧ (∀ u ∈ z.val, Red u) ∧
-        ∀ e : Fin 32, coeffK z e.val = dd.digit (toK c) e ⦄ := by
+      ⦃ z => z.val.length = 8 ∧ (∀ u ∈ z.val, Red u) ∧
+        ∀ e : Fin 8, coeffK z e.val = dd.digit (toK c) e ⦄ := by
   simp only [gadget.digit_decompose]
   apply spec_mono (digit_decompose_loop_spec c params.GADGET_DIGITS
     (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hc (by simp [params.GADGET_DIGITS])
@@ -827,13 +827,13 @@ theorem digit_decompose_spec (c : cpoly.field.Fp) (hc : Red c) :
 
 /-- The loop of `gadget::base_pow`: the accumulator is `bⁱ` after `i` turns. -/
 theorem base_pow_loop_spec (e : Std.Usize) (b : cpoly.field.Fp) (acc : cpoly.field.Fp)
-    (i : Std.Usize) (hb : Red b) (hbv : toK b = (2 : ZMod q)) (hacc : Red acc)
-    (hi : i.val ≤ e.val) (hval : toK acc = (2 : ZMod q) ^ i.val) :
+    (i : Std.Usize) (hb : Red b) (hbv : toK b = (16 : ZMod q)) (hacc : Red acc)
+    (hi : i.val ≤ e.val) (hval : toK acc = (16 : ZMod q) ^ i.val) :
     gadget.base_pow_loop e b acc i
-      ⦃ p => Red p ∧ toK p = (2 : ZMod q) ^ e.val ⦄ := by
+      ⦃ p => Red p ∧ toK p = (16 : ZMod q) ^ e.val ⦄ := by
   rw [gadget.base_pow_loop]
   apply loop.spec_decr_nat (fun s => e.val - s.2.val)
-    (fun s => s.2.val ≤ e.val ∧ Red s.1 ∧ toK s.1 = (2 : ZMod q) ^ s.2.val)
+    (fun s => s.2.val ≤ e.val ∧ Red s.1 ∧ toK s.1 = (16 : ZMod q) ^ s.2.val)
   · rintro ⟨a1, i1⟩ ⟨hi1, hR1, hval1⟩
     dsimp only at hi1 hR1 hval1
     simp only [gadget.base_pow_loop.body]
@@ -852,12 +852,12 @@ theorem base_pow_loop_spec (e : Std.Usize) (b : cpoly.field.Fp) (acc : cpoly.fie
 
 /-- `gadget::base_pow` — `bᵉ` in `ZMod q`, not in `u64`: the specification's
 exponent lives in the coefficient ring, and `b ^ e` passes the modulus at
-`e = 32`. -/
+`e = 8`. -/
 theorem base_pow_spec (e : Std.Usize) :
-    gadget.base_pow e ⦃ p => Red p ∧ toK p = (2 : ZMod q) ^ e.val ⦄ := by
+    gadget.base_pow e ⦃ p => Red p ∧ toK p = (16 : ZMod q) ^ e.val ⦄ := by
   rw [gadget.base_pow]
   step as ⟨b, hRb, hb⟩
-  have hbv : toK b = (2 : ZMod q) := by
+  have hbv : toK b = (16 : ZMod q) := by
     rw [hb]; simp [params.GADGET_BASE]
   exact base_pow_loop_spec e b cpoly.field.Fp.ONE 0#usize hRb hbv Red_one
     (by simp) (by simp)
@@ -865,10 +865,10 @@ theorem base_pow_spec (e : Std.Usize) :
 /-- `gadget::gadget_entry` — ArkLib's `gadgetEntry`. -/
 theorem gadget_entry_spec (i j : Std.Usize) :
     gadget.gadget_entry i j
-      ⦃ z => Wf z ∧ ∀ (rows : ℕ) (hi : i.val < rows) (hj : j.val < rows * 32),
-          toRq z = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32)
+      ⦃ z => Wf z ∧ ∀ (rows : ℕ) (hi : i.val < rows) (hj : j.val < rows * 8),
+          toRq z = gadgetEntry Φ (16 : ZMod q) (rows := rows) (digits := 8)
             ⟨i.val, hi⟩ ⟨j.val, hj⟩ ⦄ := by
-  have hd : (params.GADGET_DIGITS).val = 32 := by simp [params.GADGET_DIGITS]
+  have hd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   rw [gadget.gadget_entry]
   step as ⟨i1, hi1⟩
   by_cases heq : i1 = i
@@ -878,13 +878,13 @@ theorem gadget_entry_spec (i j : Std.Usize) :
     step as ⟨z, hWz, hz⟩
     refine ⟨hWz, ?_⟩
     intro rows hi hj
-    have hcond : j.val / 32 = i.val := by rw [← hd, ← hi1, heq]
+    have hcond : j.val / 8 = i.val := by rw [← hd, ← hi1, heq]
     rw [hz, hf, hj2, hd, gadgetEntry, if_pos hcond]
   · rw [if_neg heq]
     step as ⟨z, hWz, hz⟩
     refine ⟨hWz, ?_⟩
     intro rows hi hj
-    have hcond : ¬ (j.val / 32 = i.val) := by
+    have hcond : ¬ (j.val / 8 = i.val) := by
       intro h
       apply heq
       have : i1.val = i.val := by rw [hi1, hd, h]
@@ -893,7 +893,7 @@ theorem gadget_entry_spec (i j : Std.Usize) :
 
 /-! ### `gadget::gadget_matrix`
 
-The materialized gadget matrix `G = I_rows ⊗ [1, 2, …, 2³¹]`. `gadget_mul` is the
+The materialized gadget matrix `G = I_rows ⊗ [1, 16, …, 16⁷]`. `gadget_mul` is the
 map `v ↦ G *ᵥ v` computed without building `G`, and `gadget_mul_spec` below
 proves that against `gadgetMul`; this states that the *materialized* matrix is
 `gadgetMatrix` itself. Both are needed and neither implies the other: the
@@ -902,10 +902,10 @@ transposed or misaligned `G`, and before this statement
 `tests/gadget_semantics.rs`'s `gadget_matrix_has_the_tensor_layout` and the
 `via_matrix` cross-check were the only things pinning it.
 
-Hypotheses: `hmax : rows * 32 ≤ Usize.max` is earned. The fail point is the first
+Hypotheses: `hmax : rows * 8 ≤ Usize.max` is earned. The fail point is the first
 line of the extracted body, `let cols ← rows * params.GADGET_DIGITS` -- a checked
 `Usize` multiplication, and `r`'s own carrier invariant bounds `rows` but not
-`32 * rows`. It is minimal: with it, the outer `Vec.push` (`rows` entries) and the
+`8 * rows`. It is minimal: with it, the outer `Vec.push` (`rows` entries) and the
 inner one (`cols` entries, and `cols` is a `Usize`) are both bounded, and
 `gadget_entry` is total. -/
 
@@ -913,31 +913,31 @@ inner one (`cols` entries, and `cols` is a `Usize`) are both bounded, and
 with the gadget entries of that row. -/
 theorem gadget_matrix_loop0_loop0_spec {rows : ℕ} (cols i : Std.Usize)
     (row : alloc.vec.Vec ring.Rq) (j : Std.Usize)
-    (hi : i.val < rows) (hcols : cols.val = rows * 32)
-    (hj : j.val ≤ rows * 32) (hlen : row.val.length = j.val)
+    (hi : i.val < rows) (hcols : cols.val = rows * 8)
+    (hj : j.val ≤ rows * 8) (hlen : row.val.length = j.val)
     (hwf : ∀ x ∈ row.val, Wf x)
-    (hval : ∀ (t : ℕ) (ht : t < rows * 32), t < j.val →
+    (hval : ∀ (t : ℕ) (ht : t < rows * 8), t < j.val →
       toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i.val, hi⟩ ⟨t, ht⟩) :
+        = gadgetEntry Φ (16 : ZMod q) (rows := rows) (digits := 8) ⟨i.val, hi⟩ ⟨t, ht⟩) :
     gadget.gadget_matrix_loop0_loop0 cols i row j
-      ⦃ z => z.val.length = rows * 32 ∧ (∀ x ∈ z.val, Wf x) ∧
-        ∀ (t : ℕ) (ht : t < rows * 32),
+      ⦃ z => z.val.length = rows * 8 ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ (t : ℕ) (ht : t < rows * 8),
           toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32)
+            = gadgetEntry Φ (16 : ZMod q) (rows := rows) (digits := 8)
                 ⟨i.val, hi⟩ ⟨t, ht⟩ ⦄ := by
   rw [gadget.gadget_matrix_loop0_loop0]
   apply loop.spec_decr_nat (fun s => cols.val - s.2.val)
-    (fun s => s.2.val ≤ rows * 32 ∧ s.1.val.length = s.2.val ∧
+    (fun s => s.2.val ≤ rows * 8 ∧ s.1.val.length = s.2.val ∧
       (∀ x ∈ s.1.val, Wf x) ∧
-      ∀ (t : ℕ) (ht : t < rows * 32), t < s.2.val →
+      ∀ (t : ℕ) (ht : t < rows * 8), t < s.2.val →
         toRq (s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i.val, hi⟩ ⟨t, ht⟩)
+          = gadgetEntry Φ (16 : ZMod q) (rows := rows) (digits := 8) ⟨i.val, hi⟩ ⟨t, ht⟩)
   · rintro ⟨row1, j1⟩ ⟨hj1, hlen1, hwf1, hval1⟩
     dsimp only at hj1 hlen1 hwf1 hval1
     simp only [gadget.gadget_matrix_loop0_loop0.body]
     by_cases hlt : j1 < cols
     · rw [if_pos hlt]
-      have hj1lt : j1.val < rows * 32 := by rw [← hcols]; scalar_tac
+      have hj1lt : j1.val < rows * 8 := by rw [← hcols]; scalar_tac
       have hcap : row1.val.length < Usize.max := by rw [hlen1]; scalar_tac
       step with gadget_entry_spec i j1 as ⟨z, hWz, hz⟩
       step as ⟨row2, hrow2⟩
@@ -963,7 +963,7 @@ theorem gadget_matrix_loop0_loop0_spec {rows : ℕ} (cols i : Std.Usize)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : j1.val = rows * 32 := by rw [← hcols]; scalar_tac
+      have heq : j1.val = rows * 8 := by rw [← hcols]; scalar_tac
       exact ⟨by rw [hlen1, heq], hwf1, fun t ht => hval1 t ht (by omega)⟩
   · exact ⟨hj, hlen, hwf, hval⟩
 
@@ -971,24 +971,24 @@ theorem gadget_matrix_loop0_loop0_spec {rows : ℕ} (cols i : Std.Usize)
 `gadgetMatrix` already built. -/
 theorem gadget_matrix_loop0_spec {rows : ℕ} (r cols : Std.Usize)
     (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hr : r.val = rows) (hcols : cols.val = rows * 32) (hi : i.val ≤ rows)
+    (hr : r.val = rows) (hcols : cols.val = rows * 8) (hi : i.val ≤ rows)
     (hlen : out.val.length = i.val)
-    (hwf : ∀ y ∈ out.val, WfVec (rows * 32) y)
+    (hwf : ∀ y ∈ out.val, WfVec (rows * 8) y)
     (hval : ∀ (s : ℕ) (hs : s < rows), s < i.val →
-      toVec (k := rows * 32) (out.val.getD s (alloc.vec.Vec.new ring.Rq))
-        = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨s, hs⟩) :
+      toVec (k := rows * 8) (out.val.getD s (alloc.vec.Vec.new ring.Rq))
+        = gadgetMatrix Φ (16 : ZMod q) rows 8 ⟨s, hs⟩) :
     gadget.gadget_matrix_loop0 r cols out i
-      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, WfVec (rows * 32) y) ∧
+      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, WfVec (rows * 8) y) ∧
         ∀ (s : ℕ) (hs : s < rows),
-          toVec (k := rows * 32) (z.val.getD s (alloc.vec.Vec.new ring.Rq))
-            = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨s, hs⟩ ⦄ := by
+          toVec (k := rows * 8) (z.val.getD s (alloc.vec.Vec.new ring.Rq))
+            = gadgetMatrix Φ (16 : ZMod q) rows 8 ⟨s, hs⟩ ⦄ := by
   rw [gadget.gadget_matrix_loop0]
   apply loop.spec_decr_nat (fun s => r.val - s.2.val)
     (fun s => s.2.val ≤ rows ∧ s.1.val.length = s.2.val ∧
-      (∀ y ∈ s.1.val, WfVec (rows * 32) y) ∧
+      (∀ y ∈ s.1.val, WfVec (rows * 8) y) ∧
       (∀ (t : ℕ) (ht : t < rows), t < s.2.val →
-        toVec (k := rows * 32) (s.1.val.getD t (alloc.vec.Vec.new ring.Rq))
-          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨t, ht⟩))
+        toVec (k := rows * 8) (s.1.val.getD t (alloc.vec.Vec.new ring.Rq))
+          = gadgetMatrix Φ (16 : ZMod q) rows 8 ⟨t, ht⟩))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [gadget.gadget_matrix_loop0.body]
@@ -1003,11 +1003,11 @@ theorem gadget_matrix_loop0_spec {rows : ℕ} (r cols : Std.Usize)
       have hcap : o1.val.length < Usize.max := by rw [hlen1]; scalar_tac
       step as ⟨o2, ho2⟩
       step as ⟨i2, hi2⟩
-      have hrow : toVec (k := rows * 32) z
-          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⟨i1.val, hi1lt⟩ := by
+      have hrow : toVec (k := rows * 8) z
+          = gadgetMatrix Φ (16 : ZMod q) rows 8 ⟨i1.val, hi1lt⟩ := by
         funext t
         show toRq (z.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
-          = gadgetEntry Φ (2 : ZMod q) (rows := rows) (digits := 32) ⟨i1.val, hi1lt⟩ t
+          = gadgetEntry Φ (16 : ZMod q) (rows := rows) (digits := 8) ⟨i1.val, hi1lt⟩ t
         exact hzval t.val t.isLt
       refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
       · rw [ho2, hi2, List.length_append, hlen1]; simp
@@ -1034,22 +1034,22 @@ theorem gadget_matrix_loop0_spec {rows : ℕ} (r cols : Std.Usize)
       exact ⟨by rw [hlen1, heq], hwf1, fun t ht => hval1 t ht (by omega)⟩
   · exact ⟨hi, hlen, hwf, hval⟩
 
-/-- `gadget::gadget_matrix` — ArkLib's `gadgetMatrix` at base `2` and 32 digits:
-the materialized `G = I_rows ⊗ [1, 2, …, 2³¹]`.
+/-- `gadget::gadget_matrix` — ArkLib's `gadgetMatrix` at base `2` and 8 digits:
+the materialized `G = I_rows ⊗ [1, 16, …, 16⁷]`.
 
 `hmax` is the capacity side condition of the column count; see the section note
 for the fail point it discharges. -/
 theorem gadget_matrix_spec {rows : ℕ} (r : Std.Usize) (hr : r.val = rows)
-    (hmax : rows * 32 ≤ Usize.max) :
+    (hmax : rows * 8 ≤ Usize.max) :
     gadget.gadget_matrix r
-      ⦃ a => WfMat rows (rows * 32) a ∧
-        toMat (rows := rows) (cols := rows * 32) a
-          = gadgetMatrix Φ (2 : ZMod q) rows 32 ⦄ := by
+      ⦃ a => WfMat rows (rows * 8) a ∧
+        toMat (rows := rows) (cols := rows * 8) a
+          = gadgetMatrix Φ (16 : ZMod q) rows 8 ⦄ := by
   rw [gadget.gadget_matrix]
-  have hgd : (params.GADGET_DIGITS).val = 32 := by simp [params.GADGET_DIGITS]
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hfit : r.val * (params.GADGET_DIGITS).val ≤ Usize.max := by rw [hgd, hr]; exact hmax
   step as ⟨cols, hcols⟩
-  have hcols32 : cols.val = rows * 32 := by rw [hcols, hgd, hr]
+  have hcols32 : cols.val = rows * 8 := by rw [hcols, hgd, hr]
   step with gadget_matrix_loop0_spec (rows := rows) r cols
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hr hcols32 (by simp) (by simp)
     (by intro y hy; simp at hy) (by intro s hs h; simp at h)
@@ -1064,36 +1064,36 @@ theorem gadget_matrix_spec {rows : ℕ} (r : Std.Usize) (hr : r.val = rows)
 over the digit slots of block `i` already visited. -/
 theorem gadget_mul_inner_loop_spec {rows : ℕ} (v : linalg.PolyVec) (dg : Std.Usize)
     (i : Std.Usize) (acc : ring.Rq) (e : Std.Usize)
-    (hv : WfVec (rows * 32) v) (hdg : dg.val = 32) (hi : i.val < rows)
-    (hacc : Wf acc) (he : e.val ≤ 32)
-    (hval : toRq acc = ∑ t ∈ Finset.range e.val, Rq.constRq Φ ((2 : ZMod q) ^ t)
-      * toRq (v.val.getD (t + 32 * i.val) (alloc.vec.Vec.new cpoly.field.Fp))) :
+    (hv : WfVec (rows * 8) v) (hdg : dg.val = 8) (hi : i.val < rows)
+    (hacc : Wf acc) (he : e.val ≤ 8)
+    (hval : toRq acc = ∑ t ∈ Finset.range e.val, Rq.constRq Φ ((16 : ZMod q) ^ t)
+      * toRq (v.val.getD (t + 8 * i.val) (alloc.vec.Vec.new cpoly.field.Fp))) :
     gadget.gadget_mul_loop0_loop0 v dg i acc e
-      ⦃ z => Wf z ∧ toRq z = ∑ t ∈ Finset.range 32, Rq.constRq Φ ((2 : ZMod q) ^ t)
-        * toRq (v.val.getD (t + 32 * i.val) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  have hvlen : rows * 32 ≤ Usize.max := by rw [← hv.1]; exact v.property
-  have hib : 32 * i.val + 32 ≤ Usize.max := by
-    have h1 : (i.val + 1) * 32 ≤ rows * 32 := Nat.mul_le_mul_right 32 (by omega)
-    have h2 : (i.val + 1) * 32 = 32 * i.val + 32 := by ring
+      ⦃ z => Wf z ∧ toRq z = ∑ t ∈ Finset.range 8, Rq.constRq Φ ((16 : ZMod q) ^ t)
+        * toRq (v.val.getD (t + 8 * i.val) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  have hvlen : rows * 8 ≤ Usize.max := by rw [← hv.1]; exact v.property
+  have hib : 8 * i.val + 8 ≤ Usize.max := by
+    have h1 : (i.val + 1) * 8 ≤ rows * 8 := Nat.mul_le_mul_right 8 (by omega)
+    have h2 : (i.val + 1) * 8 = 8 * i.val + 8 := by ring
     omega
   rw [gadget.gadget_mul_loop0_loop0]
   apply loop.spec_decr_nat (fun s => dg.val - s.2.val)
-    (fun s => s.2.val ≤ 32 ∧ Wf s.1 ∧
-      toRq s.1 = ∑ t ∈ Finset.range s.2.val, Rq.constRq Φ ((2 : ZMod q) ^ t)
-        * toRq (v.val.getD (t + 32 * i.val) (alloc.vec.Vec.new cpoly.field.Fp)))
+    (fun s => s.2.val ≤ 8 ∧ Wf s.1 ∧
+      toRq s.1 = ∑ t ∈ Finset.range s.2.val, Rq.constRq Φ ((16 : ZMod q) ^ t)
+        * toRq (v.val.getD (t + 8 * i.val) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨a1, e1⟩ ⟨he1, hW1, hval1⟩
     dsimp only at he1 hW1 hval1
     simp only [gadget.gadget_mul_loop0_loop0.body]
     by_cases hlt : e1 < dg
     · rw [if_pos hlt]
-      have helt : e1.val < 32 := by rw [← hdg]; scalar_tac
+      have helt : e1.val < 8 := by rw [← hdg]; scalar_tac
       step as ⟨p, hp⟩
       step as ⟨p2, hp2⟩
-      have hidx : p2.val = e1.val + 32 * i.val := by rw [hp2, hp, hdg]; ring
+      have hidx : p2.val = e1.val + 8 * i.val := by rw [hp2, hp, hdg]; ring
       have hlen : p2.val < v.val.length := by
         rw [hv.1, hidx]
-        have : (i.val + 1) * 32 ≤ rows * 32 := Nat.mul_le_mul_right 32 (by omega)
-        have h2 : (i.val + 1) * 32 = 32 * i.val + 32 := by ring
+        have : (i.val + 1) * 8 ≤ rows * 8 := Nat.mul_le_mul_right 8 (by omega)
+        have h2 : (i.val + 1) * 8 = 8 * i.val + 8 := by ring
         omega
       simp only [linalg.PolyVec.get]
       step as ⟨r, hr⟩
@@ -1108,31 +1108,31 @@ theorem gadget_mul_inner_loop_spec {rows : ℕ} (v : linalg.PolyVec) (dg : Std.U
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : e1.val = 32 := by rw [← hdg]; scalar_tac
+      have heq : e1.val = 8 := by rw [← hdg]; scalar_tac
       exact ⟨hW1, by rw [hval1, heq]⟩
   · exact ⟨he, hacc, hval⟩
 
 /-- The outer loop of `gadget::gadget_mul`: one accumulated row per block. -/
 theorem gadget_mul_outer_loop_spec {rows : ℕ} (r : Std.Usize) (v : linalg.PolyVec)
     (dg : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (hv : WfVec (rows * 32) v) (hdg : dg.val = 32) (hr : r.val = rows)
+    (hv : WfVec (rows * 8) v) (hdg : dg.val = 8) (hr : r.val = rows)
     (hi : i.val ≤ rows) (hlen : out.val.length = i.val)
     (hwf : ∀ z ∈ out.val, Wf z)
     (hval : ∀ j, j < i.val →
       toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-        = ∑ t ∈ Finset.range 32, Rq.constRq Φ ((2 : ZMod q) ^ t)
-            * toRq (v.val.getD (t + 32 * j) (alloc.vec.Vec.new cpoly.field.Fp))) :
+        = ∑ t ∈ Finset.range 8, Rq.constRq Φ ((16 : ZMod q) ^ t)
+            * toRq (v.val.getD (t + 8 * j) (alloc.vec.Vec.new cpoly.field.Fp))) :
     gadget.gadget_mul_loop0 r v dg out i
       ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, Wf y) ∧
         ∀ j, j < rows → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-          = ∑ t ∈ Finset.range 32, Rq.constRq Φ ((2 : ZMod q) ^ t)
-              * toRq (v.val.getD (t + 32 * j) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+          = ∑ t ∈ Finset.range 8, Rq.constRq Φ ((16 : ZMod q) ^ t)
+              * toRq (v.val.getD (t + 8 * j) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   rw [gadget.gadget_mul_loop0]
   apply loop.spec_decr_nat (fun s => r.val - s.2.val)
     (fun s => s.2.val ≤ rows ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
       ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-        = ∑ t ∈ Finset.range 32, Rq.constRq Φ ((2 : ZMod q) ^ t)
-            * toRq (v.val.getD (t + 32 * j) (alloc.vec.Vec.new cpoly.field.Fp)))
+        = ∑ t ∈ Finset.range 8, Rq.constRq Φ ((16 : ZMod q) ^ t)
+            * toRq (v.val.getD (t + 8 * j) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [gadget.gadget_mul_loop0.body]
@@ -1171,11 +1171,11 @@ The Rust computes the per-block digit sum directly. The bridge is the
 specification's `gadgetMul_apply`: row `i` of the matrix product *is*
 `Σ_{e} constRq (bᵉ) * v (finProdFinEquiv (i, e))`. -/
 theorem gadget_mul_spec {rows : ℕ} (r : Std.Usize) (v : linalg.PolyVec)
-    (hr : r.val = rows) (hv : WfVec (rows * 32) v) :
+    (hr : r.val = rows) (hv : WfVec (rows * 8) v) :
     gadget.gadget_mul r v
       ⦃ z => WfVec rows z ∧ toVec (k := rows) z
-        = gadgetMul Φ (2 : ZMod q) (toVec (k := rows * 32) v) ⦄ := by
-  have hdg : (params.GADGET_DIGITS).val = 32 := by simp [params.GADGET_DIGITS]
+        = gadgetMul Φ (16 : ZMod q) (toVec (k := rows * 8) v) ⦄ := by
+  have hdg : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   rw [gadget.gadget_mul]
   simp only [linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (gadget_mul_outer_loop_spec r v params.GADGET_DIGITS
@@ -1184,27 +1184,27 @@ theorem gadget_mul_spec {rows : ℕ} (r : Std.Usize) (v : linalg.PolyVec)
   rintro z ⟨hzlen, hzwf, hzval⟩
   refine ⟨⟨hzlen, hzwf⟩, ?_⟩
   funext i
-  rw [gadgetMul_apply Φ (2 : ZMod q) (by norm_num)]
+  rw [gadgetMul_apply Φ (16 : ZMod q) (by norm_num)]
   simp only [toVec]
   rw [hzval i.val i.isLt]
-  have hfp : ∀ x : Fin 32,
-      ((finProdFinEquiv (i, x) : Fin (rows * 32)) : ℕ) = x.val + 32 * i.val := fun _ => rfl
+  have hfp : ∀ x : Fin 8,
+      ((finProdFinEquiv (i, x) : Fin (rows * 8)) : ℕ) = x.val + 8 * i.val := fun _ => rfl
   simp only [hfp]
-  rw [Fin.sum_univ_eq_sum_range (fun t => Rq.constRq Φ ((2 : ZMod q) ^ t)
-    * toRq (v.val.getD (t + 32 * i.val) (alloc.vec.Vec.new cpoly.field.Fp))) 32]
+  rw [Fin.sum_univ_eq_sum_range (fun t => Rq.constRq Φ ((16 : ZMod q) ^ t)
+    * toRq (v.val.getD (t + 8 * i.val) (alloc.vec.Vec.new cpoly.field.Fp))) 8]
 
 /-! ### `gadget::gadget_decompose`
 
-The Rust writes block `i`, digit slot `e` at the flat index `32 * i + e`, which is
+The Rust writes block `i`, digit slot `e` at the flat index `8 * i + e`, which is
 exactly `finProdFinEquiv (i, e)`; `digitBlock` names the ring element it writes
 there. The three loop specs below are the three nested `for`s, from the inside out. -/
 
 /-- The specification's digit map at an unbounded exponent. `dd.digit c ⟨e, _⟩` is
 `digitK c e` definitionally (`dd_digit_eq`), which is what lets the loop invariants
-below range over `ℕ` rather than over `Fin 32`. -/
-def digitK (c : ZMod q) (e : ℕ) : ZMod q := (((Nat.digits 2 c.val).getD e 0 : ℕ) : ZMod q)
+below range over `ℕ` rather than over `Fin 8`. -/
+def digitK (c : ZMod q) (e : ℕ) : ZMod q := (((Nat.digits 16 c.val).getD e 0 : ℕ) : ZMod q)
 
-theorem dd_digit_eq (c : ZMod q) (e : Fin 32) : dd.digit c e = digitK c e.val := rfl
+theorem dd_digit_eq (c : ZMod q) (e : Fin 8) : dd.digit c e = digitK c e.val := rfl
 
 /-- Two `ofFinCoeff`s at width `N` agree as soon as their coefficient functions do
 below `N`. -/
@@ -1218,7 +1218,7 @@ theorem ofFinCoeff_congr {f g : ℕ → ZMod q} (h : ∀ t < N, f t = g t) :
   · rw [if_pos ht, if_pos ht, h t ht]
   · rw [if_neg ht, if_neg ht]
 
-/-- The ring element `gadget::gadget_decompose` writes at the flat index `32 * i + e`:
+/-- The ring element `gadget::gadget_decompose` writes at the flat index `8 * i + e`:
 digit `e` of every coefficient of block `i`. -/
 def digitBlock (x : linalg.PolyVec) (i e : ℕ) : Rq Φ :=
   Rq.ofFinCoeff Φ N (fun t =>
@@ -1228,7 +1228,7 @@ def digitBlock (x : linalg.PolyVec) (i e : ℕ) : Rq Φ :=
 the first `k` coefficients of block `i`. -/
 theorem gadget_decompose_coeff_loop_spec {rows : ℕ} (x : linalg.PolyVec)
     (degree i e : Std.Usize) (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize)
-    (hx : WfVec rows x) (hdeg : degree.val = N) (hi : i.val < rows) (he : e.val < 32)
+    (hx : WfVec rows x) (hdeg : degree.val = N) (hi : i.val < rows) (he : e.val < 8)
     (hk : k.val ≤ N) (hlen : coeffs.val.length = k.val)
     (hred : ∀ u ∈ coeffs.val, Red u)
     (hval : ∀ t < k.val, coeffK coeffs t
@@ -1286,33 +1286,33 @@ theorem gadget_decompose_coeff_loop_spec {rows : ℕ} (x : linalg.PolyVec)
 /-- The middle loop of `gadget::gadget_decompose`: one digit block of row `i` per turn. -/
 theorem gadget_decompose_digit_loop_spec {rows : ℕ} (x : linalg.PolyVec)
     (digits degree i : Std.Usize) (out : alloc.vec.Vec ring.Rq) (e : Std.Usize)
-    (hx : WfVec rows x) (hmax : 32 * rows ≤ Usize.max)
-    (hdig : digits.val = 32) (hdeg : degree.val = N) (hi : i.val < rows)
-    (he : e.val ≤ 32) (hlen : out.val.length = 32 * i.val + e.val)
+    (hx : WfVec rows x) (hmax : 8 * rows ≤ Usize.max)
+    (hdig : digits.val = 8) (hdeg : degree.val = N) (hi : i.val < rows)
+    (he : e.val ≤ 8) (hlen : out.val.length = 8 * i.val + e.val)
     (hwf : ∀ y ∈ out.val, Wf y)
-    (hval : ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * i.val + e.val →
-      toRq (out.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+    (hval : ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * i.val + e.val →
+      toRq (out.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
         = digitBlock x i' e') :
     gadget.gadget_decompose_loop0_loop0 x digits degree out i e
-      ⦃ z => z.val.length = 32 * i.val + 32 ∧ (∀ y ∈ z.val, Wf y) ∧
-        ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * i.val + 32 →
-          toRq (z.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+      ⦃ z => z.val.length = 8 * i.val + 8 ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * i.val + 8 →
+          toRq (z.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
             = digitBlock x i' e' ⦄ := by
-  have hmaxb : 32 * i.val + 32 ≤ Usize.max := by
-    have h1 : 32 * (i.val + 1) ≤ 32 * rows := Nat.mul_le_mul_left 32 (by omega)
+  have hmaxb : 8 * i.val + 8 ≤ Usize.max := by
+    have h1 : 8 * (i.val + 1) ≤ 8 * rows := Nat.mul_le_mul_left 8 (by omega)
     omega
   rw [gadget.gadget_decompose_loop0_loop0]
   apply loop.spec_decr_nat (fun s => digits.val - s.2.val)
-    (fun s => s.2.val ≤ 32 ∧ s.1.val.length = 32 * i.val + s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
-      ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * i.val + s.2.val →
-        toRq (s.1.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+    (fun s => s.2.val ≤ 8 ∧ s.1.val.length = 8 * i.val + s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * i.val + s.2.val →
+        toRq (s.1.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
           = digitBlock x i' e')
   · rintro ⟨o1, e1⟩ ⟨he1, hlen1, hwf1, hval1⟩
     dsimp only at he1 hlen1 hwf1 hval1
     simp only [gadget.gadget_decompose_loop0_loop0.body]
     by_cases hlt : e1 < digits
     · rw [if_pos hlt]
-      have helt : e1.val < 32 := by rw [← hdig]; scalar_tac
+      have helt : e1.val < 8 := by rw [← hdig]; scalar_tac
       have hinner := gadget_decompose_coeff_loop_spec x degree i e1
         (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hx hdeg hi helt (by simp) (by simp)
         (by intro u hu; simp at hu) (by intro t ht; simp at ht)
@@ -1332,40 +1332,40 @@ theorem gadget_decompose_digit_loop_spec {rows : ℕ} (x : linalg.PolyVec)
         · rw [List.mem_singleton.mp h]; exact hWrr
       · intro i' e' he' hb
         rw [he2] at hb
-        rcases Nat.lt_or_ge (32 * i' + e') (32 * i.val + e1.val) with hjlt | hjge
+        rcases Nat.lt_or_ge (8 * i' + e') (8 * i.val + e1.val) with hjlt | hjge
         · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 i' e' he' hjlt]
         · have hi'e : i' = i.val ∧ e' = e1.val := by omega
           obtain ⟨hii, hee⟩ := hi'e
-          have hidx : 32 * i' + e' = o1.val.length := by omega
+          have hidx : 8 * i' + e' = o1.val.length := by omega
           rw [hidx, ho2, getD_append_eq, hblock, hii, hee]
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : e1.val = 32 := by rw [← hdig] at he1 ⊢; scalar_tac
+      have heq : e1.val = 8 := by rw [← hdig] at he1 ⊢; scalar_tac
       rw [heq] at hlen1 hval1
       exact ⟨hlen1, hwf1, hval1⟩
   · exact ⟨he, hlen, hwf, hval⟩
 
-/-- The outer loop of `gadget::gadget_decompose`: one block of `32` digit slots per row. -/
+/-- The outer loop of `gadget::gadget_decompose`: one block of `8` digit slots per row. -/
 theorem gadget_decompose_outer_loop_spec {rows : ℕ} (x : linalg.PolyVec)
     (digits degree r : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (hx : WfVec rows x) (hmax : 32 * rows ≤ Usize.max)
-    (hdig : digits.val = 32) (hdeg : degree.val = N) (hr : r.val = rows)
-    (hi : i.val ≤ rows) (hlen : out.val.length = 32 * i.val)
+    (hx : WfVec rows x) (hmax : 8 * rows ≤ Usize.max)
+    (hdig : digits.val = 8) (hdeg : degree.val = N) (hr : r.val = rows)
+    (hi : i.val ≤ rows) (hlen : out.val.length = 8 * i.val)
     (hwf : ∀ y ∈ out.val, Wf y)
-    (hval : ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * i.val →
-      toRq (out.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+    (hval : ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * i.val →
+      toRq (out.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
         = digitBlock x i' e') :
     gadget.gadget_decompose_loop0 x digits degree r out i
-      ⦃ z => z.val.length = 32 * rows ∧ (∀ y ∈ z.val, Wf y) ∧
-        ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * rows →
-          toRq (z.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+      ⦃ z => z.val.length = 8 * rows ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * rows →
+          toRq (z.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
             = digitBlock x i' e' ⦄ := by
   rw [gadget.gadget_decompose_loop0]
   apply loop.spec_decr_nat (fun s => r.val - s.2.val)
-    (fun s => s.2.val ≤ rows ∧ s.1.val.length = 32 * s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
-      ∀ i' e' : ℕ, e' < 32 → 32 * i' + e' < 32 * s.2.val →
-        toRq (s.1.val.getD (32 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
+    (fun s => s.2.val ≤ rows ∧ s.1.val.length = 8 * s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ i' e' : ℕ, e' < 8 → 8 * i' + e' < 8 * s.2.val →
+        toRq (s.1.val.getD (8 * i' + e') (alloc.vec.Vec.new cpoly.field.Fp))
           = digitBlock x i' e')
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
@@ -1396,29 +1396,29 @@ theorem gadget_decompose_outer_loop_spec {rows : ℕ} (x : linalg.PolyVec)
 --
 --     theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows x) :
 --       gadget.gadget_decompose x
---         ⦃ z => WfVec (rows * 32) z ∧ toVec (k := rows * 32) z
+--         ⦃ z => WfVec (rows * 8) z ∧ toVec (k := rows * 8) z
 --           = gadgetDecompose Φ dd (toVec (k := rows) x) ⦄
 --
 -- is *false*, and the proof below is what shows why: the Rust grows `out` with
 -- `Vec::push`, whose extracted model fails once the vector has `Usize.max` entries,
--- so `gadget_decompose` diverges from `ok` as soon as `32 * rows` exceeds that. The
+-- so `gadget_decompose` diverges from `ok` as soon as `8 * rows` exceeds that. The
 -- input `x` only bounds `rows` itself (`rows ≤ Usize.max`, from `x`'s own carrier
--- invariant), never `32 * rows`. Note that the missing bound is exactly what the
--- postcondition asserts anyway -- `WfVec (rows * 32) z` forces `z`'s length, hence
--- `32 * rows`, below `Usize.max` -- so adding it as a hypothesis weakens nothing
+-- invariant), never `8 * rows`. Note that the missing bound is exactly what the
+-- postcondition asserts anyway -- `WfVec (rows * 8) z` forces `z`'s length, hence
+-- `8 * rows`, below `Usize.max` -- so adding it as a hypothesis weakens nothing
 -- that the conclusion did not already carry.
 
 /-- `gadget::gadget_decompose` — ArkLib's `gadgetDecompose` at `dd`.
 
 `hmax` is the capacity side condition of the output vector: the Rust pushes
-`32 * rows` ring elements into a `Vec`, which the extracted model only permits below
+`8 * rows` ring elements into a `Vec`, which the extracted model only permits below
 `Usize.max`. Every use in this file supplies it at a numeral. -/
 theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows x)
-    (hmax : 32 * rows ≤ Usize.max) :
+    (hmax : 8 * rows ≤ Usize.max) :
     gadget.gadget_decompose x
-      ⦃ z => WfVec (rows * 32) z ∧ toVec (k := rows * 32) z
+      ⦃ z => WfVec (rows * 8) z ∧ toVec (k := rows * 8) z
         = gadgetDecompose Φ dd (toVec (k := rows) x) ⦄ := by
-  have hdig : (params.GADGET_DIGITS).val = 32 := by simp [params.GADGET_DIGITS]
+  have hdig : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hdeg : (params.RING_DEGREE).val = N := by simp
   rw [gadget.gadget_decompose]
   simp only [linalg.PolyVec.len, linalg.PolyVec.new, bind_ok_id]
@@ -1429,21 +1429,21 @@ theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows
   rintro z ⟨hzlen, hzwf, hzval⟩
   refine ⟨⟨by rw [hzlen]; ring, hzwf⟩, ?_⟩
   funext m
-  have hm : m.val < rows * 32 := m.isLt
-  have he'lt : m.val % 32 < 32 := Nat.mod_lt _ (by norm_num)
-  have hi'lt : m.val / 32 < rows := by omega
-  have hsplit : 32 * (m.val / 32) + m.val % 32 = m.val := by omega
-  have hfp : (finProdFinEquiv (⟨m.val / 32, hi'lt⟩, ⟨m.val % 32, he'lt⟩) : Fin (rows * 32))
+  have hm : m.val < rows * 8 := m.isLt
+  have he'lt : m.val % 8 < 8 := Nat.mod_lt _ (by norm_num)
+  have hi'lt : m.val / 8 < rows := by omega
+  have hsplit : 8 * (m.val / 8) + m.val % 8 = m.val := by omega
+  have hfp : (finProdFinEquiv (⟨m.val / 8, hi'lt⟩, ⟨m.val % 8, he'lt⟩) : Fin (rows * 8))
       = m := by
     apply Fin.ext
-    show m.val % 32 + 32 * (m.val / 32) = m.val
+    show m.val % 8 + 8 * (m.val / 8) = m.val
     omega
   have hgd := gadgetDecompose_apply Φ dd (toVec (k := rows) x)
-    ⟨m.val / 32, hi'lt⟩ ⟨m.val % 32, he'lt⟩
+    ⟨m.val / 8, hi'lt⟩ ⟨m.val % 8, he'lt⟩
   rw [hfp] at hgd
   rw [hgd]
   simp only [toVec]
-  have hz := hzval (m.val / 32) (m.val % 32) he'lt (by omega)
+  have hz := hzval (m.val / 8) (m.val % 8) he'lt (by omega)
   rw [hsplit] at hz
   rw [hz, digitBlock, RqBridge.phi_natDegree]
   rfl
@@ -1458,7 +1458,7 @@ claim about this layer a reader can check against the test suite
 `hmax` is the capacity side condition inherited from `gadget_decompose_spec`; see the
 note there for why it cannot be dropped. -/
 theorem gadget_round_trip {rows : ℕ} (r : Std.Usize) (x : linalg.PolyVec)
-    (hr : r.val = rows) (hx : WfVec rows x) (hmax : 32 * rows ≤ Usize.max) :
+    (hr : r.val = rows) (hx : WfVec rows x) (hmax : 8 * rows ≤ Usize.max) :
     (do let d ← gadget.gadget_decompose x; gadget.gadget_mul r d)
       ⦃ z => WfVec rows z ∧ toVec (k := rows) z = toVec (k := rows) x ⦄ := by
   step with gadget_decompose_spec x hx hmax as ⟨d, hWd, hd⟩
@@ -1925,30 +1925,30 @@ whose lengths nothing in the type system pins. -/
 /-- Shape invariant of the public parameters: the two Ajtai matrices are of the
 shapes `PublicParams` fixes. -/
 def WfParams (pp : commit.PublicParams) : Prop :=
-  WfMat 2 (4 * 32) pp.inner_matrix ∧ WfMat 2 (2 * (2 * 32)) pp.outer_matrix
+  WfMat 1 (1024 * 8) pp.inner_matrix ∧ WfMat 1 (1024 * (1 * 8)) pp.outer_matrix
 
 /-- Shape invariant of the decomposition data. -/
 def WfDecomp (d : commit.Decomp) : Prop :=
-  (d.message.val.length = 2 ∧ ∀ s ∈ d.message.val, WfVec (4 * 32) s) ∧
-  (d.inner_decomp.val.length = 2 ∧ ∀ t ∈ d.inner_decomp.val, WfVec (2 * 32) t)
+  (d.message.val.length = 1024 ∧ ∀ s ∈ d.message.val, WfVec (1024 * 8) s) ∧
+  (d.inner_decomp.val.length = 1024 ∧ ∀ t ∈ d.inner_decomp.val, WfVec (1 * 8) t)
 
 /-- The specification's public parameters that an extracted `PublicParams`
 represents. -/
-def toParams (pp : commit.PublicParams) : InnerOuter.PublicParams Φ 2 4 32 2 2 32 where
-  innerMatrix := toMat (rows := 2) (cols := 4 * 32) pp.inner_matrix
-  outerMatrix := toMat (rows := 2) (cols := 2 * (2 * 32)) pp.outer_matrix
+def toParams (pp : commit.PublicParams) : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8 where
+  innerMatrix := toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix
+  outerMatrix := toMat (rows := 1) (cols := 1024 * (1 * 8)) pp.outer_matrix
 
 /-- The specification's decomposition data that an extracted `Decomp` represents. -/
-def toDecompSpec (d : commit.Decomp) : InnerOuter.Decomp Φ 2 4 32 2 32 where
-  message := fun i => toVec (k := 4 * 32) (d.message.val.getD i.val
+def toDecompSpec (d : commit.Decomp) : InnerOuter.Decomp Φ 1 1024 8 1024 8 where
+  message := fun i => toVec (k := 1024 * 8) (d.message.val.getD i.val
     (alloc.vec.Vec.new ring.Rq))
-  innerDecomp := fun i => toVec (k := 2 * 32) (d.inner_decomp.val.getD i.val
+  innerDecomp := fun i => toVec (k := 1 * 8) (d.inner_decomp.val.getD i.val
     (alloc.vec.Vec.new ring.Rq))
 
 /-- The specification's weak opening that an extracted `Opening` represents. -/
-def toOpening (o : commit.Opening) : InnerOuter.Opening Φ 2 4 32 2 32 where
+def toOpening (o : commit.Opening) : InnerOuter.Opening Φ 1 1024 8 1024 8 where
   toDecomp := toDecompSpec o.decomp
-  challenge := toVec (k := 2) o.challenge
+  challenge := toVec (k := 1024) o.challenge
 
 /-- `commit::generate_decomps` — ArkLib's `generateDecomps` at
 `Decomposition.ofDigits dd dd`: per block `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
@@ -1959,40 +1959,40 @@ decomposition and not merely a decomposition of the right shape. -/
 theorem generate_decomps_loop_spec (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
     (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x)
-    (hb : blocks.val = 2) (hi : i.val ≤ 2)
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
-    (hWss : ∀ y ∈ ss.val, WfVec (4 * 32) y) (hWts : ∀ y ∈ ts.val, WfVec (2 * 32) y)
-    (hvss : ∀ j < i.val, toVec (k := 4 * 32) (ss.val.getD j (alloc.vec.Vec.new ring.Rq))
-      = gadgetDecompose Φ dd (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
-    (hvts : ∀ j < i.val, toVec (k := 2 * 32) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
+    (hWss : ∀ y ∈ ss.val, WfVec (1024 * 8) y) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
+    (hvss : ∀ j < i.val, toVec (k := 1024 * 8) (ss.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetDecompose Φ dd (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
+    (hvts : ∀ j < i.val, toVec (k := 1 * 8) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
       = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
-          (toMat (rows := 2) (cols := 4 * 32) pp.inner_matrix)
+          (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
           (gadgetDecompose Φ dd
-            (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
+            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
     commit.generate_decomps_loop pp m blocks ss ts i
-      ⦃ r => r.1.val.length = 2 ∧ r.2.val.length = 2 ∧
-        (∀ y ∈ r.1.val, WfVec (4 * 32) y) ∧ (∀ y ∈ r.2.val, WfVec (2 * 32) y) ∧
-        (∀ j < 2, toVec (k := 4 * 32) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+      ⦃ r => r.1.val.length = 1024 ∧ r.2.val.length = 1024 ∧
+        (∀ y ∈ r.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ r.2.val, WfVec (1 * 8) y) ∧
+        (∀ j < 1024, toVec (k := 1024 * 8) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
           = gadgetDecompose Φ dd
-              (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
-        (∀ j < 2, toVec (k := 2 * 32) (r.2.val.getD j (alloc.vec.Vec.new ring.Rq))
+              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
+        (∀ j < 1024, toVec (k := 1 * 8) (r.2.val.getD j (alloc.vec.Vec.new ring.Rq))
           = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
-              (toMat (rows := 2) (cols := 4 * 32) pp.inner_matrix)
+              (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
               (gadgetDecompose Φ dd
-                (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) ⦄ := by
+                (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) ⦄ := by
   rw [commit.generate_decomps_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.2.val)
-    (fun s => s.2.2.val ≤ 2 ∧ s.1.val.length = s.2.2.val ∧ s.2.1.val.length = s.2.2.val ∧
-      (∀ y ∈ s.1.val, WfVec (4 * 32) y) ∧ (∀ y ∈ s.2.1.val, WfVec (2 * 32) y) ∧
-      (∀ j < s.2.2.val, toVec (k := 4 * 32) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+    (fun s => s.2.2.val ≤ 1024 ∧ s.1.val.length = s.2.2.val ∧ s.2.1.val.length = s.2.2.val ∧
+      (∀ y ∈ s.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ s.2.1.val, WfVec (1 * 8) y) ∧
+      (∀ j < s.2.2.val, toVec (k := 1024 * 8) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
         = gadgetDecompose Φ dd
-            (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
-      (∀ j < s.2.2.val, toVec (k := 2 * 32) (s.2.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
+      (∀ j < s.2.2.val, toVec (k := 1 * 8) (s.2.1.val.getD j (alloc.vec.Vec.new ring.Rq))
         = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
-            (toMat (rows := 2) (cols := 4 * 32) pp.inner_matrix)
+            (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
             (gadgetDecompose Φ dd
-              (toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))))
+              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))))
   · rintro ⟨s1, t1, i1⟩ ⟨hi1, hs1, ht1, hWs1, hWt1, hvs1, hvt1⟩
     dsimp only at hi1 hs1 ht1 hWs1 hWt1 hvs1 hvt1
     simp only [commit.generate_decomps_loop.body]
@@ -2000,12 +2000,12 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
     · rw [if_pos hlt]
       have hilt : i1.val < m.val.length := by rw [hm.1, ← hb]; scalar_tac
       step as ⟨pv, hpv⟩
-      have hWpv : WfVec 4 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
-      step with gadget_decompose_spec (rows := 4) pv hWpv (by scalar_tac) as ⟨s, hWs, hs⟩
+      have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
+      step with gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac) as ⟨s, hWs, hs⟩
       simp only [commit.PublicParams.impl.inner_matrix]
-      step with mat_vec_mul_spec (rows := 2) (cols := 4 * 32) pp.inner_matrix s
+      step with mat_vec_mul_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix s
         hpp.1 hWs as ⟨inner, hWinner, hinner⟩
-      step with gadget_decompose_spec (rows := 2) inner hWinner (by scalar_tac)
+      step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
       step as ⟨s2, hs2⟩
@@ -2040,19 +2040,19 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
       rw [heq] at hs1 ht1 hvs1 hvt1
       exact ⟨hs1, ht1, hWs1, hWt1, hvs1, hvt1⟩
   · exact ⟨hi, hss, hts, hWss, hWts, hvss, hvts⟩
 
 /-- `commit::generate_decomps` — see the docstring above. -/
 theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x) :
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x) :
     commit.generate_decomps pp m
       ⦃ d => WfDecomp d ∧ toDecompSpec d
         = InnerOuter.generateDecomps Φ (InnerOuter.Decomposition.ofDigits Φ dd dd)
             (toParams pp)
-            (fun i : Fin 2 => toVec (k := 4) (m.val.getD i.val
+            (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val
               (alloc.vec.Vec.new ring.Rq))) ⦄ := by
   rw [commit.generate_decomps]
   simp only [commit.Decomp.new]
@@ -2063,7 +2063,7 @@ theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec lina
     (by intro j hj; simp at hj) (by intro j hj; simp at hj)
     as ⟨ss, ts, hsl, htl, hWs, hWt, hvs, hvt⟩
   refine ⟨⟨⟨hsl, hWs⟩, ⟨htl, hWt⟩⟩, ?_⟩
-  show (toDecompSpec ⟨ss, ts⟩ : InnerOuter.Decomp Φ 2 4 32 2 32) = _
+  show (toDecompSpec ⟨ss, ts⟩ : InnerOuter.Decomp Φ 1 1024 8 1024 8) = _
   simp only [toDecompSpec, InnerOuter.generateDecomps, InnerOuter.Decomposition.ofDigits,
     InnerOuter.Decomp.mk.injEq]
   constructor
@@ -2073,23 +2073,23 @@ theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec lina
 /-- The loop of `commit::derived_message`: one gadget product per block. -/
 theorem derived_message_loop_spec (d : commit.Decomp) (blocks : Std.Usize)
     (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hd : WfDecomp d) (hb : blocks.val = 2) (hi : i.val ≤ 2)
-    (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, WfVec 4 y)
-    (hval : ∀ j < i.val, toVec (k := 4) (out.val.getD j (alloc.vec.Vec.new ring.Rq))
-      = gadgetMul Φ (2 : ZMod q)
-          (toVec (k := 4 * 32) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
+    (hd : WfDecomp d) (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
+    (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, WfVec 1024 y)
+    (hval : ∀ j < i.val, toVec (k := 1024) (out.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetMul Φ (16 : ZMod q)
+          (toVec (k := 1024 * 8) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
     commit.derived_message_loop d blocks params.MESSAGE_ROWS out i
-      ⦃ z => z.val.length = 2 ∧ (∀ y ∈ z.val, WfVec 4 y) ∧
-        ∀ j < 2, toVec (k := 4) (z.val.getD j (alloc.vec.Vec.new ring.Rq))
-          = gadgetMul Φ (2 : ZMod q)
-              (toVec (k := 4 * 32) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
-  have hmr : (params.MESSAGE_ROWS).val = 4 := by simp [params.MESSAGE_ROWS]
+      ⦃ z => z.val.length = 1024 ∧ (∀ y ∈ z.val, WfVec 1024 y) ∧
+        ∀ j < 1024, toVec (k := 1024) (z.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = gadgetMul Φ (16 : ZMod q)
+              (toVec (k := 1024 * 8) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
+  have hmr : (params.MESSAGE_ROWS).val = 1024 := by simp [params.MESSAGE_ROWS]
   rw [commit.derived_message_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
-    (fun s => s.2.val ≤ 2 ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, WfVec 4 y) ∧
-      ∀ j < s.2.val, toVec (k := 4) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
-        = gadgetMul Φ (2 : ZMod q)
-            (toVec (k := 4 * 32) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq))))
+    (fun s => s.2.val ≤ 1024 ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, WfVec 1024 y) ∧
+      ∀ j < s.2.val, toVec (k := 1024) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = gadgetMul Φ (16 : ZMod q)
+            (toVec (k := 1024 * 8) (d.message.val.getD j (alloc.vec.Vec.new ring.Rq))))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [commit.derived_message_loop.body]
@@ -2098,9 +2098,9 @@ theorem derived_message_loop_spec (d : commit.Decomp) (blocks : Std.Usize)
       have hilt : i1.val < d.message.val.length := by rw [hd.1.1, ← hb]; scalar_tac
       simp only [commit.Decomp.impl.message]
       step as ⟨pv, hpv⟩
-      have hWpv : WfVec (4 * 32) pv := by
+      have hWpv : WfVec (1024 * 8) pv := by
         rw [hpv]; exact hd.1.2 _ (List.getElem_mem hilt)
-      step with gadget_mul_spec (rows := 4) params.MESSAGE_ROWS pv hmr hWpv as ⟨pv1, hW1, h1⟩
+      step with gadget_mul_spec (rows := 1024) params.MESSAGE_ROWS pv hmr hWpv as ⟨pv1, hW1, h1⟩
       step as ⟨o2, ho2⟩
       step as ⟨i2, hi2⟩
       refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
@@ -2120,7 +2120,7 @@ theorem derived_message_loop_spec (d : commit.Decomp) (blocks : Std.Usize)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
       rw [heq] at hlen1 hval1
       exact ⟨hlen1, hwf1, hval1⟩
   · exact ⟨hi, hlen, hwf, hval⟩
@@ -2129,9 +2129,9 @@ theorem derived_message_loop_spec (d : commit.Decomp) (blocks : Std.Usize)
 ([NOZ26] Eq. (13)): the message a weak opening does not store but determines. -/
 theorem derived_message_spec (d : commit.Decomp) (hd : WfDecomp d) :
     commit.derived_message d
-      ⦃ out => (out.val.length = 2 ∧ ∀ x ∈ out.val, WfVec 4 x) ∧
-        (fun i : Fin 2 => toVec (k := 4) (out.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
-          = InnerOuter.derivedMessage Φ (2 : ZMod q) (toDecompSpec d) ⦄ := by
+      ⦃ out => (out.val.length = 1024 ∧ ∀ x ∈ out.val, WfVec 1024 x) ∧
+        (fun i : Fin 1024 => toVec (k := 1024) (out.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
+          = InnerOuter.derivedMessage Φ (16 : ZMod q) (toDecompSpec d) ⦄ := by
   rw [commit.derived_message]
   simp only [commit.Decomp.blocks]
   apply spec_mono (derived_message_loop_spec d (alloc.vec.Vec.len d.message)
@@ -2147,13 +2147,13 @@ theorem derived_message_spec (d : commit.Decomp) (hd : WfDecomp d) :
 theorem commit_with_decomps_spec (pp : commit.PublicParams) (d : commit.Decomp)
     (hpp : WfParams pp) (hd : WfDecomp d) :
     commit.commit_with_decomps pp d
-      ⦃ u => WfVec 2 u ∧ toVec (k := 2) u
+      ⦃ u => WfVec 1 u ∧ toVec (k := 1) u
         = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec d) ⦄ := by
   rw [commit.commit_with_decomps]
   simp only [commit.Decomp.inner_decomps, commit.PublicParams.impl.outer_matrix]
-  step with flatten_blocks_spec (blocks := 2) (width := 2 * 32) d.inner_decomp
+  step with flatten_blocks_spec (blocks := 1024) (width := 1 * 8) d.inner_decomp
     (by scalar_tac) hd.2 as ⟨flat, hWflat, hflat⟩
-  apply spec_mono (mat_vec_mul_spec (rows := 2) (cols := 2 * (2 * 32))
+  apply spec_mono (mat_vec_mul_spec (rows := 1) (cols := 1024 * (1 * 8))
     pp.outer_matrix flat hpp.2 hWflat)
   rintro u ⟨hWu, hu⟩
   refine ⟨hWu, ?_⟩
@@ -2187,41 +2187,41 @@ vocabulary: the challenge is nonzero and `ℓ₁`-short, the scaled message is
 `ℓ₂²`-short, and the inner gadget relation `A sⱼ = G t̂ⱼ` holds. -/
 def BlockVerifies (pp : commit.PublicParams) (o : commit.Opening) (j : ℕ) : Prop :=
   0 < Rq.l1Norm Φ (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) ∧
-  Rq.l1Norm Φ (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) ≤ 65535 ∧
+  Rq.l1Norm Φ (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) ≤ 32 ∧
   vecL2NormSq Φ (ArkLib.Lattices.scalarVecMul
       (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-      (toVec (k := 4 * 32) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) ≤ 8192 ∧
-  gadgetMul Φ (2 : ZMod q)
-      (toVec (k := 2 * 32) (o.decomp.inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)))
-    = ArkLib.Lattices.matVecMul (toMat (rows := 2) (cols := 4 * 32) pp.inner_matrix)
-      (toVec (k := 4 * 32) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))
+      (toVec (k := 1024 * 8) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) ≤ 163966054471565312 ∧
+  gadgetMul Φ (16 : ZMod q)
+      (toVec (k := 1 * 8) (o.decomp.inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)))
+    = ArkLib.Lattices.matVecMul (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+      (toVec (k := 1024 * 8) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))
 
 /-- The `ℓ₂²` accumulator of `vec_l2_norm_sq` cannot overflow at the crate's message
 width: `128 · N · (q/2)² < 2¹²⁸`. -/
-theorem l2_norm_sq_message_fits : (4 * 32) * (N * (q / 2) ^ 2) ≤ U128.max := by
+theorem l2_norm_sq_message_fits : (1024 * 8) * (N * (q / 2) ^ 2) ≤ U128.max := by
   norm_num [U128.max, U128.numBits]
 
 /-- The loop of `commit::verify_weak`: the accumulated `Bool` decides exactly the
 per-block checks at the blocks already visited. -/
 theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
     (blocks : Std.Usize) (ok1 : Bool) (i : Std.Usize)
-    (hpp : WfParams pp) (hoc : WfVec 2 o.challenge) (ho : WfDecomp o.decomp)
-    (hb : blocks.val = 2) (hi : i.val ≤ 2)
+    (hpp : WfParams pp) (hoc : WfVec 1024 o.challenge) (ho : WfDecomp o.decomp)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hok : ok1 = true ↔ ∀ j < i.val, BlockVerifies pp o j) :
     commit.verify_weak_loop pp o o.decomp blocks ok1 i
-      ⦃ r => r = true ↔ ∀ j < 2, BlockVerifies pp o j ⦄ := by
-  have hir : (params.INNER_ROWS).val = 2 := by simp [params.INNER_ROWS]
-  have hk : (params.KAPPA).val = 65535 := by simp [params.KAPPA]
-  have hbs : (params.BETA_SQ).val = 8192 := by simp [params.BETA_SQ]
+      ⦃ r => r = true ↔ ∀ j < 1024, BlockVerifies pp o j ⦄ := by
+  have hir : (params.INNER_ROWS).val = 1 := by simp [params.INNER_ROWS]
+  have hk : (params.KAPPA).val = 32 := by simp [params.KAPPA]
+  have hbs : (params.BETA_SQ).val = 163966054471565312 := by simp [params.BETA_SQ]
   rw [commit.verify_weak_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
-    (fun s => s.2.val ≤ 2 ∧ (s.1 = true ↔ ∀ j < s.2.val, BlockVerifies pp o j))
+    (fun s => s.2.val ≤ 1024 ∧ (s.1 = true ↔ ∀ j < s.2.val, BlockVerifies pp o j))
   · rintro ⟨b1, i1⟩ ⟨hi1, hb1⟩
     dsimp only at hi1 hb1
     simp only [commit.verify_weak_loop.body]
     by_cases hlt : i1 < blocks
     · rw [if_pos hlt]
-      have hilt : i1.val < 2 := by rw [← hb]; scalar_tac
+      have hilt : i1.val < 1024 := by rw [← hb]; scalar_tac
       have hclt : i1.val < o.challenge.val.length := by rw [hoc.1]; exact hilt
       have hmlt : i1.val < o.decomp.message.val.length := by rw [ho.1.1]; exact hilt
       have hdlt : i1.val < o.decomp.inner_decomp.val.length := by rw [ho.2.1]; exact hilt
@@ -2234,18 +2234,18 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
       step with ite_false_spec (c := (cl1 = 0#u64)) b1 as ⟨ok2, hok2⟩
       step with ite_false_spec (c := (cl1 > params.KAPPA)) ok2 as ⟨ok3, hok3⟩
       step as ⟨pv, hpv⟩
-      have hWpv : WfVec (4 * 32) pv := by rw [hpv]; exact ho.1.2 _ (List.getElem_mem hmlt)
-      step with scalar_vec_mul_spec (k := 4 * 32) c pv hWc hWpv as ⟨scaled, hWsc, hsc⟩
-      step with vec_l2_norm_sq_spec (k := 4 * 32) scaled hWsc l2_norm_sq_message_fits
+      have hWpv : WfVec (1024 * 8) pv := by rw [hpv]; exact ho.1.2 _ (List.getElem_mem hmlt)
+      step with scalar_vec_mul_spec (k := 1024 * 8) c pv hWc hWpv as ⟨scaled, hWsc, hsc⟩
+      step with vec_l2_norm_sq_spec (k := 1024 * 8) scaled hWsc l2_norm_sq_message_fits
         as ⟨n2, hn2⟩
       step with ite_false_spec (c := (n2 > params.BETA_SQ)) ok3 as ⟨ok4, hok4⟩
-      step with mat_vec_mul_spec (rows := 2) (cols := 4 * 32) pp.inner_matrix pv hpp.1 hWpv
+      step with mat_vec_mul_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix pv hpp.1 hWpv
         as ⟨inn, hWinn, hinn⟩
       step as ⟨pv1, hpv1⟩
-      have hWpv1 : WfVec (2 * 32) pv1 := by rw [hpv1]; exact ho.2.2 _ (List.getElem_mem hdlt)
-      step with gadget_mul_spec (rows := 2) params.INNER_ROWS pv1 hir hWpv1
+      have hWpv1 : WfVec (1 * 8) pv1 := by rw [hpv1]; exact ho.2.2 _ (List.getElem_mem hdlt)
+      step with gadget_mul_spec (rows := 1) params.INNER_ROWS pv1 hir hWpv1
         as ⟨recomp, hWrec, hrec⟩
-      step with poly_vec_equals_spec (k := 2) recomp inn hWrec hWinn as ⟨bb, hbb⟩
+      step with poly_vec_equals_spec (k := 1) recomp inn hWrec hWinn as ⟨bb, hbb⟩
       step with ite_true_spec (c := (bb = true)) ok4 as ⟨ok5, hok5⟩
       step as ⟨i2, hi2⟩
       have hcg : c = o.challenge.val.getD i1.val (alloc.vec.Vec.new cpoly.field.Fp) := by
@@ -2255,7 +2255,7 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
       have hpv1g : pv1 = o.decomp.inner_decomp.val.getD i1.val (alloc.vec.Vec.new ring.Rq) := by
         rw [hpv1, List.getD_eq_getElem _ _ hdlt]
       have hBV : BlockVerifies pp o i1.val ↔
-          (0 < cl1.val ∧ cl1.val ≤ 65535 ∧ n2.val ≤ 8192 ∧ bb = true) := by
+          (0 < cl1.val ∧ cl1.val ≤ 32 ∧ n2.val ≤ 163966054471565312 ∧ bb = true) := by
         rw [BlockVerifies, ← hcg, ← hpvg, ← hpv1g, ← hcl1, ← hsc, ← hn2, ← hrec, ← hinn, ← hbb]
       refine ⟨by scalar_tac, ?_, ?_⟩
       · rw [hi2, hok5, hok4, hok3, hok2, hb1]
@@ -2272,24 +2272,24 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
-      rw [← heq]; exact hb1
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
+      rw [heq] at hb1; exact hb1
   · exact ⟨hi, hok⟩
 
 /- The original statement of `verify_weak_spec`, kept for the record:
 
 theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
-    (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 2 u) (ho : WfDecomp o.decomp) :
+    (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 1 u) (ho : WfDecomp o.decomp) :
     commit.verify_weak pp u o
-      ⦃ r => r = InnerOuter.verify_weak Φ (2 : ZMod q) 8192 1 65535
-        (toParams pp) (toVec (k := 2) u) (toOpening o) ⦄
+      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+        (toParams pp) (toVec (k := 1) u) (toOpening o) ⦄
 
-It is *false* in this model: `WfParams`, `WfVec 2 u` and `WfDecomp o.decomp` say
+It is *false* in this model: `WfParams`, `WfVec 1 u` and `WfDecomp o.decomp` say
 nothing at all about `o.challenge`, yet the extracted loop reads
-`opening.challenge[i]` for `i < 2` (`alloc.vec.Vec.index`, which *fails* out of
+`opening.challenge[i]` for `i < 1024` (`alloc.vec.Vec.index`, which *fails* out of
 range) and then takes its `ℓ₁` norm (`commit::l1_norm`, whose specification needs a
 well-formed ring element). With, say, an empty `challenge` the left-hand side is
-`fail`, so no postcondition holds of it. The hypothesis `hoc : WfVec 2 o.challenge`
+`fail`, so no postcondition holds of it. The hypothesis `hoc : WfVec 1024 o.challenge`
 below is exactly the shape condition the `Opening` type does not carry. -/
 
 /-- `commit::verify_weak` — ArkLib's `verify_weak`, as an equality of *decisions*.
@@ -2300,40 +2300,40 @@ the failure a correctness test cannot see. The specification's `verify_weak` is
 itself `Bool`-valued (a `&&` of `List.all` over eagerly-`decide`d propositions),
 which is why no `decide` appears on either side.
 
-The three bounds are `params.rs`'s: `βSq = 8192`, `γ = 1`, `κ = 65535`. They are
+The three bounds are `params.rs`'s: `βSq = 1887436800`, `γ = 15`, `κ = 16`. They are
 the numbers `lean/Check.lean` § 1 ties to the extracted constants, so this
 statement and the Rust cannot disagree about them without that audit failing.
 
-*Statement modified*: the hypothesis `hoc : WfVec 2 o.challenge` was added, since
+*Statement modified*: the hypothesis `hoc : WfVec 1024 o.challenge` was added, since
 the verifier indexes and norms the challenge vector and nothing else in the
 hypotheses bounds it. See the comment above. -/
 theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
-    (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 2 u) (hoc : WfVec 2 o.challenge)
+    (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 1 u) (hoc : WfVec 1024 o.challenge)
     (ho : WfDecomp o.decomp) :
     commit.verify_weak pp u o
-      ⦃ r => r = InnerOuter.verify_weak Φ (2 : ZMod q) 8192 1 65535
-        (toParams pp) (toVec (k := 2) u) (toOpening o) ⦄ := by
-  have hg : (params.GAMMA).val = 1 := by simp [params.GAMMA]
+      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+        (toParams pp) (toVec (k := 1) u) (toOpening o) ⦄ := by
+  have hg : (params.GAMMA).val = 16 := by simp [params.GAMMA]
   rw [commit.verify_weak]
   simp only [commit.Opening.impl.decomp, commit.Decomp.blocks, commit.Decomp.inner_decomps,
     commit.PublicParams.impl.outer_matrix]
   step with verify_weak_loop_spec pp o (alloc.vec.Vec.len o.decomp.message) true 0#usize
     hpp hoc ho (by simpa using ho.1.1) (by simp) (by simp) as ⟨okA, hokA⟩
-  step with flatten_blocks_spec (blocks := 2) (width := 2 * 32) o.decomp.inner_decomp
+  step with flatten_blocks_spec (blocks := 1024) (width := 1 * 8) o.decomp.inner_decomp
     (by scalar_tac) ho.2 as ⟨flat, hWflat, hflat⟩
-  step with vec_l_infty_norm_spec (k := 2 * (2 * 32)) flat hWflat as ⟨ninf, hninf⟩
+  step with vec_l_infty_norm_spec (k := 1024 * (1 * 8)) flat hWflat as ⟨ninf, hninf⟩
   step with ite_false_spec (c := (ninf > params.GAMMA)) okA as ⟨okB, hokB⟩
-  step with mat_vec_mul_spec (rows := 2) (cols := 2 * (2 * 32)) pp.outer_matrix flat hpp.2 hWflat
+  step with mat_vec_mul_spec (rows := 1) (cols := 1024 * (1 * 8)) pp.outer_matrix flat hpp.2 hWflat
     as ⟨outer, hWouter, houter⟩
-  step with poly_vec_equals_spec (k := 2) outer u hWouter hu as ⟨bb, hbb⟩
+  step with poly_vec_equals_spec (k := 1) outer u hWouter hu as ⟨bb, hbb⟩
   apply spec_mono (ite_true_spec (c := (bb = true)) okB)
   intro r hr
-  have hgam : (¬ ninf > params.GAMMA) ↔ vecLInftyNorm Φ (toVec (k := 2 * (2 * 32)) flat) ≤ 1 := by
+  have hgam : (¬ ninf > params.GAMMA) ↔ vecLInftyNorm Φ (toVec (k := 1024 * (1 * 8)) flat) ≤ 16 := by
     constructor <;> intro h <;> scalar_tac
   rw [Bool.eq_iff_iff, hr, hokB, hokA, hbb, houter, hgam, hflat, InnerOuter.verify_weak]
   simp only [Bool.and_eq_true, List.all_eq_true, List.mem_finRange, decide_eq_true_eq,
     Simple.verify, Simple.commit, forall_const, toOpening, toParams, toDecompSpec]
-  have hch : ∀ x : Fin 2, toVec (k := 2) o.challenge x
+  have hch : ∀ x : Fin 1024, toVec (k := 1024) o.challenge x
       = toRq (o.challenge.val.getD x.val (alloc.vec.Vec.new cpoly.field.Fp)) := fun _ => rfl
   simp only [hch, BlockVerifies, gadgetMul, Fin.forall_iff]
   constructor
@@ -2350,13 +2350,13 @@ theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
 
 /-- `commit::commit` — decompose, then outer-commit. -/
 theorem commit_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x) :
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x) :
     commit.commit pp m
-      ⦃ z => WfVec 2 z.1 ∧ WfDecomp z.2 ∧
+      ⦃ z => WfVec 1 z.1 ∧ WfDecomp z.2 ∧
         toDecompSpec z.2 = InnerOuter.generateDecomps Φ
             (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParams pp)
-            (fun i : Fin 2 => toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))) ∧
-        toVec (k := 2) z.1
+            (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))) ∧
+        toVec (k := 1) z.1
           = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec z.2) ⦄ := by
   rw [commit.commit]
   step with generate_decomps_spec pp m hpp hm as ⟨d, hWd, hdspec⟩
@@ -2365,15 +2365,15 @@ theorem commit_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec
 
 /-- The loop of `Opening::honest`: it pushes `blocks` copies of `1`. -/
 theorem honest_loop_spec (blocks : Std.Usize) (ones : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (hb : blocks.val = 2) (hi : i.val ≤ 2) (hlen : ones.val.length = i.val)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024) (hlen : ones.val.length = i.val)
     (hwf : ∀ x ∈ ones.val, Wf x)
     (hval : ∀ j < i.val, toRq (ones.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 1) :
     commit.Opening.honest_loop blocks ones i
-      ⦃ z => WfVec 2 z ∧
-        ∀ j < 2, toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 1 ⦄ := by
+      ⦃ z => WfVec 1024 z ∧
+        ∀ j < 1024, toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 1 ⦄ := by
   rw [commit.Opening.honest_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
-    (fun s => s.2.val ≤ 2 ∧ s.1.val.length = s.2.val ∧ (∀ x ∈ s.1.val, Wf x) ∧
+    (fun s => s.2.val ≤ 1024 ∧ s.1.val.length = s.2.val ∧ (∀ x ∈ s.1.val, Wf x) ∧
       ∀ j < s.2.val, toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 1)
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
@@ -2400,7 +2400,7 @@ theorem honest_loop_spec (blocks : Std.Usize) (ones : alloc.vec.Vec ring.Rq) (i 
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
       rw [heq] at hlen1 hval1
       exact ⟨⟨hlen1, hwf1⟩, hval1⟩
   · exact ⟨hi, hlen, hwf, hval⟩
@@ -2409,8 +2409,8 @@ theorem honest_loop_spec (blocks : Std.Usize) (ones : alloc.vec.Vec ring.Rq) (i 
 with the trivial challenge `cᵢ = 1` in every block. -/
 theorem honest_spec (d : commit.Decomp) (hd : WfDecomp d) :
     commit.Opening.honest d
-      ⦃ o => o.decomp = d ∧ WfVec 2 o.challenge ∧
-        toVec (k := 2) o.challenge = (fun _ => 1 : PolyVec (Rq Φ) 2) ⦄ := by
+      ⦃ o => o.decomp = d ∧ WfVec 1024 o.challenge ∧
+        toVec (k := 1024) o.challenge = (fun _ => 1 : PolyVec (Rq Φ) 1024) ⦄ := by
   rw [commit.Opening.honest]
   simp only [commit.Decomp.blocks, linalg.PolyVec.new]
   step with honest_loop_spec (alloc.vec.Vec.len d.message) (alloc.vec.Vec.new ring.Rq) 0#usize
@@ -2421,20 +2421,22 @@ theorem honest_spec (d : commit.Decomp) (hd : WfDecomp d) :
 /-- The specification side of perfect correctness: at the trivial challenge `cᵢ = 1`,
 the honest decompositions pass every check of `verify_weak`.
 
-The two shortness bounds are the ones `params.rs` was chosen to make fit: with
-base `2`, `‖sᵢ‖₂² ≤ (4·32)·(deg φ)·(2-1)² = 128·64 = 8192 = βSq` and
-`‖t̂‖∞ ≤ 2 - 1 = 1 = γ`. -/
-theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 2 4 32 2 2 32)
-    (M : InnerOuter.Message Φ 4 2) (O : InnerOuter.Opening Φ 2 4 32 2 32)
-    (U : InnerOuter.Commitment Φ 2)
+The two shortness bounds sit strictly inside `params.rs`'s weak-opening values:
+with base `16` the honest decomposition has
+`‖sᵢ‖₂² ≤ (1024·8)·(deg φ)·(16-1)² = 1887436800 ≤ 163966054471565312 = βSq`
+(the extracted-opening bound `quadEvalBetaSq`, which dwarfs the honest case by
+design) and `‖t̂‖∞ ≤ 16 - 1 = 15 ≤ 16 = γ` (the weak-opening `γ̄ = b`). -/
+theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8)
+    (M : InnerOuter.Message Φ 1024 1024) (O : InnerOuter.Opening Φ 1 1024 8 1024 8)
+    (U : InnerOuter.Commitment Φ 1)
     (hD : O.toDecomp
       = InnerOuter.generateDecomps Φ (InnerOuter.Decomposition.ofDigits Φ dd dd) P M)
-    (hc : O.challenge = (fun _ => 1 : PolyVec (Rq Φ) 2))
+    (hc : O.challenge = (fun _ => 1 : PolyVec (Rq Φ) 1024))
     (hU : U = InnerOuter.commitWithDecomps Φ P O.toDecomp) :
-    InnerOuter.verify_weak Φ (2 : ZMod q) 8192 1 65535 P U O = true := by
+    InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32 P U O = true := by
   have hdeg : 1 ≤ Φ.φ.natDegree := by rw [RqBridge.phi_natDegree]; norm_num
-  have hlaw : ∀ x : PolyVec (Rq Φ) 2,
-      gadgetMul Φ (2 : ZMod q) (gadgetDecompose Φ dd x) = x :=
+  have hlaw : ∀ x : PolyVec (Rq Φ) 1,
+      gadgetMul Φ (16 : ZMod q) (gadgetDecompose Φ dd x) = x :=
     gadgetDecompose_lawful Φ (by norm_num) hdeg dd
   simp only [InnerOuter.verify_weak, Bool.and_eq_true, hc, hU]
   refine ⟨⟨?_, ?_⟩, ?_⟩
@@ -2446,7 +2448,7 @@ theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 2 4 32 2 2 32)
     · rw [Rq.l1Norm_one Φ hdeg]; norm_num
     · have hone : (1 : Rq Φ) •ᵥ O.message i = O.message i := by funext j; simp
       rw [hone]
-      have hb := gadgetDecompose_zmod_vecL2NormSq_le Φ (b := 2) (digits := 32) (rows := 4)
+      have hb := gadgetDecompose_zmod_vecL2NormSq_le Φ (b := 16) (digits := 8) (rows := 1024)
         (by norm_num) (by norm_num) (by norm_num) (M i)
       refine le_trans (le_of_eq ?_) (le_trans hb (by rw [RqBridge.phi_natDegree]; norm_num))
       rw [hD]
@@ -2455,10 +2457,12 @@ theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 2 4 32 2 2 32)
       exact hlaw _
   · rw [decide_eq_true_eq]
     refine vecLInftyNorm_flattenBlocks_le Φ _ (fun i => ?_)
-    have hb := gadgetDecompose_zmod_vecLInftyNorm_le Φ (b := 2) (digits := 32) (rows := 2)
+    have hb := gadgetDecompose_zmod_vecLInftyNorm_le Φ (b := 16) (digits := 8) (rows := 1)
       (by norm_num) (by norm_num) (by norm_num)
       (Simple.commit Φ P.innerMatrix (gadgetDecompose Φ dd (M i)))
-    refine le_trans (le_of_eq ?_) (by simpa using hb)
+    -- The honest bound is `b - 1 = 15`; the weak-opening `γ = b = 16` admits it
+    -- with slack 1, hence the extra `le_trans` step.
+    refine le_trans (le_of_eq ?_) (le_trans (by simpa using hb) (by norm_num))
     rw [hD]
     rfl
   · simp [Simple.verify, InnerOuter.commitWithDecomps]
@@ -2474,7 +2478,7 @@ committer supplies (`cᵢ = 1`) is part of the claim: it is admissible only beca
 `‖1‖₁ = 1` sits inside `0 < ‖c‖₁ ≤ κ`, which is a fact about `params.rs`'s `κ`
 and not about the scheme. -/
 theorem honest_verifies (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x) :
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x) :
     (do
       let (u, d) ← commit.commit pp m
       let o ← commit.Opening.honest d
@@ -2485,11 +2489,11 @@ theorem honest_verifies (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.Pol
   intro r hr
   rw [hr]
   refine verify_weak_honest (toParams pp)
-    (fun i : Fin 2 => toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
+    (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
     (toOpening o) _ ?_ hocv ?_
   · show toDecompSpec o.decomp = _
     rw [hod]; exact hdspec
-  · show toVec (k := 2) u = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec o.decomp)
+  · show toVec (k := 1) u = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec o.decomp)
     rw [hod]; exact huspec
 
 /-! ### `commit::verify` — the full verifier
@@ -2505,7 +2509,7 @@ a structure *field*: `InnerOuter.commitmentScheme`'s `verify`. The bundle
 carries two `SampleableType` instance arguments that its `setup` field needs
 and its `verify` field does not, and no instance exists at these types (the
 elaborator: `failed to synthesize SampleableType (Simple.PublicParams Φ ?rows
-(?cols * 32))`). Taking the two as instance binders of `verify_spec` would not
+(?cols * 8))`). Taking the two as instance binders of `verify_spec` would not
 make the theorem vacuous — the `verify` field never mentions them, so the
 bundled statement is the same claim and is dischargeable from `verify_spec`'s
 own proof term. What it would make the theorem is *unusable*: with binders no
@@ -2523,7 +2527,7 @@ for the *truth* of the equality, not only for totality. `hpp`, `hoc` and `ho`
 are exactly `verify_weak_spec`'s side conditions, inherited because the body
 calls `verify_weak` on every path. The other three each have a falsifying
 witness without them, all of the same shape: the representation functions are
-`Fin`-indexed, so `toVec (k := 4)` and `toVec (k := 2)` are blind to entries a
+`Fin`-indexed, so `toVec (k := 1024)` and `toVec (k := 1)` are blind to entries a
 too-long carrier hides and pad a too-short one with zeros, while the extracted
 `PolyVec::equals` rejects on the raw length test — so the two sides can decide
 differently. `hm.1` (a longer or shorter `m` flips the outer length test),
@@ -2536,34 +2540,34 @@ unprovable. -/
 the derived and claimed message blocks agree at the blocks already visited. -/
 theorem verify_loop_spec (m derived : alloc.vec.Vec linalg.PolyVec)
     (blocks : Std.Usize) (ok1 : Bool) (i : Std.Usize)
-    (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x)
-    (hd : derived.val.length = 2 ∧ ∀ x ∈ derived.val, WfVec 4 x)
-    (hb : blocks.val = 2) (hi : i.val ≤ 2)
+    (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hd : derived.val.length = 1024 ∧ ∀ x ∈ derived.val, WfVec 1024 x)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hok : ok1 = true ↔ ∀ j < i.val,
-      toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
-        = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq))) :
+      toVec (k := 1024) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))) :
     commit.verify_loop m derived blocks ok1 i
-      ⦃ r => r = true ↔ ∀ j < 2,
-        toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
-          = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+      ⦃ r => r = true ↔ ∀ j < 1024,
+        toVec (k := 1024) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)) ⦄ := by
   rw [commit.verify_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
-    (fun s => s.2.val ≤ 2 ∧ (s.1 = true ↔ ∀ j < s.2.val,
-      toVec (k := 4) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
-        = toVec (k := 4) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
+    (fun s => s.2.val ≤ 1024 ∧ (s.1 = true ↔ ∀ j < s.2.val,
+      toVec (k := 1024) (derived.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
   · rintro ⟨b1, i1⟩ ⟨hi1, hb1⟩
     dsimp only at hi1 hb1
     simp only [commit.verify_loop.body]
     by_cases hlt : i1 < blocks
     · rw [if_pos hlt]
-      have hilt : i1.val < 2 := by rw [← hb]; scalar_tac
+      have hilt : i1.val < 1024 := by rw [← hb]; scalar_tac
       have hdlt : i1.val < derived.val.length := by rw [hd.1]; exact hilt
       have hmlt : i1.val < m.val.length := by rw [hm.1]; exact hilt
       step as ⟨pv, hpv⟩
       step as ⟨pv1, hpv1⟩
-      have hWpv : WfVec 4 pv := by rw [hpv]; exact hd.2 _ (List.getElem_mem hdlt)
-      have hWpv1 : WfVec 4 pv1 := by rw [hpv1]; exact hm.2 _ (List.getElem_mem hmlt)
-      step with poly_vec_equals_spec (k := 4) pv pv1 hWpv hWpv1 as ⟨bb, hbb⟩
+      have hWpv : WfVec 1024 pv := by rw [hpv]; exact hd.2 _ (List.getElem_mem hdlt)
+      have hWpv1 : WfVec 1024 pv1 := by rw [hpv1]; exact hm.2 _ (List.getElem_mem hmlt)
+      step with poly_vec_equals_spec (k := 1024) pv pv1 hWpv hWpv1 as ⟨bb, hbb⟩
       have hite : (if bb then ok b1 else ok (false : Bool)) ⦃ z => z = (b1 && bb) ⦄ := by
         cases bb
         · rw [if_neg (by simp), WP.spec_ok]; simp
@@ -2587,36 +2591,36 @@ theorem verify_loop_spec (m derived : alloc.vec.Vec linalg.PolyVec)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 := by rw [← hb] at hi1 ⊢; scalar_tac
-      rw [← heq]; exact hb1
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
+      rw [heq] at hb1; exact hb1
   · exact ⟨hi, hok⟩
 
 /-- `commit::verify` — ArkLib's `InnerOuter.commitmentScheme.verify`, as an
 equality of *decisions*.
 
 The right-hand side is the `verify` field's own body at this crate's parameters
-(`base = 2`, `βSq = 8192`, `γ = 1`, `κ = 65535`), naming
+(`base = 16`, `βSq = 163966054471565312`, `γ = 16`, `κ = 32`), naming
 `InnerOuter.derivedMessage` and `InnerOuter.verify_weak` rather than the bundled
 `commitmentScheme`; the section note above records why the bundle cannot be
 mentioned here and what that costs. -/
 theorem verify_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
     (u : linalg.PolyVec) (o : commit.Opening)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x)
-    (hu : WfVec 2 u) (hoc : WfVec 2 o.challenge) (ho : WfDecomp o.decomp) :
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hu : WfVec 1 u) (hoc : WfVec 1024 o.challenge) (ho : WfDecomp o.decomp) :
     commit.verify pp m u o
-      ⦃ r => r = ((List.finRange 2).all (fun i =>
-                    decide (InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
-                      = toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
-                  && InnerOuter.verify_weak Φ (2 : ZMod q) 8192 1 65535
-                      (toParams pp) (toVec (k := 2) u) (toOpening o)) ⦄ := by
-  have hlm : m.val.length = 2 := hm.1
+      ⦃ r => r = ((List.finRange 1024).all (fun i =>
+                    decide (InnerOuter.derivedMessage Φ (16 : ZMod q) (toOpening o).toDecomp i
+                      = toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+                  && InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+                      (toParams pp) (toVec (k := 1) u) (toOpening o)) ⦄ := by
+  have hlm : m.val.length = 1024 := hm.1
   rw [commit.verify]
   simp only [commit.Opening.impl.decomp]
   step with derived_message_spec o.decomp ho as ⟨derived, hdlen, hdwf, hder⟩
-  have hWder : derived.val.length = 2 ∧ ∀ x ∈ derived.val, WfVec 4 x := ⟨hdlen, hdwf⟩
-  have hld : derived.val.length = 2 := hdlen
-  have h1 : (alloc.vec.Vec.len derived).val = 2 := by simpa using hld
-  have h2 : (alloc.vec.Vec.len m).val = 2 := by simpa using hlm
+  have hWder : derived.val.length = 1024 ∧ ∀ x ∈ derived.val, WfVec 1024 x := ⟨hdlen, hdwf⟩
+  have hld : derived.val.length = 1024 := hdlen
+  have h1 : (alloc.vec.Vec.len derived).val = 1024 := by simpa using hld
+  have h2 : (alloc.vec.Vec.len m).val = 1024 := by simpa using hlm
   have hne : (alloc.vec.Vec.len derived != alloc.vec.Vec.len m) = false := by
     simp only [bne_eq_false_iff_eq]
     scalar_tac
@@ -2630,13 +2634,13 @@ theorem verify_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec
     · rw [if_pos (by simp), WP.spec_ok]; simp
   apply spec_mono hite
   intro r hr
-  have hder' : ∀ i : Fin 2,
-      InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
-        = toVec (k := 4) (derived.val.getD i.val (alloc.vec.Vec.new ring.Rq)) :=
+  have hder' : ∀ i : Fin 1024,
+      InnerOuter.derivedMessage Φ (16 : ZMod q) (toOpening o).toDecomp i
+        = toVec (k := 1024) (derived.val.getD i.val (alloc.vec.Vec.new ring.Rq)) :=
     fun i => (congrFun hder i).symm
-  have hA : ok1 = ((List.finRange 2).all (fun i =>
-      decide (InnerOuter.derivedMessage Φ (2 : ZMod q) (toOpening o).toDecomp i
-        = toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))) := by
+  have hA : ok1 = ((List.finRange 1024).all (fun i =>
+      decide (InnerOuter.derivedMessage Φ (16 : ZMod q) (toOpening o).toDecomp i
+        = toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))) := by
     rw [Bool.eq_iff_iff, hok1, List.all_eq_true]
     simp only [List.mem_finRange, decide_eq_true_eq, forall_const]
     constructor
@@ -2655,7 +2659,7 @@ is the composition a caller actually runs. The message half closes by
 the derived message `G · sᵢ` is `mᵢ` back. -/
 theorem honest_verifies_full (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec)
-    (hpp : WfParams pp) (hm : m.val.length = 2 ∧ ∀ x ∈ m.val, WfVec 4 x) :
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x) :
     (do
       let (u, d) ← commit.commit pp m
       let o ← commit.Opening.honest d
@@ -2665,23 +2669,23 @@ theorem honest_verifies_full (pp : commit.PublicParams)
   apply spec_mono (verify_spec pp m u o hpp hm hWu hWoc (by rw [hod]; exact hWd))
   intro r hr
   have hdeg : 1 ≤ Φ.φ.natDegree := by rw [RqBridge.phi_natDegree]; norm_num
-  have hlaw : ∀ x : PolyVec (Rq Φ) 4,
-      gadgetMul Φ (2 : ZMod q) (gadgetDecompose Φ dd x) = x :=
+  have hlaw : ∀ x : PolyVec (Rq Φ) 1024,
+      gadgetMul Φ (16 : ZMod q) (gadgetDecompose Φ dd x) = x :=
     gadgetDecompose_lawful Φ (by norm_num) hdeg dd
   rw [hr, Bool.and_eq_true]
   refine ⟨?_, ?_⟩
   · rw [List.all_eq_true]
     intro i _
     rw [decide_eq_true_eq]
-    show InnerOuter.derivedMessage Φ (2 : ZMod q) (toDecompSpec o.decomp) i = _
+    show InnerOuter.derivedMessage Φ (16 : ZMod q) (toDecompSpec o.decomp) i = _
     rw [hod, hdspec]
     exact hlaw _
   · exact verify_weak_honest (toParams pp)
-      (fun i : Fin 2 => toVec (k := 4) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
+      (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
       (toOpening o) _
       (by show toDecompSpec o.decomp = _; rw [hod]; exact hdspec) hocv
       (by
-        show toVec (k := 2) u
+        show toVec (k := 1) u
           = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec o.decomp)
         rw [hod]; exact huspec)
 

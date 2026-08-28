@@ -33,11 +33,11 @@ namespace HachiEquiv.EvalSplit
 
 /-! ## The split dimensions, and the `Vector`-valued representation maps -/
 
-/-- The low variable count `nl` (`params.ML_VARS_LOW`): rows are `2^nl = 2`. -/
-abbrev nl : ℕ := 1
+/-- The low variable count `nl` (`params.ML_VARS_LOW`): rows are `2^nl = 1024`. -/
+abbrev nl : ℕ := 10
 
-/-- The high variable count `nh` (`params.ML_VARS_HIGH`): columns are `2^nh = 4`. -/
-abbrev nh : ℕ := 2
+/-- The high variable count `nh` (`params.ML_VARS_HIGH`): columns are `2^nh = 1024`. -/
+abbrev nh : ℕ := 10
 
 /-- A well-formed length-`n` vector, read as the spec's `Vector (Rq Φ) n` (the
 carrier `CMlPolynomial` and the basis functions take, where `toVec` produces the
@@ -132,32 +132,32 @@ checked `+`/`*` follows from them. -/
 theorem split_equiv_spec (x y : Std.Usize) (hx : x.val < 2 ^ nh) (hy : y.val < 2 ^ nl) :
     evalsplit.split_equiv x y
       ⦃ k => k.val = (Hachi.splitEquiv nl nh (⟨x.val, hx⟩, ⟨y.val, hy⟩)).val ⦄ := by
-  have hx4 : x.val < 4 := by have h := hx; norm_num at h; omega
-  have hy2 : y.val < 2 := by have h := hy; norm_num at h; omega
-  have hlow : (params.ML_LOW_LEN).val = 2 := by simp [params.ML_LOW_LEN]
+  have hx4 : x.val < 1024 := by have h := hx; norm_num at h; omega
+  have hy2 : y.val < 1024 := by have h := hy; norm_num at h; omega
+  have hlow : (params.ML_LOW_LEN).val = 1024 := by simp [params.ML_LOW_LEN]
   rw [evalsplit.split_equiv]
   have hfit : (params.ML_LOW_LEN).val * x.val ≤ Usize.max := by
     rw [hlow]; scalar_tac
   step as ⟨i1, hi1⟩
-  have hi1v : i1.val = 2 * x.val := by rw [hi1, hlow]
+  have hi1v : i1.val = 1024 * x.val := by rw [hi1, hlow]
   step as ⟨k, hk⟩
   rw [hk, hi1v, Hachi.splitEquiv_val]
   norm_num
 
-/-- `splitEquiv.symm` at the crate's split (`2 ^ nl = 2`), componentwise. -/
+/-- `splitEquiv.symm` at the crate's split (`2 ^ nl = 1024`), componentwise. -/
 theorem splitEquiv_symm_val (k : Fin (2 ^ (nl + nh))) :
-    ((Hachi.splitEquiv nl nh).symm k).1.val = k.val / 2
-      ∧ ((Hachi.splitEquiv nl nh).symm k).2.val = k.val % 2 := by
+    ((Hachi.splitEquiv nl nh).symm k).1.val = k.val / 1024
+      ∧ ((Hachi.splitEquiv nl nh).symm k).2.val = k.val % 1024 := by
   have happ : Hachi.splitEquiv nl nh ((Hachi.splitEquiv nl nh).symm k) = k :=
     Equiv.apply_symm_apply _ _
   have hval : ((Hachi.splitEquiv nl nh).symm k).2.val
-      + 2 * ((Hachi.splitEquiv nl nh).symm k).1.val = k.val := by
+      + 1024 * ((Hachi.splitEquiv nl nh).symm k).1.val = k.val := by
     conv_rhs => rw [← happ]
     rw [Hachi.splitEquiv_val]
     norm_num
-  have h2 : ((Hachi.splitEquiv nl nh).symm k).2.val < 2 := by
+  have h2 : ((Hachi.splitEquiv nl nh).symm k).2.val < 1024 := by
     have h := ((Hachi.splitEquiv nl nh).symm k).2.isLt
-    simpa using h
+    norm_num at h; exact h
   omega
 
 /-- `split_equiv_inv` is `splitEquiv.symm`, componentwise. -/
@@ -165,7 +165,7 @@ theorem split_equiv_inv_spec (k : Std.Usize) (hk : k.val < 2 ^ (nl + nh)) :
     evalsplit.split_equiv_inv k
       ⦃ p => p.1.val = ((Hachi.splitEquiv nl nh).symm ⟨k.val, hk⟩).1.val
            ∧ p.2.val = ((Hachi.splitEquiv nl nh).symm ⟨k.val, hk⟩).2.val ⦄ := by
-  have hlow : (params.ML_LOW_LEN).val = 2 := by simp [params.ML_LOW_LEN]
+  have hlow : (params.ML_LOW_LEN).val = 1024 := by simp [params.ML_LOW_LEN]
   obtain ⟨hs1, hs2⟩ := splitEquiv_symm_val ⟨k.val, hk⟩
   rw [evalsplit.split_equiv_inv]
   step as ⟨x, hx⟩
@@ -496,7 +496,7 @@ theorem split_form_spec {a b : ℕ} (m : linalg.PolyMatrix) (u v : linalg.PolyVe
 
 /-- `to_matrix` is ArkLib's `Hachi.toMatrix` at the crate's split: a
 `2^nl × 2^nh` matrix whose `(i, j)` entry is coefficient `splitEquiv (j, i)`.
-The length hypothesis is the `MlPoly` shape invariant (`ML_POLY_LEN = 8`),
+The length hypothesis is the `MlPoly` shape invariant (`ML_POLY_LEN = 1048576`),
 which Aeneas cannot see across the privacy boundary. -/
 theorem to_matrix_inner_loop_spec (p : evalsplit.MlPoly) (cols i : Std.Usize)
     (row : alloc.vec.Vec ring.Rq) (j : Std.Usize)
@@ -505,31 +505,31 @@ theorem to_matrix_inner_loop_spec (p : evalsplit.MlPoly) (cols i : Std.Usize)
     (hwf : ∀ y ∈ row.val, Wf y)
     (hval : ∀ t, t < j.val →
       toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
+        = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
     evalsplit.MlPoly.to_matrix_loop0_loop0 p cols i row j
       ⦃ z => z.1 = p ∧ z.2.val.length = 2 ^ nh ∧ (∀ y ∈ z.2.val, Wf y) ∧
         ∀ t, t < 2 ^ nh →
           toRq (z.2.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  have hplen : p.val.length = 8 := by have h := hp.1; norm_num at h; exact h
-  have hi2 : i.val < 2 := by norm_num at hi; omega
-  have hcols4 : cols.val = 4 := by rw [hcols]; norm_num
+            = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  have hplen : p.val.length = 1048576 := by have h := hp.1; norm_num at h; exact h
+  have hi2 : i.val < 1024 := by norm_num at hi; omega
+  have hcols4 : cols.val = 1024 := by rw [hcols]; norm_num
   rw [evalsplit.MlPoly.to_matrix_loop0_loop0]
   apply loop.spec_decr_nat (fun s => cols.val - s.2.2.val)
     (fun s => s.1 = p ∧ s.2.2.val ≤ cols.val ∧ s.2.1.val.length = s.2.2.val ∧
       (∀ y ∈ s.2.1.val, Wf y) ∧
       ∀ t, t < s.2.2.val →
         toRq (s.2.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
+          = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨s1, r1, j1⟩ ⟨rfl, hj1, hlen1, hwf1, hval1⟩
     dsimp only at hj1 hlen1 hwf1 hval1
     simp only [evalsplit.MlPoly.to_matrix_loop0_loop0.body]
     by_cases hlt : j1 < cols
     · rw [if_pos hlt]
       have hjlt : j1.val < 2 ^ nh := by rw [← hcols]; scalar_tac
-      have hjlt4 : j1.val < 4 := by norm_num at hjlt; omega
+      have hjlt4 : j1.val < 1024 := by norm_num at hjlt; omega
       step with split_equiv_spec j1 i hjlt hi as ⟨k, hk⟩
-      have hkv : k.val = i.val + 2 * j1.val := by
+      have hkv : k.val = i.val + 1024 * j1.val := by
         rw [hk, Hachi.splitEquiv_val]; norm_num
       have hkidx : k.val < s1.val.length := by rw [hplen, hkv]; omega
       step as ⟨r, hr⟩
@@ -571,13 +571,13 @@ theorem to_matrix_outer_loop_spec (p : evalsplit.MlPoly) (rows cols : Std.Usize)
     (hval : ∀ s, s < i.val → ∀ t, t < 2 ^ nh →
       toRq ((out.val.getD s (alloc.vec.Vec.new ring.Rq)).val.getD t
           (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq (p.val.getD (s + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
+        = toRq (p.val.getD (s + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
     evalsplit.MlPoly.to_matrix_loop0 p rows cols out i
       ⦃ z => z.val.length = 2 ^ nl ∧ (∀ r ∈ z.val, WfVec (2 ^ nh) r) ∧
         ∀ s, s < 2 ^ nl → ∀ t, t < 2 ^ nh →
           toRq ((z.val.getD s (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq (p.val.getD (s + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+            = toRq (p.val.getD (s + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   rw [evalsplit.MlPoly.to_matrix_loop0]
   apply loop.spec_decr_nat (fun s => rows.val - s.2.2.val)
     (fun s => s.1 = p ∧ s.2.2.val ≤ rows.val ∧ s.2.1.val.length = s.2.2.val ∧
@@ -585,7 +585,7 @@ theorem to_matrix_outer_loop_spec (p : evalsplit.MlPoly) (rows cols : Std.Usize)
       ∀ u, u < s.2.2.val → ∀ t, t < 2 ^ nh →
         toRq ((s.2.1.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp))
-          = toRq (p.val.getD (u + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
+          = toRq (p.val.getD (u + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨s1, o1, i1⟩ ⟨rfl, hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [evalsplit.MlPoly.to_matrix_loop0.body]
@@ -655,40 +655,40 @@ theorem to_polynomial_loop_spec (m : linalg.PolyMatrix) (len : Std.Usize)
     (hwf : ∀ y ∈ out.val, Wf y)
     (hval : ∀ t, t < k.val →
       toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq ((m.val.getD (t % 2) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 2)
+        = toRq ((m.val.getD (t % 1024) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 1024)
             (alloc.vec.Vec.new cpoly.field.Fp))) :
     evalsplit.to_polynomial_loop m len out k
       ⦃ z => z.val.length = 2 ^ (nl + nh) ∧ (∀ y ∈ z.val, Wf y) ∧
         ∀ t, t < 2 ^ (nl + nh) →
           toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq ((m.val.getD (t % 2) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 2)
+            = toRq ((m.val.getD (t % 1024) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 1024)
                 (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  have hmlen : m.val.length = 2 := by have h := hm.1; norm_num at h; exact h
-  have hlen8 : len.val = 8 := by rw [hlenv]; norm_num
+  have hmlen : m.val.length = 1024 := by have h := hm.1; norm_num at h; exact h
+  have hlen8 : len.val = 1048576 := by rw [hlenv]; norm_num
   rw [evalsplit.to_polynomial_loop]
   apply loop.spec_decr_nat (fun s => len.val - s.2.val)
     (fun s => s.2.val ≤ len.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
       ∀ t, t < s.2.val →
         toRq (s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          = toRq ((m.val.getD (t % 2) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 2)
+          = toRq ((m.val.getD (t % 1024) (alloc.vec.Vec.new ring.Rq)).val.getD (t / 1024)
               (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, k1⟩ ⟨hk1, hlen1, hwf1, hval1⟩
     dsimp only at hk1 hlen1 hwf1 hval1
     simp only [evalsplit.to_polynomial_loop.body]
     by_cases hlt : k1 < len
     · rw [if_pos hlt]
-      have hk18 : k1.val < 8 := by scalar_tac
+      have hk18 : k1.val < 1048576 := by scalar_tac
       have hkbound : k1.val < 2 ^ (nl + nh) := by rw [← hlenv]; scalar_tac
       obtain ⟨e1, e2⟩ := splitEquiv_symm_val ⟨k1.val, hkbound⟩
       step with split_equiv_inv_spec k1 hkbound as ⟨x, y, hx, hy⟩
-      have hxv : x.val = k1.val / 2 := by rw [hx, e1]
-      have hyv : y.val = k1.val % 2 := by rw [hy, e2]
+      have hxv : x.val = k1.val / 1024 := by rw [hx, e1]
+      have hyv : y.val = k1.val % 1024 := by rw [hy, e2]
       have hyidx : y.val < m.val.length := by rw [hmlen, hyv]; omega
       simp only [linalg.PolyMatrix.row]
       step as ⟨pv, hpv⟩
       have hWpv : WfVec (2 ^ nh) pv := by
         rw [hpv]; exact hm.2 _ (List.getElem_mem hyidx)
-      have hpvlen : pv.val.length = 4 := by have h := hWpv.1; norm_num at h; exact h
+      have hpvlen : pv.val.length = 1024 := by have h := hWpv.1; norm_num at h; exact h
       have hxidx : x.val < pv.val.length := by rw [hpvlen, hxv]; omega
       simp only [linalg.PolyVec.get]
       step as ⟨r, hr⟩
@@ -749,31 +749,31 @@ theorem to_matrix_eval_inner_loop_spec (p : evalsplit.MlEvals) (cols i : Std.Usi
     (hwf : ∀ y ∈ row.val, Wf y)
     (hval : ∀ t, t < j.val →
       toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
+        = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
     evalsplit.MlEvals.to_matrix_eval_loop0_loop0 p cols i row j
       ⦃ z => z.1 = p ∧ z.2.val.length = 2 ^ nh ∧ (∀ y ∈ z.2.val, Wf y) ∧
         ∀ t, t < 2 ^ nh →
           toRq (z.2.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  have hplen : p.val.length = 8 := by have h := hp.1; norm_num at h; exact h
-  have hi2 : i.val < 2 := by norm_num at hi; omega
-  have hcols4 : cols.val = 4 := by rw [hcols]; norm_num
+            = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  have hplen : p.val.length = 1048576 := by have h := hp.1; norm_num at h; exact h
+  have hi2 : i.val < 1024 := by norm_num at hi; omega
+  have hcols4 : cols.val = 1024 := by rw [hcols]; norm_num
   rw [evalsplit.MlEvals.to_matrix_eval_loop0_loop0]
   apply loop.spec_decr_nat (fun s => cols.val - s.2.2.val)
     (fun s => s.1 = p ∧ s.2.2.val ≤ cols.val ∧ s.2.1.val.length = s.2.2.val ∧
       (∀ y ∈ s.2.1.val, Wf y) ∧
       ∀ t, t < s.2.2.val →
         toRq (s.2.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          = toRq (p.val.getD (i.val + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
+          = toRq (p.val.getD (i.val + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨s1, r1, j1⟩ ⟨rfl, hj1, hlen1, hwf1, hval1⟩
     dsimp only at hj1 hlen1 hwf1 hval1
     simp only [evalsplit.MlEvals.to_matrix_eval_loop0_loop0.body]
     by_cases hlt : j1 < cols
     · rw [if_pos hlt]
       have hjlt : j1.val < 2 ^ nh := by rw [← hcols]; scalar_tac
-      have hjlt4 : j1.val < 4 := by norm_num at hjlt; omega
+      have hjlt4 : j1.val < 1024 := by norm_num at hjlt; omega
       step with split_equiv_spec j1 i hjlt hi as ⟨k, hk⟩
-      have hkv : k.val = i.val + 2 * j1.val := by
+      have hkv : k.val = i.val + 1024 * j1.val := by
         rw [hk, Hachi.splitEquiv_val]; norm_num
       have hkidx : k.val < s1.val.length := by rw [hplen, hkv]; omega
       step as ⟨r, hr⟩
@@ -813,13 +813,13 @@ theorem to_matrix_eval_outer_loop_spec (p : evalsplit.MlEvals) (rows cols : Std.
     (hval : ∀ s, s < i.val → ∀ t, t < 2 ^ nh →
       toRq ((out.val.getD s (alloc.vec.Vec.new ring.Rq)).val.getD t
           (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq (p.val.getD (s + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
+        = toRq (p.val.getD (s + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp))) :
     evalsplit.MlEvals.to_matrix_eval_loop0 p rows cols out i
       ⦃ z => z.val.length = 2 ^ nl ∧ (∀ r ∈ z.val, WfVec (2 ^ nh) r) ∧
         ∀ s, s < 2 ^ nl → ∀ t, t < 2 ^ nh →
           toRq ((z.val.getD s (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq (p.val.getD (s + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+            = toRq (p.val.getD (s + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   rw [evalsplit.MlEvals.to_matrix_eval_loop0]
   apply loop.spec_decr_nat (fun s => rows.val - s.2.2.val)
     (fun s => s.1 = p ∧ s.2.2.val ≤ rows.val ∧ s.2.1.val.length = s.2.2.val ∧
@@ -827,7 +827,7 @@ theorem to_matrix_eval_outer_loop_spec (p : evalsplit.MlEvals) (rows cols : Std.
       ∀ u, u < s.2.2.val → ∀ t, t < 2 ^ nh →
         toRq ((s.2.1.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp))
-          = toRq (p.val.getD (u + 2 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
+          = toRq (p.val.getD (u + 1024 * t) (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨s1, o1, i1⟩ ⟨rfl, hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [evalsplit.MlEvals.to_matrix_eval_loop0.body]
@@ -906,9 +906,9 @@ theorem eval_split_spec (p : evalsplit.MlPoly) (xl xh : linalg.PolyVec)
   rw [evalsplit.MlPoly.eval_split]
   step with to_matrix_spec p hp as ⟨m, hmwf, hm⟩
   step with monomial_basis_spec (n := nl) xl hxl
-    (by rw [show (2 : ℕ) ^ nl = 2 by decide]; scalar_tac) as ⟨bl, hblwf, hbl⟩
+    (by rw [show (2 : ℕ) ^ nl = 1024 by decide]; scalar_tac) as ⟨bl, hblwf, hbl⟩
   step with monomial_basis_spec (n := nh) xh hxh
-    (by rw [show (2 : ℕ) ^ nh = 4 by decide]; scalar_tac) as ⟨bh, hbhwf, hbh⟩
+    (by rw [show (2 : ℕ) ^ nh = 1024 by decide]; scalar_tac) as ⟨bh, hbhwf, hbh⟩
   apply spec_mono (split_form_spec (a := 2 ^ nl) (b := 2 ^ nh) m bl bh hmwf hblwf hbhwf)
   rintro z ⟨hz, hzval⟩
   exact ⟨hz, by rw [hzval, hm, hbl, hbh, Hachi.evalSplit]⟩
@@ -925,9 +925,9 @@ theorem eval_split_eval_spec (p : evalsplit.MlEvals) (xl xh : linalg.PolyVec)
   rw [evalsplit.MlEvals.eval_split_eval]
   step with to_matrix_eval_spec p hp as ⟨m, hmwf, hm⟩
   step with lagrange_basis_spec (n := nl) xl hxl
-    (by rw [show (2 : ℕ) ^ nl = 2 by decide]; scalar_tac) as ⟨bl, hblwf, hbl⟩
+    (by rw [show (2 : ℕ) ^ nl = 1024 by decide]; scalar_tac) as ⟨bl, hblwf, hbl⟩
   step with lagrange_basis_spec (n := nh) xh hxh
-    (by rw [show (2 : ℕ) ^ nh = 4 by decide]; scalar_tac) as ⟨bh, hbhwf, hbh⟩
+    (by rw [show (2 : ℕ) ^ nh = 1024 by decide]; scalar_tac) as ⟨bh, hbhwf, hbh⟩
   apply spec_mono (split_form_spec (a := 2 ^ nl) (b := 2 ^ nh) m bl bh hmwf hblwf hbhwf)
   rintro z ⟨hz, hzval⟩
   exact ⟨hz, by rw [hzval, hm, hbl, hbh, Hachi.evalSplitEval]⟩
