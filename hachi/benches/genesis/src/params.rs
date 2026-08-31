@@ -38,6 +38,7 @@
 //! are not balanced" and the fix trigger recorded there (upstream ArkLib's
 //! `balancedZmodDigitDecomposition`, PR #782).
 
+// @genesis 4409640 2026-08-18 — params::Q
 /// The modulus `q`: the "Hachi prime" `2^32 - 99 = 4294967197`.
 ///
 /// **Pinned.** This is the modulus of `cpoly`'s base field `Fp`, whose Lean
@@ -50,6 +51,7 @@
 /// `F_q` and so makes [`EXT_DEGREE`]/[`EXT_W`] describe a field.
 pub const Q: u64 = 4_294_967_197;
 
+// @genesis 4409640 2026-08-18 — params::EXT_DEGREE
 /// The degree of the extension field `Ext4 = F_q[Y] / (Y^4 - W)`.
 ///
 /// **Pinned** by `cpoly`: Hachi commits to multilinear polynomials over an
@@ -57,12 +59,14 @@ pub const Q: u64 = 4_294_967_197;
 /// proved correct is the quartic one.
 pub const EXT_DEGREE: usize = 4;
 
+// @genesis 4409640 2026-08-18 — params::EXT_W
 /// The constant `W` in the extension modulus `Y^4 - W`, the smallest non-square
 /// mod [`Q`].
 ///
 /// **Pinned** by `cpoly`.
 pub const EXT_W: u64 = 2;
 
+// @genesis af05e6c 2026-08-28 — params::RING_LOG_DEGREE
 /// The cyclotomic index `α`: the commitment ring is
 /// `R_q = Z_q[X] / (X^{2^α} + 1)`.
 ///
@@ -74,6 +78,7 @@ pub const EXT_W: u64 = 2;
 /// scheme the paper measured. See NOTES.md § "Chosen parameters".
 pub const RING_LOG_DEGREE: usize = 10;
 
+// @genesis af05e6c 2026-08-28 — params::RING_DEGREE
 /// The ring degree `2^α = 1024`: the number of `Z_q` coefficients in one element
 /// of `R_q`.
 ///
@@ -87,6 +92,7 @@ pub const RING_LOG_DEGREE: usize = 10;
 /// step; see NOTES.md § "Aeneas surprises".
 pub const RING_DEGREE: usize = 1024;
 
+// @genesis af05e6c 2026-08-28 — params::GADGET_BASE
 /// The gadget base `b`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9: `b = 16`, the paper's decomposition base. The
@@ -96,6 +102,7 @@ pub const RING_DEGREE: usize = 1024;
 /// for digit count against the binary gadget.
 pub const GADGET_BASE: u64 = 16;
 
+// @genesis af05e6c 2026-08-28 — params::GADGET_DIGITS
 /// The gadget digit count `digits`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9 (`b = 16`, 8 digits), and it still discharges
@@ -112,6 +119,7 @@ pub const GADGET_BASE: u64 = 16;
 /// NOTES.md § "One digit count, not two".
 pub const GADGET_DIGITS: usize = 8;
 
+// @genesis af05e6c 2026-08-28 — params::MESSAGE_ROWS
 /// The number of `R_q` rows in one message block: `messageRows` of the
 /// specification.
 ///
@@ -123,6 +131,7 @@ pub const GADGET_DIGITS: usize = 8;
 /// coefficients (NOTES.md § "Chosen parameters").
 pub const MESSAGE_ROWS: usize = 1024;
 
+// @genesis af05e6c 2026-08-28 — params::INNER_ROWS
 /// The number of `R_q` rows the inner Ajtai matrix `A` produces: `innerRows`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9: the paper's `n_A = 1`. `A` is
@@ -132,6 +141,7 @@ pub const MESSAGE_ROWS: usize = 1024;
 /// toy shape are carried by [`BLOCKS`] and [`MESSAGE_ROWS`] instead.
 pub const INNER_ROWS: usize = 1;
 
+// @genesis af05e6c 2026-08-28 — params::OUTER_ROWS
 /// The number of `R_q` rows the outer Ajtai matrix `B` produces: `outerRows`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9: the paper's `n_B = 1` (see [`INNER_ROWS`]).
@@ -139,6 +149,7 @@ pub const INNER_ROWS: usize = 1;
 /// `1 × 8192` here. The commitment is a vector of this many ring elements.
 pub const OUTER_ROWS: usize = 1;
 
+// @genesis af05e6c 2026-08-28 — params::BLOCKS
 /// The number of message blocks committed together: `blocks`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9: `2^r` at the paper's `r = 10`. Exceeds 1, so
@@ -146,6 +157,7 @@ pub const OUTER_ROWS: usize = 1;
 /// `commitWithDecomps` are still exercised (and then some).
 pub const BLOCKS: usize = 1024;
 
+// @genesis af05e6c 2026-08-28 — params::GAMMA
 /// The `ℓ∞` bound `γ` on the flattened inner decomposition, checked by
 /// `verify_weak`.
 ///
@@ -165,6 +177,7 @@ pub const BLOCKS: usize = 1024;
 /// `lean/Check.lean` § 1.
 pub const GAMMA: u64 = 16;
 
+// @genesis af05e6c 2026-08-28 — params::BETA_SQ
 /// The squared-`ℓ₂` bound `βSq` on the challenge-scaled message, checked by
 /// `verify_weak`.
 ///
@@ -195,6 +208,7 @@ pub const GAMMA: u64 = 16;
 /// `commit::vec_l2_norm_sq`.
 pub const BETA_SQ: u128 = 163_966_054_471_565_312;
 
+// @genesis af05e6c 2026-08-28 — params::ML_VARS_LOW
 /// The number of *low* (first) variables `nl` of the evaluation split: the
 /// `r` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xl` half.
 ///
@@ -205,6 +219,7 @@ pub const BETA_SQ: u128 = 163_966_054_471_565_312;
 /// that forces `nl = 10` -- the paper's `r` ([NOZ26] Fig. 9).
 pub const ML_VARS_LOW: usize = 10;
 
+// @genesis af05e6c 2026-08-28 — params::ML_VARS_HIGH
 /// The number of *high* (last) variables `nh` of the evaluation split: the
 /// `m` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xh` half.
 ///
@@ -214,6 +229,7 @@ pub const ML_VARS_LOW: usize = 10;
 /// the `ℓ - α = 30 - 10 = 20` `R_q`-variables of the ℓ = 30 set.
 pub const ML_VARS_HIGH: usize = 10;
 
+// @genesis af05e6c 2026-08-28 — params::ML_LOW_LEN
 /// `2^ML_VARS_LOW = 1024`: the row count of the reshaped coefficient matrix,
 /// the length of the outer monomial basis `mb(xl)`, and (by the consumer's
 /// shape) equal to [`BLOCKS`].
@@ -223,6 +239,7 @@ pub const ML_VARS_HIGH: usize = 10;
 /// `lean/Check.lean` § 1.
 pub const ML_LOW_LEN: usize = 1024;
 
+// @genesis af05e6c 2026-08-28 — params::ML_HIGH_LEN
 /// `2^ML_VARS_HIGH = 1024`: the column count of the reshaped coefficient
 /// matrix, the length of the inner monomial basis `mb(xh)`, and (by the
 /// consumer's shape) equal to [`MESSAGE_ROWS`].
@@ -230,12 +247,14 @@ pub const ML_LOW_LEN: usize = 1024;
 /// A literal (see [`ML_LOW_LEN`]).
 pub const ML_HIGH_LEN: usize = 1024;
 
+// @genesis af05e6c 2026-08-28 — params::ML_POLY_LEN
 /// `2^(ML_VARS_LOW + ML_VARS_HIGH) = 1048576`: the coefficient count of a
 /// committed multilinear polynomial, i.e. `ML_LOW_LEN * ML_HIGH_LEN`.
 ///
 /// A literal (see [`ML_LOW_LEN`]).
 pub const ML_POLY_LEN: usize = 1_048_576;
 
+// @genesis af05e6c 2026-08-28 — params::KAPPA
 /// The `ℓ₁` bound `κ` on a challenge, checked by `verify_weak`.
 ///
 /// **Pinned** by ArkLib's paper-parameter mapping for the weak-opening

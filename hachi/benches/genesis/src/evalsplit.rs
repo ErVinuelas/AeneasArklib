@@ -55,6 +55,7 @@ use crate::linalg::{PolyMatrix, PolyVec};
 use crate::params;
 use crate::ring::Rq;
 
+// @genesis afa0140 2026-08-26 — evalsplit::split_equiv
 /// The split of a `(nl + nh)`-bit index, forward direction (spec: the value of
 /// `splitEquiv`, `EvalSplit.lean:73`, `splitEquiv_val` `:77`).
 ///
@@ -67,6 +68,7 @@ pub fn split_equiv(x: usize, y: usize) -> usize {
     y + params::ML_LOW_LEN * x
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::split_equiv_inv
 /// The split of a `(nl + nh)`-bit index, inverse direction (spec:
 /// `splitEquiv.symm`, used by `toPolynomial`, `EvalSplit.lean:199`).
 ///
@@ -80,6 +82,7 @@ pub fn split_equiv_inv(k: usize) -> (usize, usize) {
     (x, y)
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::two_pow
 /// `2^n`, by repeated doubling (spec: the `2 ^ n` in `Vector R (2 ^ n)`).
 ///
 /// A helper rather than `1 << n`, so the extracted model stays in plain
@@ -96,6 +99,7 @@ fn two_pow(n: usize) -> usize {
     size
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::test_bit
 /// Bit `j` of `i` (spec: `(BitVec.ofFin i).getLsb j`, i.e. `Nat.testBit`).
 ///
 /// By repeated division, like [`crate::gadget::digit_at`]: `j` halvings, then
@@ -111,6 +115,7 @@ fn test_bit(i: usize, j: usize) -> bool {
     rest % 2 == 1
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::MlPoly
 /// A multilinear polynomial over `R_q` by its `2^n` monomial coefficients,
 /// little-endian (spec: `CMlPolynomial (Rq Φ) n`, `Multilinear/Basic.lean:35`).
 ///
@@ -120,6 +125,7 @@ fn test_bit(i: usize, j: usize) -> bool {
 /// Coefficient `i` multiplies the monomial `∏_{bit j of i set} X_j`.
 pub struct MlPoly(Vec<Rq>);
 
+// @genesis afa0140 2026-08-26 — evalsplit::MlEvals
 /// A multilinear polynomial over `R_q` by its `2^n` values on the Boolean
 /// hypercube, little-endian (spec: `CMlPolynomialEval (Rq Φ) n`,
 /// `Multilinear/Basic.lean:43`).
@@ -129,6 +135,7 @@ pub struct MlPoly(Vec<Rq>);
 /// monomial one -- two spec types, so two Rust types.
 pub struct MlEvals(Vec<Rq>);
 
+// @genesis afa0140 2026-08-26 — evalsplit::monomial_basis
 /// Monomial-basis evaluations at the point `w` (spec:
 /// `CMlPolynomial.monomialBasis`, `Multilinear/Basic.lean:156`).
 ///
@@ -162,6 +169,7 @@ pub fn monomial_basis(w: &PolyVec) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::lagrange_basis
 /// Lagrange-basis evaluations at the point `w` -- the multilinear equality
 /// kernel `eq̃(·, w)` on the hypercube (spec: `CMlPolynomialEval.lagrangeBasis`,
 /// `Multilinear/Basic.lean:405`).
@@ -196,22 +204,26 @@ pub fn lagrange_basis(w: &PolyVec) -> PolyVec {
 }
 
 impl MlPoly {
+    // @genesis afa0140 2026-08-26 — evalsplit::MlPoly::new
     /// Wrap a coefficient vector (expected length [`params::ML_POLY_LEN`];
     /// like the ring's degree invariant, a property of construction).
     pub fn new(coeffs: Vec<Rq>) -> MlPoly {
         MlPoly(coeffs)
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlPoly::len
     /// The number of coefficients.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlPoly::get
     /// The `k`-th monomial coefficient.
     pub fn get(&self, k: usize) -> &Rq {
         &self.0[k]
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlPoly::to_matrix
     /// Reshape the coefficient vector into the `2^nl × 2^nh` split matrix
     /// (spec: `toMatrix`, `EvalSplit.lean:150`).
     ///
@@ -240,6 +252,7 @@ impl MlPoly {
         PolyMatrix::new(out)
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlPoly::eval_split
     /// Evaluate via the split: the bilinear form of the reshaped matrix
     /// against the monomial bases of the two point halves (spec: `evalSplit`,
     /// `EvalSplit.lean:166`).
@@ -258,6 +271,7 @@ impl MlPoly {
     }
 }
 
+// @genesis afa0140 2026-08-26 — evalsplit::to_polynomial
 /// Read a `2^nl × 2^nh` matrix back into the coefficient vector along the
 /// split -- the inverse reshape of [`MlPoly::to_matrix`] (spec:
 /// `toPolynomial`, `EvalSplit.lean:199`).
@@ -283,22 +297,26 @@ pub fn to_polynomial(m: &PolyMatrix) -> MlPoly {
 }
 
 impl MlEvals {
+    // @genesis afa0140 2026-08-26 — evalsplit::MlEvals::new
     /// Wrap a hypercube-value vector (expected length
     /// [`params::ML_POLY_LEN`]; a property of construction).
     pub fn new(values: Vec<Rq>) -> MlEvals {
         MlEvals(values)
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlEvals::len
     /// The number of hypercube values.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlEvals::get
     /// The value at hypercube point `k` (little-endian bits).
     pub fn get(&self, k: usize) -> &Rq {
         &self.0[k]
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlEvals::to_matrix_eval
     /// Reshape the value vector into the `2^nl × 2^nh` split matrix (spec:
     /// `toMatrixEval`, `EvalSplit.lean:296`).
     ///
@@ -325,6 +343,7 @@ impl MlEvals {
         PolyMatrix::new(out)
     }
 
+    // @genesis afa0140 2026-08-26 — evalsplit::MlEvals::eval_split_eval
     /// Evaluate via the split, Lagrange representation: the bilinear form of
     /// the reshaped value matrix against the Lagrange bases of the two point
     /// halves (spec: `evalSplitEval`, `EvalSplit.lean:310`).

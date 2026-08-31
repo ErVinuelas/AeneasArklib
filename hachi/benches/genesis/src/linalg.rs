@@ -47,6 +47,7 @@ use alloc::vec::Vec;
 
 use crate::ring::Rq;
 
+// @genesis d664190 2026-08-19 — linalg::PolyVec
 /// A vector over `R_q` (spec: `PolyVec (Rq Φ) k`, `Vectors.lean:39`).
 ///
 /// Mirrors ArkLib's `PolyVec (Rq Φ) k`; the spec carries the length `k` in the
@@ -54,6 +55,7 @@ use crate::ring::Rq;
 /// module header describes.
 pub struct PolyVec(Vec<Rq>);
 
+// @genesis d664190 2026-08-19 — linalg::PolyMatrix
 /// A matrix over `R_q`, as its rows (spec: `PolyMatrix (Rq Φ) rows cols`,
 /// `Vectors.lean:42`).
 ///
@@ -66,11 +68,13 @@ pub struct PolyVec(Vec<Rq>);
 pub struct PolyMatrix(Vec<PolyVec>);
 
 impl PolyVec {
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::new
     /// Wrap a vector of ring elements.
     pub fn new(entries: Vec<Rq>) -> PolyVec {
         PolyVec(entries)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::zeros
     /// The all-zero vector of the given length.
     pub fn zeros(k: usize) -> PolyVec {
         let mut out: Vec<Rq> = Vec::new();
@@ -82,16 +86,19 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::len
     /// The number of entries.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::get
     /// The `i`-th entry.
     pub fn get(&self, i: usize) -> &Rq {
         &self.0[i]
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::copy
     /// An independent copy (hand-rolled; see [`Rq::copy`]).
     pub fn copy(&self) -> PolyVec {
         let n: usize = self.0.len();
@@ -104,6 +111,7 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::equals
     /// Entrywise equality.
     ///
     /// This is what `Simple.verify` decides (`Ajtai/Simple/Scheme.lean:46`,
@@ -125,6 +133,7 @@ impl PolyVec {
         }
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::add
     /// Entrywise addition (spec: the `Pi` instance, used through
     /// `matVecMul_add` and the norm-difference lemmas).
     ///
@@ -141,6 +150,7 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::sub
     /// Entrywise subtraction (spec: the `Pi` instance; this is the vector whose
     /// norm `sub_l2NormSq_le` bounds).
     ///
@@ -156,6 +166,7 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::scalar_mul
     /// Left scalar multiplication by a ring element (spec: `scalarVecMul`,
     /// `Vectors.lean:91`).
     ///
@@ -173,6 +184,7 @@ impl PolyVec {
         PolyVec(out)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyVec::dot
     /// The dot product `Σᵢ uᵢ · vᵢ` (spec: `dot`, `Vectors.lean:77`).
     ///
     /// Mirrors ArkLib's `dot`.
@@ -203,16 +215,19 @@ impl PolyVec {
 }
 
 impl PolyMatrix {
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::new
     /// Wrap a list of rows.
     pub fn new(rows: Vec<PolyVec>) -> PolyMatrix {
         PolyMatrix(rows)
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::rows
     /// The number of rows.
     pub fn rows(&self) -> usize {
         self.0.len()
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::cols
     /// The number of columns: the length of row `0`, and `0` for a matrix with
     /// no rows.
     pub fn cols(&self) -> usize {
@@ -223,11 +238,13 @@ impl PolyMatrix {
         }
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::row
     /// The `i`-th row.
     pub fn row(&self, i: usize) -> &PolyVec {
         &self.0[i]
     }
 
+    // @genesis d664190 2026-08-19 — linalg::PolyMatrix::mat_vec_mul
     /// The matrix-vector product `A *ᵥ v` (spec: `matVecMul`,
     /// `Vectors.lean:81`), each entry the dot product of a row with `v`.
     ///
@@ -246,6 +263,7 @@ impl PolyMatrix {
         PolyVec(out)
     }
 
+    // @genesis afa0140 2026-08-26 — linalg::PolyMatrix::split_form
     /// The split bilinear form `⟨u, M *ᵥ v⟩ = uᵀ M v` (spec: `splitForm`,
     /// `Vectors.lean:178`).
     ///
@@ -261,6 +279,7 @@ impl PolyMatrix {
     }
 }
 
+// @genesis d664190 2026-08-19 — linalg::flatten_blocks
 /// Flatten equal-width blocks into one vector, in block order (spec:
 /// `PolyVec.flattenBlocks`, `Vectors.lean:49`).
 ///

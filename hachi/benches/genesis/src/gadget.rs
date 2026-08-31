@@ -53,6 +53,7 @@ use crate::linalg::{PolyMatrix, PolyVec};
 use crate::params;
 use crate::ring::Rq;
 
+// @genesis d664190 2026-08-19 — gadget::digit_at
 /// The `e`-th base-`b` digit of a field element (spec:
 /// `zmodDigitDecomposition.digit c e`, `Gadget/Core.lean:115`).
 ///
@@ -76,6 +77,7 @@ pub fn digit_at(c: Fp, e: usize) -> Fp {
     Fp::new(rest % b)
 }
 
+// @genesis d664190 2026-08-19 — gadget::digit_decompose
 /// All [`params::GADGET_DIGITS`] digits of a field element, little-endian (spec:
 /// the `digit` field of `zmodDigitDecomposition` as a whole).
 ///
@@ -97,6 +99,7 @@ pub fn digit_decompose(c: Fp) -> Vec<Fp> {
     out
 }
 
+// @genesis d664190 2026-08-19 — gadget::base_pow
 /// `bᵉ` in the coefficient field.
 ///
 /// Modular, by repeated multiplication: the spec's `base ^ e` is a power taken in
@@ -113,6 +116,7 @@ pub fn base_pow(e: usize) -> Fp {
     acc
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_entry
 /// Entry `(i, j)` of the gadget matrix (spec: `gadgetEntry`,
 /// `Gadget/Core.lean:139`): the ring constant `C(b^(j mod digits))` when
 /// `j / digits = i`, and `0` otherwise.
@@ -127,6 +131,7 @@ pub fn gadget_entry(i: usize, j: usize) -> Rq {
     }
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_matrix
 /// The gadget matrix `G = I_rows ⊗ [1, b, …, b^(digits-1)]`, of shape
 /// `rows × (rows · digits)` (spec: `gadgetMatrix`, `Gadget/Core.lean:143`).
 ///
@@ -154,6 +159,7 @@ pub fn gadget_matrix(rows: usize) -> PolyMatrix {
     PolyMatrix::new(out)
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_mul
 /// The gadget product `G · v` (spec: `gadgetMul`, `Gadget/Core.lean:147`).
 ///
 /// Mirrors ArkLib's `gadgetMul`.
@@ -183,6 +189,7 @@ pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis d664190 2026-08-19 — gadget::gadget_decompose
 /// The gadget inverse `G⁻¹` (spec: `gadgetDecompose`, `Gadget/Core.lean:207`,
 /// instantiated at `zmodDigitDecomposition`).
 ///

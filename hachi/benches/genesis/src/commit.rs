@@ -65,6 +65,7 @@ use crate::ring::Rq;
 // Centered norms
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::centered_abs
 /// The absolute value of a field element's *centered* representative (spec:
 /// `(c.valMinAbs).natAbs`, via `zmodCenteredView`,
 /// `CyclotomicRing/Norms.lean:48`).
@@ -87,6 +88,7 @@ pub fn centered_abs(c: Fp) -> u64 {
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::l1_norm
 /// The centered `ℓ₁` norm of a ring element (spec: `Rq.l1Norm`,
 /// `NormBounds/Basic.lean:82`): `Σₖ |cₖ|` over the `deg φ` coefficients.
 ///
@@ -105,6 +107,7 @@ pub fn l1_norm(a: &Rq) -> u64 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::l_infty_norm
 /// The centered `ℓ∞` norm of a ring element (spec: `Rq.lInftyNorm`,
 /// `NormBounds/Basic.lean:87`): `maxₖ |cₖ|`.
 ///
@@ -126,6 +129,7 @@ pub fn l_infty_norm(a: &Rq) -> u64 {
     best
 }
 
+// @genesis d664190 2026-08-19 — commit::l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a ring element (spec: `Rq.l2NormSq`,
 /// `NormBounds/Basic.lean:78`): `Σₖ |cₖ|²`.
 ///
@@ -152,6 +156,7 @@ pub fn l2_norm_sq(a: &Rq) -> u128 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::vec_l2_norm_sq
 /// The centered squared-`ℓ₂` norm of a vector (spec: `vecL2NormSq`,
 /// `NormBounds/Basic.lean:91`): the sum of the entrywise norms.
 ///
@@ -167,6 +172,7 @@ pub fn vec_l2_norm_sq(v: &PolyVec) -> u128 {
     acc
 }
 
+// @genesis d664190 2026-08-19 — commit::vec_l_infty_norm
 /// The centered `ℓ∞` norm of a vector (spec: `vecLInftyNorm`,
 /// `NormBounds/Basic.lean:95`): the largest entrywise norm.
 ///
@@ -189,6 +195,7 @@ pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
 // The scheme's data
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::PublicParams
 /// The two Ajtai matrices (spec: `PublicParams`, `Scheme.lean:94`).
 ///
 /// Mirrors ArkLib's `InnerOuter.PublicParams` at the dimensions [`params`]
@@ -203,6 +210,7 @@ pub struct PublicParams {
 }
 
 impl PublicParams {
+    // @genesis d664190 2026-08-19 — commit::PublicParams::new
     /// Bundle the inner and outer matrices.
     pub fn new(inner_matrix: PolyMatrix, outer_matrix: PolyMatrix) -> PublicParams {
         PublicParams {
@@ -211,17 +219,20 @@ impl PublicParams {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::PublicParams::inner_matrix
     /// The inner Ajtai matrix `A`.
     pub fn inner_matrix(&self) -> &PolyMatrix {
         &self.inner_matrix
     }
 
+    // @genesis d664190 2026-08-19 — commit::PublicParams::outer_matrix
     /// The outer Ajtai matrix `B`.
     pub fn outer_matrix(&self) -> &PolyMatrix {
         &self.outer_matrix
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::Decomp
 /// The committer-produced decomposition data `(sᵢ, t̂ᵢ)ᵢ` (spec: `Decomp`,
 /// `Scheme.lean:104`), without the challenge.
 ///
@@ -232,6 +243,7 @@ pub struct Decomp {
 }
 
 impl Decomp {
+    // @genesis d664190 2026-08-19 — commit::Decomp::new
     /// Bundle per-block decomposed messages and inner decompositions.
     pub fn new(message: Vec<PolyVec>, inner_decomp: Vec<PolyVec>) -> Decomp {
         Decomp {
@@ -240,27 +252,32 @@ impl Decomp {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::blocks
     /// The number of blocks.
     pub fn blocks(&self) -> usize {
         self.message.len()
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::message
     /// The decomposed message `sᵢ` of block `i`.
     pub fn message(&self, i: usize) -> &PolyVec {
         &self.message[i]
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomp
     /// The inner decomposition `t̂ᵢ` of block `i`.
     pub fn inner_decomp(&self, i: usize) -> &PolyVec {
         &self.inner_decomp[i]
     }
 
+    // @genesis d664190 2026-08-19 — commit::Decomp::inner_decomps
     /// The inner decompositions as blocks, for flattening.
     pub fn inner_decomps(&self) -> &Vec<PolyVec> {
         &self.inner_decomp
     }
 }
 
+// @genesis d664190 2026-08-19 — commit::Opening
 /// A Hachi/Greyhound weak opening `(sᵢ, t̂ᵢ, cᵢ)ᵢ` (spec: `Opening`,
 /// `Scheme.lean:115`).
 ///
@@ -274,11 +291,13 @@ pub struct Opening {
 }
 
 impl Opening {
+    // @genesis d664190 2026-08-19 — commit::Opening::new
     /// Pair decomposition data with per-block challenges.
     pub fn new(decomp: Decomp, challenge: PolyVec) -> Opening {
         Opening { decomp, challenge }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::honest
     /// The honest opening: the decomposition with the trivial challenge
     /// `cᵢ = 1`, which is what `commitmentScheme.commit` produces
     /// (`Scheme.lean:229`).
@@ -296,11 +315,13 @@ impl Opening {
         }
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::decomp
     /// The underlying decomposition data.
     pub fn decomp(&self) -> &Decomp {
         &self.decomp
     }
 
+    // @genesis d664190 2026-08-19 — commit::Opening::challenge
     /// The challenge `cᵢ` of block `i`.
     pub fn challenge(&self, i: usize) -> &Rq {
         self.challenge.get(i)
@@ -311,6 +332,7 @@ impl Opening {
 // Commit
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::derived_message
 /// The message block derived from the decomposition data: `mᵢ = G · sᵢ` (spec:
 /// `derivedMessage`, `Scheme.lean:148`, i.e. [NOZ26] Eq. (13)).
 ///
@@ -332,6 +354,7 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
     out
 }
 
+// @genesis d664190 2026-08-19 — commit::generate_decomps
 /// Honest decomposition generation (spec: `generateDecomps`,
 /// `Scheme.lean:157`): `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
 ///
@@ -359,6 +382,7 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     Decomp::new(ss, ts)
 }
 
+// @genesis d664190 2026-08-19 — commit::commit_with_decomps
 /// The outer commitment computed from the decomposition data (spec:
 /// `commitWithDecomps`, `Scheme.lean:166`): `u = B · flatten(t̂)`.
 ///
@@ -368,6 +392,7 @@ pub fn commit_with_decomps(pp: &PublicParams, decomp: &Decomp) -> PolyVec {
     pp.outer_matrix().mat_vec_mul(&flat)
 }
 
+// @genesis d664190 2026-08-19 — commit::commit
 /// Commit to a message: generate the honest decomposition and return it with the
 /// outer commitment (spec: `commitmentScheme.commit`, `Scheme.lean:227`, minus
 /// the `OracleComp` wrapper and with the challenge left to
@@ -385,6 +410,7 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 // Verify
 // ---------------------------------------------------------------------------
 
+// @genesis d664190 2026-08-19 — commit::verify_weak
 /// Verify a weak opening against the outer commitment `u` (spec:
 /// `verify_weak`, `Scheme.lean:194`).
 ///
@@ -448,6 +474,7 @@ pub fn verify_weak(pp: &PublicParams, u: &PolyVec, opening: &Opening) -> bool {
     ok
 }
 
+// @genesis d664190 2026-08-19 — commit::verify
 /// Verify an opening against a claimed message (spec:
 /// `commitmentScheme.verify`, `Scheme.lean:231`): the message must be the one
 /// derived from the opening, and the weak checks must pass.
