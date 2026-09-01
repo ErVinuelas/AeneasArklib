@@ -66,6 +66,9 @@ is the cyclotomic index and the instances ArkLib's `Rq` needs. -/
 /-- The cyclotomic index `α`; the ring degree is `N = 2^α`. -/
 abbrev α : ℕ := 10
 
+-- The primality certificate for `q` replays deeper in the v4.33 kernel than the
+-- default recursion limit; the bump is scoped to this one declaration.
+set_option maxRecDepth 4096 in
 instance : Fact (Nat.Prime q) := ⟨by norm_num⟩
 
 /-- `ZMod q` needs this for `valMinAbs` (so for every centered norm) and for

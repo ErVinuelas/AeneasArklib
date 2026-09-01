@@ -1551,6 +1551,9 @@ theorem l1_norm_loop_spec (a : ring.Rq) (n : Std.Usize) (acc : Std.U64) (k : Std
       rw [hval1, heq]
   · exact ⟨hk, hacc⟩
 
+-- The v4.33 kernel replays this proof (and the two sibling norm specs below)
+-- deeper than the default recursion limit; the bumps are scoped per declaration.
+set_option maxRecDepth 4096 in
 /-- `commit::l1_norm` — ArkLib's `Rq.l1Norm`. -/
 theorem l1_norm_spec (a : ring.Rq) (ha : Wf a) :
     commit.l1_norm a ⦃ n => n.val = Rq.l1Norm Φ (toRq a) ⦄ := by
@@ -1600,6 +1603,7 @@ theorem l_infty_norm_loop_spec (a : ring.Rq) (n : Std.Usize) (best : Std.U64) (k
       rw [hval1, heq]
   · exact ⟨hk, hbest⟩
 
+set_option maxRecDepth 4096 in
 /-- `commit::l_infty_norm` — ArkLib's `Rq.lInftyNorm`. The Rust's running maximum
 over an empty range is `0`, which is what the specification's `Finset.sup` gives
 there too. -/
@@ -1657,6 +1661,7 @@ theorem l2_norm_sq_loop_spec (a : ring.Rq) (n : Std.Usize) (acc : Std.U128) (k :
       rw [hval1, heq]
   · exact ⟨hk, hacc⟩
 
+set_option maxRecDepth 4096 in
 /-- `commit::l2_norm_sq` — ArkLib's `Rq.l2NormSq`, and total: `u128` is wide
 enough for `N · (q/2)²`. -/
 theorem l2_norm_sq_spec (a : ring.Rq) (ha : Wf a) :
@@ -2331,20 +2336,26 @@ theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
   have hgam : (¬ ninf > params.GAMMA) ↔ vecLInftyNorm Φ (toVec (k := 1024 * (1 * 8)) flat) ≤ 16 := by
     constructor <;> intro h <;> scalar_tac
   rw [Bool.eq_iff_iff, hr, hokB, hokA, hbb, houter, hgam, hflat, InnerOuter.verify_weak]
-  simp only [Bool.and_eq_true, List.all_eq_true, List.mem_finRange, decide_eq_true_eq,
+  -- `decide_eq_true_eq` is deliberately absent from this simp set: at v4.33 simp
+  -- re-checks the `Decidable` instance inside each `decide` against what synthesis
+  -- returns here, and rejects the vector-equality instances baked into ArkLib's
+  -- `verify_weak` (this file's `BEq (ZMod q)` layer diverts synthesis). The
+  -- `decide P = true` conjuncts are instead converted term-level below, where
+  -- plain defeq applies.
+  simp only [Bool.and_eq_true, List.all_eq_true, List.mem_finRange,
     Simple.verify, Simple.commit, forall_const, toOpening, toParams, toDecompSpec]
   have hch : ∀ x : Fin 1024, toVec (k := 1024) o.challenge x
       = toRq (o.challenge.val.getD x.val (alloc.vec.Vec.new cpoly.field.Fp)) := fun _ => rfl
   simp only [hch, BlockVerifies, gadgetMul, Fin.forall_iff]
   constructor
   · rintro ⟨hX, hY, hZ⟩
-    refine ⟨⟨fun j hj => ?_, hY⟩, hX⟩
+    refine ⟨⟨fun j hj => ?_, decide_eq_true hY⟩, decide_eq_true hX⟩
     obtain ⟨a, b, c, d⟩ := hZ j hj
-    exact ⟨⟨⟨a, b⟩, c⟩, d⟩
+    exact ⟨⟨⟨decide_eq_true a, decide_eq_true b⟩, decide_eq_true c⟩, decide_eq_true d⟩
   · rintro ⟨⟨hW, hY⟩, hX⟩
-    refine ⟨hX, hY, fun j hj => ?_⟩
+    refine ⟨of_decide_eq_true hX, of_decide_eq_true hY, fun j hj => ?_⟩
     obtain ⟨⟨⟨a, b⟩, c⟩, d⟩ := hW j hj
-    exact ⟨a, b, c, d⟩
+    exact ⟨of_decide_eq_true a, of_decide_eq_true b, of_decide_eq_true c, of_decide_eq_true d⟩
 
 /-! ### The honest committer -/
 

@@ -7,25 +7,25 @@ open Lake DSL
 -- Keeping them together is what lets Aeneas write its output straight into the
 -- library, with no copy of the generated model to keep in sync.
 
--- Upstream aeneas, and no fork -- which is worth saying because the sister
--- project AeneasCompPoly does need one.
+-- The local 4.33 port of the Aeneas Lean backend, pinned by commit -- a git
+-- require against the sibling checkout, not (yet) a published fork.
 --
--- The Lean backend of this nightly hard-`require`s Mathlib v4.31.0, and v4.31.0
--- is exactly what ArkLib pins (`lean-toolchain` here matches both). AeneasCompPoly
--- had to fork aeneas only because CompPoly had moved on to v4.32.0, for which
--- upstream aeneas has no release. Nothing in this repository needs that bump, so
--- the dependency below is the plain upstream tag.
+-- ArkLib main moved to Mathlib v4.33.1 and upstream aeneas releases stop at
+-- v4.31.0. The port that bridges the gap is commit 6125cb9e ("bump to 4.33"),
+-- one commit on top of upstream 3a8586f -- which is exactly the commit the
+-- extraction binaries (`../toolchain/{charon,aeneas}`, `AENEAS_TAG` in the
+-- Makefile) are built from. The port's regenerated builtins table was checked
+-- semantically identical to upstream's, so those binaries stay valid and
+-- `Generated.lean` remains the output of the same Aeneas that this library
+-- models it against. `make setup`'s backend check accepts descendants of
+-- `AENEAS_COMMIT`, so it reads this pin as "3a8586f + 1 commit(s)".
 --
--- Read the tag as the truth and `lake-manifest.json` as its resolution: the
--- manifest records the resolved commit, which is what makes a clone reproducible.
--- Move it deliberately with `lake update aeneas`.
---
--- Either way the extraction binaries (`../toolchain/{charon,aeneas}`, pinned by
--- `AENEAS_TAG` in the Makefile) must stay on the same Aeneas commit as this
--- library: `Generated.lean` is only valid against the Aeneas version that
--- produced it. `make setup` and `make extract` check that they do.
+-- The manifest records the resolved commit, which is what makes the build
+-- reproducible -- on this machine: a `file://` URL does not travel. When the
+-- port lands on a public fork or upstream, move only the URL, keeping the
+-- rev pin, with `lake update aeneas`.
 require aeneas from git
-  "https://github.com/AeneasVerif/aeneas.git" @ "nightly-2026.07.26-3a8586f"
+  "file:///home/pablo/Documents/internship-eth/aeneas" @ "6125cb9e191aa500cac5b3de4df643002818b03a"
     / "backends" / "lean"
 
 -- The specification side. Pinned to a commit rather than to `main`, because the
@@ -39,7 +39,7 @@ require aeneas from git
 -- lakefile, and Lake matches on it. The *library* inside it is `ArkLib`, which is
 -- what the `import ArkLib.…` lines in `lean/` name.
 require Arklib from git
-  "https://github.com/Verified-zkEVM/ArkLib.git" @ "e92dc315f453db88dd7351c88e889caf0e6bf269"
+  "https://github.com/Verified-zkEVM/ArkLib.git" @ "294b3f0b0f46e1485c878a217e9de764855f5915"
 
 package «HachiEquiv» where
 
