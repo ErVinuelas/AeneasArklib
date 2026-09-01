@@ -57,3 +57,11 @@ another row's in the same run, so keeping one invites exactly the cross-run
 comparison the harness refuses to make. What a ledger row keeps is a *delta*
 measured inside one criterion session, together with the conditions of that
 session.
+
+One deliberate exception lives in [`paper-impl/`](paper-impl/README.md):
+absolute timings of the **paper's reference implementation**
+(`georgeorourke/hachi-pcs`) at the [NOZ26] Fig. 9 parameters, recorded as an
+external comparison baseline with their full run conditions. They are outside
+the loop — never read by the accept rule, never compared to a criterion run by
+tooling — and exist so the eventual "our crate vs the paper's prototype"
+comparison has an anchored, attributable other side.

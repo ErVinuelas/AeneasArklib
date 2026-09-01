@@ -1,0 +1,496 @@
+{
+ "avx512_l24": {
+  "commit::commit": {
+   "total_s": 1.193816245,
+   "calls": 1,
+   "per_call_s": 1.193816245
+  },
+  "commit::commit#2": {
+   "total_s": 0.08529371200000001,
+   "calls": 1,
+   "per_call_s": 0.08529371200000001
+  },
+  "prove::prove": {
+   "total_s": 36.608502775,
+   "calls": 1,
+   "per_call_s": 36.608502775
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 33.642401544,
+   "calls": 1,
+   "per_call_s": 33.642401544
+  },
+  "verify::verify": {
+   "total_s": 0.014308342,
+   "calls": 1,
+   "per_call_s": 0.014308342
+  }
+ },
+ "avx512_l30": {
+  "commit::commit": {
+   "total_s": 68.729709892,
+   "calls": 1,
+   "per_call_s": 68.729709892
+  },
+  "commit::commit#2": {
+   "total_s": 0.507644074,
+   "calls": 1,
+   "per_call_s": 0.507644074
+  },
+  "prove::prove": {
+   "total_s": 428.433371349,
+   "calls": 1,
+   "per_call_s": 428.433371349
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 293.432381489,
+   "calls": 1,
+   "per_call_s": 293.432381489
+  },
+  "verify::verify": {
+   "total_s": 0.14868346,
+   "calls": 1,
+   "per_call_s": 0.14868346
+  }
+ },
+ "avx512b_l30": {
+  "commit::commit": {
+   "total_s": 77.559297335,
+   "calls": 1,
+   "per_call_s": 77.559297335
+  },
+  "commit::commit#2": {
+   "total_s": 0.571244977,
+   "calls": 1,
+   "per_call_s": 0.571244977
+  },
+  "prove::prove": {
+   "total_s": 464.780276363,
+   "calls": 1,
+   "per_call_s": 464.780276363
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 311.40381168,
+   "calls": 1,
+   "per_call_s": 311.40381168
+  },
+  "verify::verify": {
+   "total_s": 0.148368085,
+   "calls": 1,
+   "per_call_s": 0.148368085
+  }
+ },
+ "stats_l20": {
+  "arithmetic::ring::_fwd": {
+   "total_s": 0.10414514,
+   "calls": 12832,
+   "per_call_s": 8.116048940149625e-06
+  },
+  "arithmetic::ring::mat_fwd_ntt": {
+   "total_s": 0.017741333999999997,
+   "calls": 4,
+   "per_call_s": 0.004435333499999999
+  },
+  "commit::commit": {
+   "total_s": 0.090860072,
+   "calls": 1,
+   "per_call_s": 0.090860072
+  },
+  "stream::file_stream::read": {
+   "total_s": 0.006217704,
+   "calls": 97,
+   "per_call_s": 6.41000412371134e-05
+  },
+  "arithmetic::poly_vec::b_decomp": {
+   "total_s": 0.034545219,
+   "calls": 72,
+   "per_call_s": 0.00047979470833333336
+  },
+  "arithmetic::ring::mat_mul_vec": {
+   "total_s": 0.106556502,
+   "calls": 101,
+   "per_call_s": 0.0010550148712871288
+  },
+  "arithmetic::ring::_mul_acc": {
+   "total_s": 0.017954811,
+   "calls": 11776,
+   "per_call_s": 1.524695227581522e-06
+  },
+  "arithmetic::ring::_inv": {
+   "total_s": 0.0012983,
+   "calls": 101,
+   "per_call_s": 1.2854455445544555e-05
+  },
+  "prove::prove": {
+   "total_s": 8.942412189,
+   "calls": 1,
+   "per_call_s": 8.942412189
+  },
+  "prover_utils::zq_zq::compute_y_and_w": {
+   "total_s": 0.0065926890000000005,
+   "calls": 1,
+   "per_call_s": 0.0065926890000000005
+  },
+  "arithmetic::ring::int_mul_poly": {
+   "total_s": 0.00474848,
+   "calls": 2048,
+   "per_call_s": 2.31859375e-06
+  },
+  "arithmetic::ring::int_vec_mul_poly_vec": {
+   "total_s": 0.00233067,
+   "calls": 32,
+   "per_call_s": 7.28334375e-05
+  },
+  "prover_utils::rq::compute_z": {
+   "total_s": 0.098429434,
+   "calls": 1,
+   "per_call_s": 0.098429434
+  },
+  "arithmetic::ring::chal_mul_small_poly": {
+   "total_s": 0.081495012,
+   "calls": 8192,
+   "per_call_s": 9.94812158203125e-06
+  },
+  "arithmetic::ring::chal_mul_poly_vec": {
+   "total_s": 0.081764112,
+   "calls": 32,
+   "per_call_s": 0.0025551285
+  },
+  "arithmetic::ring::chal_mul_poly": {
+   "total_s": 0.000660311,
+   "calls": 64,
+   "per_call_s": 1.0317359375e-05
+  },
+  "arithmetic::ring::chal_vec_mul_poly_vec": {
+   "total_s": 0.000337753,
+   "calls": 1,
+   "per_call_s": 0.000337753
+  },
+  "commit::commit#2": {
+   "total_s": 0.037136355,
+   "calls": 1,
+   "per_call_s": 0.037136355
+  },
+  "common::form_m_alpha_same_matrix": {
+   "total_s": 0.003988092,
+   "calls": 2,
+   "per_call_s": 0.001994046
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 8.633318684,
+   "calls": 1,
+   "per_call_s": 8.633318684
+  },
+  "common::form_m_alpha": {
+   "total_s": 0.004195571,
+   "calls": 1,
+   "per_call_s": 0.004195571
+  },
+  "verify::verify": {
+   "total_s": 0.006315469000000001,
+   "calls": 1,
+   "per_call_s": 0.006315469000000001
+  }
+ },
+ "stats_l24": {
+  "arithmetic::ring::_fwd": {
+   "total_s": 1.12311459,
+   "calls": 147520,
+   "per_call_s": 7.61330389099783e-06
+  },
+  "arithmetic::ring::mat_fwd_ntt": {
+   "total_s": 0.062655388,
+   "calls": 4,
+   "per_call_s": 0.015663847
+  },
+  "commit::commit": {
+   "total_s": 1.559418223,
+   "calls": 1,
+   "per_call_s": 1.559418223
+  },
+  "stream::file_stream::read": {
+   "total_s": 0.148743048,
+   "calls": 400,
+   "per_call_s": 0.00037185762
+  },
+  "arithmetic::poly_vec::b_decomp": {
+   "total_s": 0.45726906700000003,
+   "calls": 264,
+   "per_call_s": 0.0017320797992424243
+  },
+  "arithmetic::ring::mat_mul_vec": {
+   "total_s": 1.385801676,
+   "calls": 261,
+   "per_call_s": 0.005309584965517242
+  },
+  "arithmetic::ring::_mul_acc": {
+   "total_s": 0.30172272400000005,
+   "calls": 144384,
+   "per_call_s": 2.089724096852837e-06
+  },
+  "arithmetic::ring::_inv": {
+   "total_s": 0.004865043,
+   "calls": 261,
+   "per_call_s": 1.8640011494252874e-05
+  },
+  "prove::prove": {
+   "total_s": 36.506759069,
+   "calls": 1,
+   "per_call_s": 36.506759069
+  },
+  "prover_utils::zq_zq::compute_y_and_w": {
+   "total_s": 0.08003769,
+   "calls": 1,
+   "per_call_s": 0.08003769
+  },
+  "arithmetic::ring::int_mul_poly": {
+   "total_s": 0.057711056999999996,
+   "calls": 32768,
+   "per_call_s": 1.761201690673828e-06
+  },
+  "arithmetic::ring::int_vec_mul_poly_vec": {
+   "total_s": 0.030232408,
+   "calls": 128,
+   "per_call_s": 0.0002361906875
+  },
+  "prover_utils::rq::compute_z": {
+   "total_s": 1.578069647,
+   "calls": 1,
+   "per_call_s": 1.578069647
+  },
+  "arithmetic::ring::chal_mul_small_poly": {
+   "total_s": 1.310471691,
+   "calls": 131072,
+   "per_call_s": 9.99810555267334e-06
+  },
+  "arithmetic::ring::chal_mul_poly_vec": {
+   "total_s": 1.314949572,
+   "calls": 128,
+   "per_call_s": 0.01027304353125
+  },
+  "arithmetic::ring::chal_mul_poly": {
+   "total_s": 0.002630331,
+   "calls": 256,
+   "per_call_s": 1.027473046875e-05
+  },
+  "arithmetic::ring::chal_vec_mul_poly_vec": {
+   "total_s": 0.001327663,
+   "calls": 1,
+   "per_call_s": 0.001327663
+  },
+  "commit::commit#2": {
+   "total_s": 0.11105018800000001,
+   "calls": 1,
+   "per_call_s": 0.11105018800000001
+  },
+  "common::form_m_alpha_same_matrix": {
+   "total_s": 0.015357726,
+   "calls": 2,
+   "per_call_s": 0.007678863
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 34.082549102,
+   "calls": 1,
+   "per_call_s": 34.082549102
+  },
+  "common::form_m_alpha": {
+   "total_s": 0.010110372,
+   "calls": 1,
+   "per_call_s": 0.010110372
+  },
+  "verify::verify": {
+   "total_s": 0.013103489,
+   "calls": 1,
+   "per_call_s": 0.013103489
+  }
+ },
+ "std2_l30": {
+  "commit::commit": {
+   "total_s": 100.992349089,
+   "calls": 1,
+   "per_call_s": 100.992349089
+  },
+  "commit::commit#2": {
+   "total_s": 0.733821061,
+   "calls": 1,
+   "per_call_s": 0.733821061
+  },
+  "prove::prove": {
+   "total_s": 408.123864194,
+   "calls": 1,
+   "per_call_s": 408.123864194
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 312.882820942,
+   "calls": 1,
+   "per_call_s": 312.882820942
+  },
+  "verify::verify": {
+   "total_s": 0.15358319,
+   "calls": 1,
+   "per_call_s": 0.15358319
+  }
+ },
+ "std_l20": {
+  "commit::commit": {
+   "total_s": 0.10773321,
+   "calls": 1,
+   "per_call_s": 0.10773321
+  },
+  "commit::commit#2": {
+   "total_s": 0.041435822000000004,
+   "calls": 1,
+   "per_call_s": 0.041435822000000004
+  },
+  "prove::prove": {
+   "total_s": 9.950883526,
+   "calls": 1,
+   "per_call_s": 9.950883526
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 9.641999795,
+   "calls": 1,
+   "per_call_s": 9.641999795
+  },
+  "verify::verify": {
+   "total_s": 0.005188775,
+   "calls": 1,
+   "per_call_s": 0.005188775
+  }
+ },
+ "std_l22": {
+  "commit::commit": {
+   "total_s": 0.43848369800000003,
+   "calls": 1,
+   "per_call_s": 0.43848369800000003
+  },
+  "commit::commit#2": {
+   "total_s": 0.061216024,
+   "calls": 1,
+   "per_call_s": 0.061216024
+  },
+  "prove::prove": {
+   "total_s": 20.035678982,
+   "calls": 1,
+   "per_call_s": 20.035678982
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 19.249587466,
+   "calls": 1,
+   "per_call_s": 19.249587466
+  },
+  "verify::verify": {
+   "total_s": 0.008410474000000001,
+   "calls": 1,
+   "per_call_s": 0.008410474000000001
+  }
+ },
+ "std_l24": {
+  "commit::commit": {
+   "total_s": 1.691583083,
+   "calls": 1,
+   "per_call_s": 1.691583083
+  },
+  "commit::commit#2": {
+   "total_s": 0.120723881,
+   "calls": 1,
+   "per_call_s": 0.120723881
+  },
+  "prove::prove": {
+   "total_s": 41.327717413,
+   "calls": 1,
+   "per_call_s": 41.327717413
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 39.103019019,
+   "calls": 1,
+   "per_call_s": 39.103019019
+  },
+  "verify::verify": {
+   "total_s": 0.015697119000000002,
+   "calls": 1,
+   "per_call_s": 0.015697119000000002
+  }
+ },
+ "std_l26": {
+  "commit::commit": {
+   "total_s": 6.526415978,
+   "calls": 1,
+   "per_call_s": 6.526415978
+  },
+  "commit::commit#2": {
+   "total_s": 0.204427422,
+   "calls": 1,
+   "per_call_s": 0.204427422
+  },
+  "prove::prove": {
+   "total_s": 84.475200155,
+   "calls": 1,
+   "per_call_s": 84.475200155
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 77.142771463,
+   "calls": 1,
+   "per_call_s": 77.142771463
+  },
+  "verify::verify": {
+   "total_s": 0.028031427999999997,
+   "calls": 1,
+   "per_call_s": 0.028031427999999997
+  }
+ },
+ "std_l28": {
+  "commit::commit": {
+   "total_s": 23.603103618,
+   "calls": 1,
+   "per_call_s": 23.603103618
+  },
+  "commit::commit#2": {
+   "total_s": 0.36191475500000003,
+   "calls": 1,
+   "per_call_s": 0.36191475500000003
+  },
+  "prove::prove": {
+   "total_s": 161.59903707,
+   "calls": 1,
+   "per_call_s": 161.59903707
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 138.81866536,
+   "calls": 1,
+   "per_call_s": 138.81866536
+  },
+  "verify::verify": {
+   "total_s": 0.06302584,
+   "calls": 1,
+   "per_call_s": 0.06302584
+  }
+ },
+ "std_l30": {
+  "commit::commit": {
+   "total_s": 89.77306313,
+   "calls": 1,
+   "per_call_s": 89.77306313
+  },
+  "commit::commit#2": {
+   "total_s": 0.681600529,
+   "calls": 1,
+   "per_call_s": 0.681600529
+  },
+  "prove::prove": {
+   "total_s": 360.376851705,
+   "calls": 1,
+   "per_call_s": 360.376851705
+  },
+  "prover_utils::sumcheck::sumcheck_proof": {
+   "total_s": 272.740044143,
+   "calls": 1,
+   "per_call_s": 272.740044143
+  },
+  "verify::verify": {
+   "total_s": 0.138470845,
+   "calls": 1,
+   "per_call_s": 0.138470845
+  }
+ }
+}
