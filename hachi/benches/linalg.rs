@@ -1,12 +1,18 @@
 //! Wall-clock time for the vector and matrix operations.
 //!
-//! Sizes are the scheme's own, not round numbers: the dot product is over
-//! `MESSAGE_ROWS · GADGET_DIGITS = 128` entries because that is the width of the
-//! inner Ajtai matrix, and the matrix is `INNER_ROWS × 128` because that is `A`.
-//! A reading at a size the scheme never uses would be a reading nothing depends
-//! on. `flatten_blocks` is the one exception and its parameter is
-//! `INNER_ROWS · GADGET_DIGITS = 64`, the width of an inner decomposition block,
-//! which is what `commit` actually flattens.
+//! Sizes: the coefficientwise cases (`vec_add`, `vec_sub`, `equals`) run at
+//! the scheme's own width, `MESSAGE_ROWS · GADGET_DIGITS = 8192` -- the width
+//! of the inner Ajtai matrix -- and `flatten_blocks` at `BLOCKS` blocks of
+//! `INNER_ROWS · GADGET_DIGITS = 8`, the shape `commit` actually flattens.
+//! The ring-product cases (`dot`, `scalar_vec_mul`, `mat_vec_mul`,
+//! `split_form`) run at REDUCED shapes, not the scheme's: at the [NOZ26]
+//! Fig. 9 parameters one schoolbook `ring::mul` is ~2-4 ms (`RING_DEGREE =
+//! 1024`), so the scheme shapes pay 8192 ring muls per iteration for the
+//! first three (measured: 12.3 s/iteration for `scalar_vec_mul` at width
+//! 8192, 2026-08-31) and `2^20` ring muls (~an hour) for `split_form` -- the
+//! same arithmetic behind `exclusions.toml`'s Fig. 9 policy exception. The
+//! reduced sizes are recorded at the registrations below; they return to the
+//! scheme's the moment a sub-quadratic `ring::mul` champion lands.
 //!
 //! Every case here is dominated by `ring::mul`, which is the point: if this
 //! module ever shows up as a cost of its own, the loop below it got faster. The
@@ -157,11 +163,14 @@ macro_rules! define_cases {
                 support::run(m, || black_box(&a).mat_vec_mul(black_box(&u)), d_polyvec)
             }
 
-            /// `uᵀ M v` at the evaluation split's own shape: `ML_LOW_LEN` rows
-            /// (the parameter is the column count). One `mat_vec_mul` plus one
-            /// `dot`, so `rows·cols + rows` ring products.
+            /// `uᵀ M v` on a square `cols × cols` matrix (the parameter is the
+            /// column count). One `mat_vec_mul` plus one `dot`, so
+            /// `cols² + cols` ring products -- quadratic in the parameter,
+            /// which is why this case gets two points. The scheme's own shape
+            /// (`ML_LOW_LEN = 1024` rows) is `2^20` ring products per
+            /// iteration at the Fig. 9 parameters; see the module doc.
             pub fn split_form(m: Mode<'_, '_>, cols: usize) -> u64 {
-                let rows = hc::params::ML_LOW_LEN;
+                let rows = cols;
                 let mut entries = Vec::with_capacity(rows);
                 for i in 0..rows {
                     entries.push(vec_of(0x0F0F_0000_0000_0000 + i as u64, cols));
@@ -218,28 +227,34 @@ fn linalg_benches(c: &mut Criterion) {
     // is in the same state the first real cases will see.
     bench_case!(c, "_control/linalg", control, [support::CONTROL_N]);
 
-    // `A`'s width, and so every vector's length here.
+    // `A`'s width, and so every coefficientwise case's vector length.
     let width = hachi::params::MESSAGE_ROWS * hachi::params::GADGET_DIGITS;
     // One inner decomposition block, which is what gets flattened.
     let block = hachi::params::INNER_ROWS * hachi::params::GADGET_DIGITS;
+    // REDUCED width for the three `ring::mul`-dominated cases, per the module
+    // doc: 16 full-degree ring products per iteration (~tens of ms) instead of
+    // `width = 8192` (~tens of seconds). The row stays >99% `ring::mul`, which
+    // is the cost it exists to track.
+    let mul_width = 16;
 
     // @covers linalg::PolyVec::dot
-    bench_case!(c, "linalg/dot", dot, [width]);
+    bench_case!(c, "linalg/dot", dot, [mul_width]);
     // @covers linalg::PolyVec::add
     bench_case!(c, "linalg/vec_add", vec_add, [width]);
     // @covers linalg::PolyVec::sub
     bench_case!(c, "linalg/vec_sub", vec_sub, [width]);
     // @covers linalg::PolyVec::scalar_mul
-    bench_case!(c, "linalg/scalar_vec_mul", scalar_vec_mul, [width]);
+    bench_case!(c, "linalg/scalar_vec_mul", scalar_vec_mul, [mul_width]);
     // @covers linalg::PolyVec::equals
     bench_case!(c, "linalg/equals", equals, [width]);
 
     // @covers linalg::PolyMatrix::mat_vec_mul
-    bench_case!(c, "linalg/mat_vec_mul", mat_vec_mul, [width]);
+    bench_case!(c, "linalg/mat_vec_mul", mat_vec_mul, [mul_width]);
 
-    // The evaluation split's bilinear form, at its consumer's column count.
+    // The evaluation split's bilinear form, at REDUCED square shapes (module
+    // doc); two points because the case is quadratic in its parameter.
     // @covers linalg::PolyMatrix::split_form
-    bench_case!(c, "linalg/split_form", split_form, [hachi::params::ML_HIGH_LEN]);
+    bench_case!(c, "linalg/split_form", split_form, [4, 8]);
 
     // @covers linalg::flatten_blocks
     bench_case!(c, "linalg/flatten_blocks", flatten_blocks, [block]);

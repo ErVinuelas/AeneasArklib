@@ -13,14 +13,23 @@
 //!
 //! # Two families of size, and what each parameter means
 //!
-//! * `GADGET_DIGITS = 32` for the per-coefficient layer (`digit_at`, `base_pow`,
+//! * `GADGET_DIGITS = 8` for the per-coefficient layer (`digit_at`, `base_pow`,
 //!   `digit_decompose`, `gadget_entry`). For the two that take a digit index, the
 //!   row measures the **deepest** one, `digits - 1`: both are `O(e)` division or
 //!   multiplication chains, so index 0 would measure a loop that never runs.
-//! * `MESSAGE_ROWS = 4` for the three that take a row count (`gadget_matrix`,
-//!   `gadget_decompose`, `gadget_mul`). That is the message block shape the
-//!   scheme actually decomposes; `verify_weak` also calls `gadget_mul` at
+//! * `MESSAGE_ROWS = 1024` for `gadget_decompose` and `gadget_mul` -- the
+//!   message block shape the scheme actually decomposes (both are
+//!   coefficientwise, no full ring product, so they stay ~tens of ms at the
+//!   [NOZ26] Fig. 9 parameters); `verify_weak` also calls `gadget_mul` at
 //!   `INNER_ROWS`, which is smaller and covered by the same row.
+//! * a REDUCED row count for `gadget_matrix`, not the scheme's: the dense `G`
+//!   is `rows × (rows · digits)` ring elements, and at `MESSAGE_ROWS = 1024`
+//!   that is `2^23` elements of `RING_DEGREE = 1024` coefficients each,
+//!   ~64 GiB -- unbuildable, the same arithmetic class as `exclusions.toml`'s
+//!   Fig. 9 policy exception. The reduced size is recorded at the
+//!   registration; unlike the `ring::mul`-bound cases it returns with a
+//!   sparse or streamed `G`, not with the multiplication champion -- the cost
+//!   here is materialization, not arithmetic.
 //!
 //! `gadget_entry` measures the on-diagonal branch (`j / digits == i`), the one
 //! that does work: `Rq::constant(base_pow(j % digits))`. The off-diagonal branch
@@ -264,6 +273,9 @@ fn gadget_benches(c: &mut Criterion) {
 
     let digits = hachi::params::GADGET_DIGITS;
     let rows = hachi::params::MESSAGE_ROWS;
+    // REDUCED row count for the dense-`G` case only (module doc): 16 rows is
+    // `16 × 128` ring elements (~17 MiB) instead of the scheme's ~64 GiB.
+    let matrix_rows = 16;
 
     // @covers gadget::digit_at
     bench_case!(c, "gadget/digit_at", digit_at, [digits]);
@@ -275,7 +287,7 @@ fn gadget_benches(c: &mut Criterion) {
     bench_case!(c, "gadget/gadget_entry", gadget_entry, [digits]);
 
     // @covers gadget::gadget_matrix
-    bench_case!(c, "gadget/gadget_matrix", gadget_matrix, [rows]);
+    bench_case!(c, "gadget/gadget_matrix", gadget_matrix, [matrix_rows]);
     // @covers gadget::gadget_decompose
     bench_case!(c, "gadget/gadget_decompose", gadget_decompose, [rows]);
     // @covers gadget::gadget_mul

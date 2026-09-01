@@ -51,7 +51,9 @@ POSITIONAL_RE = re.compile(
 
 # The crate's modules, bottom-up (hachi/src/lib.rs). A criterion case is named
 # `<module>/<op>`, and a ledger row's `op` is that name or the bare module.
-MODULES = {"params", "ring", "linalg", "gadget", "commit"}
+# Keep in sync with `hachi/benches/harness.py § MODULES`: `evalsplit` was added
+# here when its promotion (2a0168f) reached the bench layer.
+MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit"}
 
 CANDIDATE_VERDICTS = {
     "accepted", "rejected-slower", "rejected-noise", "rejected-mixed",
