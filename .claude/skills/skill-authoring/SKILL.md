@@ -211,12 +211,14 @@ that contradicts a skill is a bug in the catalogue, not in the skill.
 * They are copies, not symlinks, because `.claude/skills/` is tracked and the
   aeneas checkout is not — a committed symlink would dangle on any fresh clone.
 * **The checkout to diff against is `hachi/.lake/packages/aeneas`**, which Lake
-  fetches at the rev `hachi/lakefile.lean` pins
-  (`nightly-2026.07.26-3a8586f`), and which carries the same
-  `documentation/skills/*.instructions.md` files. Those seven are byte-identical
-  between `864eddb4` and that pinned rev, so the headers are current — checked
-  with `git -C hachi/.lake/packages/aeneas diff 864eddb4 3a8586f --
-  documentation/skills/`, not assumed.
+  fetches at the rev `hachi/lakefile.lean` pins — the local 4.33 port
+  `6125cb9e`, one commit on top of upstream `3a8586f` that leaves
+  `documentation/skills/` untouched (`git -C hachi/.lake/packages/aeneas
+  diff --stat 3a8586f 6125cb9e -- documentation/skills/` is empty) — and
+  which carries the same `documentation/skills/*.instructions.md` files.
+  Those seven are byte-identical between `864eddb4` and `3a8586f`, so the
+  headers are current — checked with `git -C hachi/.lake/packages/aeneas
+  diff 864eddb4 3a8586f -- documentation/skills/`, not assumed.
 * **Refresh before editing** — the same shape as the aeneas pin policy: before
   any local edit to a vendored file, `git -C hachi/.lake/packages/aeneas fetch
   origin`, diff the file against upstream, refresh the copy and its header

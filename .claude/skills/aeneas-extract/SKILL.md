@@ -53,13 +53,23 @@ make extract CHARON=<path> AENEAS=<path>   # e.g. from a worktree, pointing at t
   `Generated.lean` is only valid against the Aeneas version that produced
   it, so the binaries, `AENEAS_TAG` and the `require aeneas` in
   `hachi/lakefile.lean` move together or not at all.
-* **Aeneas here is upstream and unforked**, unlike AeneasCompPoly's. This
-  nightly's Lean backend requires Lean/Mathlib v4.31.0, which is exactly
-  ArkLib's pin; AeneasCompPoly needs a fork only because CompPoly moved to
-  v4.32.0. So there is no fork to patch and no fork policy to pay back —
-  see `NOTES.md` § "Upstream aeneas, no fork". An ArkLib bump to v4.32.0
-  would flip this repository into AeneasCompPoly's situation and require an
-  aeneas release on that Mathlib.
+* **The Lean backend here is a local 4.33 port, one commit ahead of the
+  binaries' tag.** ArkLib main is on Lean/Mathlib v4.33.1 and upstream
+  aeneas releases stop at v4.31.0; the bridge is commit `6125cb9e` ("bump
+  to 4.33") in the sibling `../aeneas` checkout, exactly one commit on top
+  of upstream `3a8586f` = `AENEAS_COMMIT` — which is why `make setup`'s
+  descendant check reads the pin as "3a8586f + 1 commit(s)". The port's
+  regenerated builtins table is semantically identical to upstream's, so
+  the release binaries and the charon pin stay valid and `Generated.lean`
+  is a fixpoint under the port (extract formality on commit `6f30811`).
+  The source of truth is the comment on `require aeneas` in
+  `hachi/lakefile.lean`; the fuller record is `NOTES.md` § "Upstream
+  aeneas, no fork" (superseding entry). Until the port is published to a
+  public fork the require is a `file://` URL to the sibling checkout —
+  when that lands, move only the URL, keeping the rev pin. A rebase onto a
+  moved upstream rebuilds the extraction binaries and re-baselines the
+  extraction: a project decision with its own verify-campaign, never
+  maintenance (PLAN_PROTOCOL_LAYER.md, Decision 2).
 * `--include 'cpoly::_'` is not optional. See the next section.
 * Aeneas names the Lean module after the `.llbc` basename —
   `generated.llbc` is what makes `import Generated` resolve. Renaming the
