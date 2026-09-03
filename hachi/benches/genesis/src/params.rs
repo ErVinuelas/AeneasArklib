@@ -276,6 +276,7 @@ pub const ML_POLY_LEN: usize = 1_048_576;
 /// honest challenge `c = 1` has `‖1‖₁ = 1` and passes.
 pub const KAPPA: u64 = 32;
 
+// @genesis a898de7 2026-09-04 — params::OMEGA
 /// The `ℓ₁` bound `ω` on a *sampled* challenge: `ShortChallenge Φ ω`
 /// (`QuadEval/Reduction.lean`), the `ω` of [NOZ26] Fig. 9.
 ///
@@ -285,6 +286,7 @@ pub const KAPPA: u64 = 32;
 /// bound [`Z_BOUND`] is `2ʳ · ω · ⌊b/2⌋`.
 pub const OMEGA: u64 = 16;
 
+// @genesis a898de7 2026-09-04 — params::D_ROWS
 /// The number of `R_q` rows of the Hachi short-commitment matrix `D`
 /// (`PublicParamsD.dMatrix`, `QuadEval/Gadgets.lean`): `dRows`, the paper's
 /// `n_D`.
@@ -297,6 +299,7 @@ pub const OMEGA: u64 = 16;
 /// § "Keys and challenges are inputs, not constants").
 pub const D_ROWS: usize = 1;
 
+// @genesis a898de7 2026-09-04 — params::B_ZERO
 /// The zero-check range base `bZero`: the base in which the ring-switch
 /// quotient block is committed as digits (`rhoDigits`, `RingSwitch/RhoDigits.lean`)
 /// and the range the nested zero-check enforces on them.
@@ -310,6 +313,7 @@ pub const D_ROWS: usize = 1;
 /// proves that identity rather than naming the number twice.
 pub const B_ZERO: u64 = 16;
 
+// @genesis a898de7 2026-09-04 — params::CHAIN_GAMMA
 /// The composed chain's `ℓ∞` radius `γ` on the lifted witness: the
 /// `liftShort Φ γ bZero` bound (`RingSwitch/Reduction.lean`), and the `γ` slot of
 /// every `relOut` on the honest path.
@@ -323,6 +327,7 @@ pub const B_ZERO: u64 = 16;
 /// must say which.
 pub const CHAIN_GAMMA: u64 = 15;
 
+// @genesis a898de7 2026-09-04 — params::HALF_BASE
 /// `⌊b/2⌋ = 8`: the re-centring offset of a balanced digit, and the radius of
 /// the balanced digit box `S_b = [-8, 7]` (Eq. (20)).
 ///
@@ -334,6 +339,7 @@ pub const CHAIN_GAMMA: u64 = 15;
 /// [`CHAIN_GAMMA`]` = 15` and the weak-opening [`GAMMA`]` = 16`.
 pub const HALF_BASE: u64 = 8;
 
+// @genesis a898de7 2026-09-04 — params::BALANCED_SHIFT
 /// The balanced shift `⌊b/2⌋ · (1 + b + ⋯ + b^(δ−1)) = 8 · 286331153 =
 /// 2290649224 = 0x88888888`: what the message-digit balanced decomposition adds
 /// to a coefficient before taking its unsigned base-`b` digits, so that
@@ -349,6 +355,7 @@ pub const HALF_BASE: u64 = 8;
 /// constant here whose value is unique.
 pub const BALANCED_SHIFT: u64 = 2_290_649_224;
 
+// @genesis a898de7 2026-09-04 — params::Z_DIGITS
 /// The folded-witness digit count `τ`: the number of balanced base-`b` digits
 /// the response `ẑ = J⁻¹(z)` carries per coefficient (`zDigits` throughout
 /// `QuadEval/`, `jMatrix Φ base n zDigits`).
@@ -370,6 +377,7 @@ pub const BALANCED_SHIFT: u64 = 2_290_649_224;
 /// rather than a digits parameter. Also the `τ` inside [`BETA_SQ`].
 pub const Z_DIGITS: usize = 5;
 
+// @genesis a898de7 2026-09-04 — params::Z_BOUND
 /// The `ℓ∞` bound the bounded `z` decomposition is sized for: `zBound` of
 /// `hachiNonrecursive`, the honest `‖z‖∞ ≤ 2ʳ · ω · ⌊b/2⌋ = 2¹⁰ · 16 · 8 =
 /// 131072`.
@@ -384,6 +392,7 @@ pub const Z_DIGITS: usize = 5;
 /// `tests/params_semantics.rs` and `lean/Check.lean` § 1.
 pub const Z_BOUND: u64 = 131_072;
 
+// @genesis a898de7 2026-09-04 — params::Z_BALANCED_SHIFT
 /// The balanced shift of the `z` side: `⌊b/2⌋ · (1 + 16 + 16² + 16³ + 16⁴) =
 /// 8 · 69905 = 559240`, added to the *centred* representative of a coefficient
 /// before its five unsigned digits are taken (`boundedBalancedZmodDigit`,
@@ -397,6 +406,7 @@ pub const Z_BOUND: u64 = 131_072;
 /// `i64`/`u64` representative, which `commit.rs`'s norm code already computes.
 pub const Z_BALANCED_SHIFT: u64 = 559_240;
 
+// @genesis a898de7 2026-09-04 — params::RLIN_CW
 /// The carrier block width `cW = 2ʳ · messageDigits = 8192` of the Eq. (20)
 /// block system: the columns holding `ŵ` (`rlinCW`, `RingSwitch/Rlin.lean`).
 ///
@@ -404,6 +414,7 @@ pub const Z_BALANCED_SHIFT: u64 = 559_240;
 /// reason, relation checked.
 pub const RLIN_CW: usize = 8192;
 
+// @genesis a898de7 2026-09-04 — params::RLIN_CT
 /// The inner block width `cT = 2ʳ · (n_A · innerDigits) = 8192`: the columns
 /// holding `flatten t̂` (`rlinCT`).
 ///
@@ -412,6 +423,7 @@ pub const RLIN_CW: usize = 8192;
 /// the coincidence the reference implementation calls `reuse_mats`.
 pub const RLIN_CT: usize = 8192;
 
+// @genesis a898de7 2026-09-04 — params::RLIN_CZ
 /// The response block width `cZ = 2ᵐ · messageDigits · τ = 1024 · 8 · 5 =
 /// 40960`: the columns holding `ẑ` (`rlinCZ`).
 ///
@@ -420,6 +432,7 @@ pub const RLIN_CT: usize = 8192;
 /// reading and 32768 under the paper's `τ = 4`.
 pub const RLIN_CZ: usize = 40_960;
 
+// @genesis a898de7 2026-09-04 — params::RLIN_COLS
 /// The column count `μ₀` of the Eq. (20) block system, the width of the
 /// stacked witness `ζ = ŵ ++ (flatten t̂ ++ ẑ)` and of the lifted witness's
 /// message part: `rlinCols n_A δ δ τ m r` (`RingSwitch/Rlin.lean`).
@@ -429,6 +442,7 @@ pub const RLIN_CZ: usize = 40_960;
 /// the spec fixes). `81920` under `τ = 8`; `49152` under `τ = 4`.
 pub const RLIN_COLS: usize = 57_344;
 
+// @genesis a898de7 2026-09-04 — params::RLIN_ROWS
 /// The row count `n₀` of the Eq. (20) block system, the stacked rows
 /// `c1 ++ (c2 ++ (c3 ++ (c4 ++ c5)))`: `rlinRows n_A n_B n_D = n_D + (n_B + (1 +
 /// (1 + n_A))) = 5` (`RingSwitch/Rlin.lean`).
@@ -438,6 +452,7 @@ pub const RLIN_COLS: usize = 57_344;
 /// [`LIFT_COLS`] and the row count [`M_ONE`] must cover.
 pub const RLIN_ROWS: usize = 5;
 
+// @genesis a898de7 2026-09-04 — params::D_QUAD_COLS
 /// The column count of the QuadEval short-commitment matrix `D`:
 /// `blocks · messageDigits = 8192`, the width of the carrier decomposition `ŵ`
 /// it commits to (`PublicParamsD.dMatrix : Simple.PublicParams Φ dRows (blocks
@@ -448,6 +463,7 @@ pub const RLIN_ROWS: usize = 5;
 /// offset inside `ζ`.
 pub const D_QUAD_COLS: usize = 8192;
 
+// @genesis a898de7 2026-09-04 — params::LIFT_COLS
 /// The width of the ring-switch lift key and the row count of the lifted
 /// witness table: `μ₀ + n₀ · rhoDigitCount q bZero = 57344 + 5 · 8 = 57384`
 /// (`hachiLiftCom`'s `D : PublicParams 𝓜 dRows (μ₀ + n₀ · rhoDigitCount q
@@ -459,6 +475,7 @@ pub const D_QUAD_COLS: usize = 8192;
 /// under `τ = 8`.
 pub const LIFT_COLS: usize = 57_384;
 
+// @genesis a898de7 2026-09-04 — params::M_ZERO
 /// The sumcheck's variable count `m₀ = M + 1 = 26`: the cube `{0,1}^m₀` the
 /// digit-committed table is laid out on, hence the number of sumcheck rounds
 /// and the zero-check's first block width.
@@ -474,6 +491,7 @@ pub const LIFT_COLS: usize = 57_384;
 /// entries -- the second scale wall of PLAN_PROTOCOL_LAYER.md Risk 7.
 pub const M_ZERO: usize = 26;
 
+// @genesis a898de7 2026-09-04 — params::M_ONE
 /// The nested zero-check's second block width `m₁ = 3`: the cube `{0,1}^m₁`
 /// that indexes the `n₀` committed quotient rows.
 ///
