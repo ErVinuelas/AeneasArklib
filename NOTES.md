@@ -37,6 +37,34 @@ valid against the Aeneas version that produced it.
 situation and the fork (or a later upstream nightly) comes back. Move
 `lean-toolchain`, the `aeneas` rev and `AENEAS_TAG` together.
 
+### Superseded 2026-09-01: the local 4.33 port replaces "no fork"
+
+The title above is now false — the revisit condition fired, one version
+higher than predicted. ArkLib main merged `feat/hachi-completeness` and
+moved to Lean/Mathlib v4.33.1; upstream aeneas releases stop at v4.31.0,
+and upstream `main` is still there (checked 2026-08-31: 64 commits past
+`3a8586f`, no 4.33 coming). The bridge is our own port: commit `6125cb9e`
+("bump to 4.33") in the sibling `../aeneas` checkout, exactly one commit on
+top of upstream `3a8586f` — the same commit the pinned extraction binaries
+are built from. The regenerated builtins table was checked semantically
+identical to upstream's, so the release binaries and the charon pin stay
+valid, and the post-port extract formality on commit `6f30811` confirmed
+`Generated.lean` is a fixpoint under the port (`make extract` reported
+`unchanged`, 0 axioms, `make build` green).
+
+The comment on `require aeneas` in `hachi/lakefile.lean` is the source of
+truth now, not this section. Known residual: the require is a `file://` URL
+to the sibling checkout, so the build reproduces only on this machine until
+the port is published to a public fork — then move only the URL, keeping
+the rev pin (`lake update aeneas`).
+
+**To revisit (replaces the paragraph above):** a rebase onto a moved
+upstream is a project decision, never maintenance — upstream already has
+two charon bumps queued, so rebasing means rebuilding the extraction
+binaries and re-baselining the extraction under a verify-campaign. The
+trigger to even consider it: an extraction bug on a protocol-layer
+construct that upstream has fixed (PLAN_PROTOCOL_LAYER.md, Decision 2).
+
 ---
 
 ## The cpoly dependency
@@ -505,6 +533,19 @@ the superseding parameters entry. The fix is upstream: ArkLib PR #782's
 was not onboarded, § Workstream 2); adopting it is an ArkLib pin bump plus a
 gadget-layer re-verification.
 
+**Update 2026-09-01: the pin bump landed, and the resolution is a sibling,
+not a flip.** Commit `6f30811` moved the pin to merged main (`294b3f0b0`),
+which carries `balancedZmodDigitDecomposition` — and the composed protocol
+chain instantiates its message and z decompositions at it
+(`HonestChain.lean:350–351`). The adoption shape is settled the other way
+from the paragraph above's guess: the balanced layer is **added alongside**
+the unsigned one, and `gadget.rs` is never flipped — the 74 proved specs
+keep targeting `zmodDigitDecomposition 16 8`, which stays present and green
+at the pin because `InnerOuter/Scheme.lean` is decomposition-generic. The
+"gadget-layer re-verification" is thereby avoided by construction; the cost
+moves to a new balanced sibling surface instead (PLAN_PROTOCOL_LAYER.md,
+Decision 4, and § "Spec stability at the pin" under Workstream 3 below).
+
 ---
 
 ## One digit count, not two
@@ -526,6 +567,17 @@ two slots hold the same function, which is why `generate_decomps` calls one
 **To revisit:** a parameter set with `b > 2` could make the two digit counts differ
 (a wider gadget for the inner step trades digits for norm), at which point this
 becomes two constants and `generate_decomps` takes them as arguments.
+
+**Update 2026-09-03 — the protocol layer's third count, `zDigits` = τ, is
+*not* 8.** The `z`-decomposition's digit count was briefly read as a third
+copy of 8, by the same `q ≤ b ^ digits` argument, while ArkLib stated the
+`z`-gadget under `hqz : q ≤ b ^ zDigits`. ArkLib PR #847 removed that
+hypothesis (`BoundedDigitDecomposition`: the folded witness is
+deterministically short, so `τ` is sized from its bound, not from `q`) and
+fixed **τ = 5** for the `ℓ = 30` profile. So the message and inner counts are
+one constant (8) and `τ` is a genuinely different one (5) — see § "`BETA_SQ`
+corrected" under Workstream 3. (The `b = 2`/32 arithmetic above is pre-flip:
+at today's `b = 16` the two gadget counts are 8.)
 
 ---
 
@@ -1497,3 +1549,127 @@ errors (`sorry` warnings only) — the recorded proof debt of this onboarding;
 the module's `_control`, 4 by-name exclusions. Genesis and candidate slots hold
 the new items verbatim; stamps and the birth run wait on commit 1 per the
 op-genesis choreography.
+
+---
+
+# Workstream 3: the protocol layer
+
+## Spec stability at the pin, and the rules it imposes
+
+**Audit record, 2026-08-31 (file-level read of the pinned tree at
+`294b3f0b0`, then upstream `main`'s tip; recorded here 2026-09-01 as Stage 2
+of PLAN_PROTOCOL_LAYER.md opened).** Everything below was read from
+`hachi/.lake/packages/Arklib/ArkLib/Commitments/Functional/Hachi/` (45 Lean
+files); it fixes what the protocol-layer specs may be stated against. Four
+records, each with the rule it imposes.
+
+**Thirteen sorries, and the `Commitment.hachi` rule.** Twelve sorries sit in
+`Recursion/` — 6 in `PartialEval.lean`, 4 in `TraceHandoff.lean`, 2 in
+`ZBatchBridge.lean` — and one outside it: `Commitment.lean:199`, the
+recursive scheme instance's field `hachi.opening := sorry`, whose own
+docstring warns the field's *type* will change when it lands. Two of the
+Recursion sorries are documented in their docstrings as design gaps rather
+than proof debt: `TraceHandoff.lean:238` is "not merely unproven but false"
+as stated (:210), and `ZBatchBridge.lean:117` is "expected to be unprovable"
+as stated (:42, :105–106) — the eventual fills will churn protocol content,
+not just proofs. The saving grace: `Composition.lean` does not import
+`Recursion/`; the composed chain ends at `relWEvalClaim` and closes with
+`endPiece`, and `Recursion/Basic.lean`'s docstring itself says the adapters
+are not composed. **Rules:** the recursive tail is out of scope, and no spec
+of ours mentions `Commitment.hachi` — a sorried field whose type will move
+takes any statement through it along. Revisit only on a deliberate re-pin
+after `Recursion/` is sorry-free.
+
+**The composed chain is balanced; the proved bottom layer is unsigned.**
+`HonestChain.lean:350–351` and `Correctness.lean:384` instantiate the
+message and z decompositions at `balancedZmodDigitDecomposition`; our 74
+proved specs target the unsigned `zmodDigitDecomposition 16 8`, which stays
+green because `InnerOuter/Scheme.lean` is decomposition-generic. **Rule:**
+add the balanced sibling layer, never flip `gadget.rs` — the full record is
+the 2026-09-01 update under § "The digits are not balanced".
+
+**The upstream `sorryAx` line, for the Stage 7 claims ledger.** Every
+*composed* completeness theorem (`hachiNonrecursive*_perfectCorrectness`)
+inherits `sorryAx` from ArkLib's generic `Reduction.append_completeness`
+(`OracleReduction/Composition/Sequential/Append.lean`, 11 sorries, plus
+`LiftContext/Reduction.lean`); the soundness-side composition is claimed
+clean. **Rule:** our obligations are equivalence-to-*definitions*, so this
+taints ArkLib's meta-theorems and none of our specs — but every public claim
+must say which side of that line it sits on, and the comparison deliverable
+carries the split explicitly.
+
+**Keys and challenges are inputs, not constants.** The Ajtai lift key `D` is
+caller-supplied all the way through `Concrete.lean` (`hachiLiftCom`'s
+docstring: "a full treatment would sample it in `keygen`"), and the fold
+challenge sampler is carried as an undischarged
+`[SampleableType (ShortChallenge …)]` hypothesis (`Composition.lean:196`).
+**Rule:** the Rust protocol API takes `D` and the challenge streams as
+explicit arguments — no invented keygen, no baked-in randomness — which is
+also what keeps per-link equivalence provable for public-coin verifiers.
+
+## `BETA_SQ` corrected: τ = 5, not Fig. 9's τ = 4 (2026-09-03; supersedes an uncommitted τ = 8 reading of 2026-09-01)
+
+The stamped params work derived `BETA_SQ = quadEvalBetaSq γ b τ d m δ` at
+`τ = 4`, read off [NOZ26] Fig. 9's z-decomposition digit count. That τ is not
+instantiable in ArkLib, for a reason that was misdiagnosed once before being
+fixed upstream:
+
+* **The 2026-09-01 diagnosis (τ = 8) — never committed.** At pin `294b3f0b0`
+  every Hachi theorem instantiated `τ := zDigits` under
+  `hqz : q ≤ b ^ zDigits`, the `z`-gadget covering all of ℤ_q, which at
+  `b = 16` forces 8. A working session moved the literal to
+  `704250333132185328448176128` (≈ 2^89.2) on that reading. The reading was
+  faithful to the pin but the pin was wrong about `z`: the folded witness
+  `z = Σᵢ cᵢ sᵢ` is deterministically short (`‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋ = 131072`),
+  so demanding full coverage sizes the gadget from `q` when it should be
+  sized from that bound — PLAN_Z_SHORTNESS.md is the audit.
+* **The fix (ArkLib PR #847, `hachi-cleanup`, 2026-09-03).**
+  `BoundedDigitDecomposition` — a total, executable digit map whose
+  reconstruction law holds on short inputs only — replaces `hqz` with
+  `hcap : zBound ≤ balancedDigitCapacity b τ` through the whole chain
+  (`QuadEval/Reduction.lean`'s `honestComputeResp`/`zDecompBounded`,
+  `HonestChain.lean`, `Correctness.lean`, `Concrete.lean`), and
+  `Hachi/Params.lean` fixes the `ℓ = 30` profile at **τ = 5**: five balanced
+  base-16 digits carry `7·69905 = 489335 ≥ 131072`, four carry `7·4369 =
+  30583 < 131072` (`tau_minimal`). 30583 is exactly Fig. 9's `z` bound — the
+  paper's τ = 4 rests on a sharper statistical analysis ArkLib does not
+  formalize, so τ = 5 is the conservative, perfectly-complete choice
+  (PLAN_Z_SHORTNESS.md's Option B).
+
+The literal is now `41976510894886092800`
+(`= 4·(1024·8)·(1024·(69905·16)²)`, ≈ 2^65.2, fits u128); the honest bound
+`1887436800` sits under it by ~2.2·10¹⁰, so completeness never noticed any of
+the three values. `Hachi/Params.lean` names the same expression `betaSq`
+(`quadEvalBetaSq params.γ hachiB hachiTau d hachiM hachiDelta`), so on the
+re-pin to #847 `Check.lean` § 1 gains a name-binding row for it — at the
+current pin the check is the arithmetic only, and says so.
+
+Both `τ = 4` and `τ = 8` were wrong in the same way: βSq is the
+knowledge-soundness radius (Lemma 8 extracts openings only up to
+`quadEvalBetaSq(τ)`), and a verifier at any other radius either rejects
+extracted-grade openings the design must admit (τ = 4) or admits ones the
+extractor never produces (τ = 8). Equivalence-wise each simply targeted a βSq
+instantiation no composed theorem uses.
+
+Consequences, one reversed and one kept:
+
+* **The ℓ₂² branch is live again.** Under the τ = 8 reading the largest
+  representable `ℓ₂²`, `(1024·8)·1024·(q/2)² ≈ 3.9·10²⁵`, sat under
+  `βSq ≈ 7.0·10²⁶`, so `verify_weak`'s norm rejection could not fire and
+  `commit_semantics::an_overlong_message_decomposition_is_rejected` had lost
+  its witness. At τ = 5 (`βSq ≈ 4.2·10¹⁹`) the witness is long again: the
+  ignored full-scale test is back verbatim from the τ = 4 commit, its cheap
+  half lives as `the_l2_check_can_fire_at_these_dimensions`, and `Check.lean`
+  § 1 carries the strict inequality as an example.
+* **`√βSq ≈ 2^32.6 > q ≈ 2^32` still** — by 1.5× rather than 2^12.6× — so
+  the weak-binding hypothesis at this radius remains not SIS-instantiable at
+  Fig. 9's toy row count. This is ArkLib's ball-relaxed `γ̄ = b` at work
+  (PLAN_Z_SHORTNESS.md: the box-`γ` restatement would put it 1.3× under
+  `q`), not the translation. Owed to the Stage 7 claims ledger.
+
+**Rule:** τ's only appearance in the crate is inside the `BETA_SQ` literal;
+it is `HachiParams.hachiTau`, and it changes only when that upstream
+definition does — never by re-deriving it from a hypothesis (`hqz`) or a
+paper table (Fig. 9). The genesis mirror keeps the stamped τ = 4 value: no
+benched case reads `BETA_SQ` (`verify_weak` is excluded), so the baseline is
+not invalidated.
