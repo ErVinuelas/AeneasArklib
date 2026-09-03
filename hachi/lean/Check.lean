@@ -82,7 +82,7 @@ example : params.INNER_ROWS = 1#usize := by simp [params.INNER_ROWS]
 example : params.OUTER_ROWS = 1#usize := by simp [params.OUTER_ROWS]
 example : params.BLOCKS = 1024#usize := by simp [params.BLOCKS]
 example : params.GAMMA = 16#u64 := by simp [params.GAMMA]
-example : params.BETA_SQ = 163966054471565312#u128 := by simp [params.BETA_SQ]
+example : params.BETA_SQ = 41976510894886092800#u128 := by simp [params.BETA_SQ]
 example : params.KAPPA = 32#u64 := by simp [params.KAPPA]
 
 -- `RING_DEGREE` is a literal in Rust (a shift would extract as a `Result`; see
@@ -114,12 +114,19 @@ example : params.GADGET_BASE.val - 1 ≤ params.Q.val / 2 := by
 -- paper-parameter mapping (`QuadEval/Soundness.lean`, Hachi Lemma 8):
 -- `γ̄ = b` (the paper's `S_b` box relaxed to the symmetric `ℓ∞` ball) and
 -- `βSq = quadEvalBetaSq γ b τ d m δ` at `γ := b` --
--- `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with the paper's `τ = 4`
--- ([NOZ26] Fig. 9), the `z`-decomposition digit count, whose only appearance
--- in this crate is inside this derived literal. Both are literals in
--- `params.rs` (Aeneas models `const` arithmetic as fallible, so the derived
--- forms would extract as `Result`s), so the derivation is checked rather than
--- structural.
+-- `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with `τ = 5`, the folded-witness
+-- digit count of ArkLib's `ℓ = 30` profile (ArkLib PR #847,
+-- `Hachi/Params.lean`: `hachiTau`, and its `betaSq` is this same expression).
+-- Neither [NOZ26] Fig. 9's `τ = 4` (four balanced base-16 digits carry
+-- `30583 < 131072 = 2ʳ·ω·⌊b/2⌋`, the honest `‖z‖∞` bound ArkLib proves) nor
+-- the message digit count `δ = 8` (the `z`-gadget no longer has to cover all
+-- of `ℤ_q`: `BoundedDigitDecomposition` replaced `hqz : q ≤ b ^ zDigits`, and
+-- `16⁵ < q`). `τ`'s only appearance in this crate is inside this derived
+-- literal; the example below checks the arithmetic, and binding it to
+-- `HachiParams.betaSq` by name waits on the pin moving to #847. Both are
+-- literals in `params.rs` (Aeneas models `const` arithmetic as fallible, so
+-- the derived forms would extract as `Result`s), so the derivation is checked
+-- rather than structural.
 example : params.GAMMA.val = params.GADGET_BASE.val := by
   simp [params.GAMMA, params.GADGET_BASE]
 
@@ -127,16 +134,26 @@ example : params.BETA_SQ.val
     = 4 * ((params.MESSAGE_ROWS.val * params.GADGET_DIGITS.val)
         * (params.RING_DEGREE.val
             * ((1 + params.GADGET_BASE.val + params.GADGET_BASE.val ^ 2
-                + params.GADGET_BASE.val ^ 3) * params.GAMMA.val) ^ 2)) := by
+                + params.GADGET_BASE.val ^ 3 + params.GADGET_BASE.val ^ 4)
+                * params.GAMMA.val) ^ 2)) := by
   simp [params.BETA_SQ, params.MESSAGE_ROWS, params.GADGET_DIGITS, params.RING_DEGREE,
     params.GADGET_BASE, params.GAMMA]
 
 -- ... and the *honest* bounds sit strictly inside them: the honest
 -- decomposition's digit bound is `b - 1 = 15 < 16 = γ`
 -- (`gadgetDecompose_zmod_vecLInftyNorm_le`), and its `ℓ₂²` bound
--- `(messageRows · digits) · (deg φ) · (b-1)² = 1887436800` is ~8.7·10⁷ below
+-- `(messageRows · digits) · (deg φ) · (b-1)² = 1887436800` is ~2.2·10¹⁰ below
 -- `βSq` (`gadgetDecompose_zmod_vecL2NormSq_le`). The slack is the design: it
--- is what admits the protocol's *extracted* openings.
+-- is what admits the protocol's *extracted* openings -- and at `τ = 5` it is
+-- not total: the largest representable `ℓ₂²`, `(1024·8) · 1024 · (q/2)²
+-- ≈ 3.9·10²⁵`, exceeds `βSq ≈ 4.2·10¹⁹`, so the verifier's `ℓ₂²` branch is
+-- live (`commit_semantics.rs`'s overlong-message witness; the full-coverage
+-- `τ = 8` reading had it vacuous). What survives of that reading is thinner:
+-- `√βSq ≈ 2^32.6` still exceeds `q ≈ 2^32`, so weak binding at this radius is
+-- not SIS-instantiable at Fig. 9's toy row count -- recorded in `NOTES.md`,
+-- owed to the Stage 7 claims ledger.
+example : ¬ ((1024 * 8) * 1024 * (params.Q.val / 2) ^ 2 ≤ params.BETA_SQ.val) := by
+  simp [params.Q, params.BETA_SQ]
 example : params.GADGET_BASE.val - 1 < params.GAMMA.val := by
   simp [params.GADGET_BASE, params.GAMMA]
 
@@ -309,7 +326,7 @@ example (pp : commit.PublicParams) (u : linalg.PolyVec) (o : commit.Opening) : R
 -- would overflow -- i.e. *fail* in this model -- on inputs the verifier is
 -- supposed to reject rather than crash on.
 example (a : ring.Rq) : Result Std.U128 := commit.l2_norm_sq a
-example : params.BETA_SQ.val = 163966054471565312 := by simp [params.BETA_SQ]
+example : params.BETA_SQ.val = 41976510894886092800 := by simp [params.BETA_SQ]
 
 -- The evaluation-split layer. The two polynomial newtypes are `@[reducible]`
 -- `Vec` aliases like the three containers above -- two spec types

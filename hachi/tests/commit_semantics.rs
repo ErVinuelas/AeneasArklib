@@ -416,7 +416,7 @@ fn inadmissible_challenges_are_rejected() {
 }
 
 /// And the `ℓ₂²` check on the scaled message. At the weak-opening bound
-/// (`βSq = quadEvalBetaSq …` ≈ 1.64·10¹⁷) no *admissible challenge* can push an
+/// (`βSq = quadEvalBetaSq …` ≈ 4.20·10¹⁹) no *admissible challenge* can push an
 /// honest decomposition past it -- the slack is the design, checked in
 /// `params_semantics::beta_sq_admits_the_honest_decomposition` -- so the
 /// rejection witness is a *long message half*: a `Decomp` whose gadget
@@ -464,6 +464,19 @@ fn an_overlong_message_decomposition_is_rejected() {
         !verify_weak(&pp, &u, &opening),
         "an overlong message decomposition verified"
     );
+}
+
+/// The witness above exists: the largest `ℓ₂²` a block's scaled message can
+/// reach -- every centered coefficient at `q/2` -- exceeds `BETA_SQ`, so the
+/// `ℓ₂²` branch of `verify_weak` is live at these dimensions. (It would not be
+/// at the full-coverage `τ = 8`, where `βSq ≈ 7.0·10²⁶` sits above this
+/// maximum; see the `BETA_SQ` docstring for why `τ = 5`.) The cheap half of the
+/// ignored test, mirrored as a `Check.lean` § 1 example.
+#[test]
+fn the_l2_check_can_fire_at_these_dimensions() {
+    let max_l2_sq: u128 = (MESSAGE_ROWS * GADGET_DIGITS * RING_DEGREE) as u128
+        * u128::from(Q / 2).pow(2);
+    assert!(max_l2_sq > BETA_SQ);
 }
 
 // ---------------------------------------------------------------------------

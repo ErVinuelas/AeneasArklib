@@ -28,8 +28,9 @@
 //! Two honesty caveats on "the paper's parameters". First, this is the
 //! paper's *commitment and evaluation-split* parameter set only: the protocol
 //! layer is absent (`lib.rs` § Status), and with it Fig. 9's matrix `D`/`n_D`,
-//! the `z` bound 30583, and the sparse-challenge weight c = 16 (`τ = 4`
-//! appears solely inside `BETA_SQ`'s derived literal). Second, the gadget
+//! the `z` bound 30583, and the sparse-challenge weight c = 16 (`τ` appears
+//! solely inside `BETA_SQ`'s derived literal, at ArkLib's `τ = 5` rather than
+//! Fig. 9's 4 -- see that constant). Second, the gadget
 //! decomposition itself is **not** paper-faithful at `b = 16`: the paper uses
 //! balanced digits in `[-8, 7]`, while the pinned ArkLib
 //! (`zmodDigitDecomposition`) -- and therefore this crate -- uses unsigned
@@ -174,17 +175,32 @@ pub const GAMMA: u64 = 16;
 ///
 /// ```text
 /// 4 · (2^m · δ) · (d · ((Σ_{u<τ} b^u) · γ)²)
-///   = 4 · (1024 · 8) · (1024 · (4369 · 16)²) = 163966054471565312
+///   = 4 · (1024 · 8) · (1024 · (69905 · 16)²) = 41976510894886092800
 /// ```
 ///
-/// with `τ = 4` the paper's `z`-decomposition digit count ([NOZ26] Fig. 9).
-/// `τ` enters only this derived literal: the `z`-machinery itself is protocol
-/// layer and absent (see `lib.rs` § Status). This is the bound on the
-/// *extracted* `c̄ⱼ •ᵥ sⱼ` (a difference of two `z`-recompositions), which is
-/// why it dwarfs the honest case: the honest decomposition at `c = 1` sits at
-/// `(1024 · 8) · 1024 · 15² = 1887436800`, about 8.7 · 10⁷ times below the
+/// with `τ = 5`, the folded-witness digit count of ArkLib's `ℓ = 30` profile
+/// (ArkLib PR #847, `Hachi/Params.lean`: `hachiTau`, and its `betaSq` is this
+/// same expression) -- **not** [NOZ26] Fig. 9's `τ = 4`, and not the message
+/// digit count `δ = 8`. `τ` is sized from the honest folded witness
+/// `z = Σᵢ cᵢ sᵢ`, which is deterministically short, `‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋ =
+/// 131072`: five balanced base-16 digits carry up to `7 · Σ_{u<5} 16^u =
+/// 489335`, four carry only `30583` -- exactly Fig. 9's `z` bound, which rests
+/// on a sharper statistical analysis ArkLib does not formalize. (An interim
+/// `τ = 8` reading, forced while ArkLib still demanded `q ≤ b ^ zDigits` of
+/// the `z`-gadget, was never committed; `BoundedDigitDecomposition` removed
+/// that hypothesis -- NOTES.md § "`BETA_SQ` corrected".) `τ` enters only
+/// this derived literal: the `z`-machinery itself is protocol layer and
+/// absent (see `lib.rs` § Status). This is the bound on the *extracted*
+/// `c̄ⱼ •ᵥ sⱼ` (a difference of two `z`-recompositions), which is why it
+/// dwarfs the honest case: the honest decomposition at `c = 1` sits at
+/// `(1024 · 8) · 1024 · 15² = 1887436800`, about 2.2 · 10¹⁰ times below the
 /// bound. ArkLib deliberately states this as a squared-`ℓ₂` bound rather than
-/// the paper's `ℓ∞`-style `β̄ = 2·b^τ` (see `quadEvalZL2SqBound`).
+/// the paper's `ℓ∞`-style `β̄ = 2·b^τ` (see `quadEvalZL2SqBound`). One
+/// consequence to record rather than fix: `√βSq ≈ 2^32.6` still exceeds
+/// `q ≈ 2^32` (by 1.5×, where the `τ = 8` reading had 2^12.6×), so the
+/// weak-binding hypothesis at this radius is not SIS-instantiable at Fig. 9's
+/// toy row count -- a property of ArkLib's ball-relaxed `γ̄ = b`, not of this
+/// translation (see `NOTES.md`).
 ///
 /// A literal, for the reason [`GAMMA`] is one; the product it stands for is
 /// checked in `tests/params_semantics.rs` and `lean/Check.lean` § 1.
@@ -193,7 +209,7 @@ pub const GAMMA: u64 = 16;
 /// a single centered coefficient can be as large as `q/2`, so one squared
 /// coefficient approaches `2^62` and a vector of them overflows `u64`. See
 /// `commit::vec_l2_norm_sq`.
-pub const BETA_SQ: u128 = 163_966_054_471_565_312;
+pub const BETA_SQ: u128 = 41_976_510_894_886_092_800;
 
 /// The number of *low* (first) variables `nl` of the evaluation split: the
 /// `r` of Hachi [NOZ26] §4, `PolyEvalStatement`'s `xl` half.

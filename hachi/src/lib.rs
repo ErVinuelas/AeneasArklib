@@ -15,9 +15,12 @@
 //! zero-check, sumcheck, final evaluation) is deliberately absent: its ArkLib
 //! specification still has unfilled definitional parameters, so there is nothing
 //! stable to be equivalent *to* yet. Its Fig. 9 constants (`n_D`/matrix `D`,
-//! the `z` norm bound 30583, the sparse-challenge count `c = 16`) therefore
-//! have no counterpart in `params.rs` either; `τ = 4` appears in exactly one
-//! place, inside `BETA_SQ`'s derived weak-opening literal (see `params.rs`).
+//! the `z` norm bound 30583, the sparse-challenge count `c = 16`, and the
+//! digit count `τ = 4`) therefore have no counterpart in `params.rs` either.
+//! One `τ` does appear, in exactly one place -- inside `BETA_SQ`'s derived
+//! weak-opening literal -- and it is ArkLib's `τ = 5`, the folded-witness
+//! digit count of its `ℓ = 30` profile (ArkLib PR #847), not Fig. 9's 4 (see
+//! `params.rs` and NOTES.md § "`BETA_SQ` corrected").
 //!
 //! # Layout
 //!

@@ -2195,7 +2195,7 @@ def BlockVerifies (pp : commit.PublicParams) (o : commit.Opening) (j : ℕ) : Pr
   Rq.l1Norm Φ (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) ≤ 32 ∧
   vecL2NormSq Φ (ArkLib.Lattices.scalarVecMul
       (toRq (o.challenge.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-      (toVec (k := 1024 * 8) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) ≤ 163966054471565312 ∧
+      (toVec (k := 1024 * 8) (o.decomp.message.val.getD j (alloc.vec.Vec.new ring.Rq)))) ≤ 41976510894886092800 ∧
   gadgetMul Φ (16 : ZMod q)
       (toVec (k := 1 * 8) (o.decomp.inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)))
     = ArkLib.Lattices.matVecMul (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
@@ -2217,7 +2217,7 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
       ⦃ r => r = true ↔ ∀ j < 1024, BlockVerifies pp o j ⦄ := by
   have hir : (params.INNER_ROWS).val = 1 := by simp [params.INNER_ROWS]
   have hk : (params.KAPPA).val = 32 := by simp [params.KAPPA]
-  have hbs : (params.BETA_SQ).val = 163966054471565312 := by simp [params.BETA_SQ]
+  have hbs : (params.BETA_SQ).val = 41976510894886092800 := by simp [params.BETA_SQ]
   rw [commit.verify_weak_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
     (fun s => s.2.val ≤ 1024 ∧ (s.1 = true ↔ ∀ j < s.2.val, BlockVerifies pp o j))
@@ -2260,7 +2260,7 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
       have hpv1g : pv1 = o.decomp.inner_decomp.val.getD i1.val (alloc.vec.Vec.new ring.Rq) := by
         rw [hpv1, List.getD_eq_getElem _ _ hdlt]
       have hBV : BlockVerifies pp o i1.val ↔
-          (0 < cl1.val ∧ cl1.val ≤ 32 ∧ n2.val ≤ 163966054471565312 ∧ bb = true) := by
+          (0 < cl1.val ∧ cl1.val ≤ 32 ∧ n2.val ≤ 41976510894886092800 ∧ bb = true) := by
         rw [BlockVerifies, ← hcg, ← hpvg, ← hpv1g, ← hcl1, ← hsc, ← hn2, ← hrec, ← hinn, ← hbb]
       refine ⟨by scalar_tac, ?_, ?_⟩
       · rw [hi2, hok5, hok4, hok3, hok2, hb1]
@@ -2286,7 +2286,7 @@ theorem verify_weak_loop_spec (pp : commit.PublicParams) (o : commit.Opening)
 theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
     (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 1 u) (ho : WfDecomp o.decomp) :
     commit.verify_weak pp u o
-      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 41976510894886092800 16 32
         (toParams pp) (toVec (k := 1) u) (toOpening o) ⦄
 
 It is *false* in this model: `WfParams`, `WfVec 1 u` and `WfDecomp o.decomp` say
@@ -2305,9 +2305,10 @@ the failure a correctness test cannot see. The specification's `verify_weak` is
 itself `Bool`-valued (a `&&` of `List.all` over eagerly-`decide`d propositions),
 which is why no `decide` appears on either side.
 
-The three bounds are `params.rs`'s: `βSq = 1887436800`, `γ = 15`, `κ = 16`. They are
-the numbers `lean/Check.lean` § 1 ties to the extracted constants, so this
-statement and the Rust cannot disagree about them without that audit failing.
+The three bounds are `params.rs`'s: `βSq = 41976510894886092800`, `γ = 16`,
+`κ = 32`. They are the numbers `lean/Check.lean` § 1 ties to the extracted
+constants, so this statement and the Rust cannot disagree about them without that
+audit failing.
 
 *Statement modified*: the hypothesis `hoc : WfVec 1024 o.challenge` was added, since
 the verifier indexes and norms the challenge vector and nothing else in the
@@ -2316,7 +2317,7 @@ theorem verify_weak_spec (pp : commit.PublicParams) (u : linalg.PolyVec)
     (o : commit.Opening) (hpp : WfParams pp) (hu : WfVec 1 u) (hoc : WfVec 1024 o.challenge)
     (ho : WfDecomp o.decomp) :
     commit.verify_weak pp u o
-      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+      ⦃ r => r = InnerOuter.verify_weak Φ (16 : ZMod q) 41976510894886092800 16 32
         (toParams pp) (toVec (k := 1) u) (toOpening o) ⦄ := by
   have hg : (params.GAMMA).val = 16 := by simp [params.GAMMA]
   rw [commit.verify_weak]
@@ -2434,7 +2435,7 @@ the honest decompositions pass every check of `verify_weak`.
 
 The two shortness bounds sit strictly inside `params.rs`'s weak-opening values:
 with base `16` the honest decomposition has
-`‖sᵢ‖₂² ≤ (1024·8)·(deg φ)·(16-1)² = 1887436800 ≤ 163966054471565312 = βSq`
+`‖sᵢ‖₂² ≤ (1024·8)·(deg φ)·(16-1)² = 1887436800 ≤ 41976510894886092800 = βSq`
 (the extracted-opening bound `quadEvalBetaSq`, which dwarfs the honest case by
 design) and `‖t̂‖∞ ≤ 16 - 1 = 15 ≤ 16 = γ` (the weak-opening `γ̄ = b`). -/
 theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8)
@@ -2444,7 +2445,7 @@ theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8)
       = InnerOuter.generateDecomps Φ (InnerOuter.Decomposition.ofDigits Φ dd dd) P M)
     (hc : O.challenge = (fun _ => 1 : PolyVec (Rq Φ) 1024))
     (hU : U = InnerOuter.commitWithDecomps Φ P O.toDecomp) :
-    InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32 P U O = true := by
+    InnerOuter.verify_weak Φ (16 : ZMod q) 41976510894886092800 16 32 P U O = true := by
   have hdeg : 1 ≤ Φ.φ.natDegree := by rw [RqBridge.phi_natDegree]; norm_num
   have hlaw : ∀ x : PolyVec (Rq Φ) 1,
       gadgetMul Φ (16 : ZMod q) (gadgetDecompose Φ dd x) = x :=
@@ -2610,7 +2611,7 @@ theorem verify_loop_spec (m derived : alloc.vec.Vec linalg.PolyVec)
 equality of *decisions*.
 
 The right-hand side is the `verify` field's own body at this crate's parameters
-(`base = 16`, `βSq = 163966054471565312`, `γ = 16`, `κ = 32`), naming
+(`base = 16`, `βSq = 41976510894886092800`, `γ = 16`, `κ = 32`), naming
 `InnerOuter.derivedMessage` and `InnerOuter.verify_weak` rather than the bundled
 `commitmentScheme`; the section note above records why the bundle cannot be
 mentioned here and what that costs. -/
@@ -2622,7 +2623,7 @@ theorem verify_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec
       ⦃ r => r = ((List.finRange 1024).all (fun i =>
                     decide (InnerOuter.derivedMessage Φ (16 : ZMod q) (toOpening o).toDecomp i
                       = toVec (k := 1024) (m.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
-                  && InnerOuter.verify_weak Φ (16 : ZMod q) 163966054471565312 16 32
+                  && InnerOuter.verify_weak Φ (16 : ZMod q) 41976510894886092800 16 32
                       (toParams pp) (toVec (k := 1) u) (toOpening o)) ⦄ := by
   have hlm : m.val.length = 1024 := hm.1
   rw [commit.verify]

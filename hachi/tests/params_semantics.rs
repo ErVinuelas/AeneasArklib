@@ -161,13 +161,30 @@ fn digit_bound_side_condition_holds() {
 
 /// `BETA_SQ` is ArkLib's `quadEvalBetaSq γ b τ d m δ` at `γ := b` (Hachi
 /// Lemma 8's `4·B_z`, `QuadEval/Soundness.lean`):
-/// `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with the paper's `τ = 4`
-/// ([NOZ26] Fig. 9) -- `τ`'s only appearance in this crate. Also a literal,
+/// `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with `τ = 5`, the folded-witness
+/// digit count of ArkLib's `ℓ = 30` profile (ArkLib PR #847,
+/// `Hachi/Params.lean`): the least `τ` whose balanced capacity
+/// `(b-1-⌊b/2⌋)·Σ_{u<τ} b^u` holds the honest bound `‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋` --
+/// neither [NOZ26] Fig. 9's `τ = 4` nor the full-coverage `δ = 8` (see the
+/// `BETA_SQ` docstring). `τ`'s only appearance in this crate. Also a literal,
 /// for the same reason as `GAMMA`.
 #[test]
 fn beta_sq_is_the_weak_opening_bound() {
-    const TAU: u32 = 4;
-    let geom: u128 = (0..TAU).map(|u| u128::from(GADGET_BASE).pow(u)).sum();
+    const TAU: u32 = 5;
+    let b = u128::from(GADGET_BASE);
+    // `hcap`: the honest `z` bound `2ʳ·ω·⌊b/2⌋` (r = ML_VARS_LOW, ω = KAPPA/2)
+    // fits `τ` balanced digits -- and `τ` is minimal: four digits carry
+    // exactly Fig. 9's `z` bound 30583, which is below it.
+    let capacity = |t: u32| (b - 1 - b / 2) * (0..t).map(|u| b.pow(u)).sum::<u128>();
+    let honest_z_bound: u128 =
+        (1u128 << hachi::params::ML_VARS_LOW) * u128::from(hachi::params::KAPPA / 2) * (b / 2);
+    assert_eq!(honest_z_bound, 131_072);
+    assert!(honest_z_bound <= capacity(TAU));
+    assert_eq!(capacity(TAU - 1), 30_583);
+    assert!(capacity(TAU - 1) < honest_z_bound);
+    // ... and it is *not* a full-width decomposition of `ℤ_q`: `b^τ < q`.
+    assert!(b.pow(TAU) < u128::from(Q));
+    let geom: u128 = (0..TAU).map(|u| b.pow(u)).sum();
     let z_l2_sq =
         (MESSAGE_ROWS * GADGET_DIGITS) as u128 * (RING_DEGREE as u128 * (geom * u128::from(GAMMA)).pow(2));
     assert_eq!(BETA_SQ, 4 * z_l2_sq);
