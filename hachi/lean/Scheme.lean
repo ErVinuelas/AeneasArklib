@@ -690,6 +690,26 @@ the extracted constants. -/
 def dd : DigitDecomposition (R := ZMod q) (16 : ZMod q) 8 :=
   zmodDigitDecomposition 16 8 (by norm_num) (by norm_num)
 
+/-- **The unsigned digit bound**: each digit of `dd`, as a centered residue, has
+absolute value at most `b - 1 = 15` (the digit is a natural number `< 16 ≤ q/2`,
+so it does not wrap to a negative representative). This was ArkLib's
+`zmodDigit_natAbs_le` until PR #847 made the *balanced* digits the Hachi gadget
+inverse and dropped the unsigned norm lemmas; the proved unsigned layer here
+keeps it as the single analytic input to its shortness bounds, fed to ArkLib's
+surviving generic `gadgetDecompose_*_of_digit_le` forms. -/
+theorem dd_digit_natAbs_le (c : ZMod q) (e : Fin 8) :
+    (dd.digit c e).valMinAbs.natAbs ≤ 15 := by
+  simp only [dd, zmodDigitDecomposition]
+  set d := (Nat.digits 16 c.val).getD (e : ℕ) 0 with hd
+  have hdb : d < 16 := by
+    rcases lt_or_ge (e : ℕ) (Nat.digits 16 c.val).length with hlt | hge
+    · rw [hd, List.getD_eq_getElem _ _ hlt]
+      exact Nat.digits_lt_base (by norm_num) (List.getElem_mem _)
+    · rw [hd, List.getD_eq_default _ _ hge]; omega
+  rw [ZMod.valMinAbs_natCast_of_le_half (by show d ≤ 4294967197 / 2; omega)]
+  simp only [Int.natAbs_natCast]
+  omega
+
 /-- The loop of `gadget::digit_at`: after `i` divisions by 16 the remaining
 word is `c / 16ⁱ`. -/
 theorem digit_at_loop_spec (e : Std.Usize) (rest : Std.U64) (i : Std.Usize) (c0 : ℕ)
@@ -1438,8 +1458,14 @@ theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows
     apply Fin.ext
     show m.val % 8 + 8 * (m.val / 8) = m.val
     omega
-  have hgd := gadgetDecompose_apply Φ dd (toVec (k := rows) x)
-    ⟨m.val / 8, hi'lt⟩ ⟨m.val % 8, he'lt⟩
+  -- `gadgetDecompose Φ dd` is `gadgetDecomposeFun Φ dd.digit` by definition
+  -- (ArkLib PR #847 folded the per-`dd` `gadgetDecompose_apply` into it).
+  have hgd : gadgetDecompose Φ dd (toVec (k := rows) x)
+      (finProdFinEquiv (⟨m.val / 8, hi'lt⟩, ⟨m.val % 8, he'lt⟩))
+      = Rq.ofFinCoeff Φ Φ.φ.natDegree
+          (fun k => dd.digit ((toVec (k := rows) x ⟨m.val / 8, hi'lt⟩).1.coeff k)
+            ⟨m.val % 8, he'lt⟩) :=
+    gadgetDecomposeFun_apply Φ dd.digit (toVec (k := rows) x) _ _
   rw [hfp] at hgd
   rw [hgd]
   simp only [toVec]
@@ -2460,8 +2486,7 @@ theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8)
     · rw [Rq.l1Norm_one Φ hdeg]; norm_num
     · have hone : (1 : Rq Φ) •ᵥ O.message i = O.message i := by funext j; simp
       rw [hone]
-      have hb := gadgetDecompose_zmod_vecL2NormSq_le Φ (b := 16) (digits := 8) (rows := 1024)
-        (by norm_num) (by norm_num) (by norm_num) (M i)
+      have hb := gadgetDecompose_vecL2NormSq_le_of_digit_le Φ dd dd_digit_natAbs_le (M i)
       refine le_trans (le_of_eq ?_) (le_trans hb (by rw [RqBridge.phi_natDegree]; norm_num))
       rw [hD]
       rfl
@@ -2469,8 +2494,7 @@ theorem verify_weak_honest (P : InnerOuter.PublicParams Φ 1 1024 8 1 1024 8)
       exact hlaw _
   · rw [decide_eq_true_eq]
     refine vecLInftyNorm_flattenBlocks_le Φ _ (fun i => ?_)
-    have hb := gadgetDecompose_zmod_vecLInftyNorm_le Φ (b := 16) (digits := 8) (rows := 1)
-      (by norm_num) (by norm_num) (by norm_num)
+    have hb := gadgetDecompose_vecLInftyNorm_le_of_digit_le Φ dd dd_digit_natAbs_le
       (Simple.commit Φ P.innerMatrix (gadgetDecompose Φ dd (M i)))
     -- The honest bound is `b - 1 = 15`; the weak-opening `γ = b = 16` admits it
     -- with slack 1, hence the extra `le_trans` step.

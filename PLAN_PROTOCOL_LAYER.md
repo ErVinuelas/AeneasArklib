@@ -1,6 +1,11 @@
 # Plan: Rust generation + verification of the Hachi protocol layer, on merged ArkLib main
 
-Status: **updated 2026-09-01, Stage 2 IN PROGRESS** — the parallel-track
+Status: **updated 2026-09-03 — re-pinned to ArkLib PR #847 head `d51d8bc`
+(τ = 5, `BoundedDigitDecomposition`, balanced digits as *the* gadget
+inverse), `make build` green after three proof-internal repairs; Decision 4
+revised (⊕⊕); Stage 2's record committed (`68620ed`), its scoping tables
+still to be re-based on the new pin.** Below this line the text is the
+2026-09-01 revision — the parallel-track
 structure below is from the 2026-08-31 evening revision, which re-grounded
 the plan in a file-level audit of the pinned tree (`294b3f0b0`, then
 upstream `main`'s tip) and restructured the schedule around an explicit
@@ -228,6 +233,29 @@ on; anything that contradicts them later means the pin moved.
    spec is edited; `verify_weak_spec` needs no sibling. One new const,
    `BALANCED_SHIFT = 0x88888888`. Full surface: `STAGE2_SCOPING.md`
    § Decision 4.
+   ⊕⊕ **Revised 2026-09-03 — "add alongside" stays, "don't flip" goes: the
+   balanced functions become the public API.** ArkLib PR #847 (head
+   `d51d8bc`, the new pin) re-labels the unsigned `zmodDigitDecomposition`
+   as "the building block the balanced digits are shifted from, not itself a
+   Hachi gadget inverse", renames `commitBalanced` → `commit` (the unsigned
+   committer is deleted), and drops the unsigned norm lemmas
+   (`zmodDigit_natAbs_le`, `gadgetDecompose_zmod_vecLInftyNorm_le`,
+   `…_vecL2NormSq_le`) and `gadgetDecompose_apply`. The user's call: adapt
+   to that design. So target 1 is a *promotion*, not a sibling layer: the
+   balanced digit map and decomposition take the `gadget_decompose` /
+   `generate_decomps` / `commit` names (matching `Hachi.commit`), and the
+   proved unsigned `digit_at` becomes the primitive they are built from —
+   exactly upstream's structure. The 74 specs are untouched in content
+   (the unsigned instantiation still exists upstream; the three proof
+   sites that cited deleted lemmas were repaired at the re-pin with a
+   local `dd_digit_natAbs_le` and ArkLib's surviving `…_of_digit_le`
+   forms). What the promotion costs beyond the sibling plan is a rename
+   pass and re-pointing the headline `commit_spec` at the balanced
+   committer; what it buys is that Stage 5's composed `commit` *is* the
+   spec's `commit`, with no "which committer" footnote. The z side is
+   separate again: `boundedBalancedZmodDigit` at `τ = 5` (centre, shift by
+   `8·69905`, five digits) is target 1's second new function, and its
+   `gadget_*` siblings at `Z_DIGITS = 5 ≠ GADGET_DIGITS = 8` are target 2's.
 5. **Stage 6 budget** — by the calendar (internship end), not target
    speedup. Unchanged.
 6. **Multiplication champion timing** (new) — **recommend running route-r3

@@ -1607,6 +1607,73 @@ challenge sampler is carried as an undischarged
 explicit arguments — no invented keygen, no baked-in randomness — which is
 also what keeps per-link equivalence provable for public-coin verifiers.
 
+## Re-pin to ArkLib PR #847 (`d51d8bc`), and the unsigned layer becomes a primitive (2026-09-03)
+
+**What moved.** `hachi/lakefile.lean` now requires ArkLib at
+`d51d8bc3c22062bf21385bd15b39d390b0fe4584` — the head of PR #847
+(`hachi-cleanup`, a *draft*, branched from main at pin+17 and behind main by
+11 lint/perf commits at the time). A deliberate re-pin under PLAN_PROTOCOL_LAYER.md
+Decision 2, taken because Stage 3's first target is not defined at `294b3f0b0`:
+the pin's `z`-decomposition was full-width under `hqz : q ≤ b ^ zDigits`, and
+#847 replaces it with `BoundedDigitDecomposition` at `τ = 5` (see § "`BETA_SQ`
+corrected" below). Toolchain and Mathlib did not move (`lake update Arklib`:
+"toolchain not updated", Mathlib cache "No files to download"); only the
+`Arklib` rows of `lake-manifest.json` changed. `Generated.lean` is untouched —
+it depends on the Rust and the Aeneas pin, not on ArkLib. Expect one more
+re-pin, to the merge SHA, when #847 lands (it is still moving: 4 commits in a
+day).
+
+**What the pin's second day changed.** Commit `eab7eaa32` ("unbalanced digits
+& docs") *demotes* the unsigned decomposition: `zmodDigitDecomposition`'s
+docstring now reads "the building block the balanced digits are shifted from,
+not itself a Hachi gadget inverse"; `commitBalanced` is renamed `commit` and
+the unsigned committer is deleted; and the unsigned norm lemmas
+`zmodDigit_natAbs_le`, `gadgetDecompose_zmod_vecLInftyNorm_le`,
+`gadgetDecompose_zmod_l2NormSq_le`, `gadgetDecompose_zmod_vecL2NormSq_le`,
+plus `gadgetDecompose_apply`, `gadgetDecompose_eq_fun` and
+`DigitDecomposition.toBounded`, are gone. `zmodDigitDecomposition` itself,
+`gadgetDecompose`, `gadgetDecompose_lawful`, `gadgetDecompose_coeff` and the
+generic `gadgetDecompose_{vecLInftyNorm,l2NormSq,vecL2NormSq}_le_of_digit_le`
+survive.
+
+**Repair bill: three proof sites, no statement changed.** All 74 specs
+typecheck as stated; the edits are proof-internal.
+
+* `Scheme.lean` (`gadget_decompose_spec`'s index bookkeeping):
+  `gadgetDecompose_apply Φ dd …` → `gadgetDecomposeFun_apply Φ dd.digit …`,
+  stated at `gadgetDecompose` (which is `gadgetDecomposeFun Φ dd.digit` by
+  definition, so the term is accepted unchanged).
+* `Scheme.lean` (`verify_weak_honest`, both norm conjuncts): the two
+  `_zmod_` lemmas → the surviving `…_of_digit_le` forms at a new local
+  `dd_digit_natAbs_le : (dd.digit c e).valMinAbs.natAbs ≤ 15` — a verbatim
+  copy of the deleted `zmodDigit_natAbs_le`, specialised to `dd`, kept next
+  to `def dd`. The unsigned layer now owns its one analytic input.
+* `Check.lean` § 1: three comments that named the deleted lemmas.
+
+`make build`: 3496 jobs, no errors, no `sorry`; § 4's `#print axioms` lines
+unchanged.
+
+**Decision 4 revised: promote, don't shadow.** With upstream calling the
+balanced digits *the* gadget inverse and shipping a balanced-only `commit`,
+"add the balanced layer alongside, never flip" would leave the public Rust
+`gadget_decompose`/`commit` on a decomposition the spec no longer treats as
+Hachi's. The user's call (2026-09-03): adapt. Target 1 becomes a
+**promotion** — the balanced digit map and decomposition take the
+`gadget_decompose` / `generate_decomps` / `commit` names, matching
+`Hachi.commit`, and the proved unsigned `digit_at` becomes the primitive they
+are built from, exactly upstream's own structure. The 74 specs keep their
+content (the unsigned instantiation still exists upstream as a building
+block); the cost over the sibling plan is a rename pass plus re-pointing the
+headline `commit_spec` at the balanced committer. Full note:
+PLAN_PROTOCOL_LAYER.md Decision 4 ⊕⊕.
+
+**Stale until folded.** `STAGE2_SCOPING.md` and the six briefs were read at
+`294b3f0b0`; the τ = 5 deltas (μ₀ 57344, lift width 57384, m₀ 26,
+`Z_BOUND = honestZBound = 131072`, `Z_DIGITS = 5 ≠ GADGET_DIGITS`), the
+promotion shape, and the deleted-lemma citations (`rhoDigitsShortCheck_eq_true_of_digitBaseOk`,
+`hachiLiftCom_com`, `balancedDigit_valMinAbs_mem`) are owed to them along
+with `briefs/STAGE2_CORRECTIONS.md`.
+
 ## `BETA_SQ` corrected: τ = 5, not Fig. 9's τ = 4 (2026-09-03; supersedes an uncommitted τ = 8 reading of 2026-09-01)
 
 The stamped params work derived `BETA_SQ = quadEvalBetaSq γ b τ d m δ` at

@@ -103,10 +103,11 @@ example : params.Q.val ≤ params.GADGET_BASE.val ^ params.GADGET_DIGITS.val := 
 example : params.GADGET_BASE.val ^ (params.GADGET_DIGITS.val - 1) < params.Q.val := by
   simp [params.Q, params.GADGET_BASE, params.GADGET_DIGITS]
 
--- `Gadget/Norms.lean`'s `zmodDigit_natAbs_le` -- the single analytic input to
--- every honest-case shortness bound -- additionally needs `b - 1 ≤ q/2`, which is
--- what stops a small non-negative digit from wrapping to a negative centered
--- representative.
+-- The unsigned digit bound `zmodDigit_natAbs_le` (ours, in `Scheme.lean`: ArkLib
+-- dropped it when the balanced digits became the gadget inverse, PR #847) -- the
+-- single analytic input to every honest-case shortness bound of the proved
+-- unsigned layer -- additionally needs `b - 1 ≤ q/2`, which is what stops a small
+-- non-negative digit from wrapping to a negative centered representative.
 example : params.GADGET_BASE.val - 1 ≤ params.Q.val / 2 := by
   simp [params.Q, params.GADGET_BASE]
 
@@ -141,9 +142,10 @@ example : params.BETA_SQ.val
 
 -- ... and the *honest* bounds sit strictly inside them: the honest
 -- decomposition's digit bound is `b - 1 = 15 < 16 = γ`
--- (`gadgetDecompose_zmod_vecLInftyNorm_le`), and its `ℓ₂²` bound
--- `(messageRows · digits) · (deg φ) · (b-1)² = 1887436800` is ~2.2·10¹⁰ below
--- `βSq` (`gadgetDecompose_zmod_vecL2NormSq_le`). The slack is the design: it
+-- (`gadgetDecompose_vecLInftyNorm_le_of_digit_le` at `zmodDigit_natAbs_le`), and
+-- its `ℓ₂²` bound `(messageRows · digits) · (deg φ) · (b-1)² = 1887436800` is
+-- ~2.2·10¹⁰ below `βSq` (`gadgetDecompose_vecL2NormSq_le_of_digit_le`, same
+-- digit bound). The slack is the design: it
 -- is what admits the protocol's *extracted* openings -- and at `τ = 5` it is
 -- not total: the largest representable `ℓ₂²`, `(1024·8) · 1024 · (q/2)²
 -- ≈ 3.9·10²⁵`, exceeds `βSq ≈ 4.2·10¹⁹`, so the verifier's `ℓ₂²` branch is

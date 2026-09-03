@@ -39,7 +39,7 @@ require aeneas from git
 -- lakefile, and Lake matches on it. The *library* inside it is `ArkLib`, which is
 -- what the `import ArkLib.…` lines in `lean/` name.
 require Arklib from git
-  "https://github.com/Verified-zkEVM/ArkLib.git" @ "294b3f0b0f46e1485c878a217e9de764855f5915"
+  "https://github.com/Verified-zkEVM/ArkLib.git" @ "d51d8bc3c22062bf21385bd15b39d390b0fe4584"
 
 package «HachiEquiv» where
 
