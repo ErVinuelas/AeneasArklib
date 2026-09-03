@@ -1,5 +1,11 @@
 # Corrections to `STAGE2_SCOPING.md`, from the six target briefs (2026-09-01)
 
+> **Folded into `STAGE2_SCOPING.md` on 2026-09-03** (marks ⊗⊗), after the τ
+> work landed at **τ = 5** (ArkLib PR #847, not the τ = 4 § 6 anticipated nor
+> the τ = 8 the tree carried). Kept as the index of evidence; § 6's
+> "if `Z_DIGITS = 4` lands" arithmetic applies with 5 in place of 4:
+> μ₀ = 57344, `RLIN_CZ` = 40960, m₀ = 26, and target 2's `_z` siblings return.
+
 **Provenance.** Produced by the six `arklib-analyze` briefs in this directory,
 one per Stage 3 target, all read against the pinned ArkLib rev
 `294b3f0b0f46e1485c878a217e9de764855f5915`. Every item below is the brief's

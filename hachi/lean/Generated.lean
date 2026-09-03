@@ -111,7 +111,7 @@ def cpoly.field.Fp.Insts.CoreOpsArithNegFp.neg
   ok i1
 
 /-- [hachi::params::Q]
-    Source: 'src/params.rs', lines 52:0-52:33
+    Source: 'src/params.rs', lines 67:0-67:33
     Visibility: public -/
 @[global_simps, irreducible] def params.Q : Std.U64 := 4294967197#u64
 
@@ -144,7 +144,7 @@ def ring.Rq.coeff
   else ok cpoly.field.Fp.ZERO
 
 /-- [hachi::params::RING_DEGREE]
-    Source: 'src/params.rs', lines 89:0-89:36
+    Source: 'src/params.rs', lines 104:0-104:36
     Visibility: public -/
 @[global_simps, irreducible] def params.RING_DEGREE : Std.Usize := 1024#usize
 
@@ -561,7 +561,7 @@ def commit.Opening.impl.challenge
   linalg.PolyVec.get self.challenge i
 
 /-- [hachi::params::MESSAGE_ROWS]
-    Source: 'src/params.rs', lines 125:0-125:37
+    Source: 'src/params.rs', lines 142:0-142:37
     Visibility: public -/
 @[global_simps, irreducible] def params.MESSAGE_ROWS : Std.Usize := 1024#usize
 
@@ -693,12 +693,12 @@ def ring.Rq.zero : Result ring.Rq := do
   ok out
 
 /-- [hachi::params::GADGET_DIGITS]
-    Source: 'src/params.rs', lines 114:0-114:35
+    Source: 'src/params.rs', lines 131:0-131:35
     Visibility: public -/
 @[global_simps, irreducible] def params.GADGET_DIGITS : Std.Usize := 8#usize
 
 /-- [hachi::params::GADGET_BASE]
-    Source: 'src/params.rs', lines 98:0-98:32
+    Source: 'src/params.rs', lines 115:0-115:32
     Visibility: public -/
 @[global_simps, irreducible] def params.GADGET_BASE : Std.U64 := 16#u64
 
@@ -1474,23 +1474,23 @@ def commit.commit
   ok (u, decomp)
 
 /-- [hachi::params::KAPPA]
-    Source: 'src/params.rs', lines 274:0-274:26
+    Source: 'src/params.rs', lines 293:0-293:26
     Visibility: public -/
 @[global_simps, irreducible] def params.KAPPA : Std.U64 := 32#u64
 
 /-- [hachi::params::BETA_SQ]
-    Source: 'src/params.rs', lines 212:0-212:53
+    Source: 'src/params.rs', lines 231:0-231:53
     Visibility: public -/
 @[global_simps, irreducible]
 def params.BETA_SQ : Std.U128 := 41976510894886092800#u128
 
 /-- [hachi::params::GAMMA]
-    Source: 'src/params.rs', lines 167:0-167:26
+    Source: 'src/params.rs', lines 186:0-186:26
     Visibility: public -/
 @[global_simps, irreducible] def params.GAMMA : Std.U64 := 16#u64
 
 /-- [hachi::params::INNER_ROWS]
-    Source: 'src/params.rs', lines 134:0-134:32
+    Source: 'src/params.rs', lines 151:0-151:32
     Visibility: public -/
 @[global_simps, irreducible] def params.INNER_ROWS : Std.Usize := 1#usize
 
@@ -1771,7 +1771,7 @@ def commit.verify
     else ok false
 
 /-- [hachi::params::ML_LOW_LEN]
-    Source: 'src/params.rs', lines 240:0-240:35
+    Source: 'src/params.rs', lines 259:0-259:35
     Visibility: public -/
 @[global_simps, irreducible] def params.ML_LOW_LEN : Std.Usize := 1024#usize
 
@@ -2090,7 +2090,7 @@ def evalsplit.MlPoly.get
   alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) self k
 
 /-- [hachi::params::ML_HIGH_LEN]
-    Source: 'src/params.rs', lines 247:0-247:36
+    Source: 'src/params.rs', lines 266:0-266:36
     Visibility: public -/
 @[global_simps, irreducible] def params.ML_HIGH_LEN : Std.Usize := 1024#usize
 
@@ -2205,7 +2205,7 @@ def evalsplit.MlPoly.eval_split
   linalg.PolyMatrix.split_form m bl bh
 
 /-- [hachi::params::ML_POLY_LEN]
-    Source: 'src/params.rs', lines 253:0-253:41
+    Source: 'src/params.rs', lines 272:0-272:41
     Visibility: public -/
 @[global_simps, irreducible]
 def params.ML_POLY_LEN : Std.Usize := 1048576#usize
@@ -2690,39 +2690,131 @@ def linalg.PolyMatrix.cols (self : linalg.PolyMatrix) : Result Std.Usize := do
     linalg.PolyVec.len pv
 
 /-- [hachi::params::EXT_DEGREE]
-    Source: 'src/params.rs', lines 59:0-59:32
+    Source: 'src/params.rs', lines 74:0-74:32
     Visibility: public -/
 @[global_simps, irreducible] def params.EXT_DEGREE : Std.Usize := 4#usize
 
 /-- [hachi::params::EXT_W]
-    Source: 'src/params.rs', lines 65:0-65:25
+    Source: 'src/params.rs', lines 80:0-80:25
     Visibility: public -/
 @[global_simps, irreducible] def params.EXT_W : Std.U64 := 2#u64
 
 /-- [hachi::params::RING_LOG_DEGREE]
-    Source: 'src/params.rs', lines 76:0-76:38
+    Source: 'src/params.rs', lines 91:0-91:38
     Visibility: public -/
 @[global_simps, irreducible] def params.RING_LOG_DEGREE : Std.Usize := 10#usize
 
 /-- [hachi::params::OUTER_ROWS]
-    Source: 'src/params.rs', lines 141:0-141:32
+    Source: 'src/params.rs', lines 158:0-158:32
     Visibility: public -/
 @[global_simps, irreducible] def params.OUTER_ROWS : Std.Usize := 1#usize
 
 /-- [hachi::params::BLOCKS]
-    Source: 'src/params.rs', lines 148:0-148:31
+    Source: 'src/params.rs', lines 165:0-165:31
     Visibility: public -/
 @[global_simps, irreducible] def params.BLOCKS : Std.Usize := 1024#usize
 
 /-- [hachi::params::ML_VARS_LOW]
-    Source: 'src/params.rs', lines 222:0-222:34
+    Source: 'src/params.rs', lines 241:0-241:34
     Visibility: public -/
 @[global_simps, irreducible] def params.ML_VARS_LOW : Std.Usize := 10#usize
 
 /-- [hachi::params::ML_VARS_HIGH]
-    Source: 'src/params.rs', lines 231:0-231:35
+    Source: 'src/params.rs', lines 250:0-250:35
     Visibility: public -/
 @[global_simps, irreducible] def params.ML_VARS_HIGH : Std.Usize := 10#usize
+
+/-- [hachi::params::OMEGA]
+    Source: 'src/params.rs', lines 318:0-318:26
+    Visibility: public -/
+@[global_simps, irreducible] def params.OMEGA : Std.U64 := 16#u64
+
+/-- [hachi::params::D_ROWS]
+    Source: 'src/params.rs', lines 330:0-330:28
+    Visibility: public -/
+@[global_simps, irreducible] def params.D_ROWS : Std.Usize := 1#usize
+
+/-- [hachi::params::B_ZERO]
+    Source: 'src/params.rs', lines 343:0-343:27
+    Visibility: public -/
+@[global_simps, irreducible] def params.B_ZERO : Std.U64 := 16#u64
+
+/-- [hachi::params::CHAIN_GAMMA]
+    Source: 'src/params.rs', lines 356:0-356:32
+    Visibility: public -/
+@[global_simps, irreducible] def params.CHAIN_GAMMA : Std.U64 := 15#u64
+
+/-- [hachi::params::HALF_BASE]
+    Source: 'src/params.rs', lines 367:0-367:29
+    Visibility: public -/
+@[global_simps, irreducible] def params.HALF_BASE : Std.U64 := 8#u64
+
+/-- [hachi::params::BALANCED_SHIFT]
+    Source: 'src/params.rs', lines 382:0-382:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.BALANCED_SHIFT : Std.U64 := 2290649224#u64
+
+/-- [hachi::params::Z_DIGITS]
+    Source: 'src/params.rs', lines 403:0-403:30
+    Visibility: public -/
+@[global_simps, irreducible] def params.Z_DIGITS : Std.Usize := 5#usize
+
+/-- [hachi::params::Z_BOUND]
+    Source: 'src/params.rs', lines 417:0-417:33
+    Visibility: public -/
+@[global_simps, irreducible] def params.Z_BOUND : Std.U64 := 131072#u64
+
+/-- [hachi::params::Z_BALANCED_SHIFT]
+    Source: 'src/params.rs', lines 430:0-430:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.Z_BALANCED_SHIFT : Std.U64 := 559240#u64
+
+/-- [hachi::params::RLIN_CW]
+    Source: 'src/params.rs', lines 437:0-437:32
+    Visibility: public -/
+@[global_simps, irreducible] def params.RLIN_CW : Std.Usize := 8192#usize
+
+/-- [hachi::params::RLIN_CT]
+    Source: 'src/params.rs', lines 445:0-445:32
+    Visibility: public -/
+@[global_simps, irreducible] def params.RLIN_CT : Std.Usize := 8192#usize
+
+/-- [hachi::params::RLIN_CZ]
+    Source: 'src/params.rs', lines 453:0-453:34
+    Visibility: public -/
+@[global_simps, irreducible] def params.RLIN_CZ : Std.Usize := 40960#usize
+
+/-- [hachi::params::RLIN_COLS]
+    Source: 'src/params.rs', lines 462:0-462:36
+    Visibility: public -/
+@[global_simps, irreducible] def params.RLIN_COLS : Std.Usize := 57344#usize
+
+/-- [hachi::params::RLIN_ROWS]
+    Source: 'src/params.rs', lines 471:0-471:31
+    Visibility: public -/
+@[global_simps, irreducible] def params.RLIN_ROWS : Std.Usize := 5#usize
+
+/-- [hachi::params::D_QUAD_COLS]
+    Source: 'src/params.rs', lines 481:0-481:36
+    Visibility: public -/
+@[global_simps, irreducible] def params.D_QUAD_COLS : Std.Usize := 8192#usize
+
+/-- [hachi::params::LIFT_COLS]
+    Source: 'src/params.rs', lines 492:0-492:36
+    Visibility: public -/
+@[global_simps, irreducible] def params.LIFT_COLS : Std.Usize := 57384#usize
+
+/-- [hachi::params::M_ZERO]
+    Source: 'src/params.rs', lines 507:0-507:29
+    Visibility: public -/
+@[global_simps, irreducible] def params.M_ZERO : Std.Usize := 26#usize
+
+/-- [hachi::params::M_ONE]
+    Source: 'src/params.rs', lines 518:0-518:27
+    Visibility: public -/
+@[global_simps, irreducible] def params.M_ONE : Std.Usize := 3#usize
 
 /-- [hachi::ring::{hachi::ring::Rq}::len]:
     Source: 'src/ring.rs', lines 141:4-143:5

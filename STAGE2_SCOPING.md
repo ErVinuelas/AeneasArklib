@@ -7,6 +7,20 @@ and the doc-sync list. Each section names its consumer, matching the plan's
 item list. Sections marked ⏳ are being filled from the parallel audit
 agents' reports.
 
+> **Re-based 2026-09-03 on ArkLib PR #847 (pin `d51d8bc`).** Everything
+> below was audited at `294b3f0b0`. Two things moved since: (i) the τ
+> question closed — upstream decoupled the folded-witness digit count from
+> δ (`BoundedDigitDecomposition`) and fixed **τ = 5** in `Hachi/Params.lean`
+> (not 4, not 8; NOTES.md § "`BETA_SQ` corrected"), and (ii) upstream
+> demoted the unsigned decomposition to a building block and renamed
+> `commitBalanced` → `commit`, so Decision 4 is **revised** (promotion, not
+> siblings — PLAN_PROTOCOL_LAYER.md Decision 4 ⊕⊕). Corrections from those
+> two facts and from the six briefs (`briefs/STAGE2_CORRECTIONS.md`, now
+> folded in) are marked **⊗⊗** and supersede the text they sit next to; the
+> superseded text is kept where it records *why* a value was once believed.
+> `file:line` citations are at `294b3f0b0` unless marked otherwise; re-read
+> them at `d51d8bc` before relying on one.
+
 Stage 2 exit criteria (from the plan): ordered, dependency-closed target
 list with briefs and scale policies; Decisions 3–4 settled with the user;
 params.rs extended, its checks green, extraction diff params-only; NOTES.md
@@ -19,12 +33,14 @@ records the audit.
 | Spec-stability record | NOTES.md | **done** — NOTES.md § "Spec stability at the pin" (Workstream 3) + the 2026-09-01 update under § "The digits are not balanced" |
 | Decision 3 instance audit | TE work list | **done** — Ext4 ratified; the instance gap is one verified one-liner, SampleableType avoidable |
 | Decision 4 minimal surface | target 1's brief | **done** — all three guesses confirmed, surface smaller than feared, zero spec edits |
-| Parameter mapping | params.rs extension | **audited** (16–18 consts, values resolved); the code edit is **deferred until the bench commit lands** (see below) |
+| Parameter mapping | params.rs extension | **landed 2026-09-03** — 18 consts at τ = 5, name-bound to `Hachi/Params.lean` in `Check.lean` § 1; table below ⊗⊗ |
 | API mapping (HachiRuntime walk) | Stage 3/5 signatures | **done** — argument classification, wire order, per-link signatures, S1–S7 |
 | Erasure catalogue | Stage 3 briefs | **done** — one no-precedent shape found, resolved as an opt not a probe |
 | Ordered target list + scale policies | Stage 3 | **done** — below |
-| Per-target `arklib-analyze` briefs (6) | Stage 3 | **open** — the main remaining Stage 2 work |
-| Doc-sync list | the wave | recorded below; 3 of 6 done, 3 deferred to the params landing |
+| Per-target `arklib-analyze` briefs (6) | Stage 3 | **done 2026-09-01** — `briefs/`; their corrections folded here 2026-09-03 (⊗⊗) |
+| Doc-sync list | the wave | **done** — items 4–6 rode the params landing |
+| Decision 4 | target 1 | ⊗⊗ **revised 2026-09-03**: balanced = public API, unsigned = primitive (see § Decision 4) |
+| Re-pin | everything | **done 2026-09-03** — `d51d8bc` (PR #847 head, draft); three proof-internal repairs, `make build` green (NOTES.md § "Re-pin to ArkLib PR #847") |
 
 **Plan corrections produced** (all folded back into
 PLAN_PROTOCOL_LAYER.md, marked ⊕): Decision 3 cheaper than costed;
@@ -61,6 +77,14 @@ protocol params.rs extension → gate: at that last step the
 simultaneously; before resuming any Rust-side work here, re-read
 `params.rs` and `git status` rather than trusting a cached view.
 
+⊗⊗ **All landed (2026-09-03), in a different order than planned:** the
+bench commit went first (`60f2d69`, `39f9d5d`); the `BETA_SQ` fix landed
+at **τ = 5**, not the τ = 8 the paragraph above describes (`342ebba` —
+the τ = 8 value was never committed); this record (`68620ed`); the re-pin
+to PR #847's head; then the params.rs extension, whose `Generated.lean`
+diff was checked to be exactly the 18 new `def params.*` lines plus
+`Source:` line shifts. The coordination hazard is over: one session.
+
 ## Doc-sync list
 
 Done now (docs only, no extraction impact):
@@ -75,9 +99,12 @@ Done now (docs only, no extraction impact):
    updated: Lake now fetches the port commit `6125cb9e`, which leaves
    `documentation/skills/` untouched (diff checked, empty).
 
-Deferred — these are Rust docstring edits, and a docstring edit moves
-`Generated.lean` (NOTES.md § "An Aeneas surprise"); they ride the params.rs
-extension landing so there is exactly one regeneration to audit:
+⊗⊗ Done 2026-09-03, riding the params.rs landing as planned (one
+regeneration, audited params-only). Items 4 and 5 were rewritten rather
+than softened: the protocol layer is now "absent as code, present as
+parameters", and the digit caveat states the promotion (unsigned = the
+spec's building block, balanced = the gadget inverse target 1 promotes to
+the public names). Original wording of the three items:
 
 4. **`hachi/src/lib.rs` § Status** (line ~16): "specification still has
    unfilled definitional parameters" is stale post-merge — the protocol
@@ -213,6 +240,51 @@ arithmetic — the `rfl` fact above). `verify_weak_spec` needs **no** sibling
 the Rust must do the **field** add of the shift (wrap mod q), never raw u64;
 `BALANCED_SHIFT` joins the literal-collision watchlist.
 
+⊗⊗ **Revised 2026-09-03 — promotion, not siblings.** ArkLib PR #847
+(`eab7eaa32`) re-documents `zmodDigitDecomposition` as "the building block
+the balanced digits are shifted from, not itself a Hachi gadget inverse",
+renames `commitBalanced` → `commit` (deleting the unsigned committer), and
+drops the unsigned norm lemmas (`zmodDigit_natAbs_le`,
+`gadgetDecompose_zmod_vecLInftyNorm_le`, `…_l2NormSq_le`,
+`…_vecL2NormSq_le`) plus `gadgetDecompose_apply`, `gadgetDecompose_eq_fun`
+and `DigitDecomposition.toBounded`; `balancedDigit_valMinAbs_mem`
+(`RhoDigits.lean`) is gone too. The user's call: adapt. Consequences for
+the table above:
+
+* The *names* flip. `balanced_digit_at` / `balanced_gadget_decompose` /
+  `generate_decomps_balanced` / `commit_balanced` become the public
+  `gadget_decompose` / `generate_decomps` / `commit` (matching the spec's
+  `Hachi.commit`), and today's unsigned functions become the primitives
+  they wrap — `digit_at` keeps its name (it *is* the spec's building
+  block); the unsigned `gadget_decompose`/`generate_decomps`/`commit`
+  survive under primitive names (`_unsigned` or module-private) because the
+  74 proved specs are stated against them and `InnerOuter/Scheme.lean` is
+  still decomposition-generic. Sizes unchanged from the table; one rename
+  pass added; `commit_spec` re-pointed at the balanced committer becomes
+  the headline.
+* The unsigned layer now owns its one analytic input: `dd_digit_natAbs_le`
+  in `hachi/lean/Scheme.lean` (a verbatim copy of the deleted upstream
+  lemma), feeding ArkLib's surviving generic `…_of_digit_le` forms. The
+  three proof sites that cited deleted lemmas were repaired at the re-pin.
+* **A second digit function joins target 1.** The `z` side no longer
+  instantiates `balancedZmodDigitDecomposition` at `zDigits`; it uses
+  `boundedBalancedZmodDigit b τ x e =
+  ((Nat.digits b (x.valMinAbs + ⌊b/2⌋·S).toNat).getD e 0) − ⌊b/2⌋`,
+  `S = digitOnesValue b τ` (`Gadget/Core.lean`, PR #847) — *centre first*
+  (`valMinAbs`, which `commit.rs`'s norm code already mirrors), shift in
+  `ℤ` by `Z_BALANCED_SHIFT = 8·69905 = 559240`, clamp with `Int.toNat`,
+  then `τ = 5` unsigned digits, minus 8. Its reconstruction law is
+  conditional on `‖x‖ ≤ Z_BOUND` (`BoundedDigitDecomposition`), so its spec
+  is an implication, not an equation — the `Prop`-side hypothesis travels
+  on the `_spec`. Rust sketch: `bounded_z_digit_at(c, e)` over the centred
+  `i64` representative. Consumers: target 2's `zDecompBounded`
+  (`bddZ.gadgetDecompose`) at width `Z_DIGITS = 5`.
+* `DigitBaseOk`'s "tautology" consequence
+  (`rhoDigitsShortCheck_eq_true_of_digitBaseOk`) was deleted upstream as
+  dead code. The check still translates verbatim (target 6); only the
+  cited lemma is gone — a Stage 7 claims-ledger note, not a translation
+  change.
+
 ## Parameter mapping (audited 2026-09-01)
 
 Consumer: the params.rs extension. **Cross-validation note:** this audit
@@ -229,8 +301,48 @@ the two contested quantities — `zDigits = 8` (not τ = 4) and
 (`Composition.lean:286–293`). HachiRuntime's (7, 3, 2, 3) is toy
 throughout — no value from it is usable.
 
-**New constants (16–18 rows).** Full table with per-row test and
-Check.lean sketches is in the audit report; the shape:
+⊗⊗ **Landed 2026-09-03 at τ = 5, 18 constants** (`hachi/src/params.rs`
+§ "The protocol layer"; `tests/params_semantics.rs`, 27 tests; `Check.lean`
+§ 1 `section ProtocolParams`). The table below is the *landed* one; the
+audit's original τ = 8 table follows it for the record.
+
+| Name | Type | Value | Ties to (`Check.lean` § 1) |
+|---|---|---|---|
+| `OMEGA` | u64 | 16 | `HachiParams.hachiOmega`; `KAPPA = 2·OMEGA` |
+| `D_ROWS` | usize | 1 | `HachiParams.hachiN` (n_D) |
+| `B_ZERO` | u64 | 16 | `HachiParams.params.bZero` |
+| `CHAIN_GAMMA` | u64 | 15 | `HachiParams.params.γ` (= `B_ZERO − 1`, = `GAMMA − 1`) |
+| `HALF_BASE` | u64 | 8 | `GADGET_BASE / 2` |
+| `BALANCED_SHIFT` | u64 | 2 290 649 224 | `⌊b/2⌋ · digitOnesValue 16 8` (= `balancedShift 16 8` in ℕ, `< q`) |
+| `Z_DIGITS` | usize | **5** | `HachiParams.hachiTau` |
+| `Z_BOUND` | u64 | **131 072** | `HachiParams.honestZBound`; `hcap` (≤ capacity 5), `¬hcap` at 4 (= 30583), `16^5 < q` |
+| `Z_BALANCED_SHIFT` | u64 | 559 240 | `⌊b/2⌋ · digitOnesValue 16 5` (`digitOnesValue_eq`) |
+| `RLIN_CW` / `RLIN_CT` / `RLIN_CZ` | usize | 8192 / 8192 / **40 960** | `rlinCW 8 10`, `rlinCT 1 8 10`, `rlinCZ 8 5 10` |
+| `RLIN_COLS` (μ₀) | usize | **57 344** | `HachiParams.mu0` (`mu0_eq`) |
+| `RLIN_ROWS` (n₀) | usize | 5 | `rlinRows 1 1 1` |
+| `D_QUAD_COLS` | usize | 8192 | `blocks · messageDigits` (`PublicParamsD.dMatrix` width) |
+| `LIFT_COLS` | usize | **57 384** | `HachiParams.liftKeyWidth` (`liftKeyWidth_eq`); `rhoDigitCount q 16 = GADGET_DIGITS` proved via `clog_eq_delta` |
+| `M_ZERO` (m₀ = M+1) | usize | **26** | `sumcheckWidthAtProfile{,_minimal}` at M = 25; coverage + minimality |
+| `M_ONE` (m₁) | usize | 3 | **exception**: coverage `n₀ ≤ 2^m₁` + minimality only — ArkLib names no value |
+
+Dropped from the audit's list: `RHO_DIGIT_COUNT` (contradiction 1 of the
+briefs — it equals `GADGET_DIGITS`; the identity is a Check row, not a
+const), `TAU` (a second name for `Z_DIGITS`), and `CHALLENGE_WEIGHT` (no
+ArkLib expression *and* no consumer in translated code: the spec sees a
+challenge only through `‖c‖₁ ≤ ω`; corpus sparsity is a bench-side knob,
+recorded in `params.rs`'s module doc). Net: the F4 exception list shrinks
+from four rows to **one** (`M_ONE`) — `Z_BOUND`, `M_ZERO` and `BETA_SQ`
+gained ArkLib names in `Params.lean`, and `BETA_SQ`'s Check row is now
+adjacent to the named `betaSq` (the "bonus win" below, realized).
+Literal-collision watchlist at τ = 5: value 16 = `GADGET_BASE`, `GAMMA`,
+`B_ZERO`, `OMEGA`; value 8 = `GADGET_DIGITS`, `HALF_BASE` (unrelated
+quantities); value 8192 = `RLIN_CW`, `RLIN_CT`, `D_QUAD_COLS`; value 1 =
+`INNER_ROWS`, `OUTER_ROWS`, `D_ROWS`; value 5 = `Z_DIGITS`, `RLIN_ROWS`
+(new, unrelated: τ vs n₀); value 15 = `CHAIN_GAMMA` and the unsigned digit
+ceiling `b − 1`. Rewrite hypotheses, never goals.
+
+**The audit's original table (τ = 8 reading, superseded — kept for the
+record of what moved):**
 
 | Name | Value | Ties to |
 |---|---|---|
@@ -257,7 +369,21 @@ Check.lean sketches is in the audit report; the shape:
   (weak-opening γ̄ = b). Different ArkLib quantities differing by 1; every
   Check entry must cite which. Confirms the API walk's S7 and settles the
   naming.
-* **F2 — τ vs zDigits — ⊗ CORRECTED 2026-09-01: there is only one τ, and
+* **F2 — ⊗⊗ SUPERSEDED 2026-09-03: one τ, and it is 5.** The 2026-09-01
+  correction below was right that τ and `zDigits` are one quantity and
+  wrong about its value, because it read the value off a hypothesis
+  (`hqz : q ≤ b ^ zDigits`) that PR #847 removed: the `z` gadget is a
+  `BoundedDigitDecomposition` sized from the honest bound `‖z‖∞ ≤ 131072`,
+  and five balanced digits (capacity 489335) is the least that fits
+  (`tau_minimal`); Fig. 9's four carry exactly 30583, the paper's own `z`
+  bound, under a statistical analysis ArkLib does not formalize. `BETA_SQ`
+  is `41976510894886092800` = `HachiParams.betaSq`. Consequence for target
+  2: `Z_DIGITS = 5 ≠ GADGET_DIGITS = 8`, so the "loses a refactor" verdict
+  in § Cross-audit contradiction reverses — the `gadget_*` functions stay
+  hard-wired to `GADGET_DIGITS` and the `J` side gets `_z` siblings at
+  `Z_DIGITS` (additive; never re-parameterize the four frozen functions).
+  Original entry:
+  **τ vs zDigits — ⊗ CORRECTED 2026-09-01: there is only one τ, and
   it is `zDigits = 8`.** This entry previously said τ = 4 was correct
   *inside* the weak-opening `BETA_SQ`, with the two τ's to be reconciled by
   a comment. That is wrong, and `BETA_SQ` was wrong with it. Direct check
@@ -290,20 +416,29 @@ Check.lean sketches is in the audit report; the shape:
   **15**: `CHAIN_GAMMA` and the honest unsigned digit ceiling `b − 1`.
   Plus the existing 1024 cluster. Proof discipline: rewrite hypotheses,
   never goals.
-* **F4 — two constants have no ArkLib expression**: `Z_BOUND` and
+* **F4 — ⊗⊗ reduced to one row (2026-09-03).** `Z_BOUND` is now
+  `honestZBound`; `M_ZERO`'s coverage + minimality are ArkLib's own
+  `sumcheckWidthAtProfile{,_minimal}`; `CHALLENGE_WEIGHT` was not
+  introduced. Only `M_ONE` keeps the exception (coverage `n₀ ≤ 2^m₁` and
+  minimality, no named value), recorded at the constant and in
+  `Check.lean` § 1's section header. Original entry: **two constants have
+  no ArkLib expression**: `Z_BOUND` and
   `CHALLENGE_WEIGHT` are paper/reference-impl provenance only, so the
   house rule's "Check.lean entry proving the literal equals the ArkLib
   expression" is *unsatisfiable* for them — their entries can only be
   arithmetic identities plus an explicit provenance comment. `M_ZERO` and
   `M_ONE` have no closed form either: ArkLib leaves them free under
   inequalities, so their entries prove coverage + minimality, not
-  equality. **This is a house-discipline exception that needs recording
-  where the discipline is stated.**
-* **F6 — Check.lean technique**: the clog-valued entries cannot go
+  equality.
+* **F6 — Check.lean technique** ⊗⊗ (as landed): the clog fact is
+  imported, not re-proved — `HachiParams.clog_eq_delta` rewritten at the
+  literals discharges `rhoDigitCount q 16 = GADGET_DIGITS`; every other
+  named tie is `rw [<Params.lean>_eq]; simp [params.X]`. One import,
+  `ArkLib.Commitments.Functional.Hachi.Params` (which pulls the chain).
+  Original note: the clog-valued entries cannot go
   through bare `simp`/`decide` at q ≈ 4.3e9; use the
   `Nat.clog_le_iff_le_pow` + `omega` pinning pattern
-  (`HachiRuntime.lean:146–150`). Check.lean also gains imports
-  (`QuadEval.Soundness`, `RingSwitch.Rlin`/`RhoDigits`).
+  (`HachiRuntime.lean:146–150`).
 
 **Bonus win available**: tying `BETA_SQ`'s Check entry to the *named*
 `quadEvalBetaSq` for the first time (today it is an unnamed recomputation
@@ -360,10 +495,15 @@ challenges.
 y_prime, w}`. New params.rs consts implied: `D_ROWS`, `B_ZERO`,
 `GAMMA_LIFT`, `OMEGA`, `Z_DIGITS`, `M0`, `M1`, `MU0`, `N0`,
 `TABLE_WIDTH` (cross-check against the parameter-mapping audit).
+⊗⊗ Landed names: `D_ROWS`, `B_ZERO`, `CHAIN_GAMMA`, `OMEGA`, `Z_DIGITS`,
+`M_ZERO`, `M_ONE`, `RLIN_COLS`, `RLIN_ROWS`, `LIFT_COLS`. The composed
+opening's signature also gains `hcap`/`zBound` on the spec side
+(`hachiNonrecursiveOpening … (hcap : zBound ≤ balancedDigitCapacity P.b τ)`),
+which the Rust discharges statically from `Z_BOUND`/`Z_DIGITS`.
 
 **Surprises (S1–S7), each with a consequence:**
 
-* **S1 — `zDigits` = δ = 8, not the paper's τ = 4.** The scheme discharges
+* **S1 — ⊗⊗ superseded: `zDigits` = τ = 5 (PR #847), neither δ nor Fig. 9's 4; `μ₀ = 57344`.** Original: `zDigits` = δ = 8, not the paper's τ = 4.** The scheme discharges
   `hqz : q ≤ b^zDigits` via `Nat.le_pow_clog` (`Correctness.lean:510–516`);
   τ = 4 fails it at Fig. 9 (16⁴ < q). The plan's mapping list ("τ = 4")
   maps to **8** for the composed chain; `μ₀ = 81920`. ⊗ **CORRECTED
@@ -393,7 +533,8 @@ y_prime, w}`. New params.rs consts implied: `D_ROWS`, `B_ZERO`,
   the composed chain's `P.γ` pins to `bZero − 1 = 15`
   (`HonestChain.lean:188–193`). Two consts, near-identical values — the
   literal-collision pitfall class. Name the new one `GAMMA_LIFT` (or
-  similar) and rewrite hypotheses, not goals, in proofs.
+  similar) and rewrite hypotheses, not goals, in proofs. ⊗⊗ Landed as
+  `CHAIN_GAMMA`.
 
 Confirmations: lift key caller-supplied ✓; balanced digits on the composed
 path ✓; `relOut` c6 is the ℓ∞ ≤ γ ball relaxation, so Rust range checks are
@@ -430,6 +571,13 @@ currently on the list" needs amending.**
 
 ### An unlisted prerequisite step
 
+⊗⊗ Brief 4 sharpened both prerequisites: (A) the `noncomputable` marker on
+`hAlpha`/`hAlphaEvals` has a single cause and `cEvalAt_eq_evalAt_toPoly`
+alone repairs it (`rhoDigits_evalAt` is orthogonal); (B) the
+CMvPolynomial→dense rewrite must be **additive** — deleting the type
+orphans the degree theorems at `Constraints.lean:1082,1097`. Brief 4 also
+found `cEvalAt` at mixed carrier is an unowned minor variant.
+
 **`hAlpha`/`hAlphaEvals` are `noncomputable` at the pin**
 (`Constraints.lean:176, 213` — Mathlib `evalAt ∘ toPoly` in the digit
 term). A computable Lean sibling is a prerequisite target 4 step the plan
@@ -462,6 +610,34 @@ direct precedent (`eval_lagrange`), not a new implementation.
 5. `computableRoundPoly`'s "2^k counter loop with bit extraction" is right
    for the **outer sum only**; the summand carries the CMvPolynomial gap.
 
+⊗⊗ From the briefs (2026-09-01, folded 2026-09-03):
+
+6. **The naive sumcheck monomial count is `(2b+1)^m₀ = 33^m₀`, not
+   `(bZero+1)^m₀`** — ArkLib's `scripts/HachiRuntime.lean:37` undercounts
+   it, against that file's own `roundDegZero b = 2b`. At `b = 16` the naive
+   form is impossible at *every* `m₀ ≥ 5`, so target 5's exclusion of it is
+   unconditional, not scale-dependent.
+7. "No bit machinery survives" is false on the `m₁` side
+   (`Constraints.lean:858,890`) — benign, it is cpoly's `lagrange_basis`.
+8. **A `Prop`-relation → `Bool` shape is missing from the catalogue**
+   (target 2's `relOut` conjuncts): the corresponding `_spec` is an iff,
+   not an equality. The bounded `z` decomposition adds a sibling shape:
+   a reconstruction law *conditional* on a norm bound, so its spec carries
+   the bound as a hypothesis.
+9. **The sumcheck verifier needs an explicit degree check** that the
+   subtype erasure silently drops (`RoundMsg`'s degree bound) — a
+   correctness item, not a performance one.
+10. Two translation traps that cost 3× if translated literally:
+    `roundProver.output` recomputes the dominant term twice more (target
+    5), and `endPieceCheck`'s conjunct B2 is quadratic in `d` (41.9 M
+    `balancedDigit` calls) purely from the spec's `∀i∀u∀k` nesting (target
+    6).
+11. `hachi/src` docstring citations of ArkLib went stale under the pin
+    bumps by a different offset per file (`Gadget/Core.lean` +36 at
+    `294b3f0b0`, more at `d51d8bc`; `Vectors.lean` +6;
+    `NormBounds/Basic.lean` +30). A refresh pass regenerates
+    `Generated.lean`, so it rides a target landing.
+
 ### Minor variants (precedented in shape, new in coefficient type or sign)
 
 Plain non-negacyclic growing-degree polynomial **mul over Fp** for
@@ -472,7 +648,20 @@ signed one); an **Ext4 power loop** for `alphaTilde`. None is
 probe-level. `Nat.clog` is not translatable at all — params-literal
 discipline, as already planned.
 
-### Cross-audit contradiction, resolved by direct check
+### Cross-audit contradiction, resolved by direct check — ⊗⊗ and re-resolved the other way
+
+⊗⊗ **2026-09-03: the erasure audit's risk note was right after all,
+one digit off.** `zDigits = τ = 5 ≠ GADGET_DIGITS = 8` at the new pin
+(`Hachi/Params.lean`, `hachiTau`). The section below correctly showed that
+at `294b3f0b0` the value was 8 *because of `hqz`*; PR #847 removed `hqz`,
+and the consequence reverses: **target 2 regains the refactor**, as
+additive `_z` siblings of `gadget_matrix`/`gadget_mul`/`gadget_decompose`
+at `Z_DIGITS` (brief 2 item 8: the reused pieces are `gadget_mul` /
+`gadget_decompose`, not `gadget_matrix`) — never a digits parameter on the
+frozen four. And the `J`-side decomposition is the *bounded* one
+(`zDecompBounded`, § Decision 4 ⊗⊗). The `m₀` remark also moves: at τ = 5,
+`LIFT_COLS·d = 57384·1024 = 58 761 216`, `2²⁵ < that ≤ 2²⁶`, so **m₀ = 26**
+(`M = 25`, `sumcheckWidthAtProfile`). The 2026-09-01 text:
 
 The erasure audit's risk notes asserted `zDigits = τ = 4 ≠
 GADGET_DIGITS = 8`, forcing a re-parameterization of the currently
@@ -511,12 +700,12 @@ audits; ⊕ marks a change from the plan's Stage 3 table.
 
 | # | Target | Size | ⊕ Change from the plan |
 |---|---|---|---|
-| 1 | balanced digit layer | ≈ evalsplit **or less** | ⊕ core is a 3-line wrapper over the proved `digit_at` (`rfl`-equal upstream); bulk is one mechanical `balanced_gadget_decompose` copy; `rhoDigitCount` needs no const (= `GADGET_DIGITS`) |
-| 2 | QuadEval fold | similar–larger | ⊕ **loses a refactor**: zDigits = 8 = `GADGET_DIGITS`, so `gadget_*` stay hardwired. `InSb` signed-box check is a new minor variant |
-| 3 | ring-switch | similar | unchanged; all shapes precedented (`flatten_blocks`, `gadget_entry`, `vec_l_infty_norm`) |
+| 1 | balanced digit layer | ≈ evalsplit | ⊕ core is a 3-line wrapper over the proved `digit_at` (`rfl`-equal upstream); bulk is one mechanical `balanced_gadget_decompose` copy; `rhoDigitCount` needs no const (= `GADGET_DIGITS`). ⊗⊗ **promotion, not siblings** (§ Decision 4): a rename pass, `commit_spec` re-pointed at the balanced committer; **plus a second digit map**, `boundedBalancedZmodDigit` at τ = 5 (centre → shift by `Z_BALANCED_SHIFT` → clamp → 5 digits − 8), with a conditional spec. Its two `ring::mul`-bound commit-path functions inherit the Fig. 9 exclusion (brief 1 refinement) |
+| 2 | QuadEval fold | similar–larger | ⊕ ~~loses a refactor~~ ⊗⊗ **regains it**: `Z_DIGITS = 5 ≠ GADGET_DIGITS`, so `gadget_mul`/`gadget_decompose` get `_z` siblings (additive); `honestComputeResp` takes the bounded `z` decomposition (`zDecompBounded`), `jMatrix` is `8192 × 40960`. `InSb` signed-box check is a new minor variant; `relOut` conjuncts are `Prop`→`Bool` (iff specs). Its honest-path *tests* need target 1's balanced digits, so `{1 ∥ 2}` holds for code only |
+| 3 | ring-switch | similar | unchanged; all shapes precedented (`flatten_blocks`, `gadget_entry`, `vec_l_infty_norm`). ⊗⊗ `lift_message` needs its own REDUCED note (W3, allocation), `liftShortCheck` at real consts carries 640 MiB resident `z`; `liftShortCheck`/`rhoDigitsShortCheck` live in `endpiece.rs` per § API mapping (the row here is scale policy only) |
 | 4 | zero-check | larger | ⊕ **+2 prerequisites**: a computable `hAlpha` Lean sibling (bridging lemmas exist at the pin), and the CMvPolynomial→dense-form opt. ⊖ **offset**: cpoly's proved MLE toolkit covers `wTableMleEval` directly |
 | 5 | sumcheck | largest | ⊕ the CMvPolynomial gap is *here* in force, and m₀ = 27 makes the naive form unrunnable — the dense rewrite is a Stage 3 prerequisite, not a Stage 6 option |
-| 6 | end piece | smaller–similar | unchanged; every shape precedented, needs only F |
+| 6 | end piece | smaller–similar | unchanged; every shape precedented, needs only F. ⊗⊗ conjunct A *is* `lift_commit` (57 384-wide `hachiLiftCom`), so it inherits REDUCED (W1) while conjunct C is W2 — two separate notes in one function; `rhoDigitsShortCheck` is provably constant-true at Fig. 9 (lemma deleted upstream, fact stands): translate verbatim, note it in the claims ledger |
 
 **Net schedule read:** targets 1 and 2 each shed work; target 4 roughly
 holds (two prerequisites against one large precedent win); target 5 grows,
@@ -527,10 +716,27 @@ is now paid earlier.
 
 ### Scale policies (fixed here, applied at each freeze)
 
-The governing arithmetic: m₀ = 27, so any 2^m₀-shaped object is ~1.3·10⁸
-entries — a materialized Ext4 table is ~4 GiB. Full-const runs are
-therefore impossible for anything cube-shaped, independently of
-`ring::mul`.
+The governing arithmetic: ⊗⊗ m₀ = **26** at τ = 5, so any 2^m₀-shaped
+object is ~6.7·10⁷ entries — a materialized Ext4 table is ~2 GiB (was
+~4 GiB at m₀ = 27). Full-const runs are therefore still impossible for
+anything cube-shaped, independently of `ring::mul`.
+
+⊗⊗ **Five walls, four removal conditions** (from the briefs), and every
+policy note must name which one it cites:
+
+| # | Wall | Site | Removed by |
+|---|---|---|---|
+| W1 | schoolbook `ring::mul` width | `lift_commit` 57 384-wide; `relOut`'s 1×8192 mat-vecs; `commit`'s `A·s` | a sub-quadratic / NTT mul champion |
+| W2 | m₀'s cube, `2^26` | `wTableMleEval`, `hZero`; the folded cube; end-piece conjunct C | **nothing in mul** — the dense/split rewrite |
+| W3 | allocation in the lift, ~450 MiB–1 GiB at τ = 5 | `lift_message` | fusion (never materialize the concatenation) |
+| W4 | 64 GiB `wit.message` at Fig. 9 | target 2's witness | streaming witness (no skill yet) |
+| W5 | `s.M` at 3.2 GiB | target 4's second memory wall | the `d = 2^10` evaluation split |
+
+Also: `jMatrix` materialized at n = 8192 would be terabytes, so collapsing
+it via `gadgetMul_apply` is a feasibility requirement. REDUCED `m₀` has a
+floor of 14 (below it the shape exercises nothing). Target 4's
+REDUCED-throughout policy is revisable: the `d = 2^10` split turns the
+table into ~4 MiB — decide deliberately at its brief, not by inheritance.
 
 | Target | Semantics tests | Bench cases |
 |---|---|---|
@@ -547,10 +753,22 @@ is **not** the `ring::mul` champion — it is m₀'s cube size, which no
 multiplication speedup touches. Say so wherever a note is written, so the
 two walls are not conflated.
 
-### Remaining Stage 2 work
+### Remaining Stage 2 work — ⊗⊗ none; Stage 2 exit met 2026-09-03
 
-1. One `arklib-analyze` brief per target (6), consuming the tables above.
-2. The params.rs extension + riders (blocked on the bench commit — see
-   the sequencing note at the top).
-3. A house-discipline exception line for F4 (two constants with no ArkLib
-   expression) wherever the literal-discipline is stated.
+1. ~~One `arklib-analyze` brief per target (6)~~ — done 2026-09-01
+   (`briefs/`), corrections folded here.
+2. ~~The params.rs extension + riders~~ — landed 2026-09-03 at τ = 5
+   against PR #847's `Hachi/Params.lean`; `Generated.lean` diff params-only;
+   doc-sync items 4–6 rode it.
+3. ~~A house-discipline exception line for F4~~ — the exception shrank to
+   `M_ONE` and is recorded at the constant, in `Check.lean` § 1 and in
+   NOTES.md.
+
+Stage 2's exit criteria (top of file) are met: ordered, dependency-closed
+target list with briefs and scale policies; Decisions 3–4 settled with the
+user (4 revised); params.rs extended with checks green and the extraction
+diff params-only; NOTES.md records the audit. What the briefs themselves
+still owe is a re-read of their `file:line` citations at `d51d8bc` when
+each target opens — the deltas that matter are summarized in
+`briefs/target-1-balanced-digits.md`'s re-base section and in this file's
+⊗⊗ marks. **Next: Stage 3, `/op-genesis` target 1 ∥ target 2.**

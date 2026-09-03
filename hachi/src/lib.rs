@@ -8,18 +8,18 @@
 //! The spec-stable bottom layers of the scheme: the ring, the linear algebra
 //! over it, the Ajtai gadget and the inner-outer commitment. The dimensions are
 //! the paper's benchmark set ([NOZ26] Fig. 9, the ℓ = 30 row) and the verifier
-//! bounds are ArkLib's weak-opening mapping for it, as of 2026-08-28 -- with
-//! the gadget-decomposition caveat recorded in `params.rs`; see NOTES.md
-//! § "Chosen parameters". The protocol
-//! layer (the per-link provers and verifiers -- QuadEval fold, ring switching,
-//! zero-check, sumcheck, final evaluation) is deliberately absent: its ArkLib
-//! specification still has unfilled definitional parameters, so there is nothing
-//! stable to be equivalent *to* yet. Its Fig. 9 constants (`n_D`/matrix `D`,
-//! the `z` norm bound 30583, the sparse-challenge count `c = 16`, and the
-//! digit count `τ = 4`) therefore have no counterpart in `params.rs` either.
-//! One `τ` does appear, in exactly one place -- inside `BETA_SQ`'s derived
-//! weak-opening literal -- and it is ArkLib's `τ = 5`, the folded-witness
-//! digit count of its `ℓ = 30` profile (ArkLib PR #847), not Fig. 9's 4 (see
+//! bounds are ArkLib's weak-opening mapping for it -- with the
+//! gadget-decomposition caveat recorded in `params.rs`; see NOTES.md
+//! § "Chosen parameters". The protocol layer (the per-link provers and
+//! verifiers -- QuadEval fold, ring switching, zero-check, sumcheck, final
+//! evaluation) is absent as *code*, but no longer as a specification: at the
+//! pinned ArkLib (PR #847) its definitions are stable, its parameters are fixed
+//! by `Hachi/Params.lean`, and `params.rs` carries them (`OMEGA` … `M_ONE`) so
+//! that the translations of PLAN_PROTOCOL_LAYER.md Stage 3 are written against
+//! constants whose ArkLib ties are already checked. Two of Fig. 9's values are
+//! deliberately not the spec's -- `τ = 5` not 4, the `z` bound `131072` not
+//! `30583` -- and one, the sparse-challenge weight `c = 16`, has no constant
+//! because the specification sees challenges only through `‖c‖₁ ≤ ω` (see
 //! `params.rs` and NOTES.md § "`BETA_SQ` corrected").
 //!
 //! # Layout

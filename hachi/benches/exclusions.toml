@@ -25,7 +25,7 @@
 #
 # Each entry must say *why*, in a form that can be checked by reading the item.
 #
-# The 19 `const`s in `hachi/src/params.rs` are absent from this file on purpose:
+# The `const`s in `hachi/src/params.rs` are absent from this file on purpose:
 # they carry no `Mirrors` marker, because a const is a *value chosen for a
 # generic ArkLib parameter* rather than a translation of a definition
 # (`RING_LOG_DEGREE` is the argument `α` of `hachiModulus`, not `hachiModulus`).

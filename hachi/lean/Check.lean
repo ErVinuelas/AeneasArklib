@@ -5,6 +5,7 @@ import RqBridge
 import Scheme
 import EvalSplit
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
+import ArkLib.Commitments.Functional.Hachi.Params
 
 /-!
 Audit file: not part of the development, only a machine-checked review of what
@@ -22,7 +23,9 @@ What it audits, in four sections:
 1. the extracted parameters are the ones `src/params.rs` names, and they satisfy
    every side condition the generic ArkLib statements carry as a hypothesis --
    including the two that the *derived* bounds rest on (`b - 1 ≤ q/2` for the digit
-   bound, `q % 8 = 5` and `κ² < q` for challenge invertibility);
+   bound, `q % 8 = 5` and `κ² < q` for challenge invertibility) -- and the
+   protocol-layer block is tied *by name* to ArkLib's own `ℓ = 30` profile
+   (`Hachi/Params.lean`: `hachiTau`, `honestZBound`, `mu0`, `liftKeyWidth`, …);
 2. the `cpoly` field layer arrives *transparently*, not as axioms -- the question
    Workstream 0 existed to settle;
    2b. all four modules of the scheme are present in the model, with the shapes the
@@ -204,6 +207,150 @@ example : params.ML_LOW_LEN.val = params.BLOCKS.val := by
   simp [params.ML_LOW_LEN, params.BLOCKS]
 example : params.ML_HIGH_LEN.val = params.MESSAGE_ROWS.val := by
   simp [params.ML_HIGH_LEN, params.MESSAGE_ROWS]
+
+/-! ### The protocol layer's parameters, against `Hachi/Params.lean`
+
+The second block of `params.rs` (`OMEGA` … `M_ONE`) is the `ℓ = 30` profile ArkLib
+itself states in `Hachi/Params.lean` (PR #847, the pinned rev). That file *names*
+most of the values -- `hachiTau`, `hachiOmega`, `hachiN`, `honestZBound`, `params`
+(`γ`, `bZero`), `mu0`, `liftKeyWidth` -- and proves the profile's side conditions
+(`params_hcap`, `params_hzb`, `sumcheckWidthAtProfile{,_minimal}`), so the rows
+below tie each literal to the *named* ArkLib value where one exists, and to the
+defining arithmetic (`rlinCW/CT/CZ/Rows`, `digitOnesValue`, `balancedDigitCapacity`,
+`rhoDigitCount`) otherwise. The house rule's one exception is `M_ONE`: ArkLib keeps
+`m₁` free under `n₀ ≤ 2^m₁` and the profile names no value, so its rows are the
+coverage inequality and its minimality, nothing more. -/
+
+section ProtocolParams
+open ArkLib.Lattices.Ajtai ArkLib.Lattices.Ajtai.InnerOuter
+
+-- The extracted constants, as literals.
+example : params.OMEGA = 16#u64 := by simp [params.OMEGA]
+example : params.D_ROWS = 1#usize := by simp [params.D_ROWS]
+example : params.B_ZERO = 16#u64 := by simp [params.B_ZERO]
+example : params.CHAIN_GAMMA = 15#u64 := by simp [params.CHAIN_GAMMA]
+example : params.HALF_BASE = 8#u64 := by simp [params.HALF_BASE]
+example : params.BALANCED_SHIFT = 2290649224#u64 := by simp [params.BALANCED_SHIFT]
+example : params.Z_DIGITS = 5#usize := by simp [params.Z_DIGITS]
+example : params.Z_BOUND = 131072#u64 := by simp [params.Z_BOUND]
+example : params.Z_BALANCED_SHIFT = 559240#u64 := by simp [params.Z_BALANCED_SHIFT]
+example : params.RLIN_CW = 8192#usize := by simp [params.RLIN_CW]
+example : params.RLIN_CT = 8192#usize := by simp [params.RLIN_CT]
+example : params.RLIN_CZ = 40960#usize := by simp [params.RLIN_CZ]
+example : params.RLIN_COLS = 57344#usize := by simp [params.RLIN_COLS]
+example : params.RLIN_ROWS = 5#usize := by simp [params.RLIN_ROWS]
+example : params.D_QUAD_COLS = 8192#usize := by simp [params.D_QUAD_COLS]
+example : params.LIFT_COLS = 57384#usize := by simp [params.LIFT_COLS]
+example : params.M_ZERO = 26#usize := by simp [params.M_ZERO]
+example : params.M_ONE = 3#usize := by simp [params.M_ONE]
+
+-- `ω`, and `κ = 2ω`: the weak-opening bound is the double of the sampled one, and
+-- the `2 * 16` in `KAPPA`'s docstring is now a checked relation.
+example : params.OMEGA.val = HachiParams.hachiOmega := by
+  simp [params.OMEGA, HachiParams.hachiOmega]
+example : params.KAPPA.val = 2 * params.OMEGA.val := by simp [params.KAPPA, params.OMEGA]
+
+-- `n_D`, and the chain's range parameters at `HonestRangeParams.ofPinnedDigitBase b`:
+-- `bZero = b`, `γ = bZero − 1` -- one below the weak-opening `GAMMA = b`, and the
+-- two must never be confused (F1 of `STAGE2_SCOPING.md`).
+example : params.D_ROWS.val = HachiParams.hachiN := by simp [params.D_ROWS, HachiParams.hachiN]
+example : params.B_ZERO.val = HachiParams.params.bZero := by
+  simp [params.B_ZERO, HachiParams.params_bZero, HachiParams.hachiB]
+example : params.CHAIN_GAMMA.val = HachiParams.params.γ := by
+  simp [params.CHAIN_GAMMA, HachiParams.params_gamma, HachiParams.hachiB]
+example : params.CHAIN_GAMMA.val = params.B_ZERO.val - 1 := by
+  simp [params.CHAIN_GAMMA, params.B_ZERO]
+example : params.CHAIN_GAMMA.val + 1 = params.GAMMA.val := by
+  simp [params.CHAIN_GAMMA, params.GAMMA]
+
+-- The balanced digit constants. `HALF_BASE = ⌊b/2⌋`; `BALANCED_SHIFT` is
+-- `balancedShift 16 8` read in `ℕ`: `⌊b/2⌋ · digitOnesValue b δ`, and strictly below
+-- `q`, so its `ZMod q` image is the literal itself (no reduction step to audit).
+example : params.HALF_BASE.val = params.GADGET_BASE.val / 2 := by
+  simp [params.HALF_BASE, params.GADGET_BASE]
+example : params.BALANCED_SHIFT.val
+    = params.GADGET_BASE.val / 2 * digitOnesValue params.GADGET_BASE.val params.GADGET_DIGITS.val := by
+  simp [params.BALANCED_SHIFT, params.GADGET_BASE, params.GADGET_DIGITS, digitOnesValue,
+    Finset.sum_range_succ]
+example : params.BALANCED_SHIFT.val < params.Q.val := by simp [params.BALANCED_SHIFT, params.Q]
+
+-- `τ`, by name, and what sizes it: `Z_BOUND` is `honestZBound = 2ʳ·ω·⌊b/2⌋` (so `hzb`
+-- holds with equality), it fits the balanced capacity of `τ` digits (`hcap`) and not
+-- of `τ − 1` (`tau_minimal`; that capacity is exactly [NOZ26] Fig. 9's `30583`), and
+-- `b^τ < q` -- so this is a *bounded* decomposition, never a full-width one.
+example : params.Z_DIGITS.val = HachiParams.hachiTau := by
+  simp [params.Z_DIGITS, HachiParams.hachiTau]
+example : params.Z_BOUND.val = HachiParams.honestZBound := by
+  rw [HachiParams.honestZBound_eq]; simp [params.Z_BOUND]
+example : params.Z_BOUND.val
+    = 2 ^ params.ML_VARS_LOW.val * params.OMEGA.val * params.HALF_BASE.val := by
+  simp [params.Z_BOUND, params.ML_VARS_LOW, params.OMEGA, params.HALF_BASE]
+example : params.Z_BOUND.val ≤ balancedDigitCapacity params.GADGET_BASE.val params.Z_DIGITS.val := by
+  have h := HachiParams.balancedDigitCapacity_eq
+  simp only [HachiParams.hachiB, HachiParams.hachiTau] at h
+  simp [params.Z_BOUND, params.GADGET_BASE, params.Z_DIGITS, h]
+example : ¬ (params.Z_BOUND.val
+    ≤ balancedDigitCapacity params.GADGET_BASE.val (params.Z_DIGITS.val - 1)) := by
+  have h := HachiParams.balancedDigitCapacity_four_eq
+  simp only [HachiParams.hachiB] at h
+  simp [params.Z_BOUND, params.GADGET_BASE, params.Z_DIGITS, h]
+example : params.GADGET_BASE.val ^ params.Z_DIGITS.val < params.Q.val := by
+  simp [params.GADGET_BASE, params.Z_DIGITS, params.Q]
+example : params.Z_BALANCED_SHIFT.val
+    = params.GADGET_BASE.val / 2 * digitOnesValue params.GADGET_BASE.val params.Z_DIGITS.val := by
+  have h := HachiParams.digitOnesValue_eq
+  simp only [HachiParams.hachiB, HachiParams.hachiTau] at h
+  simp [params.Z_BALANCED_SHIFT, params.GADGET_BASE, params.Z_DIGITS, h]
+
+-- The Eq. (20) block system: the three column blocks and their sum `μ₀` (by name:
+-- `mu0`), the row count `n₀`, and the QuadEval `D` width.
+example : params.RLIN_CW.val = rlinCW params.GADGET_DIGITS.val params.ML_VARS_LOW.val := by
+  simp [params.RLIN_CW, params.GADGET_DIGITS, params.ML_VARS_LOW, rlinCW]
+example : params.RLIN_CT.val
+    = rlinCT params.INNER_ROWS.val params.GADGET_DIGITS.val params.ML_VARS_LOW.val := by
+  simp [params.RLIN_CT, params.INNER_ROWS, params.GADGET_DIGITS, params.ML_VARS_LOW, rlinCT]
+example : params.RLIN_CZ.val
+    = rlinCZ params.GADGET_DIGITS.val params.Z_DIGITS.val params.ML_VARS_HIGH.val := by
+  simp [params.RLIN_CZ, params.GADGET_DIGITS, params.Z_DIGITS, params.ML_VARS_HIGH, rlinCZ]
+example : params.RLIN_COLS.val = HachiParams.mu0 := by
+  rw [HachiParams.mu0_eq]; simp [params.RLIN_COLS]
+example : params.RLIN_COLS.val = params.RLIN_CW.val + (params.RLIN_CT.val + params.RLIN_CZ.val) := by
+  simp [params.RLIN_COLS, params.RLIN_CW, params.RLIN_CT, params.RLIN_CZ]
+example : params.RLIN_ROWS.val
+    = rlinRows params.INNER_ROWS.val params.OUTER_ROWS.val params.D_ROWS.val := by
+  simp [params.RLIN_ROWS, params.INNER_ROWS, params.OUTER_ROWS, params.D_ROWS, rlinRows]
+example : params.D_QUAD_COLS.val = params.BLOCKS.val * params.GADGET_DIGITS.val := by
+  simp [params.D_QUAD_COLS, params.BLOCKS, params.GADGET_DIGITS]
+
+-- The lift key width, by name (`liftKeyWidth`), and its derivation: the quotient
+-- digit count `rhoDigitCount q bZero = ⌈log₁₆ q⌉` *is* `GADGET_DIGITS` (via the
+-- profile's `clog_eq_delta`), which is why `params.rs` carries no second name for 8.
+example : params.LIFT_COLS.val = HachiParams.liftKeyWidth := by
+  rw [HachiParams.liftKeyWidth_eq]; simp [params.LIFT_COLS]
+example : rhoDigitCount params.Q.val params.B_ZERO.val = params.GADGET_DIGITS.val := by
+  have h := HachiParams.clog_eq_delta
+  simp only [HachiParams.hachiB, HachiParams.hachiQ, HachiParams.hachiDelta] at h
+  simp [rhoDigitCount, params.Q, params.B_ZERO, params.GADGET_DIGITS, h]
+example : params.LIFT_COLS.val
+    = params.RLIN_COLS.val + params.RLIN_ROWS.val * params.GADGET_DIGITS.val := by
+  simp [params.LIFT_COLS, params.RLIN_COLS, params.RLIN_ROWS, params.GADGET_DIGITS]
+
+-- The two cube widths. `M_ZERO = M + 1` at the profile's `M = 25`: the coverage
+-- hypothesis `hμn : liftKeyWidth · d ≤ 2^(M+1)` holds (`sumcheckWidthAtProfile`) and
+-- fails one lower (`sumcheckWidthAtProfile_minimal`). `M_ONE` has no ArkLib name:
+-- coverage `n₀ ≤ 2^m₁` and minimality are all that can be checked.
+example : params.M_ZERO.val = 25 + 1 := by simp [params.M_ZERO]
+example : HachiParams.liftKeyWidth * HachiParams.hachiD ≤ 2 ^ params.M_ZERO.val := by
+  rw [HachiParams.liftKeyWidth_eq]; simp [params.M_ZERO, HachiParams.hachiD]
+example : params.LIFT_COLS.val * params.RING_DEGREE.val ≤ 2 ^ params.M_ZERO.val := by
+  simp [params.LIFT_COLS, params.RING_DEGREE, params.M_ZERO]
+example : ¬ (params.LIFT_COLS.val * params.RING_DEGREE.val ≤ 2 ^ (params.M_ZERO.val - 1)) := by
+  simp [params.LIFT_COLS, params.RING_DEGREE, params.M_ZERO]
+example : params.RLIN_ROWS.val ≤ 2 ^ params.M_ONE.val := by simp [params.RLIN_ROWS, params.M_ONE]
+example : ¬ (params.RLIN_ROWS.val ≤ 2 ^ (params.M_ONE.val - 1)) := by
+  simp [params.RLIN_ROWS, params.M_ONE]
+
+end ProtocolParams
 
 /-! ## 2. The `cpoly` field layer is transparent, not axiomatized
 

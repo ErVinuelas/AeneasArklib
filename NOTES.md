@@ -1674,6 +1674,84 @@ promotion shape, and the deleted-lemma citations (`rhoDigitsShortCheck_eq_true_o
 `hachiLiftCom_com`, `balancedDigit_valMinAbs_mem`) are owed to them along
 with `briefs/STAGE2_CORRECTIONS.md`.
 
+## The protocol layer's parameters land, and Stage 2 closes (2026-09-03)
+
+**What landed.** Eighteen constants appended to `hachi/src/params.rs` under
+a "protocol layer" banner — `OMEGA`, `D_ROWS`, `B_ZERO`, `CHAIN_GAMMA`,
+`HALF_BASE`, `BALANCED_SHIFT`, `Z_DIGITS`, `Z_BOUND`, `Z_BALANCED_SHIFT`,
+`RLIN_CW/CT/CZ`, `RLIN_COLS`, `RLIN_ROWS`, `D_QUAD_COLS`, `LIFT_COLS`,
+`M_ZERO`, `M_ONE` — every one a literal (the `RING_DEGREE` reason), every
+one read today only by `tests/params_semantics.rs` (27 tests) and
+`lean/Check.lean` § 1 (`section ProtocolParams`, 54 rows). The values are
+ArkLib's own `ℓ = 30` profile, `Hachi/Params.lean` at the pinned PR #847
+head: **τ = 5**, `zBound = 131072`, `μ₀ = 57344`, lift width 57384,
+`M = 25` (so `M_ZERO = m₀ = 26`), `γ = 15`, `bZero = 16`. Three things the
+Stage 2 audit table (`STAGE2_SCOPING.md` § Parameter mapping) listed were
+*not* introduced, each for a reason recorded there: `RHO_DIGIT_COUNT`
+(equals `GADGET_DIGITS`; the identity is a Check row via
+`HachiParams.clog_eq_delta`), `TAU` (a second name for `Z_DIGITS`) and
+`CHALLENGE_WEIGHT` (no ArkLib expression *and* no consumer — the spec sees
+a challenge only through `‖c‖₁ ≤ ω`; corpus sparsity is a bench-side
+knob). `Generated.lean` regenerated with exactly the eighteen new
+`def params.*` lines plus `Source:` shifts — the gate the plan set.
+
+**Named ties, for the first time.** Until now every derived literal's
+Check row was an unnamed recomputation — and an unnamed recomputation
+agrees with itself at any τ, which is exactly how the τ = 4 error survived
+review. `Params.lean` names the quantities, so § 1 now states
+`params.Z_DIGITS.val = HachiParams.hachiTau`, `params.Z_BOUND.val =
+HachiParams.honestZBound`, `params.RLIN_COLS.val = HachiParams.mu0`,
+`params.LIFT_COLS.val = HachiParams.liftKeyWidth`, and
+`HachiParams.liftKeyWidth * hachiD ≤ 2 ^ params.M_ZERO.val`; the rest tie
+to the defining arithmetic (`rlinCW/CT/CZ/Rows`, `digitOnesValue`,
+`balancedDigitCapacity`, `rhoDigitCount`). Technique: `rw
+[<Params.lean>_eq]; simp [params.X]`, and `simp only [hachiB, hachiTau] at
+h` to bring a profile lemma down to literals. `Check.lean` imports
+`Hachi.Params`, which pulls the whole chain — the build is 3841 jobs now.
+
+**The house-discipline exception shrank to one row.** Stage 2's F4 listed
+four constants with no ArkLib expression (`Z_BOUND`, `CHALLENGE_WEIGHT`,
+`M_ZERO`, `M_ONE`). `Z_BOUND` is `honestZBound`; `M_ZERO`'s coverage and
+minimality are `sumcheckWidthAtProfile{,_minimal}`; `CHALLENGE_WEIGHT`
+does not exist. **`M_ONE` alone** keeps the exception — ArkLib holds `m₁`
+free under `n₀ ≤ 2^m₁` and the profile names no value — recorded at the
+constant and in § 1's section header. **Rule (restated):** a literal in
+`params.rs` has a `Check.lean` § 1 row equating it to the ArkLib name where
+one exists and to the defining expression otherwise; `M_ONE` is the one
+row that is coverage + minimality only, and a second such row needs its
+own justification here.
+
+**Two literal-collision additions** for the proof watchlist (rewrite
+hypotheses, never goals): value **5** is now `Z_DIGITS` and `RLIN_ROWS` —
+τ and n₀, unrelated; value **15** is `CHAIN_GAMMA` and the unsigned digit
+ceiling `b − 1`. The full list is in `params.rs`'s banner.
+
+**Doc-sync items 4–6 rode this landing**, as the plan scheduled: `lib.rs`
+§ Status no longer says the spec has unfilled parameters (it says: absent
+as code, present as parameters); `params.rs`'s caveats state the
+promotion (unsigned = the spec's building block, balanced = the gadget
+inverse target 1 promotes to the public names); `exclusions.toml`'s header
+no longer carries a const count.
+
+**Stage 2 is closed.** `STAGE2_SCOPING.md` was re-based on the new pin the
+same day (marks ⊗⊗): the six briefs' corrections folded in, the τ = 5
+constant table, the reversed target-2 verdict (`Z_DIGITS = 5 ≠
+GADGET_DIGITS`, so `_z` siblings return), m₀ = 26, the five scale walls,
+and Decision 4's revision; brief 1 carries a re-base section (promotion +
+the bounded τ = 5 digit map `boundedBalancedZmodDigit`, a *second* digit
+function with a conditional reconstruction spec). The briefs' `file:line`
+citations remain at `294b3f0b0` and are re-read when each target opens.
+Next: Stage 3, `/op-genesis` target 1 ∥ target 2.
+
+**Genesis mechanics, for the record.** `params` is a `MODULES` member, so
+`check-genesis` wants each new const frozen in `benches/genesis/src/params.rs`
+and stamped. The eighteen were copied verbatim (docstrings included, the
+banner omitted — a stamp leads on the item's own doc), and the stamp dance
+applies as the Makefile states it: commit the translation and the frozen copy
+together, `make bench-stamp`, commit the stamp lines separately, never
+`--amend`. The genesis `BETA_SQ` stays at the stamped τ = 4 literal — the
+baseline is not re-frozen for a bound no benched case reads.
+
 ## `BETA_SQ` corrected: τ = 5, not Fig. 9's τ = 4 (2026-09-03; supersedes an uncommitted τ = 8 reading of 2026-09-01)
 
 The stamped params work derived `BETA_SQ = quadEvalBetaSq γ b τ d m δ` at

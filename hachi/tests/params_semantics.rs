@@ -21,10 +21,25 @@
 #![allow(clippy::assertions_on_constants, clippy::cast_possible_truncation)]
 
 use hachi::params::{
-    BETA_SQ, BLOCKS, EXT_DEGREE, EXT_W, GADGET_BASE, GADGET_DIGITS, GAMMA, INNER_ROWS, KAPPA,
-    MESSAGE_ROWS, ML_HIGH_LEN, ML_LOW_LEN, ML_POLY_LEN, ML_VARS_HIGH, ML_VARS_LOW, OUTER_ROWS, Q,
-    RING_DEGREE, RING_LOG_DEGREE,
+    BALANCED_SHIFT, BETA_SQ, BLOCKS, B_ZERO, CHAIN_GAMMA, D_QUAD_COLS, D_ROWS, EXT_DEGREE, EXT_W,
+    GADGET_BASE, GADGET_DIGITS, GAMMA, HALF_BASE, INNER_ROWS, KAPPA, LIFT_COLS, MESSAGE_ROWS,
+    ML_HIGH_LEN, ML_LOW_LEN, ML_POLY_LEN, ML_VARS_HIGH, ML_VARS_LOW, M_ONE, M_ZERO, OMEGA,
+    OUTER_ROWS, Q, RING_DEGREE, RING_LOG_DEGREE, RLIN_COLS, RLIN_CT, RLIN_CW, RLIN_CZ, RLIN_ROWS,
+    Z_BALANCED_SHIFT, Z_BOUND, Z_DIGITS,
 };
+
+/// `Σ_{u<digits} b^u`: ArkLib's `digitOnesValue b digits` (`Gadget/Core.lean`),
+/// the all-ones base-`b` value, so that a constant balanced digit `a`
+/// represents `a · ones`.
+fn ones(b: u128, digits: u32) -> u128 {
+    (0..digits).map(|u| b.pow(u)).sum()
+}
+
+/// `(b - 1 - ⌊b/2⌋) · Σ_{u<digits} b^u`: ArkLib's `balancedDigitCapacity b digits`,
+/// the largest integer `digits` balanced base-`b` digits represent.
+fn balanced_capacity(b: u128, digits: u32) -> u128 {
+    (b - 1 - b / 2) * ones(b, digits)
+}
 
 /// `a * b mod m` without overflow, for `m < 2^32`.
 ///
@@ -161,30 +176,13 @@ fn digit_bound_side_condition_holds() {
 
 /// `BETA_SQ` is ArkLib's `quadEvalBetaSq γ b τ d m δ` at `γ := b` (Hachi
 /// Lemma 8's `4·B_z`, `QuadEval/Soundness.lean`):
-/// `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` with `τ = 5`, the folded-witness
-/// digit count of ArkLib's `ℓ = 30` profile (ArkLib PR #847,
-/// `Hachi/Params.lean`): the least `τ` whose balanced capacity
-/// `(b-1-⌊b/2⌋)·Σ_{u<τ} b^u` holds the honest bound `‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋` --
-/// neither [NOZ26] Fig. 9's `τ = 4` nor the full-coverage `δ = 8` (see the
-/// `BETA_SQ` docstring). `τ`'s only appearance in this crate. Also a literal,
-/// for the same reason as `GAMMA`.
+/// `4 · (2^m·δ) · (d · ((Σ_{u<τ} b^u) · γ)²)` at `τ = Z_DIGITS = 5` -- the same
+/// `zDigits` the correctness chain uses, which is what `Hachi/Params.lean`'s
+/// `betaSq` pins (see the `BETA_SQ` docstring). `Z_DIGITS` is the only `τ` in
+/// this crate. Also a literal, for the same reason as `GAMMA`.
 #[test]
 fn beta_sq_is_the_weak_opening_bound() {
-    const TAU: u32 = 5;
-    let b = u128::from(GADGET_BASE);
-    // `hcap`: the honest `z` bound `2ʳ·ω·⌊b/2⌋` (r = ML_VARS_LOW, ω = KAPPA/2)
-    // fits `τ` balanced digits -- and `τ` is minimal: four digits carry
-    // exactly Fig. 9's `z` bound 30583, which is below it.
-    let capacity = |t: u32| (b - 1 - b / 2) * (0..t).map(|u| b.pow(u)).sum::<u128>();
-    let honest_z_bound: u128 =
-        (1u128 << hachi::params::ML_VARS_LOW) * u128::from(hachi::params::KAPPA / 2) * (b / 2);
-    assert_eq!(honest_z_bound, 131_072);
-    assert!(honest_z_bound <= capacity(TAU));
-    assert_eq!(capacity(TAU - 1), 30_583);
-    assert!(capacity(TAU - 1) < honest_z_bound);
-    // ... and it is *not* a full-width decomposition of `ℤ_q`: `b^τ < q`.
-    assert!(b.pow(TAU) < u128::from(Q));
-    let geom: u128 = (0..TAU).map(|u| b.pow(u)).sum();
+    let geom = ones(u128::from(GADGET_BASE), Z_DIGITS as u32);
     let z_l2_sq =
         (MESSAGE_ROWS * GADGET_DIGITS) as u128 * (RING_DEGREE as u128 * (geom * u128::from(GAMMA)).pow(2));
     assert_eq!(BETA_SQ, 4 * z_l2_sq);
@@ -260,4 +258,113 @@ fn evalsplit_shape_constants_are_consistent() {
     assert_eq!(ML_LOW_LEN * ML_HIGH_LEN, ML_POLY_LEN);
     assert_eq!(ML_LOW_LEN, BLOCKS);
     assert_eq!(ML_HIGH_LEN, MESSAGE_ROWS);
+}
+
+// ---------------------------------------------------------------------------
+// The protocol layer's parameters (`Hachi/Params.lean`, ArkLib PR #847)
+// ---------------------------------------------------------------------------
+
+/// `KAPPA` is `2ω`: the weak-opening bound is the double of the sampled bound
+/// `OMEGA` (extracted openings carry challenge differences), and `ω = 16` is
+/// the profile's `hachiOmega`. The `2 * 16` that used to be a magic number.
+#[test]
+fn kappa_is_twice_omega() {
+    assert_eq!(OMEGA, 16);
+    assert_eq!(KAPPA, 2 * OMEGA);
+}
+
+/// The chain's range parameters are `HonestRangeParams.ofPinnedDigitBase b`:
+/// `bZero = b` (forced by the soundness chain) and `γ = bZero − 1` (forced by
+/// completeness), so `CHAIN_GAMMA = 15` is one below the weak-opening
+/// `GAMMA = 16`; `HALF_BASE` is the `⌊b/2⌋` every balanced digit is re-centred
+/// by. `D_ROWS` is Fig. 9's `n_D = 1`, a paper pin like `INNER_ROWS`.
+#[test]
+fn chain_range_parameters_are_the_pinned_digit_base() {
+    assert_eq!(B_ZERO, GADGET_BASE);
+    assert_eq!(CHAIN_GAMMA, B_ZERO - 1);
+    assert_eq!(CHAIN_GAMMA + 1, GAMMA);
+    assert_eq!(HALF_BASE, GADGET_BASE / 2);
+    assert_eq!(D_ROWS, 1);
+    // `bZero − 1 ≤ γ`, the nested zero-check's reverse range orientation
+    // (`params_hZeroγ`), holds with equality at the pinned point.
+    assert!(B_ZERO - 1 <= CHAIN_GAMMA);
+}
+
+/// `BALANCED_SHIFT` is `balancedShift 16 8 = ⌊b/2⌋ · Σ_{e<8} 16^e`, the
+/// message-digit balanced shift, strictly below `q` so its field image is the
+/// literal itself.
+#[test]
+fn balanced_shift_is_half_base_times_the_ones_value() {
+    let shift = u128::from(HALF_BASE) * ones(u128::from(GADGET_BASE), GADGET_DIGITS as u32);
+    assert_eq!(u128::from(BALANCED_SHIFT), shift);
+    assert_eq!(BALANCED_SHIFT, 0x8888_8888);
+    assert!(BALANCED_SHIFT < Q);
+}
+
+/// `Z_DIGITS = 5` is sized from the honest folded-witness bound, not from `q`:
+/// `Z_BOUND = 2ʳ · ω · ⌊b/2⌋` (`honestZBound`, with `r = ML_VARS_LOW`) fits the
+/// balanced capacity of five digits (`hcap`) and not of four -- whose capacity
+/// is exactly Fig. 9's `30583` (`tau_minimal`) -- and `16^5 < q`, so this is a
+/// *bounded* decomposition (`BoundedDigitDecomposition`), not a full-width
+/// one. `Z_BALANCED_SHIFT` is its shift `⌊b/2⌋ · Σ_{e<5} 16^e`.
+#[test]
+fn z_digits_are_minimal_for_the_honest_bound() {
+    let b = u128::from(GADGET_BASE);
+    let tau = Z_DIGITS as u32;
+    let honest = (1u128 << ML_VARS_LOW) * u128::from(OMEGA) * u128::from(HALF_BASE);
+    assert_eq!(u128::from(Z_BOUND), honest); // `hzb`, with equality
+    assert!(u128::from(Z_BOUND) <= balanced_capacity(b, tau)); // `hcap`
+    assert_eq!(balanced_capacity(b, tau), 489_335);
+    assert_eq!(balanced_capacity(b, tau - 1), 30_583);
+    assert!(balanced_capacity(b, tau - 1) < u128::from(Z_BOUND));
+    assert!(b.pow(tau) < u128::from(Q));
+    assert_eq!(u128::from(Z_BALANCED_SHIFT), u128::from(HALF_BASE) * ones(b, tau));
+    assert_ne!(Z_DIGITS, GADGET_DIGITS);
+}
+
+/// The Eq. (20) block widths are `rlinCW/CT/CZ/Cols/Rows` at the profile
+/// (`RingSwitch/Rlin.lean`), with the spec's own parenthesization, and the
+/// `D` matrix of the QuadEval link is `blocks · messageDigits` wide.
+#[test]
+fn rlin_block_widths_are_consistent() {
+    assert_eq!(RLIN_CW, (1 << ML_VARS_LOW) * GADGET_DIGITS);
+    assert_eq!(RLIN_CT, (1 << ML_VARS_LOW) * (INNER_ROWS * GADGET_DIGITS));
+    assert_eq!(RLIN_CZ, (1 << ML_VARS_HIGH) * GADGET_DIGITS * Z_DIGITS);
+    assert_eq!(RLIN_COLS, RLIN_CW + (RLIN_CT + RLIN_CZ));
+    assert_eq!(RLIN_ROWS, D_ROWS + (OUTER_ROWS + (1 + (1 + INNER_ROWS))));
+    assert_eq!(D_QUAD_COLS, BLOCKS * GADGET_DIGITS);
+    assert_eq!(RLIN_COLS, 57_344);
+}
+
+/// The lift key is `μ₀ + n₀ · rhoDigitCount q bZero` wide, and the quotient
+/// digit count `⌈log₁₆ q⌉` is `GADGET_DIGITS` (the same `16^7 < q ≤ 16^8` that
+/// pins the gadget), so no separate constant carries it.
+#[test]
+fn lift_cols_is_rlin_cols_plus_the_quotient_digits() {
+    let rho_digit_count = GADGET_DIGITS; // `Nat.clog 16 q = 8`
+    assert!(u128::from(B_ZERO).pow(rho_digit_count as u32 - 1) < u128::from(Q));
+    assert!(u128::from(Q) <= u128::from(B_ZERO).pow(rho_digit_count as u32));
+    assert_eq!(LIFT_COLS, RLIN_COLS + RLIN_ROWS * rho_digit_count);
+    assert_eq!(LIFT_COLS, 57_384);
+}
+
+/// The sumcheck cube covers the digit-committed table, minimally:
+/// `LIFT_COLS · d ≤ 2^m₀` (`hμn` at `M = m₀ − 1 = 25`, `sumcheckWidthAtProfile`)
+/// and not at one variable fewer (`sumcheckWidthAtProfile_minimal`).
+#[test]
+fn sumcheck_cube_covers_the_table_minimally() {
+    let table = LIFT_COLS * RING_DEGREE;
+    assert!(table <= 1 << M_ZERO);
+    assert!(table > 1 << (M_ZERO - 1));
+    assert_eq!(M_ZERO, 25 + 1);
+}
+
+/// The nested zero-check's second cube covers the `n₀` quotient rows,
+/// minimally: `n₀ ≤ 2^m₁` (`hn`) and not at one variable fewer. ArkLib leaves
+/// `m₁` free under that inequality and names no value, so this is the one
+/// constant checked by its defining inequality alone.
+#[test]
+fn zero_check_cube_covers_the_quotient_rows_minimally() {
+    assert!(RLIN_ROWS <= 1 << M_ONE);
+    assert!(RLIN_ROWS > 1 << (M_ONE - 1));
 }

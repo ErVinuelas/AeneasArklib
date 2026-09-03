@@ -1,4 +1,4 @@
-# Brief: the balanced digit layer — `balancedDigit` / `balancedShift`, `rhoDigits` / `rhoDigitCount`, the balanced message and `z` decomposition siblings, `DigitBaseOk` (ArkLib @ `294b3f0b0f46e1485c878a217e9de764855f5915`)
+# Brief: the balanced digit layer — `balancedDigit` / `balancedShift`, `rhoDigits` / `rhoDigitCount`, the balanced message and `z` decomposition siblings, `DigitBaseOk` (ArkLib @ `294b3f0b0f46e1485c878a217e9de764855f5915`; ⊗⊗ re-based 2026-09-03 on PR #847 `d51d8bc` — see the first section)
 
 Stage 2 target 1. Read from the pinned copy `hachi/.lake/packages/Arklib/ArkLib/…`
 at the rev `hachi/lake-manifest.json` records for `Arklib`
@@ -10,6 +10,93 @@ Builds on `STAGE2_SCOPING.md` §§ "Decision 4 — minimal balanced surface",
 "Parameter mapping", "Erasure catalogue", "Ordered target list + scale
 policies". Where this brief corrects that document, the paragraph is marked
 **⊗ correction**.
+
+---
+
+## ⊗⊗ Re-based 2026-09-03 on ArkLib PR #847 (pin `d51d8bc`) — read this first
+
+Everything below was read at `294b3f0b0`; the pin moved to PR #847's head
+before this target opened, and four things change. `file:line` citations
+below are at the old pin — re-read each at `d51d8bc` before relying on it
+(`Gadget/Core.lean` in particular grew a 200-line bounded-digit block and
+lost the per-`dd` `gadgetDecompose_apply`).
+
+**1. The target is a promotion, not a sibling layer (Decision 4 revised).**
+Upstream re-documents `zmodDigitDecomposition` as "the building block the
+balanced digits are shifted from, not itself a Hachi gadget inverse",
+renames `commitBalanced` → `commit` (the unsigned committer is deleted), and
+drops the unsigned norm lemmas (`zmodDigit_natAbs_le`,
+`gadgetDecompose_zmod_vecLInftyNorm_le`, `…_l2NormSq_le`, `…_vecL2NormSq_le`)
+and `gadgetDecompose_apply` / `gadgetDecompose_eq_fun`; `RhoDigits.lean`'s
+`balancedDigit_valMinAbs_mem` is gone too (its content lives in
+`Gadget/Norms.lean`'s `balancedZmodDigit_valMinAbs_mem`). The user's call:
+adapt. So the *public* names go to the balanced functions —
+`gadget_decompose`, `generate_decomps`, `commit` mirror
+`balancedZmodDigitDecomposition`-at-δ and `Hachi.commit` — and today's
+unsigned functions become the primitives underneath (`digit_at` keeps its
+name: it *is* the spec's building block; the unsigned
+`gadget_decompose`/`generate_decomps`/`commit` survive under primitive names
+because the 74 proved specs are stated against them and
+`InnerOuter/Scheme.lean` stays decomposition-generic). Every "sibling" in
+§ Representation's signature table is therefore the *promoted* function;
+the work is the same plus a rename pass and re-pointing `commit_spec` at
+the balanced committer as the headline. The proved unsigned layer now owns
+its one analytic input, `dd_digit_natAbs_le` (`hachi/lean/Scheme.lean`, a
+verbatim copy of the deleted upstream lemma) feeding ArkLib's surviving
+generic `gadgetDecompose_*_of_digit_le` — reuse that pattern for the
+balanced specs (`balancedZmodDigit_natAbs_le` is the upstream input there).
+
+**2. A second digit function, for the `z` side at τ = 5.** The chain's `z`
+decomposition is no longer `balancedZmodDigitDecomposition` at `zDigits`;
+it is `boundedBalancedZmodDigitDecomposition b τ zBound` with
+
+```
+boundedBalancedZmodDigit b τ x e
+  = (((Nat.digits b (x.valMinAbs + ((b/2 : ℕ) : ℤ) * (digitOnesValue b τ : ℤ)).toNat)
+        .getD e 0 : ℕ) : ZMod q) - ((b/2 : ℕ) : ZMod q)        Gadget/Core.lean (PR #847)
+```
+
+— *centre first* (`valMinAbs`, which `commit::centered_abs` already mirrors),
+shift in `ℤ` by `Z_BALANCED_SHIFT = 8 · 69905 = 559240`, clamp with
+`Int.toNat`, then `τ = 5` unsigned digits, each minus 8. The order is the
+*reverse* of the message digit's shift-then-`.val`, and the shift is an
+integer shift of a signed value, not a field add. Its reconstruction law
+is conditional — `x.valMinAbs.natAbs ≤ zBound → Σ bᵉ·digit = x`
+(`BoundedDigitDecomposition.reconstruct_of_bound`) — so the `_spec` for
+its round-trip carries the bound as a hypothesis (a new shape for the
+erasure catalogue: conditional reconstruction). Its range is unconditional
+(`boundedBalancedZmodDigit_valMinAbs_mem`, box `[-8, 7]`). Rust sketch
+`bounded_z_digit_at(c: Fp, e: usize) -> Fp` over the centred `i64`
+representative; its `gadget_*` consumers at width `Z_DIGITS = 5` are
+target 2's (`zDecompBounded = bddZ.gadgetDecompose`), not this target's.
+Cost: one `valMinAbs` (a compare and a subtract) per coefficient, then the
+same digit loop at 5 digits; a `Nat.digits` of a value `< 16^5` — no new
+width. Scale: real consts throughout, like the rest of the digit layer.
+
+**3. The contested-`BETA_SQ` paragraph in § Semantics risks is settled.**
+τ = 5, `BETA_SQ = 41976510894886092800` (`342ebba`); the claim that this
+target is insensitive to it stands (honest balanced `ℓ₂² = 536870912` is
+eleven orders of magnitude below it). "Write specs against `GADGET_DIGITS`
+for loop bounds" still holds for the message side; the `z` side's loop
+bound is `Z_DIGITS`.
+
+**4. Constants landed (params.rs, 2026-09-03), so § Parameters' "new
+constants this target needs" is done:** `HALF_BASE = 8`, `BALANCED_SHIFT =
+2290649224` as specified, plus `Z_DIGITS = 5`, `Z_BOUND = 131072`,
+`Z_BALANCED_SHIFT = 559240`, `B_ZERO = 16`, `CHAIN_GAMMA = 15`, and the
+dimension block. `Check.lean` § 1 ties `BALANCED_SHIFT` to
+`⌊b/2⌋ · digitOnesValue 16 8` and `Z_BALANCED_SHIFT` to `digitOnesValue_eq`;
+`rhoDigitCount q 16 = GADGET_DIGITS` is proved there once via
+`HachiParams.clog_eq_delta` (the bridge lemma § Parameters asks for).
+`rhoDigitsShortCheck_eq_true_of_digitBaseOk` was deleted upstream as dead
+code; the tautology it stated is still true and still worth a claims-ledger
+note when target 6 translates the check verbatim.
+
+**Unchanged:** the definition chain's *shape* (balanced message digit = one
+field add, one unsigned digit read, one field subtract; `rfl`-equal to the
+bundled `.digit`), the cost model, the strategy ranking, the representation
+choices, the `hbq : b ≤ q/2` anti-wraparound trap, the "raw-`u64` shift is
+wrong" arithmetic, and the scale policy with its `commit`-path refinement.
 
 ---
 
