@@ -389,6 +389,7 @@ pub fn bounded_z_digit_at(c: Fp, e: usize) -> Fp {
     Fp::new(rest % b) - Fp::new(params::HALF_BASE)
 }
 
+// @genesis b984c53 2026-09-04 — gadget::bounded_z_gadget_decompose
 /// The gadget inverse `J⁻¹` of the folded witness, at the bounded `z`-side
 /// width [`params::Z_DIGITS`] (spec: `BoundedDigitDecomposition.gadgetDecompose`,
 /// `Gadget/Core.lean:544`, instantiated at
@@ -435,6 +436,7 @@ pub fn bounded_z_gadget_decompose(x: &PolyVec) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis b984c53 2026-09-04 — gadget::gadget_mul_z
 /// The gadget product `J · v` at the `z`-side width (spec: `gadgetMul`,
 /// `Gadget/Core.lean:399`, at `digits := zDigits`; equivalently
 /// `jMatrix Φ base n zDigits *ᵥ v`, since `jMatrix` *is* `gadgetMatrix` at that

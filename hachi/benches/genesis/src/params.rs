@@ -503,6 +503,7 @@ pub const M_ZERO: usize = 26;
 /// § "Re-pin to ArkLib PR #847", the house-discipline exception).
 pub const M_ONE: usize = 3;
 
+// @genesis b984c53 2026-09-04 — params::SB_HI
 /// The upper endpoint of the paper's balanced digit box
 /// `S_b = [⌈-b/2⌉, ⌈b/2⌉ - 1] = [-8, 7]` (Eq. (20)'s exact range check,
 /// `InSb` in `QuadEval/Reduction.lean`).

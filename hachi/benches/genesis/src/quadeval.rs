@@ -65,6 +65,7 @@ use crate::ring::Rq;
 // Carriers
 // ---------------------------------------------------------------------------
 
+// @genesis b984c53 2026-09-04 — quadeval::PublicParamsD
 /// The inner-outer parameters extended with Hachi's short-commitment matrix `D`
 /// (spec: `PublicParamsD`, `QuadEval/Gadgets.lean:67`).
 ///
@@ -79,23 +80,27 @@ pub struct PublicParamsD {
 }
 
 impl PublicParamsD {
+    // @genesis b984c53 2026-09-04 — quadeval::PublicParamsD::new
     /// Extend inner-outer parameters with the short-commitment matrix `D`, of
     /// shape `D_ROWS × D_QUAD_COLS`.
     pub fn new(inner: PublicParams, d_matrix: PolyMatrix) -> PublicParamsD {
         PublicParamsD { inner, d_matrix }
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::PublicParamsD::inner
     /// The underlying inner-outer parameters `(A, B)`.
     pub fn inner(&self) -> &PublicParams {
         &self.inner
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::PublicParamsD::d_matrix
     /// The short-commitment matrix `D` ([NOZ26] Eq. (16)).
     pub fn d_matrix(&self) -> &PolyMatrix {
         &self.d_matrix
     }
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement
 /// The reduction's input statement (spec: `QuadEvalStatement`,
 /// `QuadEval/Reduction.lean:84`).
 ///
@@ -108,32 +113,38 @@ pub struct QuadEvalStatement {
 }
 
 impl QuadEvalStatement {
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement::new
     /// Bundle the outer commitment, the two evaluation bases and the claim.
     pub fn new(u: PolyVec, avec: PolyVec, bvec: PolyVec, y: Rq) -> QuadEvalStatement {
         QuadEvalStatement { u, avec, bvec, y }
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement::u
     /// The outer commitment `u`.
     pub fn u(&self) -> &PolyVec {
         &self.u
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement::avec
     /// The inner evaluation basis `aᵀ` ([NOZ26] Eq. (12)).
     pub fn avec(&self) -> &PolyVec {
         &self.avec
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement::bvec
     /// The outer evaluation basis `bᵀ` ([NOZ26] Eq. (12)).
     pub fn bvec(&self) -> &PolyVec {
         &self.bvec
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalStatement::y
     /// The claimed evaluation `y = f(x)`.
     pub fn y(&self) -> &Rq {
         &self.y
     }
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::QuadEvalResponse
 /// The reduction's output witness `(ŵ, t̂, ẑ)` (spec: `QuadEvalResponse`,
 /// `QuadEval/Reduction.lean:98`).
 ///
@@ -153,6 +164,7 @@ pub struct QuadEvalResponse {
 }
 
 impl QuadEvalResponse {
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalResponse::new
     /// Bundle the decomposed carrier, the per-block inner decompositions, and
     /// the decomposed folded opening.
     pub fn new(carrier_dec: PolyVec, inner_dec: Vec<PolyVec>, z_dec: PolyVec) -> QuadEvalResponse {
@@ -163,22 +175,26 @@ impl QuadEvalResponse {
         }
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalResponse::carrier_dec
     /// `ŵ = G⁻¹(w)`, the decomposed carrier.
     pub fn carrier_dec(&self) -> &PolyVec {
         &self.carrier_dec
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalResponse::inner_dec
     /// `t̂`, the per-block inner decompositions.
     pub fn inner_dec(&self) -> &Vec<PolyVec> {
         &self.inner_dec
     }
 
+    // @genesis b984c53 2026-09-04 — quadeval::QuadEvalResponse::z_dec
     /// `ẑ = J⁻¹(z)`, the decomposed folded opening.
     pub fn z_dec(&self) -> &PolyVec {
         &self.z_dec
     }
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::carrier_entry
 /// One carrier entry `wᵢ = aᵀ (G sᵢ)` (spec: `carrierEntry`,
 /// `QuadEval/Gadgets.lean:82`, i.e. `splitForm (gadgetMatrix …) a s`).
 ///
@@ -194,6 +210,7 @@ pub fn carrier_entry(a: &PolyVec, s: &PolyVec) -> Rq {
     a.dot(&recomposed)
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::carrier
 /// The carrier `w = (w₁, …, w_{2ʳ})` (spec: `carrier`,
 /// `QuadEval/Gadgets.lean:87`).
 ///
@@ -209,6 +226,7 @@ pub fn carrier(a: &PolyVec, s: &Vec<PolyVec>) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::carrier_decomp
 /// The carrier decomposition `ŵ = G⁻¹(w)` (spec: `carrierDecomp`,
 /// `QuadEval/Gadgets.lean:95`, at the balanced `ddCarrier` the composed chain
 /// supplies, `HonestChain.lean:308`).
@@ -222,6 +240,7 @@ pub fn carrier_decomp(a: &PolyVec, s: &Vec<PolyVec>) -> PolyVec {
     gadget::balanced_gadget_decompose(&w)
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::carrier_commit
 /// The short carrier commitment `v = D ŵ` (spec: `carrierCommit`,
 /// `QuadEval/Gadgets.lean:110`; `Simple.commit Φ D x` is `D *ᵥ x`,
 /// `Simple/Scheme.lean:38`).
@@ -236,6 +255,7 @@ pub fn carrier_commit(d_matrix: &PolyMatrix, a: &PolyVec, s: &Vec<PolyVec>) -> P
 // The block-weighted gadget sums
 // ---------------------------------------------------------------------------
 
+// @genesis b984c53 2026-09-04 — quadeval::tensor_g
 /// `tensorG_k c x = Σᵢ cᵢ •ᵥ (G_k xᵢ)` (spec: `tensorG`,
 /// `QuadEval/Gadgets.lean:187`), the Eq. (20) row-5 left-hand side.
 ///
@@ -258,6 +278,7 @@ pub fn tensor_g(rows: usize, c: &PolyVec, x: &Vec<PolyVec>) -> PolyVec {
     acc
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::tensor_g1
 /// `tensorG1 c x = ⟨c, G_{2ʳ} x⟩` (spec: `tensorG1`,
 /// `QuadEval/Gadgets.lean:224`), the Eq. (20) row-4 left-hand side.
 ///
@@ -275,6 +296,7 @@ pub fn tensor_g1(c: &PolyVec, x: &PolyVec) -> Rq {
 // The honest prover's computations
 // ---------------------------------------------------------------------------
 
+// @genesis b984c53 2026-09-04 — quadeval::honest_z
 /// The folded opening `z = Σᵢ cᵢ sᵢ` (spec: `honestZ`,
 /// `QuadEval/Reduction.lean:515`).
 ///
@@ -299,6 +321,7 @@ pub fn honest_z(message: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
     acc
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::honest_compute_v
 /// The prover's round-0 message `v = D ŵ` (spec: `honestComputeV`,
 /// `QuadEval/Reduction.lean:502`).
 ///
@@ -311,6 +334,7 @@ pub fn honest_compute_v(
     carrier_commit(pp.d_matrix(), stmt.avec(), message)
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::honest_compute_resp
 /// The honest output witness `(ŵ, t̂, ẑ)` (spec: `honestComputeResp`,
 /// `QuadEval/Reduction.lean:531`).
 ///
@@ -342,6 +366,7 @@ pub fn honest_compute_resp(
 // The output relation
 // ---------------------------------------------------------------------------
 
+// @genesis b984c53 2026-09-04 — quadeval::in_sb
 /// Membership of one ring element in the paper's balanced digit box
 /// `S_b = [⌈-b/2⌉, ⌈b/2⌉ - 1] = [-8, 7]` (spec: `InSb`,
 /// `QuadEval/Reduction.lean:297`).
@@ -377,6 +402,7 @@ pub fn in_sb(a: &Rq) -> bool {
     ok
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::vec_in_sb
 /// Every entry of a vector lies in the box (spec: `vecInSb`,
 /// `QuadEval/Reduction.lean:303`).
 ///
@@ -397,6 +423,7 @@ pub fn vec_in_sb(v: &PolyVec) -> bool {
     ok
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::j_mul
 /// The folded opening recovered from its decomposition, `z = J ẑ` (spec: the
 /// `let z := jMatrix Φ base n zDigits *ᵥ resp.zDec` of `relOut`,
 /// `QuadEval/Reduction.lean:267`).
@@ -410,6 +437,7 @@ pub fn j_mul(z_dec: &PolyVec) -> PolyVec {
     gadget::gadget_mul_z(n, z_dec)
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::rel_out
 /// The verifier's Eq. (20) checks with the `ℓ∞` **ball** range condition
 /// (spec: `relOut`, `QuadEval/Reduction.lean:258`).
 ///
@@ -460,6 +488,7 @@ pub fn rel_out(
     c1 && c2 && c3 && c4 && c5 && c6
 }
 
+// @genesis b984c53 2026-09-04 — quadeval::paper_rel_out
 /// The same checks with the paper's exact **box** range condition (spec:
 /// `paperRelOut`, `QuadEval/Reduction.lean:335`).
 ///
