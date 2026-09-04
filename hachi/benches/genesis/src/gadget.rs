@@ -228,6 +228,7 @@ pub fn gadget_decompose(x: &PolyVec) -> PolyVec {
 // The balanced layer: the Hachi gadget inverse `G⁻¹`
 // ---------------------------------------------------------------------------
 
+// @genesis 09df61b 2026-09-04 — gadget::balanced_digit_at
 /// The `e`-th *balanced* base-`b` digit of a field element (spec:
 /// `balancedDigit b digits c e`, `RingSwitch/RhoDigits.lean:79`, which is by
 /// `rfl` the `digit` field of `balancedZmodDigitDecomposition`,
@@ -259,6 +260,7 @@ pub fn balanced_digit_at(c: Fp, e: usize) -> Fp {
     digit_at(c + shift, e) - half
 }
 
+// @genesis 09df61b 2026-09-04 — gadget::balanced_digit_decompose
 /// All [`params::GADGET_DIGITS`] balanced digits of a field element,
 /// little-endian (spec: the `digit` field of `balancedZmodDigitDecomposition`
 /// as a whole).
@@ -287,6 +289,7 @@ pub fn balanced_digit_decompose(c: Fp) -> Vec<Fp> {
     out
 }
 
+// @genesis 09df61b 2026-09-04 — gadget::balanced_gadget_decompose
 /// The Hachi gadget inverse `G⁻¹` (spec: `gadgetDecompose`,
 /// `Gadget/Core.lean:518`, instantiated at `balancedZmodDigitDecomposition`).
 ///
@@ -330,6 +333,7 @@ pub fn balanced_gadget_decompose(x: &PolyVec) -> PolyVec {
 // The bounded balanced layer: the folded witness `ẑ`, at `Z_DIGITS` digits
 // ---------------------------------------------------------------------------
 
+// @genesis 09df61b 2026-09-04 — gadget::bounded_z_digit_at
 /// The `e`-th balanced base-`b` digit of a *short* field element, at the folded
 /// witness width [`params::Z_DIGITS`] (spec: `boundedBalancedZmodDigit b τ x e`,
 /// `Gadget/Core.lean:278`).

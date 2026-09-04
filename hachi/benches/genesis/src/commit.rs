@@ -506,6 +506,7 @@ pub fn verify(pp: &PublicParams, m: &Vec<PolyVec>, u: &PolyVec, opening: &Openin
 // The balanced committer: the honest Hachi commitment
 // ---------------------------------------------------------------------------
 
+// @genesis 09df61b 2026-09-04 — commit::generate_decomps_balanced
 /// Honest decomposition generation at the *balanced* gadget inverse (spec:
 /// `generateDecomps`, `Scheme.lean:156`, at
 /// `Decomposition.ofDigits ddBal ddBal`).
@@ -538,6 +539,7 @@ pub fn generate_decomps_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp 
     Decomp::new(ss, ts)
 }
 
+// @genesis 09df61b 2026-09-04 — commit::commit_balanced
 /// **The honest Hachi commitment**: commit to a message at the paper's balanced
 /// base-`b` digits (spec: `commitmentScheme.commit`, `Scheme.lean:226`, at the
 /// balanced `Decomposition` -- which composed with `Hachi.toMatrix` is

@@ -40,6 +40,7 @@ use crate::gadget;
 use crate::params;
 use crate::ring::Rq;
 
+// @genesis 09df61b 2026-09-04 — ringswitch::rho_digits
 /// Digit `u` of a quotient row (spec: `rhoDigits Φ b ρ u`,
 /// `RingSwitch/RhoDigits.lean:126`).
 ///
