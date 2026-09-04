@@ -381,6 +381,26 @@ pub const HALF_BASE: u64 = 8;
 /// constant here whose value is unique.
 pub const BALANCED_SHIFT: u64 = 2_290_649_224;
 
+/// The upper endpoint of the paper's balanced digit box
+/// `S_b = [⌈-b/2⌉, ⌈b/2⌉ - 1] = [-8, 7]` (Eq. (20)'s exact range check,
+/// `InSb` in `QuadEval/Reduction.lean`).
+///
+/// **Derived**: `(β + 1) / 2 - 1` at `β := b = 16`, in `ℕ` division and `ℕ`
+/// subtraction. A literal for the usual extraction reason -- a `const`-derived
+/// truncated subtraction reaches Lean through `Result` -- and, unlike most
+/// derived constants here, it also has no other spelling: `⌈b/2⌉ - 1` is not
+/// `GADGET_BASE - 1 - HALF_BASE` by definition, only by arithmetic at this `b`.
+///
+/// The box's *lower* endpoint needs no constant of its own: it is `β / 2` at
+/// `β = b`, which **is** [`HALF_BASE`]. The two are the same quantity `⌊b/2⌋`,
+/// not a collision -- so `lean/Check.lean` § 1 ties the pair once and
+/// `params.rs` names 8 once.
+///
+/// Note the box is *asymmetric*: `-8` is admissible and `+8` is not. A check
+/// written on a magnitude cannot express it, which is exactly why `in_sb` has
+/// to branch on the sign of the centered representative.
+pub const SB_HI: u64 = 7;
+
 /// The folded-witness digit count `τ`: the number of balanced base-`b` digits
 /// the response `ẑ = J⁻¹(z)` carries per coefficient (`zDigits` throughout
 /// `QuadEval/`, `jMatrix Φ base n zDigits`).

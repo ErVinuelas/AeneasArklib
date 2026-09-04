@@ -1239,6 +1239,76 @@ cross-crate whitelist costs nothing in determinism — but the `cpoly` **rev is
 visible in the artifact**, and bumping it regenerates those ten lines with no code
 change at all.
 
+## What the compiler already does to the digit layer (2026-09-04)
+
+Target 1's birth run was audited under `rust-bench` §4 — twelve read-only
+refutation agents, four lenses over three case groups, adjudicators on every
+refutation. **No finding survived**: all five new cases measure their item and
+nothing else, and the three refutations were overturned on disassembly of the
+run's own binary. What that disassembly showed is worth more than the verdict.
+
+**The source-level "hoist the constants" optimization is already done, by
+rustc.** `balanced_digit_at` is written as
+`digit_at(c + Fp::new(BALANCED_SHIFT), e) - Fp::new(HALF_BASE)`, and the target
+brief priced it at five `% P` per digit against `digit_at`'s one, with
+`opt-word-arith`'s "hoist the two constant `Fp::new`s" as the headline win. In
+the emitted code both constants are folded to immediates and hoisted above the
+criterion loop; in `balanced_digit_decompose`, `GADGET_DIGITS` being a constant
+lets rustc unroll the loop entirely and CSE the eight `c + shift` computations
+into **one** add and **one** reduction. The source-level hoist would delete zero
+instructions. The same is true of `digit_decompose`: its `O(digits²)` division
+chain — the thing `hachi/benches/gadget.rs`'s own header advertises as the first
+thing an optimization would remove — is already collapsed to constant `shr`s off
+one value.
+
+Read the general lesson, not the local one: **"the first translation does not
+make this optimization" is a claim about the source, and the fitness function
+measures the binary.** Several docstrings in this repository make that claim, and
+at these constant sizes rustc falsifies most of them. Price a candidate against
+`objdump`, not against the Rust.
+
+**But there is still a real `opt-word-arith` target, and it is a different
+one.** Two reductions survive inside the timed loop: a full Barrett multiply-
+shift for `Fp::add`, and a conditional-subtract fold for `Fp::sub`. LLVM emitted
+the cheap form for the `Sub` only because that operand is the literal `8`; it
+could not for the `Add`, because `Fp`'s reducedness is not in its type
+(`hachi/src/ring.rs` records exactly this). Both operands *are* below `P` —
+`BALANCED_SHIFT = 2290649224 < P` — so the sum is below `2P` and one conditional
+subtract suffices. That is `opt-word-arith`'s conditional-subtract fold, it sits
+at a named address, and it generalizes to every `Fp::add`/`Fp::sub` in the crate.
+It is also a `cpoly` boundary question, since `Fp` is a dependency and not ours
+to reimplement.
+
+**And the brief's cost model is wrong about what dominates.** The per-digit rows
+are taken-branch bound, not reduction bound: `e` reaches the callee through
+`black_box`, so the digit loop cannot be unrolled, and at `e = 7` the row is
+about eight taken branches. That is why `bounded_z_digit_at` at `Z_DIGITS - 1 =
+4` reads *faster* (1.43ns) than `digit_at` at 7 (1.90ns) while doing more work
+per digit, and why the balanced chain's extra straight-line uops cost only ~6%.
+An optimization aimed at the reductions will not move these rows much; one aimed
+at the division chain will.
+
+## A `--since` cut can silently drop half a sweep (2026-09-04)
+
+Also from that audit, and a harness lesson rather than a code one. The birth run
+was a full six-binary sweep, 09:39:12 to 09:56:37. It was first reported with
+`--since` set to 09:45 — six minutes in — which silently discarded all five
+`commit` rows, `_control/commit`, `_control/evalsplit`, and three `evalsplit`
+rows, and printed **"A/B bias 0.7%"** when the worst control actually measured
+was `_control/commit` at **1.4%**, twice that. No verdict moved, because
+`t_genesis = max(MIN_EFFECT, bias)` is `5%` either way — but the number was
+wrong, and the run id derived from that cut (`…T0945…`) does not have the
+property `harness.py` documents for it, that the timestamp is the run's start.
+
+`make run-bench` cannot produce this: it stamps `started` before `cargo bench`.
+It is reachable only by regenerating a report by hand with a later `--since`,
+which is exactly what happened. Two consequences worth carrying: **quote the A/B
+bias from the run's own report, never from a re-derivation**, and note that
+`report` filters *per variant* and keeps a case if any variant is fresh — so a
+cut landing mid-case can pair a fresh `now` against a stale `genesis`. It did not
+here; the mechanism exists. The corrected run id for target 1's birth is
+`20260904T0939+0200-0d88eccc`, 40 rows and 6 controls, A/B bias 1.4%.
+
 ## Deliberately not done
 
 `hachi/lean/Opt.lean` does not exist, and `Opt` is not in `roots`. The Lean-side

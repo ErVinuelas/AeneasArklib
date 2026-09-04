@@ -231,6 +231,7 @@ example : params.B_ZERO = 16#u64 := by simp [params.B_ZERO]
 example : params.CHAIN_GAMMA = 15#u64 := by simp [params.CHAIN_GAMMA]
 example : params.HALF_BASE = 8#u64 := by simp [params.HALF_BASE]
 example : params.BALANCED_SHIFT = 2290649224#u64 := by simp [params.BALANCED_SHIFT]
+example : params.SB_HI = 7#u64 := by simp [params.SB_HI]
 example : params.Z_DIGITS = 5#usize := by simp [params.Z_DIGITS]
 example : params.Z_BOUND = 131072#u64 := by simp [params.Z_BOUND]
 example : params.Z_BALANCED_SHIFT = 559240#u64 := by simp [params.Z_BALANCED_SHIFT]
@@ -273,6 +274,18 @@ example : params.BALANCED_SHIFT.val
   simp [params.BALANCED_SHIFT, params.GADGET_BASE, params.GADGET_DIGITS, digitOnesValue,
     Finset.sum_range_succ]
 example : params.BALANCED_SHIFT.val < params.Q.val := by simp [params.BALANCED_SHIFT, params.Q]
+
+-- The paper's balanced digit box `S_b = [⌈-b/2⌉, ⌈b/2⌉-1]` (`InSb`,
+-- `QuadEval/Reduction.lean`), at `β := b`. Its endpoints are `β/2` and
+-- `(β+1)/2 - 1` in `ℕ` division and truncated `ℕ` subtraction. The lower one
+-- *is* `HALF_BASE` (tied just above) -- the same quantity `⌊b/2⌋`, not a
+-- value-8 collision -- so only the upper one needs a name of its own.
+example : params.SB_HI.val = (params.GADGET_BASE.val + 1) / 2 - 1 := by
+  simp [params.SB_HI, params.GADGET_BASE]
+-- The box is ASYMMETRIC: its width is `b`, but `-⌊b/2⌋` is admissible and
+-- `+⌊b/2⌋` is not. A check written on a magnitude cannot express that.
+example : params.HALF_BASE.val ≠ params.SB_HI.val := by
+  simp [params.HALF_BASE, params.SB_HI]
 
 -- `τ`, by name, and what sizes it: `Z_BOUND` is `honestZBound = 2ʳ·ω·⌊b/2⌋` (so `hzb`
 -- holds with equality), it fits the balanced capacity of `τ` digits (`hcap`) and not
@@ -474,6 +487,13 @@ example (x : linalg.PolyVec) : Result linalg.PolyVec := gadget.balanced_gadget_d
 example (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp :=
   gadget.bounded_z_digit_at c e
 
+-- The `z`-side gadget siblings at `Z_DIGITS = 5`. A separate pair from the
+-- full-width ones, not the same functions at another width: the digit maps
+-- differ, and the bounded decomposition's round trip is conditional.
+example (x : linalg.PolyVec) : Result linalg.PolyVec := gadget.bounded_z_gadget_decompose x
+example (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec :=
+  gadget.gadget_mul_z rows v
+
 -- The ring-switching layer. A quotient digit is an `Rq`, i.e. a `Vec Fp` of the
 -- ring degree -- the `Rq.ofFinCoeff` shape `rhoDigits` builds, carried through
 -- `Rq::from_coeffs`.
@@ -523,6 +543,33 @@ example (v : evalsplit.MlEvals) : Result linalg.PolyMatrix :=
   evalsplit.MlEvals.to_matrix_eval v
 example (v : evalsplit.MlEvals) (xl xh : linalg.PolyVec) : Result ring.Rq :=
   evalsplit.MlEvals.eval_split_eval v xl xh
+
+-- The QuadEval fold. `in_sb`/`vec_in_sb`/`rel_out`/`paper_rel_out` return
+-- `Bool` inside `Result`, and that is the shape that matters: ArkLib states
+-- `relOut`, `paperRelOut`, `InSb` and `vecInSb` as `Prop`s (`Set`s of
+-- conjunctions), so each equivalence statement here is an **iff** rather than
+-- an equality of decisions -- unlike `commit.verify_weak`, whose spec is
+-- already `Bool`.
+example (a : ring.Rq) : Result Bool := quadeval.in_sb a
+example (v : linalg.PolyVec) : Result Bool := quadeval.vec_in_sb v
+
+example (a s : linalg.PolyVec) : Result ring.Rq := quadeval.carrier_entry a s
+example (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) : Result linalg.PolyVec :=
+  quadeval.carrier a s
+example (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) : Result linalg.PolyVec :=
+  quadeval.carrier_decomp a s
+example (rows : Std.Usize) (c : linalg.PolyVec) (x : alloc.vec.Vec linalg.PolyVec) :
+    Result linalg.PolyVec := quadeval.tensor_g rows c x
+example (c x : linalg.PolyVec) : Result ring.Rq := quadeval.tensor_g1 c x
+example (m : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec) : Result linalg.PolyVec :=
+  quadeval.honest_z m c
+example (z : linalg.PolyVec) : Result linalg.PolyVec := quadeval.j_mul z
+
+-- The three carriers are `@[reducible]` records, like `commit.Decomp`, so a
+-- statement about one is a statement about its fields.
+example (pp : quadeval.PublicParamsD) : commit.PublicParams := pp.inner
+example (stmt : quadeval.QuadEvalStatement) : linalg.PolyVec := stmt.avec
+example (resp : quadeval.QuadEvalResponse) : linalg.PolyVec := resp.z_dec
 
 /-! ## 3. The specification side is reachable, and agrees on the ring degree
 

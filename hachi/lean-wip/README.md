@@ -1,14 +1,30 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Currently holding `Balanced.lean`** — the balanced digit layer's nine
-statements (Stage 3 target 1, 2026-09-04), typechecked against the pinned
-ArkLib and none of them proved — plus the two instantiated decompositions
-they are stated at, `ddBal` and `bddZ`. In order: the three balanced digit specs
-and their `⌊b/2⌋` bound, the two bounded `z`-side specs, `rho_digits_spec`, and
-the two balanced-committer specs ending in `commit_balanced_spec` — the honest
-Hachi commitment, which is the statement that makes the crate a translation of
-the *paper's* committer rather than of the unsigned building block underneath
-it. Its own header carries the proof notes.
+**Currently holding `Balanced.lean` (PROVED, awaiting promotion) and
+`QuadEval.lean` (8 sorries).**
+
+`Balanced.lean` — the balanced digit layer, Stage 3 target 1 — went out as
+Aristotle session `58843236` on 2026-09-04 with nine `sorry`s and came back
+`integrated_complete` at **zero**: 22 theorems now, including the loop-spec
+scaffolding (`balanced_digit_decompose_loop_spec`, the three
+`balanced_gadget_decompose_*_loop_spec`) that `lean/Scheme.lean` uses for the
+unsigned layer. Verified here, not assumed: `lake env lean` reports no errors
+and no `declaration uses 'sorry'`, and all nine headline specs — through
+`commit_balanced_spec`, the honest Hachi commitment — print exactly
+`[propext, Classical.choice, Quot.sound]`.
+
+**It has therefore earned `lean/` and should be promoted** by the five steps
+below. Until that happens `make build` does not look at it, so nothing guards
+it against a lower-layer change or an ArkLib pin bump.
+
+`QuadEval.lean` (Stage 3 target 2, 2026-09-04) holds eight statements, none
+proved: the two `z`-side gadget siblings and the conditional round trip,
+`carrier_entry_spec`, `tensor_g1_spec`, and the box decisions. Four of the
+eight are **iffs rather than equalities** — `InSb`, `vecInSb`, `relOut` and
+`paperRelOut` are `Prop`s where `verify_weak` was a `Bool`, so the obligation
+is "the decision procedure decides the proposition". It is deliberately
+independent of `Balanced.lean` (no wip-to-wip import resolves), which is why
+`ddBal` appears in both; the duplicate goes when both are promoted.
 
 Everything else that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer

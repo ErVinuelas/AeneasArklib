@@ -86,3 +86,5 @@ pub mod commit;
 pub mod evalsplit;
 
 pub mod ringswitch;
+
+pub mod quadeval;

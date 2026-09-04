@@ -22,3 +22,5 @@
 {"at":"2026-08-26T16:40:41Z","event":"checked","percent_complete":23,"session_id":"cc7674ce-685f-4dc2-bff9-eb673de62cac","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-08-26T16:56:01Z","event":"checked","percent_complete":37,"session_id":"cc7674ce-685f-4dc2-bff9-eb673de62cac","state":"running","task_status":"IN_PROGRESS"}
 {"after_sorries":0,"at":"2026-08-26T17:24:26Z","before_sorries":12,"event":"integrated_complete","session_id":"cc7674ce-685f-4dc2-bff9-eb673de62cac","state":"closed","task_status":"COMPLETE"}
+{"at":"2026-09-04T10:21:45Z","event":"submitted","project_id":"6a0ae04e-9fd0-4804-99c4-22ddab811f4a","session_id":"58843236-775b-4a83-a7cd-5050b57079db","state":"running","targets":[{"path":"hachi/lean-wip/Balanced.lean","project_root":"hachi","sha256":"0db96dfa894dfd442aa9b87b5675bec29433d917b35ffd2f6886060cd655c691","sorries":9}],"total_sorries":9}
+{"after_sorries":0,"at":"2026-09-04T15:46:18Z","before_sorries":9,"event":"integrated_complete","session_id":"58843236-775b-4a83-a7cd-5050b57079db","state":"closed","task_status":"COMPLETE"}

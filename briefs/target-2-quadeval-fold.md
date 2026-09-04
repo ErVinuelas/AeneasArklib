@@ -1,4 +1,4 @@
-# Brief: `ArkLib.Lattices.Hachi` QuadEval fold — `carrier*`/`jMatrix`/`zDecomp`/`tensorG*`/`honest*`/`relOut`       (ArkLib @ `294b3f0b0f46e1485c878a217e9de764855f5915`)
+# Brief: `ArkLib.Lattices.Hachi` QuadEval fold — `carrier*`/`jMatrix`/`zDecomp(Bounded)`/`tensorG*`/`honest*`/`relOut`       (ArkLib @ `294b3f0b0f46e1485c878a217e9de764855f5915`; ⊗⊗ re-based 2026-09-04 on PR #847 `d51d8bc` — see the first section)
 
 Stage 2 target 2 of `PLAN_PROTOCOL_LAYER.md`; scale policies and the audit
 tables this brief consumes are `STAGE2_SCOPING.md` §§ "Erasure catalogue",
@@ -18,6 +18,106 @@ paper's τ). Every width below is written in terms of it; the two readings and
 exactly what differs are in § Parameters. No numeric `BETA_SQ` is asserted
 anywhere in this brief, and § Semantics risks records why that value is not on
 this target's code path at all.
+
+## ⊗⊗ Re-based 2026-09-04 on ArkLib PR #847 (pin `d51d8bc`) — read this first
+
+Everything below was read at `294b3f0b0`. The pin moved to PR #847's head
+before this target opened, and **the change lands squarely on this target**:
+PR #847 is the τ decoupling, and τ is this brief's one open parameter. Four
+things change; the rest of the brief stands.
+
+Two mechanical line shifts apply to every uncorrected citation below:
+`H/QuadEval/Gadgets.lean` is **+1** before its new `BoundedJGadget` section
+and **+36** after it, and `H/QuadEval/Reduction.lean` is **0** up to `:400`
+and **+28** after it. Verified anchors are given inline; re-read anything
+else at `d51d8bc` before relying on it.
+
+**1. § "⚠ The single open parameter: `Z_DIGITS`" is CLOSED — τ = 5, and the
+hypothesis changed shape, not just value.** `params.rs` already carries
+`Z_DIGITS = 5`, `Z_BOUND = 131072` and `Z_BALANCED_SHIFT = 559240`
+(`342ebba`/`a898de7`), tied in `lean/Check.lean` § 1 to
+`HachiParams.hachiTau` (`H/Params.lean:90`) and `honestZBound`
+(`:109`, `honestZBound_eq` `:162`). But the important part is not the number.
+The old reading had `hqz : q ≤ P.b ^ zDigits` discharged by
+`Nat.le_pow_clog`, which *forced* `zDigits = δ`. **That hypothesis no longer
+exists.** It is replaced by `hcap : zBound ≤ balancedDigitCapacity P.b τ`
+(`H/HonestChain.lean:294`, `H/Correctness.lean:546`), and `τ`/`zBound` are
+free section variables (`H/Correctness.lean:533`). `q ≤ 16⁵` is *false* and
+is asserted nowhere (`sixteen_pow_tau_lt_q`, `H/Params.lean:147`).
+Minimality is proved: `tau_minimal` (`:195`), capacity `489335` (`:157`)
+against the honest bound `131072`. So `Z = 5`, `δ = 8`, and **the brief's
+"both decompositions are balanced full-width" conclusion at the end of
+§ Definition chain is wrong** — see 2.
+
+**2. The `z` side is a `BoundedDigitDecomposition`, a different structure
+from the carrier side's.** Chain item 6 (`zDecomp`) still exists unchanged
+(`H/QuadEval/Gadgets.lean:133`, roundtrip `z_eq_jMatrix` `:138`) but **the
+honest path no longer uses it**. PR #847 *adds* a sibling:
+
+```
+zDecompBounded Φ bddZ z = bddZ.gadgetDecompose Φ z        Gadgets.lean:161
+BoundedDigitDecomposition.gadgetDecompose bdd Φ x
+  = gadgetDecomposeFun Φ bdd.digit x                      Gadget/Core.lean:544
+```
+
+with a **conditional** roundtrip `z = jMatrix *ᵥ zDecompBounded Φ bddZ z`
+under `hz : vecLInftyNorm Φ z ≤ zBound` (`z_eq_jMatrix_bounded`,
+`Gadgets.lean:171`) — where the full-width `z_eq_jMatrix` is unconditional.
+Chain item 11 changes with it: `honestComputeResp`'s `ddZ` is now
+`BoundedDigitDecomposition base zDigits zBound` and its `zDec` is
+`Hachi.zDecompBounded` (`H/QuadEval/Reduction.lean:531`); so is
+`quadEvalReduction`'s (`:552`). `ddCarrier` stays a full-width
+`DigitDecomposition` — carrier coefficients are arbitrary residues.
+
+Consequences for the translation, and they are not cosmetic:
+
+* the Rust needs a `_z` sibling of `gadget_decompose` at `Z_DIGITS = 5`
+  width, over `gadget::bounded_z_digit_at` — which target 1 already
+  onboarded (`hachi/src/gadget.rs`, `Mirrors boundedBalancedZmodDigit`).
+  `params.rs`'s `Z_DIGITS` docstring anticipated exactly this ("every
+  `gadget_*` function hard-wired to `GADGET_DIGITS` gets a `_z` sibling at
+  this width rather than a digits parameter"). **This is the seam to target
+  1, and it is now a hard dependency rather than the "thin seam" the plan's
+  table records.**
+* the `_spec` for the `z` round trip carries `‖z‖∞ ≤ Z_BOUND` as a
+  *hypothesis* — a new shape for `STAGE2_SCOPING.md`'s erasure catalogue
+  (conditional reconstruction), the same one brief 1 flagged for
+  `bounded_z_digit_at`;
+* widths that were `n · δ` on the `z` side are `n · τ` = `n · 5`. With
+  `n = 8192`: `RLIN_CZ = 40960` and `μ₀ = 57344` (already in `params.rs`),
+  against the 65536/81920 this brief's § Cost model computes at `Z = 8`.
+  **Every `Z`-parameterized number below must be read at `Z = 5`.**
+
+**3. A new correctness-side relation, `relInMsgShort`.** `relIn` plus
+`∀ i, vecLInftyNorm Φ (p.2.message i) ≤ msgBound`
+(`H/QuadEval/Reduction.lean:400`), with the forgetful inclusion
+`relInMsgShort_subset_relIn` (`:412`). It is a genuine strengthening that
+exists only to feed the honest-`z` bound, and it never reaches a soundness
+statement. Nothing to translate — it is a `Set` of `Prop`s like `relOut` —
+but the honest-path *tests* must respect it: at the balanced committer
+`msgBound = ⌊b/2⌋ = 8` (`HALF_BASE`), which is exactly what target 1's
+`the_balanced_decomposition_is_shorter_than_the_unsigned_one` already
+witnesses.
+
+**4. `setting τ := δ` recovers the old behaviour as an instance.**
+`H/Correctness.lean:525-531` says so explicitly (the capacity hypothesis
+goes slack). So the full-width `zDecomp` path is not dead code and the two
+readings this brief agonized over are now one parameterized family — which
+is why § "⚠ The single open parameter" can be read as history rather than as
+an open question.
+
+**Unchanged, verified at `d51d8bc`:** `relOut`'s six conjuncts and their
+line numbers (`:258-284`, c1 `:270` … c6 `:282-284`), `InSb` `:297`,
+`vecInSb` `:303`, `lInftyNorm_le_of_InSb` `:308`, `paperRelOut` `:335`,
+`paperRelOut_subset_relOut` `:367`, `relIn` `:382`; and on the Gadgets side
+`carrierEntry` `:82`, `carrier` `:87`, `carrierDecomp` `:95`,
+`carrier_eq_gadget` `:102`, `carrierCommit` `:110`, `jMatrix` `:126`,
+`tensorG` `:187`, `tensorG1` `:224`. `honestComputeV` is `:502`, `honestZ`
+`:515`. The cost model's dominant term (`honestZ`, `2^23` ring products)
+and the § Strategy candidates headline (the challenge-sparse product,
+`‖c‖₁ ≤ ω = 16`) are untouched by any of this.
+
+---
 
 ## Definition chain
 

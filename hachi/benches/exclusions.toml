@@ -112,6 +112,76 @@ exception (header) until a sub-quadratic `ring::mul` lands."""
 shapes -- hours per criterion iteration. Excluded per the Fig. 9 policy
 exception (header) until a sub-quadratic `ring::mul` lands."""
 
+# --- quadeval: TWO different walls, and they must not be conflated ----------
+#
+# W4 (memory). The QuadEval witness `message` is `BLOCKS` blocks of
+# `MESSAGE_ROWS · GADGET_DIGITS = 8192` ring elements, i.e. `2^23` elements of
+# 8 KiB = **64 GiB** -- larger than this machine, and 8x the ~8 GiB undecomposed
+# message. Nothing about `ring::mul` changes that: the removal condition is a
+# blockwise/streaming witness API, **not** the multiplication champion. Every
+# entry below marked W4 inherits that, and a sub-quadratic mul does NOT retire
+# it.
+#
+# W1 (multiplication width). `relOut`'s three `1 x 8192` mat-vecs are 24 576 of
+# its 28 672 ring muls (86%); those do retire with a mul champion, but the
+# functions that carry them are W4-blocked first.
+
+"quadeval::PublicParamsD" = """
+a struct: two matrix fields, no computation. Types are excluded by
+construction (`rustitems.benchable()` excludes `struct`), like every other
+mirrored type in this crate."""
+
+"quadeval::QuadEvalStatement" = """
+a struct: four data fields, no computation. See `quadeval::PublicParamsD`."""
+
+"quadeval::QuadEvalResponse" = """
+a struct: three data fields, no computation. See `quadeval::PublicParamsD`."""
+
+"quadeval::carrier" = """
+W4 + W1: `blocks` x `carrier_entry`, i.e. `2^r · 2^m = 2^20` ring muls (~26 min
+at d = 1024 schoolbook), over a `blocks x 8192` witness that is 64 GiB at
+Fig. 9. `carrier_entry` itself is benched at a REDUCED row count."""
+
+"quadeval::carrier_decomp" = """
+W4: `carrier` plus `2^r · δ · d` digit steps. The digit layer is measured
+directly as `gadget/balanced_gadget_decompose`; what cannot run here is the
+64 GiB witness `carrier` reads."""
+
+"quadeval::carrier_commit" = """
+W4 + W1: `carrier_decomp` plus `dRows · (2^r · δ) = 8192` ring muls. Blocked by
+the witness before the multiplication."""
+
+"quadeval::honest_z" = """
+W4 + W1, and the target's dominant term: `2^r · n = 2^23` full ring products
+(`scalarVecMul` multiplies by a ring element, not a constant) -- the same order
+as `commit::commit`, hours per criterion iteration -- over the 64 GiB witness.
+Both walls fire; the memory one is not removed by a mul champion."""
+
+"quadeval::honest_compute_v" = """
+W4 + W1: `carrier_commit` under another name (`QuadEval/Reduction.lean`)."""
+
+"quadeval::honest_compute_resp" = """
+W4 + W1: `carrier_decomp` + `honest_z` + the bounded z decomposition,
+~2^23 + 2^20 ring muls over the 64 GiB witness."""
+
+"quadeval::j_mul" = """
+a params-fixed wrapper over `gadget::gadget_mul_z` at the scheme's
+`n = MESSAGE_ROWS · GADGET_DIGITS = 8192`, whose input `ẑ` alone is
+`n · Z_DIGITS = 40960` ring elements = 320 MiB. The operation itself is
+measured as `gadget/gadget_mul_z` at a REDUCED row count; a case here would
+measure the 320 MiB corpus."""
+
+"quadeval::rel_out" = """
+W1 (and W4 through the witness that produces its response): 28 672 ring muls
+per call, ~43 s per iteration, of which the three `1 x 8192` mat-vecs are 86%.
+Retires with a sub-quadratic `ring::mul` champion -- unlike the W4 entries
+above. Its cheap conjunct, the box test, is benched as `quadeval/in_sb`."""
+
+"quadeval::paper_rel_out" = """
+W1: `rel_out` with the box check in place of the ball; the same 28 672 ring
+muls dominate. Its distinguishing conjunct is benched as
+`quadeval/vec_in_sb`."""
+
 "commit::generate_decomps_balanced" = """
 the balanced twin of `commit::generate_decomps`, and `ring::mul`-bound for the
 same reason: per block one `balanced_gadget_decompose` (8192 digit loops), one

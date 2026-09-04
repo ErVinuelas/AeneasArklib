@@ -388,3 +388,81 @@ pub fn bounded_z_digit_at(c: Fp, e: usize) -> Fp {
     }
     Fp::new(rest % b) - Fp::new(params::HALF_BASE)
 }
+
+/// The gadget inverse `J⁻¹` of the folded witness, at the bounded `z`-side
+/// width [`params::Z_DIGITS`] (spec: `BoundedDigitDecomposition.gadgetDecompose`,
+/// `Gadget/Core.lean:544`, instantiated at
+/// `boundedBalancedZmodDigitDecomposition 16 5 131072`).
+///
+/// Mirrors ArkLib's `BoundedDigitDecomposition.gadgetDecompose` at
+/// `boundedBalancedZmodDigitDecomposition`.
+///
+/// The `_z` sibling [`params::Z_DIGITS`] predicts: the same triple loop as
+/// [`balanced_gadget_decompose`], at `Z_DIGITS = 5` digits instead of
+/// `GADGET_DIGITS = 8` and over [`bounded_z_digit_at`] instead of
+/// [`balanced_digit_at`]. It is a separate function rather than a digits
+/// parameter because every `gadget_*` here is hard-wired to its width, and
+/// because the two digit maps are genuinely different functions -- not one
+/// function at two widths.
+///
+/// **The round trip is conditional.** `gadget_mul_z(x.len(), ·)` inverts this
+/// only when every coefficient of `x` is `Z_BOUND`-short as a centered
+/// residue (`boundedGadgetDecompose_gadgetMul_eq`, `Gadget/Core.lean:553`);
+/// the full-width [`gadget_decompose`] and [`balanced_gadget_decompose`] invert
+/// unconditionally. That is the whole content of `τ = 5 < δ = 8`: `16^5 < q`,
+/// so no five-digit decomposition of *every* residue exists. The output range
+/// is unconditional either way.
+pub fn bounded_z_gadget_decompose(x: &PolyVec) -> PolyVec {
+    let digits: usize = params::Z_DIGITS;
+    let degree: usize = params::RING_DEGREE;
+    let rows: usize = x.len();
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < rows {
+        let mut e: usize = 0;
+        while e < digits {
+            let mut coeffs: Vec<Fp> = Vec::new();
+            let mut k: usize = 0;
+            while k < degree {
+                coeffs.push(bounded_z_digit_at(x.get(i).coeff(k), e));
+                k += 1;
+            }
+            out.push(Rq::from_coeffs(&coeffs));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+/// The gadget product `J · v` at the `z`-side width (spec: `gadgetMul`,
+/// `Gadget/Core.lean:399`, at `digits := zDigits`; equivalently
+/// `jMatrix Φ base n zDigits *ᵥ v`, since `jMatrix` *is* `gadgetMatrix` at that
+/// width -- `QuadEval/Gadgets.lean:126`).
+///
+/// Mirrors ArkLib's `gadgetMul` at `digits = Z_DIGITS`.
+///
+/// The `_z` sibling of [`gadget_mul`], and the reason it must exist in this
+/// collapsed form is feasibility rather than speed: `jMatrix` at the scheme's
+/// `n = MESSAGE_ROWS · GADGET_DIGITS = 8192` is `n × n·Z` ring elements, about
+/// **2.5 TB** at `Z = 5`, so it is never materialized. `gadgetMul_apply`
+/// (`Gadget/Core.lean:429`) proves the matrix product collapses to exactly the
+/// per-block digit sum below, which is what makes this the honest
+/// implementation and not an optimization.
+pub fn gadget_mul_z(rows: usize, v: &PolyVec) -> PolyVec {
+    let digits: usize = params::Z_DIGITS;
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < rows {
+        let mut acc: Rq = Rq::zero();
+        let mut e: usize = 0;
+        while e < digits {
+            let scaled: Rq = v.get(digits * i + e).scalar_mul(base_pow(e));
+            acc = acc.add(&scaled);
+            e += 1;
+        }
+        out.push(acc);
+        i += 1;
+    }
+    PolyVec::new(out)
+}

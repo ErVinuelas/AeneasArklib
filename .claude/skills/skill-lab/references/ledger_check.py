@@ -53,8 +53,10 @@ POSITIONAL_RE = re.compile(
 # `<module>/<op>`, and a ledger row's `op` is that name or the bare module.
 # Keep in sync with `hachi/benches/harness.py § MODULES`: `evalsplit` was added
 # here when its promotion (2a0168f) reached the bench layer, and `ringswitch`
-# when Stage 3 target 1 onboarded `rho_digits` into a module of its own.
-MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch"}
+# when Stage 3 target 1 onboarded `rho_digits` into a module of its own, and
+# `quadeval` when target 2 onboarded the QuadEval fold.
+MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
+           "quadeval"}
 
 CANDIDATE_VERDICTS = {
     "accepted", "rejected-slower", "rejected-noise", "rejected-mixed",

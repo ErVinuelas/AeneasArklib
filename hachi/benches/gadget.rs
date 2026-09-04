@@ -209,10 +209,26 @@ macro_rules! define_cases {
 
             // -- the balanced per-coefficient layer --------------------------
 
-            /// The balanced digit at the deepest index: the unsigned chain plus
-            /// the two constant `Fp::new`s, the field shift add and the
-            /// recentring subtract -- five modular reductions where
-            /// [`digit_at`] pays one.
+            /// The balanced digit at the deepest index.
+            ///
+            /// The *source* pays five `% P` where [`digit_at`] pays one (the
+            /// two constant `Fp::new`s, the field shift add, `digit_at`'s own
+            /// `Fp::new`, and the recentring subtract). The *binary* does not,
+            /// and the §4 audit of 2026-09-04 disassembled this run to settle
+            /// it: both constants are folded to immediates and hoisted above
+            /// the criterion loop, and what survives inside it is **two**
+            /// reductions -- one full Barrett for `Fp::add`, one
+            /// conditional-subtract fold for `Fp::sub` (the latter only
+            /// because that operand is the literal 8). Recorded here so nobody
+            /// re-litigates the source count against the measurement.
+            ///
+            /// What the +6% over `digit_at` actually buys is *not* those
+            /// reductions: `e` arrives through `black_box`, so the digit loop
+            /// cannot be unrolled and the row is taken-branch bound at
+            /// `digits - 1 = 7` iterations. The balanced chain adds
+            /// straight-line uops that fit in the issue slack. An optimization
+            /// aimed at the reductions will not move this row much; one aimed
+            /// at the division chain will.
             pub fn balanced_digit_at(m: Mode<'_, '_>, digits: usize) -> u64 {
                 let c = one_coeff();
                 support::run(
@@ -222,9 +238,24 @@ macro_rules! define_cases {
                 )
             }
 
-            /// All `digits` balanced digits: the row that shows what hoisting
-            /// the one `c + shift` out of the loop would buy, since the first
-            /// translation re-derives it per digit.
+            /// All `digits` balanced digits.
+            ///
+            /// **Not** the row that shows what hoisting the one `c + shift` out
+            /// of the loop would buy -- an earlier version of this comment said
+            /// it was, and the §4 audit of 2026-09-04 refuted that from the
+            /// binary: `GADGET_DIGITS` is a constant, so rustc fully unrolls
+            /// the loop and CSEs the eight `c + shift` computations into one
+            /// add plus one reduction. The source-level hoist would delete zero
+            /// instructions, so its honest reading here is 0%, not a few
+            /// percent. (The same is true of [`digit_decompose`]'s
+            /// `O(digits²)` division chain, which is also already collapsed.)
+            ///
+            /// What the row does measure: one shift-add-reduce, eight constant
+            /// digit extracts with their recentring selects, and the `Vec<Fp>`
+            /// the result is returned in -- which the audit put at the majority
+            /// of the reading. The allocation is deliberate (`support/mod.rs`:
+            /// an "optimization" that halves the arithmetic while doubling the
+            /// allocations has not made anything faster).
             pub fn balanced_digit_decompose(m: Mode<'_, '_>, _digits: usize) -> u64 {
                 let c = one_coeff();
                 support::run(
@@ -239,6 +270,19 @@ macro_rules! define_cases {
             /// different width: it centres first and shifts in the integers, so
             /// the reading includes the `valMinAbs` fold and excludes one of the
             /// two constant field reductions.
+            ///
+            /// It reads *faster* than [`digit_at`] despite doing more work per
+            /// digit, and that is the shape rather than an anomaly: the row is
+            /// taken-branch bound on the digit loop and `Z_DIGITS - 1 = 4` is
+            /// three iterations shorter than `GADGET_DIGITS - 1 = 7`. Never
+            /// read the two rows against each other as a cost comparison.
+            ///
+            /// Note the benched input is an ordinary corpus draw, far outside
+            /// the `Z_BOUND` domain the function's reconstruction law needs, so
+            /// only one of its three shift arms is exercised here. That is
+            /// correct for a *timing* row -- the arms are a compare and a
+            /// subtract either way -- but it means this case is no oracle for
+            /// the clamp; `tests/gadget_semantics.rs` is.
             pub fn bounded_z_digit_at(m: Mode<'_, '_>, z_digits: usize) -> u64 {
                 let c = one_coeff();
                 support::run(
@@ -288,6 +332,35 @@ macro_rules! define_cases {
                 support::run(
                     m,
                     || hc::gadget::gadget_mul(black_box(rows), black_box(&decomposed)),
+                    d_polyvec,
+                )
+            }
+
+            // -- the z-side siblings ----------------------------------------
+
+            /// The bounded `J⁻¹` at `Z_DIGITS = 5`, on the same `x` the two
+            /// full-width decompose rows use -- so the three differ by digit
+            /// map and width and nothing else. REDUCED rows for the same
+            /// reason `gadget_matrix` is: the scheme's `n = 8192` output is
+            /// `n · Z` ring elements.
+            pub fn bounded_z_gadget_decompose(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let x = vec_of(0x1A1A_0000_0000_0001, rows);
+                support::run(
+                    m,
+                    || hc::gadget::bounded_z_gadget_decompose(black_box(&x)),
+                    d_polyvec,
+                )
+            }
+
+            /// `J · v`, the collapsed `z`-side gadget product, on the honest
+            /// bounded decomposition of the same `x` -- the other half of the
+            /// (conditional) round trip.
+            pub fn gadget_mul_z(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let x = vec_of(0x1A1A_0000_0000_0001, rows);
+                let decomposed = hc::gadget::bounded_z_gadget_decompose(&x);
+                support::run(
+                    m,
+                    || hc::gadget::gadget_mul_z(black_box(rows), black_box(&decomposed)),
                     d_polyvec,
                 )
             }
@@ -355,6 +428,15 @@ fn gadget_benches(c: &mut Criterion) {
     bench_case!(c, "gadget/balanced_gadget_decompose", balanced_gadget_decompose, [rows]);
     // @covers gadget::gadget_mul
     bench_case!(c, "gadget/gadget_mul", gadget_mul, [rows]);
+
+    // REDUCED rows for the two `z`-side siblings: at the scheme's `n = 8192`
+    // the decomposition is `n · Z_DIGITS = 40960` ring elements (320 MiB), so
+    // a case at that width would measure allocation, not the digit map.
+    let z_rows = 64;
+    // @covers gadget::bounded_z_gadget_decompose
+    bench_case!(c, "gadget/bounded_z_gadget_decompose", bounded_z_gadget_decompose, [z_rows]);
+    // @covers gadget::gadget_mul_z
+    bench_case!(c, "gadget/gadget_mul_z", gadget_mul_z, [z_rows]);
 }
 
 criterion_group! {

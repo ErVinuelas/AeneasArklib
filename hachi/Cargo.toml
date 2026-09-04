@@ -58,6 +58,10 @@ bench = false
 name = "ringswitch_semantics"
 bench = false
 
+[[test]]
+name = "quadeval_semantics"
+bench = false
+
 # This is the thing Aeneas extracts, so every entry here has to survive charon.
 # The field layer is NOT reimplemented: `Fp` (the Hachi prime `2^32 - 99`) and
 # `Ext4` come from AeneasCompPoly's `cpoly` crate, which already carries their
@@ -150,6 +154,10 @@ harness = false
 
 [[bench]]
 name = "ringswitch"
+harness = false
+
+[[bench]]
+name = "quadeval"
 harness = false
 
 # Warn rather than deny: `make extract` builds this crate with charon's own

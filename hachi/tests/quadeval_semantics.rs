@@ -1,0 +1,285 @@
+//! `src/quadeval.rs`: the QuadEval fold and its Eq. (20) checks.
+//!
+//! The headline tests are [`in_sb_is_asymmetric`] and
+//! [`the_box_is_strictly_stronger_than_the_ball`]: the paper's balanced digit
+//! box `S_b = [-8, 7]` admits `-8` and rejects `+8`, while the `ℓ∞` ball
+//! `‖·‖∞ ≤ CHAIN_GAMMA = 15` admits both. That single asymmetry is the whole
+//! difference between `relOut` and `paperRelOut`, and a corpus that stays
+//! inside the ball cannot see it.
+//!
+//! # Scale policy
+//!
+//! Split, and the split is forced by two *different* walls:
+//!
+//! * `in_sb`/`vec_in_sb`, `tensor_g`, `tensor_g1`, `carrier_entry` and the
+//!   bounded `z` round trip are shape-generic and run here at real
+//!   `RING_DEGREE`, with small ad-hoc block counts.
+//! * `honest_z`, `rel_out` and `paper_rel_out` read their widths from
+//!   [`params`] and cannot be run at a reduced shape. At Fig. 9 the witness
+//!   `message` alone is `2^23` ring elements (~64 GiB) and `honest_z` is `2^23`
+//!   ring products, so those tests are `#[ignore]`d rather than deleted --
+//!   `cargo test --release -- --ignored` on a machine sized for them. Note the
+//!   removal condition is a **streaming witness API**, not the multiplication
+//!   champion: no `ring::mul` speed makes 64 GiB fit.
+
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+
+mod support;
+
+use hachi::commit::{l_infty_norm, vec_l_infty_norm};
+use hachi::gadget::{
+    balanced_gadget_decompose, bounded_z_gadget_decompose, gadget_mul, gadget_mul_z,
+};
+use hachi::linalg::PolyVec;
+use hachi::params::{
+    BLOCKS, CHAIN_GAMMA, GADGET_BASE, GADGET_DIGITS, HALF_BASE, MESSAGE_ROWS, Q, RING_DEGREE,
+    SB_HI, Z_BOUND, Z_DIGITS,
+};
+use hachi::quadeval::{
+    carrier, carrier_entry, in_sb, j_mul, tensor_g, tensor_g1, vec_in_sb,
+};
+use hachi::ring::Rq;
+use support::{rq_from_u64s, Lcg};
+
+/// An `Rq` whose coefficient `0` is the given *centered* integer.
+fn rq_with_centered(x: i64) -> Rq {
+    let v = if x >= 0 { x as u64 } else { Q - ((-x) as u64) };
+    rq_from_u64s(&[v])
+}
+
+// ---------------------------------------------------------------------------
+// The box, and why it is not a ball
+// ---------------------------------------------------------------------------
+
+/// The specification's box is `[-⌊b/2⌋, ⌈b/2⌉-1] = [-8, 7]` -- **asymmetric**.
+/// An implementation that tested a magnitude would accept `+8`, and one that
+/// tested `to_u64() <= 7` would reject every negative digit.
+#[test]
+fn in_sb_is_asymmetric() {
+    assert!(in_sb(&rq_with_centered(-(HALF_BASE as i64))), "-8 must be in the box");
+    assert!(in_sb(&rq_with_centered(SB_HI as i64)), "+7 must be in the box");
+    assert!(!in_sb(&rq_with_centered(HALF_BASE as i64)), "+8 must be OUT of the box");
+    assert!(
+        !in_sb(&rq_with_centered(-(HALF_BASE as i64) - 1)),
+        "-9 must be out of the box"
+    );
+    for x in -(HALF_BASE as i64)..=(SB_HI as i64) {
+        assert!(in_sb(&rq_with_centered(x)), "centered {x} should be in the box");
+    }
+}
+
+/// The box is strictly inside the ball, and `+8` is the witness: it passes
+/// `‖·‖∞ ≤ CHAIN_GAMMA = 15` and fails `InSb 16`. This is exactly what
+/// separates `rel_out` from `paper_rel_out`, isolated from their Fig. 9 widths.
+#[test]
+fn the_box_is_strictly_stronger_than_the_ball() {
+    let plus_eight = rq_with_centered(HALF_BASE as i64);
+    assert!(l_infty_norm(&plus_eight) <= CHAIN_GAMMA, "+8 is inside the ball");
+    assert!(!in_sb(&plus_eight), "+8 is outside the box");
+
+    let v = PolyVec::new(vec![rq_with_centered(-(HALF_BASE as i64)), plus_eight]);
+    assert!(vec_l_infty_norm(&v) <= CHAIN_GAMMA, "the vector is inside the ball");
+    assert!(!vec_in_sb(&v), "the vector must fail the box");
+
+    // And the containment direction the spec proves (`paperRelOut_subset_relOut`
+    // under `b/2 <= γ`, which is `8 <= 15` here): in the box implies in the ball.
+    let mut rng = Lcg::new(0x9E11_0000_0000_0001);
+    for _ in 0..32 {
+        let coeffs: Vec<u64> = (0..RING_DEGREE)
+            .map(|_| {
+                let x = (rng.next_u64() % (GADGET_BASE)) as i64 - HALF_BASE as i64;
+                if x >= 0 { x as u64 } else { Q - ((-x) as u64) }
+            })
+            .collect();
+        let a = rq_from_u64s(&coeffs);
+        if in_sb(&a) {
+            assert!(l_infty_norm(&a) <= CHAIN_GAMMA, "box member outside the ball");
+        }
+    }
+}
+
+/// The honest balanced decomposition lands *exactly* on the box: it fills
+/// `[-8, 7]`, so `paper_rel_out`'s c6 is tight on it while `rel_out`'s has
+/// slack 7. That tightness is why the corpus above has to be constructed
+/// rather than decomposed.
+#[test]
+fn the_honest_balanced_decomposition_is_in_the_box() {
+    let mut rng = Lcg::new(0x9E11_0000_0000_0002);
+    let x = rng.next_poly_vec(3);
+    let d = balanced_gadget_decompose(&x);
+    assert!(vec_in_sb(&d), "the balanced decomposition must satisfy InSb");
+    assert!(vec_l_infty_norm(&d) <= CHAIN_GAMMA);
+}
+
+/// And the *unsigned* decomposition does not -- it yields digits in `{0,…,15}`,
+/// which pass the ball with no slack and fail the box for every digit >= 8.
+/// This is why target 2's honest path consumes target 1's balanced digits.
+#[test]
+fn the_unsigned_decomposition_fails_the_box() {
+    let mut rng = Lcg::new(0x9E11_0000_0000_0003);
+    let x = rng.next_poly_vec(3);
+    let d = hachi::gadget::gadget_decompose(&x);
+    assert!(
+        vec_l_infty_norm(&d) <= CHAIN_GAMMA,
+        "the unsigned decomposition should still pass the ball"
+    );
+    assert!(!vec_in_sb(&d), "the unsigned decomposition must fail the box");
+}
+
+// ---------------------------------------------------------------------------
+// The gadget collapse
+// ---------------------------------------------------------------------------
+
+/// `carrierEntry` is `splitForm (gadgetMatrix …) a s`, and the Rust computes it
+/// through the collapsed `gadget_mul`. Checked against the *materialized*
+/// matrix at a reduced row count -- the one place `G` can be built at all.
+#[test]
+fn carrier_entry_agrees_with_the_materialized_matrix() {
+    let rows = 2usize;
+    let mut rng = Lcg::new(0x9E11_0000_0000_0004);
+    let a = rng.next_poly_vec(rows);
+    let s = rng.next_poly_vec(rows * GADGET_DIGITS);
+    let g = hachi::gadget::gadget_matrix(rows);
+    assert!(
+        carrier_entry(&a, &s).equals(&g.split_form(&a, &s)),
+        "the collapsed carrier entry disagrees with the materialized G"
+    );
+}
+
+/// `carrier` is `carrier_entry` at every block -- one source of truth, two
+/// shapes.
+#[test]
+fn carrier_is_carrier_entry_per_block() {
+    let rows = 2usize;
+    let blocks = 3usize;
+    let mut rng = Lcg::new(0x9E11_0000_0000_0005);
+    let a = rng.next_poly_vec(rows);
+    let s: Vec<PolyVec> = (0..blocks)
+        .map(|_| rng.next_poly_vec(rows * GADGET_DIGITS))
+        .collect();
+    let w = carrier(&a, &s);
+    assert_eq!(w.len(), blocks);
+    for i in 0..blocks {
+        assert!(w.get(i).equals(&carrier_entry(&a, &s[i])));
+    }
+}
+
+/// `tensorG1 c x = ⟨c, G x⟩`, against an independent accumulation that
+/// recomposes each block by hand rather than through `gadget_mul`.
+#[test]
+fn tensor_g1_is_the_challenge_weighted_recomposition() {
+    let blocks = 3usize;
+    let mut rng = Lcg::new(0x9E11_0000_0000_0006);
+    let c = rng.next_poly_vec(blocks);
+    let x = rng.next_poly_vec(blocks * GADGET_DIGITS);
+
+    // Reference: recompose block i as Σ_e b^e · x[digits·i+e], then dot with c.
+    let mut expected = Rq::zero();
+    for i in 0..blocks {
+        let mut row = Rq::zero();
+        for e in 0..GADGET_DIGITS {
+            row = row.add(&x.get(GADGET_DIGITS * i + e).scalar_mul(hachi::gadget::base_pow(e)));
+        }
+        expected = expected.add(&c.get(i).mul(&row));
+    }
+    assert!(tensor_g1(&c, &x).equals(&expected));
+}
+
+/// `tensorG c x = Σᵢ cᵢ •ᵥ (G xᵢ)`, likewise -- and `•ᵥ` is a full ring
+/// product per entry, not a coefficient scaling.
+#[test]
+fn tensor_g_is_the_blockwise_weighted_sum() {
+    let rows = 2usize;
+    let blocks = 3usize;
+    let mut rng = Lcg::new(0x9E11_0000_0000_0007);
+    let c = rng.next_poly_vec(blocks);
+    let x: Vec<PolyVec> = (0..blocks)
+        .map(|_| rng.next_poly_vec(rows * GADGET_DIGITS))
+        .collect();
+
+    let mut expected = PolyVec::zeros(rows);
+    for i in 0..blocks {
+        let recomposed = gadget_mul(rows, &x[i]);
+        let mut entries = Vec::new();
+        for j in 0..rows {
+            entries.push(c.get(i).mul(recomposed.get(j)));
+        }
+        expected = expected.add(&PolyVec::new(entries));
+    }
+    assert!(tensor_g(rows, &c, &x).equals(&expected));
+}
+
+/// The empty sum is zero, which is what `Finset.sum` over no blocks gives.
+#[test]
+fn tensor_g_of_no_blocks_is_zero() {
+    let rows = 2usize;
+    let c = PolyVec::zeros(0);
+    let x: Vec<PolyVec> = Vec::new();
+    assert!(tensor_g(rows, &c, &x).equals(&PolyVec::zeros(rows)));
+}
+
+// ---------------------------------------------------------------------------
+// The bounded z round trip -- conditional, and the condition is real
+// ---------------------------------------------------------------------------
+
+/// `z = J ẑ` holds for `Z_BOUND`-short inputs. The `z` side is a
+/// `BoundedDigitDecomposition`, so this is the *conditional* round trip
+/// (`boundedGadgetDecompose_gadgetMul_eq`), unlike the full-width gadget's.
+#[test]
+fn the_bounded_z_round_trip_holds_on_short_inputs() {
+    let mut rng = Lcg::new(0x9E11_0000_0000_0008);
+    for rows in [1usize, 2, 3] {
+        // Coefficients centered within Z_BOUND.
+        let mut entries = Vec::new();
+        for _ in 0..rows {
+            let coeffs: Vec<u64> = (0..RING_DEGREE)
+                .map(|_| {
+                    let mag = rng.next_u64() % (Z_BOUND + 1);
+                    if rng.next_u64() % 2 == 0 { mag } else { Q - mag }
+                })
+                .collect();
+            entries.push(rq_from_u64s(&coeffs));
+        }
+        let z = PolyVec::new(entries);
+        for i in 0..rows {
+            assert!(l_infty_norm(z.get(i)) <= Z_BOUND, "corpus is not short");
+        }
+        let zhat = bounded_z_gadget_decompose(&z);
+        assert_eq!(zhat.len(), rows * Z_DIGITS);
+        assert!(
+            gadget_mul_z(rows, &zhat).equals(&z),
+            "the bounded z round trip failed at rows = {rows}"
+        );
+        // Range is unconditional and lands in the same box.
+        assert!(vec_in_sb(&zhat), "bounded z digits must satisfy InSb");
+    }
+}
+
+/// And it fails outside the bound, deterministically -- `16^5 < q`, so five
+/// digits cannot carry every residue. Without this the conditional round trip
+/// would be indistinguishable from an unconditional one.
+#[test]
+fn the_bounded_z_round_trip_fails_on_long_inputs() {
+    let z = PolyVec::new(vec![rq_from_u64s(&[Q / 2])]);
+    assert!(l_infty_norm(z.get(0)) > Z_BOUND, "witness is not long");
+    let zhat = bounded_z_gadget_decompose(&z);
+    assert!(
+        !gadget_mul_z(1, &zhat).equals(&z),
+        "a long input round-tripped; the decomposition is not bounded"
+    );
+    // The range bound still holds, which is the asymmetry worth pinning.
+    assert!(vec_in_sb(&zhat), "the range bound is unconditional");
+}
+
+/// `j_mul` is `gadget_mul_z` at the scheme's `n`; at that width the two agree
+/// by construction, and this pins the width so a wrong `n` cannot pass.
+#[test]
+fn j_mul_is_gadget_mul_z_at_the_scheme_width() {
+    let n = MESSAGE_ROWS * GADGET_DIGITS;
+    let zhat = PolyVec::zeros(n * Z_DIGITS);
+    let out = j_mul(&zhat);
+    assert_eq!(out.len(), n, "j_mul must produce n = 2^m · δ entries");
+    assert!(out.equals(&gadget_mul_z(n, &zhat)));
+    assert_eq!(BLOCKS * GADGET_DIGITS, n, "the two widths coincide at Fig. 9");
+}

@@ -29,8 +29,17 @@ miscounted monomial bound inherited from ArkLib's own `HachiRuntime.lean:37`,
 **folded into `STAGE2_SCOPING.md` on 2026-09-03** (marks ⊗⊗) and is kept as
 the index of evidence.
 
-**Pin moved after these were written.** The repo now pins ArkLib PR #847's
-head `d51d8bc` (τ = 5 via `BoundedDigitDecomposition`; the unsigned
+**Pin moved after these were written; briefs 1 and 2 are re-based, 3–6 are
+not.** Each re-based brief carries a `⊗⊗ Re-based` section at the top that
+must be read before the body. Brief 1 was re-based 2026-09-03 (and target 1
+is onboarded as of `09df61b`/`4c146b1`); **brief 2 was re-based 2026-09-04**
+— PR #847 lands squarely on it, closing its one open parameter at τ = 5 and
+turning the `z` decomposition into a `BoundedDigitDecomposition` with a
+conditional round trip, which makes target 1 a hard dependency rather than
+the "thin seam" the plan's table records. Briefs 3–6 remain at
+`294b3f0b0` and must be re-based when their target opens.
+
+The repo now pins ArkLib PR #847's head `d51d8bc` (τ = 5 via `BoundedDigitDecomposition`; the unsigned
 decomposition demoted to a building block, `commitBalanced` → `commit`;
 several lemmas the briefs cite deleted). The deltas that change a target's
 *shape* are in [brief 1's re-base section](target-1-balanced-digits.md)
