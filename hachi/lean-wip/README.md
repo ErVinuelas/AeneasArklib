@@ -1,30 +1,25 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Currently holding `Balanced.lean` (PROVED, awaiting promotion) and
-`QuadEval.lean` (8 sorries).**
+**Currently holding `QuadEval.lean`** — Stage 3 target 2's eight statements
+(2026-09-04), typechecked against the pinned ArkLib and none proved: the two
+`z`-side gadget siblings and their conditional round trip, `carrier_entry_spec`,
+`tensor_g1_spec`, and the box decisions. Four of the eight are **iffs rather
+than equalities** — `InSb`, `vecInSb`, `relOut` and `paperRelOut` are `Prop`s
+where `verify_weak` was a `Bool`, so the obligation is "the decision procedure
+decides the proposition", a shape `STAGE2_SCOPING.md`'s erasure catalogue does
+not have. Its header carries the proof notes; `in_sb_spec` is the one genuinely
+new arithmetic obligation, and the asymmetry of the box is why.
 
-`Balanced.lean` — the balanced digit layer, Stage 3 target 1 — went out as
-Aristotle session `58843236` on 2026-09-04 with nine `sorry`s and came back
-`integrated_complete` at **zero**: 22 theorems now, including the loop-spec
-scaffolding (`balanced_digit_decompose_loop_spec`, the three
-`balanced_gadget_decompose_*_loop_spec`) that `lean/Scheme.lean` uses for the
-unsigned layer. Verified here, not assumed: `lake env lean` reports no errors
-and no `declaration uses 'sorry'`, and all nine headline specs — through
-`commit_balanced_spec`, the honest Hachi commitment — print exactly
-`[propext, Classical.choice, Quot.sound]`.
+It imports `Balanced` from `lean/`, which is worth noting because the README's
+own warning below says a wip file cannot import another wip file — true, and
+the reason this one now can is that `Balanced.lean` was promoted out.
 
-**It has therefore earned `lean/` and should be promoted** by the five steps
-below. Until that happens `make build` does not look at it, so nothing guards
-it against a lower-layer change or an ArkLib pin bump.
-
-`QuadEval.lean` (Stage 3 target 2, 2026-09-04) holds eight statements, none
-proved: the two `z`-side gadget siblings and the conditional round trip,
-`carrier_entry_spec`, `tensor_g1_spec`, and the box decisions. Four of the
-eight are **iffs rather than equalities** — `InSb`, `vecInSb`, `relOut` and
-`paperRelOut` are `Prop`s where `verify_weak` was a `Bool`, so the obligation
-is "the decision procedure decides the proposition". It is deliberately
-independent of `Balanced.lean` (no wip-to-wip import resolves), which is why
-`ddBal` appears in both; the duplicate goes when both are promoted.
+`Balanced.lean` (Stage 3 target 1) passed through here and **was promoted on
+2026-09-04**: submitted to Aristotle as session `58843236` with nine `sorry`s,
+returned `integrated_complete` at zero, and moved to `lean/Balanced.lean` with
+its nine `#print axioms` lines in `Check.lean` § 4. The audit reads
+`[propext, Classical.choice, Quot.sound]` for all nine, ending at
+`commit_balanced_spec` — the honest Hachi commitment.
 
 Everything else that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer

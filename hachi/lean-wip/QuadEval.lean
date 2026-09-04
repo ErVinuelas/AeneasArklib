@@ -2,12 +2,14 @@
 The **QuadEval fold**: statements only, not proofs.
 
 Staged here rather than in `lean/` because nothing below is proved — see
-`lean-wip/README.md`. Deliberately **independent of `lean-wip/Balanced.lean`**:
-that file is out with an Aristotle session, and `lake build` produces no
-`.olean` for anything in this directory, so a wip file importing another wip
-file cannot resolve. Everything this file needs from the balanced layer is
-therefore restated inline (`ddBal` below) rather than imported. When both are
-promoted, the duplicate goes.
+`lean-wip/README.md`.
+
+It imports `Balanced`, which is legitimate now and was not when this file was
+written: `lean-wip/Balanced.lean` was out with an Aristotle session then, and
+`lake build` produces no `.olean` for anything in this directory, so a wip file
+cannot import another wip file. `Balanced.lean` was proved and promoted to
+`lean/` on 2026-09-04, so `ddBal` and `bddZ` come from there and the duplicates
+that stood in for them are gone.
 
 ## The shape that is new here
 
@@ -49,6 +51,7 @@ reason `Commitment.lean` states itself.
 -/
 
 import Scheme
+import Balanced
 import ArkLib.Commitments.Functional.Hachi.QuadEval.Gadgets
 import ArkLib.Commitments.Functional.Hachi.QuadEval.Reduction
 import ArkLib.Commitments.Functional.Hachi.Params
@@ -62,23 +65,7 @@ open hachi
 namespace HachiEquiv.QuadEval
 
 open HachiEquiv.Field HachiEquiv.Ring HachiEquiv.RqBridge HachiEquiv.Scheme
-
-/-! ## The instantiated decompositions -/
-
-/-- The carrier side's digit map: the full-width balanced decomposition at
-`δ = 8`. Restated here rather than imported from `lean-wip/Balanced.lean` (file
-header). Carrier coefficients are arbitrary residues, which is why this side
-keeps the full width. -/
-def ddBal : DigitDecomposition (R := ZMod q) (16 : ZMod q) 8 :=
-  balancedZmodDigitDecomposition 16 8 (by norm_num) (by norm_num)
-
-/-- The `z` side's digit map: **bounded**, at `τ = 5` and `zBound = 131072`.
-Not a `DigitDecomposition` and cannot be — `16^5 < q`. -/
-def bddZ : BoundedDigitDecomposition (q := q) (16 : ZMod q) 5 131072 :=
-  boundedBalancedZmodDigitDecomposition 16 5 131072 (by norm_num) (by
-    have h := InnerOuter.HachiParams.balancedDigitCapacity_eq
-    simp only [InnerOuter.HachiParams.hachiB, InnerOuter.HachiParams.hachiTau] at h
-    simp [h])
+open HachiEquiv.Balanced (ddBal bddZ)
 
 /-! ## The `z`-side gadget siblings -/
 

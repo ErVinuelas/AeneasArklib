@@ -1,5 +1,12 @@
 /-
-The **balanced digit layer**.
+The **balanced digit layer**: the Hachi gadget inverse `G⁻¹` proper.
+
+Proved, on the bridge from `Scheme.lean`, and part of the audited library --
+`lean/Check.lean` § 4 prints the axiom dependencies of every headline spec
+below, so a `sorry` here is a `make build` failure. Proved by Aristotle session
+`58843236` (2026-09-04, nine obligations to zero) and promoted out of
+`lean-wip/` on the strength of that: no errors, no `declaration uses 'sorry'`,
+and all nine headline specs on exactly the three Lean kernel axioms.
 
 At ArkLib PR #847 the Hachi gadget inverse `G⁻¹` is the **balanced** digit
 decomposition (`balancedZmodDigitDecomposition`), and the unsigned one
