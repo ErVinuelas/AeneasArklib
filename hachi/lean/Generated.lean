@@ -703,7 +703,7 @@ def ring.Rq.zero : Result ring.Rq := do
 @[global_simps, irreducible] def params.GADGET_BASE : Std.U64 := 16#u64
 
 /-- [hachi::gadget::base_pow]: loop body 0:
-    Source: 'src/gadget.rs', lines 109:4-112:5
+    Source: 'src/gadget.rs', lines 136:4-139:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.base_pow_loop.body
@@ -718,7 +718,7 @@ def gadget.base_pow_loop.body
   else ok (done acc)
 
 /-- [hachi::gadget::base_pow]: loop 0:
-    Source: 'src/gadget.rs', lines 109:4-112:5
+    Source: 'src/gadget.rs', lines 136:4-139:5
     Visibility: public -/
 @[rust_loop]
 def gadget.base_pow_loop
@@ -730,14 +730,14 @@ def gadget.base_pow_loop
     (acc, i)
 
 /-- [hachi::gadget::base_pow]:
-    Source: 'src/gadget.rs', lines 105:0-114:1
+    Source: 'src/gadget.rs', lines 132:0-141:1
     Visibility: public -/
 def gadget.base_pow (e : Std.Usize) : Result cpoly.field.Fp := do
   let b ← cpoly.field.Fp.new params.GADGET_BASE
   gadget.base_pow_loop e b cpoly.field.Fp.ONE 0#usize
 
 /-- [hachi::gadget::gadget_mul]: loop body 1:
-    Source: 'src/gadget.rs', lines 175:8-179:9
+    Source: 'src/gadget.rs', lines 202:8-206:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_mul_loop0_loop0.body
@@ -758,7 +758,7 @@ def gadget.gadget_mul_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::gadget::gadget_mul]: loop 1:
-    Source: 'src/gadget.rs', lines 175:8-179:9
+    Source: 'src/gadget.rs', lines 202:8-206:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_mul_loop0_loop0
@@ -771,7 +771,7 @@ def gadget.gadget_mul_loop0_loop0
     (acc, e)
 
 /-- [hachi::gadget::gadget_mul]: loop body 0:
-    Source: 'src/gadget.rs', lines 172:4-182:5
+    Source: 'src/gadget.rs', lines 199:4-209:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_mul_loop0.body
@@ -790,7 +790,7 @@ def gadget.gadget_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_mul]: loop 0:
-    Source: 'src/gadget.rs', lines 172:4-182:5
+    Source: 'src/gadget.rs', lines 199:4-209:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_mul_loop0
@@ -803,7 +803,7 @@ def gadget.gadget_mul_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_mul]:
-    Source: 'src/gadget.rs', lines 168:0-184:1
+    Source: 'src/gadget.rs', lines 195:0-211:1
     Visibility: public -/
 def gadget.gadget_mul
   (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec := do
@@ -1126,7 +1126,7 @@ def ring.Rq.from_coeffs
   ok out
 
 /-- [hachi::gadget::digit_at]: loop body 0:
-    Source: 'src/gadget.rs', lines 72:4-75:5
+    Source: 'src/gadget.rs', lines 99:4-102:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.digit_at_loop.body
@@ -1140,7 +1140,7 @@ def gadget.digit_at_loop.body
   else ok (done rest)
 
 /-- [hachi::gadget::digit_at]: loop 0:
-    Source: 'src/gadget.rs', lines 72:4-75:5
+    Source: 'src/gadget.rs', lines 99:4-102:5
     Visibility: public -/
 @[rust_loop]
 def gadget.digit_at_loop
@@ -1152,7 +1152,7 @@ def gadget.digit_at_loop
     (rest, i)
 
 /-- [hachi::gadget::digit_at]:
-    Source: 'src/gadget.rs', lines 68:0-77:1
+    Source: 'src/gadget.rs', lines 95:0-104:1
     Visibility: public -/
 def gadget.digit_at
   (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp := do
@@ -1162,7 +1162,7 @@ def gadget.digit_at
   cpoly.field.Fp.new i
 
 /-- [hachi::gadget::gadget_decompose]: loop body 2:
-    Source: 'src/gadget.rs', lines 207:12-210:13
+    Source: 'src/gadget.rs', lines 234:12-237:13
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0_loop0_loop0.body
@@ -1182,7 +1182,7 @@ def gadget.gadget_decompose_loop0_loop0_loop0.body
   else ok (done coeffs)
 
 /-- [hachi::gadget::gadget_decompose]: loop 2:
-    Source: 'src/gadget.rs', lines 207:12-210:13
+    Source: 'src/gadget.rs', lines 234:12-237:13
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0_loop0_loop0
@@ -1196,7 +1196,7 @@ def gadget.gadget_decompose_loop0_loop0_loop0
     (coeffs, k)
 
 /-- [hachi::gadget::gadget_decompose]: loop body 1:
-    Source: 'src/gadget.rs', lines 204:8-213:9
+    Source: 'src/gadget.rs', lines 231:8-240:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0_loop0.body
@@ -1217,7 +1217,7 @@ def gadget.gadget_decompose_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_decompose]: loop 1:
-    Source: 'src/gadget.rs', lines 204:8-213:9
+    Source: 'src/gadget.rs', lines 231:8-240:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0_loop0
@@ -1231,7 +1231,7 @@ def gadget.gadget_decompose_loop0_loop0
     (out, e)
 
 /-- [hachi::gadget::gadget_decompose]: loop body 0:
-    Source: 'src/gadget.rs', lines 202:4-215:5
+    Source: 'src/gadget.rs', lines 229:4-242:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_decompose_loop0.body
@@ -1249,7 +1249,7 @@ def gadget.gadget_decompose_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_decompose]: loop 0:
-    Source: 'src/gadget.rs', lines 202:4-215:5
+    Source: 'src/gadget.rs', lines 229:4-242:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_decompose_loop0
@@ -1263,7 +1263,7 @@ def gadget.gadget_decompose_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_decompose]:
-    Source: 'src/gadget.rs', lines 196:0-217:1
+    Source: 'src/gadget.rs', lines 223:0-244:1
     Visibility: public -/
 def gadget.gadget_decompose (x : linalg.PolyVec) : Result linalg.PolyVec := do
   let rows ← linalg.PolyVec.len x
@@ -1473,6 +1473,208 @@ def commit.commit
   let u ← commit.commit_with_decomps pp decomp
   ok (u, decomp)
 
+/-- [hachi::params::BALANCED_SHIFT]
+    Source: 'src/params.rs', lines 382:0-382:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.BALANCED_SHIFT : Std.U64 := 2290649224#u64
+
+/-- [hachi::params::HALF_BASE]
+    Source: 'src/params.rs', lines 367:0-367:29
+    Visibility: public -/
+@[global_simps, irreducible] def params.HALF_BASE : Std.U64 := 8#u64
+
+/-- [hachi::gadget::balanced_digit_at]:
+    Source: 'src/gadget.rs', lines 275:0-279:1
+    Visibility: public -/
+def gadget.balanced_digit_at
+  (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp := do
+  let shift ← cpoly.field.Fp.new params.BALANCED_SHIFT
+  let half ← cpoly.field.Fp.new params.HALF_BASE
+  let f ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add c shift
+  let f1 ← gadget.digit_at f e
+  cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub f1 half
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop body 2:
+    Source: 'src/gadget.rs', lines 336:12-339:13
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.balanced_gadget_decompose_loop0_loop0_loop0.body
+  (x : linalg.PolyVec) (degree : Std.Usize) (i : Std.Usize) (e : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < degree
+  then
+    let r ← linalg.PolyVec.get x i
+    let f ← ring.Rq.coeff r k
+    let f1 ← gadget.balanced_digit_at f e
+    let coeffs1 ← alloc.vec.Vec.push coeffs f1
+    let k1 ← k + 1#usize
+    ok (cont (coeffs1, k1))
+  else ok (done coeffs)
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop 2:
+    Source: 'src/gadget.rs', lines 336:12-339:13
+    Visibility: public -/
+@[rust_loop]
+def gadget.balanced_gadget_decompose_loop0_loop0_loop0
+  (x : linalg.PolyVec) (degree : Std.Usize) (i : Std.Usize) (e : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (coeffs1, k1) =>
+      gadget.balanced_gadget_decompose_loop0_loop0_loop0.body x degree i e
+      coeffs1 k1)
+    (coeffs, k)
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop body 1:
+    Source: 'src/gadget.rs', lines 333:8-342:9
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.balanced_gadget_decompose_loop0_loop0.body
+  (x : linalg.PolyVec) (digits : Std.Usize) (degree : Std.Usize)
+  (i : Std.Usize) (out : alloc.vec.Vec ring.Rq) (e : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if e < digits
+  then
+    let coeffs ←
+      gadget.balanced_gadget_decompose_loop0_loop0_loop0 x degree i e
+        (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+    let r ← ring.Rq.from_coeffs coeffs
+    let out1 ← alloc.vec.Vec.push out r
+    let e1 ← e + 1#usize
+    ok (cont (out1, e1))
+  else ok (done out)
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop 1:
+    Source: 'src/gadget.rs', lines 333:8-342:9
+    Visibility: public -/
+@[rust_loop]
+def gadget.balanced_gadget_decompose_loop0_loop0
+  (x : linalg.PolyVec) (digits : Std.Usize) (degree : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) (e : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, e1) => gadget.balanced_gadget_decompose_loop0_loop0.body x
+      digits degree i out1 e1)
+    (out, e)
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop body 0:
+    Source: 'src/gadget.rs', lines 331:4-344:5
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.balanced_gadget_decompose_loop0.body
+  (x : linalg.PolyVec) (digits : Std.Usize) (degree : Std.Usize)
+  (rows : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if i < rows
+  then
+    let out1 ←
+      gadget.balanced_gadget_decompose_loop0_loop0 x digits degree out i
+        0#usize
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::gadget::balanced_gadget_decompose]: loop 0:
+    Source: 'src/gadget.rs', lines 331:4-344:5
+    Visibility: public -/
+@[rust_loop]
+def gadget.balanced_gadget_decompose_loop0
+  (x : linalg.PolyVec) (digits : Std.Usize) (degree : Std.Usize)
+  (rows : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, i1) => gadget.balanced_gadget_decompose_loop0.body x digits
+      degree rows out1 i1)
+    (out, i)
+
+/-- [hachi::gadget::balanced_gadget_decompose]:
+    Source: 'src/gadget.rs', lines 325:0-346:1
+    Visibility: public -/
+def gadget.balanced_gadget_decompose
+  (x : linalg.PolyVec) : Result linalg.PolyVec := do
+  let rows ← linalg.PolyVec.len x
+  let out ←
+    gadget.balanced_gadget_decompose_loop0 x params.GADGET_DIGITS
+      params.RING_DEGREE rows (alloc.vec.Vec.new ring.Rq) 0#usize
+  linalg.PolyVec.new out
+
+/-- [hachi::commit::generate_decomps_balanced]: loop body 0:
+    Source: 'src/commit.rs', lines 410:4-416:5
+    Visibility: public -/
+@[rust_loop_body]
+def commit.generate_decomps_balanced_loop.body
+  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
+  (blocks : Std.Usize) (ss : alloc.vec.Vec linalg.PolyVec)
+  (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec linalg.PolyVec) × (alloc.vec.Vec
+    linalg.PolyVec) × Std.Usize) ((alloc.vec.Vec linalg.PolyVec) ×
+    (alloc.vec.Vec linalg.PolyVec)))
+  := do
+  if i < blocks
+  then
+    let pv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        linalg.PolyVec) m i
+    let s ← gadget.balanced_gadget_decompose pv
+    let pm ← commit.PublicParams.impl.inner_matrix pp
+    let inner ← linalg.PolyMatrix.mat_vec_mul pm s
+    let pv1 ← gadget.balanced_gadget_decompose inner
+    let ts1 ← alloc.vec.Vec.push ts pv1
+    let ss1 ← alloc.vec.Vec.push ss s
+    let i1 ← i + 1#usize
+    ok (cont (ss1, ts1, i1))
+  else ok (done (ss, ts))
+
+/-- [hachi::commit::generate_decomps_balanced]: loop 0:
+    Source: 'src/commit.rs', lines 410:4-416:5
+    Visibility: public -/
+@[rust_loop]
+def commit.generate_decomps_balanced_loop
+  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
+  (blocks : Std.Usize) (ss : alloc.vec.Vec linalg.PolyVec)
+  (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
+  Result ((alloc.vec.Vec linalg.PolyVec) × (alloc.vec.Vec linalg.PolyVec))
+  := do
+  loop
+    (fun (ss1, ts1, i1) => commit.generate_decomps_balanced_loop.body pp m
+      blocks ss1 ts1 i1)
+    (ss, ts, i)
+
+/-- [hachi::commit::generate_decomps_balanced]:
+    Source: 'src/commit.rs', lines 405:0-418:1
+    Visibility: public -/
+def commit.generate_decomps_balanced
+  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
+  Result commit.Decomp
+  := do
+  let blocks := alloc.vec.Vec.len m
+  let (ss, ts) ←
+    commit.generate_decomps_balanced_loop pp m blocks (alloc.vec.Vec.new
+      linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
+  commit.Decomp.new ss ts
+
+/-- [hachi::commit::commit_balanced]:
+    Source: 'src/commit.rs', lines 436:0-440:1
+    Visibility: public -/
+def commit.commit_balanced
+  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
+  Result (linalg.PolyVec × commit.Decomp)
+  := do
+  let decomp ← commit.generate_decomps_balanced pp m
+  let u ← commit.commit_with_decomps pp decomp
+  ok (u, decomp)
+
 /-- [hachi::params::KAPPA]
     Source: 'src/params.rs', lines 293:0-293:26
     Visibility: public -/
@@ -1634,7 +1836,7 @@ def linalg.PolyVec.equals
   else linalg.PolyVec.equals_loop self rhs n 0#usize true
 
 /-- [hachi::commit::verify_weak]: loop body 0:
-    Source: 'src/commit.rs', lines 418:4-437:5
+    Source: 'src/commit.rs', lines 476:4-495:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_weak_loop.body
@@ -1671,7 +1873,7 @@ def commit.verify_weak_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify_weak]: loop 0:
-    Source: 'src/commit.rs', lines 418:4-437:5
+    Source: 'src/commit.rs', lines 476:4-495:5
     Visibility: public -/
 @[rust_loop]
 def commit.verify_weak_loop
@@ -1685,7 +1887,7 @@ def commit.verify_weak_loop
     (ok1, i)
 
 /-- [hachi::commit::verify_weak]:
-    Source: 'src/commit.rs', lines 412:0-449:1
+    Source: 'src/commit.rs', lines 470:0-507:1
     Visibility: public -/
 def commit.verify_weak
   (pp : commit.PublicParams) (u : linalg.PolyVec) (opening : commit.Opening) :
@@ -1708,7 +1910,7 @@ def commit.verify_weak
   else ok false
 
 /-- [hachi::commit::verify]: loop body 0:
-    Source: 'src/commit.rs', lines 464:8-469:9
+    Source: 'src/commit.rs', lines 522:8-527:9
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_loop.body
@@ -1733,7 +1935,7 @@ def commit.verify_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify]: loop 0:
-    Source: 'src/commit.rs', lines 464:8-469:9
+    Source: 'src/commit.rs', lines 522:8-527:9
     Visibility: public -/
 @[rust_loop]
 def commit.verify_loop
@@ -1746,7 +1948,7 @@ def commit.verify_loop
     (ok1, i)
 
 /-- [hachi::commit::verify]:
-    Source: 'src/commit.rs', lines 456:0-475:1
+    Source: 'src/commit.rs', lines 514:0-533:1
     Visibility: public -/
 def commit.verify
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
@@ -2376,7 +2578,7 @@ def evalsplit.MlEvals.eval_split_eval
   linalg.PolyMatrix.split_form m bl bh
 
 /-- [hachi::gadget::digit_decompose]: loop body 0:
-    Source: 'src/gadget.rs', lines 93:4-96:5
+    Source: 'src/gadget.rs', lines 120:4-123:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.digit_decompose_loop.body
@@ -2394,7 +2596,7 @@ def gadget.digit_decompose_loop.body
   else ok (done out)
 
 /-- [hachi::gadget::digit_decompose]: loop 0:
-    Source: 'src/gadget.rs', lines 93:4-96:5
+    Source: 'src/gadget.rs', lines 120:4-123:5
     Visibility: public -/
 @[rust_loop]
 def gadget.digit_decompose_loop
@@ -2407,7 +2609,7 @@ def gadget.digit_decompose_loop
     (out, e)
 
 /-- [hachi::gadget::digit_decompose]:
-    Source: 'src/gadget.rs', lines 89:0-98:1
+    Source: 'src/gadget.rs', lines 116:0-125:1
     Visibility: public -/
 @[reducible]
 def gadget.digit_decompose
@@ -2416,7 +2618,7 @@ def gadget.digit_decompose
     cpoly.field.Fp) 0#usize
 
 /-- [hachi::gadget::gadget_entry]:
-    Source: 'src/gadget.rs', lines 121:0-128:1
+    Source: 'src/gadget.rs', lines 148:0-155:1
     Visibility: public -/
 def gadget.gadget_entry (i : Std.Usize) (j : Std.Usize) : Result ring.Rq := do
   let i1 ← j / params.GADGET_DIGITS
@@ -2428,7 +2630,7 @@ def gadget.gadget_entry (i : Std.Usize) (j : Std.Usize) : Result ring.Rq := do
   else ring.Rq.zero
 
 /-- [hachi::gadget::gadget_matrix]: loop body 1:
-    Source: 'src/gadget.rs', lines 147:8-150:9
+    Source: 'src/gadget.rs', lines 174:8-177:9
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_matrix_loop0_loop0.body
@@ -2446,7 +2648,7 @@ def gadget.gadget_matrix_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::gadget::gadget_matrix]: loop 1:
-    Source: 'src/gadget.rs', lines 147:8-150:9
+    Source: 'src/gadget.rs', lines 174:8-177:9
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_matrix_loop0_loop0
@@ -2459,7 +2661,7 @@ def gadget.gadget_matrix_loop0_loop0
     (row, j)
 
 /-- [hachi::gadget::gadget_matrix]: loop body 0:
-    Source: 'src/gadget.rs', lines 144:4-153:5
+    Source: 'src/gadget.rs', lines 171:4-180:5
     Visibility: public -/
 @[rust_loop_body]
 def gadget.gadget_matrix_loop0.body
@@ -2480,7 +2682,7 @@ def gadget.gadget_matrix_loop0.body
   else ok (done out)
 
 /-- [hachi::gadget::gadget_matrix]: loop 0:
-    Source: 'src/gadget.rs', lines 144:4-153:5
+    Source: 'src/gadget.rs', lines 171:4-180:5
     Visibility: public -/
 @[rust_loop]
 def gadget.gadget_matrix_loop0
@@ -2493,7 +2695,7 @@ def gadget.gadget_matrix_loop0
     (out, i)
 
 /-- [hachi::gadget::gadget_matrix]:
-    Source: 'src/gadget.rs', lines 139:0-155:1
+    Source: 'src/gadget.rs', lines 166:0-182:1
     Visibility: public -/
 def gadget.gadget_matrix (rows : Std.Usize) : Result linalg.PolyMatrix := do
   let cols ← rows * params.GADGET_DIGITS
@@ -2501,6 +2703,102 @@ def gadget.gadget_matrix (rows : Std.Usize) : Result linalg.PolyMatrix := do
     gadget.gadget_matrix_loop0 rows cols (alloc.vec.Vec.new linalg.PolyVec)
       0#usize
   linalg.PolyMatrix.new out
+
+/-- [hachi::gadget::balanced_digit_decompose]: loop body 0:
+    Source: 'src/gadget.rs', lines 302:4-305:5
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.balanced_digit_decompose_loop.body
+  (c : cpoly.field.Fp) (digits : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Fp) (e : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if e < digits
+  then
+    let f ← gadget.balanced_digit_at c e
+    let out1 ← alloc.vec.Vec.push out f
+    let e1 ← e + 1#usize
+    ok (cont (out1, e1))
+  else ok (done out)
+
+/-- [hachi::gadget::balanced_digit_decompose]: loop 0:
+    Source: 'src/gadget.rs', lines 302:4-305:5
+    Visibility: public -/
+@[rust_loop]
+def gadget.balanced_digit_decompose_loop
+  (c : cpoly.field.Fp) (digits : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Fp) (e : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, e1) => gadget.balanced_digit_decompose_loop.body c digits out1
+      e1)
+    (out, e)
+
+/-- [hachi::gadget::balanced_digit_decompose]:
+    Source: 'src/gadget.rs', lines 298:0-307:1
+    Visibility: public -/
+@[reducible]
+def gadget.balanced_digit_decompose
+  (c : cpoly.field.Fp) : Result (alloc.vec.Vec cpoly.field.Fp) := do
+  gadget.balanced_digit_decompose_loop c params.GADGET_DIGITS
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+
+/-- [hachi::params::Z_BALANCED_SHIFT]
+    Source: 'src/params.rs', lines 430:0-430:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.Z_BALANCED_SHIFT : Std.U64 := 559240#u64
+
+/-- [hachi::gadget::bounded_z_digit_at]: loop body 0:
+    Source: 'src/gadget.rs', lines 400:4-403:5
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.bounded_z_digit_at_loop.body
+  (e : Std.Usize) (b : Std.U64) (rest : Std.U64) (i : Std.Usize) :
+  Result (ControlFlow (Std.U64 × Std.Usize) Std.U64)
+  := do
+  if i < e
+  then let rest1 ← rest / b
+       let i1 ← i + 1#usize
+       ok (cont (rest1, i1))
+  else ok (done rest)
+
+/-- [hachi::gadget::bounded_z_digit_at]: loop 0:
+    Source: 'src/gadget.rs', lines 400:4-403:5
+    Visibility: public -/
+@[rust_loop]
+def gadget.bounded_z_digit_at_loop
+  (e : Std.Usize) (b : Std.U64) (rest : Std.U64) (i : Std.Usize) :
+  Result Std.U64
+  := do
+  loop
+    (fun (rest1, i1) => gadget.bounded_z_digit_at_loop.body e b rest1 i1)
+    (rest, i)
+
+/-- [hachi::gadget::bounded_z_digit_at]:
+    Source: 'src/gadget.rs', lines 382:0-405:1
+    Visibility: public -/
+def gadget.bounded_z_digit_at
+  (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp := do
+  let half_q ← params.Q / 2#u64
+  let v ← cpoly.field.Fp.to_u64 c
+  let rest ←
+    if v <= half_q
+    then v + params.Z_BALANCED_SHIFT
+    else
+      do
+      let neg ← params.Q - v
+      if neg <= params.Z_BALANCED_SHIFT
+      then params.Z_BALANCED_SHIFT - neg
+      else ok 0#u64
+  let rest1 ←
+    gadget.bounded_z_digit_at_loop e params.GADGET_BASE rest 0#usize
+  let i ← rest1 % params.GADGET_BASE
+  let f ← cpoly.field.Fp.new i
+  let f1 ← cpoly.field.Fp.new params.HALF_BASE
+  cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub f f1
 
 /-- [hachi::linalg::{hachi::linalg::PolyVec}::zeros]: loop body 0:
     Source: 'src/linalg.rs', lines 78:8-81:9
@@ -2744,17 +3042,6 @@ def linalg.PolyMatrix.cols (self : linalg.PolyMatrix) : Result Std.Usize := do
     Visibility: public -/
 @[global_simps, irreducible] def params.CHAIN_GAMMA : Std.U64 := 15#u64
 
-/-- [hachi::params::HALF_BASE]
-    Source: 'src/params.rs', lines 367:0-367:29
-    Visibility: public -/
-@[global_simps, irreducible] def params.HALF_BASE : Std.U64 := 8#u64
-
-/-- [hachi::params::BALANCED_SHIFT]
-    Source: 'src/params.rs', lines 382:0-382:46
-    Visibility: public -/
-@[global_simps, irreducible]
-def params.BALANCED_SHIFT : Std.U64 := 2290649224#u64
-
 /-- [hachi::params::Z_DIGITS]
     Source: 'src/params.rs', lines 403:0-403:30
     Visibility: public -/
@@ -2764,12 +3051,6 @@ def params.BALANCED_SHIFT : Std.U64 := 2290649224#u64
     Source: 'src/params.rs', lines 417:0-417:33
     Visibility: public -/
 @[global_simps, irreducible] def params.Z_BOUND : Std.U64 := 131072#u64
-
-/-- [hachi::params::Z_BALANCED_SHIFT]
-    Source: 'src/params.rs', lines 430:0-430:42
-    Visibility: public -/
-@[global_simps, irreducible]
-def params.Z_BALANCED_SHIFT : Std.U64 := 559240#u64
 
 /-- [hachi::params::RLIN_CW]
     Source: 'src/params.rs', lines 437:0-437:32
@@ -2906,5 +3187,48 @@ def ring.Rq.neg (self : ring.Rq) : Result ring.Rq := do
   let out ←
     ring.Rq.neg_loop self n (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
   ok out
+
+/-- [hachi::ringswitch::rho_digits]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 67:4-70:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.rho_digits_loop.body
+  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < degree
+  then
+    let f ← ring.Rq.coeff rho k
+    let f1 ← gadget.balanced_digit_at f u
+    let coeffs1 ← alloc.vec.Vec.push coeffs f1
+    let k1 ← k + 1#usize
+    ok (cont (coeffs1, k1))
+  else ok (done coeffs)
+
+/-- [hachi::ringswitch::rho_digits]: loop 0:
+    Source: 'src/ringswitch.rs', lines 67:4-70:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.rho_digits_loop
+  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (coeffs1, k1) => ringswitch.rho_digits_loop.body rho u degree coeffs1
+      k1)
+    (coeffs, k)
+
+/-- [hachi::ringswitch::rho_digits]:
+    Source: 'src/ringswitch.rs', lines 63:0-72:1
+    Visibility: public -/
+def ringswitch.rho_digits
+  (rho : ring.Rq) (u : Std.Usize) : Result ring.Rq := do
+  let coeffs ←
+    ringswitch.rho_digits_loop rho u params.RING_DEGREE (alloc.vec.Vec.new
+      cpoly.field.Fp) 0#usize
+  ring.Rq.from_coeffs coeffs
 
 end hachi

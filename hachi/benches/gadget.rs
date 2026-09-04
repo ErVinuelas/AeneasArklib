@@ -207,6 +207,47 @@ macro_rules! define_cases {
                 )
             }
 
+            // -- the balanced per-coefficient layer --------------------------
+
+            /// The balanced digit at the deepest index: the unsigned chain plus
+            /// the two constant `Fp::new`s, the field shift add and the
+            /// recentring subtract -- five modular reductions where
+            /// [`digit_at`] pays one.
+            pub fn balanced_digit_at(m: Mode<'_, '_>, digits: usize) -> u64 {
+                let c = one_coeff();
+                support::run(
+                    m,
+                    || hc::gadget::balanced_digit_at(black_box(c), black_box(digits - 1)),
+                    d_fp,
+                )
+            }
+
+            /// All `digits` balanced digits: the row that shows what hoisting
+            /// the one `c + shift` out of the loop would buy, since the first
+            /// translation re-derives it per digit.
+            pub fn balanced_digit_decompose(m: Mode<'_, '_>, _digits: usize) -> u64 {
+                let c = one_coeff();
+                support::run(
+                    m,
+                    || hc::gadget::balanced_digit_decompose(black_box(c)),
+                    d_fps,
+                )
+            }
+
+            /// The `z`-side digit map at its own deepest index, `Z_DIGITS - 1`.
+            /// A different shape from [`balanced_digit_at`], not just a
+            /// different width: it centres first and shifts in the integers, so
+            /// the reading includes the `valMinAbs` fold and excludes one of the
+            /// two constant field reductions.
+            pub fn bounded_z_digit_at(m: Mode<'_, '_>, z_digits: usize) -> u64 {
+                let c = one_coeff();
+                support::run(
+                    m,
+                    || hc::gadget::bounded_z_digit_at(black_box(c), black_box(z_digits - 1)),
+                    d_fp,
+                )
+            }
+
             // -- the row layer ------------------------------------------------
 
             pub fn gadget_matrix(m: Mode<'_, '_>, rows: usize) -> u64 {
@@ -222,6 +263,18 @@ macro_rules! define_cases {
                 support::run(
                     m,
                     || hc::gadget::gadget_decompose(black_box(&x)),
+                    d_polyvec,
+                )
+            }
+
+            /// The Hachi gadget inverse proper, at the same `x` the unsigned
+            /// `gadget_decompose` row uses -- so the two rows differ by exactly
+            /// the balanced layer's cost and nothing else.
+            pub fn balanced_gadget_decompose(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let x = vec_of(0x1A1A_0000_0000_0001, rows);
+                support::run(
+                    m,
+                    || hc::gadget::balanced_gadget_decompose(black_box(&x)),
                     d_polyvec,
                 )
             }
@@ -272,6 +325,7 @@ fn gadget_benches(c: &mut Criterion) {
     bench_case!(c, "_control/gadget", control, [support::CONTROL_N]);
 
     let digits = hachi::params::GADGET_DIGITS;
+    let z_digits = hachi::params::Z_DIGITS;
     let rows = hachi::params::MESSAGE_ROWS;
     // REDUCED row count for the dense-`G` case only (module doc): 16 rows is
     // `16 × 128` ring elements (~17 MiB) instead of the scheme's ~64 GiB.
@@ -286,10 +340,19 @@ fn gadget_benches(c: &mut Criterion) {
     // @covers gadget::gadget_entry
     bench_case!(c, "gadget/gadget_entry", gadget_entry, [digits]);
 
+    // @covers gadget::balanced_digit_at
+    bench_case!(c, "gadget/balanced_digit_at", balanced_digit_at, [digits]);
+    // @covers gadget::balanced_digit_decompose
+    bench_case!(c, "gadget/balanced_digit_decompose", balanced_digit_decompose, [digits]);
+    // @covers gadget::bounded_z_digit_at
+    bench_case!(c, "gadget/bounded_z_digit_at", bounded_z_digit_at, [z_digits]);
+
     // @covers gadget::gadget_matrix
     bench_case!(c, "gadget/gadget_matrix", gadget_matrix, [matrix_rows]);
     // @covers gadget::gadget_decompose
     bench_case!(c, "gadget/gadget_decompose", gadget_decompose, [rows]);
+    // @covers gadget::balanced_gadget_decompose
+    bench_case!(c, "gadget/balanced_gadget_decompose", balanced_gadget_decompose, [rows]);
     // @covers gadget::gadget_mul
     bench_case!(c, "gadget/gadget_mul", gadget_mul, [rows]);
 }

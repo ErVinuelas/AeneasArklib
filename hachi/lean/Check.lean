@@ -462,6 +462,23 @@ example (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec :=
   gadget.gadget_mul rows v
 example (x : linalg.PolyVec) : Result linalg.PolyVec := gadget.gadget_decompose x
 
+-- The balanced digit layer: the Hachi gadget inverse `G⁻¹` proper
+-- (`balancedZmodDigitDecomposition`), and the bounded `z`-side map at its own
+-- width. All three digit maps are `Fp`-valued at one index, so their `_spec`s
+-- are one family; what differs is where the `⌊b/2⌋` shift goes.
+example (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp :=
+  gadget.balanced_digit_at c e
+example (c : cpoly.field.Fp) : Result (alloc.vec.Vec cpoly.field.Fp) :=
+  gadget.balanced_digit_decompose c
+example (x : linalg.PolyVec) : Result linalg.PolyVec := gadget.balanced_gadget_decompose x
+example (c : cpoly.field.Fp) (e : Std.Usize) : Result cpoly.field.Fp :=
+  gadget.bounded_z_digit_at c e
+
+-- The ring-switching layer. A quotient digit is an `Rq`, i.e. a `Vec Fp` of the
+-- ring degree -- the `Rq.ofFinCoeff` shape `rhoDigits` builds, carried through
+-- `Rq::from_coeffs`.
+example (rho : ring.Rq) (u : Std.Usize) : Result ring.Rq := ringswitch.rho_digits rho u
+
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which
 -- is what makes the equivalence statement an equality of decisions.
@@ -469,6 +486,14 @@ example (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
     Result (linalg.PolyVec × commit.Decomp) := commit.commit pp m
 example (pp : commit.PublicParams) (u : linalg.PolyVec) (o : commit.Opening) : Result Bool :=
   commit.verify_weak pp u o
+
+-- The balanced committer -- the honest Hachi commitment (`Hachi.commit`). Same
+-- type as `commit.commit`, which is the point: `generateDecomps` takes the
+-- decomposition as a parameter, so one verifier serves both.
+example (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
+    Result (linalg.PolyVec × commit.Decomp) := commit.commit_balanced pp m
+example (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
+    Result commit.Decomp := commit.generate_decomps_balanced pp m
 
 -- The `ℓ₂²` norm is `u128`-valued, and that is load-bearing rather than
 -- defensive: one centered coefficient can reach `q/2`, so a `u64` accumulator

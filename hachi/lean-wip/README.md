@@ -1,6 +1,16 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Currently empty.** Everything that passed through here has been promoted: the
+**Currently holding `Balanced.lean`** — the balanced digit layer's nine
+statements (Stage 3 target 1, 2026-09-04), typechecked against the pinned
+ArkLib and none of them proved — plus the two instantiated decompositions
+they are stated at, `ddBal` and `bddZ`. In order: the three balanced digit specs
+and their `⌊b/2⌋` bound, the two bounded `z`-side specs, `rho_digits_spec`, and
+the two balanced-committer specs ending in `commit_balanced_spec` — the honest
+Hachi commitment, which is the statement that makes the crate a translation of
+the *paper's* committer rather than of the unsigned building block underneath
+it. Its own header carries the proof notes.
+
+Everything else that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
 into `lean/Scheme.lean` beside their siblings), and the multilinear evaluation

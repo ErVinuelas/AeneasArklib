@@ -500,3 +500,63 @@ pub fn verify(pp: &PublicParams, m: &Vec<PolyVec>, u: &PolyVec, opening: &Openin
     }
     ok
 }
+
+
+// ---------------------------------------------------------------------------
+// The balanced committer: the honest Hachi commitment
+// ---------------------------------------------------------------------------
+
+/// Honest decomposition generation at the *balanced* gadget inverse (spec:
+/// `generateDecomps`, `Scheme.lean:156`, at
+/// `Decomposition.ofDigits ddBal ddBal`).
+///
+/// Mirrors ArkLib's `InnerOuter.generateDecomps` at
+/// `Decomposition.ofDigits (balancedZmodDigitDecomposition b δ) (…)`.
+///
+/// Identical to [`generate_decomps`] except for the decomposition it is
+/// instantiated at, which is the whole of the difference on the specification
+/// side too: `generateDecomps` takes the `Decomposition` as a parameter
+/// (`Scheme.lean:121`), so the unsigned and balanced committers are one
+/// function at two arguments. `Hachi.commit` (`Commitment.lean:111`) uses this
+/// one -- [NOZ26] §2.1/§4.1's gadget digits are centered, and Eq. (20)
+/// range-checks exactly the box `S_b` that the unsigned digits violate.
+///
+/// Both slots get the same width, [`params::GADGET_DIGITS`], for the reason
+/// [`generate_decomps`] records.
+pub fn generate_decomps_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
+    let blocks: usize = m.len();
+    let mut ss: Vec<PolyVec> = Vec::new();
+    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        let s: PolyVec = gadget::balanced_gadget_decompose(&m[i]);
+        let inner: PolyVec = pp.inner_matrix().mat_vec_mul(&s);
+        ts.push(gadget::balanced_gadget_decompose(&inner));
+        ss.push(s);
+        i += 1;
+    }
+    Decomp::new(ss, ts)
+}
+
+/// **The honest Hachi commitment**: commit to a message at the paper's balanced
+/// base-`b` digits (spec: `commitmentScheme.commit`, `Scheme.lean:226`, at the
+/// balanced `Decomposition` -- which composed with `Hachi.toMatrix` is
+/// `Hachi.commit`, `Commitment.lean:111`).
+///
+/// Mirrors ArkLib's `InnerOuter.commitmentScheme.commit` at
+/// `Decomposition.ofDigits ddBal ddBal`, minus the `OracleComp` wrapper and
+/// with the challenge left to [`Opening::honest`], exactly as [`commit`] is.
+///
+/// The outer commitment itself is [`commit_with_decomps`] unchanged: it takes
+/// the `Decomp` as data, and the balanced and unsigned committers differ only
+/// in the decomposition slots. What differs is the opening -- the honest
+/// decomposition is `ℓ∞`-short at radius [`params::HALF_BASE`]` = 8` instead of
+/// `b - 1 = 15`, so its `ℓ₂²` is `8192 · 1024 · 8² = 536870912` where the
+/// unsigned one is `1887436800` (see [`params::BETA_SQ`]). Both are far inside
+/// the verifier bounds, so [`verify_weak`] needs no balanced sibling.
+pub fn commit_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
+    let decomp: Decomp = generate_decomps_balanced(pp, m);
+    let u: PolyVec = commit_with_decomps(pp, &decomp);
+    (u, decomp)
+}
+

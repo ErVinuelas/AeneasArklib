@@ -36,7 +36,7 @@
 //!   (`$ᵗ (Simple.PublicParams …)`). Deriving the two matrices from a seed is a
 //!   design decision this repository has not made and the specification does not
 //!   constrain; tests construct them explicitly.
-//! * **The `CommitmentScheme` bundle** (`Scheme.lean:217`). It is `setup` (a
+//! * **The `CommitmentScheme` bundle** (`Scheme.lean:216`). It is `setup` (a
 //!   distribution), `commit` (an `OracleComp`) and a `verify` that adds the
 //!   `derivedMessage = m` check to [`verify_weak`]. The monadic wrapper has no
 //!   computational content to translate; its two computational halves are
@@ -189,7 +189,7 @@ pub fn vec_l_infty_norm(v: &PolyVec) -> u64 {
 // The scheme's data
 // ---------------------------------------------------------------------------
 
-/// The two Ajtai matrices (spec: `PublicParams`, `Scheme.lean:94`).
+/// The two Ajtai matrices (spec: `PublicParams`, `Scheme.lean:93`).
 ///
 /// Mirrors ArkLib's `InnerOuter.PublicParams` at the dimensions [`params`]
 /// fixes; the specification is generic in all six of them.
@@ -223,7 +223,7 @@ impl PublicParams {
 }
 
 /// The committer-produced decomposition data `(sᵢ, t̂ᵢ)ᵢ` (spec: `Decomp`,
-/// `Scheme.lean:104`), without the challenge.
+/// `Scheme.lean:103`), without the challenge.
 ///
 /// Mirrors ArkLib's `InnerOuter.Decomp`.
 pub struct Decomp {
@@ -262,7 +262,7 @@ impl Decomp {
 }
 
 /// A Hachi/Greyhound weak opening `(sᵢ, t̂ᵢ, cᵢ)ᵢ` (spec: `Opening`,
-/// `Scheme.lean:115`).
+/// `Scheme.lean:114`).
 ///
 /// Mirrors ArkLib's `InnerOuter.Opening`.
 ///
@@ -281,7 +281,7 @@ impl Opening {
 
     /// The honest opening: the decomposition with the trivial challenge
     /// `cᵢ = 1`, which is what `commitmentScheme.commit` produces
-    /// (`Scheme.lean:229`).
+    /// (`Scheme.lean:228`).
     pub fn honest(decomp: Decomp) -> Opening {
         let blocks: usize = decomp.blocks();
         let mut ones: Vec<Rq> = Vec::new();
@@ -312,7 +312,7 @@ impl Opening {
 // ---------------------------------------------------------------------------
 
 /// The message block derived from the decomposition data: `mᵢ = G · sᵢ` (spec:
-/// `derivedMessage`, `Scheme.lean:148`, i.e. [NOZ26] Eq. (13)).
+/// `derivedMessage`, `Scheme.lean:147`, i.e. [NOZ26] Eq. (13)).
 ///
 /// Mirrors ArkLib's `InnerOuter.derivedMessage`.
 ///
@@ -333,13 +333,13 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
 }
 
 /// Honest decomposition generation (spec: `generateDecomps`,
-/// `Scheme.lean:157`): `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
+/// `Scheme.lean:156`): `sᵢ = G⁻¹(mᵢ)` and `t̂ᵢ = G⁻¹(A sᵢ)`.
 ///
 /// Mirrors ArkLib's `InnerOuter.generateDecomps` at
 /// `Decomposition.ofDigits dd dd`.
 ///
 /// Both steps are the same base-`b` gadget inverse, which is the specification's
-/// `Decomposition.ofDigits` (`Scheme.lean:131`) instantiating its two
+/// `Decomposition.ofDigits` (`Scheme.lean:130`) instantiating its two
 /// decomposition slots with `gadgetDecompose` at `zmodDigitDecomposition`. The
 /// two slots exist because the specification allows different digit counts for
 /// them; here they coincide (see [`params::GADGET_DIGITS`]), so one function
@@ -360,7 +360,7 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
 }
 
 /// The outer commitment computed from the decomposition data (spec:
-/// `commitWithDecomps`, `Scheme.lean:166`): `u = B · flatten(t̂)`.
+/// `commitWithDecomps`, `Scheme.lean:165`): `u = B · flatten(t̂)`.
 ///
 /// Mirrors ArkLib's `InnerOuter.commitWithDecomps`.
 pub fn commit_with_decomps(pp: &PublicParams, decomp: &Decomp) -> PolyVec {
@@ -369,7 +369,7 @@ pub fn commit_with_decomps(pp: &PublicParams, decomp: &Decomp) -> PolyVec {
 }
 
 /// Commit to a message: generate the honest decomposition and return it with the
-/// outer commitment (spec: `commitmentScheme.commit`, `Scheme.lean:227`, minus
+/// outer commitment (spec: `commitmentScheme.commit`, `Scheme.lean:226`, minus
 /// the `OracleComp` wrapper and with the challenge left to
 /// [`Opening::honest`]).
 ///
@@ -382,11 +382,69 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 }
 
 // ---------------------------------------------------------------------------
+// The balanced committer: the honest Hachi commitment
+// ---------------------------------------------------------------------------
+
+/// Honest decomposition generation at the *balanced* gadget inverse (spec:
+/// `generateDecomps`, `Scheme.lean:156`, at
+/// `Decomposition.ofDigits ddBal ddBal`).
+///
+/// Mirrors ArkLib's `InnerOuter.generateDecomps` at
+/// `Decomposition.ofDigits (balancedZmodDigitDecomposition b δ) (…)`.
+///
+/// Identical to [`generate_decomps`] except for the decomposition it is
+/// instantiated at, which is the whole of the difference on the specification
+/// side too: `generateDecomps` takes the `Decomposition` as a parameter
+/// (`Scheme.lean:121`), so the unsigned and balanced committers are one
+/// function at two arguments. `Hachi.commit` (`Commitment.lean:111`) uses this
+/// one -- [NOZ26] §2.1/§4.1's gadget digits are centered, and Eq. (20)
+/// range-checks exactly the box `S_b` that the unsigned digits violate.
+///
+/// Both slots get the same width, [`params::GADGET_DIGITS`], for the reason
+/// [`generate_decomps`] records.
+pub fn generate_decomps_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
+    let blocks: usize = m.len();
+    let mut ss: Vec<PolyVec> = Vec::new();
+    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        let s: PolyVec = gadget::balanced_gadget_decompose(&m[i]);
+        let inner: PolyVec = pp.inner_matrix().mat_vec_mul(&s);
+        ts.push(gadget::balanced_gadget_decompose(&inner));
+        ss.push(s);
+        i += 1;
+    }
+    Decomp::new(ss, ts)
+}
+
+/// **The honest Hachi commitment**: commit to a message at the paper's balanced
+/// base-`b` digits (spec: `commitmentScheme.commit`, `Scheme.lean:226`, at the
+/// balanced `Decomposition` -- which composed with `Hachi.toMatrix` is
+/// `Hachi.commit`, `Commitment.lean:111`).
+///
+/// Mirrors ArkLib's `InnerOuter.commitmentScheme.commit` at
+/// `Decomposition.ofDigits ddBal ddBal`, minus the `OracleComp` wrapper and
+/// with the challenge left to [`Opening::honest`], exactly as [`commit`] is.
+///
+/// The outer commitment itself is [`commit_with_decomps`] unchanged: it takes
+/// the `Decomp` as data, and the balanced and unsigned committers differ only
+/// in the decomposition slots. What differs is the opening -- the honest
+/// decomposition is `ℓ∞`-short at radius [`params::HALF_BASE`]` = 8` instead of
+/// `b - 1 = 15`, so its `ℓ₂²` is `8192 · 1024 · 8² = 536870912` where the
+/// unsigned one is `1887436800` (see [`params::BETA_SQ`]). Both are far inside
+/// the verifier bounds, so [`verify_weak`] needs no balanced sibling.
+pub fn commit_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
+    let decomp: Decomp = generate_decomps_balanced(pp, m);
+    let u: PolyVec = commit_with_decomps(pp, &decomp);
+    (u, decomp)
+}
+
+// ---------------------------------------------------------------------------
 // Verify
 // ---------------------------------------------------------------------------
 
 /// Verify a weak opening against the outer commitment `u` (spec:
-/// `verify_weak`, `Scheme.lean:194`).
+/// `verify_weak`, `Scheme.lean:193`).
 ///
 /// Mirrors ArkLib's `InnerOuter.verify_weak` at the values `params.rs` fixes
 /// for `βSq`, `γ` and `κ`.
@@ -449,7 +507,7 @@ pub fn verify_weak(pp: &PublicParams, u: &PolyVec, opening: &Opening) -> bool {
 }
 
 /// Verify an opening against a claimed message (spec:
-/// `commitmentScheme.verify`, `Scheme.lean:231`): the message must be the one
+/// `commitmentScheme.verify`, `Scheme.lean:230`): the message must be the one
 /// derived from the opening, and the weak checks must pass.
 ///
 /// Mirrors ArkLib's `InnerOuter.commitmentScheme.verify`.

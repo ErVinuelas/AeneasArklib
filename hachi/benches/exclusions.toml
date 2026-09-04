@@ -112,6 +112,20 @@ exception (header) until a sub-quadratic `ring::mul` lands."""
 shapes -- hours per criterion iteration. Excluded per the Fig. 9 policy
 exception (header) until a sub-quadratic `ring::mul` lands."""
 
+"commit::generate_decomps_balanced" = """
+the balanced twin of `commit::generate_decomps`, and `ring::mul`-bound for the
+same reason: per block one `balanced_gadget_decompose` (8192 digit loops), one
+`A · s` (8192 ring muls, ~25 s at d = 1024 schoolbook), one more decompose. The
+digit layer it differs in is a few percent of that, and is measured directly as
+`gadget/balanced_gadget_decompose`. Excluded per the Fig. 9 policy exception
+(header) until a sub-quadratic `ring::mul` lands."""
+
+"commit::commit_balanced" = """
+`generate_decomps_balanced` + `commit_with_decomps`: ~2^23 ring muls at the
+scheme's shapes -- hours per criterion iteration, exactly as `commit::commit`.
+Excluded per the Fig. 9 policy exception (header) until a sub-quadratic
+`ring::mul` lands."""
+
 "commit::verify_weak" = """
 per block: the challenge scaling `c · sᵢ` alone is 8192 ring muls (~25 s).
 Excluded per the Fig. 9 policy exception (header) until a sub-quadratic

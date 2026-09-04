@@ -54,6 +54,10 @@ bench = false
 name = "evalsplit_semantics"
 bench = false
 
+[[test]]
+name = "ringswitch_semantics"
+bench = false
+
 # This is the thing Aeneas extracts, so every entry here has to survive charon.
 # The field layer is NOT reimplemented: `Fp` (the Hachi prime `2^32 - 99`) and
 # `Ext4` come from AeneasCompPoly's `cpoly` crate, which already carries their
@@ -144,6 +148,10 @@ harness = false
 name = "evalsplit"
 harness = false
 
+[[bench]]
+name = "ringswitch"
+harness = false
+
 # Warn rather than deny: `make extract` builds this crate with charon's own
 # rustc, and a lint that is only a style opinion must never be able to stop the
 # extraction. `unsafe_code` and `missing_docs` are the two that do matter, and
@@ -154,7 +162,7 @@ must_use_candidate = "allow"
 missing_panics_doc = "allow"
 manual_div_ceil = "allow"
 
-# The four below are `allow` because clippy's suggestion is *worse* for the
+# The five below are `allow` because clippy's suggestion is *worse* for the
 # extraction, which is this crate's purpose. Each is a real style rule elsewhere.
 #
 # `ptr_arg` wants `&[T]` where the code says `&Vec<T>`. The Aeneas `Vec` model is
@@ -174,6 +182,13 @@ cast_lossless = "allow"
 # `needless_range_loop` wants iterator adaptors, which have no Aeneas model at all
 # (`src/lib.rs` § "Style notes"). Index loops are the house style for that reason.
 needless_range_loop = "allow"
+# `implicit_saturating_sub` wants `a.saturating_sub(b)` where the code says
+# `if b <= a { a - b } else { 0 }`. That guard is `Int.toNat` of a signed sum
+# (`gadget::bounded_z_digit_at`, mirroring `boundedBalancedZmodDigit`), and its
+# two branches are the two cases the equivalence proof splits on; a
+# `saturating_sub` has no Aeneas model, so it would arrive in
+# `lean/Generated.lean` as an `axiom` and take the case split with it.
+implicit_saturating_sub = "allow"
 
 # Naming and documentation opinions this crate does not share.
 #

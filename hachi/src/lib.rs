@@ -39,10 +39,12 @@
 //!   verifier (`Commitments/Functional/Hachi/InnerOuter/Scheme.lean`).
 //! * [`evalsplit`] -- the multilinear evaluation split `uᵀ M v`
 //!   (`Commitments/Functional/Hachi/EvalSplit.lean`).
+//! * [`ringswitch`] -- the balanced digits of a quotient row
+//!   (`Commitments/Functional/Hachi/RingSwitch/RhoDigits.lean`).
 //!
 //! The layering is strict and bottom-up: `linalg` uses `ring`, `gadget` uses
-//! both, `commit` uses all three, `evalsplit` uses `ring` and `linalg`.
-//! Nothing reaches back up.
+//! both, `commit` uses all three, `evalsplit` uses `ring` and `linalg`, and
+//! `ringswitch` uses `ring` and `gadget`. Nothing reaches back up.
 //!
 //! The coefficient field is *not* in this crate. `Fp` (the Hachi prime
 //! `2^32 - 99`) and its quartic extension `Ext4` come from the `cpoly` crate of
@@ -112,3 +114,5 @@ pub mod gadget;
 pub mod commit;
 
 pub mod evalsplit;
+
+pub mod ringswitch;

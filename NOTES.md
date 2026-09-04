@@ -546,6 +546,32 @@ at the pin because `InnerOuter/Scheme.lean` is decomposition-generic. The
 moves to a new balanced sibling surface instead (PLAN_PROTOCOL_LAYER.md,
 Decision 4, and § "Spec stability at the pin" under Workstream 3 below).
 
+**Update 2026-09-04: the sibling surface exists, and the promotion cost no
+rename.** Stage 3 target 1 onboarded it — `gadget::balanced_digit_at`,
+`balanced_digit_decompose`, `balanced_gadget_decompose`, the `z`-side
+`bounded_z_digit_at`, `commit::{generate_decomps_balanced, commit_balanced}`
+and the new `ringswitch::rho_digits`, seven `Mirrors`-marked items, all frozen
+into genesis at their first translation.
+
+The target brief's re-base section expected Decision 4's revision ("balanced =
+public API, unsigned = primitive") to force a rename pass through `hachi/src`,
+on the grounds that PR #847 renamed `commitBalanced` → `commit` and deleted the
+unsigned committer. It does not, and the reason is worth recording because it
+looked settled the other way: **`hachi/src`'s `commit` never mirrored
+`Commitment.lean`'s committer.** It mirrors `InnerOuter.commitmentScheme.commit`
+(`commit.rs`), which takes the `Decomposition` as a *parameter*
+(`InnerOuter/Scheme.lean`) and is untouched by #847 — as are
+`zmodDigitDecomposition`, `generateDecomps` and `commitWithDecomps`. Every
+`Mirrors` target the existing crate names still exists at `d51d8bc`, so the
+promotion is pure addition: the balanced items take their own names, the
+unsigned ones keep theirs and the seventy-four proved specs with them, and
+`benches/genesis/` is appended to rather than re-frozen under new names.
+
+What the promotion *does* move is which statement is the headline. That is a
+spec-layer choice, and it is made in `lean-wip/Balanced.lean`:
+`commit_balanced_spec` is stated against the balanced instantiation — which,
+composed with `Hachi.toMatrix`, is `Hachi.commit` itself.
+
 ---
 
 ## One digit count, not two

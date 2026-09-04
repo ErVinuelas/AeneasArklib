@@ -222,3 +222,165 @@ pub fn gadget_decompose(x: &PolyVec) -> PolyVec {
     }
     PolyVec::new(out)
 }
+
+
+// ---------------------------------------------------------------------------
+// The balanced layer: the Hachi gadget inverse `G⁻¹`
+// ---------------------------------------------------------------------------
+
+/// The `e`-th *balanced* base-`b` digit of a field element (spec:
+/// `balancedDigit b digits c e`, `RingSwitch/RhoDigits.lean:79`, which is by
+/// `rfl` the `digit` field of `balancedZmodDigitDecomposition`,
+/// `Gadget/Core.lean:174`).
+///
+/// Mirrors ArkLib's `balancedZmodDigitDecomposition.digit` at one `e`.
+///
+/// One field add of [`params::BALANCED_SHIFT`], one unsigned [`digit_at`], one
+/// field subtract of [`params::HALF_BASE`] -- the spec's three steps, in the
+/// spec's order. The result lies in the paper's balanced box
+/// `S_b = [-8, 7]` as a *centered* residue
+/// (`balancedZmodDigit_valMinAbs_mem`, `Gadget/Norms.lean:114`), so `-8` is the
+/// field element `Fp(q - 8)` and not a small `u64`.
+///
+/// The shift is a **field** addition. A raw `u64` add would be a different
+/// function: `c.to_u64() + BALANCED_SHIFT` can reach `6585616420`, which is
+/// `≥ 16^8` and so has nine base-16 digits where the spec's
+/// `(c + balancedShift).val < q` has eight -- the top digit, the one the gadget
+/// reads at `e = 7`, would come out `0` instead of its true value. That is the
+/// whole content of the specification's `hbq : b ≤ q/2` side condition
+/// (`Gadget/Norms.lean:112`).
+///
+/// The `digits` argument of the spec enters only through `balancedShift`; it
+/// does not bound `e`. As with [`digit_at`], this agrees with the spec at every
+/// `e`, and the `⌊b/2⌋` box bound is the one that needs `e < digits`.
+pub fn balanced_digit_at(c: Fp, e: usize) -> Fp {
+    let shift: Fp = Fp::new(params::BALANCED_SHIFT);
+    let half: Fp = Fp::new(params::HALF_BASE);
+    digit_at(c + shift, e) - half
+}
+
+/// All [`params::GADGET_DIGITS`] balanced digits of a field element,
+/// little-endian (spec: the `digit` field of `balancedZmodDigitDecomposition`
+/// as a whole).
+///
+/// Mirrors ArkLib's `balancedZmodDigitDecomposition.digit` at every
+/// `e < digits`, as one vector.
+///
+/// The reconstruction law `Σₑ bᵉ · digit c e = c` is inherited from the
+/// unsigned decomposition at the shifted input: the digitwise subtractions of
+/// `⌊b/2⌋` sum to exactly `balancedShift` and cancel it
+/// (`Gadget/Core.lean:179`). It needs the same `q ≤ b ^ digits` that
+/// [`digit_decompose`] does.
+///
+/// Deliberately re-derives the shift per digit, exactly as
+/// [`digit_decompose`] re-derives each division chain: hoisting the one
+/// `c + shift` out of the loop is an optimization, and the first translation
+/// does not make it.
+pub fn balanced_digit_decompose(c: Fp) -> Vec<Fp> {
+    let digits: usize = params::GADGET_DIGITS;
+    let mut out: Vec<Fp> = Vec::new();
+    let mut e: usize = 0;
+    while e < digits {
+        out.push(balanced_digit_at(c, e));
+        e += 1;
+    }
+    out
+}
+
+/// The Hachi gadget inverse `G⁻¹` (spec: `gadgetDecompose`,
+/// `Gadget/Core.lean:518`, instantiated at `balancedZmodDigitDecomposition`).
+///
+/// Mirrors ArkLib's `gadgetDecompose` at `balancedZmodDigitDecomposition`.
+///
+/// The same shape as [`gadget_decompose`] -- slot `e` of block `i` is the ring
+/// element whose `k`-th coefficient is digit `e` of coefficient `k` of `x[i]`,
+/// and `gadget_mul(x.len(), ·)` inverts it by the same
+/// `gadgetDecompose_lawful` (`:523`) -- but at the balanced digit map, which is
+/// what makes this the decomposition [NOZ26] Eq. (20) range-checks and the one
+/// `Hachi.commit` (`Commitment.lean:111`) uses.
+///
+/// Shorter than the unsigned form by a factor of two in `ℓ∞`: every coefficient
+/// of the output is `⌊b/2⌋ = 8`-bounded as a centered residue
+/// (`balancedZmodDigit_natAbs_le`, `Gadget/Norms.lean:145`) against the
+/// unsigned `b - 1 = 15`.
+pub fn balanced_gadget_decompose(x: &PolyVec) -> PolyVec {
+    let digits: usize = params::GADGET_DIGITS;
+    let degree: usize = params::RING_DEGREE;
+    let rows: usize = x.len();
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < rows {
+        let mut e: usize = 0;
+        while e < digits {
+            let mut coeffs: Vec<Fp> = Vec::new();
+            let mut k: usize = 0;
+            while k < degree {
+                coeffs.push(balanced_digit_at(x.get(i).coeff(k), e));
+                k += 1;
+            }
+            out.push(Rq::from_coeffs(&coeffs));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+// ---------------------------------------------------------------------------
+// The bounded balanced layer: the folded witness `ẑ`, at `Z_DIGITS` digits
+// ---------------------------------------------------------------------------
+
+/// The `e`-th balanced base-`b` digit of a *short* field element, at the folded
+/// witness width [`params::Z_DIGITS`] (spec: `boundedBalancedZmodDigit b τ x e`,
+/// `Gadget/Core.lean:278`).
+///
+/// Mirrors ArkLib's `boundedBalancedZmodDigit` at `digits = Z_DIGITS`.
+///
+/// Centre first, then shift, then take unsigned digits -- the reverse of
+/// [`balanced_digit_at`]'s shift-then-`.val`, and the shift is an integer one
+/// rather than a field one:
+///
+/// ```text
+/// digit x e = ((Nat.digits b (x.valMinAbs + ⌊b/2⌋·S).toNat).getD e 0 : ZMod q)
+///             - (⌊b/2⌋ : ZMod q),      S = digitOnesValue b τ
+/// ```
+///
+/// with `⌊b/2⌋·S` = [`params::Z_BALANCED_SHIFT`]. The `if` chain below is
+/// `Int.toNat` of that integer sum, by the same case split
+/// [`crate::commit::centered_abs`] makes: `ZMod.valMinAbs` is `v` when
+/// `v ≤ q/2` and `-(q - v)` otherwise, and `Int.toNat` clamps a shift that is
+/// still negative to `0`. Nothing overflows: `v < q < 2^32` and the shift is
+/// below `2^20`.
+///
+/// **Total, but a decomposition only on short inputs.** `16^5 < q`, so no
+/// `DigitDecomposition (16 : ZMod q) 5` exists and this is a
+/// `BoundedDigitDecomposition` instead: the digits always lie in the box
+/// `[-8, 7]` (`boundedBalancedZmodDigit_valMinAbs_mem`,
+/// `Gadget/Norms.lean:165`, unconditionally), but
+/// `Σₑ bᵉ · digit x e = x` holds only for `|x.valMinAbs| ≤ `
+/// [`params::Z_BOUND`] (`boundedBalancedZmodDigit_reconstruct`, `:293`). The
+/// honest `‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋` is exactly that bound.
+pub fn bounded_z_digit_at(c: Fp, e: usize) -> Fp {
+    let b: u64 = params::GADGET_BASE;
+    let q: u64 = params::Q;
+    let shift: u64 = params::Z_BALANCED_SHIFT;
+    let half_q: u64 = q / 2;
+    let v: u64 = c.to_u64();
+    let shifted: u64 = if v <= half_q {
+        v + shift
+    } else {
+        let neg: u64 = q - v;
+        if neg <= shift {
+            shift - neg
+        } else {
+            0
+        }
+    };
+    let mut rest: u64 = shifted;
+    let mut i: usize = 0;
+    while i < e {
+        rest = rest / b;
+        i += 1;
+    }
+    Fp::new(rest % b) - Fp::new(params::HALF_BASE)
+}

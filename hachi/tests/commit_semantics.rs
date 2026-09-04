@@ -34,8 +34,9 @@ mod support;
 
 use cpoly::Fp;
 use hachi::commit::{
-    centered_abs, commit, commit_with_decomps, derived_message, generate_decomps, l1_norm,
-    l2_norm_sq, l_infty_norm, verify, verify_weak, Decomp, Opening, PublicParams,
+    centered_abs, commit, commit_balanced, commit_with_decomps, derived_message, generate_decomps,
+    generate_decomps_balanced, l1_norm, l2_norm_sq, l_infty_norm, verify, verify_weak, Decomp,
+    Opening, PublicParams,
 };
 use hachi::linalg::{flatten_blocks, PolyVec};
 use hachi::params::{
@@ -557,5 +558,128 @@ fn the_slot_rewrite_preserves_the_relation_but_not_shortness() {
     assert!(
         hachi::commit::vec_l_infty_norm(&t) <= GAMMA,
         "the honest decomposition was not short to begin with"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The balanced committer
+// ---------------------------------------------------------------------------
+//
+// `commit_balanced` and `generate_decomps_balanced` are `ring::mul`-bound, not
+// digit-bound: per block one `A · s` of `MESSAGE_ROWS · GADGET_DIGITS = 8192`
+// schoolbook ring products, and `BLOCKS = 1024` blocks. They inherit the
+// module doc's scale policy verbatim -- full-const bodies, `#[ignore]`d -- and
+// the live stand-in below runs the same seam at a small ad-hoc shape.
+
+/// The honest *balanced* commitment verifies. The paper's committer
+/// (`Hachi.commit`), through the same weak verifier: the digits are centered
+/// now, so this also witnesses that `verify_weak` needs no balanced sibling --
+/// `‖·‖∞ = 8` is inside `GAMMA = 16` and the balanced `ℓ₂²` is far inside
+/// `BETA_SQ`.
+#[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+fn honest_balanced_commitments_verify() {
+    for seed in [1u64, 2] {
+        let pp = params_from_seed(0xA100 + seed);
+        let m = message_from_seed(0xB100 + seed);
+        let (u, decomp) = commit_balanced(&pp, &m);
+        assert_eq!(u.len(), OUTER_ROWS);
+        let opening = Opening::honest(decomp);
+        assert!(
+            verify_weak(&pp, &u, &opening),
+            "weak verification of an honest balanced opening failed (seed {seed})"
+        );
+        assert!(
+            verify(&pp, &m, &u, &opening),
+            "full verification of an honest balanced opening failed (seed {seed})"
+        );
+    }
+}
+
+/// The message is recoverable from the balanced opening too: `mᵢ = G · sᵢ`.
+/// The gadget matrix is unchanged -- only the inverse moved -- which is the
+/// whole reason the balanced committer needs no new verifier.
+#[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+fn the_message_is_derived_from_the_balanced_decomposition() {
+    let pp = params_from_seed(0xC101);
+    let m = message_from_seed(0xC102);
+    let decomp = generate_decomps_balanced(&pp, &m);
+    let derived = derived_message(&decomp);
+    assert_eq!(derived.len(), m.len());
+    for i in 0..m.len() {
+        assert!(
+            derived[i].equals(&m[i]),
+            "block {i} was not recovered:\n  want {}\n  got  {}",
+            show_vec(&m[i]),
+            show_vec(&derived[i])
+        );
+    }
+}
+
+/// `commit_balanced` is `generate_decomps_balanced` followed by
+/// `commit_with_decomps` -- the outer half is shared with the unsigned
+/// committer unchanged, because it takes the `Decomp` as data.
+#[test]
+#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+fn commit_balanced_agrees_with_commit_with_decomps() {
+    let pp = params_from_seed(0xC103);
+    let m = message_from_seed(0xC104);
+    let (u, decomp) = commit_balanced(&pp, &m);
+    assert!(u.equals(&commit_with_decomps(&pp, &decomp)));
+}
+
+/// The balanced and unsigned committers really are different functions, and the
+/// balanced one is the shorter: same message, same parameters, a strictly
+/// smaller `ℓ∞` and `ℓ₂²` on the opening. The live stand-in for the ignored
+/// pipeline tests above, at a small ad-hoc shape -- the seam is
+/// shape-generic, so `MESSAGE_ROWS` is not what it exercises.
+#[test]
+fn the_balanced_decomposition_is_the_shorter_one() {
+    let rows = 2usize;
+    let blocks = 2usize;
+    let mut rng = Lcg::new(0xC105);
+    let a = rng.next_poly_matrix(INNER_ROWS, rows * GADGET_DIGITS);
+    let b = rng.next_poly_matrix(OUTER_ROWS, blocks * (INNER_ROWS * GADGET_DIGITS));
+    let pp = PublicParams::new(a, b);
+
+    let mut m = Vec::new();
+    for _ in 0..blocks {
+        m.push(rng.next_poly_vec(rows));
+    }
+
+    let unsigned = generate_decomps(&pp, &m);
+    let balanced = generate_decomps_balanced(&pp, &m);
+
+    for i in 0..blocks {
+        let bal_infty = hachi::commit::vec_l_infty_norm(balanced.message(i));
+        let uns_infty = hachi::commit::vec_l_infty_norm(unsigned.message(i));
+        assert!(
+            bal_infty <= GADGET_BASE / 2,
+            "block {i}: the balanced message half is not ⌊b/2⌋-short ({bal_infty})"
+        );
+        assert!(
+            bal_infty < uns_infty,
+            "block {i}: the balanced message half is not strictly shorter \
+             ({bal_infty} vs {uns_infty})"
+        );
+        assert!(
+            hachi::commit::vec_l2_norm_sq(balanced.message(i))
+                < hachi::commit::vec_l2_norm_sq(unsigned.message(i)),
+            "block {i}: the balanced ℓ₂² is not smaller"
+        );
+    }
+
+    // Both are honest decompositions of the same message: `G · sᵢ = mᵢ` either
+    // way, which is what lets one verifier serve both.
+    for i in 0..blocks {
+        assert!(hachi::gadget::gadget_mul(rows, balanced.message(i)).equals(&m[i]));
+        assert!(hachi::gadget::gadget_mul(rows, unsigned.message(i)).equals(&m[i]));
+    }
+
+    // And they are genuinely different data, not the same decomposition twice.
+    assert!(
+        !balanced.message(0).equals(unsigned.message(0)),
+        "the balanced and unsigned decompositions coincide"
     );
 }
