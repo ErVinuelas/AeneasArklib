@@ -1,37 +1,34 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Currently holding `QuadEval.lean`** — Stage 3 target 2's eight statements
-(2026-09-04), typechecked against the pinned ArkLib and none proved: the two
-`z`-side gadget siblings and their conditional round trip, `carrier_entry_spec`,
-`tensor_g1_spec`, and the box decisions. Four of the eight are **iffs rather
-than equalities** — `InSb`, `vecInSb`, `relOut` and `paperRelOut` are `Prop`s
-where `verify_weak` was a `Bool`, so the obligation is "the decision procedure
-decides the proposition", a shape `STAGE2_SCOPING.md`'s erasure catalogue does
-not have. Its header carries the proof notes; `in_sb_spec` is the one genuinely
-new arithmetic obligation, and the asymmetry of the box is why.
-
-It imports `Balanced` from `lean/`, which is worth noting because the README's
-own warning below says a wip file cannot import another wip file — true, and
-the reason this one now can is that `Balanced.lean` was promoted out.
-
-`Balanced.lean` (Stage 3 target 1) passed through here and **was promoted on
-2026-09-04**: submitted to Aristotle as session `58843236` with nine `sorry`s,
-returned `integrated_complete` at zero, and moved to `lean/Balanced.lean` with
-its nine `#print axioms` lines in `Check.lean` § 4. The audit reads
-`[propext, Classical.choice, Quot.sound]` for all nine, ending at
-`commit_balanced_spec` — the honest Hachi commitment.
-
-Everything else that passed through here has been promoted: the
+**Currently empty.** Everything that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
-into `lean/Scheme.lean` beside their siblings), and the multilinear evaluation
-layer (`lean/EvalSplit.lean`, proved by Aristotle session `cc7674ce`). The
-audited library now covers the base field, both levels of the ring,
-`linalg`/`gadget`/`commit` up to `honest_verifies_full` — perfect correctness of
-the extracted scheme at its top-level API, `commit::verify` itself — and the
-`evalsplit` module against ArkLib's split evaluation. `lean/Check.lean` § 4
-prints the axiom dependencies of all seventy-four headline specs, and they come
-out as the three Lean kernel axioms and nothing else.
+into `lean/Scheme.lean` beside their siblings), the multilinear evaluation
+layer (`lean/EvalSplit.lean`, proved by Aristotle session `cc7674ce`), and, on
+2026-09-04, Stage 3's first two targets: the balanced digit layer
+(`lean/Balanced.lean`, Aristotle session `58843236`, nine obligations to zero)
+and the QuadEval fold (`lean/QuadEval.lean`, Aristotle session `14b9bf77`,
+eight obligations to zero). The audited library now covers the base field, both
+levels of the ring, `linalg`/`gadget`/`commit` up to `honest_verifies_full` —
+perfect correctness of the extracted scheme at its top-level API,
+`commit::verify` itself — the `evalsplit` module against ArkLib's split
+evaluation, the balanced committer (`commit_balanced_spec`: the honest Hachi
+commitment, `Hachi.commit`), and the QuadEval fold's `z`-side gadget, carrier,
+`tensorG1` and Eq. (20) decisions. `lean/Check.lean` § 4 prints the axiom
+dependencies of all ninety-one headline specs, and they come out as the three
+Lean kernel axioms and nothing else.
+
+Two things the QuadEval passage through here established, worth keeping:
+
+* a wip file **can** import a promoted file — `QuadEval.lean` imported
+  `Balanced` the day the latter was promoted — but not another wip file (see
+  "Working here" below), so two staged files at once still means promoting the
+  lower one first;
+* four of its statements are **iffs** rather than equalities, because ArkLib
+  states `InSb`, `vecInSb`, `relOut` and `paperRelOut` as `Prop`s where the Rust
+  returns a `Bool`, so the obligation is "the decision procedure decides the
+  proposition". That shape is not in `STAGE2_SCOPING.md`'s erasure catalogue;
+  it proved low-risk, and `lean/QuadEval.lean`'s header records how.
 
 The directory stays because the distinction it exists for still matters, and the
 next operation to be specified will want it.

@@ -5,6 +5,7 @@ import RqBridge
 import Scheme
 import EvalSplit
 import Balanced
+import QuadEval
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -623,12 +624,13 @@ ArkLib's `Hachi.evalSplit`/`evalSplitEval` -- and, since 2026-09-04, the balance
 digit layer (`lean/Balanced.lean`), ending at `commit_balanced_spec`: the honest
 **Hachi** commitment, `Hachi.commit` itself, which is what makes this crate a
 translation of the paper's committer rather than of the unsigned building block
-underneath it.
+underneath it -- and, since the same day, the QuadEval fold (`lean/QuadEval.lean`):
+the `z`-side gadget siblings at `τ = 5` with their conditional round trip, the
+carrier entry and `tensorG1`, and the Eq. (20) box and relation decisions, four of
+them stated as iffs because ArkLib states those as `Prop`s.
 
-One thing IS stated-but-unproved and deliberately out of reach here:
-`lean-wip/QuadEval.lean`, target 2's eight obligations. That directory is not a
-Lake root, so nothing below can see it -- which is the point. It joins this list
-when it is proved and promoted. -/
+Nothing is left stated-but-unproved: `lean-wip/` is empty again, and the next file
+staged there joins this list when it is proved and promoted. -/
 
 -- The balanced digit layer (`lean/Balanced.lean`): the Hachi gadget inverse
 -- `G⁻¹` at `ddBal`, the bounded `z`-side digit map at `τ = 5`, the quotient
@@ -643,6 +645,19 @@ when it is proved and promoted. -/
 #print axioms HachiEquiv.Balanced.rho_digits_spec
 #print axioms HachiEquiv.Balanced.generate_decomps_balanced_spec
 #print axioms HachiEquiv.Balanced.commit_balanced_spec
+
+-- The QuadEval fold (`lean/QuadEval.lean`): the `z`-side gadget siblings at
+-- `τ = 5` and their conditional round trip, the carrier entry, `tensorG1`, and
+-- the Eq. (20) box and relation decisions. Proved by Aristotle session
+-- `14b9bf77` and promoted 2026-09-04; these eight lines are what keep it proved.
+#print axioms HachiEquiv.QuadEval.bounded_z_gadget_decompose_spec
+#print axioms HachiEquiv.QuadEval.gadget_mul_z_spec
+#print axioms HachiEquiv.QuadEval.gadget_mul_z_inverts_spec
+#print axioms HachiEquiv.QuadEval.carrier_entry_spec
+#print axioms HachiEquiv.QuadEval.tensor_g1_spec
+#print axioms HachiEquiv.QuadEval.in_sb_spec
+#print axioms HachiEquiv.QuadEval.vec_in_sb_spec
+#print axioms HachiEquiv.QuadEval.paper_rel_out_implies_rel_out_spec
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec
