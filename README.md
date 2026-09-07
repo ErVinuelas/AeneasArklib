@@ -27,17 +27,24 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
-> **Status: the bottom layers are implemented, tested and extracted, and the whole
-> commitment scheme's equivalence with the specification is proved and
-> build-enforced — up to perfect correctness.**
+> **Status: the commitment scheme and the first two links of the protocol layer
+> are implemented, tested, extracted, and proved equivalent to the specification —
+> build-enforced, up to perfect correctness of the scheme.**
 >
-> Four modules are in place — [`ring`](hachi/src/ring.rs) (the negacyclic ring
-> `R_q = Z_q[X]/(X^N+1)`), [`linalg`](hachi/src/linalg.rs),
-> [`gadget`](hachi/src/gadget.rs) (base-`b` digit decomposition and the gadget
-> matrix) and [`commit`](hachi/src/commit.rs) (the inner-outer Ajtai commitment
-> and its weak-opening verifier). 66 tests pass, including perfect correctness and
-> every rejection path of the verifier; `make extract` produces a model with no
-> axioms and no opaque bodies; each module has a criterion bench.
+> Eight modules are in place — [`params`](hachi/src/params.rs),
+> [`ring`](hachi/src/ring.rs) (the negacyclic ring `R_q = Z_q[X]/(X^N+1)`),
+> [`linalg`](hachi/src/linalg.rs), [`gadget`](hachi/src/gadget.rs) (base-`b` digit
+> decomposition, unsigned and balanced, and the gadget matrix),
+> [`commit`](hachi/src/commit.rs) (the inner-outer Ajtai commitment and its
+> weak-opening verifier), [`evalsplit`](hachi/src/evalsplit.rs) (the multilinear
+> evaluation split), [`ringswitch`](hachi/src/ringswitch.rs) (the quotient digits
+> of the ring switch) and [`quadeval`](hachi/src/quadeval.rs) (the QuadEval fold
+> and its Eq. (20) checks). 105 tests pass, including perfect correctness and
+> every rejection path of the verifier; 21 more are `#[ignore]`d because
+> they cannot complete at the paper's parameters, each naming the wall that
+> ignores it (NOTES.md, `exclusions.toml`). `make extract` produces a model with
+> no axioms and no opaque bodies; every mirrored item is benched or excluded by
+> name, and the 163 frozen baseline items are verified against git.
 >
 > `make build` passes, and every layer it checks is proved:
 >
@@ -63,20 +70,33 @@ in structure and in method, and depends on it for the coefficient field.
 >   outside it, and the composition ends at `honest_verifies_full`: **perfect
 >   correctness of the extracted scheme at its top-level API** — an honest
 >   commitment and its honest opening pass `commit::verify`, derived-message
->   check included.
+>   check included;
+> * the multilinear evaluation layer ([`lean/EvalSplit.lean`](hachi/lean/EvalSplit.lean))
+>   — the `evalsplit` module and `linalg::split_form` against ArkLib's
+>   `Hachi.evalSplit`/`evalSplitEval`;
+> * the balanced digit layer ([`lean/Balanced.lean`](hachi/lean/Balanced.lean)) —
+>   the Hachi gadget inverse `G⁻¹` proper (balanced digits in `[-8, 7]`), the
+>   bounded `z`-side digit map at `τ = 5`, the quotient digits, and
+>   `commit_balanced_spec`: the honest Hachi commitment, `Hachi.commit` itself;
+> * the QuadEval fold ([`lean/QuadEval.lean`](hachi/lean/QuadEval.lean)) — the
+>   `z`-side gadget at `τ = 5` with its conditional round trip, the carrier entry,
+>   `tensorG1`, and the Eq. (20) box and relation decisions, stated as iffs
+>   against the `Prop`s ArkLib states them as.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all seventy-four proved specs: the three Lean kernel axioms, nothing else.
+> of all ninety-one proved specs: the three Lean kernel axioms, nothing else.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is empty, and its [README](hachi/lean-wip/README.md) holds the procedure
 > for promoting the next file that lands there. [`NOTES.md`](NOTES.md)
 > § "The scheme layer is proved, and checked" scores every claim in this repository
 > as verified or not.
 >
-> The protocol layer (per-link provers and verifiers) is deliberately absent: its
-> ArkLib specification still has unfilled definitional parameters, so there is
-> nothing stable to be equivalent to.
+> The remaining protocol links — the ring-switch lift and commitment, zero-check,
+> sumcheck and the end piece — are the rest of
+> [`PLAN_PROTOCOL_LAYER.md`](PLAN_PROTOCOL_LAYER.md) Stage 3. Their ArkLib
+> specification is definition-stable at the pinned rev (PR #847) and their
+> parameters already live in `params.rs`; what is absent is code, not spec.
 
 ## Usage
 
@@ -115,6 +135,7 @@ INSTRUCTIONS.md       the skill catalogue: what to invoke, and what it asks
 .claude/skills/       the written procedures the pipeline runs, one per directory
 logs/
   ledger.jsonl        append-only candidate and campaign rows (currently empty)
+  aristotle-sessions.jsonl  append-only record of the remote Aristotle proof sessions
 scripts/
   install-lean.sh     elan + the pinned toolchain, from GitHub if the usual
                       hosts are blocked (used by `make setup`)
@@ -128,6 +149,9 @@ hachi/
     linalg.rs         vectors and matrices over R_q
     gadget.rs         base-b digit decomposition, the gadget matrix G, and G⁻¹
     commit.rs         the inner-outer Ajtai commitment, its weak verifier, the norms
+    evalsplit.rs      the multilinear evaluation split uᵀ M v
+    ringswitch.rs     the balanced quotient digits of the ring switch
+    quadeval.rs       the QuadEval fold: carrier, tensors, honest z, the Eq. (20) checks
   tests/              Rust-side semantics tests, one per src/ module
   benches/            criterion benchmarks, one file per src/ module
     support/          the corpus, the digest oracle, and the case macros
@@ -144,6 +168,9 @@ hachi/
     Ring.lean         the ring operations at the coefficient level -- proved
     RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
     Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved
+    EvalSplit.lean    the evalsplit module against ArkLib's split evaluation -- proved
+    Balanced.lean     the balanced digit layer, up to the honest Hachi commitment -- proved
+    QuadEval.lean     the QuadEval fold's gadget, carrier and Eq. (20) decisions -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
     README.md         what has to happen before a file moves into lean/ (empty otherwise)
@@ -228,10 +255,16 @@ in `lake-manifest.json`, which is what makes a clone reproducible:
   moves under a proof turns a passing build into a failing one for reasons that
   have nothing to do with the Rust. Bump with `lake update Arklib`.
 
-* **aeneas** — `AeneasVerif/aeneas` @ `nightly-2026.07.26-3a8586f`, **upstream**.
-  No fork is needed: this nightly's Lean backend requires Lean/Mathlib v4.31.0,
-  which is exactly ArkLib's pin. (AeneasCompPoly does need a fork, because
-  CompPoly moved to v4.32.0 — see [`NOTES.md`](NOTES.md) § "Upstream aeneas".)
+* **aeneas** — our Lean 4.33 port of `AeneasVerif/aeneas`: commit `6125cb9e`
+  ("bump to 4.33"), one commit on top of upstream `3a8586f` — the commit the
+  pinned extraction binaries are built from — fetched by a `file://` require
+  from the sibling `../aeneas` checkout, so the Lean build reproduces only on
+  this machine (the Lean CI job cannot clone it). Upstream
+  releases stop at Lean/Mathlib v4.31.0 while ArkLib `main` is on v4.33.1; the
+  port's regenerated builtins table is semantically identical to upstream's, so
+  the release binaries stay valid. See the comment on `require aeneas` in
+  `hachi/lakefile.lean` and [`NOTES.md`](NOTES.md) § "Upstream aeneas, no fork"
+  (superseding entry).
 
 * **cpoly** — `tobias-rothmann/AeneasCompPoly`, a cargo dependency pinned by
   `rev`. Pinned by commit so the frozen bench baseline cannot drift.
@@ -243,8 +276,10 @@ the release. They have to stay on the same Aeneas commit as the backend, since
 `make setup` checks both directions and `make extract` re-checks the binaries.
 
 A Lean bump therefore moves `lake-manifest.json`, `lean-toolchain` and the
-Makefile pins together, and an ArkLib bump to v4.32.0 would additionally require
-an aeneas release on that Mathlib.
+Makefile pins together, and a further Mathlib bump means rebasing the port,
+which rebuilds the extraction binaries and re-baselines the extraction — a
+project decision with its own verify-campaign, never maintenance
+(`PLAN_PROTOCOL_LAYER.md`, Decision 2).
 
 ## Trusted computing base
 
@@ -253,7 +288,7 @@ verification boundary.
 
 | Trusted | Why it cannot be checked away | If it is wrong |
 |---|---|---|
-| **[Lean kernel](https://github.com/leanprover/lean4/tree/v4.31.0/src/kernel)** — ~8k lines of C++, plus `propext`, `Classical.choice`, `Quot.sound` | No machine-checked proof of it exists; its C fast path for `Nat` carries every `decide` in the parameter checks | A false theorem, with no diagnostic |
+| **[Lean kernel](https://github.com/leanprover/lean4/tree/v4.33.1/src/kernel)** — ~8k lines of C++, plus `propext`, `Classical.choice`, `Quot.sound` | No machine-checked proof of it exists; its C fast path for `Nat` carries every `decide` in the parameter checks | A false theorem, with no diagnostic |
 | **Aeneas extraction** — [charon](https://github.com/AeneasVerif/charon) + [aeneas](https://github.com/AeneasVerif/aeneas), and their hand-written [model of Rust `std`](https://github.com/AeneasVerif/aeneas/blob/main/backends/lean/Aeneas/Std/Vec.lean) | `Generated.lean` is asserted to model `src/`, never proved: the paper proof covers a fragment, the OCaml that ran does not | The proofs are about a different program |
 | **The charon whitelist** — `--include 'cpoly::_'` decides which foreign items are translated rather than axiomatized | Nothing checks that the whitelist is *complete*; a missed item becomes an `axiom`, which is visible but only if someone reads for it | A spec that quantifies over an uninterpreted symbol, and so says nothing |
 | **Rust to machine code** — rustc, LLVM, linker, libc, OS, CPU | No verified Rust compiler exists; memory safety is inherited from the borrow checker, not proved | The binary betrays a correct proof |

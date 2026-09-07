@@ -1,6 +1,22 @@
 # Plan: Rust generation + verification of the Hachi protocol layer, on merged ArkLib main
 
-Status: **updated 2026-09-03 — re-pinned to ArkLib PR #847 head `d51d8bc`
+Status: **updated 2026-09-04 — Stage 2 CLOSED (`a898de7`, 18 consts at
+τ = 5); Stage 3 targets 1 and 2 onboarded, stamped, proved and promoted the
+same day (`09df61b`/`4c146b1`, `b984c53`/`8547ea9`, `fcd5381`; Aristotle
+`58843236` 9→0 and `14b9bf77` 8→0; the QuadEval promotion is staged); TF **not**
+done — a move of the aeneas require to a public fork was prepared 09-04 and
+reverted 09-07 by decision; the `file://` require stays. TF had turned out to
+be CI-blocking, not "parallel to everything": the Lean job fails at the clone
+of the `file://` require on every push since 09-03 and stays red until TF is
+settled some other way. Still open: Stage 0's ledger
+exit — a birth run writes no ledger row (`op-genesis`: the ledger records
+candidate verdicts), so it closes with the first `perf-loop`, for which
+Decision 6's `ring::mul` champion remains the recommendation; briefs 3–6 are
+at `294b3f0b0` and re-base when their target opens; target 2 is a *hard*
+dependency on target 1 (⊗⊗ in the Stage 3 table), not the thin seam recorded
+below.** The 2026-09-03 status follows.
+
+Status as of 2026-09-03: re-pinned to ArkLib PR #847 head `d51d8bc`
 (τ = 5, `BoundedDigitDecomposition`, balanced digits as *the* gadget
 inverse), `make build` green after three proof-internal repairs; Decision 4
 revised (⊕⊕); Stage 2's record committed (`68620ed`), its scoping tables
@@ -13,7 +29,8 @@ dependency graph. Corrections to the morning revision are marked **⟲**;
 corrections from Stage 2's own audits are marked **⊕** and carry their
 evidence in `STAGE2_SCOPING.md`, which is Stage 2's output document.
 
-Where things stand: the Fig. 9 params flip is committed and stamped
+⊗⊗ *The paragraph below is the 2026-09-01 reading, superseded by the status
+above; kept for the record.* Where things stand: the Fig. 9 params flip is committed and stamped
 (`af05e6c` + `0de99fa`); **Stage 1 is CLOSED** — commit `6f30811`, with the
 extract formality clean on it (`make extract` `unchanged`, 0 axioms,
 `make build` green, `Check.lean` § 4 intact); Stage 0's one live remainder
@@ -172,6 +189,11 @@ on; anything that contradicts them later means the pin moved.
    user's GitHub; the lakefile then moves only the URL, keeping the rev pin
    — its comment says how). Until then the `file://` require reproduces
    only on this machine. Parallel to everything; do it whenever.
+   ⊗⊗ **Not done (2026-09-07)**: the URL move was prepared on 09-04 and
+   reverted by decision — the aeneas repository is not to be updated for it,
+   the require stays `file://`. "Parallel to everything" was wrong —
+   `lean.yml` fails at the clone without it, so the Lean CI job has been red
+   from the 09-03 push onward and remains so.
    (b) **drift policy**: upstream is 64 commits ahead with two charon bumps;
    a rebase implies rebuilding the release binaries and re-baselining the
    extraction — that is a project decision with its own verify-campaign,
@@ -345,7 +367,7 @@ benching in a reserved MX slot, TS2/TE items filling gaps.
 
 Exit: params flip committed and stamped (done); ledger non-empty (open).
 
-### Stage 1 — Pin bump + toolchain re-alignment — DONE locally (uncommitted)
+### Stage 1 — Pin bump + toolchain re-alignment — CLOSED (`6f30811`, 2026-09-01)
 
 Budgeted 4–9 days; actual ~1 day because `Generated.lean` did not regenerate
 (binaries and charon pin stayed valid). The drift bill was two Lean-side
@@ -368,7 +390,7 @@ Decidable instances inside `decide`). Remaining, all mechanical (~0.5 day):
 Exit unchanged: `lake build` green (4153 jobs — already holds), `Check.lean`
 § 4 intact, axiom-clean, extraction deterministic, all *as a commit*.
 
-### Stage 2 — Audit + scoping (2–3 days) — IN PROGRESS
+### Stage 2 — Audit + scoping (2–3 days) — CLOSED 2026-09-03 (`a898de7`)
 
 ⊕ **Output document: `STAGE2_SCOPING.md`.** All five audits below are
 complete and folded in as of 2026-09-01; what remains is the six
@@ -476,11 +498,22 @@ dependency edges, and two size corrections:
 | # | Target | ArkLib source (at the pin) | Rust home | Needs | Size vs `evalsplit` |
 |---|---|---|---|---|---|
 | 1 | balanced digit layer: `balancedDigit`/`balancedShift`, `rhoDigits`/`rhoDigitCount`, balanced message/z decompose siblings, `DigitBaseOk` side conditions | `RingSwitch/RhoDigits.lean`, `Gadget/`, `HonestChain.lean` | extends `gadget.rs` (+ `commit.rs` seam) | — | **similar** (⟲ was "smaller"; it now carries the composed chain's decomposition, Decision 4) |
-| 2 | QuadEval fold link: carrier algebra (`carrierEntry/carrier/carrierDecomp/carrierCommit`, `jMatrix`, `tensorG`/`tensorG1`), `zDecomp`, `honestZ`, `honestComputeV`/`honestComputeResp`, the Eq. 20 `relOut` checks | `QuadEval/Gadgets.lean`, `QuadEval/Reduction.lean` | new `quadeval.rs` | thin seam to 1 (balanced instantiation at freeze) | similar–larger |
+| 2 | QuadEval fold link: carrier algebra (`carrierEntry/carrier/carrierDecomp/carrierCommit`, `jMatrix`, `tensorG`/`tensorG1`), `zDecomp`, `honestZ`, `honestComputeV`/`honestComputeResp`, the Eq. 20 `relOut` checks | `QuadEval/Gadgets.lean`, `QuadEval/Reduction.lean` | new `quadeval.rs` | ⊗⊗ **1, hard** — the `_z` siblings at `Z_DIGITS = 5` are built over target 1's `bounded_z_digit_at` (brief 2's re-base); was "thin seam to 1" | similar–larger |
 | 3 | ring-switch link: `liftMessage`/`rhoDigitAsRq`/`rhoAsRq`, `hachiLiftCom` (= `Simple.commit ∘ liftMessage`), `rhoDigitsShortCheck`/`liftShortCheck` | `RingSwitch/Reduction.lean`, `EndPiece/Reduction.lean:111–149` | new `ringswitch.rs` | 1 | similar |
 | 4 | zero-check: `wTable`, `cWTableMle`/`wTableMleEval`, the computable `hZero`/`hAlpha` layer, `alphaPublicEvals`, `hypercubeSum`, batch checks | `ZeroCheck/Constraints.lean` (1488 lines), `Batch.lean` | new `zerocheck.rs` | 1, 3, **F** (Decision 3) | **larger** (⟲ was "similar") |
 | 5 | sumcheck: `computableRoundPoly`, `roundCheck`/state advance, `finalCheck`, `honestComputeG`/`honestComputeY`, the round loop | `Sumcheck/RoundPoly.lean:286`, `Rounds.lean`, `FinalEval.lean` | new `sumcheck.rs` | 4, F | largest |
 | 6 | end-piece: `endPieceCheck` (`com == t && liftShortCheck && wTableMleEval == value`), `endPieceWitness`/prover | `EndPiece/Reduction.lean` | new `endpiece.rs` | 3, 4 — **not 5** | smaller–similar |
+
+⊗⊗ **Status 2026-09-04: targets 1 and 2 are done** — onboarded and stamped
+(`09df61b`/`4c146b1`, `b984c53`/`8547ea9`), proved (Aristotle `58843236`,
+`14b9bf77`), promoted (`fcd5381`; QuadEval staged). Target 1's birth run read
+noise on every new row (A/B bias 1.4%; provenance is commit `09df61b` and the
+09:39–09:57 window — its id was never captured, see NOTES.md § "Two full
+null-slot sweeps, and the run id that cannot name them").
+Next: target 3, re-basing brief 3 onto `d51d8bc` first, with TE beside it.
+One recorded erasure to carry into target 3's specs: `ShortChallenge` (the
+`‖c‖₁ ≤ ω` subtype) was not translated in target 2 — `rel_out` takes `c`
+unconstrained, so the bound is a precondition the statements do not state.
 
 Parallel structure: **{1 ∥ 2} → 3 → 4 → {5 ∥ 6}**, with TE (the Ext4 layer)
 running beside 1–3 and landing before 4's specs. Drafting of a downstream
@@ -596,12 +629,12 @@ is the artifact the internship's benchmark story rests on.
 
 | Stage | Duration | Status / depends on |
 |---|---|---|
-| 0 — pre-merge work | done except bench | ~0.5–1 day left, after T0's commit |
-| 1 — toolchain re-alignment | **done locally**; commit + extract formality | ~0.5 day, USR |
-| 2 — audit + scoping | 2–3 days (⟲ grew) | **starts now**, parallel to T0 |
+| 0 — pre-merge work | done except the ledger exit | ⊗⊗ target-1 birth sweep ran 2026-09-04 (uncertified); target-2 shake-out clean; the certified full sweep must be re-run (NOTES.md § "Two full null-slot sweeps"); ledger fills with the first `perf-loop` |
+| 1 — toolchain re-alignment | **closed** `6f30811` | 2026-09-01 |
+| 2 — audit + scoping | **closed** `a898de7` | 2026-09-03 |
 | TM — mul champion | ~2–4 days spread opportunistically | T0; Decision 6 |
 | TE — Ext4 layer | ~2–3 days | Decision 3; before target 4's specs |
-| 3+4 — op-genesis + proofs, pipelined | 3–4 weeks | Stages 1–2; edges {1∥2}→3→4→{5∥6} |
+| 3+4 — op-genesis + proofs, pipelined | 3–4 weeks | Stages 1–2; edges {1∥2}→3→4→{5∥6}; ⊗⊗ targets 1–2 done 2026-09-04 |
 | 5 — composition | ~5 days | Stages 3–4 |
 | 6 — optimization loop | 2–4 weeks (elastic) | Stage 5 partially; TM changes its starting point |
 | 7 — comparison deliverable | 2–3 days | Stage 6 budget spent |
@@ -613,7 +646,9 @@ the TM/TE overlap absorb it. Stage 6 stays the deliberate accordion.
 ## Risks
 
 1. **Aeneas port residuals** (was: the 4.33 gap, retired). (a) `file://`
-   portability — fixed by TF, ~30 min. (b) Upstream drift: 64 commits, two
+   portability — ⊗⊗ **still open (2026-09-07)**: the fork move was prepared
+   and reverted by decision; it has been failing the Lean CI job since the
+   09-03 push. (b) Upstream drift: 64 commits, two
    charon bumps already; policy in Decision 2 — the pin moves only as a
    deliberate re-baseline.
 2. **Extraction ceiling** (Stages 2/3). ⊕ **Fired once, and the answer is

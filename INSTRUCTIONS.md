@@ -72,9 +72,11 @@ together, `make bench-stamp` derives the stamps from that commit, you commit tho
 separately — never `--amend` the first, since a stamp stores its sha — and only
 then can the birth benchmark run.
 
-> All five modules (`params`, `ring`, `linalg`, `gadget`, `commit`) are **already**
-> onboarded and frozen, with 81 git-verified stamps. So `op-genesis` is for the
-> next operation, not for catching up.
+> All eight modules (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`,
+> `ringswitch`, `quadeval`) are **already** onboarded and frozen, with 163
+> git-verified stamps. So `op-genesis` is for the next operation, not for catching
+> up — the queue is PLAN_PROTOCOL_LAYER.md Stage 3's remaining targets: the
+> ring-switch link, zero-check, sumcheck and the end piece, in that dependency order.
 
 **`perf-loop` — optimize one operation.** Generates candidates, translates them,
 and measures each against the current champion inside a *single* criterion
@@ -121,11 +123,14 @@ each `sorry`, then the `hachi/lean/Check.lean` § 4 axiom audit. `main` only eve
 receives a green module.
 
 > There is no standing debt to point it at today: `hachi/lean-wip/` is empty, and
-> the audited library covers every layer up to perfect correctness of the extracted
-> scheme. Both files that were staged there — `RqBridge.lean` and `Scheme.lean` —
-> have been through the promotion procedure in
+> the audited library covers the extracted scheme up to perfect correctness plus
+> the `evalsplit`, balanced-digit and QuadEval layers — ninety-one headline specs
+> on the three kernel axioms. Every file staged there so far — `RqBridge.lean`,
+> `Scheme.lean`, `SchemeGaps.lean`, `EvalSplit.lean`, `Balanced.lean`,
+> `QuadEval.lean` — went through the promotion procedure in
 > [`hachi/lean-wip/README.md`](hachi/lean-wip/README.md), which is what the next
-> campaign will follow for whatever it stages next.
+> campaign will follow for whatever it stages next; the last two were proved by
+> Aristotle sessions the day they were staged.
 
 **`autonomy-harness` — run unattended.** Under `/loop`, each iteration picks the
 next operation by headroom, runs a route end to end, proves the result, and

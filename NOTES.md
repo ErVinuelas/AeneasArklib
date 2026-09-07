@@ -58,6 +58,14 @@ to the sibling checkout, so the build reproduces only on this machine until
 the port is published to a public fork — then move only the URL, keeping
 the rev pin (`lake update aeneas`).
 
+**Not published — decision of 2026-09-07.** A move of the require to a
+public fork was prepared on 2026-09-04 and reverted; the `file://` require
+stays, and the aeneas repository is not to be updated for it. The residual has
+teeth the plan did not credit it with: the Lean CI job fails at the clone on
+every push since 2026-09-03, because the runner cannot read a `file://` path
+on this laptop. So `lean.yml` stays red, and `make build` on this machine is
+the Lean gate until the require points somewhere a runner can fetch.
+
 **To revisit (replaces the paragraph above):** a rebase onto a moved
 upstream is a project decision, never maintenance — upstream already has
 two charon bumps queued, so rebasing means rebuilding the extraction
@@ -1309,6 +1317,13 @@ cut landing mid-case can pair a fresh `now` against a stale `genesis`. It did no
 here; the mechanism exists. The corrected run id for target 1's birth is
 `20260904T0939+0200-0d88eccc`, 40 rows and 6 controls, A/B bias 1.4%.
 
+> ⟲ **Corrected the same evening:** that id is *also* a re-report artifact, not
+> the run's own — `run_id` hashes `head_state()` at report time, and this
+> re-report ran at HEAD `4c146b1`, a commit that did not exist while the sweep
+> measured (HEAD was `09df61b`). The 0939 run's own id was never captured; its
+> provenance is the commit and the window. See § "Two full null-slot sweeps, and
+> the run id that cannot name them (2026-09-04)".
+
 ## Deliberately not done
 
 `hachi/lean/Opt.lean` does not exist, and `Opt` is not in `roots`. The Lean-side
@@ -1914,3 +1929,80 @@ definition does — never by re-deriving it from a hypothesis (`hqz`) or a
 paper table (Fig. 9). The genesis mirror keeps the stamped τ = 4 value: no
 benched case reads `BETA_SQ` (`verify_weak` is excluded), so the baseline is
 not invalidated.
+
+## Two full null-slot sweeps, and the run id that cannot name them (2026-09-04)
+
+The calibration § "The 5% accept floor is borrowed" asked for was attempted
+twice as the two Stage-3 birth runs, and neither settles the floor. Both are
+full `make run-bench CANDIDATE=1` passes with the candidate slot null and
+genesis byte-identical to `hachi/src`, so every row measures only this machine
+and this harness — every row should read noise, and the worst that does not is
+the local floor.
+
+| sweep | provenance | rows / controls | A/B bias | worst byte-identical row |
+|---|---|---|---|---|
+| morning (target 1's birth) | commit `09df61b` + then-uncommitted stamps; window 09:39:12–09:56:37; **no run id captured**; **machine conditions not recorded** | 40 / 6 | 1.42% | `ring/from_coeffs/1024` −7.54%, `ring/constant/1024` −6.73%, both verdict *faster* |
+| evening (target 2's birth) | `source fcd5381`, quiet-gated start 19:26:39 | **incomplete — see below** | — | — |
+
+The morning sweep's only in-band evidence of quietness is its own control
+spread (bias 1.42%), which is the weakest evidence there is — the controls are
+exactly what a contended run corrupts. So its two `ring/*` rows are an
+*observation from a run whose conditions were not certified*, not a floor. The
+evening sweep was the certified one — gated on four consecutive quiet samples
+(no `lean`/`lake`/`cargo`/`rustc` above 5% CPU, load under 1.5), with a monitor
+sampling load every 30 s throughout — but it **died at 146/147 variants** when
+the session was torn down, killed in the last binary (`ringswitch`) before
+`report` ran, so it produced no report and no id. **It must be re-run clean; the
+floor question is still open**, and the honest reading remains that this host's
+harness noise sits somewhere between the ~1.4–2.2% the controls show and the
+~6–8% the worst `ring/*` rows show — the gap being the per-case layout and
+warming effect the flat single-control design does not model.
+
+**The run id cannot name a measurement.** `harness.py`'s `run_id` is
+`<start stamp>-<sha256 of machine | rustc | head_state().sha | case:variant
+pairs>`, and `head_state()` is read when `report` runs, not when `cargo bench`
+did — and `src_dirty` is not in the hash. Inside one `make run-bench` the start
+stamp and the report-time HEAD coincide, so an id printed by the measuring
+recipe is sound; a *detached* re-report is not. The morning sweep measured at
+HEAD `09df61b`; re-reported at `4c146b1` it minted `…-0d88eccc`, re-reported
+again at `fcd5381` it minted `…-071b29ef`, and no id was printed at measurement
+time. So: cite only an id printed by the recipe that measured; never re-derive
+one after a commit; quote the report's `source <sha>[+uncommitted]` line beside
+the id, since the id alone cannot witness a clean tree; and when a run's id was
+not captured, its provenance is the commit plus the time window. The fix — pass
+the recipe's `started`-time sha into `report` rather than reading HEAD there —
+is a harness change and is not made here.
+
+**The shake-out that did run.** `BENCH='quadeval|_control' CANDIDATE=1`, run
+`20260904T1914+0200-40dec1a6`, `source fcd5381` (no `+uncommitted`), bias 2.19%,
+7 controls — the first execution of target 2's cases. All five `quadeval/*`
+digested and read noise (worst +1.6% vs genesis), so **target 2's freeze is
+faithful**. Its one anomaly is the sub-microsecond case: `quadeval/in_sb/1024`
+(583 ns against a 36.8 ms control) read the null candidate slot **+18.6%
+"slower"** on byte-identical code, and the per-binary recentering left it there,
+because the binary's control is a 36.8 ms `PolyVec::zeros` with no layout
+sensitivity in common with a 583 ns case — the documented cost of the flat
+single-control design, biting for the first time. A row that size cannot carry
+a candidate verdict.
+
+**A §4 corpus trap on those cases** (from the auditor session; its own record
+is separate). `support::corpus` draws coefficients uniformly from `[1, q)`, so a
+coefficient lands in the box `[-8, 7]` with probability ≈ 3.7·10⁻⁹: every
+benched `Rq` is *outside* the box, `in_sb`/`vec_in_sb` answer a constant
+`false`, and their digest contributes nothing (the bench's `check()` is what
+discriminates). The teeth: `in_sb` is branchless, the obvious first optimization
+is an early exit, and on an all-outside corpus an early-exit candidate books a
+~1000× win that exists only for rejected inputs — while the honest workload, the
+balanced decomposition's digits, lies entirely *inside* the box and is the slow
+path. This is `rust-bench` §2's `Rq::is_zero` trap. Fix, agreed and append-only:
+`quadeval/in_sb` and `vec_in_sb` keep their `[1, q)` reject-draw meaning, and
+`in_sb_box`/`vec_in_sb_box` are *added* for the honest in-box workload, so no
+existing case id changes meaning. Until those rows exist, neither `in_sb` row
+carries a candidate verdict.
+
+**A contention source the rule did not name.** The evening sweep's first attempt
+was discarded because opening `hachi/lean/QuadEval.lean` in the IDE spun up
+`lake serve` and a `lean --server` that elaborated the file at 30–65% CPU during
+the `commit` binary's samples (caught by the monitor at 19:23). Add the editor's
+Lean server to the pre-run check: `ps -eo pcpu,comm | grep -E 'lean|lake'` before
+*and* during a run, not only a check for `lake build`.
