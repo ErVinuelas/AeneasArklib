@@ -13,6 +13,7 @@ use crate::commit::{centered_abs, vec_l_infty_norm};
 use crate::params;
 use crate::ringswitch::{rho_digit_as_rq, LiftedWitness, QuotientRow};
 
+// @genesis 240f277 2026-09-07 — endpiece::rho_digits_short_check
 /// Check every coefficient of every balanced quotient digit against the
 /// chain's bound (spec: `rhoDigitsShortCheck`,
 /// `EndPiece/Reduction.lean:111`).
@@ -46,6 +47,7 @@ pub fn rho_digits_short_check(rho: &Vec<QuotientRow>) -> bool {
     short
 }
 
+// @genesis 240f277 2026-09-07 — endpiece::lift_short_check
 /// Check the `ℓ∞` bound on `z` and the quotient-digit bound (spec:
 /// `liftShortCheck`, `EndPiece/Reduction.lean:130`).
 ///

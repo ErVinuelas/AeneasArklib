@@ -73,6 +73,7 @@ pub fn rho_digits(rho: &Rq, u: usize) -> Rq {
     Rq::from_coeffs(&coeffs)
 }
 
+// @genesis 240f277 2026-09-07 — ringswitch::QuotientRow
 /// A quotient polynomial represented by its `d` coefficients.
 ///
 /// Mirrors `Lift.LiftedWitness.ρ` at the degree bound carried by
@@ -84,17 +85,20 @@ pub fn rho_digits(rho: &Rq, u: usize) -> Rq {
 pub struct QuotientRow(Rq);
 
 impl QuotientRow {
+    // @genesis 240f277 2026-09-07 — ringswitch::QuotientRow::new
     /// Build a quotient row from little-endian coefficients, truncated and
     /// padded to the cyclotomic degree.
     pub fn new(coeffs: &Vec<Fp>) -> QuotientRow {
         QuotientRow(Rq::from_coeffs(coeffs))
     }
 
+    // @genesis 240f277 2026-09-07 — ringswitch::QuotientRow::coeff
     /// Read coefficient `k` of the quotient polynomial.
     pub fn coeff(&self, k: usize) -> Fp {
         self.0.coeff(k)
     }
 
+    // @genesis 240f277 2026-09-07 — ringswitch::QuotientRow::to_rq
     /// Read the quotient row back as a ring element (spec: `rhoAsRq`,
     /// `RingSwitch/Reduction.lean:249`).
     ///
@@ -104,6 +108,7 @@ impl QuotientRow {
     }
 }
 
+// @genesis 240f277 2026-09-07 — ringswitch::LiftedWitness
 /// Hachi Eq. (21)'s lifted witness: the `R^lin` witness `z` and one quotient
 /// polynomial per output row (spec: `LiftedWitness`,
 /// `RingSwitch/Reduction.lean:136`).
@@ -115,22 +120,26 @@ pub struct LiftedWitness {
 }
 
 impl LiftedWitness {
+    // @genesis 240f277 2026-09-07 — ringswitch::LiftedWitness::new
     /// Bundle the `R^lin` witness and quotient rows.
     pub fn new(z: PolyVec, rho: Vec<QuotientRow>) -> LiftedWitness {
         LiftedWitness { z, rho }
     }
 
+    // @genesis 240f277 2026-09-07 — ringswitch::LiftedWitness::z
     /// The `R^lin` witness block.
     pub fn z(&self) -> &PolyVec {
         &self.z
     }
 
+    // @genesis 240f277 2026-09-07 — ringswitch::LiftedWitness::rho
     /// The quotient rows.
     pub fn rho(&self) -> &Vec<QuotientRow> {
         &self.rho
     }
 }
 
+// @genesis 240f277 2026-09-07 — ringswitch::rho_digit_as_rq
 /// Entry `j` of the quotient-digit block (spec: `rhoDigitAsRq`,
 /// `RingSwitch/Reduction.lean:256`).
 ///
@@ -145,6 +154,7 @@ pub fn rho_digit_as_rq(rho: &Vec<QuotientRow>, j: usize) -> Rq {
     rho_digits(&rho[row].0, u)
 }
 
+// @genesis 240f277 2026-09-07 — ringswitch::lift_message
 /// The vector bound by the lift commitment, `z` followed by all quotient
 /// digits (spec: `liftMessage`, `RingSwitch/Reduction.lean:270`).
 ///
@@ -166,6 +176,7 @@ pub fn lift_message(w: &LiftedWitness) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis 240f277 2026-09-07 — ringswitch::lift_commit
 /// The concrete Ajtai lift commitment `D *ᵥ (z ‖ digits(ρ))` (spec:
 /// `hachiLiftCom`, `RingSwitch/Reduction.lean:277`).
 ///
