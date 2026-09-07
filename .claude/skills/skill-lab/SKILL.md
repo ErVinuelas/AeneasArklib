@@ -62,14 +62,14 @@ was tried there; the reason the rule is kept here is stated in
 `hachi/benches/genesis/src/lib.rs`, which is where the append-only baseline's
 contract lives.
 
-**What this repository's own harness can currently resolve.** NOTES.md § "The
-first benchmark run" measured byte-identical crates reading up to 59% apart
-*within one session* on the host it ran on, with each group's `_control` case
-putting a 10–15% floor under its readings. Until that is fixed — CPU pinning,
-many more samples, or interleaved rather than blocked repetitions — a "vs
-genesis" or "cand vs now" number is evidence only for effects well above 50%.
-An experiment run on such a host records the number *and* says so in `notes`;
-a delta inside the floor is written as unresolved, never as a small win.
+**What this repository's own harness can currently resolve.** The certified
+2026-09-07 null-slot sweep (`NOTES.md` § "The certified null-slot sweep") found
+the flat 5% floor adequate outside the 100 ns–2 µs band on this host. Inside
+that band, byte-identical code still produced false 5–8% verdicts after
+recentering. A ledger row in that band is unresolved until the harness gains a
+per-band floor or the case has a local control; a printed `faster` label alone
+is not enough. The earlier 4-core host's 10–15% controls and 39–59% false deltas
+remain evidence that the 10% veto must fail noisy machines closed.
 
 How rows enter history — the discipline that makes every row's provenance
 resolvable and the no-cross-run rule mechanical:
@@ -96,7 +96,10 @@ resolvable and the no-cross-run rule mechanical:
   before `cargo bench` — not when the report was printed. The digest is over what
   identifies the run rather than over its numbers: the host fingerprint (hostname,
   arch, CPU, core count, read from `/proc/cpuinfo` here), the `rustc` version, the
-  source commit, and the exact set of case/variant pairs measured. So
+  source commit (HEAD when the measuring began — the recipe passes it as
+  `--source-sha`, so a commit made before a re-report does not re-mint the id;
+  a report that reads HEAD itself is labelled a re-report), and the exact set
+  of case/variant pairs measured. So
   re-reporting unchanged criterion state reproduces the id instead of minting a
   second identity for one measurement — which matters, because a report-only
   rerun through a fixed harness is a thing that happens. Numbers from rows with

@@ -719,7 +719,7 @@ def toolchain(name: str) -> dict:
     return {"name": name, "rustc": p.stdout.strip() or "unknown"}
 
 
-def run_id(since: float, mach: dict, tc: dict, cases: dict) -> str:
+def run_id(since: float, mach: dict, tc: dict, cases: dict, sha: str) -> str:
     """A stable identifier for one measurement run, for a ledger row to cite.
 
     A ledger row records a *delta*, and a delta is only checkable if the run it
@@ -741,10 +741,18 @@ def run_id(since: float, mach: dict, tc: dict, cases: dict) -> str:
       through a fixed harness on unchanged criterion state; that must not mint a
       second identity for one measurement, and a `--json` re-report of the same
       run must be recognisable as the same run.
+
+    The source commit is the one HEAD pointed at when the *measuring* began —
+    `make run-bench` reads it beside the start stamp and passes it as
+    `--source-sha` — not HEAD at report time. Until 2026-09-07 this read HEAD
+    here, so a re-report after any commit minted a new id for an unchanged
+    measurement (NOTES.md § "Two full null-slot sweeps, and the run id that
+    cannot name them"); a report that has to read HEAD itself is now labelled
+    as a re-report in the `source` line.
     """
     stamp = datetime.datetime.fromtimestamp(since).astimezone().strftime("%Y%m%dT%H%M%z")
     pairs = sorted(f"{case}:{variant}" for case, vs in cases.items() for variant in vs)
-    ident = "|".join([mach["id"], tc["rustc"], head_state()["sha"], *pairs])
+    ident = "|".join([mach["id"], tc["rustc"], sha, *pairs])
     return f"{stamp}-{hashlib.sha256(ident.encode()).hexdigest()[:8]}"
 
 
@@ -880,6 +888,15 @@ def cmd_report(args) -> int:
     mach = machine()
     tc = toolchain(args.toolchain)
 
+    # Provenance of the measured code. The recipe reads HEAD when the measuring
+    # begins and hands it here; a report that has to read HEAD itself is a
+    # re-report, and the `source` line says so rather than passing it off as
+    # the measurement's commit.
+    if args.source_sha:
+        source = {"sha": args.source_sha, "src_dirty": bool(args.source_dirty), "read_at": "start"}
+    else:
+        source = {**head_state(), "read_at": "report"}
+
     # Only look at cases this run actually refreshed. Criterion keeps the results
     # of benchmarks that a `BENCH=` filter skipped, and reporting one of those as
     # if it had just been measured is precisely the lie this harness exists to
@@ -975,10 +992,13 @@ def cmd_report(args) -> int:
     # thing that should veto a run.
     #
     # It is a flat threshold, not a per-case one. Matching each case to the
-    # control nearest its duration sounds careful and is not: with the real cases
-    # spanning four orders of magnitude, most rows would be thresholded by
-    # extrapolation from a control up to 100x away. One control, one number,
-    # applied to everything, is the honest shape of what is known.
+    # control nearest its duration would extrapolate from a control up to 100x
+    # away. The certified 2026-09-07 null-slot sweep subsequently showed the
+    # consequence: this flat instrument is adequate outside 100 ns–2 µs on this
+    # host, but rows inside that band cannot carry an actionable verdict until a
+    # per-band floor or case-local control lands (NOTES.md § "The certified
+    # null-slot sweep"). The report still exposes their numbers; the perf-loop
+    # procedure fails them closed.
     # Every pairwise delta of a control is identical code, so every one of them
     # is a bias measurement — with the candidate slot active that is three pairs
     # per control instead of one, and the worst still vetoes the run.
@@ -1063,12 +1083,12 @@ def cmd_report(args) -> int:
             if not live.exists() or data != live.read_bytes():
                 slot["diverged"].append(m)
 
-    rid = run_id(args.since, mach, tc, cases)
-    _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot, rid)
+    rid = run_id(args.since, mach, tc, cases, source["sha"])
+    _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot, rid, source)
 
     if args.json:
         Path(args.json).write_text(
-            json.dumps({"run": rid,
+            json.dumps({"run": rid, "source": source,
                         "rows": rows, "control": control, "machine": mach, "toolchain": tc,
                         "ab_bias": bias, "usable": usable,
                         "threshold_vs_genesis": t_genesis,
@@ -1100,13 +1120,16 @@ def cmd_report(args) -> int:
     return 0
 
 
-def _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot=None, rid=None) -> None:
+def _print_report(rows, control, mach, tc, bias, t_genesis, usable, args, slot=None, rid=None,
+                  source=None) -> None:
     print()
     print(f"  machine   {mach['cpu']} · {mach['cores']} cores · {mach['os']} · id {mach['id']}")
     print(f"  toolchain {tc['rustc']}")
     print(f"  rustflags {os.environ.get('RUSTFLAGS', '') or '(none)'}")
-    g = head_state()
-    print(f"  source    {g['sha']}{' +uncommitted' if g['src_dirty'] else ''}")
+    g = source or {**head_state(), "read_at": "report"}
+    tail = "  (HEAD read at report time — a re-report, not the measurement's commit)" \
+        if g.get("read_at") == "report" else ""
+    print(f"  source    {g['sha']}{' +uncommitted' if g['src_dirty'] else ''}{tail}")
     if rid:
         print(f"  run       {rid}  <- cite this in a ledger row; a row without it is unattributable")
     print()
@@ -1240,6 +1263,13 @@ def main() -> int:
     s.add_argument("--since", type=float, required=True, metavar="EPOCH",
                    help="ignore criterion results written before this unix time "
                         "(the Makefile stamps it just before `cargo bench` starts)")
+    # The measured commit, read by the Makefile at the same moment as --since.
+    # Optional so a past run can still be re-reported, but a report without it
+    # reads HEAD now and labels itself a re-report.
+    s.add_argument("--source-sha", metavar="SHA",
+                   help="short sha of HEAD when the measuring began (the Makefile passes it)")
+    s.add_argument("--source-dirty", type=int, choices=(0, 1), default=0,
+                   help="1 if hachi/src or hachi/benches had uncommitted changes at that moment")
     s.set_defaults(func=cmd_report)
 
     args = ap.parse_args()

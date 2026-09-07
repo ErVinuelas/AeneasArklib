@@ -637,6 +637,26 @@ direct precedent (`eval_lagrange`), not a new implementation.
     `294b3f0b0`, more at `d51d8bc`; `Vectors.lean` +6;
     `NormBounds/Basic.lean` +30). A refresh pass regenerates
     `Generated.lean`, so it rides a target landing.
+12. ⊗⊗ **`ShortChallenge`'s ℓ₁ bound is erased at the Rust API — recorded
+    2026-09-07, deliberately not repaired yet.** ArkLib's `relOut`
+    (`QuadEval/Reduction.lean:258`) takes its challenges as
+    `Fin (2^r) → ShortChallenge Φ ω`, the subtype `{c : Rq Φ // ‖c‖₁ ≤ ω}`
+    (`:151`); the *type* carries the bound, which is why `relOut` has no
+    norm check on `c` (`:149`). Target 2's `quadeval::rel_out` and
+    `paper_rel_out` take `c: &PolyVec` unconstrained, so `‖c‖₁ ≤ ω` is a
+    caller precondition the Rust type does not state, and nothing in the
+    crate checks it. Decision: no `rel_out_spec` exists yet — the function
+    is unrunnable at Fig. 9 (W4) and its statement needs `pp`/`D` — so the
+    repair belongs where that spec is stated, Stage 5, where the composed
+    verifier is the first *producer* of a challenge. There it is one of two
+    forms: quantify `c : ShortChallenge Φ ω` in the statement and pass
+    `c.val` to the Rust (precondition stated, API unchanged), or a
+    checked-constructor newtype whose `new` decides `‖c‖₁ ≤ ω` over the
+    existing `commit::l1_norm` (the brief's proposal; a newtype with no
+    producer would be dead API today). Until one lands: no semantics test or
+    bench feeds `rel_out` a long challenge, and none may claim to have
+    exercised the bound. Ledger entry for the spec author, not a scale
+    policy.
 
 ### Minor variants (precedented in shape, new in coefficient type or sign)
 

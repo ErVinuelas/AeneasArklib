@@ -415,7 +415,11 @@ bench-toolchain:
 # The start time is stamped before cargo runs so the report contains only what
 # this invocation measured. Without it a `BENCH=` filter would silently republish
 # stale rows for everything it skipped, which is the most plausible way this
-# harness could come to lie.
+# harness could come to lie. HEAD (and whether hachi/src or hachi/benches is
+# dirty) is read at the same moment and passed as --source-sha/--source-dirty,
+# so the run id names the commit that was measured even when the report is
+# re-derived after a later commit; a report that has to read HEAD itself says
+# so in its `source` line.
 run-bench: bench-toolchain
 	@set -euo pipefail; \
 	python3 '$(HARNESS)' check-genesis
@@ -425,12 +429,15 @@ run-bench: bench-toolchain
 	python3 '$(HARNESS)' coverage || true
 	@set -euo pipefail; \
 	started=$$(date +%s); \
+	source=$$(git rev-parse --short HEAD); \
+	dirty=0; [ -z "$$(git status --porcelain -- hachi/src hachi/benches)" ] || dirty=1; \
 	( cd $(PKG) && rustup run '$(BENCH_TOOLCHAIN)' cargo bench --benches \
 	    $(if $(filter 1,$(CANDIDATE)),--features candidate,) -- \
 	    $(if $(BENCH),'$(BENCH)',) ); \
 	python3 '$(HARNESS)' report \
 	  --toolchain '$(BENCH_TOOLCHAIN)' \
 	  --since "$$started" \
+	  --source-sha "$$source" --source-dirty "$$dirty" \
 	  $(if $(JSON),--json '$(JSON)',)
 
 # --- clean -------------------------------------------------------------------

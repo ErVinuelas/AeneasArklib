@@ -19,11 +19,10 @@ one, the skill is right and this file is a bug.
 > on for the coefficient field). The *procedures* transfer. The *measurements* in
 > them mostly do not: where a threshold or a failure mode is justified by a number,
 > that number was taken on AeneasCompPoly's machine and is attributed to it in the
-> skill. This repository has run no measurement-grade benchmark yet — see
-> [`NOTES.md`](NOTES.md) § "Benchmark numbers from this session are not
-> measurement-grade" — and [`logs/ledger.jsonl`](logs/ledger.jsonl) is empty.
-> Treat every borrowed number as a starting parameter awaiting a local
-> calibration, never as evidence about this machine.
+> skill. This repository's first measurement-grade null-slot sweep ran on
+> 2026-09-07; see [`NOTES.md`](NOTES.md) § "The certified null-slot sweep".
+> It validated the 5% floor only outside the 100 ns–2 µs timing band and found
+> false 5–8% verdicts on byte-identical code inside it. The ledger remains empty.
 
 ---
 
@@ -89,13 +88,10 @@ strategies yields nothing.
   divided out before the 5% floor is applied. Nothing else accepts: not operation
   counts (they only rank candidates for benching), not a delta assembled from two
   runs, not a run the harness marked `unusable`.
-- *The 5% floor is inherited.* AeneasCompPoly's own sweep of byte-identical code
-  found residual noise up to 6%, so a verdict between 5% and 6% is thin *there*.
-  Here the equivalent sweep has not been run, so the floor is a borrowed
-  parameter. The first honest calibration is cheap and available today: the
-  candidate slot is null and genesis is byte-identical to `hachi/src`, so a full
-  `make run-bench` right now measures nothing but this machine's own noise, and
-  every row of it must read noise.
+- *The 5% floor has a local limit.* The certified 2026-09-07 null-slot sweep
+  found it adequate outside the 100 ns–2 µs band, but byte-identical code inside
+  that band produced false 5–8% verdicts. Do not act on a candidate verdict in
+  that band until the floor is made per-band or the row gains its own control.
 - *It may ask*: a candidate that is only equivalent under an input condition the
   ArkLib definition does not impose needs your sign-off. It is never accepted as
   an ordinary candidate.

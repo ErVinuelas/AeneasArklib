@@ -1,9 +1,12 @@
 # Plan: Rust generation + verification of the Hachi protocol layer, on merged ArkLib main
 
-Status: **updated 2026-09-04 — Stage 2 CLOSED (`a898de7`, 18 consts at
-τ = 5); Stage 3 targets 1 and 2 onboarded, stamped, proved and promoted the
-same day (`09df61b`/`4c146b1`, `b984c53`/`8547ea9`, `fcd5381`; Aristotle
-`58843236` 9→0 and `14b9bf77` 8→0; the QuadEval promotion is staged); TF **not**
+Status: **updated 2026-09-07 — Stage 2 CLOSED (`a898de7`, 18 consts at
+τ = 5); Stage 3 targets 1 and 2 were onboarded, stamped, and proved on 09-04
+(`09df61b`/`4c146b1`, `b984c53`/`8547ea9`; Aristotle `58843236` 9→0 and
+`14b9bf77` 8→0; proof landings `fcd5381`/`23a2964`) and QuadEval was promoted
+on 09-07 (`d34cb7e`). The certified null-slot sweep is complete (`460905d`, run
+`20260907T1158+0200-d70ac8d1`); Stage 0 now lacks only its first optimization
+ledger row. TF **not**
 done — a move of the aeneas require to a public fork was prepared 09-04 and
 reverted 09-07 by decision; the `file://` require stays. TF had turned out to
 be CI-blocking, not "parallel to everything": the Lean job fails at the clone
@@ -353,7 +356,11 @@ benching in a reserved MX slot, TS2/TE items filling gaps.
 
 * **Fig. 9 stamp dance: done.** `af05e6c` + `0de99fa` (106 annotations,
   `make bench-check` green).
-* **First measurement-grade local bench: the one live remainder.** The bench
+* **First measurement-grade local bench** — ⊗⊗ **done 2026-09-07**: certified
+  null-slot sweep, run `20260907T1158+0200-d70ac8d1` at `460905d`, A/B bias
+  4.42%, floor recorded by absolute-time band (NOTES.md § "The certified
+  null-slot sweep"); target 2's freeze certified faithful. What remains of
+  Stage 0 is the ledger exit only. The 2026-08-31 text follows. The bench
   adaptations sit uncommitted (Fig. 9 sizes in `gadget.rs`/`linalg.rs`, the
   REDUCED dense-`G` and `ring::mul`-bound cases with policy notes, the
   `logs/paper-impl/` exception in `logs/README.md`); `logs/ledger.jsonl` is
@@ -504,9 +511,9 @@ dependency edges, and two size corrections:
 | 5 | sumcheck: `computableRoundPoly`, `roundCheck`/state advance, `finalCheck`, `honestComputeG`/`honestComputeY`, the round loop | `Sumcheck/RoundPoly.lean:286`, `Rounds.lean`, `FinalEval.lean` | new `sumcheck.rs` | 4, F | largest |
 | 6 | end-piece: `endPieceCheck` (`com == t && liftShortCheck && wTableMleEval == value`), `endPieceWitness`/prover | `EndPiece/Reduction.lean` | new `endpiece.rs` | 3, 4 — **not 5** | smaller–similar |
 
-⊗⊗ **Status 2026-09-04: targets 1 and 2 are done** — onboarded and stamped
+⊗⊗ **Status 2026-09-07: targets 1 and 2 are done** — onboarded and stamped
 (`09df61b`/`4c146b1`, `b984c53`/`8547ea9`), proved (Aristotle `58843236`,
-`14b9bf77`), promoted (`fcd5381`; QuadEval staged). Target 1's birth run read
+`14b9bf77`; landed in `23a2964`), promoted (`fcd5381`, `d34cb7e`). Target 1's birth run read
 noise on every new row (A/B bias 1.4%; provenance is commit `09df61b` and the
 09:39–09:57 window — its id was never captured, see NOTES.md § "Two full
 null-slot sweeps, and the run id that cannot name them").
@@ -514,6 +521,10 @@ Next: target 3, re-basing brief 3 onto `d51d8bc` first, with TE beside it.
 One recorded erasure to carry into target 3's specs: `ShortChallenge` (the
 `‖c‖₁ ≤ ω` subtype) was not translated in target 2 — `rel_out` takes `c`
 unconstrained, so the bound is a precondition the statements do not state.
+⊗⊗ Recorded 2026-09-07 as item 12 of `STAGE2_SCOPING.md`'s erasure
+catalogue: the precondition is stated there; the checked newtype (or the
+`ShortChallenge`-quantified `rel_out_spec`) lands in Stage 5, where the
+composed verifier first produces a challenge.
 
 Parallel structure: **{1 ∥ 2} → 3 → 4 → {5 ∥ 6}**, with TE (the Ext4 layer)
 running beside 1–3 and landing before 4's specs. Drafting of a downstream
@@ -629,7 +640,7 @@ is the artifact the internship's benchmark story rests on.
 
 | Stage | Duration | Status / depends on |
 |---|---|---|
-| 0 — pre-merge work | done except the ledger exit | ⊗⊗ target-1 birth sweep ran 2026-09-04 (uncertified); target-2 shake-out clean; the certified full sweep must be re-run (NOTES.md § "Two full null-slot sweeps"); ledger fills with the first `perf-loop` |
+| 0 — pre-merge work | done except the ledger exit | ⊗⊗ certified null-slot sweep done 2026-09-07, run `20260907T1158+0200-d70ac8d1` (NOTES.md § "The certified null-slot sweep"): bias 4.42%, flat 5% holds outside the 100 ns–2 µs band and fails inside it; ledger fills with the first `perf-loop` |
 | 1 — toolchain re-alignment | **closed** `6f30811` | 2026-09-01 |
 | 2 — audit + scoping | **closed** `a898de7` | 2026-09-03 |
 | TM — mul champion | ~2–4 days spread opportunistically | T0; Decision 6 |

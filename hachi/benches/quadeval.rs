@@ -9,7 +9,11 @@
 //! what this file measures:
 //!
 //! * `in_sb` at real `RING_DEGREE` -- the coefficientwise box test, and the one
-//!   function here that is neither `ring::mul`- nor memory-bound;
+//!   function here that is neither `ring::mul`- nor memory-bound. Twice: once
+//!   on the ordinary `[1, q)` corpus, which lies *outside* the box and answers
+//!   `false`, and once (`in_sb_box`) on an all-inside corpus, the honest
+//!   workload, so a candidate that exits early on the first outside coefficient
+//!   cannot book its win on rejected inputs alone. Same pair for `vec_in_sb`;
 //! * `tensor_g`, `tensor_g1` and `carrier_entry` at **REDUCED** block/row
 //!   counts, because each is `blocks` (resp. `rows`) full ring products and the
 //!   scheme's 1024 of them is ~1.5 s per iteration;
@@ -61,6 +65,40 @@ macro_rules! define_cases {
                 out
             }
 
+            /// Coefficients drawn **inside** the paper's box `[-8, 7]`: the honest
+            /// workload of the box test, since the digits a balanced
+            /// decomposition produces lie there by construction. Derived from the
+            /// ordinary corpus so both draws share one seed discipline: the low
+            /// four bits of each `[1, q)` draw pick a digit, `0..8` stays as it
+            /// is and `8..16` wraps to `q - 8 .. q - 1`, i.e. `-8 .. -1`. So `-8`
+            /// is reachable and `+8` is not -- the box's own asymmetry.
+            fn box_coeffs(seed: u64, n: usize) -> Vec<Fp> {
+                let q = hc::params::Q;
+                support::corpus(seed, n)
+                    .iter()
+                    .map(|c| {
+                        let d = c.to_u64() % 16;
+                        if d < 8 {
+                            Fp::new(d)
+                        } else {
+                            Fp::new(q - (16 - d))
+                        }
+                    })
+                    .collect()
+            }
+
+            fn box_vec_of(seed: u64, k: usize) -> PolyVec {
+                let degree = hc::params::RING_DEGREE;
+                let mut entries = Vec::with_capacity(k);
+                for i in 0..k {
+                    entries.push(Rq::from_coeffs(&box_coeffs(
+                        seed.wrapping_add(i as u64 * 0x100),
+                        degree,
+                    )));
+                }
+                PolyVec::new(entries)
+            }
+
             // -- digests (outside every timed region) -----------------------
 
             fn d_bool(b: &bool) -> u64 {
@@ -107,6 +145,24 @@ macro_rules! define_cases {
                     !hc::quadeval::in_sb(&plus_eight),
                     "+8 must lie outside the paper's box"
                 );
+                // The two corpora are what their cases claim: the ordinary draw
+                // is outside the box, the box draw is inside it. Asserted here
+                // so `in_sb_box` cannot quietly become a second reject-draw row.
+                let degree = hc::params::RING_DEGREE;
+                assert!(
+                    !hc::quadeval::in_sb(&Rq::from_coeffs(&support::corpus(
+                        0x9E11_0000_0000_0001,
+                        degree
+                    ))),
+                    "the ordinary corpus must lie outside the box"
+                );
+                assert!(
+                    hc::quadeval::in_sb(&Rq::from_coeffs(&box_coeffs(
+                        0x9E11_0000_0000_0009,
+                        degree
+                    ))),
+                    "the box corpus must lie inside the box"
+                );
             }
 
             // -- cases ------------------------------------------------------
@@ -124,6 +180,26 @@ macro_rules! define_cases {
             /// rather than this function's own shape.
             pub fn vec_in_sb(m: Mode<'_, '_>, k: usize) -> u64 {
                 let v = vec_of(0x9E11_0000_0000_0002, k);
+                support::run(m, || hc::quadeval::vec_in_sb(black_box(&v)), d_bool)
+            }
+
+            /// The box test on an input that lies **inside** the box: the honest
+            /// workload, where every coefficient passes and the function has to
+            /// look at all `degree` of them. `in_sb` above draws from `[1, q)`,
+            /// so each of its coefficients is outside the box with probability
+            /// ≈ 1 - 3.7·10⁻⁹; on that corpus an early-exit rewrite would read as
+            /// a ~1000× win that exists only for rejected inputs -- the
+            /// `Rq::is_zero` trap of `rust-bench` §2. Both rows are kept, and a
+            /// candidate has to show its delta on this one.
+            pub fn in_sb_box(m: Mode<'_, '_>, degree: usize) -> u64 {
+                let a = Rq::from_coeffs(&box_coeffs(0x9E11_0000_0000_0009, degree));
+                support::run(m, || hc::quadeval::in_sb(black_box(&a)), d_bool)
+            }
+
+            /// `vec_in_sb` on an all-inside vector, at the same REDUCED width and
+            /// for the same reason as `in_sb_box`.
+            pub fn vec_in_sb_box(m: Mode<'_, '_>, k: usize) -> u64 {
+                let v = box_vec_of(0x9E11_0000_0000_000A, k);
                 support::run(m, || hc::quadeval::vec_in_sb(black_box(&v)), d_bool)
             }
 
@@ -203,6 +279,11 @@ fn quadeval_benches(c: &mut Criterion) {
     bench_case!(c, "quadeval/in_sb", in_sb, [degree]);
     // @covers quadeval::vec_in_sb
     bench_case!(c, "quadeval/vec_in_sb", vec_in_sb, [reduced_width]);
+    // The honest, all-inside workload of the same two functions (case docs).
+    // @covers quadeval::in_sb
+    bench_case!(c, "quadeval/in_sb_box", in_sb_box, [degree]);
+    // @covers quadeval::vec_in_sb
+    bench_case!(c, "quadeval/vec_in_sb_box", vec_in_sb_box, [reduced_width]);
     // @covers quadeval::carrier_entry
     bench_case!(c, "quadeval/carrier_entry", carrier_entry, [reduced_rows]);
     // @covers quadeval::tensor_g1

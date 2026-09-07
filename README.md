@@ -238,12 +238,13 @@ and digests; the digests of `hachi`, the frozen copy and the candidate slot must
 agree *before* anything is timed. So an "optimization" that changes an answer
 fails the run instead of being reported as a speedup.
 
-What this machinery does **not** yet have is a local calibration. No
-measurement-grade run has happened here — the noise floor the accept rule uses is
-inherited from [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
-and is documented as borrowed where it is used. See [`NOTES.md`](NOTES.md)
-§ "Benchmark numbers from this session are not measurement-grade", and
-[`INSTRUCTIONS.md`](INSTRUCTIONS.md) for the procedures that act on all of this.
+The first measurement-grade local calibration ran on 2026-09-07. It confirmed
+that the flat 5% floor is adequate outside the 100 ns–2 µs band on this host,
+but found false 5–8% verdicts on byte-identical code inside that band. Candidate
+timings there are therefore not actionable until the harness gains a per-band
+floor or a case-local control. See [`NOTES.md`](NOTES.md) § "The certified
+null-slot sweep" and [`INSTRUCTIONS.md`](INSTRUCTIONS.md) for the procedures
+that act on this result.
 
 ## Dependencies and pins
 

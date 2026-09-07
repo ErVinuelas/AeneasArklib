@@ -1943,6 +1943,7 @@ the local floor.
 |---|---|---|---|---|
 | morning (target 1's birth) | commit `09df61b` + then-uncommitted stamps; window 09:39:12–09:56:37; **no run id captured**; **machine conditions not recorded** | 40 / 6 | 1.42% | `ring/from_coeffs/1024` −7.54%, `ring/constant/1024` −6.73%, both verdict *faster* |
 | evening (target 2's birth) | `source fcd5381`, quiet-gated start 19:26:39 | **incomplete — see below** | — | — |
+| 2026-09-07 (certified) | `source 460905d`, run `20260907T1158+0200-d70ac8d1`, gated + lid-inhibited + monitored — § "The certified null-slot sweep" | 47 / 7 | 4.42% | `quadeval/in_sb/1024` −7.31%, `ring/one/1024` +6.17% |
 
 The morning sweep's only in-band evidence of quietness is its own control
 spread (bias 1.42%), which is the weakest evidence there is — the controls are
@@ -1953,7 +1954,9 @@ evening sweep was the certified one — gated on four consecutive quiet samples
 sampling load every 30 s throughout — but it **died at 146/147 variants** when
 the session was torn down, killed in the last binary (`ringswitch`) before
 `report` ran, so it produced no report and no id. **It must be re-run clean; the
-floor question is still open**, and the honest reading remains that this host's
+floor question is still open** (re-run 2026-09-07 — § "The certified null-slot
+sweep" below — which answers it), and the honest reading here remained that
+this host's
 harness noise sits somewhere between the ~1.4–2.2% the controls show and the
 ~6–8% the worst `ring/*` rows show — the gap being the per-case layout and
 warming effect the flat single-control design does not model.
@@ -1971,7 +1974,14 @@ one after a commit; quote the report's `source <sha>[+uncommitted]` line beside
 the id, since the id alone cannot witness a clean tree; and when a run's id was
 not captured, its provenance is the commit plus the time window. The fix — pass
 the recipe's `started`-time sha into `report` rather than reading HEAD there —
-is a harness change and is not made here.
+was made on 2026-09-07: `report` takes `--source-sha`/`--source-dirty`, the
+recipe reads both beside `started`, the JSON carries them as `source`, and a
+report invoked without them reads HEAD and labels its `source` line a
+re-report. Checked by re-deriving the certified sweep's report with
+`--source-sha 460905d`: it reproduces `20260907T1158+0200-d70ac8d1`; a
+different sha mints a different id. That check used the original 47-row case
+set, before the later `in_sb_box` measurements changed Criterion's mutable
+state; re-report stability assumes the case/variant set is unchanged.
 
 **The shake-out that did run.** `BENCH='quadeval|_control' CANDIDATE=1`, run
 `20260904T1914+0200-40dec1a6`, `source fcd5381` (no `+uncommitted`), bias 2.19%,
@@ -1997,8 +2007,10 @@ balanced decomposition's digits, lies entirely *inside* the box and is the slow
 path. This is `rust-bench` §2's `Rq::is_zero` trap. Fix, agreed and append-only:
 `quadeval/in_sb` and `vec_in_sb` keep their `[1, q)` reject-draw meaning, and
 `in_sb_box`/`vec_in_sb_box` are *added* for the honest in-box workload, so no
-existing case id changes meaning. Until those rows exist, neither `in_sb` row
-carries a candidate verdict.
+existing case id changes meaning. Those rows were added on 2026-09-07. The
+scalar case is still in the locally unreliable 100 ns–2 µs band, so neither
+scalar row carries an acceptance verdict until the harness gains a per-band
+floor or case-local control.
 
 **A contention source the rule did not name.** The evening sweep's first attempt
 was discarded because opening `hachi/lean/QuadEval.lean` in the IDE spun up
@@ -2006,3 +2018,101 @@ was discarded because opening `hachi/lean/QuadEval.lean` in the IDE spun up
 the `commit` binary's samples (caught by the monitor at 19:23). Add the editor's
 Lean server to the pre-run check: `ps -eo pcpu,comm | grep -E 'lean|lake'` before
 *and* during a run, not only a check for `lake build`.
+
+## The certified null-slot sweep, and what the floor turned out to be (2026-09-07)
+
+The run the section above asked for. `make run-bench CANDIDATE=1
+JSON=bench-report-20260907-nullslot.json` at `source 460905d` (no
+`+uncommitted`), run **`20260907T1158+0200-d70ac8d1`** — printed by the recipe
+that measured, which is the only kind of id that names a measurement. Window
+11:58:52–12:29:43, 162 variants (47 rows + 7 controls, each at genesis / now /
+candidate), exit 0, usable. Candidate slot byte-identical to `hachi/src`, genesis
+byte-identical to the frozen items, so every number below is identical code
+measured against itself.
+
+**What "certified" meant this time.** A gate of four consecutive 30 s samples
+with load₁ < 1.5 and no `lean`/`lake`/`cargo`/`rustc`/`criterion` process above
+5% CPU; the run wrapped in `systemd-inhibit --what=handle-lid-switch:sleep:idle
+--mode=block`; a monitor sampling every 30 s throughout — 62 samples, no gap,
+no `lean`/`lake` process above 5% at any of them, load₁ min 1.01 / median 1.50 /
+max 2.46 with the bench binary at 100% of one core; the journal shows no suspend
+and criterion's `new/estimates.json` mtimes show no gap over 2 min between
+consecutive variants. It was not idle-clean: `gnome-system-monitor` sat at
+7–11% of one core for six minutes (12:00–12:06, during the `commit` and
+`evalsplit` binaries) and Firefox content processes peaked at 33% + 26% of one
+core in one sample and 8–15% in four more (12:17–12:20, during `linalg`). None
+of that overlaps a row that reads beyond noise: the `linalg` rows measured under
+the Firefox spike all read noise (worst +3.5%), and every outlier below landed
+at 12:12, 12:23, 12:25–12:27 or 12:29, when nothing foreign was above 5%. It is
+recorded because the rule says "nothing else heavy" and a third of one core out
+of sixteen was let through as not heavy.
+
+**Why there was an attempt 1.** The first run of the day (gate passed 11:01:09,
+same source) was suspended for 33 minutes — lid closed 11:12:49, `PM: suspend
+exit` 11:45:59, s2idle — while the `gadget` binary's own `_control` `now` variant
+was collecting samples; its `candidate` and `genesis` variants then ran on a
+cold CPU against a control measured half warm. That is the one-condition-set
+rule broken in the row that recenters the whole binary, so the run was killed at
+82 variants. The monitor showed only a hole; the cause was in `journalctl` and in
+a 2000 s gap between two consecutive criterion mtimes. GNOME's idle policy was
+not it (`sleep-inactive-ac-type` = nothing); logind's lid handling was, and
+logind **ignores high-level `sleep` inhibitors for lid events by default**
+(`HandleLidSwitchIgnoreInhibited=yes`) — the low-level `handle-lid-switch` lock
+is the one that works, and an active session may take it unprivileged. The
+pre-run rule gains that line, and the after-the-fact check gains the mtime-gap
+test, since `CLOCK_MONOTONIC` does not advance across a suspend and the numbers
+themselves do not scream.
+
+**Results.**
+
+* A/B bias **4.42%**, set by `_control/ringswitch`'s candidate lean; the seven
+  controls' own vs-genesis spread is within ±3.2% and the other six leans within
+  ±2.3%. The threshold this run applied is `max(MIN_EFFECT, bias)` = **5%**: the
+  borrowed floor was binding, by 0.6 points.
+* `vs genesis`: 42 noise, **5 false verdicts** on identical code —
+  `quadeval/in_sb/1024` −7.31%, `ring/one/1024` +6.17%, `ring/from_coeffs/1024`
+  +5.93%, `gadget/gadget_entry/8` −5.03%, `ring/zero/1024` −5.01%.
+* The accept column (`cand vs now`, recentered per binary): 45 noise, **2 false
+  verdicts** — `quadeval/in_sb/1024` +8.15%, `ring/one/1024` −7.96%.
+* The eleven rows new since 09-04 (`balanced_*`, `bounded_z_*`, `quadeval/*`,
+  `ringswitch/rho_digits`) read noise on both columns except `in_sb`, which the
+  shake-out had already flagged as unable to carry a verdict. **Target 2's
+  freeze is certified faithful** on the ten rows that can carry one.
+
+**The floor is a function of the case's absolute time, not of the case.** Two
+earlier readings — "the `Vec::new()`+push constructors" (09-04 §4 audit) and
+"the sub-microsecond case" (the shake-out) — were both looking at the same band
+from different rows. Grouping the 47 rows by their measured time:
+
+| band | rows | worst \|vs genesis\| | worst \|cand vs now, adj\| |
+|---|---|---|---|
+| < 100 ns (`digit_at`, `base_pow`, the 8-digit decomposes…) | 6 | 3.18% | 2.54% |
+| 100 ns – 2 µs | 14 | **7.31%** (five rows ≥ 5%) | **8.15%** (two rows ≥ 5%; `commit/l1_norm` 4.85%, `ring/neg` 3.81%) |
+| > 2 µs | 27 | 3.48% | 4.67% |
+
+Every row that crossed 5% on identical code sits between 400 ns and 900 ns
+(`in_sb` 645, `gadget_entry` 658, `ring/zero` 675, `ring/one` 713,
+`ring/from_coeffs` 879), while `ring/constant` at 761 ns read +0.07% — so the band
+is a susceptibility, not a sentence. Below it, per-iteration overhead dominates
+and averages out; above it, the work dominates; inside it, a layout or alignment
+change of a few tens of nanoseconds *is* a 5–8% swing, and criterion's "three
+fastest settled samples" cannot average away something that is the same on every
+sample. The 09-04 audit's disassembly finding (byte-identical code, different
+placement) is the mechanism; this table is its extent.
+
+**What follows, and what does not.** (1) On this host, `MIN_EFFECT = 5%` flat is
+about right for rows outside the band — their worst identical-code reading sits
+at the line on `vs genesis` (5.03%, one row) and under it on the accept column
+(4.85%) — and wrong inside it, where a byte-identical candidate is accepted or
+rejected at 5% one time in seven. (2) A candidate verdict on a 100 ns–2 µs row is
+therefore not a verdict until either the floor is per-band or the row has its
+own control; that is a harness change and is not made here. (3) The bias itself
+read 1.42% → 2.19% → 4.42% across three runs on the same machine, so the *usable*
+limit and the `max(MIN_EFFECT, bias)` rule are doing real work; a run whose bias
+crosses 5% will already raise its own threshold. (4) The `in_sb_box` /
+`vec_in_sb_box` additions agreed on 09-04 were added after this run, covering
+the honest all-inside workload; both scalar rows remain outside any verdict
+until the timing-band problem is repaired. (5) None of this writes a ledger row — a null-slot
+sweep records no candidate verdict — so Stage 0's ledger exit still closes with
+the first `perf-loop`; what closed today is Stage 0's *measurement-grade bench*
+item, with an id that can be cited.

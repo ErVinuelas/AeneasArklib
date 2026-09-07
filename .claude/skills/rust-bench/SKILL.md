@@ -52,12 +52,12 @@ quietly if you skip them:
    undeclared `benches/foo.rs` is simply not built. Silence, not an error;
 3. add the `pub mod` line to `hachi/benches/genesis/src/lib.rs`;
 4. add it to `hachi/benches/candidate/src/lib.rs`, whose `src/` must then hold
-   **exactly six files** (five modules plus `lib.rs`) — `check-candidate`
-   counts;
+   exactly the module files named by `MODULES`, plus `lib.rs` —
+   `check-candidate` counts;
 5. add whatever corpus the module needs to `benches/support/mod.rs`.
 
-Untraveled in this repository: all five modules were born together, before the
-harness existed. Expect to amend this list the first time it happens.
+This checklist has traveled with the later `evalsplit`, `ringswitch`, and
+`quadeval` modules; keep it generic rather than copying the current module count.
 
 ## What the harness already does for you
 
@@ -73,27 +73,20 @@ Do not re-solve these; do not work around them.
 | The three crates get symmetric codegen | `lto = "fat"`, `codegen-units = 1` (`hachi/Cargo.toml § profile.bench`) |
 | Background load cannot inflate a verdict | the reported time is the mean of the three fastest *settled* samples, not criterion's slope |
 | A/B bias is known, not assumed | `_control/*` runs byte-identical code as every variant, one per bench binary |
-| A change under the harness's own error is not a result | a flat threshold: the worst control, floored at 5% |
+| A change under the harness's own error is not a result | the worst control, floored at 5%; the locally unresolved 100 ns–2 µs band carries no actionable verdict |
 | A run that fails its own self-test is thrown away | worst control > 10% → every verdict `unusable`, exit non-zero |
 | Filtered-out cases cannot republish stale rows | `make run-bench` stamps the clock, `report --since` cuts on it |
 | A number that survives none of this is not published | only `vs genesis` and the recentered `cand vs now` are comparisons; absolute times are not |
 
-Two of those thresholds are **borrowed calibration**. The 5% floor
-(`MIN_EFFECT`) and the 10% veto (`USABLE_BIAS_MAX`) are AeneasCompPoly's
-numbers, arrived at by sweeping a full run of byte-identical code on its own
-hardware; upstream records that even there 5% was a *target* rather than a
-description, its worst byte-identical row reading 6.10%. This repository has not
-run that sweep. What it has is worse, and it is in `NOTES.md § "The first
-benchmark run, and what it says about the harness"`: on the 4-core cloud
-container that produced this repo's only completed `make run-bench`, the
-`_control` cases in `ring`, `linalg` and `commit` read **15%, 14% and 10%** — at
-or above the veto — and two byte-identical rows read **59%** (`ring/scalar_mul`)
-and **39%** (`commit/verify_weak`), i.e. worse than their own group's floor.
-Read the consequence literally: on a host like that the harness's own self-test
-says it cannot produce a verdict, and nothing in `harness.py` will shrink the
-number. Establish a quieter host — pinned cores, no neighbours — before
-believing any margin, and do not read the 5% floor as evidence that this
-repository resolves 5% effects.
+Those thresholds came from AeneasCompPoly, but this repository now has its own
+measurement-grade calibration (`NOTES.md` § "The certified null-slot sweep",
+2026-09-07). On this host the 5% floor held outside the 100 ns–2 µs timing band;
+inside it, byte-identical code produced false 5–8% verdicts after recentering.
+The band is therefore unresolved: a printed candidate verdict there is not
+actionable until the harness uses a per-band floor or the row has a local
+control. The 10% run veto remains inherited and still fails the whole run
+closed. Earlier noisy-host evidence remains in `NOTES.md` § "The first benchmark
+run, and what it says about the harness".
 
 ## 1 · Freeze the first translation
 
@@ -104,7 +97,7 @@ to fix a lint, not to fix a typo, not to follow a rename in `hachi`"*, and
 *"Genesis composes with genesis"*, so `vs genesis` is the cumulative improvement
 over the first translation of the whole call chain.
 
-All five modules are already frozen, and today the frozen copies are
+All current modules are already frozen, and today the frozen copies are
 byte-identical to `hachi/src` — so §1 is about the *next* operation, not a
 backlog. The commit choreography is fixed by three mechanics and cannot be
 reordered:
@@ -457,8 +450,9 @@ What to know before touching it:
   run, `report` divides it out (`cand_vs_now_adj`), and the 5% floor applies to
   the recentered value. Verdicts come from `cand_vs_now_verdict` only; the raw
   ratio is exported for transparency, never for decisions. All raw pairwise
-  control magnitudes still feed the 10% run veto. The mechanism transfers; the
-  numbers are upstream's, and this repository has not measured its own lean.
+  control magnitudes still feed the 10% run veto. The local null-slot sweep
+  confirms the recentering mechanism but also limits it: 100 ns–2 µs rows still
+  produced false verdicts and need a per-band floor or local control.
 * **Controls are enforced for candidates, not advised**: a candidate case in a
   binary whose `_control` did not run this pass gets verdict `unvalidated` and
   the report exits 2. (For plain `vs genesis` a missing control still only
@@ -469,8 +463,8 @@ What to know before touching it:
   sha, diverged-from-src list), so a number is attributable to the diff the slot
   actually held — the at-rest `check-candidate` gate cannot see inside a loop
   worktree, this can.
-* **`check-candidate` pins everything that compiles**: module files byte-equal
-  to `hachi/src`, exactly six files in `src/` (five modules plus `lib.rs`), no
+* **`check-candidate` pins everything that compiles**: every module file named
+  by `MODULES` byte-equal to `hachi/src`, plus `lib.rs` and no extra files, no
   symlinks (a symlinked module passes any self-compare forever, and the loop's
   overwrite would write through it into the champion), and `lib.rs` +
   `Cargo.toml` byte-equal to their git-pinned content — `lib.rs` is the

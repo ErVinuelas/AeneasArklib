@@ -72,17 +72,13 @@ value accepts null candidates at ~20% per row), and not a run whose report
 says `unusable`. Every shortcut here converts machine noise into a
 "champion", and the loop would then optimize the weather.
 
-Both thresholds in that paragraph — the 5% floor (`MIN_EFFECT`) and the 10%
-identical-code veto (`USABLE_BIAS_MAX`) — are **AeneasCompPoly's calibration**,
-inherited with `harness.py`. This repository has never swept its own. What it
-has measured is worse: on the host that produced its only completed
-`make run-bench`, the `_control` cases read 15%, 14% and 10% and two
-byte-identical rows read 59% and 39% (`NOTES.md` § "The first benchmark run,
-and what it says about the harness"). The harness's own veto is what that
-condition trips, and it is supposed to: a run at that bias reports
-`unusable` and accepts nothing. Read the consequence literally — on such a
-host this loop cannot accept a candidate at all, and the fix is a quieter
-machine, not a smaller threshold.
+The thresholds originated in AeneasCompPoly. This repository's certified
+2026-09-07 null-slot sweep now calibrates their local limit (`NOTES.md` § "The
+certified null-slot sweep"): the 5% floor held outside the 100 ns–2 µs timing
+band, while byte-identical code inside it produced false 5–8% verdicts after
+recentering. A candidate row in that band cannot be accepted until the harness
+uses a per-band floor or the case gains a local control. The 10% veto remains
+inherited and fails a noisy run closed.
 
 ## Before the first iteration
 
@@ -126,12 +122,12 @@ it, once per session, and stop with a report if any of it is missing:
      `hachi/tests/` are written deliberately unlike the crate, so they are a
      real check and not a restatement. Failure → row `tests-failed`, drop the
      candidate;
-   * copy the **five module files** over the slot, one at a time —
-     `for m in params ring linalg gadget commit; do cp hachi/src/$m.rs
+   * copy the **eight module files** over the slot, one at a time —
+     `for m in params ring linalg gadget commit evalsplit ringswitch quadeval; do cp hachi/src/$m.rs
      hachi/benches/candidate/src/; done` — then restore the champion with
      `git restore hachi/src`. Never `cp hachi/src/*.rs`: the slot's `lib.rs` is
      its own documentation, pinned to git by `check-candidate`, and is *not* a
-     copy of `hachi/src/lib.rs` (verified: at rest the five modules are
+     copy of `hachi/src/lib.rs` (verified: at rest the eight modules are
      byte-identical and `lib.rs` differs from the first line). A glob copy
      fails the gate at best and swaps the module graph at worst;
    * `make run-bench CANDIDATE=1 BENCH='<module>/<op>|_control' JSON=<file>` —
@@ -151,6 +147,10 @@ it, once per session, and stop with a report if any of it is missing:
 5. **Verdict**, from the run's JSON, on the target's rows only, always via
    `cand_vs_now_verdict` (which is computed from the recentered
    `cand_vs_now_adj`, never from the raw ratio):
+   * first check the row's absolute `now_ns`: a row in the locally unresolved
+     100 ns–2 µs band is **not actionable**, even if the current flat-threshold
+     harness prints `faster`, unless that row has gained its own control or the
+     harness has gained the documented per-band floor;
    * accept iff **every** measured row of the target reads `faster` — the
      rows share one lean but their noises are independent, so demanding all
      of them cuts the residual false-accept rate multiplicatively, and a
@@ -345,6 +345,6 @@ divided out of the accept column.
   check recorded, `make bench-check` green, its spec reference truthful.
 * No `sorry` anywhere `hachi/lean/Check.lean` reaches, at any point in the
   loop; unproved or unaudited Lean lives in `hachi/lean-wip/`.
-* At rest, the slot's five module files ≡ `hachi/src` byte-for-byte with
+* At rest, the slot's eight module files ≡ `hachi/src` byte-for-byte with
   `lib.rs`/`Cargo.toml` as git holds them, and `logs/ledger.jsonl` is
   append-only — a rewritten row is a falsified history.
