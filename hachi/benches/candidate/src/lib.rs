@@ -39,3 +39,5 @@ pub mod evalsplit;
 pub mod ringswitch;
 
 pub mod quadeval;
+
+pub mod endpiece;

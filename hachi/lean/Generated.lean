@@ -1972,6 +1972,213 @@ def commit.verify
     then ok ok1
     else ok false
 
+/-- [hachi::ringswitch::QuotientRow]
+    Source: 'src/ringswitch.rs', lines 85:0-85:27
+    Visibility: public -/
+@[reducible]
+def ringswitch.QuotientRow := ring.Rq
+
+/-- [hachi::ringswitch::rho_digits]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 70:4-73:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.rho_digits_loop.body
+  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < degree
+  then
+    let f ← ring.Rq.coeff rho k
+    let f1 ← gadget.balanced_digit_at f u
+    let coeffs1 ← alloc.vec.Vec.push coeffs f1
+    let k1 ← k + 1#usize
+    ok (cont (coeffs1, k1))
+  else ok (done coeffs)
+
+/-- [hachi::ringswitch::rho_digits]: loop 0:
+    Source: 'src/ringswitch.rs', lines 70:4-73:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.rho_digits_loop
+  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (coeffs1, k1) => ringswitch.rho_digits_loop.body rho u degree coeffs1
+      k1)
+    (coeffs, k)
+
+/-- [hachi::ringswitch::rho_digits]:
+    Source: 'src/ringswitch.rs', lines 66:0-75:1
+    Visibility: public -/
+def ringswitch.rho_digits
+  (rho : ring.Rq) (u : Std.Usize) : Result ring.Rq := do
+  let coeffs ←
+    ringswitch.rho_digits_loop rho u params.RING_DEGREE (alloc.vec.Vec.new
+      cpoly.field.Fp) 0#usize
+  ring.Rq.from_coeffs coeffs
+
+/-- [hachi::ringswitch::rho_digit_as_rq]:
+    Source: 'src/ringswitch.rs', lines 142:0-147:1
+    Visibility: public -/
+def ringswitch.rho_digit_as_rq
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (j : Std.Usize) :
+  Result ring.Rq
+  := do
+  let row ← j / params.GADGET_DIGITS
+  let u ← j % params.GADGET_DIGITS
+  let qr ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      ringswitch.QuotientRow) rho row
+  ringswitch.rho_digits qr u
+
+/-- [hachi::params::CHAIN_GAMMA]
+    Source: 'src/params.rs', lines 356:0-356:32
+    Visibility: public -/
+@[global_simps, irreducible] def params.CHAIN_GAMMA : Std.U64 := 15#u64
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop body 2:
+    Source: 'src/endpiece.rs', lines 36:12-41:13
+    Visibility: public -/
+@[rust_loop_body]
+def endpiece.rho_digits_short_check_loop0_loop0_loop0.body
+  (digit : ring.Rq) (short : Bool) (k : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if k < params.RING_DEGREE
+  then
+    let f ← ring.Rq.coeff digit k
+    let i ← commit.centered_abs f
+    let short1 ← if i > params.CHAIN_GAMMA
+                   then ok false
+                   else ok short
+    let k1 ← k + 1#usize
+    ok (cont (short1, k1))
+  else ok (done short)
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop 2:
+    Source: 'src/endpiece.rs', lines 36:12-41:13
+    Visibility: public -/
+@[rust_loop]
+def endpiece.rho_digits_short_check_loop0_loop0_loop0
+  (short : Bool) (digit : ring.Rq) (k : Std.Usize) : Result Bool := do
+  loop
+    (fun (short1, k1) => endpiece.rho_digits_short_check_loop0_loop0_loop0.body
+      digit short1 k1)
+    (short, k)
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop body 1:
+    Source: 'src/endpiece.rs', lines 32:8-43:9
+    Visibility: public -/
+@[rust_loop_body]
+def endpiece.rho_digits_short_check_loop0_loop0.body
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (i : Std.Usize) (short : Bool)
+  (u : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if u < params.GADGET_DIGITS
+  then
+    let i1 ← i * params.GADGET_DIGITS
+    let j ← i1 + u
+    let digit ← ringswitch.rho_digit_as_rq rho j
+    let short1 ←
+      endpiece.rho_digits_short_check_loop0_loop0_loop0 short digit 0#usize
+    let u1 ← u + 1#usize
+    ok (cont (short1, u1))
+  else ok (done short)
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop 1:
+    Source: 'src/endpiece.rs', lines 32:8-43:9
+    Visibility: public -/
+@[rust_loop]
+def endpiece.rho_digits_short_check_loop0_loop0
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (i : Std.Usize) (short : Bool)
+  (u : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (short1, u1) => endpiece.rho_digits_short_check_loop0_loop0.body rho i
+      short1 u1)
+    (short, u)
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop body 0:
+    Source: 'src/endpiece.rs', lines 30:4-45:5
+    Visibility: public -/
+@[rust_loop_body]
+def endpiece.rho_digits_short_check_loop0.body
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (rows : Std.Usize)
+  (i : Std.Usize) (short : Bool) :
+  Result (ControlFlow (Std.Usize × Bool) Bool)
+  := do
+  if i < rows
+  then
+    let short1 ←
+      endpiece.rho_digits_short_check_loop0_loop0 rho i short 0#usize
+    let i1 ← i + 1#usize
+    ok (cont (i1, short1))
+  else ok (done short)
+
+/-- [hachi::endpiece::rho_digits_short_check]: loop 0:
+    Source: 'src/endpiece.rs', lines 30:4-45:5
+    Visibility: public -/
+@[rust_loop]
+def endpiece.rho_digits_short_check_loop0
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (rows : Std.Usize)
+  (i : Std.Usize) (short : Bool) :
+  Result Bool
+  := do
+  loop
+    (fun (i1, short1) => endpiece.rho_digits_short_check_loop0.body rho rows i1
+      short1)
+    (i, short)
+
+/-- [hachi::endpiece::rho_digits_short_check]:
+    Source: 'src/endpiece.rs', lines 26:0-47:1
+    Visibility: public -/
+def endpiece.rho_digits_short_check
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) : Result Bool := do
+  let rows := alloc.vec.Vec.len rho
+  endpiece.rho_digits_short_check_loop0 rho rows 0#usize true
+
+/-- [hachi::ringswitch::LiftedWitness]
+    Source: 'src/ringswitch.rs', lines 113:0-116:1
+    Visibility: public -/
+structure ringswitch.LiftedWitness where
+  z : linalg.PolyVec
+  rho : alloc.vec.Vec ringswitch.QuotientRow
+
+/-- [hachi::ringswitch::{hachi::ringswitch::LiftedWitness}::rho]:
+    Source: 'src/ringswitch.rs', lines 130:4-132:5
+    Visibility: public -/
+def ringswitch.LiftedWitness.impl.rho
+  (self : ringswitch.LiftedWitness) :
+  Result (alloc.vec.Vec ringswitch.QuotientRow)
+  := do
+  ok self.rho
+
+/-- [hachi::ringswitch::{hachi::ringswitch::LiftedWitness}::z]:
+    Source: 'src/ringswitch.rs', lines 125:4-127:5
+    Visibility: public -/
+def ringswitch.LiftedWitness.impl.z
+  (self : ringswitch.LiftedWitness) : Result linalg.PolyVec := do
+  ok self.z
+
+/-- [hachi::endpiece::lift_short_check]:
+    Source: 'src/endpiece.rs', lines 53:0-55:1
+    Visibility: public -/
+def endpiece.lift_short_check
+  (w : ringswitch.LiftedWitness) : Result Bool := do
+  let pv ← ringswitch.LiftedWitness.impl.z w
+  let i ← commit.vec_l_infty_norm pv
+  if i <= params.CHAIN_GAMMA
+  then
+    let v ← ringswitch.LiftedWitness.impl.rho w
+    endpiece.rho_digits_short_check v
+  else ok false
+
 /-- [hachi::params::ML_LOW_LEN]
     Source: 'src/params.rs', lines 259:0-259:35
     Visibility: public -/
@@ -3232,11 +3439,6 @@ def linalg.PolyMatrix.cols (self : linalg.PolyMatrix) : Result Std.Usize := do
     Visibility: public -/
 @[global_simps, irreducible] def params.B_ZERO : Std.U64 := 16#u64
 
-/-- [hachi::params::CHAIN_GAMMA]
-    Source: 'src/params.rs', lines 356:0-356:32
-    Visibility: public -/
-@[global_simps, irreducible] def params.CHAIN_GAMMA : Std.U64 := 15#u64
-
 /-- [hachi::params::SB_HI]
     Source: 'src/params.rs', lines 402:0-402:25
     Visibility: public -/
@@ -3955,47 +4157,121 @@ def ring.Rq.neg (self : ring.Rq) : Result ring.Rq := do
     ring.Rq.neg_loop self n (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
   ok out
 
-/-- [hachi::ringswitch::rho_digits]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 67:4-70:5
+/-- [hachi::ringswitch::{hachi::ringswitch::QuotientRow}::new]:
+    Source: 'src/ringswitch.rs', lines 90:4-92:5
+    Visibility: public -/
+def ringswitch.QuotientRow.new
+  (coeffs : alloc.vec.Vec cpoly.field.Fp) : Result ringswitch.QuotientRow := do
+  let r ← ring.Rq.from_coeffs coeffs
+  ok r
+
+/-- [hachi::ringswitch::{hachi::ringswitch::QuotientRow}::coeff]:
+    Source: 'src/ringswitch.rs', lines 95:4-97:5
+    Visibility: public -/
+def ringswitch.QuotientRow.coeff
+  (self : ringswitch.QuotientRow) (k : Std.Usize) : Result cpoly.field.Fp := do
+  ring.Rq.coeff self k
+
+/-- [hachi::ringswitch::{hachi::ringswitch::QuotientRow}::to_rq]:
+    Source: 'src/ringswitch.rs', lines 103:4-105:5
+    Visibility: public -/
+def ringswitch.QuotientRow.to_rq
+  (self : ringswitch.QuotientRow) : Result ring.Rq := do
+  ring.Rq.copy self
+
+/-- [hachi::ringswitch::{hachi::ringswitch::LiftedWitness}::new]:
+    Source: 'src/ringswitch.rs', lines 120:4-122:5
+    Visibility: public -/
+def ringswitch.LiftedWitness.new
+  (z : linalg.PolyVec) (rho : alloc.vec.Vec ringswitch.QuotientRow) :
+  Result ringswitch.LiftedWitness
+  := do
+  ok { z, rho }
+
+/-- [hachi::ringswitch::lift_message]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 158:4-161:5
     Visibility: public -/
 @[rust_loop_body]
-def ringswitch.rho_digits_loop.body
-  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
-  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Fp))
+def ringswitch.lift_message_loop0.body
+  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
   := do
-  if k < degree
+  if i < z_len
   then
-    let f ← ring.Rq.coeff rho k
-    let f1 ← gadget.balanced_digit_at f u
-    let coeffs1 ← alloc.vec.Vec.push coeffs f1
-    let k1 ← k + 1#usize
-    ok (cont (coeffs1, k1))
-  else ok (done coeffs)
+    let r ← linalg.PolyVec.get pv i
+    let r1 ← ring.Rq.copy r
+    let out1 ← alloc.vec.Vec.push out r1
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
 
-/-- [hachi::ringswitch::rho_digits]: loop 0:
-    Source: 'src/ringswitch.rs', lines 67:4-70:5
+/-- [hachi::ringswitch::lift_message]: loop 0:
+    Source: 'src/ringswitch.rs', lines 158:4-161:5
     Visibility: public -/
 @[rust_loop]
-def ringswitch.rho_digits_loop
-  (rho : ring.Rq) (u : Std.Usize) (degree : Std.Usize)
-  (coeffs : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Fp)
+def ringswitch.lift_message_loop0
+  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
   := do
   loop
-    (fun (coeffs1, k1) => ringswitch.rho_digits_loop.body rho u degree coeffs1
-      k1)
-    (coeffs, k)
+    (fun (out1, i1) => ringswitch.lift_message_loop0.body pv z_len out1 i1)
+    (out, i)
 
-/-- [hachi::ringswitch::rho_digits]:
-    Source: 'src/ringswitch.rs', lines 63:0-72:1
+/-- [hachi::ringswitch::lift_message]: loop body 1:
+    Source: 'src/ringswitch.rs', lines 163:4-166:5
     Visibility: public -/
-def ringswitch.rho_digits
-  (rho : ring.Rq) (u : Std.Usize) : Result ring.Rq := do
-  let coeffs ←
-    ringswitch.rho_digits_loop rho u params.RING_DEGREE (alloc.vec.Vec.new
-      cpoly.field.Fp) 0#usize
-  ring.Rq.from_coeffs coeffs
+@[rust_loop_body]
+def ringswitch.lift_message_loop1.body
+  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if j < rho_len
+  then
+    let r ← ringswitch.rho_digit_as_rq v j
+    let out1 ← alloc.vec.Vec.push out r
+    let j1 ← j + 1#usize
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::lift_message]: loop 1:
+    Source: 'src/ringswitch.rs', lines 163:4-166:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.lift_message_loop1
+  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, j1) => ringswitch.lift_message_loop1.body v rho_len out1 j1)
+    (out, j)
+
+/-- [hachi::ringswitch::lift_message]:
+    Source: 'src/ringswitch.rs', lines 153:0-168:1
+    Visibility: public -/
+def ringswitch.lift_message
+  (w : ringswitch.LiftedWitness) : Result linalg.PolyVec := do
+  let z_len ← linalg.PolyVec.len w.z
+  let i := alloc.vec.Vec.len w.rho
+  let rho_len ← i * params.GADGET_DIGITS
+  let out ←
+    ringswitch.lift_message_loop0 w.z z_len (alloc.vec.Vec.new ring.Rq) 0#usize
+  let out1 ← ringswitch.lift_message_loop1 w.rho rho_len out 0#usize
+  linalg.PolyVec.new out1
+
+/-- [hachi::ringswitch::lift_commit]:
+    Source: 'src/ringswitch.rs', lines 177:0-180:1
+    Visibility: public -/
+def ringswitch.lift_commit
+  (d_key : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) :
+  Result linalg.PolyVec
+  := do
+  let message ← ringswitch.lift_message w
+  linalg.PolyMatrix.mat_vec_mul d_key message
 
 end hachi

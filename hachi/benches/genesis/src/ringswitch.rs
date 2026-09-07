@@ -37,6 +37,7 @@ use alloc::vec::Vec;
 use cpoly::Fp;
 
 use crate::gadget;
+use crate::linalg::{PolyMatrix, PolyVec};
 use crate::params;
 use crate::ring::Rq;
 
@@ -70,4 +71,109 @@ pub fn rho_digits(rho: &Rq, u: usize) -> Rq {
         k += 1;
     }
     Rq::from_coeffs(&coeffs)
+}
+
+/// A quotient polynomial represented by its `d` coefficients.
+///
+/// Mirrors `Lift.LiftedWitness.ρ` at the degree bound carried by
+/// `Lift.LiftedWitness.hρ` (`ProofSystem/RingSwitching/Lift/Reduction.lean:82`).
+///
+/// ArkLib deliberately gives quotient rows no quotient-ring multiplication.
+/// Wrapping the representation keeps that distinction on the Rust side even
+/// though the stored coefficient array has the same runtime shape as [`Rq`].
+pub struct QuotientRow(Rq);
+
+impl QuotientRow {
+    /// Build a quotient row from little-endian coefficients, truncated and
+    /// padded to the cyclotomic degree.
+    pub fn new(coeffs: &Vec<Fp>) -> QuotientRow {
+        QuotientRow(Rq::from_coeffs(coeffs))
+    }
+
+    /// Read coefficient `k` of the quotient polynomial.
+    pub fn coeff(&self, k: usize) -> Fp {
+        self.0.coeff(k)
+    }
+
+    /// Read the quotient row back as a ring element (spec: `rhoAsRq`,
+    /// `RingSwitch/Reduction.lean:249`).
+    ///
+    /// Mirrors `rhoAsRq`.
+    pub fn to_rq(&self) -> Rq {
+        self.0.copy()
+    }
+}
+
+/// Hachi Eq. (21)'s lifted witness: the `R^lin` witness `z` and one quotient
+/// polynomial per output row (spec: `LiftedWitness`,
+/// `RingSwitch/Reduction.lean:136`).
+///
+/// Mirrors `LiftedWitness`.
+pub struct LiftedWitness {
+    z: PolyVec,
+    rho: Vec<QuotientRow>,
+}
+
+impl LiftedWitness {
+    /// Bundle the `R^lin` witness and quotient rows.
+    pub fn new(z: PolyVec, rho: Vec<QuotientRow>) -> LiftedWitness {
+        LiftedWitness { z, rho }
+    }
+
+    /// The `R^lin` witness block.
+    pub fn z(&self) -> &PolyVec {
+        &self.z
+    }
+
+    /// The quotient rows.
+    pub fn rho(&self) -> &Vec<QuotientRow> {
+        &self.rho
+    }
+}
+
+/// Entry `j` of the quotient-digit block (spec: `rhoDigitAsRq`,
+/// `RingSwitch/Reduction.lean:256`).
+///
+/// Mirrors `rhoDigitAsRq`.
+///
+/// The flattened index is row-major: `j / GADGET_DIGITS` selects the quotient
+/// row and `j % GADGET_DIGITS` selects its balanced digit.
+pub fn rho_digit_as_rq(rho: &Vec<QuotientRow>, j: usize) -> Rq {
+    let digits: usize = params::GADGET_DIGITS;
+    let row: usize = j / digits;
+    let u: usize = j % digits;
+    rho_digits(&rho[row].0, u)
+}
+
+/// The vector bound by the lift commitment, `z` followed by all quotient
+/// digits (spec: `liftMessage`, `RingSwitch/Reduction.lean:270`).
+///
+/// Mirrors `liftMessage`.
+pub fn lift_message(w: &LiftedWitness) -> PolyVec {
+    let z_len: usize = w.z.len();
+    let rho_len: usize = w.rho.len() * params::GADGET_DIGITS;
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < z_len {
+        out.push(w.z.get(i).copy());
+        i += 1;
+    }
+    let mut j: usize = 0;
+    while j < rho_len {
+        out.push(rho_digit_as_rq(&w.rho, j));
+        j += 1;
+    }
+    PolyVec::new(out)
+}
+
+/// The concrete Ajtai lift commitment `D *ᵥ (z ‖ digits(ρ))` (spec:
+/// `hachiLiftCom`, `RingSwitch/Reduction.lean:277`).
+///
+/// Mirrors `hachiLiftCom`.
+///
+/// `d_key` is the caller-supplied lift key, distinct from QuadEval's
+/// `PublicParamsD::d_matrix` and expected to have `D_ROWS × LIFT_COLS` shape.
+pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
+    let message: PolyVec = lift_message(w);
+    d_key.mat_vec_mul(&message)
 }

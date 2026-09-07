@@ -1,6 +1,8 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Currently empty.** Everything that passed through here has been promoted: the
+**Current debt:** `RingSwitch.lean`, target 3's six headline obligations,
+typechecked against ArkLib `d51d8bc` but not yet proved. Everything earlier that
+passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
 into `lean/Scheme.lean` beside their siblings), the multilinear evaluation

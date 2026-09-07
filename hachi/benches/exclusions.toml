@@ -182,6 +182,17 @@ W1: `rel_out` with the box check in place of the ball; the same 28 672 ring
 muls dominate. Its distinguishing conjunct is benched as
 `quadeval/vec_in_sb`."""
 
+# --- ring-switch representation types --------------------------------------
+
+"ringswitch::QuotientRow" = """
+a representation newtype around one coefficient row, with no computation of
+its own. The `rhoAsRq` presentation change is separately measured as
+`ringswitch/rho_as_rq`."""
+
+"ringswitch::LiftedWitness" = """
+a struct containing `z` and the quotient rows, with no computation. Its
+consumers `lift_message`, `lift_commit`, and `lift_short_check` are measured."""
+
 "commit::generate_decomps_balanced" = """
 the balanced twin of `commit::generate_decomps`, and `ring::mul`-bound for the
 same reason: per block one `balanced_gadget_decompose` (8192 digit loops), one

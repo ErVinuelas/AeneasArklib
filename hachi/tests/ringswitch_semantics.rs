@@ -30,12 +30,16 @@ mod support;
 
 use cpoly::Fp;
 use hachi::commit::l_infty_norm;
+use hachi::endpiece::{lift_short_check, rho_digits_short_check};
+use hachi::linalg::PolyVec;
 use hachi::params::{
     BALANCED_SHIFT, CHAIN_GAMMA, GADGET_BASE, GADGET_DIGITS, HALF_BASE, Q, RING_DEGREE,
 };
 use hachi::ring::Rq;
-use hachi::ringswitch::rho_digits;
-use support::{rq_from_u64s, show, Lcg};
+use hachi::ringswitch::{
+    lift_commit, lift_message, rho_digit_as_rq, rho_digits, LiftedWitness, QuotientRow,
+};
+use support::{coeffs_of, rq_from_u64s, show, Lcg};
 
 /// `Nat.digits b n`, the whole little-endian list.
 fn nat_digits(mut n: u64, b: u64) -> Vec<u64> {
@@ -167,4 +171,106 @@ fn quotient_digits_past_the_count_are_minus_half_base() {
             "coefficient {k} past the digit count"
         );
     }
+}
+
+/// Carry an `Rq` coefficient array as the specification's quotient-polynomial
+/// representation. The production type keeps the two algebraic roles distinct.
+fn quotient_row(a: &Rq) -> QuotientRow {
+    let mut coeffs = Vec::new();
+    for k in 0..RING_DEGREE {
+        coeffs.push(a.coeff(k));
+    }
+    QuotientRow::new(&coeffs)
+}
+
+/// `rhoAsRq` is a presentation change, not a cyclotomic reduction: every
+/// coefficient below `d` is preserved.
+#[test]
+fn rho_as_rq_preserves_the_quotient_row_coefficients() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0010);
+    for _ in 0..4 {
+        let a = rng.next_rq();
+        let row = quotient_row(&a);
+        assert_eq!(coeffs_of(&row.to_rq()), coeffs_of(&a));
+    }
+}
+
+/// `finProdFinEquiv.symm` splits the flat index as `(j / digits, j %
+/// digits)`. This checks both sides of a row boundary against separate calls to
+/// `rho_digits`.
+#[test]
+fn rho_digit_as_rq_uses_row_major_digit_indices() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0011);
+    let a = rng.next_rq();
+    let b = rng.next_rq();
+    let rho = vec![quotient_row(&a), quotient_row(&b)];
+    for j in 0..2 * GADGET_DIGITS {
+        let source = if j < GADGET_DIGITS { &a } else { &b };
+        let expected = rho_digits(source, j % GADGET_DIGITS);
+        assert!(rho_digit_as_rq(&rho, j).equals(&expected), "flat index {j}");
+    }
+}
+
+/// `liftMessage` is exactly `Fin.append w.z (rhoDigitAsRq …)`. The reduced
+/// shape keeps this default test below the W3 allocation wall; the function is
+/// otherwise shape-generic and uses the real ring degree and digit count.
+#[test]
+fn lift_message_appends_all_quotient_digits_after_z() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0012);
+    let z = rng.next_poly_vec(3);
+    let a = rng.next_rq();
+    let b = rng.next_rq();
+    let witness = LiftedWitness::new(z.copy(), vec![quotient_row(&a), quotient_row(&b)]);
+    let lifted = lift_message(&witness);
+    assert_eq!(lifted.len(), 3 + 2 * GADGET_DIGITS);
+    for i in 0..3 {
+        assert!(lifted.get(i).equals(z.get(i)), "z entry {i}");
+    }
+    for j in 0..2 * GADGET_DIGITS {
+        assert!(
+            lifted.get(3 + j).equals(&rho_digit_as_rq(witness.rho(), j)),
+            "quotient digit {j}"
+        );
+    }
+}
+
+/// `hachiLiftCom.com` is the ordinary Ajtai matrix-vector product over the
+/// lifted message. This is REDUCED for W1: the real key has 57,384 columns and
+/// schoolbook multiplication; a sub-quadratic `ring::mul` removes that wall.
+#[test]
+fn lift_commit_is_the_matrix_product_of_lift_message() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0013);
+    let z = rng.next_poly_vec(2);
+    let rho_source = rng.next_rq();
+    let witness = LiftedWitness::new(z, vec![quotient_row(&rho_source)]);
+    let width = 2 + GADGET_DIGITS;
+    let d_key = rng.next_poly_matrix(1, width);
+    let message = lift_message(&witness);
+    let expected = d_key.mat_vec_mul(&message);
+    assert!(lift_commit(&d_key, &witness).equals(&expected));
+}
+
+/// At `(bDig, bound) = (16, 15)` every balanced quotient digit is at most 8,
+/// so this check is provably true for arbitrary quotient rows. The computation
+/// is retained and tested even though its false branch is unreachable here.
+#[test]
+fn rho_digits_short_check_is_true_at_the_pinned_parameters() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0014);
+    let rho = vec![quotient_row(&rng.next_rq()), quotient_row(&rng.next_rq())];
+    assert!(rho_digits_short_check(&rho));
+}
+
+/// `liftShortCheck` can still reject through its `z` conjunct. Pin both
+/// directions independently of the quotient-digit tautology.
+#[test]
+fn lift_short_check_accepts_and_rejects_on_the_z_norm() {
+    let rho = vec![quotient_row(&Rq::zero())];
+    let good = LiftedWitness::new(PolyVec::new(vec![rq_from_u64s(&[CHAIN_GAMMA])]), rho);
+    assert!(lift_short_check(&good));
+
+    let bad = LiftedWitness::new(
+        PolyVec::new(vec![rq_from_u64s(&[CHAIN_GAMMA + 1])]),
+        vec![quotient_row(&Rq::zero())],
+    );
+    assert!(!lift_short_check(&bad));
 }

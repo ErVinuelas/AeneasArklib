@@ -1,4 +1,4 @@
-//! Wall-clock time for the ring-switching digit layer.
+//! Wall-clock time for the complete ring-switching link.
 //!
 //! One case, and it is the whole module: [`rho_digits`] is a single coefficient
 //! loop of `RING_DEGREE = 1024` balanced digits followed by one
@@ -42,6 +42,9 @@ macro_rules! define_cases {
 
             type Rq = hc::ring::Rq;
             type PolyVec = hc::linalg::PolyVec;
+            type PolyMatrix = hc::linalg::PolyMatrix;
+            type QuotientRow = hc::ringswitch::QuotientRow;
+            type LiftedWitness = hc::ringswitch::LiftedWitness;
 
             // -- corpus -----------------------------------------------------
 
@@ -50,6 +53,42 @@ macro_rules! define_cases {
             fn row() -> Rq {
                 let degree = hc::params::RING_DEGREE;
                 Rq::from_coeffs(&support::corpus(0x8047_0000_0000_0001, degree))
+            }
+
+            fn quotient_row(seed: u64) -> QuotientRow {
+                QuotientRow::new(&support::corpus(seed, hc::params::RING_DEGREE))
+            }
+
+            fn quotient_rows(seed: u64, rows: usize) -> Vec<QuotientRow> {
+                let mut out = Vec::new();
+                let mut i = 0usize;
+                while i < rows {
+                    out.push(quotient_row(seed.wrapping_add(i as u64)));
+                    i += 1;
+                }
+                out
+            }
+
+            fn vec_of(seed: u64, n: usize) -> PolyVec {
+                let mut out = Vec::new();
+                let width = hc::params::RING_DEGREE;
+                let coeffs = support::corpus(seed, n * width);
+                let mut i = 0usize;
+                while i < n {
+                    out.push(Rq::from_coeffs(&coeffs[i * width..(i + 1) * width].to_vec()));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
+            fn matrix_of(seed: u64, rows: usize, cols: usize) -> PolyMatrix {
+                let mut out = Vec::new();
+                let mut i = 0usize;
+                while i < rows {
+                    out.push(vec_of(seed.wrapping_add(i as u64), cols));
+                    i += 1;
+                }
+                PolyMatrix::new(out)
             }
 
             // -- digests (outside every timed region) -----------------------
@@ -74,6 +113,10 @@ macro_rules! define_cases {
                     i += 1;
                 }
                 acc
+            }
+
+            fn d_bool(b: &bool) -> u64 {
+                u64::from(*b)
             }
 
             // -- the reconstruction check -----------------------------------
@@ -115,6 +158,76 @@ macro_rules! define_cases {
                 )
             }
 
+            /// `rhoAsRq`: copy the quotient polynomial's coefficient
+            /// presentation into the ring carrier.
+            pub fn rho_as_rq(m: Mode<'_, '_>, _degree: usize) -> u64 {
+                let rho = quotient_row(0x8047_0000_0000_0010);
+                support::run(m, || rho.to_rq(), d_rq)
+            }
+
+            /// One flattened `(row, digit)` entry at the real ring degree.
+            pub fn rho_digit_as_rq(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let rho = quotient_rows(0x8047_0000_0000_0020, rows);
+                let j = rows * hc::params::GADGET_DIGITS - 1;
+                support::run(
+                    m,
+                    || hc::ringswitch::rho_digit_as_rq(black_box(&rho), black_box(j)),
+                    d_rq,
+                )
+            }
+
+            /// W3 REDUCED: the real `z` has 57,344 ring elements (~448 MiB)
+            /// and materializing its copy makes the peak ~896 MiB. Removal
+            /// condition: a fused/streaming lift commitment, not faster ring
+            /// multiplication and not a smaller sumcheck cube.
+            pub fn lift_message(m: Mode<'_, '_>, z_len: usize) -> u64 {
+                let w = LiftedWitness::new(
+                    vec_of(0x8047_0000_0000_0030, z_len),
+                    quotient_rows(0x8047_0000_0000_0040, 2),
+                );
+                support::run(m, || hc::ringswitch::lift_message(black_box(&w)), d_polyvec)
+            }
+
+            /// W1 REDUCED: the real key is `1 × 57,384`, hence 57,384
+            /// schoolbook ring products (~6.02e10 field operations). Removal
+            /// condition: a sub-quadratic `ring::mul` champion.
+            pub fn lift_commit(m: Mode<'_, '_>, z_len: usize) -> u64 {
+                let rho_rows = 1usize;
+                let width = z_len + rho_rows * hc::params::GADGET_DIGITS;
+                let w = LiftedWitness::new(
+                    vec_of(0x8047_0000_0000_0050, z_len),
+                    quotient_rows(0x8047_0000_0000_0060, rho_rows),
+                );
+                let d_key = matrix_of(0x8047_0000_0000_0070, 1, width);
+                support::run(
+                    m,
+                    || hc::ringswitch::lift_commit(black_box(&d_key), black_box(&w)),
+                    d_polyvec,
+                )
+            }
+
+            /// The full five-row quotient-digit check at the real constants.
+            /// Its verdict is provably always true at `(16, 15)`; retaining the
+            /// computation makes parameter drift observable.
+            pub fn rho_digits_short_check(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let rho = quotient_rows(0x8047_0000_0000_0080, rows);
+                support::run(
+                    m,
+                    || hc::endpiece::rho_digits_short_check(black_box(&rho)),
+                    d_bool,
+                )
+            }
+
+            /// The real 57,344-entry `z` scan. Its ~448 MiB input is built once
+            /// outside the timed region; only the shortness decision is timed.
+            pub fn lift_short_check(m: Mode<'_, '_>, z_len: usize) -> u64 {
+                let w = LiftedWitness::new(
+                    PolyVec::zeros(z_len),
+                    quotient_rows(0x8047_0000_0000_0090, hc::params::RLIN_ROWS),
+                );
+                support::run(m, || hc::endpiece::lift_short_check(black_box(&w)), d_bool)
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -151,6 +264,21 @@ fn ringswitch_benches(c: &mut Criterion) {
 
     // @covers ringswitch::rho_digits
     bench_case!(c, "ringswitch/rho_digits", rho_digits, [degree]);
+    // @covers ringswitch::QuotientRow::to_rq
+    bench_case!(c, "ringswitch/rho_as_rq", rho_as_rq, [degree]);
+    // @covers ringswitch::rho_digit_as_rq
+    bench_case!(c, "ringswitch/rho_digit_as_rq", rho_digit_as_rq, [hachi::params::RLIN_ROWS]);
+    // W3 REDUCED; see the case documentation for arithmetic and removal condition.
+    // @covers ringswitch::lift_message
+    bench_case!(c, "ringswitch/lift_message", lift_message, [8]);
+    // W1 REDUCED; see the case documentation for arithmetic and removal condition.
+    // @covers ringswitch::lift_commit
+    bench_case!(c, "ringswitch/lift_commit", lift_commit, [4]);
+    // @covers endpiece::rho_digits_short_check
+    bench_case!(c, "endpiece/rho_digits_short_check", rho_digits_short_check, [hachi::params::RLIN_ROWS]);
+    // Real constants. The 448 MiB input is constructed outside the timed region.
+    // @covers endpiece::lift_short_check
+    bench_case!(c, "endpiece/lift_short_check", lift_short_check, [hachi::params::RLIN_COLS]);
 }
 
 criterion_group! {

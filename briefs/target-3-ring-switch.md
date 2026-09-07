@@ -1,4 +1,4 @@
-# Brief: `ArkLib.Lattices.Ajtai.InnerOuter.{rhoAsRq, rhoDigitAsRq, liftMessage, hachiLiftCom, rhoDigitsShortCheck, liftShortCheck}`  (ArkLib @ `294b3f0b0f46e1485c878a217e9de764855f5915`)
+# Brief: `ArkLib.Lattices.Ajtai.InnerOuter.{rhoAsRq, rhoDigitAsRq, liftMessage, hachiLiftCom, rhoDigitsShortCheck, liftShortCheck}`  (ArkLib @ `d51d8bc3c22062bf21385bd15b39d390b0fe4584`)
 
 Stage 3 target **3**, the ring-switching link. Rust home: a new `hachi/src/ringswitch.rs`.
 Every `file:line` below is in `hachi/.lake/packages/Arklib/ArkLib/` at the rev above, which
@@ -6,15 +6,31 @@ is the rev `hachi/lake-manifest.json` records for `Arklib` (`lake-manifest.json:
 `STAGE2_SCOPING.md` §§ "Erasure catalogue", "Ordered target list + scale policies",
 "Parameter mapping", "API mapping from HachiRuntime"; corrections to that file are marked ⊗.
 
-Sources: `Commitments/Functional/Hachi/RingSwitch/Reduction.lean:252–300` (the three carriers
-plus the commitment), `Commitments/Functional/Hachi/EndPiece/Reduction.lean:111–145` (the two
+Sources: `Commitments/Functional/Hachi/RingSwitch/Reduction.lean:249–283` (the three carriers
+plus the commitment), `Commitments/Functional/Hachi/EndPiece/Reduction.lean:111–131` (the two
 short checks), with `RingSwitch/RhoDigits.lean` supplying `rhoDigits`/`rhoDigitCount`.
+
+## Re-base from `294b3f0` to `d51d8bc` (2026-09-07)
+
+The six computational definitions are unchanged. The pin does change the concrete instantiation
+and deletes three convenience lemmas the old brief cited:
+
+* `Z_DIGITS` is now **5**, so `RLIN_COLS = 57_344`, `LIFT_COLS = 57_384`, and `M_ZERO = 26`.
+  The quotient digit count remains `rhoDigitCount q bZero = 8`; it is independent of `Z_DIGITS`.
+* `hachiLiftCom_TCom`, `hachiLiftCom_com`, and
+  `rhoDigitsShortCheck_eq_true_of_digitBaseOk` were removed. Their statements still follow by
+  `rfl`, `rfl`, and `rhoDigitsShortCheck_eq_true_iff` composed with
+  `rhoDigitsShort_of_digitBaseOk`, respectively; target 3 must not rely on the old names.
+* The target follows the settled API map: the four ring-switch carriers live in `ringswitch.rs`;
+  the two checks live in `endpiece.rs`, which target 6 will extend.
+* All source locations and the scale arithmetic below were re-read from the checked-out ArkLib
+  package, whose `HEAD` and `lake-manifest.json` both resolve to `d51d8bc`.
 
 ---
 
 ## Definition chain
 
-**1. `rhoAsRq` — a quotient row read back as a ring element.** `RingSwitch/Reduction.lean:252`
+**1. `rhoAsRq` — a quotient row read back as a ring element.** `RingSwitch/Reduction.lean:249`
 
 ```
 rhoAsRq Φ p = Rq.ofFinCoeff Φ Φ.φ.natDegree p.coeff
@@ -27,9 +43,9 @@ i.e. `⟨Φ.reduce (∑ k ∈ range N, monomial k (c k)), _⟩` — `Rq.mk` at `
 `ToCompPoly/Univariate/Basic.lean:294`. **The `reduce` is provably a no-op here**:
 `Rq.ofFinCoeff_coeff` (`Rq.lean:271`) discharges it from `N ≤ deg φ`, which holds with
 equality (`N = Φ.φ.natDegree`). ArkLib's own docstring calls this "a change of presentation,
-not a reduction" (`Reduction.lean:249–250`).
+not a reduction" (`Reduction.lean:246–248`).
 
-**2. `rhoDigitAsRq` — entry `j` of the quotient block.** `RingSwitch/Reduction.lean:259–261`
+**2. `rhoDigitAsRq` — entry `j` of the quotient block.** `RingSwitch/Reduction.lean:256–260`
 
 ```
 rhoDigitAsRq Φ b ρ j = rhoAsRq Φ (rhoDigits Φ b (ρ (finProdFinEquiv.symm j).1)
@@ -43,7 +59,7 @@ with `rhoDigits Φ b ρ u = CPolynomial.ofFinCoeff Φ.φ.natDegree (fun k => bal
 `rhoDigitCount q b = Nat.clog b q` (`RhoDigits.lean:66`).
 
 The flat index splits digit-major within each row: `j ↦ (j / δ, j % δ)`, "the same flattening
-the gadget matrix uses (`gadgetEntry_finProdFinEquiv`)" (`Reduction.lean:255–258`), which is
+the gadget matrix uses (`gadgetEntry_finProdFinEquiv`)" (`Reduction.lean:253–255`), which is
 exactly the layout `PolyVec.flattenBlocks` uses (`Data/Lattices/Vectors.lean:55–57`) and which
 `hachi/src/gadget.rs:41` already implements as flat index `digits·i + e`.
 
@@ -57,7 +73,7 @@ exactly the layout `PolyVec.flattenBlocks` uses (`Data/Lattices/Vectors.lean:55�
 so the whole of 1+2 is **one `d`-iteration loop of `balanced_digit_at`**, with no intermediate
 polynomial. Both rewrite lemmas are already proved at the pin; nothing has to be invented.
 
-**3. `liftMessage` — the committed vector.** `RingSwitch/Reduction.lean:273–275`
+**3. `liftMessage` — the committed vector.** `RingSwitch/Reduction.lean:270–272`
 
 ```
 liftMessage Φ b w = Fin.append w.z (rhoDigitAsRq Φ b w.ρ)
@@ -70,7 +86,7 @@ are the two projection lemmas. `w : LiftedWitness Φ μ n` is
 `⟨z : Fin μ → Rq Φ, ρ : Fin n → CPolynomial (ZMod q), hρ : ∀ i, (ρ i).toPoly.natDegree ≤ d − 1⟩`
 (`ProofSystem/RingSwitching/Lift/Reduction.lean:80–86`).
 
-**4. `hachiLiftCom` — the Ajtai lift commitment.** `RingSwitch/Reduction.lean:281–285`
+**4. `hachiLiftCom` — the Ajtai lift commitment.** `RingSwitch/Reduction.lean:277–283`
 
 ```
 (hachiLiftCom Φ bound bDig D).TCom = Simple.Commitment Φ dRows
@@ -83,12 +99,12 @@ are the two projection lemmas. `w : LiftedWitness Φ μ n` is
 `Mul (Rq Φ)` = `Rq.mk Φ (a.1 * b.1)` (`Rq.lean:110`) = `Φ.reduce (a.1 * b.1)`
 (`Rq.lean:96`, `Core/Basic.lean:67`) — the CompPoly `CPolynomial` product followed by
 `modByMonic`, i.e. the schoolbook negacyclic convolution `hachi/src/ring.rs:286` implements.
-Two `rfl` unfolding lemmas exist and should be used rather than re-derived:
-`hachiLiftCom_TCom` (`Reduction.lean:291–293`, `TCom = CarrierCom Φ dRows`) and
-`hachiLiftCom_com` (`Reduction.lean:297–300`).
+Both fields reduce by `rfl`: `TCom = CarrierCom Φ dRows`, and `com w = Simple.commit Φ D
+(liftMessage Φ bDig w)`. The named unfolding lemmas present at `294b3f0` were deleted before
+`d51d8bc`; unfold `hachiLiftCom` directly in the equivalence proof.
 
 Instantiated for the chain by `nonrecursiveLiftCom P D = hachiLiftCom 𝓜(q,α) P.γ P.bZero D`
-(`Hachi/Concrete.lean:59–62`), i.e. `bound := P.γ`, `bDig := P.bZero`.
+(`Hachi/Concrete.lean:63–66`), i.e. `bound := P.γ`, `bDig := P.bZero`.
 
 **5. `rhoDigitsShortCheck`.** `EndPiece/Reduction.lean:111–113`
 
@@ -103,7 +119,7 @@ Decides `RhoDigitsShort` (`RingSwitch/Reduction.lean:161–163`) exactly
 discharged by `rhoDigits_coeff`'s truncation. `valMinAbs.natAbs` is the centered absolute
 value — the spec of `hachi/src/commit.rs:75–88`'s `centered_abs`.
 
-**6. `liftShortCheck`.** `EndPiece/Reduction.lean:144–145`
+**6. `liftShortCheck`.** `EndPiece/Reduction.lean:130–131`
 
 ```
 liftShortCheck Φ bound bDig w =
@@ -114,10 +130,10 @@ liftShortCheck Φ bound bDig w =
 `Rq.lInftyNorm a = (range Φ.φ.natDegree).sup (fun k => (a.1.coeff k).valMinAbs.natAbs)`
 (`Data/Lattices/CyclotomicRing/NormBounds/Basic.lean:125–126` and `:117–118`). Decides
 `liftShort Φ bound bDig w = vecLInftyNorm Φ w.z ≤ bound ∧ RhoDigitsShort Φ bound bDig w.ρ`
-(`RingSwitch/Reduction.lean:211–212`) exactly (`liftShortCheck_eq_true_iff`,
-`EndPiece/Reduction.lean:149–152`).
+(`RingSwitch/Reduction.lean:209–210`) exactly (`liftShortCheck_eq_true_iff`,
+`EndPiece/Reduction.lean:135–138`).
 
-**Consumer, for context only.** `endPieceCheck` (`EndPiece/Reduction.lean:157–161`) is
+**Consumer, for context only.** `endPieceCheck` (`EndPiece/Reduction.lean:143–147`) is
 `(K.com w == stmt.t) && liftShortCheck … && (wTableMleEval … == stmt.value)`; the `==` is the
 explicit `[BEq K.TCom]` binder that `STAGE2_SCOPING.md` § "Decision 3" flagged. `wTableMleEval`
 is target 6's, not this one's.
@@ -126,7 +142,7 @@ is target 6's, not this one's.
 
 | Check | Bound it tests | Kind | Value in the chain |
 |---|---|---|---|
-| `liftShortCheck` conjunct 1 | `bound` = `P.γ` (`Concrete.lean:62`) | `ℓ∞` over `Rq` coefficients | `CHAIN_GAMMA` = `bZero − 1` = **15** |
+| `liftShortCheck` conjunct 1 | `bound` = `P.γ` (`Concrete.lean:63–66`) | `ℓ∞` over `Rq` coefficients | `CHAIN_GAMMA` = `bZero − 1` = **15** |
 | `liftShortCheck` conjunct 2 = `rhoDigitsShortCheck` | the same `bound` = `P.γ` | `ℓ∞` over centered digit coefficients | **15** |
 | — | — | — | — |
 | *not reached:* `BETA_SQ` | squared-`ℓ₂`, weak-opening relation only | `commit::verify_weak` | see § Parameters |
@@ -161,11 +177,11 @@ target needs. Split per `NOTES.md` § "Chosen parameters" and `STAGE2_SCOPING.md
 
 | Const | Value | Split | Derivation, verified |
 |---|---|---|---|
-| `D_ROWS` (`dRows`) | 1 | **pinned** (Fig. 9 `n_D`, free in ArkLib) | `dRows` is a free `{dRows : ℕ}` at `Reduction.lean:281` |
+| `D_ROWS` (`dRows`) | 1 | **pinned** (Fig. 9 `n_D`, free in ArkLib) | `dRows` is a free `{dRows : ℕ}` at `Reduction.lean:277` |
 | `RHO_DIGIT_COUNT` (`δρ`) | **8** | **derived** | `rhoDigitCount q bZero = Nat.clog 16 q` (`RhoDigits.lean:66`); `16^7 = 268 435 456 < q ≤ 16^8 = 4 294 967 296` |
-| `RLIN_COLS` (`μ₀`) | **81 920** | **derived** | `rlinCols 1 8 8 8 10 10 = 2^10·8 + (2^10·(1·8) + 2^10·8·8) = 8192 + 8192 + 65 536` (`RingSwitch/Rlin.lean:153–154`, notation at `Concrete.lean:48–50`) |
-| `RLIN_ROWS` (`n₀`) | **5** | **derived** | `rlinRows 1 1 1 = 1 + (1 + (1 + (1 + 1)))` (`Rlin.lean:158–159`, notation at `Concrete.lean:51`) |
-| `LIFT_COLS` | **81 960** | **derived** | `μ₀ + n₀·δρ = 81 920 + 5·8`; the width at `Reduction.lean:282` / `Concrete.lean:60` |
+| `RLIN_COLS` (`μ₀`) | **57 344** | **derived** | `rlinCols 1 8 8 5 10 10 = 2^10·8 + (2^10·(1·8) + 2^10·8·5) = 8192 + 8192 + 40 960`; `τ = Z_DIGITS = 5` at this pin |
+| `RLIN_ROWS` (`n₀`) | **5** | **derived** | `rlinRows 1 1 1 = 1 + (1 + (1 + (1 + 1)))` |
+| `LIFT_COLS` | **57 384** | **derived** | `μ₀ + n₀·δρ = 57 344 + 5·8`; the width at `Reduction.lean:278` / `Concrete.lean:64` |
 | `CHAIN_GAMMA` (`P.γ`) | **15** | **derived** | `γ = bZero − 1` (`HonestChain.lean:169–180, 186–193`) |
 | `B_ZERO` (`P.bZero`) | 16 | **derived** = `b` | `ofPinnedDigitBase` sets `bZero := b` (`HonestChain.lean:171`) |
 
@@ -173,71 +189,62 @@ target needs. Split per `NOTES.md` § "Chosen parameters" and `STAGE2_SCOPING.md
 (`STAGE2_SCOPING.md` § "Decision 4", verified there against `Gadget/Core.lean:133, 148–164`);
 this target consumes `balanced_digit_at` and adds nothing to the digit layer.
 
-### `BETA_SQ` and its exponent τ — contested, and **this target does not reach it**
+### `BETA_SQ` and its exponent τ — settled at 5, and **this target does not reach it**
 
-`BETA_SQ` is written **symbolically** here: it is `quadEvalBetaSq γ b τ d m δ`
-(`QuadEval/Soundness.lean:106`, a formal-parameter τ), a **squared-`ℓ₂`** bound belonging to the
-*weak-opening* relation and checked only by `commit::verify_weak`. The user has chosen τ = 4; a
-parallel session is implementing that; the tree at the time of writing shows the τ = 8 literal
-(`hachi/src/params.rs:168–206`). No number is asserted here, and none is needed: as the table
+`BETA_SQ` is `quadEvalBetaSq γ b τ d m δ` (`QuadEval/Soundness.lean:106`, a formal-parameter
+τ), a **squared-`ℓ₂`** bound belonging to the *weak-opening* relation and checked only by
+`commit::verify_weak`. At this pin and in `params.rs`, τ is 5. Its numeric value is not needed:
+as the table
 in § Definition chain shows, **`liftShortCheck` and `rhoDigitsShortCheck` test `ℓ∞ ≤ P.γ = 15`,
 not `βSq`, and not `params.rs`'s `GAMMA = 16` either** (that is the weak-opening `γ̄ = b`,
 `params.rs:149–166`; `STAGE2_SCOPING.md` F1/S7's two-gammas flag applies verbatim). So the
-contested value **does not reach this target's semantics**, and the equivalence proofs for all
+value **does not reach this target's semantics**, and the equivalence proofs for all
 six definitions can be written today without waiting on it.
 
 One indirect line, as requested. τ enters this target only as `zDigits` inside
 `rlinCZ messageDigits zDigits m = 2^m · messageDigits · zDigits` (`Rlin.lean:166`), hence in
 `μ₀` and so in `LIFT_COLS` — the width of `D` and of `liftMessage`:
 
-* **τ = zDigits = 8** (the tree's reading, and the one the pin forces on the composed path —
-  `Correctness.lean:509–516` instantiates `messageDigits = innerDigits = zDigits = δ P` and
-  discharges `hqz : q ≤ b^zDigits` by `Nat.le_pow_clog`, which **fails at 4** since
-  `16^4 = 65 536 ≪ q`): `μ₀ = 81 920`, `LIFT_COLS = 81 960`.
-* **If τ = 4 were adopted as `zDigits`**: `μ₀ = 8192 + 8192 + 1024·8·4 = 49 152`,
-  `LIFT_COLS = 49 192` — a 40% narrower lift key. Same order of magnitude, **same REDUCED
-  verdict** for `lift_commit`, no change to any semantics claim in this brief.
-* **If τ = 4 is adopted only inside the weak-opening `BETA_SQ` literal** (a
-  `verify_weak`-local reading): this target is **entirely untouched**.
+At `d51d8bc`, **τ = zDigits = 5**. Thus `μ₀ = 8192 + 8192 + 1024·8·5 = 57 344`
+and `LIFT_COLS = 57 384`. The pin supplies a bounded five-digit response decomposition, so the
+old brief's hypothetical τ=4/τ=8 branches are obsolete. This target still does not read
+`BETA_SQ`: τ affects it only indirectly through the width of `w.z` and the lift key.
 
 `δρ = rhoDigitCount q bZero = Nat.clog 16 q = 8` is a **different quantity** from `zDigits`
 (quotient digits vs response digits) that happens to equal 8 too, so the `n₀·δρ = 40` tail of
-`LIFT_COLS` is fixed regardless of the τ outcome. ⊗ Add this pair to
-`STAGE2_SCOPING.md` F3's value-**8** collision row, which currently lists
-`GADGET_DIGITS`/`Z_DIGITS`/`RHO_DIGIT_COUNT` without noting that `Z_DIGITS` is the *only*
-τ-sensitive one of the three.
+`LIFT_COLS` is fixed. `Z_DIGITS = 5` no longer collides numerically with
+`GADGET_DIGITS = RHO_DIGIT_COUNT = 8`.
 
 ### `D` is a caller input, not a constant, and there is no keygen to invent
 
 Verified at the pin, three places:
 
 * `hachiLiftCom` takes `(D : Simple.PublicParams Φ dRows (μ + n * rhoDigitCount q bDig))` as an
-  explicit argument (`Reduction.lean:281–282`).
+  explicit argument (`Reduction.lean:277–278`).
 * Its section note **"Why the lift needs its own key"** explains that `pp.dMatrix` is the wrong
   width — `PublicParamsD.dMatrix` has `blocks * messageDigits = rlinCW` columns, the carrier
   slice `ŵ` alone — and closes: *"So the key is taken as a parameter at the matching width; a
   full treatment would sample it in `keygen` alongside `D`, which needs a new `PublicParamsD`
   field."* (`Reduction.lean:235–246`.)
 * It stays an explicit argument **all the way through `Concrete.lean`**: `nonrecursiveLiftCom`
-  (`Concrete.lean:60`), `hachiNonrecursiveConcrete` (`Concrete.lean:84`), and even the
-  correctness corollary (`Concrete.lean:113`) each take `D` as a parameter. `keygen`
+  (`Concrete.lean:63`), `hachiNonrecursiveConcrete` (`Concrete.lean:83`), and even the
+  correctness corollary (`Concrete.lean:115`) each take `D` as a parameter. `keygen`
   (`Correctness.lean:509–511`) samples `pp` and never `D`.
-  `moduleSIS_relation_of_mem_Collision`'s ⚠ Scope note says it outright: *"`D` is a parameter
-  of `hachiLiftCom` — `keygen` does not sample it alongside the inner-outer commitment's own
-  key"* (`Reduction.lean:421–425`).
+  `moduleSIS_relation_of_mem_Collision` likewise remains stated for the explicit key `D`
+  (`Reduction.lean:400–407`).
 
 **Consequence for the Rust signature.** `D` is an argument of `lift_commit`, never a `params.rs`
 const and never something `ringswitch.rs` samples:
 
 ```rust
-/// spec: `hachiLiftCom … D |>.com w`, `RingSwitch/Reduction.lean:281`
+/// spec: `hachiLiftCom … D |>.com w`, `RingSwitch/Reduction.lean:277`
 pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec
 ```
 
 with the shape invariant `d_key.rows() == params::D_ROWS && d_key.cols() == params::LIFT_COLS`
 travelling as a hypothesis on the `_spec` (the `Wf` pattern of `hachi/lean/Ring.lean`), exactly
 as `STAGE2_SCOPING.md` S6 prescribes: **`pp.d_matrix`** (the Eq. 16 carrier key, keygen-sampled,
-`RLIN_CW = 8192` wide) and **`d_key`** (this one, `D_ROWS × LIFT_COLS = 1 × 81 960`) are two
+`RLIN_CW = 8192` wide) and **`d_key`** (this one, `D_ROWS × LIFT_COLS = 1 × 57 384`) are two
 different objects and must keep two different names. ✓ S6 confirmed against the pin. No `keygen`
 is added to this crate by this target.
 
@@ -263,9 +270,9 @@ Every accumulation in this target is already-reduced-`Rq` arithmetic or a bounde
   word `< q`, then `% 16`), and a field sub of `HALF_BASE` — all inside `q`. Target 1 owns the
   headroom argument; the trap it records applies here too: **the shift must be a field add
   (mod q), never a raw `u64` add** (`STAGE2_SCOPING.md` § "Decision 4", Traps).
-* Index arithmetic: `δ·i + u ≤ 39`, `μ₀ + j ≤ 81 959`, `LIFT_COLS · d = 83 927 040`. All
-  comfortably inside `usize`; the last is the quantity that pins `m₀ = 27`
-  (`2^26 = 67 108 864 < 83 927 040 ≤ 2^27`, `STAGE2_SCOPING.md:247`) ✓.
+* Index arithmetic: `δ·i + u ≤ 39`, `μ₀ + j ≤ 57 383`, `LIFT_COLS · d = 58 761 216`. All
+  comfortably inside `usize`; the last is the quantity that pins `m₀ = 26`
+  (`2^25 = 33 554 432 < 58 761 216 ≤ 2^26`) ✓.
 
 ### The reduction that must **not** happen
 
@@ -282,10 +289,10 @@ not by an assumption; state it, do not assume it.
 `DigitBaseOk q bound bDig` (`RingSwitch/Reduction.lean:172–181`) holds at
 `(q, 15, 16)`: `one_lt : 1 < 16` ✓, `le_half : 16 ≤ q/2 = 2 147 483 598` ✓,
 `radius_le : 16/2 = 8 ≤ 15` ✓. Therefore
-`rhoDigitsShortCheck_eq_true_of_digitBaseOk` (`EndPiece/Reduction.lean:138–141`) applies, and
-ArkLib states the consequence itself: *"**The digit conjunct of `liftShortCheck` always passes**
-at an admissible digit base … So at the chain's parameters `liftShortCheck` is effectively the
-`z`-norm check alone."* (`EndPiece/Reduction.lean:130–137.)
+`rhoDigitsShortCheck_eq_true_iff` (`EndPiece/Reduction.lean:118–127`) composed with
+`rhoDigitsShort_of_digitBaseOk` (`RingSwitch/Reduction.lean:198–202`) proves the result. The
+dedicated convenience theorem and explanatory paragraph from `294b3f0` were removed before this
+pin; the fact itself is unchanged.
 
 This is the sharpest exactness trap on this target, and it is stronger than the usual
 "a corpus inside the bound tests nothing" (`arklib-analyze` § 3): the bound
@@ -329,8 +336,8 @@ rather than paper over:
   (`RhoDigits.lean:178–179`), i.e. by targets 4 and 6, not here.
 * `Rq::equals` / `PolyVec::equals` (`hachi/src/ring.rs:157`, `linalg.rs:111`) route through
   `Fp::to_u64` so exactly one notion of equality exists per type; `endPieceCheck`'s
-  `[BEq K.TCom]` binder lands on that. `hachiLiftCom_TCom` says `TCom = CarrierCom Φ dRows`
-  **by `rfl`** (`Reduction.lean:291–293`), so the commitment is a `PolyVec` of `D_ROWS = 1` ring
+  `[BEq K.TCom]` binder lands on that. Unfolding `hachiLiftCom` says
+  `TCom = CarrierCom Φ dRows` **by `rfl`**, so the commitment is a `PolyVec` of `D_ROWS = 1` ring
   elements and `PolyVec::equals` is the whole of it — no new `BEq`.
 
 ### The recompute trap in `rhoDigitsShortCheck`
@@ -347,8 +354,8 @@ semantics test. Hoisting the row out of the `k` loop is the trivial-grade form; 
 
 ## Cost model
 
-Notation, all fixed by § Parameters: `d = 1024`, `μ₀ = 81 920`, `n₀ = 5`, `δρ = 8`,
-`LIFT_COLS = 81 960`, `dRows = 1`, `Fp = 8 bytes` (`cpoly/src/field.rs:72`).
+Notation, all fixed by § Parameters: `d = 1024`, `μ₀ = 57 344`, `n₀ = 5`, `δρ = 8`,
+`LIFT_COLS = 57 384`, `dRows = 1`, `Fp = 8 bytes` (`cpoly/src/field.rs:72`).
 
 The house's own arithmetic for the dominant term is already written down and is used verbatim
 rather than re-derived: *"one schoolbook `ring::mul` at `RING_DEGREE = 1024` is `2^20` field
@@ -363,45 +370,45 @@ predicted below.
 | Op (`<module>/<case>`) | Ring muls | Ring adds | `balanced_digit_at` | `centered_abs` | Peak `Fp` bytes | Dominant term |
 |---|---|---|---|---|---|---|
 | `ringswitch/rho_digit_as_rq` (one entry) | 0 | 0 | `d` = 1 024 | 0 | 8 KiB | the digit loop |
-| `ringswitch/lift_message` | 0 | 0 | `n₀·δρ·d` = 40 960 | 0 | ~1.3 GiB in + out | **`Rq::copy` of the `z` block** |
-| `ringswitch/lift_commit` | `dRows·LIFT_COLS` = **81 960** | 81 960 | 40 960 | 0 | ~1.3 GiB (`d_key` + message) | **`ring::mul`** |
+| `ringswitch/lift_message` | 0 | 0 | `n₀·δρ·d` = 40 960 | 0 | ~896 MiB in + out | **`Rq::copy` of the `z` block** |
+| `ringswitch/lift_commit` | `dRows·LIFT_COLS` = **57 384** | 57 384 | 40 960 | 0 | ~896 MiB (`d_key` + message) | **`ring::mul`** |
 | `ringswitch/rho_digits_short_check` | 0 | 0 | `n₀·δρ·d` = 40 960 | 40 960 | 8 KiB scratch | the digit loop |
-| `ringswitch/lift_short_check` | 0 | 0 | 40 960 | `μ₀·d` = **83 886 080** | 640 MiB (`z`, resident) | the `z` scan |
+| `ringswitch/lift_short_check` | 0 | 0 | 40 960 | `μ₀·d` = **58 720 256** | 448 MiB (`z`, resident) | the `z` scan |
 
-**`lift_commit` is the whole target's cost.** 81 960 ring muls × `2^20` coefficient
-mult-and-reduce = **8.59·10^10** field operations. Scaling `exclusions.toml:88`'s own anchor
-(8192 muls ≈ 25 s) linearly gives **≈ 250 s ≈ 4 min per criterion iteration**; the ~2–4 ms/mul
-figure in the same comment brackets it at 165–330 s. Ten samples is ~40–55 minutes for one
+**`lift_commit` is the whole target's cost.** 57 384 ring muls × `2^20` coefficient
+mult-and-reduce = **6.02·10^10** field operations. Scaling `exclusions.toml:88`'s own anchor
+(8192 muls ≈ 25 s) linearly gives **≈ 175 s ≈ 3 min per criterion iteration**; the ~2–4 ms/mul
+figure in the same comment brackets it at 115–230 s. Ten samples is ~29–38 minutes for one
 case. Everything else in the table is ≤ 100 ms and invisible beside it — the norms literally
 so, as the skill's cost-model guidance predicts.
 
-**A second, independent wall: allocation width.** `d_key` at `1 × 81 960` is
-`81 960 · 1024 · 8 B = 671 416 320 B ≈ 640 MiB`; `liftMessage`'s output is the same;
-`w.z` alone is `81 920 · 1024 · 8 = 671 088 640 B = 640 MiB` exactly. So one `lift_commit` call
-needs **≈ 1.3 GiB resident** before any multiplication, and `lift_message` is
-640 MiB of `memcpy` producing a second 640 MiB. This is not a `ring::mul` cost and no
+**A second, independent wall: allocation width.** `d_key` at `1 × 57 384` is
+`57 384 · 1024 · 8 B = 470 089 728 B ≈ 448 MiB`; `liftMessage`'s output is the same;
+`w.z` alone is `57 344 · 1024 · 8 = 469 762 048 B = 448 MiB` exactly. So one `lift_commit` call
+needs **≈ 896 MiB resident** before any multiplication, and `lift_message` is
+448 MiB of copying producing a second 448 MiB. This is not a `ring::mul` cost and no
 multiplication champion removes it.
 
 ### Scale policy (fixed by `STAGE2_SCOPING.md` § "Scale policies", row 3, with one refinement)
 
-`STAGE2_SCOPING.md:539` reads: *semantics tests* "real consts except `lift_commit` (81960-wide)
+`STAGE2_SCOPING.md` reads: *semantics tests* "real consts except `lift_commit` (57384-wide)
 → REDUCED"; *bench cases* "REDUCED for `lift_commit`; `liftShortCheck`/`rhoDigitsShortCheck`
 real". Applied, with the mandatory written note per case:
 
 | Case | Policy | Note the case must carry, and the removal condition |
 |---|---|---|
-| `ringswitch/lift_commit` | **REDUCED** | *"`dRows × LIFT_COLS = 1 × 81 960` schoolbook `ring::mul`s at `d = 1024` — `8.59·10^10` field ops, ≈ 4 min/iteration by `exclusions.toml`'s own 8192-mul ≈ 25 s anchor — plus ≈ 1.3 GiB of `Fp` for `d_key` and the message. **Removal condition: a sub-quadratic `ring::mul` champion landing** (the `exclusions.toml` Fig. 9 policy exception). This is a width-driven wall and the multiplication champion **does** remove it — unlike targets 4/5's `m₀ = 27` cube wall, which no multiplication speedup touches (`STAGE2_SCOPING.md:544–548`). Do not conflate the two."* |
-| `ringswitch/lift_message` | ⊗ **REDUCED for the bench**, real consts for the semantics test | *"640 MiB `memcpy` of the `z` block into a second 640 MiB vector, ≈ 1.3 GiB peak; a criterion run measures the allocator, not the operation. **Removal condition: a streaming/in-place `lift_commit` champion (candidate 1) that removes the materialized concatenation — NOT the `ring::mul` champion, and NOT `m₀`.** A third, distinct wall: memory, not multiplication."* |
+| `ringswitch/lift_commit` | **REDUCED** | *"`dRows × LIFT_COLS = 1 × 57 384` schoolbook `ring::mul`s at `d = 1024` — `6.02·10^10` field ops, ≈ 3 min/iteration by `exclusions.toml`'s own 8192-mul ≈ 25 s anchor — plus ≈ 896 MiB of `Fp` for `d_key` and the message. **Removal condition: a sub-quadratic `ring::mul` champion landing**. This is W1 and the multiplication champion removes it; it is not the `m₀ = 26` cube wall."* |
+| `ringswitch/lift_message` | ⊗ **REDUCED for the bench**, real consts for the semantics test | *"448 MiB copy of the `z` block into a second 448 MiB vector, ≈ 896 MiB peak; a criterion run measures the allocator, not the operation. **Removal condition: a streaming/in-place `lift_commit` champion that removes the materialized concatenation — not the `ring::mul` champion and not `m₀`.** This is W3."* |
 | `ringswitch/rho_digit_as_rq` | real consts | one 1024-iteration digit loop; birth case per `rust-bench` |
 | `ringswitch/rho_digits_short_check` | real consts | 40 960 digit evaluations, ≈ tens of µs–low ms. Test must record that the verdict is **provably constant `true`** at these consts (§ Semantics risks) |
-| `ringswitch/lift_short_check` | real consts | ⊗ 83 886 080 `centered_abs` ≈ 100 ms and **640 MiB of `z` resident**: feasible, but the input must be built once *outside* the timed region (`iter_batched`-style setup), or the case measures construction |
+| `ringswitch/lift_short_check` | real consts | ⊗ 58 720 256 `centered_abs` and **448 MiB of `z` resident**: feasible, but the input must be built once *outside* the timed region (`iter_batched`-style setup), or the case measures construction |
 
-⊗ **Two refinements to `STAGE2_SCOPING.md:539`**, offered as strengthenings rather than
-contradictions: (a) the row names only `lift_commit` as width-driven, but the *same* 81 960
-width makes `lift_message` a 1.3 GiB allocation-bound case whose removal condition is a
+⊗ **Two refinements to `STAGE2_SCOPING.md`**, offered as strengthenings rather than
+contradictions: (a) the row names only `lift_commit` as width-driven, but the same 57 384
+width makes `lift_message` an 896 MiB allocation-bound case whose removal condition is a
 *different* champion — so target 3 has **three** walls (`ring::mul` width, allocation width,
 and no `m₀` wall at all), and the scale-policy paragraph's warning against conflating walls
-needs the third name; (b) `liftShortCheck` at real consts is feasible but carries 640 MiB of
+needs the third name; (b) `liftShortCheck` at real consts is feasible but carries 448 MiB of
 resident `z`, which the row does not mention and which a bench author will otherwise put inside
 the timed region.
 
@@ -412,11 +419,11 @@ the timed region.
 Pointers only; the strategies live in their skills.
 
 1. **`opt-inplace-buffers` — fuse `liftMessage` into `hachiLiftCom`, never materialize the
-   concatenation.** `liftMessage` produces an output the size of its input (81 960 `Rq`,
-   640 MiB) that `hachiLiftCom` consumes exactly once (`Reduction.lean:285`). Split the single
-   `dot` of length 81 960 into `∑_{j<μ₀} D[i][j]·z[j] + ∑_{j<n₀δρ} D[i][μ₀+j]·rhoDigitAsRq…`,
-   accumulating in place: kills 640 MiB of `memcpy` and 640 MiB of peak. Proof handles:
-   `hachiLiftCom_com` (`Reduction.lean:297–300`), `dot`/`matVecMul` unfolding
+   concatenation.** `liftMessage` produces 57 384 `Rq` values (~448 MiB) and
+   `hachiLiftCom` consumes it exactly once (`Reduction.lean:283`). Split the single
+   `dot` of length 57 384 into `∑_{j<μ₀} D[i][j]·z[j] + ∑_{j<n₀δρ} D[i][μ₀+j]·rhoDigitAsRq…`,
+   accumulating in place: kills 448 MiB of copying and peak. Proof handles:
+   direct unfolding of `hachiLiftCom`, `dot`/`matVecMul`,
    (`Vectors.lean:83–88`), `Fin.append_left`/`_right` and `Fin.sum_univ_add`; the row-direction
    precedent `matVecMul_append_rows` is at `Rlin.lean:125–138`, the column analogue is not at
    the pin and is this candidate's lemma. **Top candidate**, and the removal condition for
@@ -435,7 +442,7 @@ Pointers only; the strategies live in their skills.
    `rho_digits_short_check` compute the **same** 40 digit rows, so a shared precompute is
    available at the composed layer.
 4. **`opt-algo-swap` — early-exit `vecLInftyNorm ≤ bound`.** `liftShortCheck` computes a full
-   `Finset.sup` over `μ₀·d = 83 886 080` centered coefficients and *then* compares
+   `Finset.sup` over `μ₀·d = 58 720 256` centered coefficients and *then* compares
    (`NormBounds/Basic.lean:117–126`). The `Bool` is unchanged by a scan that returns `false` on
    the first coefficient exceeding `bound = 15`. Wins on the rejecting path only — honest
    inputs still pay the full scan — so low priority, but it is the only algorithmic content in
@@ -447,15 +454,15 @@ Pointers only; the strategies live in their skills.
    (`hachi/src/lib.rs`, README § "The field layer comes from cpoly").
 6. **(no skill yet) — dead-branch elision, and why it should be *declined*.** At these consts
    `rhoDigitsShortCheck` is provably `fun _ => true`
-   (`rhoDigitsShortCheck_eq_true_of_digitBaseOk`, `EndPiece/Reduction.lean:138–141`), so
+   (by `rhoDigitsShortCheck_eq_true_iff` plus `rhoDigitsShort_of_digitBaseOk`), so
    `Foo.opt := true` with a proved `opt_eq_spec` is a legitimate, and maximal, optimization —
    it deletes 40 960 digit evaluations. **Do not offer it as a champion without explicit user
    sign-off**: it removes a range check from the verifier, and any later parameter move
    (`bZero > 2·γ + 1`, or `γ < ⌊bZero/2⌋`) breaks the theorem that licensed it while the code
    keeps saying `true`. Recommended instead: keep the loop and record the identity as a
    `lean/Check.lean` line, where a parameter move fails loudly.
-7. **`opt-algo-swap` on `ring::mul` — not this target's work, but its gate.** 81 960 of the
-   81 960 muls in `lift_commit` are `hachi/src/ring.rs:286`'s schoolbook convolution. The
+7. **`opt-algo-swap` on `ring::mul` — not this target's work, but its gate.** 57 384 of the
+   57 384 muls in `lift_commit` are `hachi/src/ring.rs:286`'s schoolbook convolution. The
    specification flags the direction itself: `CyclotomicRing/Core/Basic.lean:72` carries
    *"TODO add proper NTT multiplication here"*, and `hachi/src/ring.rs:37–41` records that the
    schoolbook form is deliberate and that an NTT carries an equivalence obligation of its own.
@@ -482,7 +489,7 @@ claims:**
 | ArkLib shape | Rust precedent | Verified |
 |---|---|---|
 | `finProdFinEquiv.symm j` → `(j/δ, j%δ)` | `gadget_entry` (`hachi/src/gadget.rs:121–128`: `j / digits == i`, `base_pow(j % digits)`); layout stated at `gadget.rs:41` | ✓ same flattening ArkLib names at `Reduction.lean:257` (`gadgetEntry_finProdFinEquiv`) |
-| block-major concatenation | `flatten_blocks` (`hachi/src/linalg.rs:274–288`) | ✓ shape-identical; note `liftMessage` is `Fin.append` (two *unequal* widths, 81 920 + 40), not `flattenBlocks` (equal widths), so it is `flatten_blocks`'s shape, not its call |
+| block-major concatenation | `flatten_blocks` (`hachi/src/linalg.rs:274–288`) | ✓ shape-identical; note `liftMessage` is `Fin.append` (two *unequal* widths, 57 344 + 40), not `flattenBlocks` (equal widths), so it is `flatten_blocks`'s shape, not its call |
 | `vecLInftyNorm Φ w.z ≤ bound` | `vec_l_infty_norm` (`hachi/src/commit.rs:174–186`) + `l_infty_norm` (`:115–127`) + `centered_abs` (`:75–88`) | ✓ **reused verbatim**, zero new code for `liftShortCheck`'s first conjunct |
 | `Rq.ofFinCoeff Φ (deg φ) c` | `Rq::from_coeffs` (`hachi/src/ring.rs:110–124`), spec-cited at `Rq.lean:269` with `from_coeffs_spec` already proved (`hachi/lean/RqBridge.lean:335`) | ✓ |
 | `Simple.commit Φ D s = D *ᵥ s` | `PolyMatrix::mat_vec_mul` (`hachi/src/linalg.rs:238–247`), which already cites `Ajtai/Simple/Scheme.lean:38` as *the Ajtai commitment itself* | ✓ **reused verbatim** |
@@ -496,13 +503,13 @@ That is why `≈ evalsplit` is the right size, and neither audit moved it.
 
 `hachi/lean/RqBridge.lean:108` defines the representation function as
 `toRq (v : ring.Rq) : Rq Φ := Rq.ofFinCoeff Φ N (coeffK v)` — which is, character for
-character, `rhoAsRq`'s body at `N = Φ.φ.natDegree` (`Reduction.lean:252–253`), with
+character, `rhoAsRq`'s body at `N = Φ.φ.natDegree` (`Reduction.lean:249–250`), with
 `N_le_degree` (`RqBridge.lean:112`) already proving its side condition. So if a Rust quotient row
 is a coefficient array of width `RING_DEGREE`, **`rhoAsRq` *is* the existing rep function** and
 there is nothing to translate: the `_spec` for `rho_digit_as_rq` states
 `toRq (rho_digit_as_rq …) = rhoDigitAsRq Φ …` and the `rhoAsRq` layer discharges by
 `rfl`-plus-`ofFinCoeff_coeff`. Confirms and sharpens ArkLib's own "a change of presentation,
-not a reduction" (`Reduction.lean:249–250`).
+not a reduction" (`Reduction.lean:246–248`).
 
 ### The one new carrier: the quotient row
 
@@ -541,25 +548,16 @@ not appear in this target at all — none of the six definitions mentions `F`
 at all"* ✓ verified: `EndPiece/Reduction.lean:111, 144` take no `F` argument), so target 3 does
 **not** wait on the TE Ext4 bridge.
 
-### ⊗ Module placement — a discrepancy to settle before writing files
+### Module placement — settled by the Stage 2 correction
 
-`STAGE2_SCOPING.md:353–358` assigns `lift_message`/`lift_commit` to `ringswitch.rs` and
-`lift_short_check` to **`endpiece.rs`** (with `end_piece_check`). This target hands all six to
-`ringswitch.rs`, which matches the *source* files' own split only partially: the two checks live
-in `EndPiece/Reduction.lean`, the four carriers in `RingSwitch/Reduction.lean`. Both placements
-are defensible; the checks' dependency runs the other way (they call `rho_digits`, which is
-`ringswitch.rs`'s). **Recommendation:** put `rho_digits`, `rho_digit_as_rq`, `lift_message`,
-`lift_commit` **and** `lift_short_check`/`rho_digits_short_check` in `ringswitch.rs` (this
-target, one file, one freeze), and have target 6's `endpiece.rs` *call* `lift_short_check`
-rather than define it — keeping each Rust item's `Mirrors` line in the module that owns its
-spec's dependency, and keeping target 6 to `end_piece_check` + `wTableMleEval`. Flagged rather
-than decided: it changes two rows of the API-mapping table.
+The folded correction chooses the API map: `rho_digits`, `rho_digit_as_rq`, `lift_message`, and
+`lift_commit` live in `ringswitch.rs`; `rho_digits_short_check` and `lift_short_check` live in
+`endpiece.rs`, beside the source file and the target-6 consumer. They are still onboarded and
+frozen as part of target 3 so target 6 can call them rather than reintroducing them.
 
-### ⊗ A staleness correction that affects every citation an agent copies
+### Citation audit at `d51d8bc`
 
-`hachi/src`'s spec citations were written against the previous pin (`e92dc31`) and are
-**systematically stale for two files** at `294b3f0b`, by a constant offset. Names still resolve;
-line numbers do not:
+The earlier citation correction remains valid at `d51d8bc`:
 
 | Cited in `hachi/src` | Actual at this pin |
 |---|---|

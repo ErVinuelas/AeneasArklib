@@ -501,6 +501,24 @@ example (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec :=
 -- `Rq::from_coeffs`.
 example (rho : ring.Rq) (u : Std.Usize) : Result ring.Rq := ringswitch.rho_digits rho u
 
+-- The full ring-switch link. `QuotientRow` erases to the same coefficient
+-- vector as `Rq`, while its Rust newtype prevents quotient-ring operations from
+-- being exposed on a raw quotient polynomial. The two terminal checks live in
+-- `endpiece`, matching ArkLib's source split.
+example : ringswitch.QuotientRow = ring.Rq := rfl
+example (rho : ringswitch.QuotientRow) : Result ring.Rq :=
+  ringswitch.QuotientRow.to_rq rho
+example (rho : alloc.vec.Vec ringswitch.QuotientRow) (j : Std.Usize) : Result ring.Rq :=
+  ringswitch.rho_digit_as_rq rho j
+example (z : linalg.PolyVec) (rho : alloc.vec.Vec ringswitch.QuotientRow) :
+    Result ringswitch.LiftedWitness := ringswitch.LiftedWitness.new z rho
+example (w : ringswitch.LiftedWitness) : Result linalg.PolyVec := ringswitch.lift_message w
+example (dKey : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) : Result linalg.PolyVec :=
+  ringswitch.lift_commit dKey w
+example (rho : alloc.vec.Vec ringswitch.QuotientRow) : Result Bool :=
+  endpiece.rho_digits_short_check rho
+example (w : ringswitch.LiftedWitness) : Result Bool := endpiece.lift_short_check w
+
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which
 -- is what makes the equivalence statement an equality of decisions.

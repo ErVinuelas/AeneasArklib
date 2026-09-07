@@ -64,7 +64,7 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # ruled out of `coverage` by name in `exclusions.toml`, which is the difference
 # between "not worth measuring" and "forgotten".
 MODULES = ("params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
-           "quadeval")
+           "quadeval", "endpiece")
 
 # Items whose text is worth freezing and annotating. `impl` headers and
 # associated `type`s are structure, not code that runs.

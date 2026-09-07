@@ -2094,11 +2094,21 @@ Every row that crossed 5% on identical code sits between 400 ns and 900 ns
 (`in_sb` 645, `gadget_entry` 658, `ring/zero` 675, `ring/one` 713,
 `ring/from_coeffs` 879), while `ring/constant` at 761 ns read +0.07% — so the band
 is a susceptibility, not a sentence. Below it, per-iteration overhead dominates
-and averages out; above it, the work dominates; inside it, a layout or alignment
-change of a few tens of nanoseconds *is* a 5–8% swing, and criterion's "three
-fastest settled samples" cannot average away something that is the same on every
-sample. The 09-04 audit's disassembly finding (byte-identical code, different
-placement) is the mechanism; this table is its extent.
+and averages out; above it, the work dominates; inside it, a swing of a few tens
+of nanoseconds *is* 5–8%, and criterion's "three fastest settled samples" cannot
+average away something that is the same on every sample.
+
+⊗⊗ **The mechanism stated here was wrong, corrected 2026-09-07 by the §4 audit
+below.** This paragraph read the band as the 09-04 disassembly finding —
+byte-identical code at a different *placement* — and for `in_sb` that is not
+available as an explanation: fat LTO folds the three variants of that row into
+one function at one address, so there is no placement difference to have. What
+the samples show instead is a discrete two-level machine state (~430 vs ~515 ns
+on that row, in runs of tens of consecutive samples) that the three-fastest
+estimator resolves to whichever level a variant happened to touch three times.
+The extent table stands; the cause named for it does not, and it is not the same
+cause on every row in the band (`gadget_entry` keeps three distinct copies and
+*can* differ by placement).
 
 **What follows, and what does not.** (1) On this host, `MIN_EFFECT = 5%` flat is
 about right for rows outside the band — their worst identical-code reading sits
@@ -2116,3 +2126,132 @@ until the timing-band problem is repaired. (5) None of this writes a ledger row 
 sweep records no candidate verdict — so Stage 0's ledger exit still closes with
 the first `perf-loop`; what closed today is Stage 0's *measurement-grade bench*
 item, with an id that can be cited.
+
+## The §4 audit of target 2's rows, and the merge that hides the A/B (2026-09-07)
+
+Target 1's birth run was audited under `rust-bench` §4 on 09-04; target 2's rows
+never were, and the two `*_box` cases added today needed the same treatment. Both
+debts are paid here. Twelve refute agents, three row groups (the four box rows,
+the three tensor/carrier rows, the two `z`-side gadget rows) by four lenses, all
+read-only and forbidden from benching, against the two null-slot reports of
+today. Three lenses refuted, all three on the same pair of rows, and their
+adjudicators were the three agents a session limit killed — so the adjudication
+was done by hand, which is why the confirmations below are commands rather than
+opinions.
+
+**Nine lenses found nothing.** The three tensor/carrier rows time one call to the
+named function plus the drop of its result, corpus and digest outside the timer,
+and each lands within 0.45% of 8 × `ring/mul` (1.429 ns per multiply-accumulate)
+— the containment relation holds in the direction it should. The two `z`-side
+gadget rows likewise, with `gadget_mul` paying ~20% more per digit than
+`gadget_mul_z` exactly as its `O(e)` `base_pow` recomputation predicts. Every
+`@covers` path names the function its body calls; the frozen copies differ from
+`hachi/src` only in `@genesis` stamp lines; both slots fingerprinted clean.
+
+**Finding 1 — fat LTO merges the variants, so many rows have no A/B at all.**
+Confirmed directly: `nm` on the quadeval bench binary lists
+`quadeval::now::{in_sb, in_sb_box, vec_in_sb, vec_in_sb_box}` and **no**
+`genesis::` or `candidate::` counterpart, while `carrier_entry`/`tensor_g`/
+`tensor_g1` keep all three; the three variant call sites for `in_sb`
+(`0x78514`, `0x7852b`, `0x78548`) all `call 9ab50 <quadeval::now::in_sb>`; and
+the only `_control` iter in the binary is the *genesis* one. LLVM's
+MergeFunctions folds any case whose inlined body no longer references a
+variant-distinct symbol. The same holds in the gadget binary for
+`bounded_z_gadget_decompose`, `gadget_decompose`, `balanced_gadget_decompose`,
+`base_pow` and the control, but not for `gadget_entry`, `gadget_matrix`,
+`gadget_mul` or `gadget_mul_z`.
+
+Three consequences, and the third is the one that matters. (i) On a merged row a
+null-slot sweep measures *zero* layout bias, because there is one address; the
+paragraph above is corrected accordingly. (ii) `support/mod.rs`'s rationale for
+a cross-crate control — that it is "subject to exactly the layout bias the real
+cases are" — is void in the built binary whenever the three sources are
+identical, which is to say in every null-slot calibration and for every control
+in every run. (iii) **The certified floor is therefore a lower bound.** A real
+candidate is not byte-identical, so it is not merged, so it pays a placement
+term that no null-slot sweep has ever exercised. Nothing here says the 5% floor
+is too tight; it says the measurement that would justify it cannot be taken with
+a null slot, and a floor for real candidates has to come from a sweep whose
+candidate slot holds something semantically equal but differently written.
+
+**Finding 2 — the two single-`Rq` box rows measure a regime no caller sees.**
+`in_sb`'s per-coefficient sign test (`v ≤ q/2`) compiles to a real
+data-dependent branch — the box decision itself is branchless, the dispatch is
+not — and it is a coin flip on both corpora by construction. The single-`Rq`
+rows re-feed the same 1024 coefficients about 11 million times and read
+0.437 ns/coefficient (`in_sb`) and 0.469 (`in_sb_box`); the vector rows run the
+same machine code over a stream they cannot learn and read 2.536 and 2.533. That
+is the whole 5.8× "containment inversion", and the two candidate explanations
+were excluded arithmetically: no SIMD in either loop, and 2 MiB streaming at
+8 B / 2.54 ns is 3.16 GB/s, an order of magnitude under this part's L3. What is
+left is branch memorization. **That attribution is inferred, not counter-measured**
+— `perf_event_paranoid` is 4 on this host, so `perf stat -e branches,branch-misses`
+needs a sysctl this session did not take. The decisive numbers, if anyone wants
+them: memorization predicts under 3% branch misses on `in_sb/1024` against over
+10% on `vec_in_sb/256`. The *conclusion* does not depend on settling it: under
+either explanation the single-`Rq` rows report a per-coefficient cost 5.8× below
+what a caller pays, so a candidate that changes the branch structure would read
+the wrong sign there.
+
+So: `quadeval/in_sb/1024` and `quadeval/in_sb_box/1024` **cannot carry a
+candidate verdict**, and `in_sb_box` — added this morning to fix the corpus —
+fixes the corpus and not the shape. The rows that carry the verdict are
+`vec_in_sb/256` and `vec_in_sb_box/256`. All four are kept, because deleting one
+changes what the others' ids mean. Written into the case docs.
+
+**Finding 3 — recentering can manufacture a verdict when the control's lean is
+not the binary's.** In the shake-out, `_control/quadeval` measured a candidate
+lean of **+2.24%** while the five stable rows of the same binary leaned
+**−0.16%** on average. `report` divides the control's lean out of every row, so
+every accept-column value in that binary moved about 2.2 points: `in_sb`'s raw
+−3.52%, which is noise under any floor, became an adjusted −5.63% and printed
+the verdict *faster* on a null candidate. The recentering is still right in
+principle — a signed per-binary lean is real and AeneasCompPoly measured it —
+but a control that is itself one 33 ms row, merged to a single address, is a
+one-sample estimate of that lean and it can be noisier than what it corrects.
+Not fixed here. The cheap mitigation is to read the raw `cand_vs_now` beside the
+adjusted one whenever a verdict lands near the floor; the real one is more than
+one control per binary, which is a harness change.
+
+**Two documentation defects, fixed.** The `in_sb` case doc claimed the loop is
+"branchless to the end" — true of the source, false of the binary, and the whole
+of Finding 2 lives in that gap. The `vec_in_sb` REDUCED-width note justified 256
+by an arithmetic that does not apply (it named `commit::centered_abs` in a loop,
+and 8192 would cost ~21 ms per iteration, below the binary's own control rather
+than above it); the scheme's real widths are `paper_rel_out`'s 8192 / 8192 /
+40960. The width stays at 256 — it is what has been measured since the freeze,
+and moving it is a re-freeze — but the reason recorded for it is now the true
+one. Also documented: `box_coeffs` emits a zero coefficient at rate 1/16 against
+`support`'s no-zeros rule, which is deliberate (a balanced digit is legitimately
+zero) and harmless (nothing in `in_sb` short-circuits).
+
+## Target 3 opened: the full ring-switch link (2026-09-07)
+
+The target-3 brief was re-read against ArkLib `d51d8bc` before translation.
+The six computational definitions are unchanged, but the concrete width is now
+`RLIN_COLS + RLIN_ROWS·rhoDigitCount = 57344 + 5·8 = 57384`, `M_ZERO = 26`,
+and three old convenience lemmas were deleted. The proof statements therefore
+unfold `hachiLiftCom` directly and derive the digit-check tautology through
+`rhoDigitsShortCheck_eq_true_iff` plus `rhoDigitsShort_of_digitBaseOk`.
+
+The Rust surface is now complete: `QuotientRow`, `LiftedWitness`, `rhoAsRq`,
+`rhoDigitAsRq`, `liftMessage`, `hachiLiftCom`, `rhoDigitsShortCheck`, and
+`liftShortCheck`. The two checks live in `endpiece.rs`, per the settled API map;
+target 6 will extend that module. Eleven ring-switch semantics tests pass, the
+full Rust suite and strict clippy pass, extraction adds only transparent
+definitions, `make build` is green, and the six exact equivalence statements
+typecheck in `lean-wip/RingSwitch.lean` with their intended `sorry` debt.
+
+Freeze policy keeps the walls separate. `lift_commit` is W1 REDUCED: 57,384
+schoolbook ring products, removed by a sub-quadratic `ring::mul`. `lift_message`
+is W3 REDUCED in the benchmark: copying a 448 MiB `z` creates an approximately
+896 MiB peak, removed only by a fused/streaming lift. `lift_short_check` retains
+the real 57,344-entry `z` scan and constructs that input outside the timed
+region. The quotient-digit verdict is provably always true at `(bDig,bound) =
+(16,15)`; its computation remains in the baseline so parameter drift cannot
+silently delete a verifier check.
+
+The genesis and candidate copies and all benchmark coverage are staged but
+unstamped. The required next actions are the standard interleaving: commit the
+target-3 translation/freeze, run `make bench-stamp`, commit the stamp-only
+change, then run `make bench-check` and the birth benchmark.
