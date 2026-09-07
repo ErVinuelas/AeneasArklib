@@ -29,8 +29,14 @@
 # they carry no `Mirrors` marker, because a const is a *value chosen for a
 # generic ArkLib parameter* rather than a translation of a definition
 # (`RING_LOG_DEGREE` is the argument `α` of `hachiModulus`, not `hachiModulus`).
-# Never mirrored, so never owed a bench, so nothing to excuse -- and `params` is
-# the one module with no `[[bench]]` target at all.
+# Never mirrored, so never owed a bench, so nothing to excuse. `params` is
+# consequently the one module in `harness.py`'s MODULES with no `[[bench]]`
+# target -- a claim that was briefly false, when `endpiece.rs` had no target of
+# its own and its two items were benched from `benches/ringswitch.rs`. That
+# arrangement is now a `coverage --strict` failure in its own right
+# (`covered_paths`, `_one_control_per_binary`), so the claim is checked rather
+# than merely written down: a module with mirrored items has a bench binary, or
+# its items are listed below.
 
 [exclusions]
 

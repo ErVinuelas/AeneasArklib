@@ -1,32 +1,185 @@
-//! Wall-clock time for the complete ring-switching link.
+//! Wall-clock time for the ring-switching link: the quotient-digit map, the two
+//! presentation changes over it, and the lifted witness the Ajtai lift commits.
 //!
-//! One case, and it is the whole module: [`rho_digits`] is a single coefficient
-//! loop of `RING_DEGREE = 1024` balanced digits followed by one
-//! `Rq::from_coeffs`. No ring product, no allocation growth beyond the two
-//! coefficient vectors -- so the reading is microseconds, not milliseconds, and
-//! it is dominated by the same thing the balanced gadget layer is: modular
-//! reduction by `P`, five per digit in the first translation
-//! (two constant `Fp::new`s, the shift add, `digit_at`'s own `Fp::new`, the
-//! recentring subtract), against the unsigned path's one.
+//! Five cases. Four run at the widths the scheme instantiates; one is
+//! **REDUCED**, with its arithmetic and its removal condition recorded at the
+//! case:
 //!
-//! # Size, and why the digit index is `0`
+//! | case | size | why |
+//! |---|---|---|
+//! | `rho_digits` | `RING_DEGREE` | real; one digit of one row |
+//! | `rho_as_rq` | `RING_DEGREE` | real; a `d`-wide copy |
+//! | `rho_digit_as_rq` | `RLIN_ROWS` | real row count; one flattened entry |
+//! | `lift_message` | `RLIN_COLS` × `RLIN_ROWS` | real, at a measured 904 MiB peak |
+//! | `lift_commit` | REDUCED (W1) | `LIFT_COLS = 57 384` schoolbook ring muls |
 //!
-//! `RING_DEGREE` is the only size there is: the loop runs over the row's
-//! coefficients, and the digit index `u` is a parameter to each of them.
-//! Unlike `gadget/digit_at`, the deepest index is **not** the row worth having
-//! here -- the per-index division chain is `digit_at`'s cost and is already
-//! measured there, while what this case is for is the coefficient loop and the
-//! `Rq` construction around it. Measuring at `u = 0` keeps the division chain
-//! out of the reading; a row at `u = GADGET_DIGITS - 1` would differ from this
-//! one by exactly `RING_DEGREE · (digits - 1)` shifts, which `gadget/digit_at`
-//! already prices.
+//! From the shakeout run of 2026-09-07 -- orders of magnitude, not verdicts.
+//! The machine was **not** quiet (load ~2, a browser and a music player alive)
+//! and its two `_control` readings sat 2.6% apart on identical code, so nothing
+//! here has been through `make run-bench` or earned a candidate column:
+//! `_control/ringswitch` ~36 ms, `rho_digits` ~2.4 µs, `rho_as_rq` ~725 ns,
+//! `rho_digit_as_rq` ~3.4 µs, `lift_message` ~260 ms at a measured 904 MiB peak
+//! RSS, `lift_commit` ~18 ms.
+//!
+//! The two terminal shortness checks are **not** here. They are
+//! `endpiece::*` items, so `harness.py` attributes them to a bench binary
+//! named `endpiece`, and a binary is defined by its `_control`; they live in
+//! `benches/endpiece.rs` with `_control/endpiece`. See that file's header
+//! § "Why this is its own binary" for the failure that arrangement fixes.
+//!
+//! # Sizes, and the two places a size can hide
+//!
+//! Every size a case is measured at is registered in `ringswitch_benches`
+//! below and appears in the criterion case id, and every one of them is either
+//! a `params` constant or a named file-scope constant that says which `params`
+//! constant it is a reduction of. That is not decoration: a reduced row whose
+//! reduction is invisible is a row whose composition nobody can check, and this
+//! file has already produced one.
+//! `lift_message` was registered at `[8]` while its *second* dimension, the
+//! quotient-row count, was a bare `2` inside the case body. At the real shape
+//! that row is 57 344 `z`-copies against 40 digit extractions -- ~99.96% copy
+//! by time; at `(8, 2)` it was 8 copies against 16 extractions, roughly half
+//! and half. Not a smaller version of the mixture, the opposite one. Both
+//! dimensions of a two-dimensional case now come from the file-scope constants
+//! below, next to the `params` values they are (or are not) a reduction of.
+//!
+//! # Which rows are a real A/B (the §4 audit's `nm` check)
+//!
+//! Fat LTO merges a bench case's three variants into one function whenever the
+//! inlined body no longer references a variant-distinct symbol, which a
+//! *null* slot always allows -- NOTES.md § "The §4 audit of target 2's rows",
+//! finding 1. Run on this binary built `--features candidate`, looking at the
+//! symbol that is actually timed (`Bencher::iter::<_, &mut <variant>::<case>::
+//! {closure#0}>`):
+//!
+//! | case | timed copies |
+//! |---|---|
+//! | `_control/ringswitch` | **merged** (one) |
+//! | `rho_digits` | **merged** |
+//! | `rho_as_rq` | **merged** |
+//! | `rho_digit_as_rq` | three -- `now`, `candidate`, `genesis` |
+//! | `lift_message` | three |
+//! | `lift_commit` | three |
+//!
+//! A merged row has **no layout bias to measure**, so a null-slot sweep of it
+//! reports a lower bound and its `_control` -- merged too, as every control is
+//! -- cannot correct for a term it never saw. That does not make a merged row's
+//! candidate verdict wrong: a real candidate is not byte-identical, so it does
+//! not merge and the A/B is genuine during the pass. It makes the *floor*
+//! borrowed from a null sweep optimistic for exactly those rows. Re-run the
+//! check after any edit here:
+//!
+//! ```text
+//! nm -C target/release/deps/ringswitch-* | grep 'Bencher>::iter::.*ringswitch::'
+//! ```
+//!
+//! # Why the digit index is `0` for `rho_digits` and `GADGET_DIGITS - 1` for
+//! `rho_digit_as_rq`
+//!
+//! The two cases want different things and deliberately disagree.
+//!
+//! `rho_digits` measures the **coefficient loop and the `Rq` construction**
+//! around `gadget::balanced_digit_at`. The per-index division chain inside
+//! `balanced_digit_at` is `gadget/digit_at`'s cost and is already priced there,
+//! so `u = 0` keeps it out of the reading; a row at `u = GADGET_DIGITS - 1`
+//! would differ from this one by exactly `RING_DEGREE · (digits - 1)` shifts,
+//! which `gadget/digit_at` prices.
+//!
+//! `rho_digit_as_rq` measures the **flattening**: `j / GADGET_DIGITS` selects
+//! the row and `j % GADGET_DIGITS` its digit. Here the deepest index *is* the
+//! row worth having, because the deepest index is what the caller pays.
+//! `endpiece::rho_digits_short_check` and `ringswitch::lift_message` both walk
+//! `j` over the whole `RLIN_ROWS · GADGET_DIGITS = 40`-entry block, so
+//! `u = GADGET_DIGITS - 1` is the worst entry of a loop every real consumer
+//! runs to completion -- not an unrepresentative corner. Taking it at `j = 0`
+//! instead would report the cheapest of the forty and call it the entry cost.
 //!
 //! See `benches/support/mod.rs` for the corpus discipline, the digest oracle and
 //! what the `_control` case is.
 
 mod support;
 
+use std::time::Duration;
+
 use criterion::{criterion_group, criterion_main, Criterion};
+
+// ---------------------------------------------------------------------------
+// Sizes
+//
+// Both dimensions of every multi-dimensional case, in one place, read from
+// `hachi::params` -- and from `hachi`'s copy of it deliberately, not each
+// variant's `hc::params`, so that all three variants are measured on the same
+// corpus even if a candidate edits `params.rs`. (`case!`'s digest would catch a
+// size change through `mix_len`, but a corpus that differs between variants is
+// not something a benchmark should be *able* to express.)
+//
+// One-dimensional cases take their size at their registration below, which is
+// where the criterion case id reads it from.
+// ---------------------------------------------------------------------------
+
+/// `lift_message`'s `z` width: **real**, `RLIN_COLS = 57 344` ring elements.
+///
+/// Not reduced, and the earlier `[8]` was wrong rather than merely small.
+/// `lift_message` copies `z` entry by entry and then appends
+/// `rho_rows · GADGET_DIGITS` freshly extracted digits, so at the real shape it
+/// is `57 344` copies against `40` digit extractions: **99.93% of the entries
+/// and ~99.96% of the time** is the copy (~260 ms total against 40 × the 2.4 µs
+/// `ringswitch/rho_digits` row ≈ 96 µs of extraction).
+///
+/// At `z = 8` with two quotient rows it was 8 copies against 16 extractions --
+/// call it half and half, on the same shakeout numbers. That is not a smaller
+/// version of the real mixture, it is the opposite one, and it matters because
+/// the fused/streaming lift this case's removal condition names is a change to
+/// the **copy** half. At `(8, 2)` the copy half was barely present, so the row
+/// could not have shown such a candidate winning.
+///
+/// The cost of the real shape is memory, not time: `z` is
+/// `57 344 · RING_DEGREE` field elements (~448 MiB) and `lift_message` returns
+/// a copy of it, so the case peaks at **904 MiB** (measured maximum RSS, which
+/// is the derived ~896 MiB plus the binary). That is affordable here; the
+/// inverted composition was not.
+const LIFT_MESSAGE_Z: usize = hachi::params::RLIN_COLS;
+
+/// `lift_message`'s quotient-row count: **real**, `RLIN_ROWS = 5`.
+///
+/// This is the dimension that was hidden. It was a bare `2` inside the case
+/// body, invisible at the registration and absent from the case id, so the row
+/// carried a second undocumented reduction on top of the registered one. If
+/// this case ever has to be reduced again, reduce *both* dimensions in
+/// proportion -- `z : digits` is `57 344 : 40` ≈ `1434 : 1`, so one quotient
+/// row wants `z = 8 · 1434 = 11 469` -- write the ratio down, and keep both
+/// numbers here.
+const LIFT_MESSAGE_RHO_ROWS: usize = hachi::params::RLIN_ROWS;
+
+/// `lift_commit`'s `z` width: **REDUCED**, from `RLIN_COLS = 57 344`.
+///
+/// W1. `lift_commit` is `lift_message` followed by `D *ᵥ ·` at
+/// `D_ROWS × LIFT_COLS = 1 × 57 384`, i.e. `57 384` schoolbook `ring::mul`s of
+/// `RING_DEGREE² = 2^20` field operations each -- minutes per criterion
+/// iteration. Removal condition: a sub-quadratic `ring::mul` champion, which is
+/// the same condition `exclusions.toml`'s Fig. 9 section carries.
+///
+/// **What survives the reduction is the composition**, which is what this row
+/// is for, and it survives it comfortably. Priced against the shakeout's
+/// `ring/mul` at 1.511 ms:
+///
+/// * real: `57 384 × 1.511 ms = 86.7 s` of `mat_vec_mul` against ~0.26 s of
+///   `lift_message` -- **99.70%** multiplication;
+/// * here: width `LIFT_COMMIT_Z + GADGET_DIGITS = 12`, so `12 × 1.511 ms =
+///   18.13 ms` against a measured 18.16 ms total -- **99.83%**.
+///
+/// A candidate that speeds up ring multiplication moves this row; one that
+/// speeds up the lift's copying does not, at either width. So unlike
+/// `lift_message` this case is insensitive to the mixture -- only to the ring
+/// product -- and reducing both dimensions hard is safe.
+const LIFT_COMMIT_Z: usize = 4;
+
+/// `lift_commit`'s quotient-row count: **REDUCED**, from `RLIN_ROWS = 5`.
+///
+/// One row, so the width is `LIFT_COMMIT_Z + GADGET_DIGITS`. See
+/// [`LIFT_COMMIT_Z`] for the arithmetic and for why this row tolerates the
+/// reduction that [`LIFT_MESSAGE_Z`] does not.
+const LIFT_COMMIT_RHO_ROWS: usize = 1;
 
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
@@ -115,10 +268,6 @@ macro_rules! define_cases {
                 acc
             }
 
-            fn d_bool(b: &bool) -> u64 {
-                u64::from(*b)
-            }
-
             // -- the reconstruction check -----------------------------------
 
             /// `Σ_u bᵘ · rho_digits(ρ, u) = ρ`, asserted before anything is
@@ -149,6 +298,13 @@ macro_rules! define_cases {
             /// One digit of one quotient row: `degree` balanced digits and one
             /// `Rq::from_coeffs`. See the module doc for why the digit index is
             /// `0` and not the deepest one.
+            ///
+            /// ~2.4 µs in the shakeout, which is *just* outside the 100 ns -
+            /// 2 µs band the null-slot sweep found unreliable (`rho_as_rq`
+            /// below is inside it, and says what that costs). Twenty percent of
+            /// clearance is not much: if a candidate makes this row faster it
+            /// may well land inside the band, and the verdict on it should then
+            /// be read the way `rho_as_rq`'s is.
             pub fn rho_digits(m: Mode<'_, '_>, _degree: usize) -> u64 {
                 let rho = row();
                 support::run(
@@ -159,13 +315,50 @@ macro_rules! define_cases {
             }
 
             /// `rhoAsRq`: copy the quotient polynomial's coefficient
-            /// presentation into the ring carrier.
+            /// presentation into the ring carrier. One `Rq::copy` of
+            /// `RING_DEGREE` field elements, and nothing else -- the type
+            /// change is free, the copy is the whole reading.
+            ///
+            /// The receiver is `black_box`ed. Without it the timed closure
+            /// captures a `QuotientRow` the optimizer can see the construction
+            /// of, and `to_rq` is a `Vec` push loop over its coefficients:
+            /// exactly the shape LLVM can hoist, narrow, or fold against a
+            /// known source. Every other case in this file black-boxes its
+            /// inputs (`support/mod.rs` § "the two failures a green bench run
+            /// will not show you"); this one was the exception, and there was
+            /// no reason for it.
+            ///
+            /// **This row cannot carry a candidate verdict as the harness
+            /// stands.** A `d = 1024` copy read **~725 ns** in the shakeout,
+            /// which is inside the 100 ns - 2 µs band where the certified
+            /// null-slot sweep of 2026-09-07 measured byte-identical code
+            /// producing false 5-8% verdicts after recentering (NOTES.md § "The
+            /// certified null-slot sweep"; `perf-loop` § "The one rule"). The
+            /// 5% floor held everywhere outside that band and does not hold
+            /// inside it, so this row waits on a per-band floor or a local
+            /// control. It is kept because the vs-genesis column and the
+            /// digest oracle are still worth having on it.
             pub fn rho_as_rq(m: Mode<'_, '_>, _degree: usize) -> u64 {
                 let rho = quotient_row(0x8047_0000_0000_0010);
-                support::run(m, || rho.to_rq(), d_rq)
+                support::run(m, || black_box(&rho).to_rq(), d_rq)
             }
 
-            /// One flattened `(row, digit)` entry at the real ring degree.
+            /// One flattened `(row, digit)` entry at the real ring degree and
+            /// the real row count.
+            ///
+            /// `j` is the **deepest** index of the block, `rows ·
+            /// GADGET_DIGITS - 1`, so `j % GADGET_DIGITS = GADGET_DIGITS - 1`
+            /// and the digit extraction pays the longest division chain
+            /// `gadget::balanced_digit_at` has. That is the opposite of
+            /// `rho_digits` above, which is measured at `u = 0` -- deliberately,
+            /// and the module header § "Why the digit index is `0` for
+            /// `rho_digits` and `GADGET_DIGITS - 1` for `rho_digit_as_rq`"
+            /// is where the two choices are argued against each other. In
+            /// short: `rho_digits` is measuring the coefficient loop, so the
+            /// chain is noise it excludes; this case is measuring what a caller
+            /// pays per block entry, and every caller (`lift_message`,
+            /// `endpiece::rho_digits_short_check`) runs `j` to the end of the
+            /// block, so the deepest entry is a real entry rather than a corner.
             pub fn rho_digit_as_rq(m: Mode<'_, '_>, rows: usize) -> u64 {
                 let rho = quotient_rows(0x8047_0000_0000_0020, rows);
                 let j = rows * hc::params::GADGET_DIGITS - 1;
@@ -176,23 +369,42 @@ macro_rules! define_cases {
                 )
             }
 
-            /// W3 REDUCED: the real `z` has 57,344 ring elements (~448 MiB)
-            /// and materializing its copy makes the peak ~896 MiB. Removal
-            /// condition: a fused/streaming lift commitment, not faster ring
-            /// multiplication and not a smaller sumcheck cube.
+            /// The lift's message vector at the **real** shape: `z` of
+            /// `RLIN_COLS = 57 344` ring elements copied entry by entry, then
+            /// `RLIN_ROWS · GADGET_DIGITS = 40` quotient digits extracted and
+            /// appended. ~99.96% of the time is the copy, which is the mixture
+            /// a caller actually sees and the one the removal condition is
+            /// about: a fused/streaming lift commitment, **not** faster ring
+            /// multiplication (there is no ring product here at all) and not a
+            /// smaller sumcheck cube.
+            ///
+            /// ~448 MiB in, ~448 MiB out; measured peak RSS 904 MiB. Both
+            /// dimensions come from [`crate::LIFT_MESSAGE_Z`] and
+            /// [`crate::LIFT_MESSAGE_RHO_ROWS`], which is where the W3 note that
+            /// used to sit here now lives -- including why the previous
+            /// `(z = 8, rho_rows = 2)` reading was inverted rather than small.
             pub fn lift_message(m: Mode<'_, '_>, z_len: usize) -> u64 {
                 let w = LiftedWitness::new(
                     vec_of(0x8047_0000_0000_0030, z_len),
-                    quotient_rows(0x8047_0000_0000_0040, 2),
+                    quotient_rows(0x8047_0000_0000_0040, crate::LIFT_MESSAGE_RHO_ROWS),
                 );
                 support::run(m, || hc::ringswitch::lift_message(black_box(&w)), d_polyvec)
             }
 
-            /// W1 REDUCED: the real key is `1 × 57,384`, hence 57,384
-            /// schoolbook ring products (~6.02e10 field operations). Removal
-            /// condition: a sub-quadratic `ring::mul` champion.
+            /// W1 REDUCED: the real key is `D_ROWS × LIFT_COLS = 1 × 57 384`,
+            /// hence 57 384 schoolbook ring products (~6.02e10 field
+            /// operations). Removal condition: a sub-quadratic `ring::mul`
+            /// champion.
+            ///
+            /// Both reduced dimensions are [`crate::LIFT_COMMIT_Z`] and
+            /// [`crate::LIFT_COMMIT_RHO_ROWS`], stated there against the
+            /// `params` constants they cut and with the composition arithmetic
+            /// that says why this row survives the cut where `lift_message`
+            /// does not. The key's width is derived, not chosen: it is
+            /// `LIFT_COMMIT_Z + LIFT_COMMIT_RHO_ROWS · GADGET_DIGITS`, exactly
+            /// as `LIFT_COLS` is `RLIN_COLS + RLIN_ROWS · GADGET_DIGITS`.
             pub fn lift_commit(m: Mode<'_, '_>, z_len: usize) -> u64 {
-                let rho_rows = 1usize;
+                let rho_rows = crate::LIFT_COMMIT_RHO_ROWS;
                 let width = z_len + rho_rows * hc::params::GADGET_DIGITS;
                 let w = LiftedWitness::new(
                     vec_of(0x8047_0000_0000_0050, z_len),
@@ -204,28 +416,6 @@ macro_rules! define_cases {
                     || hc::ringswitch::lift_commit(black_box(&d_key), black_box(&w)),
                     d_polyvec,
                 )
-            }
-
-            /// The full five-row quotient-digit check at the real constants.
-            /// Its verdict is provably always true at `(16, 15)`; retaining the
-            /// computation makes parameter drift observable.
-            pub fn rho_digits_short_check(m: Mode<'_, '_>, rows: usize) -> u64 {
-                let rho = quotient_rows(0x8047_0000_0000_0080, rows);
-                support::run(
-                    m,
-                    || hc::endpiece::rho_digits_short_check(black_box(&rho)),
-                    d_bool,
-                )
-            }
-
-            /// The real 57,344-entry `z` scan. Its ~448 MiB input is built once
-            /// outside the timed region; only the shortness decision is timed.
-            pub fn lift_short_check(m: Mode<'_, '_>, z_len: usize) -> u64 {
-                let w = LiftedWitness::new(
-                    PolyVec::zeros(z_len),
-                    quotient_rows(0x8047_0000_0000_0090, hc::params::RLIN_ROWS),
-                );
-                support::run(m, || hc::endpiece::lift_short_check(black_box(&w)), d_bool)
             }
 
             // -- the A/B fairness control -----------------------------------
@@ -264,26 +454,53 @@ fn ringswitch_benches(c: &mut Criterion) {
 
     // @covers ringswitch::rho_digits
     bench_case!(c, "ringswitch/rho_digits", rho_digits, [degree]);
+    // Real size, but the row is inside the null-slot sweep's unreliable timing
+    // band; see the case doc before reading a candidate column on it.
     // @covers ringswitch::QuotientRow::to_rq
     bench_case!(c, "ringswitch/rho_as_rq", rho_as_rq, [degree]);
     // @covers ringswitch::rho_digit_as_rq
     bench_case!(c, "ringswitch/rho_digit_as_rq", rho_digit_as_rq, [hachi::params::RLIN_ROWS]);
-    // W3 REDUCED; see the case documentation for arithmetic and removal condition.
+    // REAL shape, both dimensions: `LIFT_MESSAGE_Z` entries of `z` and
+    // `LIFT_MESSAGE_RHO_ROWS` quotient rows, ~896 MiB peak. Formerly W3 REDUCED
+    // at `[8]` with a hidden `rho_rows = 2`, which inverted the row's 99.7%-copy
+    // mixture; see `LIFT_MESSAGE_Z`.
     // @covers ringswitch::lift_message
-    bench_case!(c, "ringswitch/lift_message", lift_message, [8]);
-    // W1 REDUCED; see the case documentation for arithmetic and removal condition.
+    bench_case!(c, "ringswitch/lift_message", lift_message, [LIFT_MESSAGE_Z]);
+    // W1 REDUCED, both dimensions; see `LIFT_COMMIT_Z` for the arithmetic, the
+    // removal condition, and why the composition survives this reduction.
     // @covers ringswitch::lift_commit
-    bench_case!(c, "ringswitch/lift_commit", lift_commit, [4]);
-    // @covers endpiece::rho_digits_short_check
-    bench_case!(c, "endpiece/rho_digits_short_check", rho_digits_short_check, [hachi::params::RLIN_ROWS]);
-    // Real constants. The 448 MiB input is constructed outside the timed region.
-    // @covers endpiece::lift_short_check
-    bench_case!(c, "endpiece/lift_short_check", lift_short_check, [hachi::params::RLIN_COLS]);
+    bench_case!(c, "ringswitch/lift_commit", lift_commit, [LIFT_COMMIT_Z]);
 }
 
 criterion_group! {
+    // A per-binary override of `support::criterion_config`, as `benches/commit.rs`
+    // and `benches/endpiece.rs` also carry, and forced by one row: `lift_message`
+    // at the real shape allocates and copies ~448 MiB per iteration, ~260 ms.
+    // Criterion samples linearly by default, so 100 samples would cost
+    // `100·101/2 = 5050` executions -- over twenty minutes per variant.
+    // `SamplingMode::Auto` refuses that and flips the row to flat sampling, and
+    // this override is about how many samples that flat run takes.
+    //
+    // Be honest about what it does and does not buy. A 260 ms row fits **one**
+    // iteration per flat sample at either setting (`ceil(50 ms / 260 ms)` and
+    // `ceil(200 ms / 260 ms)` are both 1; measured: 50 iterations over 50
+    // samples), so the averaging argument `benches/endpiece.rs` makes does not
+    // apply here -- what the override buys on this row is wall clock, ~13s per
+    // variant instead of ~27s, i.e. ~40s rather than ~80s across the three
+    // variants of a candidate pass, on a row that also spends seconds building
+    // its 448 MiB input twice per variant.
+    //
+    // It does apply to `lift_commit` (~18 ms): 11 iterations per flat sample
+    // here against 3 at the default. The three sub-4 µs rows stay linear
+    // throughout and simply take 50 samples instead of 100, which is the same
+    // trade `commit.rs` accepted and states.
+    //
+    // Nothing else changes: warm-up and the noise threshold stay as
+    // `support::criterion_config` sets them.
     name = benches;
-    config = support::criterion_config();
+    config = support::criterion_config()
+        .sample_size(50)
+        .measurement_time(Duration::from_secs(10));
     targets = ringswitch_benches
 }
 criterion_main!(benches);

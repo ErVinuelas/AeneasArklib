@@ -118,13 +118,28 @@ Every candidate consists of a change to `hachi/lean/Opt.lean`, its
    `not-translatable`, rejected.
 5. **No new value-level preconditions without a gate.** A variant equal to
    the spec only under an input hypothesis the original does not have makes
-   the eventual composed theorem weaker, and it will also fail the bench's
-   digest equality on the seeded corpus (`case!` asserts `cand` and `now`
-   agree *before* timing anything). `Wf` — exactly `N` coefficients, every
+   the eventual composed theorem weaker, and it will *usually* also fail the
+   bench's digest equality on the seeded corpus (`case!` asserts `cand` and
+   `now` agree *before* timing anything). `Wf` — exactly `N` coefficients, every
    word reduced — is the precondition the audited specs already carry and may
    be assumed; anything beyond it is, like `prove-sorry`'s weakening gate, a
    flagged proposal requiring explicit user sign-off, never a normal
    candidate.
+
+   **"Usually" is doing real work in that sentence — some rows have no oracle
+   at all.** The digest's resolution is the width of the result, and a row whose
+   result is a `bool` that is *provably constant at the pinned parameters* has
+   none: every candidate digests identically, including one that deletes the
+   computation. There is one such row today,
+   `endpiece/rho_digits_short_check` — balanced digits are centered-bounded by
+   `HALF_BASE = 8` unconditionally and the check compares against
+   `CHAIN_GAMMA = 15`, so no input this crate can build makes it `false`, and
+   `{ true }` is a "correct" candidate that reads as a very large win. Name the
+   void oracle when you propose anything on such a row: the accept number is
+   real, but nothing checked that it is a number for the same computation, so
+   the sign-off above is the *only* gate and the reviewer must be told the
+   digest proved nothing. `hachi/benches/endpiece.rs` § "The void oracle" states
+   the argument at the row, and its `check()` asserts what is still assertable.
 6. **The candidate note.** Strategy skill used, what changed, expected effect
    quantified from the brief (op counts, allocation counts — with the brief's
    `file:line` citations), representation-change rationale, any

@@ -98,7 +98,22 @@ it, once per session, and stop with a report if any of it is missing:
   `coverage --strict`. That is what says the frozen baseline is the one git
   holds and the slot is null before you fill it.
 * Each bench binary has a `_control` group (`_control/<binary>`), because a
-  candidate row in a binary without one gets no verdict.
+  candidate row in a binary without one gets no verdict. `coverage --strict`
+  checks this now (`covered_paths` → `_one_control_per_binary`): a bench file is
+  one binary — at least one control, every control naming the same binary, every
+  other group id prefixed with it. It is a gate rather than a checklist item
+  because the failure it catches is invisible until the accept pass — two
+  `endpiece/*` rows sat in `benches/ringswitch.rs` printing perfectly good times
+  while resolving to a binary that had no control.
+* **Oracle-void rows.** `case!`'s digest equality is the backstop that stops a
+  semantics change being reported as a speedup, and on one row it does not
+  exist: `endpiece/rho_digits_short_check` is a tautology at the pinned
+  parameters, so `|_| true` digests identically to the real function and would
+  read as an enormous win. A candidate touching it is a flagged proposal under
+  `lean-opt` § "No new value-level preconditions without a gate", never a normal
+  accept — the number is real, but nothing verified that it is a number for the
+  same computation. `benches/endpiece.rs` § "The void oracle" carries the
+  argument and `check()` carries what can still be asserted.
 * The machine is quiet, checked on the machine rather than in the repo:
   `ps -eo command | grep -c "[b]in/lean"` plus the load average.
 * `hachi/benches/*.rs` are in the case shape the report keys on — one criterion
@@ -122,12 +137,18 @@ it, once per session, and stop with a report if any of it is missing:
      `hachi/tests/` are written deliberately unlike the crate, so they are a
      real check and not a restatement. Failure → row `tests-failed`, drop the
      candidate;
-   * copy the **eight module files** over the slot, one at a time —
-     `for m in params ring linalg gadget commit evalsplit ringswitch quadeval; do cp hachi/src/$m.rs
+   * copy the **module files** over the slot, one at a time. Take the list from
+     `harness.py`'s `MODULES` rather than from here, because that tuple is what
+     `check-candidate` compares against and it grows with each target:
+     `for m in $(python3 -c "import sys; sys.path.insert(0,'hachi/benches'); import harness; print(' '.join(harness.MODULES))"); do cp hachi/src/$m.rs
      hachi/benches/candidate/src/; done` — then restore the champion with
-     `git restore hachi/src`. Never `cp hachi/src/*.rs`: the slot's `lib.rs` is
-     its own documentation, pinned to git by `check-candidate`, and is *not* a
-     copy of `hachi/src/lib.rs` (verified: at rest the eight modules are
+     `git restore hachi/src`. As of target 3 that is **nine** modules (`params
+     ring linalg gadget commit evalsplit ringswitch quadeval endpiece`); it was
+     eight before `endpiece.rs` landed, and a hand-copied list that missed the
+     new one would leave the slot holding the champion's copy of it while
+     `check-candidate` still passed. Never `cp hachi/src/*.rs`: the slot's
+     `lib.rs` is its own documentation, pinned to git by `check-candidate`, and
+     is *not* a copy of `hachi/src/lib.rs` (verified: at rest the modules are
      byte-identical and `lib.rs` differs from the first line). A glob copy
      fails the gate at best and swaps the module graph at worst;
    * `make run-bench CANDIDATE=1 BENCH='<module>/<op>|_control' JSON=<file>` —
@@ -345,6 +366,6 @@ divided out of the accept column.
   check recorded, `make bench-check` green, its spec reference truthful.
 * No `sorry` anywhere `hachi/lean/Check.lean` reaches, at any point in the
   loop; unproved or unaudited Lean lives in `hachi/lean-wip/`.
-* At rest, the slot's eight module files ≡ `hachi/src` byte-for-byte with
+* At rest, the slot's module files (`harness.py`'s `MODULES`) ≡ `hachi/src` byte-for-byte with
   `lib.rs`/`Cargo.toml` as git holds them, and `logs/ledger.jsonl` is
   append-only — a rewritten row is a falsified history.

@@ -22,6 +22,15 @@ autobenches = false
 # and on each auto-discovered integration test. Left alone, `cargo bench` hands
 # criterion's `--sample-size` to libtest, which rejects it and fails the run.
 autotests = false
+# And no auto-discovered binaries, for the same two reasons at once. A
+# `src/main.rs` or a `src/bin/*.rs` -- the shape a throwaway timing probe takes
+# while a bench case is being sized -- would become a target with `bench = true`
+# by default, so `cargo bench` would hand it criterion's `--sample-size` exactly
+# as it does an auto-discovered test; and charon's `--lib` extraction would then
+# have a second crate root beside `src/lib.rs` that no `[[bin]]` here declares.
+# There is no binary in this crate: it is a library plus its benches, and a probe
+# left in `src/` must not silently become part of either.
+autobins = false
 
 [lib]
 name = "hachi"
@@ -158,6 +167,18 @@ harness = false
 
 [[bench]]
 name = "quadeval"
+harness = false
+
+# `endpiece` is its own binary rather than two more cases in `ringswitch`, and
+# the reason is the fairness control. `harness.py` attributes a row to a bench
+# binary by the *module prefix of its group id* (`case_binary`), and recenters
+# every candidate verdict on that binary's own `_control`. Two `endpiece/*` rows
+# living in the `ringswitch` binary therefore asked for a `_control/endpiece`
+# that did not exist, and every candidate verdict on them read `unvalidated`
+# (exit 2) -- see `benches/endpiece.rs` § "Why this is its own binary".
+# `coverage --strict` now rejects that arrangement outright.
+[[bench]]
+name = "endpiece"
 harness = false
 
 # Warn rather than deny: `make extract` builds this crate with charon's own

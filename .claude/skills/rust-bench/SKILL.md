@@ -320,9 +320,13 @@ verdict; neither is "this could theoretically be optimized away".
   multiply-and-accumulate. Treat that as an order of magnitude and re-derive it
   on your own host — the host it came from failed its own control check. A
   measured time an order of magnitude *below* the floor is proof, not suspicion.
-  When you compute the floor for a gadget case, note that `GADGET_BASE` is the
-  constant `2`, so `rest / b` in `digit_at` compiles to a shift; count shifts,
-  not divisions.
+  When you compute the floor for a gadget case, read `GADGET_BASE` out of
+  `hachi/src/params.rs` rather than from memory — it is **16** at the [NOZ26]
+  Fig. 9 parameters (it was `2` before that adoption, and this line said so for
+  longer than it was true). Sixteen is still a power of two, so `rest / b` in
+  `digit_at` compiles to a shift and you count shifts rather than divisions; but
+  the digit *count* moved with the base — `GADGET_DIGITS` is 8, not 32 — so any
+  floor derived from the old pair is off by 4x.
 * **Ablation.** Delete the body and confirm the time collapses; swap an input
   for a constant and confirm the time moves. If neither changes anything,
   nothing was being measured.

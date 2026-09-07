@@ -2251,7 +2251,189 @@ region. The quotient-digit verdict is provably always true at `(bDig,bound) =
 (16,15)`; its computation remains in the baseline so parameter drift cannot
 silently delete a verifier check.
 
+⊗⊗ **Two claims in this paragraph did not survive the row audit of the same
+day — see § "The endpiece rows get a binary, and `lift_message` gets its real
+shape" below.** `lift_message` is no longer W3 REDUCED: it runs at
+`(RLIN_COLS, RLIN_ROWS)` with a measured 904 MiB peak, because the reduction
+was not a smaller version of the row's mixture but the inverted one — the
+registered `[8]` hid a second, undocumented `rho_rows = 2` inside the case
+body. And "the quotient-digit verdict is provably always true" is right, but
+its consequence was not drawn here: a provably constant verdict means the
+benchmark's digest oracle cannot discriminate *any* candidate on that row,
+including one that deletes the loop. The rest of the paragraph stands.
+
 The genesis and candidate copies and all benchmark coverage are staged but
 unstamped. The required next actions are the standard interleaving: commit the
 target-3 translation/freeze, run `make bench-stamp`, commit the stamp-only
 change, then run `make bench-check` and the birth benchmark.
+
+
+## The endpiece rows get a binary, and `lift_message` gets its real shape (2026-09-07)
+
+Target 3's bench coverage was re-read against what `harness.py` actually does
+with each row rather than against what the rows say they measure. Three defects,
+in descending order of how quietly they failed.
+
+**1. Two rows sat in a binary that could not give them a verdict.**
+`endpiece::rho_digits_short_check` and `endpiece::lift_short_check` were benched
+from `benches/ringswitch.rs`, under `_control/ringswitch`. `report` attributes a
+row to a bench binary by the **module prefix of its group id** (`case_binary`)
+and divides that binary's own control lean out before printing any candidate
+verdict, so both rows resolved to a binary named `endpiece` that had no control:
+under `CANDIDATE=1` they would have read `unvalidated` and exited 2. Nothing
+failed at bench time — the rows ran and printed times — so the failure was
+reserved for the optimization loop's accept pass, which is the most expensive
+place to find it.
+
+Fixed by giving `endpiece` its own `[[bench]]` target and `benches/endpiece.rs`
+with `_control/endpiece`, which is what `src/endpiece.rs` wants anyway (target 6
+extends that module). Hardened so it cannot recur: `covered_paths` now requires
+that **a bench file be one binary** — at least one `_control/<binary>` case,
+every control in the file naming the same `<binary>`, and every other group id
+prefixed with it. That is a `make bench-check` failure now, before any
+measurement is taken, and it was negative-tested against four shapes: the exact
+historical arrangement (caught, and it names the exact fix), a file with no
+control (caught), a file carrying two different binaries' controls (caught), and
+a file with two controls for the *same* binary (passes, deliberately — see
+below).
+
+The rule is about binaries rather than about the number of controls, and that
+distinction is load-bearing. The alternative fix — a second `_control/endpiece`
+row inside `ringswitch.rs` — works mechanically and was rejected: it puts a
+second draw into the run's *worst*-pairwise-control usability veto for a binary
+whose rows are not in that file, and it leaves `endpiece` recentered on a
+control interleaved with `ringswitch`'s rows rather than its own. But two
+controls for the **same** binary is a different proposal, and it is § "The §4
+audit of target 2's rows"' own recommended fix for recentering manufacturing a
+verdict from one unlucky control. That fix is still not made — `report`'s
+`leans` dict is keyed by binary, so a second control for one binary would
+silently overwrite the first rather than average with it — and the new check
+deliberately permits the shape so that whoever makes it changes `report`
+instead of working around a gate.
+
+**2. `lift_message` was measured at the opposite of its real mixture.** It was
+registered at `[8]` while its second dimension, the quotient-row count, was a
+bare `2` inside the case body — invisible at the registration, absent from the
+case id, and so a second undocumented reduction stacked on the declared one. At
+the real shape the row is 57,344 `z`-copies against 40 digit extractions, ~99.96%
+copy by time; at `(8, 2)` it was 8 copies against 16 extractions, about half and
+half. The candidate the case's own removal condition names — a fused/streaming
+lift — is a change to the *copy* half, and at `(8, 2)` the copy half was barely
+present, so the row could not have shown such a candidate winning.
+
+Now at `(RLIN_COLS, RLIN_ROWS)`, both dimensions read from `params` at file
+scope next to the constant each is (or is not) a reduction of. Measured peak RSS
+904 MiB, against the ~896 MiB the arithmetic predicts. `lift_commit` keeps its
+W1 reduction — its composition genuinely survives it, 99.83% `mat_vec_mul` at
+the reduced width against 99.70% at the real one, priced against `ring/mul` at
+1.511 ms — but both of *its* dimensions are now stated at file scope too.
+
+**3. `rho_digits_short_check` has no oracle, and no mechanical fix exists.** The
+check is a tautology at the pinned parameters: balanced digits are
+centered-bounded by `HALF_BASE = 8` unconditionally
+(`rhoDigits_valMinAbs_natAbs_le`) against `CHAIN_GAMMA = 15`, so no
+`Vec<QuotientRow>` this crate can build makes it `false`. Its digest is one bit
+that is always the same bit, which means `case!`'s cross-variant equality — the
+thing that normally stops a semantics change being reported as a speedup —
+cannot tell the real function from `|_| true`. A candidate that deleted the
+digit loop would pass the oracle and read as an enormous win.
+
+The row is kept, because the optimization the void oracle fails to police is a
+real and measurable one (fusing digit extraction into the comparison instead of
+materializing 40 × 8 KiB `Rq`s), and deleting the row would lose it. What
+changed is that the voidness is now stated where a reviewer looks — the module
+header, the case doc, and `check()` — and carried by a compile-time
+`assert!(HALF_BASE <= CHAIN_GAMMA)` in every variant's own `params`, so a
+parameter move that gives the check a false branch breaks the build rather than
+quietly restoring an oracle nobody re-reads. Acceptance routes through the
+existing human gate: `lean-opt` § "No new value-level preconditions without a
+gate" now says out loud that its digest backstop does not exist on an
+oracle-void row and names this one, and `perf-loop`'s pre-flight list carries
+the same warning. **This is a policy choice.** The alternative — excluding the
+row under a new signed-off "oracle-void at the pinned parameters" class, as
+Decision 3 did for Fig. 9 — remains available and was not taken.
+
+`lift_short_check` is not in that position: its `z` conjunct rejects, so both
+directions are pinnable and `check()` now pins them, transplanted from
+`tests/ringswitch_semantics.rs` (the `quadeval.rs` precedent). Its corpus `z` is
+zeros, which is load-bearing rather than lazy — an ordinary `[1, q)` draw has
+`‖z‖∞ ≈ q/2`, the `&&` short-circuits, and the row would silently measure half
+the function it names — so an `assert!(vec_l_infty_norm(z) <= CHAIN_GAMMA)` now
+sits above the timed region.
+
+**Riding along.** `autobins = false` (a `src/main.rs` timing probe would
+otherwise become a target with `bench = true` and be handed criterion's flags,
+and would give charon's `--lib` extraction a second crate root); the
+`exclusions.toml` header's "`params` is the one module with no `[[bench]]`
+target" (false while `endpiece` had none, and now checked rather than asserted);
+`harness.py`'s `MODULES` comment, which claimed the `params` consts are excluded
+by name in `exclusions.toml` when that file's own header says the opposite and
+is right — they carry no `Mirrors` marker, so `coverage` never asks about them;
+`support/mod.rs`'s "four bench binaries" (eight); `black_box` on `rho_as_rq`'s
+receiver, the last case in the crate whose input was not opaque; `rho_as_rq` and
+`rho_digits` annotated against the certified sweep's 100 ns – 2 µs band (725 ns
+and 2.4 µs — one inside it, one 20% clear of it); `rho_digit_as_rq`'s
+deepest-index choice argued against `rho_digits`' `u = 0`, which is the opposite
+convention and deliberately so; `perf-loop`'s slot-fill list, which named eight
+modules and now derives the list from `harness.py`'s `MODULES` (nine since
+`endpiece`); and `rust-bench`'s floor advice, which still said `GADGET_BASE` is
+`2` — it is 16, and `GADGET_DIGITS` 8 rather than 32, so any floor derived from
+the old pair was off by 4x.
+
+**The §4 audit's `nm` check, run on both binaries.** Finding 1 of that audit
+made "does this row keep three variant copies, or did fat LTO merge them?" a
+standard question for any new row, and it had never been asked of target 3's.
+Built `--features candidate` against the null slot, reading the symbol that is
+actually timed (`Bencher::iter::<_, &mut <variant>::<case>::{closure#0}>`):
+
+* **three copies, a real A/B** — `ringswitch/rho_digit_as_rq`,
+  `ringswitch/lift_message`, `ringswitch/lift_commit`;
+* **merged into one function** — `ringswitch/rho_digits`,
+  `ringswitch/rho_as_rq`, `endpiece/rho_digits_short_check`,
+  `endpiece/lift_short_check`, and both `_control` rows.
+
+Every row in the `endpiece` binary merges, controls included: both cases return
+a `bool` through a `&`-borrowed input, so nothing variant-distinct survives
+inlining. The consequence is the audit's, unchanged — a merged row has no layout
+bias to measure, so a null-slot sweep of it is a lower bound and its (also
+merged) control cannot correct for a term it never saw. It does not make those
+rows' verdicts wrong during a real candidate pass, where the slot is not
+byte-identical and therefore does not merge; it makes a floor borrowed from a
+null sweep optimistic for exactly them. Recorded in both file headers with the
+command to re-run.
+
+**The numbers below are a shakeout, not a run.** Taken by invoking the bench
+binaries directly on a machine that was *not* quiet (load ~2, a browser and a
+music player alive); the two controls read 2.6% and 5.2% apart on identical
+code, which would have failed a candidate pass. They are here to justify the two
+sampling overrides and the band annotations, and nothing in this section is a
+verdict:
+
+| case | reading |
+|---|---|
+| `_control/ringswitch` | ~36 ms |
+| `_control/endpiece` | ~37 ms |
+| `ringswitch/rho_digits` | ~2.4 µs |
+| `ringswitch/rho_as_rq` | ~725 ns |
+| `ringswitch/rho_digit_as_rq` | ~3.4 µs |
+| `ringswitch/lift_message` | ~260 ms, 904 MiB peak RSS |
+| `ringswitch/lift_commit` | ~18 ms |
+| `endpiece/rho_digits_short_check` | ~119 µs |
+| `endpiece/lift_short_check` | ~31 ms |
+| `ring/mul` (for the composition arithmetic) | ~1.511 ms |
+
+Both new binaries carry a `commit.rs`-style `sample_size(50)` /
+`measurement_time(10s)` override, and the two comments say different things
+because the arithmetic differs. In `endpiece.rs` it buys *averaging*: a flat
+sample of the 31 ms row is 7 iterations at this setting against 2 at the
+default, and `_robust` takes the three fastest samples, so two-iteration samples
+amount to picking the three luckiest executions in the run. In `ringswitch.rs`
+it buys only *wall clock*: a 260 ms row fits one iteration per flat sample
+either way, so the override halves `lift_message` from ~27s to ~13s per variant
+(the averaging argument does apply to `lift_commit` at 18 ms, 11 iterations per
+sample against 3).
+
+`make bench-check` green (176 frozen items, slot null across nine modules,
+0 unaccounted), `make test` green (111 tests), strict clippy clean on all
+benches under `--all-features`, and `make extract` reports `lean/Generated.lean`
+unchanged — `autobins = false` does not move the model.

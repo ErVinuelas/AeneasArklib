@@ -1,4 +1,5 @@
-//! Shared machinery for the four bench binaries: the seeded corpus, the digest
+//! Shared machinery for the bench binaries -- one per module of `hachi/src`
+//! that has anything to time: the seeded corpus, the digest
 //! that keeps a measurement honest, the A/B fairness control, and the two-mode
 //! runner that makes the timed code and the *verified* code the same code.
 //!

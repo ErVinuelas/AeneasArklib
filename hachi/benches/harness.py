@@ -60,9 +60,15 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # `params` carries no bench binary: its items are `const`s the compiler folds,
 # so there is nothing to time. It is still listed, because it is frozen into
 # genesis and copied into the candidate slot like every other module, and
-# `check-genesis`/`check-candidate` are what this tuple drives. Its items are
-# ruled out of `coverage` by name in `exclusions.toml`, which is the difference
-# between "not worth measuring" and "forgotten".
+# `check-genesis`/`check-candidate` are what this tuple drives. It is also the
+# only module `coverage` has nothing to say about, and NOT via `exclusions.toml`:
+# a const there is a value chosen for a generic ArkLib parameter rather than a
+# translation of a definition, so none of them carries a `Mirrors` marker, and
+# `coverage` only ever holds mirrored items to account. `exclusions.toml`'s
+# header says the same thing from its side; nothing to excuse is different from
+# excused by name. Every *other* module here owns a `[[bench]]` target, which
+# `covered_paths` now enforces from the other end (one `_control` per file, and
+# every row in the file under it).
 MODULES = ("params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
            "quadeval", "endpiece")
 
@@ -544,14 +550,19 @@ def covered_paths() -> tuple[dict[str, list[str]], list[str]]:
     case, is the one failure mode a coverage check exists to catch.
 
     Returns a `{path: [file]}` mapping, plus the attachment problems, which
-    `--strict` fails on. Three of them:
+    `--strict` fails on. Four of them:
 
     * a marker with no `bench_case!` beneath it (blank lines are allowed between,
       anything else is not),
     * a `bench_case!` with no marker above it -- except `_control/*`, which
       measures the harness rather than the crate,
     * a marker whose module disagrees with its case's group id, e.g.
-      `@covers linalg::PolyVec::dot` sitting on `"ring/..."`.
+      `@covers linalg::PolyVec::dot` sitting on `"ring/..."`,
+    * a bench *file* that is not one binary -- at least one `_control/<binary>`
+      case, every control in the file naming the same `<binary>`, and every
+      other group id prefixed with it. See `_one_control_per_binary` for why
+      that is not a tidiness rule, and for why the rule is about binaries rather
+      than about the number of controls.
 
     What this still cannot check is that the case *body* calls the item named:
     that needs a Rust parser, which `rustitems` deliberately is not.
@@ -567,6 +578,8 @@ def covered_paths() -> tuple[dict[str, list[str]], list[str]]:
 
     for f in sorted(BENCHES.glob("*.rs")):
         pending: list[tuple[int, str]] = []
+        controls: list[str] = []
+        prefixes: dict[str, int] = {}
         for i, line in enumerate(f.read_text().splitlines()):
             m = COVERS.match(line)
             if m:
@@ -576,16 +589,23 @@ def covered_paths() -> tuple[dict[str, list[str]], list[str]]:
             if b:
                 group = b.group("group")
                 if group.startswith(CONTROL_PREFIX):
+                    # `case_binary` reads a control's binary out of the segment
+                    # after `_control/` and ignores anything past it, so a
+                    # hypothetical `_control/<binary>/<n>` scheme names one
+                    # binary, not n of them. Match that.
+                    controls.append(group[len(CONTROL_PREFIX):].split("/", 1)[0])
                     for at, path in pending:
                         problems.append(
                             f"{f.name}:{at + 1}: `@covers {path}` sits on the control case "
                             f"`{group}`, which measures the harness, not the crate."
                         )
-                elif not pending:
-                    problems.append(
-                        f"{f.name}:{i + 1}: `bench_case!` for `{group}` has no `// @covers` "
-                        f"above it, so nothing records which item it measures."
-                    )
+                else:
+                    prefixes.setdefault(group.split("/", 1)[0], i)
+                    if not pending:
+                        problems.append(
+                            f"{f.name}:{i + 1}: `bench_case!` for `{group}` has no `// @covers` "
+                            f"above it, so nothing records which item it measures."
+                        )
                 for at, path in pending:
                     out.setdefault(path, []).append(f.name)
                     mod, group_mod = path.split("::", 1)[0], group.split("/", 1)[0]
@@ -602,7 +622,67 @@ def covered_paths() -> tuple[dict[str, list[str]], list[str]]:
                 pending = []
         for at, path in pending:
             orphan(f.name, at, path)
+        problems.extend(_one_control_per_binary(f.name, controls, prefixes))
     return out, problems
+
+
+def _one_control_per_binary(name: str, controls: list[str], prefixes: dict[str, int]) -> list[str]:
+    """One binary per bench file: every group id in the file names the same one.
+
+    Not tidiness -- this is the arrangement `report` assumes and does not check.
+    `case_binary` attributes a row to a bench binary by the **module prefix of
+    its group id** (and, for a control, by the segment after `_control/`), and
+    every candidate verdict is recentered on that binary's own `_control` lean,
+    measured in the same run. So a row whose prefix names a binary with no
+    control in the report gets no verdict at all: it reads `unvalidated` and a
+    `CANDIDATE=1` pass exits 2.
+
+    That is exactly what `endpiece/rho_digits_short_check` and
+    `endpiece/lift_short_check` did while they lived in `benches/ringswitch.rs`
+    under `_control/ringswitch` (fixed by `benches/endpiece.rs`). Nothing failed
+    at bench time -- the rows ran and printed times -- and the failure surfaced
+    only in the optimization loop's accept pass, which is the most expensive
+    place to find it. Checking it here makes it a red `make bench-check`
+    instead, before any measurement is taken.
+
+    The rule is deliberately "one *binary*", not "one *control*". Two controls
+    naming two different binaries in one file is the broken shape -- it is the
+    minimal patch that was rejected in favour of splitting the file, and it also
+    puts a second draw in the run's worst-control usability veto for a binary
+    whose rows are not even here. Two controls naming the **same** binary is a
+    different thing and is left alone on purpose: NOTES.md § "The §4 audit of
+    target 2's rows" proposes exactly that as the fix for recentering
+    manufacturing a verdict from one unlucky control. That fix is not made --
+    `report`'s `leans` dict is keyed by binary, so a second control for one
+    binary silently overwrites the first rather than averaging with it -- and
+    whoever makes it should change `report` here in the same edit, not work
+    around this check.
+    """
+    if not controls:
+        return [
+            f"{name}: no `_control/<binary>` case. `harness.py report` recenters every "
+            f"candidate verdict on its binary's control, so with none, every row in this "
+            f"file reads `unvalidated` and a CANDIDATE=1 run exits 2."
+        ]
+    binaries = sorted(set(controls))
+    if len(binaries) > 1:
+        return [
+            f"{name}: controls for {len(binaries)} different binaries ("
+            + ", ".join(f"`{CONTROL_PREFIX}{b}`" for b in binaries)
+            + "). One bench file is one binary: split it, so each binary's control is "
+            f"measured in the run its own rows are measured in."
+        ]
+    binary = binaries[0]
+    return [
+        f"{name}:{at + 1}: `bench_case!` for `{prefix}/...` sits in the binary whose control "
+        f"is `{CONTROL_PREFIX}{binary}`. A row is attributed to the binary named by its group "
+        f"prefix, so this one's candidate verdict would read `unvalidated` (exit 2) with no "
+        f"fairness instrument behind it. Give `{prefix}` its own bench binary: a `[[bench]]` "
+        f"target in hachi/Cargo.toml, a `benches/{prefix}.rs`, and a `{CONTROL_PREFIX}{prefix}` "
+        f"case in it."
+        for prefix, at in sorted(prefixes.items(), key=lambda kv: kv[1])
+        if prefix != binary
+    ]
 
 
 def exclusions() -> dict[str, str]:
