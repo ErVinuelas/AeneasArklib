@@ -6,6 +6,7 @@ import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import RingSwitch
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -736,10 +737,13 @@ translation of the paper's committer rather than of the unsigned building block
 underneath it -- and, since the same day, the QuadEval fold (`lean/QuadEval.lean`):
 the `z`-side gadget siblings at `τ = 5` with their conditional round trip, the
 carrier entry and `tensorG1`, and the Eq. (20) box and relation decisions, four of
-them stated as iffs because ArkLib states those as `Prop`s.
+them stated as iffs because ArkLib states those as `Prop`s -- and, since
+2026-09-08, the full ring-switch link (`lean/RingSwitch.lean`): the quotient-row
+presentation change, the quotient digits, the lifted message and its Ajtai
+commitment, and the two shortness decisions, both unconditional.
 
-Nothing is left stated-but-unproved: `lean-wip/` is empty again, and the next file
-staged there joins this list when it is proved and promoted. -/
+Stated-but-unproved today: `lean-wip/Ext.lean`, the `Ext4` port from cpoly's own
+development, which joins this list when it is proved and promoted. -/
 
 -- The balanced digit layer (`lean/Balanced.lean`): the Hachi gadget inverse
 -- `G⁻¹` at `ddBal`, the bounded `z`-side digit map at `τ = 5`, the quotient
@@ -767,6 +771,23 @@ staged there joins this list when it is proved and promoted. -/
 #print axioms HachiEquiv.QuadEval.in_sb_spec
 #print axioms HachiEquiv.QuadEval.vec_in_sb_spec
 #print axioms HachiEquiv.QuadEval.paper_rel_out_implies_rel_out_spec
+
+-- The full ring-switch link (`lean/RingSwitch.lean`): `QuotientRow::to_rq` as
+-- `rhoAsRq`, the quotient digits at the flat and the `(row, digit)` index,
+-- `lift_message` as `Fin.append` and `lift_commit` as the concrete Ajtai map, and
+-- the two shortness decisions against `RhoDigitsShort`/`liftShort` -- stated as
+-- iffs, and *unconditional*: a first Aristotle pass (`8d26c89e`) returned them
+-- under `n * 8 ≤ Usize.max`, the Rust dropped the flat index the specification
+-- never had, and the second pass (`90c5c852`) proved them as stated. Promoted
+-- 2026-09-08; these eight lines are what keep it proved.
+#print axioms HachiEquiv.RingSwitch.rho_as_rq_spec
+#print axioms HachiEquiv.RingSwitch.rho_digit_as_rq_raw_spec
+#print axioms HachiEquiv.RingSwitch.rho_digit_as_rq_spec
+#print axioms HachiEquiv.RingSwitch.lift_message_spec
+#print axioms HachiEquiv.RingSwitch.lift_commit_spec
+#print axioms HachiEquiv.RingSwitch.rho_digits_at_raw_spec
+#print axioms HachiEquiv.RingSwitch.rho_digits_short_check_spec
+#print axioms HachiEquiv.RingSwitch.lift_short_check_spec
 
 #print axioms HachiEquiv.Field.fp_add_spec
 #print axioms HachiEquiv.Field.fp_sub_spec

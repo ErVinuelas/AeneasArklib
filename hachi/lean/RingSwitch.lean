@@ -1,16 +1,27 @@
 /-
-The full ring-switch link.
+The full ring-switch link: the quotient-row presentation change, the quotient
+digits, the lifted message and its Ajtai commitment, and the two shortness
+decisions.
 
-Four of the six headline obligations are **proved**; the two decision procedures
-are back to `sorry` **by choice**, and the statements they are stated at are the
-original unconditional ones. A first proof pass returned them with an added
+Proved, on `Balanced.lean`'s `rho_digits_spec` and the scheme bridge, and part
+of the audited library -- `lean/Check.lean` § 4 prints the axiom dependencies of
+every headline spec below, so a `sorry` here is a `make build` failure. Proved
+by two Aristotle sessions -- `8d26c89e` (2026-09-07, six obligations, two of
+them returned under an added hypothesis) and `90c5c852` (2026-09-08, the five
+re-stubbed after the Rust fix, to zero) -- and promoted out of `lean-wip/` on
+the strength of the second: no errors, no `declaration uses 'sorry'`, and all
+eight headline specs on exactly the three Lean kernel axioms.
+
+All six headline obligations are **proved**, the two decision procedures at the
+original unconditional statements. A first proof pass returned them with an added
 `n * 8 ≤ Usize.max`, correctly diagnosing that the translation's flat digit index
 made the extracted check fallible; the Rust was then changed to drop that index
 (which the specification never had), so the hypothesis is gone rather than
 assumed. `rho_digits_at_raw_spec`, `short_digit_loop_spec`,
 `short_row_loop_spec` and the two check specs are the five obligations that
-follow from that change. See the docstring on `rho_digits_short_check_spec` and
-NOTES.md § "The flat index the specification does not have". The file is rebased on ArkLib `d51d8bc`: `Z_DIGITS = 5` makes
+follow from that change, and they are now discharged. See the docstring on
+`rho_digits_short_check_spec` and NOTES.md § "The flat index the specification
+does not have". The file is rebased on ArkLib `d51d8bc`: `Z_DIGITS = 5` makes
 `RLIN_COLS = 57344`, while the quotient digit count remains `clog 16 q = 8`.
 The deleted convenience lemmas `hachiLiftCom_TCom`, `hachiLiftCom_com`, and
 `rhoDigitsShortCheck_eq_true_of_digitBaseOk` are deliberately not referenced.
@@ -464,8 +475,27 @@ theorem rho_digits_at_raw_spec {n : ℕ} (rho : alloc.vec.Vec ringswitch.Quotien
     (i u : Std.Usize) (hrho : WfRho n rho) (hi : i.val < n) (hu : u.val < 8) :
     ringswitch.rho_digits_at rho i u
       ⦃ out => Wf out ∧ toRq out = digitRq rho (i.val * 8 + u.val) ⦄ := by
-  sorry
+  have hrowlt : i.val < rho.val.length := by rw [hrho.1]; exact hi
+  have hdiv : (i.val * 8 + u.val) / 8 = i.val := by omega
+  have hmod : (i.val * 8 + u.val) % 8 = u.val := by omega
+  rw [ringswitch.rho_digits_at]
+  step as ⟨qr, hqr⟩
+  have hWqr : Wf qr := by rw [hqr]; exact hrho.2 _ (List.getElem_mem hrowlt)
+  have hqr' : qr = rho.val.getD i.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+    rw [List.getD_eq_getElem _ _ hrowlt, hqr]
+  apply spec_mono (HachiEquiv.Balanced.rho_digits_spec qr u hWqr)
+  rintro z ⟨hWz, hz⟩
+  refine ⟨hWz, ?_⟩
+  rw [toRq]
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [Rq.ofFinCoeff_coeff Φ _ N_le_degree, digitRq_coeff, hdiv, hmod]
+  by_cases hk : k < N
+  · rw [if_pos hk, if_pos hk, hz ⟨k, hk⟩, hqr']
+  · rw [if_neg hk, if_neg hk]
 
+set_option maxRecDepth 8192 in
 /-- The middle loop of `rho_digits_short_check`: the eight digits of row `i`. -/
 theorem short_digit_loop_spec {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRow)
     (i : Std.Usize) (b0 short : Bool) (u : Std.Usize)
@@ -473,7 +503,43 @@ theorem short_digit_loop_spec {n : ℕ} (rho : alloc.vec.Vec ringswitch.Quotient
     (hshort : short = true ↔ (b0 = true ∧ ∀ e < u.val, ShortDigit rho (i.val * 8 + e))) :
     endpiece.rho_digits_short_check_loop0_loop0 rho i short u
       ⦃ b => (b = true ↔ (b0 = true ∧ ∀ e < 8, ShortDigit rho (i.val * 8 + e))) ⦄ := by
-  sorry
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  rw [endpiece.rho_digits_short_check_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => 8 - s.2.val)
+    (fun s => s.2.val ≤ 8 ∧ (s.1 = true ↔ (b0 = true ∧ ∀ e < s.2.val,
+      ShortDigit rho (i.val * 8 + e))))
+  · rintro ⟨b1, u1⟩ ⟨hu1, hb1⟩
+    dsimp only at hu1 hb1
+    simp only [endpiece.rho_digits_short_check_loop0_loop0.body]
+    by_cases hlt : u1 < params.GADGET_DIGITS
+    · rw [if_pos hlt]
+      have hult : u1.val < 8 := by rw [← hgd]; scalar_tac
+      step with rho_digits_at_raw_spec rho i u1 hrho hi hult as ⟨digit, hWd, hd⟩
+      have hSD : (∀ t < N, ((toRq digit).1.coeff t).valMinAbs.natAbs ≤ 15)
+          ↔ ShortDigit rho (i.val * 8 + u1.val) := by
+        rw [ShortDigit, hd]
+      step with short_coeff_loop_spec digit b1 b1 0#usize hWd (by simp)
+        (by simp) as ⟨b2, hb2⟩
+      step as ⟨u2, hu2⟩
+      refine ⟨by scalar_tac, ?_, ?_⟩
+      · rw [hu2, hb2]
+        constructor
+        · rintro ⟨hb1t, hbound⟩
+          refine ⟨(hb1.mp hb1t).1, fun e he => ?_⟩
+          rcases Nat.lt_or_ge e u1.val with helt | hege
+          · exact (hb1.mp hb1t).2 e helt
+          · have heq : e = u1.val := by omega
+            rw [heq]; exact hSD.mp hbound
+        · rintro ⟨hb0, hall⟩
+          exact ⟨hb1.mpr ⟨hb0, fun e he => hall e (by omega)⟩,
+            hSD.mpr (hall u1.val (by omega))⟩
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : u1.val = 8 := by rw [← hgd] at hu1 ⊢; scalar_tac
+      rw [heq] at hb1; exact hb1
+  · exact ⟨hu, hshort⟩
+
 /-- The outer loop of `rho_digits_short_check`: the rows. -/
 theorem short_row_loop_spec {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRow)
     (rows i : Std.Usize) (short : Bool)
@@ -481,7 +547,36 @@ theorem short_row_loop_spec {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRo
     (hshort : short = true ↔ ∀ r < i.val, ∀ e < 8, ShortDigit rho (r * 8 + e)) :
     endpiece.rho_digits_short_check_loop0 rho rows i short
       ⦃ b => (b = true ↔ ∀ r < n, ∀ e < 8, ShortDigit rho (r * 8 + e)) ⦄ := by
-  sorry
+  rw [endpiece.rho_digits_short_check_loop0]
+  apply loop.spec_decr_nat (fun s => n - s.1.val)
+    (fun s => s.1.val ≤ n ∧ (s.2 = true ↔ ∀ r < s.1.val, ∀ e < 8,
+      ShortDigit rho (r * 8 + e)))
+  · rintro ⟨i1, b1⟩ ⟨hi1, hb1⟩
+    dsimp only at hi1 hb1
+    simp only [endpiece.rho_digits_short_check_loop0.body]
+    by_cases hlt : i1 < rows
+    · rw [if_pos hlt]
+      have hilt : i1.val < n := by rw [← hrows]; scalar_tac
+      step with short_digit_loop_spec rho i1 b1 b1 0#usize hrho hilt (by simp)
+        (by simp) as ⟨b2, hb2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_⟩
+      · rw [hi2, hb2]
+        constructor
+        · rintro ⟨hb1t, hrow⟩ r hr
+          rcases Nat.lt_or_ge r i1.val with hrlt | hrge
+          · exact hb1.mp hb1t r hrlt
+          · have heq : r = i1.val := by omega
+            rw [heq]; exact hrow
+        · intro hall
+          exact ⟨hb1.mpr (fun r hr => hall r (by omega)), hall i1.val (by omega)⟩
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n := by rw [← hrows] at hi1 ⊢; scalar_tac
+      rw [heq] at hb1; exact hb1
+  · exact ⟨hi, hshort⟩
+
 /-- The Rust boolean decides the quotient-digit half of `liftShort`.
 
 **Unconditional, and it took a Rust change to make it so.** An earlier proof of
@@ -501,7 +596,13 @@ theorem rho_digits_short_check_spec {n : ℕ}
     (rho : alloc.vec.Vec ringswitch.QuotientRow) (hrho : WfRho n rho) :
     endpiece.rho_digits_short_check rho
       ⦃ b => (b = true ↔ InnerOuter.RhoDigitsShort Φ 15 16 (toRho (n := n) rho)) ⦄ := by
-  sorry
+  have hrows : (alloc.vec.Vec.len rho).val = n := by simpa using hrho.1
+  rw [endpiece.rho_digits_short_check]
+  apply spec_mono (short_row_loop_spec rho (alloc.vec.Vec.len rho) 0#usize true hrho hrows
+    (by simp) (by simp))
+  intro b hb
+  rw [hb, rhoDigitsShort_iff]
+
 /-- The Rust boolean decides `liftShort` at the concrete chain parameters.
 
 Unconditional for the same reason as `rho_digits_short_check_spec`, which it
@@ -513,5 +614,25 @@ theorem lift_short_check_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
     (sw : InnerOuter.LiftedWitness Φ μ n) (hw : RepLiftedWitness w sw) :
     endpiece.lift_short_check w
       ⦃ b => (b = true ↔ InnerOuter.liftShort Φ 15 16 sw) ⦄ := by
-  sorry
+  obtain ⟨hWz, hWrho, hzeq, hrhoeq⟩ := hw
+  have hcg : (params.CHAIN_GAMMA).val = 15 := by simp [params.CHAIN_GAMMA]
+  rw [endpiece.lift_short_check]
+  simp only [ringswitch.LiftedWitness.impl.z, ringswitch.LiftedWitness.impl.rho, bind_tc_ok]
+  step with vec_l_infty_norm_spec (k := μ) w.z hWz as ⟨nrm, hnrm⟩
+  rw [hzeq] at hnrm
+  by_cases hle : nrm ≤ params.CHAIN_GAMMA
+  · rw [if_pos hle]
+    have h15 : nrm.val ≤ 15 := by scalar_tac
+    have hnorm : vecLInftyNorm Φ sw.z ≤ 15 := by omega
+    apply spec_mono (rho_digits_short_check_spec (n := n) w.rho hWrho)
+    intro b hb
+    rw [hb, hrhoeq]
+    simp only [InnerOuter.liftShort]
+    exact ⟨fun h => ⟨hnorm, h⟩, fun h => h.2⟩
+  · rw [if_neg hle, WP.spec_ok]
+    have h15 : 15 < nrm.val := by scalar_tac
+    simp only [Bool.false_eq_true, false_iff, InnerOuter.liftShort]
+    rintro ⟨h1, -⟩
+    omega
+
 end HachiEquiv.RingSwitch

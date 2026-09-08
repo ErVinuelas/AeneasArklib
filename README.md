@@ -85,10 +85,11 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all ninety-one proved specs: the three Lean kernel axioms, nothing else.
+> of all ninety-nine proved specs: the three Lean kernel axioms, nothing else.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
-> proved — is empty, and its [README](hachi/lean-wip/README.md) holds the procedure
-> for promoting the next file that lands there. [`NOTES.md`](NOTES.md)
+> proved — holds `Ext.lean`, the `Ext4` layer ported from cpoly with its proof
+> scripts still to be re-derived at Lean v4.33.1; its
+> [README](hachi/lean-wip/README.md) holds the procedure for promoting it. [`NOTES.md`](NOTES.md)
 > § "The scheme layer is proved, and checked" scores every claim in this repository
 > as verified or not.
 >

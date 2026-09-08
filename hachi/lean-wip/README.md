@@ -1,7 +1,9 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt:** `RingSwitch.lean`, target 3's six headline obligations,
-typechecked against ArkLib `d51d8bc` but not yet proved. Everything earlier that
+**Current debt:** `Ext.lean`, the `Ext4` extension-field layer ported from
+cpoly's own equivalence development, eight `sorry`s where the upstream proof
+scripts did not survive the Lean v4.32 → v4.33.1 gap (the statements are about
+identical extracted code and were proved upstream). Everything earlier that
 passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
@@ -10,14 +12,18 @@ layer (`lean/EvalSplit.lean`, proved by Aristotle session `cc7674ce`), and, on
 2026-09-04, Stage 3's first two targets: the balanced digit layer
 (`lean/Balanced.lean`, Aristotle session `58843236`, nine obligations to zero)
 and the QuadEval fold (`lean/QuadEval.lean`, Aristotle session `14b9bf77`,
-eight obligations to zero). The audited library now covers the base field, both
+eight obligations to zero), and, on 2026-09-08, target 3's full ring-switch link
+(`lean/RingSwitch.lean`, Aristotle sessions `8d26c89e` and `90c5c852`, six
+obligations to zero -- the second session after a Rust fix removed the flat
+index the first one had to hypothesise around). The audited library now covers the base field, both
 levels of the ring, `linalg`/`gadget`/`commit` up to `honest_verifies_full` —
 perfect correctness of the extracted scheme at its top-level API,
 `commit::verify` itself — the `evalsplit` module against ArkLib's split
 evaluation, the balanced committer (`commit_balanced_spec`: the honest Hachi
 commitment, `Hachi.commit`), and the QuadEval fold's `z`-side gadget, carrier,
-`tensorG1` and Eq. (20) decisions. `lean/Check.lean` § 4 prints the axiom
-dependencies of all ninety-one headline specs, and they come out as the three
+`tensorG1` and Eq. (20) decisions, and the ring-switch lift, commitment and
+shortness decisions. `lean/Check.lean` § 4 prints the axiom
+dependencies of all ninety-nine headline specs, and they come out as the three
 Lean kernel axioms and nothing else.
 
 Two things the QuadEval passage through here established, worth keeping:
