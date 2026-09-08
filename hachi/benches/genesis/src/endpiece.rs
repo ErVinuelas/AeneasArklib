@@ -60,6 +60,7 @@ pub fn lift_short_check(w: &LiftedWitness) -> bool {
     vec_l_infty_norm(w.z()) <= params::CHAIN_GAMMA && rho_digits_short_check(w.rho())
 }
 
+// @genesis bad614d 2026-09-08 — endpiece::WEvalStatement
 /// The evaluation-claim statement, output of the sumcheck and input of the end
 /// piece (spec: `WEvalStatement`, `Sumcheck/FinalEval.lean:72`).
 ///
@@ -83,27 +84,32 @@ pub struct WEvalStatement {
 }
 
 impl WEvalStatement {
+    // @genesis bad614d 2026-09-08 — endpiece::WEvalStatement::new
     /// Bundle the commitment, the sumcheck point and the claimed value.
     pub fn new(t: PolyVec, point: Vec<Ext4>, value: Ext4) -> WEvalStatement {
         WEvalStatement { t, point, value }
     }
 
+    // @genesis bad614d 2026-09-08 — endpiece::WEvalStatement::t
     /// The `w̃`-commitment from the lift stage.
     pub fn t(&self) -> &PolyVec {
         &self.t
     }
 
+    // @genesis bad614d 2026-09-08 — endpiece::WEvalStatement::point
     /// The sumcheck challenge point `a = (a₁, …, a_{m₀})`; its length is `m₀`.
     pub fn point(&self) -> &Vec<Ext4> {
         &self.point
     }
 
+    // @genesis bad614d 2026-09-08 — endpiece::WEvalStatement::value
     /// The claimed evaluation `y′ = mle[w̃](a)`.
     pub fn value(&self) -> Ext4 {
         self.value
     }
 }
 
+// @genesis bad614d 2026-09-08 — endpiece::end_piece_check
 /// The end piece: decide `relWEvalClaim` on the witness the prover sent (spec:
 /// `endPieceCheck`, `EndPiece/Reduction.lean:143`).
 ///
@@ -149,6 +155,7 @@ pub fn end_piece_check(d_key: &PolyMatrix, stmt: &WEvalStatement, w: &LiftedWitn
         && w_table_mle_eval(w, m0, stmt.point()) == stmt.value()
 }
 
+// @genesis bad614d 2026-09-08 — endpiece::end_piece_prove
 /// The honest end-piece prover's one message: the witness itself, in the clear
 /// (spec: `endPieceProver`'s `sendMessage ⟨0, _⟩ = fun w => pure (w, w)`,
 /// `EndPiece/Reduction.lean:241-249`).
@@ -165,6 +172,7 @@ pub fn end_piece_prove(w: LiftedWitness) -> LiftedWitness {
     w
 }
 
+// @genesis bad614d 2026-09-08 — endpiece::end_piece_witness
 /// The witness read off an end-piece transcript: the prover's single message
 /// (spec: `endPieceWitness`, `EndPiece/Reduction.lean:172`).
 ///

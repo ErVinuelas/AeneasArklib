@@ -359,6 +359,7 @@ pub fn zc_target_alpha(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: 
     sum
 }
 
+// @genesis 77c7d47 2026-09-08 — zerocheck::alpha_contract
 /// Eq. (22)'s public contraction of the committed table, at row `i` (spec:
 /// `alphaContract` instantiated at `T = wTable`, `Constraints.lean:540`).
 ///
@@ -411,6 +412,7 @@ pub fn alpha_contract(
     acc
 }
 
+// @genesis 77c7d47 2026-09-08 — zerocheck::alpha_defect
 /// Eq. (22)'s per-row defect: the public contraction minus the public
 /// right-hand side (spec: `alphaDefect` at `T = wTable`,
 /// `Constraints.lean:549`).
@@ -429,6 +431,7 @@ pub fn alpha_defect(
     alpha_contract(s, alpha, w, i) - crate::ringswitch::c_eval_at(alpha, s.yvec().get(i))
 }
 
+// @genesis 77c7d47 2026-09-08 — zerocheck::h_alpha_evals
 /// Entry `idx` of the `H_α` constraint table (spec: `hAlphaEvals`,
 /// `Constraints.lean:176`, through `hAlphaEvals_eq_alphaDefect`).
 ///
@@ -469,6 +472,7 @@ pub fn h_alpha_evals(
     }
 }
 
+// @genesis 77c7d47 2026-09-08 — zerocheck::h_alpha
 /// The `H_α` constraint block in Boolean-evaluation form (spec: `hAlpha`,
 /// `Constraints.lean:213`, through the same equivalence).
 ///
@@ -492,6 +496,7 @@ pub fn h_alpha(
     MultilinearEvals::from_values(values)
 }
 
+// @genesis 77c7d47 2026-09-08 — zerocheck::h_alpha_is_zero
 /// The `H_α` verdict: is every entry zero? (spec: `hAlpha = 0`, in the
 /// pointwise form of `hAlpha_eq_zero_iff`, `Constraints.lean:233`).
 ///
