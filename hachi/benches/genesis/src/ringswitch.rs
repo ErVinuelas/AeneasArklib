@@ -189,6 +189,7 @@ pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
     d_key.mat_vec_mul(&message)
 }
 
+// @genesis 1e57c54 2026-09-08 — ringswitch::rho_digits_at
 /// The `u`-th balanced digit of quotient row `i` (spec: the
 /// `rhoDigits Φ bDig (ρ i) u` of `rhoDigitsShortCheck`,
 /// `EndPiece/Reduction.lean:111-113`).
@@ -214,6 +215,7 @@ pub fn rho_digits_at(rho: &Vec<QuotientRow>, i: usize, u: usize) -> Rq {
     rho_digits(&rho[i].0, u)
 }
 
+// @genesis 1e57c54 2026-09-08 — ringswitch::RlinStatement
 /// Statement of Hachi's unstructured linear relation `R^lin` (spec:
 /// `RlinStatement`, `RingSwitch/Rlin.lean:97`).
 ///
@@ -232,27 +234,32 @@ pub struct RlinStatement {
 }
 
 impl RlinStatement {
+    // @genesis 1e57c54 2026-09-08 — ringswitch::RlinStatement::new
     /// Bundle the public matrix, right-hand side and norm bound.
     pub fn new(m: PolyMatrix, yvec: PolyVec, bound: u64) -> RlinStatement {
         RlinStatement { m, yvec, bound }
     }
 
+    // @genesis 1e57c54 2026-09-08 — ringswitch::RlinStatement::m
     /// The public matrix `M ∈ Rq^{n×μ}`.
     pub fn m(&self) -> &PolyMatrix {
         &self.m
     }
 
+    // @genesis 1e57c54 2026-09-08 — ringswitch::RlinStatement::yvec
     /// The public right-hand side `y ∈ Rq^n`.
     pub fn yvec(&self) -> &PolyVec {
         &self.yvec
     }
 
+    // @genesis 1e57c54 2026-09-08 — ringswitch::RlinStatement::bound
     /// The public `ℓ∞`-norm bound on the witness.
     pub fn bound(&self) -> u64 {
         self.bound
     }
 }
 
+// @genesis 1e57c54 2026-09-08 — ringswitch::ext_pow
 /// `x^i` in the extension field, by repeated multiplication.
 ///
 /// The `x ^ i` of `CPolynomial.eval₂`'s fold
@@ -271,6 +278,7 @@ fn ext_pow(x: cpoly::Ext4, i: usize) -> cpoly::Ext4 {
     acc
 }
 
+// @genesis 1e57c54 2026-09-08 — ringswitch::c_eval_at
 /// Evaluate a `Zq[X]` polynomial at a point of the extension field (spec:
 /// `cEvalAt`, `RingSwitch/Reduction.lean:444`).
 ///
@@ -298,6 +306,7 @@ pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
     acc
 }
 
+// @genesis 1e57c54 2026-09-08 — ringswitch::c_eval_at_modulus
 /// Evaluate the cyclotomic modulus at a point of the extension field (spec:
 /// `cEvalAt φF α Φ.φ`, the `φ(α)` factor of `mAlphaTilde`,
 /// `ZeroCheck/Constraints.lean:519`).

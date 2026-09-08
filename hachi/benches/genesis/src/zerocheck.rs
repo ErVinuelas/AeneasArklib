@@ -219,6 +219,7 @@ pub fn h_zero_is_zero(w: &LiftedWitness, m0: usize) -> bool {
     zero
 }
 
+// @genesis 1e57c54 2026-09-08 — zerocheck::alpha_tilde
 /// `α̃(ℓ) = α^ℓ`, the public column-contraction vector ([NOZ26] Eq. (22); spec:
 /// `alphaTilde`, `Constraints.lean:502`).
 ///
@@ -239,6 +240,7 @@ pub fn alpha_tilde(alpha: Ext4, l: usize) -> Ext4 {
     acc
 }
 
+// @genesis 1e57c54 2026-09-08 — zerocheck::eq_weight
 /// The `m₁`-cube equality weight of row `i`: `∏_j (if bit j of i then τ₁ⱼ else
 /// 1 − τ₁ⱼ)` (spec: the `∏ j : Fin m₁` factor of `alphaPublicEvals`
 /// (`Constraints.lean:845-847`) and `zcTargetAlpha` (`:877-879`)).
@@ -269,6 +271,7 @@ pub fn eq_weight(tau1: &Vec<Ext4>, i: usize) -> Ext4 {
     acc
 }
 
+// @genesis 1e57c54 2026-09-08 — zerocheck::m_alpha_tilde
 /// `M̃_α(i, u)`, the public constraint matrix at `α` ([NOZ26] Eq. (22); spec:
 /// `mAlphaTilde`, `Constraints.lean:517`).
 ///
@@ -301,6 +304,7 @@ pub fn m_alpha_tilde(s: &crate::ringswitch::RlinStatement, alpha: Ext4, i: usize
     }
 }
 
+// @genesis 1e57c54 2026-09-08 — zerocheck::alpha_public_evals
 /// The public Boolean table multiplying `mle[w̃]` in the linear-constraint
 /// sumcheck (spec: `alphaPublicEvals`, `Constraints.lean:840`).
 ///
@@ -330,6 +334,7 @@ pub fn alpha_public_evals(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau
     alpha_tilde(alpha, idx % degree) * sum
 }
 
+// @genesis 1e57c54 2026-09-08 — zerocheck::zc_target_alpha
 /// The public initial target of the linear sumcheck, `∑ᵢ eq̃(τ₁, i)·yᵢ(α)`
 /// (spec: `zcTargetAlpha`, `Constraints.lean:875`).
 ///
