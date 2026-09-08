@@ -524,6 +524,7 @@ pub const M_ONE: usize = 3;
 /// to branch on the sign of the centered representative.
 pub const SB_HI: u64 = 7;
 
+// @genesis 6b228c5 2026-09-08 — params::ROUND_NODES
 /// The number of Lagrange nodes a round message is sampled at: `2b + 1 = 33`,
 /// one more than the per-round degree bound `roundDegZero b = 2b`
 /// (`ZeroCheck/Constraints.lean:87`), which is what makes the interpolant
@@ -535,6 +536,7 @@ pub const SB_HI: u64 = 7;
 /// it -- with the relation checked in `tests/sumcheck_semantics.rs`.
 pub const ROUND_NODES: usize = 33;
 
+// @genesis 6b228c5 2026-09-08 — params::ROUND_NODE_INV
 /// The Lagrange interpolation weights for those nodes: entry `i` is
 /// `(∏_{j ≠ i} (i - j))⁻¹` in `F_q`, over the nodes `0 … 2b`.
 ///

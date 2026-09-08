@@ -71,6 +71,7 @@ use cpoly::{Ext4, Fp, UnivariatePoly};
 
 use crate::params;
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::round_node
 /// The `i`-th Lagrange node, as an element of the extension field: the integer
 /// `i` embedded through `φF` (spec: the nodes of `interpolateArray`,
 /// `CompPoly/Univariate/LagrangeArray.lean:48`, at `0 … 2b`).
@@ -80,6 +81,7 @@ pub fn round_node(i: usize) -> Ext4 {
     Ext4::from_base(Fp::new(i as u64))
 }
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::interpolate
 /// Lagrange interpolation from node values (spec: `interpolateArray`,
 /// `CompPoly/Univariate/LagrangeArray.lean:48`).
 ///
@@ -144,6 +146,7 @@ pub fn interpolate(values: &Vec<Ext4>, inv_weights: &Vec<Fp>) -> UnivariatePoly 
     UnivariatePoly::from_coeffs(acc)
 }
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::round_node_weights
 /// The weights for the round nodes, read out of [`params::ROUND_NODE_INV`].
 ///
 /// A `Vec` rather than the array itself because [`interpolate`] takes the
@@ -160,6 +163,7 @@ pub fn round_node_weights() -> Vec<Fp> {
     out
 }
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::round_value_zero
 /// One node's worth of the range summand: `Σ_y eq_suffix(y) · P_b(W(T, y))`,
 /// where `W(T, y) = (1 - T)·W[2y] + T·W[2y+1]` (spec: `computableRoundPoly` at
 /// one node, through `computableRoundPoly_eval` (`RoundPoly.lean:316`) and
@@ -185,6 +189,7 @@ pub fn round_value_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>, node: Ext4) -> Ext4 {
     acc
 }
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::round_values_zero
 /// The whole range summand of a round message: its value at every node
 /// (spec: `computableRoundPoly` at the `sumcheckPolyZero` summand).
 ///
@@ -205,6 +210,7 @@ pub fn round_values_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
+// @genesis 6b228c5 2026-09-08 — sumcheck::round_poly_zero
 /// The range summand as a polynomial: its node values, interpolated
 /// (spec: `computableRoundPoly Φ … (sumcheckPolyZero …) i cs`).
 ///
