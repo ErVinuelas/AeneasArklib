@@ -47,6 +47,7 @@ use cpoly::{Ext4, Fp, MultilinearEvals};
 use crate::params;
 use crate::ringswitch::{rho_digit_as_rq, LiftedWitness};
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::two_pow
 /// `2^n`, by repeated doubling (spec: the `2 ^ m₀` in `CMlPolynomialEval F m₀`).
 ///
 /// The same helper, and for the same reason, as `evalsplit`'s: a shift would
@@ -62,6 +63,7 @@ fn two_pow(n: usize) -> usize {
     size
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::range_product
 /// Hachi Eq. (23)'s per-entry range factor `P_b(v) = v·∏_{j=1}^{b-1} (v−j)(v+j)`
 /// (spec: `rangeProduct`, `Constraints.lean:96`).
 ///
@@ -89,6 +91,7 @@ pub fn range_product(v: Ext4) -> Ext4 {
     acc
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::w_table
 /// Entry `idx` of the committed table `w̃` (spec: `wTable`,
 /// `Constraints.lean:140`).
 ///
@@ -137,6 +140,7 @@ pub fn w_table(w: &LiftedWitness, idx: usize) -> Ext4 {
     }
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::c_w_table_mle
 /// The committed table `w̃` as a multilinear extension in Lagrange form
 /// (spec: `cWTableMle`, `Constraints.lean:328`).
 ///
@@ -155,6 +159,7 @@ pub fn c_w_table_mle(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
     MultilinearEvals::from_values(values)
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::w_table_mle_eval
 /// The evaluation claim `mle[w̃](a)` carried into the final-evaluation step
 /// (spec: `wTableMleEval`, `Constraints.lean:335`).
 ///
@@ -171,6 +176,7 @@ pub fn w_table_mle_eval(w: &LiftedWitness, m0: usize, a: &Vec<Ext4>) -> Ext4 {
     table.eval(a)
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::h_zero
 /// The range-constraint block `H₀` in Boolean-evaluation form
 /// (spec: `hZero`, `Constraints.lean:204`).
 ///
@@ -189,6 +195,7 @@ pub fn h_zero(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
     MultilinearEvals::from_values(values)
 }
 
+// @genesis 32d75fa 2026-09-08 — zerocheck::h_zero_is_zero
 /// The zero-check's own verdict: is every entry of `H₀` zero?
 /// (spec: `hZero = 0`, in the pointwise form of `hZero_eq_zero_iff`,
 /// `Constraints.lean:219`).
