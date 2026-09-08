@@ -77,6 +77,19 @@ target/
 /hachi/benches/candidate/Cargo.lock
 
 
+# --- Local planning documents --------------------------------------------------
+#
+# The plan files, the Stage 2 scoping record and the per-target briefs are
+# working documents: agent sessions plan in them and hand off to each other
+# through them. They stay on this machine and are not part of the published
+# repository. NOTES.md and INSTRUCTIONS.md are different -- they are the
+# project's decision record and skill catalogue, cited from code comments, the
+# Makefile and the README -- and remain tracked.
+/PLAN_*.md
+/STAGE*_*.md
+/briefs/
+
+
 # --- Editor, tooling and OS noise --------------------------------------------
 
 __pycache__/

@@ -95,7 +95,8 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > The remaining protocol links — the ring-switch lift and commitment, zero-check,
 > sumcheck and the end piece — are the rest of
-> [`PLAN_PROTOCOL_LAYER.md`](PLAN_PROTOCOL_LAYER.md) Stage 3. Their ArkLib
+> `PLAN_PROTOCOL_LAYER.md` Stage 3 (a local planning document, not
+> in the published repository). Their ArkLib
 > specification is definition-stable at the pinned rev (PR #847) and their
 > parameters already live in `params.rs`; what is absent is code, not spec.
 
@@ -133,6 +134,8 @@ elsewhere.
 Makefile              setup, build, test, extraction, benchmarks
 NOTES.md              decisions, spec observations, Aeneas surprises
 INSTRUCTIONS.md       the skill catalogue: what to invoke, and what it asks
+PLAN_*.md, STAGE2_SCOPING.md, briefs/
+                      local planning documents; ignored, never pushed
 .claude/skills/       the written procedures the pipeline runs, one per directory
 logs/
   ledger.jsonl        append-only candidate and campaign rows (currently empty)
