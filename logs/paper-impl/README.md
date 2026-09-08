@@ -4,7 +4,7 @@ Measured timings of the **paper's own prototype** —
 [georgeorourke/hachi-pcs](https://github.com/georgeorourke/hachi-pcs) — run on
 this machine at the parameter set this repo adopted from [NOZ26] Fig. 9
 (ℓ = 30). These are the numbers this crate's own benchmarks are meant to be
-compared against once the paper-parameter flip (`PLAN_PAPER_PARAMS.md`) has
+compared against once the paper-parameter flip (the paper-parameters plan) has
 landed and genesis is re-frozen.
 
 **Why absolute times live here when `logs/README.md` says "nothing here is a
@@ -124,7 +124,7 @@ At ℓ = 20 the same per-call numbers reproduce within ~10% (see `spans.json`,
   coefficient work of an NTT butterfly pass, so a raw gap of roughly two
   orders of magnitude on `ring/mul` (and hence on `commit/commit`) is the
   *expected starting point*, not a measurement error. This is the quantified
-  version of `PLAN_PAPER_PARAMS.md` Phase 5's warning that the multiplication
+  version of the paper-parameters plan Phase 5's warning that the multiplication
   champion becomes urgent at d = 1024.
 * **A morning measurement block was discarded.** The first ladder (ℓ = 20–26,
   2026-08-28 ~10:30) ran ~2× slower across the board than the afternoon block

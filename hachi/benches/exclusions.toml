@@ -18,7 +18,7 @@
 # `params.rs` constants to hours per criterion iteration under schoolbook
 # `ring::mul`. That is a *policy* exception -- explicitly not "seemed slow" but
 # "provably cannot complete" -- decided by the user on 2026-08-28
-# (PLAN_PAPER_PARAMS.md, Decision 3) and recorded in NOTES.md ("Adopting the
+# (the paper-parameters plan, Decision 3) and recorded in NOTES.md ("Adopting the
 # paper's parameters"). Every entry in that section names the arithmetic that
 # makes it infeasible and the condition for its removal: a sub-quadratic
 # `ring::mul` champion landing.
@@ -110,7 +110,7 @@ worse. Excluded per the Fig. 9 policy exception (header).
 
 **Removal condition, and it is precise**: either hoist `M~_alpha` out of the
 inner loop into the `n x mu` table the brief identifies
-(briefs/target-4-zero-check.md, cost model item 4), or collapse
+(the target-4 brief, cost model item 4), or collapse
 `cEvalAt alpha Phi.phi` to `alpha^d + 1` (ten squarings; item 3 of that
 brief's Corrections). Either alone brings this within criterion's reach, and
 both are `perf-loop` candidates rather than translation choices. The semantics
@@ -250,6 +250,14 @@ are measured -- `zerocheck/m_alpha_tilde_matrix`, `.../m_alpha_tilde_digit`,
 "ringswitch::LiftedWitness" = """
 a struct containing `z` and the quotient rows, with no computation. Its
 consumers `lift_message`, `lift_commit`, and `lift_short_check` are measured."""
+
+"sumcheck::round_node" = """
+one `Fp::new` and one `Ext4::from_base` on a `usize` cast: straight-line, no
+loop, no allocation. A case over it would time the `black_box` around two
+constructor calls. It is measured at scale through `sumcheck/interpolate`,
+which calls it `33 x 32` times per invocation, and its *values* are pinned in
+that binary's `check()` -- nodes `0` and `1` explicitly, because those are the
+two `roundCheck` evaluates (`Sumcheck/Rounds.lean:100`)."""
 
 "ringswitch::rho_digits_at" = """
 one bounds-checked `Vec` index over the benched `ringswitch/rho_digits`

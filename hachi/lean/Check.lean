@@ -256,7 +256,7 @@ example : params.KAPPA.val = 2 * params.OMEGA.val := by simp [params.KAPPA, para
 
 -- `n_D`, and the chain's range parameters at `HonestRangeParams.ofPinnedDigitBase b`:
 -- `bZero = b`, `γ = bZero − 1` -- one below the weak-opening `GAMMA = b`, and the
--- two must never be confused (F1 of `STAGE2_SCOPING.md`).
+-- two must never be confused (F1 of the Stage 2 scoping document).
 example : params.D_ROWS.val = HachiParams.hachiN := by simp [params.D_ROWS, HachiParams.hachiN]
 example : params.B_ZERO.val = HachiParams.params.bZero := by
   simp [params.B_ZERO, HachiParams.params_bZero, HachiParams.hachiB]
@@ -443,7 +443,7 @@ example (a : cpoly.field.Fp) :
 
 -- Addition is coefficientwise, through the `Fp` addition asserted above -- so a
 -- single `Ext4` add is four modular reductions, which is the arithmetic the cost
--- model in briefs/target-4-zero-check.md is written against.
+-- model in the target-4 brief is written against.
 example (a b : cpoly.field.Ext4) :
     cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add a b
       = (do let f ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a.c0 b.c0
@@ -670,6 +670,33 @@ example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
 example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
     (w : ringswitch.LiftedWitness) (m1 : Std.Usize) : Result Bool :=
   zerocheck.h_alpha_is_zero s alpha w m1
+
+-- The sumcheck layer. Three shape facts, and the first is the one a reader of
+-- this module most needs:
+--
+-- * the interpolation weights arrive as an `Array Std.U64 33`, not as an
+--   axiomatized opaque constant -- `params.ROUND_NODE_INV` is `Array.make` of
+--   thirty-three literals and is indexed with the modelled
+--   `Array.index_usize`. They are literals because `cpoly` exposes no inversion
+--   at either carrier, and they are *checkable* because
+--   `tests/sumcheck_semantics.rs` pins each against its own denominator;
+-- * a round message is a `cpoly.univariate.UnivariatePoly`, i.e. a `Vec Ext4`,
+--   so the `2b + 1` node values and the interpolant live in the same carrier;
+-- * `round_value_zero` takes the folded table and the `eq̃` suffix as separate
+--   vectors, which is what makes the fold's `2y`/`2y+1` pairing visible in the
+--   model rather than hidden inside a closure.
+example : cpoly.univariate.UnivariatePoly = alloc.vec.Vec cpoly.field.Ext4 := rfl
+example : Array Std.U64 33#usize := params.ROUND_NODE_INV
+example (i : Std.Usize) : Result cpoly.field.Ext4 := sumcheck.round_node i
+example (values : alloc.vec.Vec cpoly.field.Ext4)
+    (weights : alloc.vec.Vec cpoly.field.Fp) :
+    Result cpoly.univariate.UnivariatePoly := sumcheck.interpolate values weights
+example (w eq : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Ext4) :
+    Result cpoly.field.Ext4 := sumcheck.round_value_zero w eq node
+example (w eq : alloc.vec.Vec cpoly.field.Ext4) :
+    Result (alloc.vec.Vec cpoly.field.Ext4) := sumcheck.round_values_zero w eq
+example (w eq : alloc.vec.Vec cpoly.field.Ext4) :
+    Result cpoly.univariate.UnivariatePoly := sumcheck.round_poly_zero w eq
 
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which

@@ -32,10 +32,14 @@ Two things the QuadEval passage through here established, worth keeping:
   `Balanced` the day the latter was promoted — but not another wip file (see
   "Working here" below), so two staged files at once still means promoting the
   lower one first;
-* four of its statements are **iffs** rather than equalities, because ArkLib
-  states `InSb`, `vecInSb`, `relOut` and `paperRelOut` as `Prop`s where the Rust
-  returns a `Bool`, so the obligation is "the decision procedure decides the
-  proposition". That shape is not in `STAGE2_SCOPING.md`'s erasure catalogue;
+* some of its statements are **iffs** rather than equalities, because ArkLib
+  states `InSb` and `vecInSb` as `Prop`s where the Rust returns a `Bool`, so the
+  obligation is "the decision procedure decides the proposition".
+  ⊗ This bullet used to name `relOut` and `paperRelOut` here too. It was wrong:
+  neither `quadeval::rel_out` nor `quadeval::paper_rel_out` is specified
+  anywhere, and the theorem called `paper_rel_out_implies_rel_out_spec` is about
+  `quadeval.vec_in_sb`'s norm implication rather than either of them. Corrected
+  2026-09-08, when `make spec-check` was written and reported them owed. That shape is not in the Stage 2 scoping document's erasure catalogue;
   it proved low-risk, and `lean/QuadEval.lean`'s header records how.
 
 The directory stays because the distinction it exists for still matters, and the
@@ -95,3 +99,33 @@ on, an unknown identifier in a binder becomes an implicitly bound variable, so a
 missing `open` turns a statement about `q` into a statement about *any* natural
 number. That is how a spec silently becomes vacuous, and it has already happened
 once in this repository (NOTES.md § "The model contains what the crate reaches").
+
+**Second staged file (2026-09-08):** `ZeroCheck.lean`, twenty-four statements
+covering target 4's zero-check link (sixteen `zerocheck` items), the three
+`ringswitch` items the α side introduced (`c_eval_at`, `c_eval_at_modulus`,
+`RlinStatement`) and target 6's four `endpiece` items. It imports `Ext.lean`,
+which is the case this README's "Working here" warns about, so it is checked
+with the `LEAN_PATH` detour:
+
+```sh
+cd hachi
+lake env lean -o /tmp/wiplean/Ext.olean lean-wip/Ext.lean
+LEAN_PATH="$(lake env printenv LEAN_PATH):/tmp/wiplean" lake env lean lean-wip/ZeroCheck.lean
+```
+
+Zero errors, twenty-four `sorry`s. Promotion order is forced: `Ext.lean` first
+(it is the lower layer), then `ZeroCheck.lean`.
+
+Three conventions in it worth knowing before touching it:
+
+* every statement is against a **computable** ArkLib definition — the α side
+  goes through `alphaDefect`, with the bridge to the noncomputable
+  `hAlphaEvals` stated as its own obligation
+  (`h_alpha_evals_eq_hAlphaEvals_spec`) rather than assumed;
+* arities (`m₀`, `m₁`, `μ`, `n`) are arguments, so each statement is the generic
+  ArkLib one at arbitrary width rather than an instantiation at `M_ZERO`;
+* `end_piece_check_spec` takes `BEq`/`LawfulBEq` on the commitment carrier as
+  instance *hypotheses*, which is ArkLib's own convention for `endPieceCheck`
+  (`Composition.lean:287`) — `K.TCom` is a function type, so there is no
+  instance to find, and the binders sit on the `.TCom` projection because
+  instance search will not unfold it.

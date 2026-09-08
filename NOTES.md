@@ -71,7 +71,7 @@ upstream is a project decision, never maintenance — upstream already has
 two charon bumps queued, so rebasing means rebuilding the extraction
 binaries and re-baselining the extraction under a verify-campaign. The
 trigger to even consider it: an extraction bug on a protocol-layer
-construct that upstream has fixed (PLAN_PROTOCOL_LAYER.md, Decision 2).
+construct that upstream has fixed (the protocol-layer plan, Decision 2).
 
 ---
 
@@ -234,7 +234,7 @@ dimensions that are not in `params.rs` at all yet, need that input.
 
 The open question above is answered: the repository now uses the *commitment
 and evaluation-split* dimensions of the [NOZ26] Fig. 9 benchmark parameter set
-(the ℓ = 30 row), adopted per `PLAN_PAPER_PARAMS.md` so that this crate's
+(the ℓ = 30 row), adopted per the paper-parameters plan so that this crate's
 measurements are about the same scheme the paper measured -- with the verifier
 bounds taken not from Fig. 9 directly but from ArkLib's paper-parameter mapping
 for the *weak-opening* relation (see below), and with two honesty caveats
@@ -551,7 +551,7 @@ the unsigned one, and `gadget.rs` is never flipped — the 74 proved specs
 keep targeting `zmodDigitDecomposition 16 8`, which stays present and green
 at the pin because `InnerOuter/Scheme.lean` is decomposition-generic. The
 "gadget-layer re-verification" is thereby avoided by construction; the cost
-moves to a new balanced sibling surface instead (PLAN_PROTOCOL_LAYER.md,
+moves to a new balanced sibling surface instead (the protocol-layer plan,
 Decision 4, and § "Spec stability at the pin" under Workstream 3 below).
 
 **Update 2026-09-04: the sibling surface exists, and the promotion cost no
@@ -1669,7 +1669,7 @@ op-genesis choreography.
 
 **Audit record, 2026-08-31 (file-level read of the pinned tree at
 `294b3f0b0`, then upstream `main`'s tip; recorded here 2026-09-01 as Stage 2
-of PLAN_PROTOCOL_LAYER.md opened).** Everything below was read from
+of the protocol-layer plan opened).** Everything below was read from
 `hachi/.lake/packages/Arklib/ArkLib/Commitments/Functional/Hachi/` (45 Lean
 files); it fixes what the protocol-layer specs may be stated against. Four
 records, each with the rule it imposes.
@@ -1723,7 +1723,7 @@ also what keeps per-link equivalence provable for public-coin verifiers.
 **What moved.** `hachi/lakefile.lean` now requires ArkLib at
 `d51d8bc3c22062bf21385bd15b39d390b0fe4584` — the head of PR #847
 (`hachi-cleanup`, a *draft*, branched from main at pin+17 and behind main by
-11 lint/perf commits at the time). A deliberate re-pin under PLAN_PROTOCOL_LAYER.md
+11 lint/perf commits at the time). A deliberate re-pin under the protocol-layer plan
 Decision 2, taken because Stage 3's first target is not defined at `294b3f0b0`:
 the pin's `z`-decomposition was full-width under `hqz : q ≤ b ^ zDigits`, and
 #847 replaces it with `BoundedDigitDecomposition` at `τ = 5` (see § "`BETA_SQ`
@@ -1776,14 +1776,14 @@ are built from, exactly upstream's own structure. The 74 specs keep their
 content (the unsigned instantiation still exists upstream as a building
 block); the cost over the sibling plan is a rename pass plus re-pointing the
 headline `commit_spec` at the balanced committer. Full note:
-PLAN_PROTOCOL_LAYER.md Decision 4 ⊕⊕.
+the protocol-layer plan Decision 4 ⊕⊕.
 
-**Stale until folded.** `STAGE2_SCOPING.md` and the six briefs were read at
+**Stale until folded.** the Stage 2 scoping document and the six briefs were read at
 `294b3f0b0`; the τ = 5 deltas (μ₀ 57344, lift width 57384, m₀ 26,
 `Z_BOUND = honestZBound = 131072`, `Z_DIGITS = 5 ≠ GADGET_DIGITS`), the
 promotion shape, and the deleted-lemma citations (`rhoDigitsShortCheck_eq_true_of_digitBaseOk`,
 `hachiLiftCom_com`, `balancedDigit_valMinAbs_mem`) are owed to them along
-with `briefs/STAGE2_CORRECTIONS.md`.
+with the Stage 2 corrections list.
 
 ## The protocol layer's parameters land, and Stage 2 closes (2026-09-03)
 
@@ -1797,7 +1797,7 @@ one read today only by `tests/params_semantics.rs` (27 tests) and
 ArkLib's own `ℓ = 30` profile, `Hachi/Params.lean` at the pinned PR #847
 head: **τ = 5**, `zBound = 131072`, `μ₀ = 57344`, lift width 57384,
 `M = 25` (so `M_ZERO = m₀ = 26`), `γ = 15`, `bZero = 16`. Three things the
-Stage 2 audit table (`STAGE2_SCOPING.md` § Parameter mapping) listed were
+Stage 2 audit table (the Stage 2 scoping document § Parameter mapping) listed were
 *not* introduced, each for a reason recorded there: `RHO_DIGIT_COUNT`
 (equals `GADGET_DIGITS`; the identity is a Check row via
 `HachiParams.clog_eq_delta`), `TAU` (a second name for `Z_DIGITS`) and
@@ -1844,7 +1844,7 @@ promotion (unsigned = the spec's building block, balanced = the gadget
 inverse target 1 promotes to the public names); `exclusions.toml`'s header
 no longer carries a const count.
 
-**Stage 2 is closed.** `STAGE2_SCOPING.md` was re-based on the new pin the
+**Stage 2 is closed.** the Stage 2 scoping document was re-based on the new pin the
 same day (marks ⊗⊗): the six briefs' corrections folded in, the τ = 5
 constant table, the reversed target-2 verdict (`Z_DIGITS = 5 ≠
 GADGET_DIGITS`, so `_z` siblings return), m₀ = 26, the five scale walls,
@@ -1878,7 +1878,7 @@ fixed upstream:
   faithful to the pin but the pin was wrong about `z`: the folded witness
   `z = Σᵢ cᵢ sᵢ` is deterministically short (`‖z‖∞ ≤ 2ʳ·ω·⌊b/2⌋ = 131072`),
   so demanding full coverage sizes the gadget from `q` when it should be
-  sized from that bound — PLAN_Z_SHORTNESS.md is the audit.
+  sized from that bound — the z-shortness plan is the audit.
 * **The fix (ArkLib PR #847, `hachi-cleanup`, 2026-09-03).**
   `BoundedDigitDecomposition` — a total, executable digit map whose
   reconstruction law holds on short inputs only — replaces `hqz` with
@@ -1890,7 +1890,7 @@ fixed upstream:
   30583 < 131072` (`tau_minimal`). 30583 is exactly Fig. 9's `z` bound — the
   paper's τ = 4 rests on a sharper statistical analysis ArkLib does not
   formalize, so τ = 5 is the conservative, perfectly-complete choice
-  (PLAN_Z_SHORTNESS.md's Option B).
+  (the z-shortness plan's Option B).
 
 The literal is now `41976510894886092800`
 (`= 4·(1024·8)·(1024·(69905·16)²)`, ≈ 2^65.2, fits u128); the honest bound
@@ -1920,7 +1920,7 @@ Consequences, one reversed and one kept:
 * **`√βSq ≈ 2^32.6 > q ≈ 2^32` still** — by 1.5× rather than 2^12.6× — so
   the weak-binding hypothesis at this radius remains not SIS-instantiable at
   Fig. 9's toy row count. This is ArkLib's ball-relaxed `γ̄ = b` at work
-  (PLAN_Z_SHORTNESS.md: the box-`γ` restatement would put it 1.3× under
+  (the z-shortness plan: the box-`γ` restatement would put it 1.3× under
   `q`), not the translation. Owed to the Stage 7 claims ledger.
 
 **Rule:** τ's only appearance in the crate is inside the `BETA_SQ` literal;
@@ -2508,12 +2508,12 @@ ledger records candidate verdicts. Its Lean debt (`hachi/lean-wip/RingSwitch.lea
 
 ## Target 4 opens: the zero-check's `H₀` side (2026-09-08)
 
-Stage 3 target 4 of `PLAN_PROTOCOL_LAYER.md`. `op-genesis` stages 1–6 are done
+Stage 3 target 4 of the protocol-layer plan. `op-genesis` stages 1–6 are done
 and staged; stage 7 (the birth run) is the plan's tail, below.
 
 ### The brief's re-base, and what moved
 
-`briefs/target-4-zero-check.md` was written at `294b3f0b0` and is now at
+the target-4 brief was written at `294b3f0b0` and is now at
 `d51d8bc`. **Every definition the target translates is byte-identical across the
 move** — checked by extracting each declaration block from both revs and
 comparing, not by reading. The only change in `ZeroCheck/Constraints.lean`'s
@@ -2720,7 +2720,7 @@ Required next actions, in this order (`op-genesis` § "The commit choreography")
    `src/lib.rs`, the semantics test, `Cargo.toml`'s `[[test]]` + `[[bench]]`,
    `benches/zerocheck.rs`, `harness.py`'s `MODULES`, both slots' `lib.rs`, the
    **unstamped** genesis copy, the candidate slot copy, `lean/Generated.lean`,
-   `lean/Check.lean`, the re-based brief, `briefs/README.md`, and this section.
+   `lean/Check.lean`, the re-based brief, the brief index, and this section.
 2. `make bench-stamp` — derives `// @genesis <sha> <date>` from commit 1; stage.
 3. *(user)* **commit 2** — the stamp lines alone. Never `--amend` commit 1: the
    stamp stores its sha, and an amend orphans every annotation.
@@ -3250,12 +3250,12 @@ promoted `lean/RingSwitch.lean` against the regenerated model as well.
 
 ## Target 6 opened: the end piece (2026-09-08)
 
-The brief (`briefs/target-6-end-piece.md`, written at `294b3f0b0`) was re-read
+The brief (the target-6 brief, written at `294b3f0b0`) was re-read
 against ArkLib `d51d8bc` before translation. The three definitions are
 byte-identical across the move: `endPieceCheck` (`EndPiece/Reduction.lean:143`),
 `endPieceProver` (`:241`), `endPieceWitness` (`:172`), plus `WEvalStatement`
 (`Sumcheck/FinalEval.lean:72`). What moved is the sizing, exactly as
-`briefs/README.md` predicted: `LIFT_COLS` 81 960 → 57 384, `m₀` 27 → 26, so
+the brief index predicted: `LIFT_COLS` 81 960 → 57 384, `m₀` 27 → 26, so
 conjunct C's table is `2^26` `Ext4` (2.0 GiB), not `2^27`. The dependency
 claim held: the end piece needs target 3's `lift_short_check` and target 4's
 `w_table_mle_eval`, both in the tree (target 4 staged, unstamped), and nothing
@@ -3396,3 +3396,266 @@ precedent for — and the two identities, which are `rfl`-grade), plus the
    borrowed inputs, expected merged like every other row in that binary).
 4. Promote `lean-wip/Ext.lean`, then author targets 4 + 6's spec layer as one
    Aristotle batch.
+
+
+## `make spec-check`, and the eleven quadeval items nobody was counting (2026-09-08)
+
+Target 4's and target 6's obligations were authored as
+`lean-wip/{ZeroCheck,EndPiece}.lean` (twenty and four statements, zero errors),
+on top of `lean-wip/Ext.lean`'s eight ported ones. While building the inventory
+for that, three things came out that are worth more than the statements.
+
+**The gate asymmetry.** `bench-check`'s `coverage` gate asks whether every
+mirrored item is *benched or excluded* — whether anyone **measures** it. Nothing
+asked whether anyone had **stated** what it computes. So proof debt could
+accumulate silently while the measurement side stayed green, and it had:
+**eleven `quadeval` items have no equivalence statement at all** —
+`PublicParamsD`, `QuadEvalStatement`, `QuadEvalResponse`, `carrier_decomp`,
+`carrier_commit`, `honest_z`, `honest_compute_v`, `honest_compute_resp`,
+`j_mul`, `rel_out`, `paper_rel_out`. `lean/QuadEval.lean` proves eighteen
+theorems and not one of them is about those; `rel_out` and `j_mul` appear in it
+only inside comments.
+
+`scripts/spec_coverage.py` and `make spec-check` close that: 110 mirrored items,
+99 stated, 11 owed. It **reports and never fails** — unspecified is debt to
+schedule, not a broken invariant.
+
+Two files are deliberately not counted as specs, and getting this wrong makes
+the check vacuous rather than wrong-in-a-visible-way: `Generated.lean` (the
+model — every item is in it by construction) and **`Check.lean`, whose § 2b
+holds one type ascription per item**. Those pin the model's *shape*, not what it
+computes. The first version of the script counted them and cheerfully reported
+"0 owed".
+
+**A documentation claim that was false.** `lean-wip/README.md` said QuadEval's
+four `iff` statements covered "`InSb`, `vecInSb`, `relOut` and `paperRelOut`".
+The theorem named `paper_rel_out_implies_rel_out_spec` is about
+`quadeval.vec_in_sb`'s norm implication and mentions neither relation. Corrected
+in place, with the mark. The lesson is the one the flat-index defect already
+taught in a different register: **a claim that nothing checks is a claim that
+drifts**, and the fix is a check rather than a more careful sentence.
+
+**The three ways this project avoids re-proving what is already proved**, now
+that all three are in use:
+
+1. **Port, don't re-derive.** `Ext.lean`'s eight stubs carry cpoly's original
+   proof scripts *inlined as comments*, because the prover receives only the
+   submitted file — a bare `cpoly/lean/Field.lean:513` pointer would have been
+   invisible to it and it would have started from scratch.
+2. **Compose on upstream theorems.** `hAlphaEvals_eq_alphaDefect` is *used*, not
+   re-derived; that is what removed `cRowSum` and its carrier from target 4
+   entirely (§ "The computable route around `cRowSum`").
+3. **Detect the debt mechanically.** `make spec-check`, above. Memory and prose
+   had both already failed at this.
+
+### File layout, corrected
+
+The end-piece statements were first written into `ZeroCheck.lean` to avoid a
+second `LEAN_PATH` hop. That was wrong on two counts: `lean/` keeps one file per
+`hachi/src` module, and bundling would force targets 4 and 6 to be promoted
+together when their obligations are independent. Split into `EndPiece.lean`
+importing `ZeroCheck.lean`; the chain is `Ext` → `ZeroCheck` → `EndPiece`, in
+that promotion order, with the build recipe in `lean-wip/README.md`.
+
+The three `ringswitch` items the α side introduced (`c_eval_at`,
+`c_eval_at_modulus`, `RlinStatement`) stay in `ZeroCheck.lean` for now because
+`lean/RingSwitch.lean` is promoted and cannot hold a `sorry`; they belong beside
+their siblings there and should be merged in at promotion time.
+
+
+## The planning documents left the repository, and what that cost (2026-09-08)
+
+Commit `a81b01d` removed `PLAN_PAPER_PARAMS.md`, `PLAN_PROTOCOL_LAYER.md`,
+`PLAN_Z_SHORTNESS.md`, `STAGE2_SCOPING.md` and all of `briefs/` from tracking,
+and gitignored `briefs/`. They stay on disk as working documents.
+
+The consequence was not obvious and is worth recording: **sixty references in
+twenty-five tracked files pointed at them** — `briefs/` alone from fifteen files
+— so the repository was citing paths it no longer contained. Worse, four of
+those files are the append-only frozen genesis copies
+(`benches/genesis/src/{params,ringswitch,zerocheck,endpiece}.rs`), whose contract
+forbids editing them "not to fix a lint, not to fix a typo": those references
+could never be repaired, only explained.
+
+Resolved by keeping every claim and its attribution while dropping the dangling
+*path*: docstrings, `NOTES.md`, `exclusions.toml`, the Lean files and the bench
+files now say "the target-4 brief", "the Stage 2 scoping document", "the
+protocol-layer plan" and so on. Twenty files edited; the four frozen ones left
+untouched and documented as the exception in `README.md`'s layout table, which is
+also the one place the literal filenames still belong.
+
+Two traps in doing it, both caught before they landed:
+
+* the blanket substitution mangled `README.md`'s own layout table, which is
+  precisely where those filenames *should* appear literally — restored, and
+  extended with the convention so the next reader knows why code cites by prose;
+* comment-only Rust edits move `Source` spans and normally force a
+  re-extraction (the `aeneas-extract` trap). Here `make extract` reported
+  `Generated.lean unchanged`, which was **verified rather than believed**: the
+  edits came to three insertions and three deletions in `src/zerocheck.rs`, a net
+  zero line change, and the model's last `zerocheck` span (`489:0-505:1`) still
+  lands exactly on `pub fn h_alpha_is_zero`. Had the count moved, every span
+  below the edit would have needed regenerating.
+
+Gates after the change: genesis intact at 210 frozen items, slot byte-identical
+across ten modules, coverage 110/60/50/0 unaccounted, **144 tests**, strict
+clippy clean. `make spec-check` unchanged at 99 stated / 11 owed.
+
+Also on disk but outside git from here on: the **re-based target-5 brief**
+(§ "Re-base from `294b3f0` to `d51d8bc`" inside it). Its findings are summarised
+in this file rather than only there, since the document is no longer tracked —
+all seven compute-bearing items byte-identical, `CHom` relocated to
+`ToCompPoly/Univariate/Basic.lean:354`, `m₀ = 26` halving every cost figure to
+`6.87·10^10` `Ext4` mults and a ~46-minute floor, and the external anchor's
+larger caveat *removed* because the paper's prototype runs at the same cube size,
+leaving the field layer as the whole of the residual ~10× gap.
+
+
+## Decision: target 5's genesis holds the dense form (2026-09-08)
+
+**Taken by the user**, and it is a deliberate deviation from `op-genesis`'s
+central rule — genesis normally holds the *trivial* translation so that every
+later gain is measured against the specification's own shape. The rule now
+carries this as its one narrow exception, with the test that licenses it.
+
+**What was checked, and one thing that was not.** The first framing of this —
+"there is no honest naive-grade translation of this target" — was too strong,
+and the user pushed back on it. Three separate claims were collapsed into one:
+
+1. *Can a naive form be written?* **Probably yes.** The ceiling objection is to
+   `Std.ExtTreeMap` specifically, not to sparse representation: a monomial
+   dictionary as `Vec<(Vec<usize>, Ext4)>` is the same object in the container
+   this crate uses for everything (there is no map type anywhere in `hachi/src`).
+   **Unprobed** — the `aeneas-extract` probe procedure would settle it, and it
+   was not run, so this stays a judgement rather than a finding.
+2. *Can it be tested?* **Yes, at toy width.** `b = 3`, `m₀ = 5` gives
+   `7^5 = 16 807` monomials, and the reference toy run finishes in six minutes.
+3. *Can it be a baseline?* **No** — and this is the only claim that holds. At
+   `b = 16` it is `3.9·10^7` monomials at `m₀ = 5` and `1.4·10^12` at `m₀ = 8`,
+   so no width both runs and resembles the operation.
+
+**Why (3) is decisive rather than merely inconvenient**, which is the argument
+that actually justifies the decision:
+
+* the row would be excluded as infeasible — 9 of the 50 by-name exclusions
+  already are — so `vs genesis` for target 5 would yield **no number, ever**;
+* `case!`'s digest oracle compares `now` against `genesis` on a fixed input at
+  bench time, and genesis could not compute one, so the case could not be
+  **built** at all, not merely left unregistered;
+* and as a mirrored item it would carry spec and proof debt for a body that
+  never executes.
+
+So following the rule's letter buys nothing the rule exists to buy: the
+naive-to-dense gain is unmeasurable either way, and freezing naive would add a
+dead artifact, dead proof debt, and an unbuildable case.
+
+**What the decision costs, stated so nobody has to rediscover it.** A target-5
+`vs genesis` figure measures distance from the **dense** form, never from the
+specification's shape. Any ledger row citing that column for a `zerocheck`- or
+sumcheck-side candidate must say so; read as distance-from-spec it is simply
+wrong, and it will understate a candidate's true headroom.
+
+**The mitigation is required, not optional.** The naive `CMvPolynomial`-shaped
+form goes into `hachi/tests/` as the semantic reference at `b = 3`, `m₀ = 5`,
+which recovers exactly the independent oracle the dense freeze gives up. Same
+move as the α side, where the unreduced 2047-coefficient carrier lives in the
+test and nowhere in the crate — and for the same reason: the shape the
+specification names has to be executable *somewhere* that the crate is checked
+against, even when it cannot be the thing that ships.
+
+
+## Target 5 opened: the sumcheck's round message, dense (2026-09-08)
+
+First increment of the sumcheck link, taken under the decision recorded above:
+`benches/genesis` holds the **dense** form here, and `hachi/src/sumcheck.rs`'s
+header says so at the top so that nobody reads its `vs genesis` column as
+distance from the specification's shape.
+
+**Five items, the bottom of the chain**: `round_node`, `interpolate`,
+`round_value_zero`, `round_values_zero`, `round_poly_zero`, plus two `params`
+constants. Eleventh module, so the full new-module choreography — `MODULES`,
+both slots' `lib.rs`, a declared `[[bench]]` *and* `[[test]]`.
+
+### The blocker that shaped the design: cpoly has no inversion
+
+Lagrange interpolation needs `1/(xᵢ − xⱼ)`, and **`cpoly` exposes no `inv`, no
+`pow` and no `Div`, for `Fp` or `Ext4`** — checked across the whole crate, not
+assumed. Reimplementing the field layer is forbidden (`lib.rs` § the cpoly
+dependency), so the operation looked unwritable.
+
+What makes it writable is a property of the *nodes* rather than of the field:
+the nodes are `0 … 2b`, small integers, so every denominator `∏_{j≠i}(i − j)`
+is an integer and **its inverse lives in the base field, never in the
+extension**. So the weights are thirty-three `Fp` literals precomputed offline
+(`params::ROUND_NODE_INV`), a round message is interpolated by multiplying
+`Ext4` values by embedded `Fp` constants, and **no inversion happens at runtime
+at either carrier**. Same discipline as `BALANCED_SHIFT` and
+`Z_BALANCED_SHIFT`: compute the constant outside, store the literal, check the
+relation in a test — `interpolation_weights_invert_their_denominators` pins
+`wᵢ · ∏_{j≠i}(i − j) = 1` for all thirty-three, which is what keeps them
+auditable rather than magic.
+
+`interpolate` takes the weights as an *argument* rather than reading the table,
+so it stays faithful to `interpolateArray`'s arbitrary node set instead of
+hard-wiring `0 … 2b`; `round_node_weights()` is the instantiation.
+
+### What was deliberately not done, so it stays measurable
+
+S1 and S2 of the target-5 analysis are prerequisites — nothing runs without
+them — and they are what this increment implements. Everything else is left for
+`perf-loop` **so that the dense baseline still has headroom to measure**:
+`range_product` is called in its literal 31-multiply form (the `v² − j²` form is
+16, a 2× cut on the 94%-dominant term), the closed-form `eq̃`, the tensor split
+of `Ã` (1024× on the verifier's dominant term), and hoisting the triple
+`computeG`. That was the point of freezing dense-but-unoptimized rather than
+dense-and-tuned.
+
+### The oracle, and the gap in it that I am not papering over
+
+`tests/sumcheck_semantics.rs`, 7 tests. The load-bearing ones:
+`interpolant_reproduces_its_values_at_every_node` (the specification's
+`eval_interpolateArray_at_index`, and the property the whole node-value
+representation rests on), `interpolant_agrees_off_the_nodes_with_the_polynomial_it_came_from`
+(uniqueness — the previous test cannot see away from the nodes), and
+`round_poly_has_degree_at_most_two_b`, which would catch an interpolant that
+matched at every node while being unsound as a round message.
+
+Three mutations injected, all caught: the fold orientation swapped
+(`one_minus·hi + node·lo`), the interpolation basis including its own node, and
+the weight dropped.
+
+**The gap.** The decision above promised the naive `CMvPolynomial` shape as the
+test-side oracle at the toy width `b = 3`, `m₀ = 5`. That is not what landed,
+and the reason is worth recording: the crate's `range_product` is hard-wired to
+`GADGET_BASE = 16`, so a `b = 3` comparison cannot run the crate's code at all —
+it would compare two test-side implementations. At `b = 16` the naive shape needs
+`33^5 ≈ 3.9·10^7` monomials, about 2.8 GB, which is not a test. So the honest
+position is: **the identity is checked against an independent dense computation
+at the real `b`, and the naive shape is checked against nothing.** Closing it
+needs either a `b`-parameterised `range_product` in the crate (a translation
+change, since the specification's `rangeProduct` does take `b`) or acceptance
+that this link's naive shape is unexercised. It is owed, and it is smaller than
+it looked only because the first framing of it was wrong.
+
+### State
+
+`make extract` deterministic, **zero axioms** — including
+`params.ROUND_NODE_INV`, which arrives as `Array Std.U64 33#usize` via
+`Array.make` and is read with the modelled `Array.index_usize`, not as an opaque
+constant. `Check.lean` § 2b extended with the three shape facts. `make build`
+green over 3844 jobs. Coverage moved by exactly the five new markers: **115
+mirrored, 64 benched, 51 excluded, 0 unaccounted**. **151 tests**, strict clippy
+clean. `cargo bench --bench sumcheck -- --test` runs all ten case-variants, so
+`check()` and `case!`'s digest equality both pass.
+
+`check-candidate` fails on the slot's git-pinned `lib.rs`, which a new module
+necessarily changes — the documented "resolves at commit 1" state, as with
+`zerocheck`.
+
+### Owed next on this target
+
+The round machinery above the message: `honest_compute_g`, `round_check`,
+`round_out`, `final_check`, `honest_compute_y`, the two statement carriers and
+the round loop. `honest_compute_y` should be free once the folded table exists
+(S2's shared-subexpression point), and `round_check` needs only the node values
+at `0` and `1`, which are nodes — no evaluation machinery.

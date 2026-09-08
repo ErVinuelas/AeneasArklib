@@ -76,6 +76,10 @@ name = "zerocheck_semantics"
 bench = false
 
 [[test]]
+name = "sumcheck_semantics"
+bench = false
+
+[[test]]
 name = "endpiece_semantics"
 bench = false
 
@@ -191,6 +195,10 @@ harness = false
 
 [[bench]]
 name = "zerocheck"
+harness = false
+
+[[bench]]
+name = "sumcheck"
 harness = false
 
 # Warn rather than deny: `make extract` builds this crate with charon's own

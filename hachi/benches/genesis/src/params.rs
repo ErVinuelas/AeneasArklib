@@ -523,3 +523,43 @@ pub const M_ONE: usize = 3;
 /// written on a magnitude cannot express it, which is exactly why `in_sb` has
 /// to branch on the sign of the centered representative.
 pub const SB_HI: u64 = 7;
+
+/// The number of Lagrange nodes a round message is sampled at: `2b + 1 = 33`,
+/// one more than the per-round degree bound `roundDegZero b = 2b`
+/// (`ZeroCheck/Constraints.lean:87`), which is what makes the interpolant
+/// unique. The nodes themselves are `0, 1, …, 2b`, and the first two are the
+/// ones `roundCheck` evaluates (`Sumcheck/Rounds.lean:100`).
+///
+/// **Derived** from [`GADGET_BASE`]: `2 · 16 + 1`. A literal for the usual
+/// reason -- a `const` arithmetic expression is a `Result` in every Lean use of
+/// it -- with the relation checked in `tests/sumcheck_semantics.rs`.
+pub const ROUND_NODES: usize = 33;
+
+/// The Lagrange interpolation weights for those nodes: entry `i` is
+/// `(∏_{j ≠ i} (i - j))⁻¹` in `F_q`, over the nodes `0 … 2b`.
+///
+/// **Derived**, and precomputed because it cannot be computed here: `cpoly`
+/// exposes no inversion for `Fp` or `Ext4` -- no `inv`, no `pow`, no `Div` --
+/// and reimplementing the field layer is forbidden (`lib.rs` § the cpoly
+/// dependency). Precomputing is also *sufficient*, which is the point: the
+/// nodes are small integers, so every denominator `∏_{j≠i}(i-j)` is an integer
+/// and its inverse lives in the **base** field, never in the extension. So a
+/// round message is interpolated by multiplying `Ext4` values by embedded `Fp`
+/// literals, and no inversion happens at runtime at any carrier.
+///
+/// Each entry is checked against its denominator in
+/// `tests/sumcheck_semantics.rs` (`w_i · ∏_{j≠i}(i-j) = 1`), which is what
+/// makes these numbers auditable rather than magic.
+pub const ROUND_NODE_INV: [u64; ROUND_NODES] = [
+    2_585_773_906, 3_154_578_948, 2_643_632_670,
+    3_628_443_679, 2_684_811_907, 426_935_230,
+    2_373_758_662, 386_683_249, 1_475_969_345,
+    1_790_704_676, 1_894_333_321, 506_300_555,
+    187_715_828, 2_023_881_063, 627_921_355,
+    3_541_461_571, 263_728_828, 3_541_461_571,
+    627_921_355, 2_023_881_063, 187_715_828,
+    506_300_555, 1_894_333_321, 1_790_704_676,
+    1_475_969_345, 386_683_249, 2_373_758_662,
+    426_935_230, 2_684_811_907, 3_628_443_679,
+    2_643_632_670, 3_154_578_948, 2_585_773_906,
+];

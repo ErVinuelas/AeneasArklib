@@ -95,7 +95,7 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > The remaining protocol links — the ring-switch lift and commitment, zero-check,
 > sumcheck and the end piece — are the rest of
-> `PLAN_PROTOCOL_LAYER.md` Stage 3 (a local planning document, not
+> the protocol-layer plan Stage 3 (a local planning document, not
 > in the published repository). Their ArkLib
 > specification is definition-stable at the pinned rev (PR #847) and their
 > parameters already live in `params.rs`; what is absent is code, not spec.
@@ -135,7 +135,15 @@ Makefile              setup, build, test, extraction, benchmarks
 NOTES.md              decisions, spec observations, Aeneas surprises
 INSTRUCTIONS.md       the skill catalogue: what to invoke, and what it asks
 PLAN_*.md, STAGE2_SCOPING.md, briefs/
-                      local planning documents; ignored, never pushed
+                      local planning documents; ignored, never pushed. Code and
+                      NOTES.md cite them by prose name ("the target-4 brief",
+                      "the Stage 2 scoping document") rather than by path, so
+                      that no tracked file points at a file the repository does
+                      not contain. The four frozen copies under
+                      benches/genesis/src/ are the documented exception: they
+                      still carry literal paths, because that directory is
+                      append-only and may not be edited even to fix a
+                      reference.
 .claude/skills/       the written procedures the pipeline runs, one per directory
 logs/
   ledger.jsonl        append-only candidate and campaign rows (currently empty)
@@ -284,7 +292,7 @@ A Lean bump therefore moves `lake-manifest.json`, `lean-toolchain` and the
 Makefile pins together, and a further Mathlib bump means rebasing the port,
 which rebuilds the extraction binaries and re-baselines the extraction — a
 project decision with its own verify-campaign, never maintenance
-(`PLAN_PROTOCOL_LAYER.md`, Decision 2).
+(the protocol-layer plan, Decision 2).
 
 ## Trusted computing base
 

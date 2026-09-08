@@ -27,7 +27,7 @@ of conjunctions (`QuadEval/Reduction.lean:258`) — while the Rust returns a
 not "two values agree". `commit.verify_weak` is the contrasting case: ArkLib
 states *that* one as a `Bool`, so its spec is an equality.
 
-This shape is not in `STAGE2_SCOPING.md`'s erasure catalogue. It is low-risk —
+This shape is not in the Stage 2 scoping document's erasure catalogue. It is low-risk —
 every conjunct is decidable, `Rq` equality being canonical and the norms `ℕ` —
 but it changes what the proof has to produce.
 

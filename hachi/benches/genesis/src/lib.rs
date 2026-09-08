@@ -92,3 +92,5 @@ pub mod quadeval;
 pub mod endpiece;
 
 pub mod zerocheck;
+
+pub mod sumcheck;

@@ -39,7 +39,7 @@
 //! reference-faithful sparsity says so where it builds its challenges.
 //!
 //! Two honesty caveats. First, the protocol-layer *code* is still absent
-//! (`lib.rs` § Status; it arrives with Stage 3 of PLAN_PROTOCOL_LAYER.md), so
+//! (`lib.rs` § Status; it arrives with Stage 3 of the protocol-layer plan), so
 //! the second block is read today only by `tests/params_semantics.rs` and
 //! `lean/Check.lean` § 1 -- which is the point of landing it first: the
 //! translations are written against named constants whose ArkLib ties are
@@ -430,7 +430,7 @@ pub const Z_DIGITS: usize = 5;
 /// (`vecLInftyNorm_honestZ_le`). Deliberately ArkLib's proved deterministic
 /// bound and not Fig. 9's `30583`: the paper's number is the `τ = 4`
 /// representability ceiling under a statistical analysis this development
-/// does not carry (PLAN_Z_SHORTNESS.md). The two side conditions the
+/// does not carry (the z-shortness plan). The two side conditions the
 /// correctness theorem takes on it, `hcap : zBound ≤ balancedDigitCapacity b τ`
 /// and `hzb : 2ʳ·ω·⌊b/2⌋ ≤ zBound` (the latter with equality), are checked in
 /// `tests/params_semantics.rs` and `lean/Check.lean` § 1.
@@ -523,7 +523,7 @@ pub const LIFT_COLS: usize = 57_384;
 /// this constant is `M + 1` because that is what everything downstream reads
 /// (`pSpecNestedZeroCheck F (M + 1) m₁`, the round count). `27` under `τ = 8`,
 /// `26` under `τ = 4` as well. Every cube-shaped object is `2^M_ZERO ≈ 6.7·10⁷`
-/// entries -- the second scale wall of PLAN_PROTOCOL_LAYER.md Risk 7.
+/// entries -- the second scale wall of the protocol-layer plan Risk 7.
 pub const M_ZERO: usize = 26;
 
 /// The nested zero-check's second block width `m₁ = 3`: the cube `{0,1}^m₁`
@@ -536,3 +536,43 @@ pub const M_ZERO: usize = 26;
 /// (`4 < 5 ≤ 8`). The one constant in this file with that status (NOTES.md
 /// § "Re-pin to ArkLib PR #847", the house-discipline exception).
 pub const M_ONE: usize = 3;
+
+/// The number of Lagrange nodes a round message is sampled at: `2b + 1 = 33`,
+/// one more than the per-round degree bound `roundDegZero b = 2b`
+/// (`ZeroCheck/Constraints.lean:87`), which is what makes the interpolant
+/// unique. The nodes themselves are `0, 1, …, 2b`, and the first two are the
+/// ones `roundCheck` evaluates (`Sumcheck/Rounds.lean:100`).
+///
+/// **Derived** from [`GADGET_BASE`]: `2 · 16 + 1`. A literal for the usual
+/// reason -- a `const` arithmetic expression is a `Result` in every Lean use of
+/// it -- with the relation checked in `tests/sumcheck_semantics.rs`.
+pub const ROUND_NODES: usize = 33;
+
+/// The Lagrange interpolation weights for those nodes: entry `i` is
+/// `(∏_{j ≠ i} (i - j))⁻¹` in `F_q`, over the nodes `0 … 2b`.
+///
+/// **Derived**, and precomputed because it cannot be computed here: `cpoly`
+/// exposes no inversion for `Fp` or `Ext4` -- no `inv`, no `pow`, no `Div` --
+/// and reimplementing the field layer is forbidden (`lib.rs` § the cpoly
+/// dependency). Precomputing is also *sufficient*, which is the point: the
+/// nodes are small integers, so every denominator `∏_{j≠i}(i-j)` is an integer
+/// and its inverse lives in the **base** field, never in the extension. So a
+/// round message is interpolated by multiplying `Ext4` values by embedded `Fp`
+/// literals, and no inversion happens at runtime at any carrier.
+///
+/// Each entry is checked against its denominator in
+/// `tests/sumcheck_semantics.rs` (`w_i · ∏_{j≠i}(i-j) = 1`), which is what
+/// makes these numbers auditable rather than magic.
+pub const ROUND_NODE_INV: [u64; ROUND_NODES] = [
+    2_585_773_906, 3_154_578_948, 2_643_632_670,
+    3_628_443_679, 2_684_811_907, 426_935_230,
+    2_373_758_662, 386_683_249, 1_475_969_345,
+    1_790_704_676, 1_894_333_321, 506_300_555,
+    187_715_828, 2_023_881_063, 627_921_355,
+    3_541_461_571, 263_728_828, 3_541_461_571,
+    627_921_355, 2_023_881_063, 187_715_828,
+    506_300_555, 1_894_333_321, 1_790_704_676,
+    1_475_969_345, 386_683_249, 2_373_758_662,
+    426_935_230, 2_684_811_907, 3_628_443_679,
+    2_643_632_670, 3_154_578_948, 2_585_773_906,
+];

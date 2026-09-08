@@ -304,7 +304,7 @@ pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
 /// `d = 1024`, while this is the specification's `d + 1`-term sum with a
 /// recomputed power per term. That gap is the point -- it is the largest single
 /// optimization the α-side offers, and it must be *measurable*, so the baseline
-/// pays it. See briefs/target-4-zero-check.md § Corrections item 3.
+/// pays it. See the target-4 brief § Corrections item 3.
 pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
     let degree: usize = params::RING_DEGREE;
     let mut acc: cpoly::Ext4 = cpoly::Ext4::ZERO;

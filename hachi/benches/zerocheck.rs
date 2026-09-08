@@ -2,7 +2,7 @@
 //!
 //! # Sizes: REDUCED, and `m₀` has a floor
 //!
-//! Every row here is REDUCED, as `STAGE2_SCOPING.md` § "Scale policies" fixes
+//! Every row here is REDUCED, as the Stage 2 scoping document § "Scale policies" fixes
 //! for target 4, and the wall is not a multiplication cost: at the pinned
 //! profile `m₀ = M_ZERO = 26`, so a cube-shaped object is `2^26` `Ext4` values
 //! -- **2.0 GiB** -- and `w_table_mle_eval` holds two of them at once. No
@@ -383,7 +383,7 @@ macro_rules! define_cases {
             /// on both dimensions, and here the wall is `s.M` rather than the
             /// cube. At the real `(n, μ) = (RLIN_ROWS, RLIN_COLS) = (5, 57 344)`
             /// the matrix alone is `286 720` `Rq` = **2.2 GiB**
-            /// (briefs/target-4-zero-check.md § Corrections item 2), and it is
+            /// (the target-4 brief § Corrections item 2), and it is
             /// as independent of `ring::mul` as `m₀`'s cube is -- the two walls
             /// must not be conflated in a note or an exclusion line.
             fn statement(seed: u64, rows: usize, cols: usize) -> RlinStatement {

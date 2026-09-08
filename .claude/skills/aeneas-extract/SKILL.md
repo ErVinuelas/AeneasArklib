@@ -69,7 +69,7 @@ make extract CHARON=<path> AENEAS=<path>   # e.g. from a worktree, pointing at t
   when that lands, move only the URL, keeping the rev pin. A rebase onto a
   moved upstream rebuilds the extraction binaries and re-baselines the
   extraction: a project decision with its own verify-campaign, never
-  maintenance (PLAN_PROTOCOL_LAYER.md, Decision 2).
+  maintenance (the protocol-layer plan, Decision 2).
 * `--include 'cpoly::_'` is not optional. See the next section.
 * Aeneas names the Lean module after the `.llbc` basename —
   `generated.llbc` is what makes `import Generated` resolve. Renaming the

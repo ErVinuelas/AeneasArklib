@@ -6,7 +6,7 @@
 //! 10` coordinates, so one basis is `2^10` schoolbook `ring::mul`s of `2^20`
 //! field operations each (seconds per iteration), and the reshape/evaluation
 //! cases build `ML_POLY_LEN = 2^20` ring elements (~8 GiB) before multiplying
-//! `2^20` more. Policy, per PLAN_PAPER_PARAMS.md Decision 3 (signed off
+//! `2^20` more. Policy, per the paper-parameters plan Decision 3 (signed off
 //! 2026-08-28):
 //!
 //! * the two *shape-generic* basis cases stay, at reduced variable counts

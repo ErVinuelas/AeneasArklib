@@ -15,7 +15,7 @@
 //! evaluation) is absent as *code*, but no longer as a specification: at the
 //! pinned ArkLib (PR #847) its definitions are stable, its parameters are fixed
 //! by `Hachi/Params.lean`, and `params.rs` carries them (`OMEGA` … `M_ONE`) so
-//! that the translations of PLAN_PROTOCOL_LAYER.md Stage 3 are written against
+//! that the translations of the protocol-layer plan Stage 3 are written against
 //! constants whose ArkLib ties are already checked. Two of Fig. 9's values are
 //! deliberately not the spec's -- `τ = 5` not 4, the `z` bound `131072` not
 //! `30583` -- and one, the sparse-challenge weight `c = 16`, has no constant
@@ -43,6 +43,10 @@
 //!   (`Commitments/Functional/Hachi/RingSwitch/RhoDigits.lean`).
 //! * [`quadeval`] -- the QuadEval fold and its Eq. (20) checks
 //!   (`Commitments/Functional/Hachi/QuadEval/`).
+//! * [`sumcheck`] -- the nested sumcheck's round messages, in the folded-table
+//!   value form (`Commitments/Functional/Hachi/Sumcheck/`); the one module whose
+//!   frozen baseline is *not* the specification's trivial shape, for the reason
+//!   its header gives.
 //! * [`zerocheck`] -- the committed table `w̃` and the range-constraint block
 //!   `H₀` (`Commitments/Functional/Hachi/ZeroCheck/Constraints.lean`); the
 //!   first module whose carrier is the extension field `Ext4`.
@@ -128,3 +132,5 @@ pub mod quadeval;
 pub mod endpiece;
 
 pub mod zerocheck;
+
+pub mod sumcheck;

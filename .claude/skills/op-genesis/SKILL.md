@@ -81,6 +81,27 @@ moment of the copy:
   filed for `perf-loop`, not acted on (`lean-to-rust`'s rule, applied at the
   composition level).
 
+  **The one narrow exception, and the test for it.** The rule exists to keep
+  gains *measurable*. Where a naive form cannot be measured at all, freezing it
+  protects nothing and costs three things. Take the exception only when all
+  three hold, and record it:
+
+  1. the naive form cannot run at any width that still resembles the operation,
+     so its bench row would be excluded as infeasible — not merely slow;
+  2. therefore `case!`'s digest oracle cannot be computed on it either, so no
+     bench case can be *built*, not just none registered;
+  3. and being a mirrored item it would carry spec and proof debt for a body
+     that never executes.
+
+  Then freeze the optimized form, say so in `NOTES.md`, and **put the naive form
+  in the tests at a toy width instead** — that is what recovers the independent
+  oracle the freeze would otherwise lose, and it is not optional. Travelled once,
+  for Stage 3 target 5 (the sumcheck): `(2b+1)^{m₀}` monomials is `3.9·10^7`
+  already at `m₀ = 5` and `1.4·10^12` at `m₀ = 8` with `b = 16`, so only
+  `b = 3, m₀ = 5` runs — a width at which the operation is no longer itself.
+  What follows for readers of the ledger: a target-5 `vs genesis` figure measures
+  distance from the *dense* form, never from the specification's shape.
+
 If a defect slips past both and is caught at birth — before any run has been
 reported against the item — the honest repair is an immediate re-freeze: replace
 the frozen text with the fixed first translation, re-stamp against the fixing

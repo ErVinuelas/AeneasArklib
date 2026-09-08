@@ -178,7 +178,7 @@ impl WEvalStatement {
 /// conjunct C (`w_table`), three times over, because that is where the
 /// specification's three definitions each compute it. Sharing one pre-sized
 /// digit block across the conjuncts is the brief's highest-ratio optimization
-/// (briefs/target-6-end-piece.md § "Strategy candidates"), and a baseline that
+/// (the target-6 brief § "Strategy candidates"), and a baseline that
 /// had already done it would report that win as zero forever.
 pub fn end_piece_check(d_key: &PolyMatrix, stmt: &WEvalStatement, w: &LiftedWitness) -> bool {
     let com: PolyVec = lift_commit(d_key, w);

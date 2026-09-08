@@ -239,10 +239,10 @@ pub fn alpha_tilde(alpha: Ext4, l: usize) -> Ext4 {
 /// Mirrors `CMlPolynomialEval.lagrangeBasis` at one entry.
 ///
 /// The bits of `i` are read coordinate-wise here, and that is not an
-/// interchangeable choice: `STAGE2_SCOPING.md` § "Shape-list corrections" claims
+/// interchangeable choice: the Stage 2 scoping document § "Shape-list corrections" claims
 /// `finFunctionFinEquiv` cancels against `.symm` in *every* consumer, which is
 /// true of the `m₀`-side table constructors and **false here** -- under the
-/// product the bits do not cancel (briefs/target-4-zero-check.md § Corrections
+/// product the bits do not cancel (the target-4 brief § Corrections
 /// item 1). The bit test is `/` and `%` rather than `>>` and `&`, per `lib.rs`
 /// § "Style notes".
 pub fn eq_weight(tau1: &Vec<Ext4>, i: usize) -> Ext4 {
@@ -371,7 +371,7 @@ pub fn zc_target_alpha(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: 
 /// nested sum puts it. That is deliberate and it is expensive -- one
 /// `m_alpha_tilde` can reach `c_eval_at_modulus` -- but hoisting it into an
 /// `n × μ` table is the brief's largest identified win on this operation
-/// (briefs/target-4-zero-check.md § "The dominant term", item 4), and a
+/// (the target-4 brief § "The dominant term", item 4), and a
 /// baseline that had already hoisted it would report that win as zero forever.
 pub fn alpha_contract(
     s: &crate::ringswitch::RlinStatement,

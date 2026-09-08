@@ -74,7 +74,7 @@ then can the birth benchmark run.
 > All eight modules (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`,
 > `ringswitch`, `quadeval`) are **already** onboarded and frozen, with 163
 > git-verified stamps. So `op-genesis` is for the next operation, not for catching
-> up — the queue is PLAN_PROTOCOL_LAYER.md Stage 3's remaining targets: the
+> up — the queue is the protocol-layer plan Stage 3's remaining targets: the
 > ring-switch link, zero-check, sumcheck and the end piece, in that dependency order.
 
 **`perf-loop` — optimize one operation.** Generates candidates, translates them,

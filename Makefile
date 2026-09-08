@@ -312,7 +312,7 @@ extract: check-toolchain | $(STAMPS)
 BENCH_TOOLCHAIN := nightly-2026-06-01
 HARNESS         := $(PKG)/benches/harness.py
 
-.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check
+.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check
 
 # Statistics cannot rescue a corrupted baseline, so the integrity checks run
 # before any measurement and are a hard gate.
@@ -361,6 +361,16 @@ bench-coverage:
 # recorded; run this before writing any commit plan that touches it.
 ledger-check:
 	@python3 .claude/skills/skill-lab/references/ledger_check.py --against HEAD
+
+# Which mirrored items have an equivalence *statement*. The companion to
+# `bench-check`'s coverage gate, which only asks whether an item is measured:
+# nothing asked whether anyone had stated what it computes, and eleven
+# `quadeval` items sat unspecified for weeks because of it. Reports rather than
+# gates -- unspecified is debt to schedule, not a broken invariant. Note which
+# two files it does *not* count as specs, and why, in the script's docstring:
+# counting `Generated.lean` or `Check.lean` § 2b makes the check vacuous.
+spec-check:
+	@python3 scripts/spec_coverage.py
 
 bench-toolchain:
 	@set -euo pipefail; \
