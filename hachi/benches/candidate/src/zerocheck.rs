@@ -211,3 +211,138 @@ pub fn h_zero_is_zero(w: &LiftedWitness, m0: usize) -> bool {
     }
     zero
 }
+
+/// `α̃(ℓ) = α^ℓ`, the public column-contraction vector ([NOZ26] Eq. (22); spec:
+/// `alphaTilde`, `Constraints.lean:502`).
+///
+/// Mirrors `alphaTilde`.
+///
+/// Contracting a table row's `d` coefficient entries against `α̃` evaluates the
+/// corresponding `Zq[X]` polynomial at `α`. Written as the specification writes
+/// it -- one power, recomputed -- the same naivety as
+/// [`crate::gadget::base_pow`]. The `d`-entry power *table* is
+/// `perf-loop`'s to build.
+pub fn alpha_tilde(alpha: Ext4, l: usize) -> Ext4 {
+    let mut acc: Ext4 = Ext4::ONE;
+    let mut t: usize = 0;
+    while t < l {
+        acc = acc * alpha;
+        t += 1;
+    }
+    acc
+}
+
+/// The `m₁`-cube equality weight of row `i`: `∏_j (if bit j of i then τ₁ⱼ else
+/// 1 − τ₁ⱼ)` (spec: the `∏ j : Fin m₁` factor of `alphaPublicEvals`
+/// (`Constraints.lean:845-847`) and `zcTargetAlpha` (`:877-879`)).
+///
+/// Mirrors `CMlPolynomialEval.lagrangeBasis` at one entry.
+///
+/// The bits of `i` are read coordinate-wise here, and that is not an
+/// interchangeable choice: `STAGE2_SCOPING.md` § "Shape-list corrections" claims
+/// `finFunctionFinEquiv` cancels against `.symm` in *every* consumer, which is
+/// true of the `m₀`-side table constructors and **false here** -- under the
+/// product the bits do not cancel (briefs/target-4-zero-check.md § Corrections
+/// item 1). The bit test is `/` and `%` rather than `>>` and `&`, per `lib.rs`
+/// § "Style notes".
+pub fn eq_weight(tau1: &Vec<Ext4>, i: usize) -> Ext4 {
+    let vars: usize = tau1.len();
+    let mut acc: Ext4 = Ext4::ONE;
+    let mut j: usize = 0;
+    while j < vars {
+        let bit: usize = (i / two_pow(j)) % 2;
+        let factor: Ext4 = if bit == 1 {
+            tau1[j]
+        } else {
+            Ext4::ONE - tau1[j]
+        };
+        acc = acc * factor;
+        j += 1;
+    }
+    acc
+}
+
+/// `M̃_α(i, u)`, the public constraint matrix at `α` ([NOZ26] Eq. (22); spec:
+/// `mAlphaTilde`, `Constraints.lean:517`).
+///
+/// Mirrors `mAlphaTilde`.
+///
+/// The specification's three cases, in its order:
+///
+/// * `u < μ` -- the `R^lin` matrix entry evaluated at `α`, `Mᵢᵤ(α)`;
+/// * `μ ≤ u < μ + n·δ` and `(u − μ)/δ = i` -- `−φ(α)·b^{(u−μ)%δ}`, which places
+///   the lift's `−(α^d + 1)·rᵢ(α)` term across row `i`'s `δ` digit columns;
+/// * otherwise `0`.
+///
+/// Only public data enters (`s.M`, `Φ.φ`, `α`, `b`), which is what makes the
+/// Figure 7 final check verifier-computable.
+///
+/// `μ` and `n` are read off the statement, and the subtraction `u − μ` is formed
+/// only inside the branch whose guard establishes `μ ≤ u`.
+pub fn m_alpha_tilde(s: &crate::ringswitch::RlinStatement, alpha: Ext4, i: usize, u: usize) -> Ext4 {
+    let digits: usize = params::GADGET_DIGITS;
+    let mu: usize = s.m().cols();
+    let rows: usize = s.m().rows();
+    if u < mu {
+        crate::ringswitch::c_eval_at(alpha, s.m().row(i).get(u))
+    } else if u < mu + rows * digits && (u - mu) / digits == i {
+        let e: usize = (u - mu) % digits;
+        let weight: Ext4 = Ext4::from_base(crate::gadget::base_pow(e));
+        (Ext4::ZERO - crate::ringswitch::c_eval_at_modulus(alpha)) * weight
+    } else {
+        Ext4::ZERO
+    }
+}
+
+/// The public Boolean table multiplying `mle[w̃]` in the linear-constraint
+/// sumcheck (spec: `alphaPublicEvals`, `Constraints.lean:840`).
+///
+/// Mirrors `alphaPublicEvals`.
+///
+/// At the flat cube index for `(u, ℓ)` it is `α^ℓ · ∑ᵢ eq̃(τ₁, i)·M̃_α(i, u)`;
+/// indices outside the encoded table are harmless padding. The cube point
+/// arrives as its flat index for the reason [`w_table`]'s does.
+///
+/// `m₁` is `tau1.len()` and `n` is the statement's row count. The
+/// `i < 2^m₁` guard is the specification's own: at the pinned `n = 5 ≤ 8 = 2^3`
+/// it never fires, and it is translated rather than dropped because a parameter
+/// move that broke `n ≤ 2^m₁` must not silently change what this computes.
+pub fn alpha_public_evals(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: &Vec<Ext4>, idx: usize) -> Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let rows: usize = s.m().rows();
+    let cube: usize = two_pow(tau1.len());
+    let mut sum: Ext4 = Ext4::ZERO;
+    let mut i: usize = 0;
+    while i < rows {
+        if i < cube {
+            let weight: Ext4 = eq_weight(tau1, i);
+            sum = sum + weight * m_alpha_tilde(s, alpha, i, idx / degree);
+        }
+        i += 1;
+    }
+    alpha_tilde(alpha, idx % degree) * sum
+}
+
+/// The public initial target of the linear sumcheck, `∑ᵢ eq̃(τ₁, i)·yᵢ(α)`
+/// (spec: `zcTargetAlpha`, `Constraints.lean:875`).
+///
+/// Mirrors `zcTargetAlpha`.
+///
+/// The verifier computes this from the statement alone -- no witness, and no
+/// cube: `n` rows, each one `m₁`-factor weight and one polynomial evaluation at
+/// `α`. It is the one operation of this target that is feasible at the real
+/// constants, which is why its bench row is not REDUCED.
+pub fn zc_target_alpha(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: &Vec<Ext4>) -> Ext4 {
+    let rows: usize = s.yvec().len();
+    let cube: usize = two_pow(tau1.len());
+    let mut sum: Ext4 = Ext4::ZERO;
+    let mut i: usize = 0;
+    while i < rows {
+        if i < cube {
+            let weight: Ext4 = eq_weight(tau1, i);
+            sum = sum + weight * crate::ringswitch::c_eval_at(alpha, s.yvec().get(i));
+        }
+        i += 1;
+    }
+    sum
+}

@@ -28,7 +28,7 @@
 
 mod support;
 
-use cpoly::Fp;
+use cpoly::{Ext4, Fp};
 use hachi::commit::l_infty_norm;
 use hachi::endpiece::{lift_short_check, rho_digits_short_check};
 use hachi::linalg::PolyVec;
@@ -37,7 +37,8 @@ use hachi::params::{
 };
 use hachi::ring::Rq;
 use hachi::ringswitch::{
-    lift_commit, lift_message, rho_digit_as_rq, rho_digits, LiftedWitness, QuotientRow,
+    c_eval_at, c_eval_at_modulus, lift_commit, lift_message, rho_digit_as_rq, rho_digits,
+    rho_digits_at, LiftedWitness, QuotientRow,
 };
 use support::{coeffs_of, rq_from_u64s, show, Lcg};
 
@@ -208,6 +209,134 @@ fn rho_digit_as_rq_uses_row_major_digit_indices() {
         let source = if j < GADGET_DIGITS { &a } else { &b };
         let expected = rho_digits(source, j % GADGET_DIGITS);
         assert!(rho_digit_as_rq(&rho, j).equals(&expected), "flat index {j}");
+    }
+}
+
+/// `rho_digits_at` is the specification's own `rhoDigits Φ bDig (ρ i) u`: the
+/// digit of row `i` at index `u`, addressed by the pair rather than through a
+/// flat index. Two things are pinned here, and the second is why the pair form
+/// exists at all.
+///
+/// The reference is written the specification's way (the balanced digit of the
+/// row's own coefficients), not by calling `rho_digits`.
+#[test]
+fn rho_digits_at_is_the_balanced_digit_of_that_row() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0021);
+    let rows = [rng.next_rq(), rng.next_rq(), rng.next_rq()];
+    let rho: Vec<QuotientRow> = rows.iter().map(quotient_row).collect();
+    for (i, source) in rows.iter().enumerate() {
+        for u in [0usize, 1, GADGET_DIGITS - 1] {
+            let digit = rho_digits_at(&rho, i, u);
+            for k in [0usize, 7, RING_DEGREE - 1] {
+                assert_eq!(
+                    val_min_abs(digit.coeff(k)),
+                    balanced_digit_ref(source.coeff(k), u),
+                    "row {i}, digit {u}, coefficient {k}"
+                );
+            }
+        }
+    }
+}
+
+/// And `rho_digits_at(rho, i, u)` is the same digit the flat index selects,
+/// `j = i · δ + u`. This is the equality that licensed dropping the flat index
+/// from `endpiece::rho_digits_short_check`: the check's result is unchanged,
+/// while the `i · δ` product -- which is a *checked* `usize` multiplication in
+/// the extracted model, over an `i` bounded only by `rho.len()` -- is no longer
+/// formed, so the check's `_spec` needs no `n · 8 ≤ Usize.max` hypothesis.
+/// `rho_digit_as_rq` keeps the flat form because its own specification
+/// (`rhoDigitAsRq`) takes one.
+#[test]
+fn rho_digits_at_agrees_with_the_flat_index() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0022);
+    let rho = vec![
+        quotient_row(&rng.next_rq()),
+        quotient_row(&rng.next_rq()),
+        quotient_row(&rng.next_rq()),
+    ];
+    for i in 0..rho.len() {
+        for u in 0..GADGET_DIGITS {
+            let flat = rho_digit_as_rq(&rho, i * GADGET_DIGITS + u);
+            assert!(
+                rho_digits_at(&rho, i, u).equals(&flat),
+                "pair ({i}, {u}) must select the digit of flat index {}",
+                i * GADGET_DIGITS + u
+            );
+        }
+    }
+}
+
+/// An extension-field point built from four base coefficients.
+fn ext4(rng: &mut Lcg) -> Ext4 {
+    Ext4::new(rng.next_fp(), rng.next_fp(), rng.next_fp(), rng.next_fp())
+}
+
+/// `p(α)` by **Horner's method**, descending -- a different algorithm from the
+/// `∑ₖ cₖ·αᵏ` power-sum `cEvalAt` is defined as, so a mistake in either shows up
+/// as a mismatch rather than being reproduced.
+fn horner_ref(alpha: Ext4, p: &Rq) -> Ext4 {
+    let mut acc = Ext4::ZERO;
+    let mut k = RING_DEGREE;
+    while k > 0 {
+        k -= 1;
+        acc = acc * alpha + Ext4::from_base(p.coeff(k));
+    }
+    acc
+}
+
+/// `αⁿ` by repeated squaring -- again a different algorithm from the repeated
+/// multiplication the crate uses.
+fn pow_by_squaring(alpha: Ext4, mut n: usize) -> Ext4 {
+    let mut acc = Ext4::ONE;
+    let mut base = alpha;
+    while n > 0 {
+        if n % 2 == 1 {
+            acc = acc * base;
+        }
+        base = base * base;
+        n /= 2;
+    }
+    acc
+}
+
+/// `cEvalAt φF α p = p.eval₂ φF α`: the `Zq[X]` polynomial evaluated at a point
+/// of the extension field, against Horner.
+#[test]
+fn c_eval_at_evaluates_the_polynomial_at_alpha() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0031);
+    for _ in 0..2 {
+        let p = rng.next_rq();
+        let alpha = ext4(&mut rng);
+        assert_eq!(c_eval_at(alpha, &p), horner_ref(alpha, &p));
+    }
+}
+
+/// A property no single-input comparison gives: evaluation is additive in the
+/// polynomial, `(p + r)(α) = p(α) + r(α)`. `Rq::add` is coefficientwise, so this
+/// is a statement about `cEvalAt` and not about the ring.
+#[test]
+fn c_eval_at_is_additive_in_the_polynomial() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0032);
+    let p = rng.next_rq();
+    let r = rng.next_rq();
+    let alpha = ext4(&mut rng);
+    assert_eq!(
+        c_eval_at(alpha, &p.add(&r)),
+        c_eval_at(alpha, &p) + c_eval_at(alpha, &r)
+    );
+}
+
+/// `cEvalAt φF α Φ.φ` at `Φ.φ = X^d + 1` is `α^d + 1` -- the identity the naive
+/// `d + 1`-term sum computes the long way round, checked against ten squarings.
+/// This is the equality that makes the α-side's largest optimization sound, so
+/// it is pinned before that optimization is attempted.
+#[test]
+fn c_eval_at_modulus_is_alpha_to_the_d_plus_one() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0033);
+    for _ in 0..2 {
+        let alpha = ext4(&mut rng);
+        let expected = pow_by_squaring(alpha, RING_DEGREE) + Ext4::ONE;
+        assert_eq!(c_eval_at_modulus(alpha), expected);
     }
 }
 

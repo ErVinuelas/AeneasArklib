@@ -576,6 +576,40 @@ example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
 example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool :=
   zerocheck.h_zero_is_zero w m0
 
+-- The α side, and the crate's first *mixed* evaluation: `Fp` coefficients at an
+-- `Ext4` point. Three shape facts the proofs lean on:
+--
+-- * `RlinStatement` is a named-fields structure, so the extracted model reads
+--   `s.m`/`s.yvec`/`s.bound` as projections rather than through a `Vec` of
+--   heterogeneous parts -- the reason `arklib-analyze` § 6 prescribes that shape
+--   for a small fixed carrier;
+-- * `c_eval_at` takes the polynomial by reference and the point by value, so the
+--   spec quantifies over an `Rq` and an `Ext4` and not over two borrows;
+-- * `c_eval_at_modulus` takes *no* polynomial: `Φ.φ = X^d + 1` has `d + 1`
+--   coefficients and no `Rq` can hold it, which is why it is a separate entry
+--   point and not a call with the modulus passed in.
+example (m : linalg.PolyMatrix) (yvec : linalg.PolyVec) (bound : Std.U64) :
+    Result ringswitch.RlinStatement := ringswitch.RlinStatement.new m yvec bound
+example (s : ringswitch.RlinStatement) : Result linalg.PolyMatrix :=
+  ringswitch.RlinStatement.impl.m s
+example (alpha : cpoly.field.Ext4) (p : ring.Rq) : Result cpoly.field.Ext4 :=
+  ringswitch.c_eval_at alpha p
+example (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
+  ringswitch.c_eval_at_modulus alpha
+example (alpha : cpoly.field.Ext4) (l : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.alpha_tilde alpha l
+example (tau1 : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+    Result cpoly.field.Ext4 := zerocheck.eq_weight tau1 i
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (i u : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.m_alpha_tilde s alpha i u
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize) :
+    Result cpoly.field.Ext4 := zerocheck.alpha_public_evals s alpha tau1 idx
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
+  zerocheck.zc_target_alpha s alpha tau1
+
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which
 -- is what makes the equivalence statement an equality of decisions.

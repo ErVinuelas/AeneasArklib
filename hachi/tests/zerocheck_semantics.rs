@@ -32,9 +32,12 @@ mod support;
 use cpoly::{Ext4, Fp, MultilinearEvals};
 use hachi::linalg::PolyVec;
 use hachi::params::{BALANCED_SHIFT, GADGET_BASE, GADGET_DIGITS, HALF_BASE, Q, RING_DEGREE};
+use hachi::ringswitch::RlinStatement;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
-use hachi::zerocheck::{c_w_table_mle, h_zero, h_zero_is_zero, range_product, w_table,
-                       w_table_mle_eval};
+use hachi::ring::Rq;
+use hachi::zerocheck::{alpha_public_evals, alpha_tilde, c_w_table_mle, eq_weight, h_zero,
+                       h_zero_is_zero, m_alpha_tilde, range_product, w_table, w_table_mle_eval,
+                       zc_target_alpha};
 use support::{rq_from_u64s, Lcg};
 
 /// `φF` -- the ring map `ZMod q →+* F` the specification carries everywhere.
@@ -280,4 +283,218 @@ fn h_zero_is_zero_exactly_when_every_coefficient_is_in_range() {
         assert!(!h_zero_is_zero(&edge, m0), "out-of-range coefficient at index {k} not seen");
         assert!(!h_zero(&edge, m0).values()[k].is_zero(), "H0 entry {k} should not vanish");
     }
+}
+
+// --- the α side -------------------------------------------------------------
+
+/// `αⁿ` by repeated squaring: a different algorithm from the repeated
+/// multiplication `alphaTilde` is written as.
+fn pow_by_squaring(alpha: Ext4, mut n: usize) -> Ext4 {
+    let mut acc = Ext4::ONE;
+    let mut base = alpha;
+    while n > 0 {
+        if n % 2 == 1 {
+            acc = acc * base;
+        }
+        base = base * base;
+        n /= 2;
+    }
+    acc
+}
+
+/// `p(α)` by Horner, for the reference side of `mAlphaTilde`'s first case.
+fn horner_ref(alpha: Ext4, p: &Rq) -> Ext4 {
+    let mut acc = Ext4::ZERO;
+    let mut k = RING_DEGREE;
+    while k > 0 {
+        k -= 1;
+        acc = acc * alpha + Ext4::from_base(p.coeff(k));
+    }
+    acc
+}
+
+fn ext4(r: &mut Lcg) -> Ext4 {
+    Ext4::new(r.next_fp(), r.next_fp(), r.next_fp(), r.next_fp())
+}
+
+fn statement(seed: u64, n: usize, mu: usize) -> RlinStatement {
+    let mut r = Lcg::new(seed);
+    RlinStatement::new(r.next_poly_matrix(n, mu), r.next_poly_vec(n), 15)
+}
+
+#[test]
+fn alpha_tilde_is_the_power() {
+    let mut r = Lcg::new(0x5A17_3001);
+    let alpha = ext4(&mut r);
+    for l in [0usize, 1, 2, 7, 63, 1023] {
+        assert_eq!(alpha_tilde(alpha, l), pow_by_squaring(alpha, l), "α^{l}");
+    }
+}
+
+/// The Lagrange weights are a partition of unity: `∑_{i < 2^m₁} eq̃(τ₁, i) = 1`
+/// for *every* `τ₁`. A property of the family rather than a re-computation of
+/// one entry, so it cannot be satisfied by a consistently wrong product.
+#[test]
+fn eq_weights_sum_to_one() {
+    let mut r = Lcg::new(0x5A17_3002);
+    for m1 in 1..=4usize {
+        let tau: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
+        let mut sum = Ext4::ZERO;
+        for i in 0..(1usize << m1) {
+            sum = sum + eq_weight(&tau, i);
+        }
+        assert_eq!(sum, Ext4::ONE, "m1 = {m1}");
+    }
+}
+
+/// And at a Boolean `τ₁` the family is the indicator of the index `τ₁` encodes,
+/// little-endian -- which pins the *bit order*, the thing a `finFunctionFinEquiv`
+/// mix-up would silently transpose.
+#[test]
+fn eq_weight_at_a_boolean_point_is_the_indicator() {
+    let m1 = 3usize;
+    for k in 0..(1usize << m1) {
+        let tau: Vec<Ext4> = (0..m1)
+            .map(|j| if (k >> j) & 1 == 1 { Ext4::ONE } else { Ext4::ZERO })
+            .collect();
+        for i in 0..(1usize << m1) {
+            let w = eq_weight(&tau, i);
+            if i == k {
+                assert_eq!(w, Ext4::ONE, "eq(e_{k}, {i})");
+            } else {
+                assert!(w.is_zero(), "eq(e_{k}, {i}) should vanish");
+            }
+        }
+    }
+}
+
+/// `mAlphaTilde`'s three cases, each against an independent computation: the
+/// matrix entry at `α` by Horner, the digit weight as `−(α^d + 1)·bᵉ` by
+/// squaring, and zero elsewhere.
+#[test]
+fn m_alpha_tilde_has_the_three_specified_cases() {
+    let (n, mu) = (2usize, 2usize);
+    let s = statement(0x5A17_3003, n, mu);
+    let mut r = Lcg::new(0x5A17_3004);
+    let alpha = ext4(&mut r);
+    let phi_alpha = pow_by_squaring(alpha, RING_DEGREE) + Ext4::ONE;
+
+    // case 1: the R^lin matrix entry evaluated at α
+    for i in 0..n {
+        for u in 0..mu {
+            assert_eq!(
+                m_alpha_tilde(&s, alpha, i, u),
+                horner_ref(alpha, s.m().row(i).get(u)),
+                "matrix case at ({i}, {u})"
+            );
+        }
+    }
+
+    // case 2: row i's own digit columns carry -φ(α)·b^e
+    for i in 0..n {
+        for e in 0..GADGET_DIGITS {
+            let u = mu + i * GADGET_DIGITS + e;
+            let mut b_pow = Ext4::ONE;
+            for _ in 0..e {
+                b_pow = b_pow * Ext4::from_base(Fp::new(GADGET_BASE));
+            }
+            let expected = (Ext4::ZERO - phi_alpha) * b_pow;
+            assert_eq!(m_alpha_tilde(&s, alpha, i, u), expected, "digit case ({i}, {e})");
+        }
+    }
+
+    // case 3: another row's digit columns, and the padding above the table
+    for i in 0..n {
+        for other in 0..n {
+            if other == i {
+                continue;
+            }
+            let u = mu + other * GADGET_DIGITS;
+            assert!(
+                m_alpha_tilde(&s, alpha, i, u).is_zero(),
+                "row {i} must not see row {other}'s digit columns"
+            );
+        }
+        let above = mu + n * GADGET_DIGITS;
+        assert!(m_alpha_tilde(&s, alpha, i, above).is_zero(), "padding at {above}");
+    }
+}
+
+/// `alphaPublicEvals` factors as `α^{idx % d} · ∑ᵢ eq̃(τ₁, i)·M̃_α(i, idx / d)`,
+/// against a reference that builds each factor separately.
+#[test]
+fn alpha_public_evals_is_the_weighted_column_contraction() {
+    let (n, mu) = (2usize, 2usize);
+    let s = statement(0x5A17_3005, n, mu);
+    let mut r = Lcg::new(0x5A17_3006);
+    let alpha = ext4(&mut r);
+    let tau: Vec<Ext4> = (0..3).map(|_| ext4(&mut r)).collect();
+
+    for idx in [0usize, 5, RING_DEGREE, RING_DEGREE + 3, 2 * RING_DEGREE + 1] {
+        let mut sum = Ext4::ZERO;
+        for i in 0..n {
+            sum = sum + eq_weight(&tau, i) * m_alpha_tilde(&s, alpha, i, idx / RING_DEGREE);
+        }
+        let expected = pow_by_squaring(alpha, idx % RING_DEGREE) * sum;
+        assert_eq!(alpha_public_evals(&s, alpha, &tau, idx), expected, "idx {idx}");
+    }
+}
+
+/// Padding is harmless: above the encoded table every `M̃_α` case is zero, so
+/// the whole entry vanishes however large the cube is.
+#[test]
+fn alpha_public_evals_vanishes_on_the_padding() {
+    let (n, mu) = (2usize, 2usize);
+    let s = statement(0x5A17_3007, n, mu);
+    let mut r = Lcg::new(0x5A17_3008);
+    let alpha = ext4(&mut r);
+    let tau: Vec<Ext4> = (0..3).map(|_| ext4(&mut r)).collect();
+    let first_pad_row = mu + n * GADGET_DIGITS;
+    for u in [first_pad_row, first_pad_row + 1] {
+        for l in [0usize, 9] {
+            let idx = RING_DEGREE * u + l;
+            assert!(
+                alpha_public_evals(&s, alpha, &tau, idx).is_zero(),
+                "padding row {u}, column {l}"
+            );
+        }
+    }
+}
+
+/// `zcTargetAlpha` at a Boolean `τ₁ = e_k` is exactly `y_k(α)`: the equality
+/// weights collapse to the indicator, so the sum picks out one right-hand side
+/// entry. A sharper statement than re-summing the same products, and it pins
+/// both the weight family and the evaluation together.
+#[test]
+fn zc_target_alpha_at_a_boolean_point_selects_one_row() {
+    let n = 3usize;
+    let s = statement(0x5A17_3009, n, 2);
+    let mut r = Lcg::new(0x5A17_300A);
+    let alpha = ext4(&mut r);
+    for k in 0..n {
+        let tau: Vec<Ext4> = (0..2)
+            .map(|j| if (k >> j) & 1 == 1 { Ext4::ONE } else { Ext4::ZERO })
+            .collect();
+        assert_eq!(
+            zc_target_alpha(&s, alpha, &tau),
+            horner_ref(alpha, s.yvec().get(k)),
+            "τ₁ = e_{k} must select y_{k}(α)"
+        );
+    }
+}
+
+/// And in general it is `∑ᵢ eq̃(τ₁, i)·yᵢ(α)`, with the evaluation taken by
+/// Horner on the reference side.
+#[test]
+fn zc_target_alpha_is_the_weighted_sum_of_the_right_hand_side() {
+    let n = 3usize;
+    let s = statement(0x5A17_300B, n, 2);
+    let mut r = Lcg::new(0x5A17_300C);
+    let alpha = ext4(&mut r);
+    let tau: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let mut expected = Ext4::ZERO;
+    for i in 0..n {
+        expected = expected + eq_weight(&tau, i) * horner_ref(alpha, s.yvec().get(i));
+    }
+    assert_eq!(zc_target_alpha(&s, alpha, &tau), expected);
 }

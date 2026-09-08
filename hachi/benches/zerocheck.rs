@@ -92,6 +92,20 @@ const Z_COLS: usize = 1;
 /// index, which is what the second `w_table` row below measures.
 const RHO_ROWS: usize = 1;
 
+/// The row count of the α-side statement: **REDUCED** from
+/// `params::RLIN_ROWS = 5`. Two rows, enough that `M̃_α`'s row-match condition
+/// has a row it must *reject* (`zerocheck/m_alpha_tilde_digit` is taken on row
+/// 0's own digit block, and row 1's exists to be excluded).
+const ALPHA_ROWS: usize = 2;
+
+/// The column count of the α-side statement: **REDUCED** from
+/// `params::RLIN_COLS = 57 344`, and the reduction is forced by memory rather
+/// than time -- see the `statement` helper's doc.
+const ALPHA_COLS: usize = 2;
+
+/// The `m₁` the α-side rows run at: **real**, `params::M_ONE = 3`.
+const ALPHA_VARS: usize = hachi::params::M_ONE;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -104,10 +118,12 @@ macro_rules! define_cases {
 
             use cpoly::{Ext4, Fp, MultilinearEvals};
 
+            use hc::ringswitch::RlinStatement;
+
             use $hachi as hc;
 
             use crate::support::{self, Mode};
-            use crate::{RHO_ROWS, Z_COLS};
+            use crate::{ALPHA_ROWS, ALPHA_VARS, RHO_ROWS, Z_COLS};
 
             type Rq = hc::ring::Rq;
             type PolyVec = hc::linalg::PolyVec;
@@ -363,6 +379,162 @@ macro_rules! define_cases {
                 )
             }
 
+            /// The `R^lin` statement the α-side rows run against: **REDUCED**
+            /// on both dimensions, and here the wall is `s.M` rather than the
+            /// cube. At the real `(n, μ) = (RLIN_ROWS, RLIN_COLS) = (5, 57 344)`
+            /// the matrix alone is `286 720` `Rq` = **2.2 GiB**
+            /// (briefs/target-4-zero-check.md § Corrections item 2), and it is
+            /// as independent of `ring::mul` as `m₀`'s cube is -- the two walls
+            /// must not be conflated in a note or an exclusion line.
+            fn statement(seed: u64, rows: usize, cols: usize) -> RlinStatement {
+                let degree = hc::params::RING_DEGREE;
+                let mut m = Vec::with_capacity(rows);
+                let mut i = 0usize;
+                while i < rows {
+                    let mut row = Vec::with_capacity(cols);
+                    let mut j = 0usize;
+                    while j < cols {
+                        row.push(Rq::from_coeffs(&support::corpus(
+                            seed.wrapping_add((i * cols + j) as u64),
+                            degree,
+                        )));
+                        j += 1;
+                    }
+                    m.push(PolyVec::new(row));
+                    i += 1;
+                }
+                let mut y = Vec::with_capacity(rows);
+                let mut r = 0usize;
+                while r < rows {
+                    y.push(Rq::from_coeffs(&support::corpus(
+                        seed.wrapping_add(0x9000 + r as u64),
+                        degree,
+                    )));
+                    r += 1;
+                }
+                RlinStatement::new(
+                    hc::linalg::PolyMatrix::new(m),
+                    PolyVec::new(y),
+                    hc::params::CHAIN_GAMMA,
+                )
+            }
+
+            /// `α̃(ℓ) = α^ℓ` at the deepest column index, `ℓ = d − 1`: the worst
+            /// entry of the loop every consumer runs to completion, for the
+            /// reason `benches/ringswitch.rs` § "Why the digit index is..."
+            /// gives. `1023` extension multiplies as written.
+            pub fn alpha_tilde(m: Mode<'_, '_>, l: usize) -> u64 {
+                let c = support::corpus(0x5A17_4001, 4);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                support::run(
+                    m,
+                    || hc::zerocheck::alpha_tilde(black_box(alpha), black_box(l)),
+                    d_ext4,
+                )
+            }
+
+            /// `M̃_α` on its **matrix** case (`u < μ`): one `c_eval_at` over the
+            /// statement entry.
+            pub fn m_alpha_tilde_matrix(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x5A17_4002, ALPHA_ROWS, cols);
+                let c = support::corpus(0x5A17_4003, 4);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                support::run(
+                    m,
+                    || {
+                        hc::zerocheck::m_alpha_tilde(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(0),
+                            black_box(cols - 1),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
+            /// `M̃_α` on its **digit** case: `−φ(α)·bᵉ`, i.e. one
+            /// `c_eval_at_modulus` and one `base_pow`. A separate row from the
+            /// matrix case because the two branches reach different helpers and
+            /// admit different optimizations -- the modulus one collapses to ten
+            /// squarings, the matrix one does not.
+            pub fn m_alpha_tilde_digit(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x5A17_4004, ALPHA_ROWS, cols);
+                let c = support::corpus(0x5A17_4005, 4);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                let u = cols + hc::params::GADGET_DIGITS - 1;
+                support::run(
+                    m,
+                    || {
+                        hc::zerocheck::m_alpha_tilde(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(0),
+                            black_box(u),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
+            /// `alphaPublicEvals` at one cube point: `n` weights and `n`
+            /// `M̃_α` entries, then one `α^ℓ`. The row the `Õ(√(2^ℓ)·λ)`
+            /// dynamic-programming direction the specification's own docstring
+            /// names (`Constraints.lean:1393`) would have to beat.
+            pub fn alpha_public_evals(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x5A17_4006, ALPHA_ROWS, cols);
+                let c = support::corpus(0x5A17_4007, 4 + 4 * ALPHA_VARS);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                let mut tau = Vec::with_capacity(ALPHA_VARS);
+                let mut j = 0usize;
+                while j < ALPHA_VARS {
+                    tau.push(Ext4::new(c[4 + 4 * j], c[5 + 4 * j], c[6 + 4 * j], c[7 + 4 * j]));
+                    j += 1;
+                }
+                let idx = hc::params::RING_DEGREE * (cols - 1) + 7;
+                support::run(
+                    m,
+                    || {
+                        hc::zerocheck::alpha_public_evals(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(&tau),
+                            black_box(idx),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
+            /// `zcTargetAlpha` at the **real** row count and `m₁`: `n = 5`
+            /// weights and five polynomial evaluations at `α`, no cube and no
+            /// matrix, which is why this is the one α-side row that is not
+            /// REDUCED. The statement's `M` is still small -- `zc_target_alpha`
+            /// reads only `yvec` -- so the 2.2 GiB wall is not in play.
+            pub fn zc_target_alpha(m: Mode<'_, '_>, rows: usize) -> u64 {
+                assert_eq!(rows, hc::params::RLIN_ROWS, "zc_target_alpha runs at the real n");
+                let s = statement(0x5A17_4008, rows, 1);
+                let c = support::corpus(0x5A17_4009, 4 + 4 * ALPHA_VARS);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                let mut tau = Vec::with_capacity(ALPHA_VARS);
+                let mut j = 0usize;
+                while j < ALPHA_VARS {
+                    tau.push(Ext4::new(c[4 + 4 * j], c[5 + 4 * j], c[6 + 4 * j], c[7 + 4 * j]));
+                    j += 1;
+                }
+                support::run(
+                    m,
+                    || {
+                        hc::zerocheck::zc_target_alpha(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(&tau),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant runs its own
@@ -410,6 +582,23 @@ fn zerocheck_benches(c: &mut Criterion) {
     bench_case!(c, "zerocheck/h_zero", h_zero, [M_ZERO_REDUCED]);
     // @covers zerocheck::h_zero_is_zero
     bench_case!(c, "zerocheck/h_zero_is_zero", h_zero_is_zero, [M_ZERO_REDUCED]);
+
+    // The α side. Every row but the last is REDUCED on the statement, and the
+    // wall there is `s.M`'s 2.2 GiB rather than the cube -- a different wall
+    // with a different removal condition (§ Corrections item 2 of the brief).
+    // @covers zerocheck::alpha_tilde
+    bench_case!(c, "zerocheck/alpha_tilde", alpha_tilde, [hachi::params::RING_DEGREE - 1]);
+    // Two rows for one item, because `m_alpha_tilde`'s branches reach different
+    // helpers: the matrix case one `c_eval_at`, the digit case one
+    // `c_eval_at_modulus` and one `base_pow`.
+    // @covers zerocheck::m_alpha_tilde
+    bench_case!(c, "zerocheck/m_alpha_tilde_matrix", m_alpha_tilde_matrix, [ALPHA_COLS]);
+    // @covers zerocheck::m_alpha_tilde
+    bench_case!(c, "zerocheck/m_alpha_tilde_digit", m_alpha_tilde_digit, [ALPHA_COLS]);
+    // @covers zerocheck::alpha_public_evals
+    bench_case!(c, "zerocheck/alpha_public_evals", alpha_public_evals, [ALPHA_COLS]);
+    // @covers zerocheck::zc_target_alpha
+    bench_case!(c, "zerocheck/zc_target_alpha", zc_target_alpha, [hachi::params::RLIN_ROWS]);
 }
 
 criterion_group! {

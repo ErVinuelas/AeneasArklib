@@ -189,6 +189,8 @@ macro_rules! define_cases {
         mod $modname {
             use std::hint::black_box;
 
+            use cpoly::Ext4;
+
             use $hachi as hc;
 
             use crate::support::{self, Mode};
@@ -245,6 +247,13 @@ macro_rules! define_cases {
             }
 
             // -- digests (outside every timed region) -----------------------
+
+            fn d_ext4(v: &Ext4) -> u64 {
+                let mut acc = support::mix(0, v.c0.to_u64());
+                acc = support::mix(acc, v.c1.to_u64());
+                acc = support::mix(acc, v.c2.to_u64());
+                support::mix(acc, v.c3.to_u64())
+            }
 
             fn d_rq(a: &Rq) -> u64 {
                 let n = a.len();
@@ -418,6 +427,44 @@ macro_rules! define_cases {
                 )
             }
 
+            /// `cEvalAt` at the **real** ring degree: `d = 1024` terms, each
+            /// one `Fp`→`Ext4` embedding, one extension multiply and one add --
+            /// plus the power, which the specification's `eval₂` recomputes per
+            /// term (`x ^ i` inside the fold), so the row is `~d²/2` extension
+            /// multiplies. That quadratic is the shape the baseline must have:
+            /// hoisting the power into a running product is the first
+            /// optimization this row exists to price.
+            pub fn c_eval_at(m: Mode<'_, '_>, degree: usize) -> u64 {
+                assert_eq!(degree, hc::params::RING_DEGREE, "c_eval_at size is the ring degree");
+                let p: Rq = Rq::from_coeffs(&support::corpus(0x8047_3001, degree));
+                let c = support::corpus(0x8047_3002, 4);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_eval_at(black_box(alpha), black_box(&p)),
+                    d_ext4,
+                )
+            }
+
+            /// The same evaluation at the cyclotomic modulus `X^d + 1`, whose
+            /// `d + 1` coefficients are all zero but two. Registered separately
+            /// from [`c_eval_at`] because the *optimization* differs: this one
+            /// collapses to `α^d + 1`, ten squarings at `d = 1024`, which is a
+            /// ~50 000× cut rather than the constant factor the general
+            /// evaluation admits. Pinned by
+            /// `ringswitch_semantics::c_eval_at_modulus_is_alpha_to_the_d_plus_one`
+            /// before any candidate touches it.
+            pub fn c_eval_at_modulus(m: Mode<'_, '_>, degree: usize) -> u64 {
+                assert_eq!(degree, hc::params::RING_DEGREE, "size is the ring degree");
+                let c = support::corpus(0x8047_3003, 4);
+                let alpha = Ext4::new(c[0], c[1], c[2], c[3]);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_eval_at_modulus(black_box(alpha)),
+                    d_ext4,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -470,6 +517,15 @@ fn ringswitch_benches(c: &mut Criterion) {
     // removal condition, and why the composition survives this reduction.
     // @covers ringswitch::lift_commit
     bench_case!(c, "ringswitch/lift_commit", lift_commit, [LIFT_COMMIT_Z]);
+
+    // Both at the **real** ring degree: the mixed `Fp`-coefficient/`Ext4`-point
+    // evaluation the zero-check's α side is built on. Two rows for two
+    // different removal conditions -- see each case's doc.
+    // @covers ringswitch::c_eval_at
+    bench_case!(c, "ringswitch/c_eval_at", c_eval_at, [hachi::params::RING_DEGREE]);
+    // @covers ringswitch::c_eval_at_modulus
+    bench_case!(c, "ringswitch/c_eval_at_modulus", c_eval_at_modulus,
+                [hachi::params::RING_DEGREE]);
 }
 
 criterion_group! {

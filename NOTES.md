@@ -2729,3 +2729,332 @@ Required next actions, in this order (`op-genesis` § "The commit choreography")
    must read noise against the printed threshold; the three-copy rows above are
    the ones whose agreement is evidence that the freeze is faithful, and the
    merged five cannot be (they time the same machine code twice).
+
+
+## Target 4's birth run was contended, and the re-run split the anomalies (2026-09-08)
+
+Run **`20260908T0901+0200-b33e9d1d`** (source `abdcd7e` clean, full pass) is
+**discarded, not recorded**: an Aristotle result was integrated at `09:02:02`
+local, one minute after the run started at `09:01`, and
+`aristotle_check.py`'s integration path verifies the returned file with
+`lake env lean` before incorporating it. The precedent for discarding is the
+repo's own — NOTES.md § "The 5% accept floor is borrowed" discarded a smoke run
+for the same reason.
+
+⊗⊗ **The mechanism is not pinned, and the obvious candidate does not fit.**
+Re-running that verification by hand takes **4.8 s** on a warm olean cache, so
+the check itself cannot account for anomalies in binaries that ran 10–25 minutes
+later (`gadget` ~09:08, `zerocheck` ~09:25). What *is* established is that the
+run was contended by something transient: two rows that read −12.41% and −8.02%
+came back −0.37% and −0.31% on the clean re-run, on byte-identical code. The
+best remaining candidate is the **editor's Lean language server**, which the
+09:02 write to `RingSwitch.lean` would have woken into a background rebuild
+lasting minutes, and which leaves no trace a later `ps` can find. So the
+mitigation is wider than "do not run an Aristotle check during a bench window":
+a bench window needs the *editor* off the repo too, because a file write is
+enough to start a build nobody typed.
+
+The load check before launching (0.18) could not have caught this: the competing
+work *started after* the run did. What prevents it is serialization between the
+bench window and any Lean build — including an Aristotle **check**, which is a
+Lean build in disguise. Worth stating because it is the second time the
+"benchmarking needs the machine to itself" rule was broken by a *proof* task
+rather than by a build of this crate.
+
+**The controls did not notice.** Worst identical-code control was 1.42% in the
+contended run and 1.42% again in the clean one. Their body is
+`PolyVec::zeros(8192)`, which is allocation-bound and barely feels a CPU-bound
+competitor, so the harness's own self-test certified a contended run. The printed
+`A/B bias` line is not the safety net it looks like for compute-bound rows.
+
+A filtered clean re-run (**`20260908T0932+0200-b8905313`**,
+`BENCH='zerocheck|gadget|_control'`) splits the eight flagged rows in two:
+
+| row | contended | clean | reading |
+|---|---|---|---|
+| `gadget/digit_decompose/8` | −12.41% | **−0.37%** | contention, gone |
+| `zerocheck/h_zero/14` | −8.02% | **−0.31%** | contention, gone |
+| `gadget/gadget_entry/8` | +5.68% | +4.32% | band row, no verdict either way |
+| `zerocheck/c_w_table_mle/14` | −4.13% | −1.97% | same sign, shrinks, inside threshold |
+| `zerocheck/h_zero_is_zero/14` | −2.30% | −1.92% | ditto |
+| `zerocheck/w_table_mle_eval/14` | −2.99% | −3.75% | ditto, and the largest of the three |
+| **`zerocheck/w_table_rho_row/1`** | −8.51% | **−5.13%** | **reproduces, still flagged** |
+| **`gadget/balanced_digit_decompose/8`** | +74.98% | **+92.25%** | **reproduces, and worse** |
+
+So target 4's cube rows are clean once the machine is quiet, and two rows are
+genuinely unexplained. Both are owed work before any verdict on them is
+believed.
+
+### The 92% row is an inlining asymmetry, not a regression
+
+`gadget/balanced_digit_decompose` is target 1's row and was untouched today.
+Its absolute times say where the change is: **genesis is stable** (29.50 ns
+yesterday, 31.55 and 28.60 ns today) while **`now` moved from 29.28 ns yesterday
+to ~55 ns in both of today's runs**. The only change to `hachi/src` today was
+gaining a *new module* — `gadget.rs` itself was not edited.
+
+The symbol table names the mechanism. In the gadget bench binary,
+`hachi_genesis::gadget::balanced_digit_decompose` exists as an out-of-line
+function; **`hachi::gadget::balanced_digit_decompose` has no symbol at all**, so
+in the `now` crate it was inlined into the criterion closure. The two crates
+compile identical source with different inlining decisions, and today's module
+addition flipped `hachi`'s copy across that boundary.
+
+**This is therefore a harness artefact and not a regression in the shipped
+library**: being inlined into a `Bencher::iter` closure is a context no real
+consumer of `hachi::gadget` provides. An earlier note in this session's log
+called it a shipped regression; that was wrong, and the correction changes who
+owns it — the bench methodology, not `gadget.rs`.
+
+What is *not* established is why the inlined form is 1.9× slower; that needs the
+closure disassembled, which is the next step on this item. It is a third
+distinct LTO failure mode beside the §4 audit's two: not "merged, so no A/B" and
+not "placement bias", but **"inlined asymmetrically, so the row measures the
+inliner's decision rather than the code"**. Its consequence is sharper than the
+others, because target 1's own headroom is ~1.25× (brief 1) — smaller than this
+artefact, so the row cannot referee its own optimization until this is settled.
+
+### `w_table_rho_row` is the one target-4 row still owed an explanation
+
+−8.51% contended, −5.13% clean, so it reproduces at just over the 5% threshold.
+The `nm` audit of the binary the run used shows *no* symbol for either variant,
+i.e. both sides are fully inlined into their closures, so this is a placement
+difference between two inlined copies rather than the asymmetry above. At 2.5 µs
+it is well clear of the 100 ns – 2 µs no-verdict band, so the band does not
+excuse it. Until it is explained, the row reports a number but carries no
+verdict.
+
+### Also corrected: the §4 `nm` table in `benches/zerocheck.rs` is for the wrong binary
+
+It was taken under `--features candidate`, the audit convention, and the merge
+pattern there is **not** the one the birth run measured. Candidate build:
+`h_zero` merges to one copy, `w_table_rho_row` keeps three. The 2-variant build
+the birth run used: `h_zero` keeps two distinct copies, `w_table_rho_row` has no
+symbol at all. Both tables are true of their own binary; the header must say
+which, and a birth run must be read against the 2-variant one. The same caveat
+applies to the tables in `benches/ringswitch.rs` and `benches/endpiece.rs`,
+which were taken the same way.
+
+### Owed, at the next quiet window
+
+1. Re-take target 4's birth run (it will cover both target-4 passes at once if
+   the α-side lands first, which is cheaper than two runs).
+2. Disassemble `balanced_digit_decompose`'s two forms and explain the 1.9×.
+3. Explain or exclude `zerocheck/w_table_rho_row`.
+4. Annotate the three bench headers' `nm` tables with the build they describe.
+
+
+## The flat index the specification does not have (2026-09-08)
+
+Aristotle's proof of the ring-switch link came back with two of its six
+statements *changed*: `rho_digits_short_check_spec` and `lift_short_check_spec`
+had gained a hypothesis `hmax : n * 8 ≤ Usize.max`, with the original statements
+left commented out above them and the reason given — the check forms the flat
+digit index `i * GADGET_DIGITS + u` as a **checked `usize` product** over an `i`
+bounded only by `rho.len()`, so at large `n` the extracted function *fails*
+instead of returning a boolean, and a triple asserting success is false as
+stated. The analysis is correct. The conclusion drawn from it was not.
+
+**The specification has no flat index in that definition.**
+`rhoDigitsShortCheck` (`EndPiece/Reduction.lean:111-113`) is
+
+```lean
+decide (∀ i, ∀ u < rhoDigitCount q bDig, ∀ k < Φ.φ.natDegree,
+    ((rhoDigits Φ bDig (ρ i) u).coeff k).valMinAbs.natAbs ≤ bound)
+```
+
+— three nested quantifiers applying `rhoDigits` to `ρ i` **directly**. No
+`rhoDigitAsRq`, no `finProdFinEquiv`, no `j`. Our translation invented the flat
+index, handed it to `rho_digit_as_rq`, and that function split it straight back
+into `(j / δ, j % δ)`. A round trip absent from the specification, and the sole
+source of the fallibility.
+
+So the hypothesis was not a fact about the specification being translated; it was
+a fact about a translation defect. Fixed at the source instead of assumed away:
+`ringswitch::rho_digits_at(rho, i, u)` (new, `= rho_digits(&rho[i].0, u)`, which
+is the spec's own `rhoDigits Φ bDig (ρ i) u`), and
+`endpiece::rho_digits_short_check` now addresses digits by the pair. **The
+extracted model of that check contains no multiplication at all** — verified on
+`Generated.lean`, and its three nested loops are now literally the
+specification's three quantifiers. `rho_digit_as_rq` is unchanged and keeps the
+flat form, because *its* specification (`rhoDigitAsRq`,
+`RingSwitch/Reduction.lean:256`) genuinely takes a flat index.
+
+**Where the artefact is real, it stays.** `lift_message_spec` keeps
+`n * 8 ≤ Usize.max`, correctly: there ArkLib itself forms `μ + n · δ` and
+indexes it flat (`Fin.append w.z (rhoDigitAsRq …)`), so the product is in the
+definition being translated rather than in the translation. Aristotle's note
+justified the added hypothesis by pointing at that sibling; the sibling is the
+one case where it belongs.
+
+Two consequences worth recording rather than discovering later:
+
+* **`op-genesis`'s "trivial translation of the spec" rule was violated, and the
+  freeze preserved the violation.** The frozen genesis body still has the flat
+  index, and a number has been published against the row (target 3's birth run),
+  so the re-freeze carve-out is closed and this lands as a champion change.
+  Consequence: `endpiece/rho_digits_short_check`'s `vs genesis` column now
+  contains a **faithfulness repair, not an optimization** — the champion removes
+  a multiplication and a function call per digit that the specification never
+  asked for. A ledger row citing that column must say so, or the loop will bank
+  a translation fix as a speedup. (The direction is at least the honest one:
+  genesis is *pessimistic* here, so nothing already recorded was overstated.)
+* **The oracle could not have caught it.** `case!`'s digest compares the
+  returned `bool`, and the flat-index version returns the same `bool`; the
+  semantics tests compared against an independent reference of the same
+  *function*, not of the specification's *shape*. What caught it was a proof
+  obligation — the remote prover could not prove the statement as given and said
+  why. That is the equivalence layer paying for itself: a defect invisible to
+  every test and every benchmark in the repository surfaced as a hypothesis
+  someone had to justify.
+
+The two new tests (`rho_digits_at_is_the_balanced_digit_of_that_row`,
+`rho_digits_at_agrees_with_the_flat_index`) pin the pair form against an
+independent balanced-digit reference and against the flat index it replaces;
+both were mutation-tested (row index off by one, digit index off by one — each
+caught by both tests). 123 tests green, strict clippy clean.
+
+
+## Target 4's α side, carrier-free (2026-09-08)
+
+The second `op-genesis` pass on target 4, scoped by the user this morning: the
+part of the α side that needs no new carrier. Eight items, staged unstamped.
+
+`ringswitch.rs` (its ArkLib home is `RingSwitch/{Rlin,Reduction}.lean`):
+`RlinStatement` with its three accessors, a private `ext_pow`, `c_eval_at`,
+`c_eval_at_modulus`. `zerocheck.rs`: `alpha_tilde`, `eq_weight`,
+`m_alpha_tilde`, `alpha_public_evals`, `zc_target_alpha`.
+
+`hAlphaEvals`/`hAlpha` remain out, for the reason § "The flat index the
+specification does not have" neighbours: they are reached through `cRowSum`,
+whose product of two `CPolynomial` representatives is **not** reduced modulo
+`X^d + 1`, so it needs a 2047-coefficient `Fp` carrier this crate does not have
+and `Rq` cannot stand in for. Confirmed while scoping that `cRowSum` is the
+*only* such product in the target: `zcTargetAlpha` evaluates `(s.yvec i).1`,
+`mAlphaTilde` evaluates `(s.M i u).1`, both plain `Rq` representatives, and
+`cEvalAt φF α Φ.φ` is the modulus, handled below. So the split is clean.
+
+### `eval₂` is the power sum, not Horner — which decides the whole shape
+
+`cEvalAt φF a p = p.eval₂ φF a`, and `eval₂` is
+`p.val.zipIdx.foldl (fun acc ⟨a, i⟩ => acc + f a * x ^ i) 0`
+(`CompPoly/Univariate/Basic.lean:251`) — the naive sum, with `x ^ i` recomputed
+per term. CompPoly *does* offer Horner, as `eval₂Horner` on the next line, and
+this definition does not use it. So the faithful translation is the power sum
+with a recomputed power, and writing Horner instead would have been the classic
+freeze-an-optimization mistake — invisible afterwards, because Horner's `d`
+multiplies against the sum's `~d²/2` would have made the baseline ~500× faster
+than the specification's shape and permanently zeroed the largest optimization
+on this operation. `hachi/src` now has three deliberate naiveties of that
+family, each with the same justification as `gadget::base_pow`'s: `ext_pow`
+recomputes `αⁱ` per term inside `c_eval_at`, `alpha_tilde` is the same power
+loop at the specification's own `alphaTilde`, and `c_eval_at_modulus` walks all
+`d + 1` coefficients of `X^d + 1` rather than collapsing to `α^d + 1`
+(ten squarings at `d = 1024`, a ~50 000× cut, and the single largest win the
+α side offers — priced by its own bench row rather than spent in advance).
+
+`c_eval_at_modulus` is a separate entry point rather than `c_eval_at` applied to
+the modulus, and not by preference: `Φ.φ = X^d + 1` has `d + 1` coefficients and
+an `Rq`'s invariant is exactly `d` of them, so no `Rq` can hold it.
+
+### A freeze constraint nobody had hit: an appended item may not need a new import
+
+Both new blocks first went into genesis and **failed to compile there**:
+`hachi/src/ringswitch.rs` had gained `use cpoly::{Ext4, Fp}` and
+`hachi/src/zerocheck.rs` a `use crate::gadget`, while the frozen copies carry the
+import lines they were frozen with — and `benches/genesis/src/lib.rs` says
+"Nothing here is ever edited. Not to fix a lint, not to fix a typo, not to
+follow a rename in `hachi`", plus "Append only". An import line is not
+appendable.
+
+Editing the frozen imports would have been the easy wrong answer. Instead the
+*source* was changed so the appended text needs nothing new: `cpoly::Ext4`,
+`crate::gadget::base_pow` and `crate::ringswitch::{c_eval_at, …}` are written
+fully qualified inside the new items. The frozen text is then byte-identical to
+`hachi/src` with no import edit anywhere, which is what `check-genesis`
+verifies. Verified afterwards that the fully-qualified form does not move the
+model: `make extract` is deterministic and the diff against the previous state
+is purely additive (+408 lines, no deletions).
+
+**The general rule, which `op-genesis` § "A new module, not just a new item"
+should carry: a new item appended to an already-frozen module must be written in
+terms of what that module already imports, or fully qualify.** It is the second
+constraint the append-only baseline puts on the *translation* rather than on the
+copy, after "the body must be the specification's shape".
+
+### The oracle: 11 new tests, and what each one is for
+
+`ringswitch_semantics.rs` (+3, now 16): `c_eval_at` against **Horner** — a
+different algorithm from the power sum, so a mistake in either side shows as a
+mismatch instead of being reproduced; additivity `(p + r)(α) = p(α) + r(α)`,
+which no single-input comparison gives; and `c_eval_at_modulus` against
+`α^d + 1` by repeated squaring. That last one is the identity the largest
+optimization rests on, pinned *before* anyone attempts it.
+
+`zerocheck_semantics.rs` (+8, now 18): `alpha_tilde` against squaring;
+`eq_weight` summing to one over the whole `m₁`-cube (a property of the family,
+which a consistently wrong product cannot satisfy) and equalling the indicator
+at Boolean `τ₁` (which pins the **bit order** — the thing a `finFunctionFinEquiv`
+mix-up transposes silently); `m_alpha_tilde`'s three cases each against an
+independent computation, including that row `i` does **not** see row `j`'s digit
+columns; `alpha_public_evals`'s factorization and its vanishing on the padding;
+and `zc_target_alpha` both in general and at `τ₁ = e_k`, where it must equal
+`y_k(α)` exactly — a sharper claim than re-summing the same products, and one
+that pins the weight family and the evaluation together.
+
+Mutation-tested, four injected defects, all caught: the sign dropped from
+`−φ(α)·bᵉ`, `idx / d` swapped with `idx % d`, `eq_weight`'s bit order reversed,
+and `m_alpha_tilde`'s row-match condition `(u − μ)/δ = i` deleted. 134 tests
+green, strict clippy clean on crate, tests and benches under `--all-features`.
+
+### Extraction, and the bench rows
+
+`make extract` deterministic, **zero axioms**, `RlinStatement` arriving as a
+named-fields structure with plain projections, and every new loop carrying the
+`(accumulator, counter)` state tuple the proofs want — including `eq_weight`'s
+bit test as plain `Usize` `/` and `%`. `Check.lean` § 2b gained the eight items
+plus the three shape facts the proofs will lean on. `make build` green: no
+errors, no `sorry`, three kernel axioms.
+
+Seven new rows. `ringswitch/c_eval_at` and `ringswitch/c_eval_at_modulus` at the
+**real** `d = 1024`, registered separately because their removal conditions
+differ (a running product versus the `α^d + 1` collapse).
+`zerocheck/alpha_tilde` at `ℓ = d − 1`, the worst entry of a loop every consumer
+runs to completion. `zerocheck/m_alpha_tilde_matrix` and `.../m_alpha_tilde_digit`
+— two rows for one item, as `w_table` has, because the branches reach different
+helpers. `zerocheck/alpha_public_evals`. And `zerocheck/zc_target_alpha` at the
+**real** `n = 5` and `m₁ = 3`, the one α-side row that is not REDUCED, because it
+touches neither the cube nor `s.M`.
+
+**A second wall, and it is not `m₀`'s.** Everything reading `s.M` is REDUCED
+because at the real `(n, μ) = (5, 57 344)` the matrix alone is `286 720` `Rq` =
+**2.2 GiB** — brief 4's Correction 2, and as independent of `ring::mul` as the
+cube is. The exclusion and case notes name `s.M` rather than `m₀`, deliberately.
+
+Two exclusions: `ringswitch::RlinStatement` (a type declaration; its three
+accessors are single-field reads carrying no `Mirrors` marker) and
+`zerocheck::eq_weight` (three `Ext4` multiplies at `m₁ = 3`, no loop over data,
+inside the no-verdict timing band, and measured at scale through both callers —
+the `commit::centered_abs` precedent).
+
+`coverage --strict` moved by exactly the eight new markers: **101 mirrored, 59
+benched, 42 excluded, 0 unaccounted** (from 93/53/40). Slot null across ten
+modules. `cargo bench --bench zerocheck -- --test` and the same for `ringswitch`
+run every case in both variants, so `check()` and `case!`'s digest equality both
+pass. `check-genesis` fails on the twelve unstamped items, which is the
+documented "resolves at commit 1" state.
+
+### Required next actions
+
+1. *(user)* **commit 1** — everything staged in one commit.
+2. `make bench-stamp`, then *(user)* **commit 2** — stamp lines alone, never
+   `--amend`.
+3. `make bench-check` green.
+4. **The birth run, on a quiet machine**, which now covers both target-4 passes
+   *and* re-takes the run the concurrent Lean build spoiled — one run instead of
+   three. The `rust-bench` §4 `nm` audit must be re-run on the 2-variant build
+   this time, and the three bench headers' merge tables annotated with which
+   build they describe (§ "Target 4's birth run was contended" item 4).
+5. Still owed from this morning and unaffected by this pass: the
+   `gadget/balanced_digit_decompose` inlining asymmetry, and
+   `zerocheck/w_table_rho_row`'s reproducible −5.13%.

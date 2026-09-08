@@ -195,9 +195,41 @@ a representation newtype around one coefficient row, with no computation of
 its own. The `rhoAsRq` presentation change is separately measured as
 `ringswitch/rho_as_rq`."""
 
+"ringswitch::RlinStatement" = """
+a type declaration, not code: the public matrix, right-hand side and `ℓ∞`
+bound of `R^lin`, with no computation of its own. Its three accessors are
+single-field reads and carry no `Mirrors` marker. The operations that read it
+are measured -- `zerocheck/m_alpha_tilde_matrix`, `.../m_alpha_tilde_digit`,
+`.../alpha_public_evals`, `.../zc_target_alpha`."""
+
 "ringswitch::LiftedWitness" = """
 a struct containing `z` and the quotient rows, with no computation. Its
 consumers `lift_message`, `lift_commit`, and `lift_short_check` are measured."""
+
+"ringswitch::rho_digits_at" = """
+one bounds-checked `Vec` index over the benched `ringswitch/rho_digits`
+(`hachi/src/ringswitch.rs`): the body is `rho_digits(&rho[i].0, u)` and nothing
+else, so a case here would restate `ringswitch/rho_digits` plus an index and
+report the sum as a new number. It exists to address a digit by the pair
+`(row, digit)` rather than by a flat index, which is the shape
+`rhoDigitsShortCheck` has and is what keeps `rho_digits_short_check`'s extracted
+model free of a `usize` product (NOTES.md § "The flat index the specification
+does not have"); the pair form costs one index more than the flat one, which is
+the only thing this item adds to what is already measured. Its consumer
+`endpiece/rho_digits_short_check` is benched and walks it 40 times per call, so
+a regression in it could not hide."""
+
+"zerocheck::eq_weight" = """
+one `m₁`-factor product with no loop over data: at the pinned
+`params::M_ONE = 3` that is three `Ext4` multiplies and three bit tests, and the
+factor count is `tau1.len()` rather than a data length. A case here would time
+the `black_box` around three multiplies, and would land inside the
+100 ns - 2 µs band the certified sweep found false verdicts in (NOTES.md § "The
+certified null-slot sweep"). It is measured at scale through both of its
+callers, `zerocheck/alpha_public_evals` and `zerocheck/zc_target_alpha`, each of
+which calls it `n` times per invocation -- the same reasoning as
+`commit::centered_abs` above, which is per-coefficient work measured through the
+norms that call it."""
 
 "commit::generate_decomps_balanced" = """
 the balanced twin of `commit::generate_decomps`, and `ring::mul`-bound for the

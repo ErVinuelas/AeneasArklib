@@ -31,3 +31,6 @@
 {"at":"2026-09-07T16:31:15Z","event":"checked","percent_complete":18,"session_id":"8d26c89e-40d1-4528-9096-e213922946f8","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-07T16:33:21Z","event":"checked","percent_complete":18,"session_id":"8d26c89e-40d1-4528-9096-e213922946f8","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-07T16:34:48Z","event":"checked","percent_complete":18,"session_id":"8d26c89e-40d1-4528-9096-e213922946f8","state":"running","task_status":"IN_PROGRESS"}
+{"after_sorries":0,"at":"2026-09-08T07:02:07Z","before_sorries":6,"event":"integrated_complete","session_id":"8d26c89e-40d1-4528-9096-e213922946f8","state":"closed","task_status":"COMPLETE_WITH_ERRORS"}
+{"at":"2026-09-08T08:13:13Z","event":"submitted","project_id":"4fcced49-1ce1-4dc2-a738-4d0304603d43","session_id":"90c5c852-f86e-4f94-9c73-969f762a4f79","state":"running","targets":[{"path":"hachi/lean-wip/RingSwitch.lean","project_root":"hachi","sha256":"da003140ab6bfa7f48166d7556886d83142fc8e288cd2bb85118e267a20f2624","sorries":5}],"total_sorries":5}
+{"at":"2026-09-08T08:19:44Z","event":"checked","percent_complete":6,"session_id":"90c5c852-f86e-4f94-9c73-969f762a4f79","state":"running","task_status":"IN_PROGRESS"}

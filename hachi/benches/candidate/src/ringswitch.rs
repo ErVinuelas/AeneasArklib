@@ -132,6 +132,31 @@ impl LiftedWitness {
     }
 }
 
+/// The `u`-th balanced digit of quotient row `i` (spec: the
+/// `rhoDigits Φ bDig (ρ i) u` of `rhoDigitsShortCheck`,
+/// `EndPiece/Reduction.lean:111-113`).
+///
+/// Mirrors `rhoDigits` (at a row selected by index).
+///
+/// Addressing a digit by the pair `(i, u)` rather than by the flat index
+/// [`rho_digit_as_rq`] takes is not a convenience: it is what the specification
+/// does. `rhoDigitsShortCheck` quantifies `∀ i, ∀ u < δ, ∀ k < d` and applies
+/// `rhoDigits` to `ρ i` directly -- there is no flat index anywhere in it. The
+/// earlier translation of that check built `j = i · GADGET_DIGITS + u` and
+/// handed it to [`rho_digit_as_rq`], which split it straight back into
+/// `(j / δ, j % δ)`; the round trip was absent from the specification, and it
+/// was the sole reason the extracted check could *fail* rather than return a
+/// boolean (`i · 8` is a checked `usize` product and `i` is bounded only by the
+/// vector's length). Forming no product at all is what makes
+/// `rho_digits_short_check_spec` unconditional. See NOTES.md § "The flat index
+/// the specification does not have".
+///
+/// [`rho_digit_as_rq`] keeps the flat form, because *its* specification
+/// (`rhoDigitAsRq`) genuinely takes one.
+pub fn rho_digits_at(rho: &Vec<QuotientRow>, i: usize, u: usize) -> Rq {
+    rho_digits(&rho[i].0, u)
+}
+
 /// Entry `j` of the quotient-digit block (spec: `rhoDigitAsRq`,
 /// `RingSwitch/Reduction.lean:256`).
 ///
@@ -177,4 +202,121 @@ pub fn lift_message(w: &LiftedWitness) -> PolyVec {
 pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
     let message: PolyVec = lift_message(w);
     d_key.mat_vec_mul(&message)
+}
+
+/// Statement of Hachi's unstructured linear relation `R^lin` (spec:
+/// `RlinStatement`, `RingSwitch/Rlin.lean:97`).
+///
+/// Mirrors `RlinStatement`.
+///
+/// All three fields are *public* data in the protocol's sense -- the matrix, the
+/// right-hand side, and the `ℓ∞` bound the witness must meet -- which is what
+/// makes the zero-check's `M̃_α` verifier-computable. `bound` is a `u64` for the
+/// reason [`params::CHAIN_GAMMA`] is: the specification's `ℕ` is compared
+/// against a centered coefficient magnitude, and every value in play is below
+/// `q < 2^32`.
+pub struct RlinStatement {
+    m: PolyMatrix,
+    yvec: PolyVec,
+    bound: u64,
+}
+
+impl RlinStatement {
+    /// Bundle the public matrix, right-hand side and norm bound.
+    pub fn new(m: PolyMatrix, yvec: PolyVec, bound: u64) -> RlinStatement {
+        RlinStatement { m, yvec, bound }
+    }
+
+    /// The public matrix `M ∈ Rq^{n×μ}`.
+    pub fn m(&self) -> &PolyMatrix {
+        &self.m
+    }
+
+    /// The public right-hand side `y ∈ Rq^n`.
+    pub fn yvec(&self) -> &PolyVec {
+        &self.yvec
+    }
+
+    /// The public `ℓ∞`-norm bound on the witness.
+    pub fn bound(&self) -> u64 {
+        self.bound
+    }
+}
+
+/// `x^i` in the extension field, by repeated multiplication.
+///
+/// The `x ^ i` of `CPolynomial.eval₂`'s fold
+/// (`CompPoly/Univariate/Basic.lean:251`), recomputed per term exactly as the
+/// fold writes it -- the same deliberate naivety as
+/// [`crate::gadget::base_pow`], and for the same reason: the frozen baseline
+/// must be the specification's shape, so that hoisting the power out of the
+/// loop is a measurable optimization rather than something already spent.
+fn ext_pow(x: cpoly::Ext4, i: usize) -> cpoly::Ext4 {
+    let mut acc: cpoly::Ext4 = cpoly::Ext4::ONE;
+    let mut t: usize = 0;
+    while t < i {
+        acc = acc * x;
+        t += 1;
+    }
+    acc
+}
+
+/// Evaluate a `Zq[X]` polynomial at a point of the extension field (spec:
+/// `cEvalAt`, `RingSwitch/Reduction.lean:444`).
+///
+/// Mirrors `cEvalAt`.
+///
+/// `cEvalAt φF a p = p.eval₂ φF a`, and `eval₂` is the *sum* form --
+/// `p.val.zipIdx.foldl (fun acc ⟨a, i⟩ => acc + f a * x ^ i) 0`
+/// (`CompPoly/Univariate/Basic.lean:251`) -- not Horner's method, which CompPoly
+/// offers separately as `eval₂Horner` and this definition does not use. So the
+/// translation is the same sum, with the power recomputed per term.
+///
+/// This is the crate's first *mixed* evaluation: the coefficients are `Fp` and
+/// the point is `cpoly::Ext4`, so each term is one `Fp`-to-`cpoly::Ext4` embedding, one
+/// extension multiply and one extension add. cpoly's `UnivariatePoly::eval` is
+/// not a drop-in -- its coefficients are `cpoly::Ext4` too, so using it would embed
+/// the whole polynomial first and multiply in the wide field throughout.
+pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let mut acc: cpoly::Ext4 = cpoly::Ext4::ZERO;
+    let mut k: usize = 0;
+    while k < degree {
+        acc = acc + cpoly::Ext4::from_base(p.coeff(k)) * ext_pow(alpha, k);
+        k += 1;
+    }
+    acc
+}
+
+/// Evaluate the cyclotomic modulus at a point of the extension field (spec:
+/// `cEvalAt φF α Φ.φ`, the `φ(α)` factor of `mAlphaTilde`,
+/// `ZeroCheck/Constraints.lean:519`).
+///
+/// Mirrors `cEvalAt` (at the modulus, which no [`Rq`] can hold).
+///
+/// `Φ.φ = X^d + 1` at a power-of-two cyclotomic index, so it has `d + 1`
+/// coefficients and does not fit an [`Rq`], whose invariant is exactly `d` of
+/// them -- hence a separate entry point rather than a call to [`c_eval_at`].
+/// The body is `eval₂` over those `d + 1` coefficients, all zero but the first
+/// and the last.
+///
+/// Deliberately naive, and expensively so: `α^d + 1` is ten squarings at
+/// `d = 1024`, while this is the specification's `d + 1`-term sum with a
+/// recomputed power per term. That gap is the point -- it is the largest single
+/// optimization the α-side offers, and it must be *measurable*, so the baseline
+/// pays it. See briefs/target-4-zero-check.md § Corrections item 3.
+pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let mut acc: cpoly::Ext4 = cpoly::Ext4::ZERO;
+    let mut k: usize = 0;
+    while k <= degree {
+        let coeff: Fp = if k == 0 || k == degree {
+            Fp::ONE
+        } else {
+            Fp::ZERO
+        };
+        acc = acc + cpoly::Ext4::from_base(coeff) * ext_pow(alpha, k);
+        k += 1;
+    }
+    acc
 }
