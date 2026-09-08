@@ -1,7 +1,9 @@
-//! Wall-clock time for the nonrecursive opening's two terminal shortness
-//! checks, both at the real `params.rs` widths.
+//! Wall-clock time for the nonrecursive opening's terminal checks: the two
+//! shortness checks at the real `params.rs` widths, and the end piece itself --
+//! the one REDUCED row in this binary, and the one row in the repository where
+//! two different scale walls fire inside a single function.
 //!
-//! Two cases, and they are the whole module:
+//! Three cases, and they are the whole module:
 //!
 //! * `endpiece/rho_digits_short_check` -- the five-row quotient-digit check:
 //!   `RLIN_ROWS · GADGET_DIGITS = 40` calls to `rho_digit_as_rq`, each one a
@@ -18,6 +20,15 @@
 //!   `commit::vec_l_infty_norm`, then the digit check above. Its ~448 MiB input
 //!   is constructed once per variant, outside the timed region, and the timed
 //!   region is a linear read of all of it -- memory bandwidth, not arithmetic.
+//! * `endpiece/end_piece_check` -- **REDUCED**: the whole `endPieceCheck`
+//!   conjunction on an *accepting* input, so all three conjuncts execute --
+//!   `lift_commit` and its `PolyVec::equals`, `lift_short_check`, and
+//!   `w_table_mle_eval` compared against the claimed value. Registered at the
+//!   cube width `m₀ = END_PIECE_M_ZERO = 14`; the two unregistered dimensions
+//!   (`μ = END_PIECE_Z_COLS = 8`, `n = END_PIECE_RHO_ROWS = 1`) and the
+//!   arithmetic that makes 14 the least legal `m₀` sit at the file-scope
+//!   constants, and the two removal notes -- one per wall, kept separate on
+//!   purpose -- sit at the case.
 //!
 //! # The bands these rows sit in
 //!
@@ -32,10 +43,13 @@
 //! | `_control/endpiece` | ~37 ms | `PolyVec::zeros(8192)`, 64 MiB |
 //! | `endpiece/rho_digits_short_check` | ~119 µs | 40 960 digit-and-compare steps, ~2.9 ns each |
 //! | `endpiece/lift_short_check` | ~31 ms | 448 MiB read, ~14 GB/s |
+//! | `endpiece/end_piece_check` | **not yet measured** | est. 16 `ring::mul` (~24 ms at the shakeout's 1.511 ms each) + ~8.4 M balanced-digit extractions + a `14 · 2^14` `Ext4` dot -- tens of ms, an estimate |
 //!
-//! The digit check is three orders of magnitude below the other two, which is
-//! why the sampling override at `criterion_group!` has to say what it does to
-//! *each* of them rather than to "this binary".
+//! The digit check is three orders of magnitude below the other two measured
+//! rows, and the end piece is expected to land in the same tens-of-milliseconds
+//! band as the `z` scan; that spread is why the sampling override at
+//! `criterion_group!` has to say what it does to *each* of them rather than to
+//! "this binary".
 //!
 //! # Why this is its own binary
 //!
@@ -45,7 +59,7 @@
 //! defined by its control, and `endpiece/*` rows can only be measured in a
 //! binary that carries `_control/endpiece`.
 //!
-//! These two cases first landed inside `benches/ringswitch.rs`, under
+//! The two shortness checks first landed inside `benches/ringswitch.rs`, under
 //! `_control/ringswitch`. Nothing failed at bench time: the rows ran, printed
 //! times, and compared against genesis -- but `case_binary` resolved them to a
 //! binary named `endpiece` that had no control, so under `CANDIDATE=1` both
@@ -83,10 +97,11 @@
 //! | `_control/endpiece` | **merged** (one) |
 //! | `rho_digits_short_check` | **merged** |
 //! | `lift_short_check` | **merged** |
+//! | `end_piece_check` | **not yet checked**; returns `bool` through borrowed inputs, expect merged |
 //!
-//! Every row in this binary merges, controls included. Both cases return a
-//! `bool` through a `&`-borrowed input, so nothing variant-distinct survives
-//! inlining.
+//! Every checked row in this binary merges, controls included. All three cases
+//! return a `bool` through `&`-borrowed inputs, so nothing variant-distinct
+//! survives inlining; the third row has simply not been through the check yet.
 //!
 //! A merged row has **no layout bias to measure**, so a null-slot sweep of it
 //! reports a lower bound and its `_control` -- merged too, as every control is
@@ -129,6 +144,16 @@
 //! rejects, so `check()` pins both directions of it, transplanted from
 //! `tests/ringswitch_semantics.rs`.
 //!
+//! `endpiece::end_piece_check` is not in that position either, but its digest
+//! is still one bit on an accepting input, and `&&` short-circuits -- so a
+//! corpus edit that flipped any conjunct would silently shorten the row, and
+//! `|_| true` would digest identically to the real verifier. Two guards: the
+//! case asserts the accepting verdict before timing, and `check()` pins all
+//! three rejecting directions at a tiny shape (`μ = 1`, `n = 0`, `m₀ = 10`) --
+//! one coefficient of `t` perturbed, `‖z‖∞ = CHAIN_GAMMA + 1`, and
+//! `value + 1` each reject, with the other two conjuncts held honest so the
+//! failing one is the one named.
+//!
 //! # Sampling
 //!
 //! This binary overrides `support::criterion_config`; the override and its
@@ -146,10 +171,12 @@ use criterion::{criterion_group, criterion_main, Criterion};
 // ---------------------------------------------------------------------------
 // Sizes
 //
-// `lift_short_check` is two-dimensional, and the registration below can only
-// carry one number, so the other one lives here rather than inside the case
-// body -- the arrangement `benches/ringswitch.rs` § "Sizes" argues for, and the
-// one whose absence inverted `ringswitch/lift_message`.
+// `lift_short_check` is two-dimensional and `end_piece_check` is
+// three-dimensional (`μ`, `n`, `m₀`, plus a key width derived from the first
+// two), and the registration below can only carry one number, so the others
+// live here rather than inside the case body -- the arrangement
+// `benches/ringswitch.rs` § "Sizes" argues for, and the one whose absence
+// inverted `ringswitch/lift_message`.
 //
 // It also has to be `hachi`'s constant rather than each variant's `hc::params`,
 // and on this row that is load-bearing rather than tidy. Both cases here digest
@@ -166,6 +193,52 @@ use criterion::{criterion_group, criterion_main, Criterion};
 /// registered `RLIN_COLS`.
 const RHO_ROWS: usize = hachi::params::RLIN_ROWS;
 
+/// `end_piece_check`'s `z` width `μ`: **REDUCED** from `params::RLIN_COLS =
+/// 57 344`. Eight `Rq`, so the message half of the lift key, of the lifted
+/// message and of the `w̃` table is wide enough that neither `lift_message`'s
+/// copy loop nor `w_table`'s coefficient-read branch is a single iteration --
+/// and small enough that the cube it forces ([`END_PIECE_M_ZERO`]) is 2^14
+/// rather than 2^26.
+const END_PIECE_Z_COLS: usize = 8;
+
+/// `end_piece_check`'s quotient-row count `n`: **REDUCED** from
+/// `params::RLIN_ROWS = 5`. One row, i.e. `GADGET_DIGITS = 8` digit rows in the
+/// table, so the digit block -- the part all three conjuncts rebuild from
+/// scratch, each for itself -- exists and is exercised at every digit index.
+/// `n ≥ 1` is load-bearing: at `n = 0` conjunct A's `rho_digit_as_rq` loop,
+/// conjunct B's digit check and conjunct C's digit branch are all empty, and
+/// the row would price a function this crate does not call at that shape.
+const END_PIECE_RHO_ROWS: usize = 1;
+
+/// The lift key's width at the shape above: `μ + n · GADGET_DIGITS = 8 + 8 =
+/// 16`, **derived** exactly as `params::LIFT_COLS = 57 384` is
+/// `RLIN_COLS + RLIN_ROWS · GADGET_DIGITS`. Also the row count of the `w̃`
+/// table and the number of `ring::mul`s conjunct A performs (`D_ROWS = 1`
+/// row of that width).
+const END_PIECE_LIFT_COLS: usize =
+    END_PIECE_Z_COLS + END_PIECE_RHO_ROWS * hachi::params::GADGET_DIGITS;
+
+/// `end_piece_check`'s cube width `m₀`: **REDUCED** from `params::M_ZERO =
+/// 26`, and the least legal value at the shape above -- which is why it is 14
+/// and not something smaller, the same floor argument `benches/zerocheck.rs`
+/// makes for `M_ZERO_REDUCED`. The cube has to cover the table,
+/// `(μ + n·δ) · d ≤ 2^m₀` (the coverage hypothesis `hμn` behind
+/// `params::M_ZERO`), and `d = RING_DEGREE = 1024` is pinned:
+/// `(8 + 1·8) · 1024 = 16 384 = 2^14`, while `2^13 = 8192` is too small. Both
+/// inequalities are asserted below, so moving either dimension without moving
+/// this one fails the build.
+///
+/// A consequence worth stating: the cube is *exactly* full here, so `w_table`'s
+/// `else 0` padding branch is never taken on this row. At the real constants
+/// `57 384 · 1024 = 58 761 216` of `2^26 = 67 108 864` points are committed
+/// rows and 12.4% are padding; that branch is one comparison, and
+/// `benches/zerocheck.rs`'s `check()` pins its value.
+const END_PIECE_M_ZERO: usize = 14;
+
+const _: () = assert!(END_PIECE_LIFT_COLS * hachi::params::RING_DEGREE <= 1 << END_PIECE_M_ZERO);
+const _: () =
+    assert!(END_PIECE_LIFT_COLS * hachi::params::RING_DEGREE > 1 << (END_PIECE_M_ZERO - 1));
+
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
 /// computations; a macro makes that impossible.
@@ -179,7 +252,7 @@ macro_rules! define_cases {
 
             use std::hint::black_box;
 
-            use cpoly::Fp;
+            use cpoly::{Ext4, Fp};
 
             use $hachi as hc;
 
@@ -187,8 +260,10 @@ macro_rules! define_cases {
 
             type Rq = hc::ring::Rq;
             type PolyVec = hc::linalg::PolyVec;
+            type PolyMatrix = hc::linalg::PolyMatrix;
             type QuotientRow = hc::ringswitch::QuotientRow;
             type LiftedWitness = hc::ringswitch::LiftedWitness;
+            type WEvalStatement = hc::endpiece::WEvalStatement;
 
             /// The arithmetic that makes `rho_digits_short_check`'s verdict a
             /// tautology, asserted at compile time in **every** variant's own
@@ -242,6 +317,130 @@ macro_rules! define_cases {
                 PolyVec::new(vec![Rq::from_coeffs(&vec![Fp::new(c)])])
             }
 
+            /// An `n`-entry `z` that is **nonzero everywhere and inside the
+            /// bound**: every coefficient is drawn from `[1, CHAIN_GAMMA]` or is
+            /// the negative `q − c` of such a value, with the sign taken from a
+            /// bit the magnitude does not use. So `‖z‖∞ ≤ CHAIN_GAMMA` by
+            /// construction, both branches of `centered_abs` (`v ≤ q/2` and
+            /// `v > q/2`) are taken, and no ring element handed to conjunct A's
+            /// `ring::mul` or embedded into conjunct C's table is zero.
+            ///
+            /// Why not `PolyVec::zeros`, which `lift_short_check` uses and
+            /// argues for: that row prices a *scan*, and zeros only cost it the
+            /// branch structure of one compare. Here `z` is also half the lift
+            /// key's multiplicands and half the `w̃` table. Schoolbook
+            /// `ring::mul` does not short-circuit on a zero operand today, but a
+            /// candidate that skipped zero coefficients would take an unearned
+            /// win on eight of this row's sixteen products, and the
+            /// `Ext4::from_base(0)` entries would hand the same to any
+            /// zero-aware `eval`. The all-zero `z` is a degenerate input for
+            /// this row in exactly the way `support`'s no-zeros rule exists to
+            /// forbid, and the shortness bound is why the ordinary `[1, q)`
+            /// corpus cannot be used instead.
+            fn short_z(seed: u64, n: usize) -> PolyVec {
+                let gamma = hc::params::CHAIN_GAMMA;
+                let q = hc::params::Q;
+                let degree = hc::params::RING_DEGREE;
+                let mut rng = support::SplitMix64::new(seed);
+                let mut out = Vec::with_capacity(n);
+                let mut i = 0usize;
+                while i < n {
+                    let mut coeffs = Vec::with_capacity(degree);
+                    let mut k = 0usize;
+                    while k < degree {
+                        let r = rng.next();
+                        let c = 1 + r % gamma;
+                        coeffs.push(Fp::new(if (r >> 63) == 0 { c } else { q - c }));
+                        k += 1;
+                    }
+                    out.push(Rq::from_coeffs(&coeffs));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
+            /// `n` ring elements from the ordinary corpus, one block per entry.
+            fn vec_of(seed: u64, n: usize) -> PolyVec {
+                let width = hc::params::RING_DEGREE;
+                let coeffs = support::corpus(seed, n * width);
+                let mut out = Vec::with_capacity(n);
+                let mut i = 0usize;
+                while i < n {
+                    out.push(Rq::from_coeffs(
+                        &coeffs[i * width..(i + 1) * width].to_vec(),
+                    ));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
+            /// A `rows × cols` lift key from the ordinary corpus, a distinct
+            /// stream per row.
+            fn matrix_of(seed: u64, rows: usize, cols: usize) -> PolyMatrix {
+                let mut out = Vec::with_capacity(rows);
+                let mut i = 0usize;
+                while i < rows {
+                    out.push(vec_of(seed.wrapping_add(i as u64), cols));
+                    i += 1;
+                }
+                PolyMatrix::new(out)
+            }
+
+            /// An `m₀`-coordinate evaluation point, the sumcheck's challenge,
+            /// as `benches/zerocheck.rs` builds it.
+            fn point(seed: u64, m0: usize) -> Vec<Ext4> {
+                let c = support::corpus(seed, 4 * m0);
+                let mut out = Vec::with_capacity(m0);
+                let mut j = 0usize;
+                while j < m0 {
+                    out.push(Ext4::new(
+                        c[4 * j],
+                        c[4 * j + 1],
+                        c[4 * j + 2],
+                        c[4 * j + 3],
+                    ));
+                    j += 1;
+                }
+                out
+            }
+
+            /// The statement an honest prover would be checked against: `t`
+            /// recomputed as `lift_commit`, `value` recomputed as
+            /// `w_table_mle_eval` at `m₀ = point.len()`. Both recomputations
+            /// happen here, in setup, and never inside a timed region.
+            fn honest_statement(
+                d_key: &PolyMatrix,
+                w: &LiftedWitness,
+                point: Vec<Ext4>,
+            ) -> WEvalStatement {
+                let t = hc::ringswitch::lift_commit(d_key, w);
+                let m0 = point.len();
+                let value = hc::zerocheck::w_table_mle_eval(w, m0, &point);
+                WEvalStatement::new(t, point, value)
+            }
+
+            /// `t` with coefficient 0 of entry 0 moved by one: the smallest
+            /// change conjunct A must notice.
+            fn bump_first_coeff(t: &PolyVec) -> PolyVec {
+                let degree = hc::params::RING_DEGREE;
+                let mut out = Vec::with_capacity(t.len());
+                let mut i = 0usize;
+                while i < t.len() {
+                    let mut coeffs = Vec::with_capacity(degree);
+                    let mut k = 0usize;
+                    while k < degree {
+                        coeffs.push(t.get(i).coeff(k));
+                        k += 1;
+                    }
+                    if i == 0 {
+                        coeffs[0] = coeffs[0] + Fp::ONE;
+                    }
+                    out.push(Rq::from_coeffs(&coeffs));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
             // -- digests (outside every timed region) -----------------------
 
             fn d_bool(b: &bool) -> u64 {
@@ -286,6 +485,7 @@ macro_rules! define_cases {
             /// see the module header § "The void oracle".
             pub fn check() {
                 let gamma = hc::params::CHAIN_GAMMA;
+                check_end_piece(gamma);
 
                 // `liftShortCheck` REJECTS through its `z` conjunct, so both
                 // directions are pinnable and both are pinned -- transplanted
@@ -325,6 +525,66 @@ macro_rules! define_cases {
                     "the quotient-digit check must accept -- and it cannot do otherwise at \
                      (bDig, bound) = (GADGET_BASE, CHAIN_GAMMA) = (16, 15), so read this as \
                      a parameter-drift tripwire and not as a verification of the loop"
+                );
+            }
+
+            /// `endPieceCheck_eq_true_iff` (`EndPiece/Reduction.lean:225`) in
+            /// the four directions a `bool` row cannot show through its digest:
+            /// the honest statement accepts, and each of the three conjuncts
+            /// rejects on its own. "On its own" is the point -- in every
+            /// rejecting case the other two conjuncts are held honest (the
+            /// over-long `z` gets a statement recomputed *for it*), so the
+            /// conjunct named is the one that failed, and `&&`'s short-circuit
+            /// cannot hide which.
+            ///
+            /// At a tiny shape: `μ = 1`, `n = 0`, `m₀ = 10` (one table row of
+            /// `d = 1024` entries fills `2^10` exactly), so this costs one
+            /// `ring::mul` and a `2^10` evaluation per statement -- nothing the
+            /// run would notice. The bench row itself is the guard at the
+            /// benched shape: it asserts acceptance before timing.
+            fn check_end_piece(gamma: u64) {
+                let m0 = 10usize;
+                let d_key = matrix_of(0x8047_0000_0000_00F0, hc::params::D_ROWS, 1);
+                let w = LiftedWitness::new(short_z(0x8047_0000_0000_00F1, 1), Vec::new());
+                let a = point(0x8047_0000_0000_00F2, m0);
+                let honest = honest_statement(&d_key, &w, a.clone());
+                assert!(
+                    hc::endpiece::end_piece_check(&d_key, &honest, &w),
+                    "end_piece_check must accept the statement an honest prover is checked \
+                     against; if it does not, the row below never leaves conjunct A"
+                );
+
+                // A: one coefficient of `t` off by one.
+                let wrong_t = WEvalStatement::new(
+                    bump_first_coeff(honest.t()),
+                    honest.point().clone(),
+                    honest.value(),
+                );
+                assert!(
+                    !hc::endpiece::end_piece_check(&d_key, &wrong_t, &w),
+                    "end_piece_check must reject a `t` that differs from `lift_commit` in \
+                     one coefficient (conjunct A)"
+                );
+
+                // B: `‖z‖∞ = CHAIN_GAMMA + 1`, with `t` and `value` honest for
+                // THIS witness so A and C hold and only the bound fails.
+                let long = LiftedWitness::new(z_of(gamma + 1), Vec::new());
+                let long_stmt = honest_statement(&d_key, &long, a);
+                assert!(
+                    !hc::endpiece::end_piece_check(&d_key, &long_stmt, &long),
+                    "end_piece_check must reject a `z` one over CHAIN_GAMMA even when its \
+                     commitment and evaluation are recomputed honestly (conjunct B)"
+                );
+
+                // C: the claimed value off by one.
+                let wrong_value = WEvalStatement::new(
+                    honest.t().copy(),
+                    honest.point().clone(),
+                    honest.value() + Ext4::ONE,
+                );
+                assert!(
+                    !hc::endpiece::end_piece_check(&d_key, &wrong_value, &w),
+                    "end_piece_check must reject a claimed evaluation off by one (conjunct C)"
                 );
             }
 
@@ -398,6 +658,121 @@ macro_rules! define_cases {
                 support::run(m, || hc::endpiece::lift_short_check(black_box(&w)), d_bool)
             }
 
+            /// The whole end piece on an accepting input -- all three conjuncts
+            /// run, in the specification's order, on a witness of
+            /// `μ = END_PIECE_Z_COLS = 8` message polynomials and
+            /// `n = END_PIECE_RHO_ROWS = 1` quotient row, against a
+            /// `D_ROWS × 16` lift key, at the registered cube width
+            /// `m₀ = END_PIECE_M_ZERO = 14`. **REDUCED**, and the one row in
+            /// the repository where two different scale walls fire inside a
+            /// single function. The two notes are kept separate because the
+            /// case is bounded below by the *larger* of the two, and the two
+            /// are removed by different champions -- a single blanket note
+            /// would conflate them.
+            ///
+            /// **W1 -- conjunct A is `lift_commit` at width `LIFT_COLS =
+            /// 57 384`**: 57 384 schoolbook negacyclic products at `d = 1024`
+            /// (`RING_DEGREE² = 2^20` coefficient mult-adds each, ≈ 6.0 × 10^10
+            /// in all), plus ≈ 448 MiB of key and another ≈ 448 MiB of lifted
+            /// message -- minutes per criterion iteration. **The forcing wall is
+            /// `ring::mul`'s width** -- an accepted sub-quadratic `ring::mul`
+            /// champion (NTT) removes this note. It is not `m₀`'s cube size,
+            /// and nothing about `m₀` moves it.
+            ///
+            /// **W2 -- conjunct C is `w_table_mle_eval` at `m₀ = M_ZERO =
+            /// 26`**: the hypercube has `2^26 = 67 108 864` points, so a
+            /// materialized `Ext4` table is 2.0 GiB, `w_table_mle_eval` holds
+            /// two of them (the table and the Lagrange basis), and every entry
+            /// in the digit block rebuilds a `d`-wide digit polynomial to read
+            /// one coefficient. **The forcing wall is `m₀`'s cube size, which
+            /// no multiplication speedup touches**; the split / `eval_mle`
+            /// rewrites remove the *allocation*, but the Θ(2^m₀) point count
+            /// remains. Not a `ring::mul` wall.
+            ///
+            /// # The reduced shape, and why it keeps both walls honest
+            ///
+            /// `d = RING_DEGREE = 1024` stays real, so every one of the sixteen
+            /// ring products is a full-width schoolbook product and the
+            /// `idx / d`, `idx % d` splits inside `w_table` run at the real
+            /// modulus. What is cut is `μ` (57 344 → 8) and `n` (5 → 1), and
+            /// `m₀` then follows: `(μ + n·δ) · d = (8 + 8) · 1024 = 16 384 =
+            /// 2^14`, so 14 is the least `m₀` covering the table (see
+            /// [`crate::END_PIECE_M_ZERO`] for the two const assertions that
+            /// pin this). Per iteration, an estimate rather than a reading:
+            ///
+            /// * A: `lift_message` -- 8 copies and 8 digit polynomials (8192
+            ///   balanced-digit extractions) -- then `D *ᵥ ·` at `1 × 16`: 16
+            ///   `ring::mul` ≈ 16 × 1.5 ms ≈ 24 ms at the shakeout's `ring/mul`,
+            ///   then one `PolyVec::equals` over `D_ROWS = 1` entry.
+            /// * B: `8 · 1024` `centered_abs` compares on `z` and another 8192
+            ///   digit extractions -- tens of µs, cf. `rho_digits_short_check`.
+            /// * C: `c_w_table_mle` at `2^14` entries, of which the 8192 on the
+            ///   digit block each rebuild a 1024-digit `Rq` -- ≈ 8.4 M
+            ///   balanced-digit extractions, the same 8192-entry digit block
+            ///   `zerocheck/w_table_mle_eval` prices at this `m₀` -- then
+            ///   `eval`'s `m₀ · 2^m₀ = 14 · 16 384 ≈ 2.3 × 10^5` `Ext4`
+            ///   multiplies against the Lagrange basis.
+            ///
+            /// So the row is `ring::mul`-bound and digit-bound in roughly equal
+            /// measure, tens of milliseconds in all, with the 2^14 `Ext4` dot a
+            /// minority. That mixture is deliberate: at the real constants the
+            /// two walls are both astronomically large, and a reduced row that
+            /// let either term vanish would price a function shaped unlike the
+            /// real one.
+            ///
+            /// # Why the input has to accept, and what guards it
+            ///
+            /// `end_piece_check` is `A && B && C`, and `&&` short-circuits. On
+            /// a rejecting input the row silently prices a prefix of the
+            /// function, and its digest is `false` -- indistinguishable from
+            /// `|_| false`. So `t` and `value` are *recomputed from the
+            /// witness* in setup ([`honest_statement`], outside the timed
+            /// region), the `z` is drawn inside the bound ([`short_z`], which
+            /// also says why it is not zeros), and the assertion below fails the
+            /// run if a corpus edit flips any conjunct -- rather than letting the
+            /// row shorten and read as a win. The digest is then one bit that is
+            /// always `true`, so what the oracle cannot see is pinned in
+            /// [`check()`] instead: each conjunct rejects on its own.
+            pub fn end_piece_check(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let z_cols = crate::END_PIECE_Z_COLS;
+                let rho_rows = crate::END_PIECE_RHO_ROWS;
+                let width = z_cols + rho_rows * hc::params::GADGET_DIGITS;
+                assert!(
+                    width * hc::params::RING_DEGREE <= 1 << m0,
+                    "the cube must cover the table: (mu + n*delta)*d <= 2^m0 is the coverage \
+                     hypothesis behind params::M_ZERO, and a row that violates it is not a \
+                     smaller end piece but an illegal one"
+                );
+                let w = LiftedWitness::new(
+                    short_z(0x8047_0000_0000_00B0, z_cols),
+                    quotient_rows(0x8047_0000_0000_00C0, rho_rows),
+                );
+                let d_key = matrix_of(0x8047_0000_0000_00D0, hc::params::D_ROWS, width);
+                let stmt = honest_statement(&d_key, &w, point(0x8047_0000_0000_00E0, m0));
+                assert!(
+                    hc::commit::vec_l_infty_norm(w.z()) <= hc::params::CHAIN_GAMMA,
+                    "this row's `z` is over CHAIN_GAMMA, so conjunct B fails and conjunct C \
+                     is never timed; `short_z` is supposed to make this impossible"
+                );
+                assert!(
+                    hc::endpiece::end_piece_check(&d_key, &stmt, &w),
+                    "this row's input REJECTS, so `&&` short-circuits and the row prices a \
+                     prefix of `end_piece_check` while digesting `false`. A corpus edit has \
+                     flipped a conjunct; fix the corpus, do not silence this"
+                );
+                support::run(
+                    m,
+                    || {
+                        hc::endpiece::end_piece_check(
+                            black_box(&d_key),
+                            black_box(&stmt),
+                            black_box(&w),
+                        )
+                    },
+                    d_bool,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -419,6 +794,15 @@ define_cases!(genesis, hachi_genesis);
 #[cfg(feature = "candidate")]
 define_cases!(candidate, hachi_candidate);
 
+// `harness.py`'s `BENCH_CASE` regex binds a `// @covers` marker to the
+// `bench_case!(c, "<group>", <fn>,` that follows it, and it reads that call
+// **one line at a time** -- so the group string and the case name must share
+// the macro's first line, or `coverage --strict` reports every marker below as
+// orphaned. rustfmt's `fn_call_width` heuristic would wrap each of these calls
+// (their argument lists exceed 60 columns) into a form the regex cannot read.
+// The registration is therefore kept in the harness's shape and rustfmt is
+// told so; the case bodies above are formatted normally.
+#[rustfmt::skip]
 fn endpiece_benches(c: &mut Criterion) {
     now::check();
     genesis::check();
@@ -430,13 +814,13 @@ fn endpiece_benches(c: &mut Criterion) {
     // is in the same state the first real cases will see.
     bench_case!(c, "_control/endpiece", control, [support::CONTROL_N]);
 
-    // Every size here is the real one; neither case is REDUCED. `RHO_ROWS =
-    // RLIN_ROWS = 5` is the quotient-row count the ring-switch link produces
-    // (one per `R^lin` output row) -- the registered size of the first row and
-    // the unregistered second dimension of the second -- and `RLIN_COLS =
-    // 57 344` is the `R^lin` witness width. Both are widths the scheme
-    // instantiates rather than sizes chosen here. The 448 MiB `z` is built
-    // outside the timed region.
+    // The two shortness checks run at the real sizes; neither is REDUCED.
+    // `RHO_ROWS = RLIN_ROWS = 5` is the quotient-row count the ring-switch link
+    // produces (one per `R^lin` output row) -- the registered size of the first
+    // row and the unregistered second dimension of the second -- and
+    // `RLIN_COLS = 57 344` is the `R^lin` witness width. Both are widths the
+    // scheme instantiates rather than sizes chosen here. The 448 MiB `z` is
+    // built outside the timed region.
     //
     // NOTE the void oracle on the first row: its verdict is a tautology at these
     // parameters, `case!`'s digest equality proves nothing about it, and a
@@ -447,6 +831,16 @@ fn endpiece_benches(c: &mut Criterion) {
     // @covers endpiece::lift_short_check
     bench_case!(c, "endpiece/lift_short_check", lift_short_check,
                 [hachi::params::RLIN_COLS]);
+
+    // The end piece is REDUCED on all three of its dimensions, and two
+    // different walls force it -- `ring::mul`'s width on conjunct A, `m₀`'s
+    // cube on conjunct C -- with two different removal conditions, stated
+    // separately at the case. The registered size is `m₀ = END_PIECE_M_ZERO =
+    // 14`, the least legal cube width at `μ = END_PIECE_Z_COLS = 8`, `n =
+    // END_PIECE_RHO_ROWS = 1`; the other two are the unregistered dimensions
+    // and live at those constants with the arithmetic.
+    // @covers endpiece::end_piece_check
+    bench_case!(c, "endpiece/end_piece_check", end_piece_check, [END_PIECE_M_ZERO]);
 }
 
 criterion_group! {
@@ -469,6 +863,15 @@ criterion_group! {
     // is an average that contention has to beat on all seven. The 119 µs digit
     // check is nowhere near flat sampling (82k iterations fit the window); it
     // simply takes 50 samples instead of 100.
+    //
+    // `end_piece_check` (unmeasured; estimated at tens of ms -- 16 `ring::mul`
+    // ≈ 24 ms plus ~8.4 M digit extractions plus a `14 · 2^14` `Ext4` dot, see
+    // the case) lands in the same band as the `z` scan and inherits the same
+    // arithmetic: at, say, 60 ms a flat sample is `ceil(200 ms / 60 ms) = 4`
+    // iterations under this override against `ceil(50 ms / 60 ms) = 1` at the
+    // default, which is the difference between an average and a single draw.
+    // If the measurement comes in far from that estimate, redo this paragraph
+    // rather than the constants.
     //
     // The cost is half the samples criterion's intervals rest on, and about 5s
     // more per variant. What this file exists to produce is a cross-variant

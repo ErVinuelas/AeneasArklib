@@ -3246,3 +3246,153 @@ promoted `lean/RingSwitch.lean` against the regenerated model as well.
    the new work.
 4. The birth run, at the next quiet window, reading against the threshold
    caveats in § "The two flagged rows, diagnosed".
+
+
+## Target 6 opened: the end piece (2026-09-08)
+
+The brief (`briefs/target-6-end-piece.md`, written at `294b3f0b0`) was re-read
+against ArkLib `d51d8bc` before translation. The three definitions are
+byte-identical across the move: `endPieceCheck` (`EndPiece/Reduction.lean:143`),
+`endPieceProver` (`:241`), `endPieceWitness` (`:172`), plus `WEvalStatement`
+(`Sumcheck/FinalEval.lean:72`). What moved is the sizing, exactly as
+`briefs/README.md` predicted: `LIFT_COLS` 81 960 → 57 384, `m₀` 27 → 26, so
+conjunct C's table is `2^26` `Ext4` (2.0 GiB), not `2^27`. The dependency
+claim held: the end piece needs target 3's `lift_short_check` and target 4's
+`w_table_mle_eval`, both in the tree (target 4 staged, unstamped), and nothing
+from target 5 — the `{5 ∥ 6}` edge is real and this target ran on it.
+
+### Four items in `src/endpiece.rs`, one parameter read off the data
+
+`WEvalStatement { t: PolyVec, point: Vec<Ext4>, value: Ext4 }`,
+`end_piece_check(d_key, stmt, w)`, `end_piece_prove(w) = w`,
+`end_piece_witness(_stmt, message) = message`. `end_piece_check` is the
+specification's `A && B && C` in its order with its short-circuit: `A` is
+`lift_commit(d_key, w).equals(stmt.t())`, `B` is `lift_short_check(w)`, `C` is
+`w_table_mle_eval(w, m0, stmt.point()) == stmt.value()`. `m₀` is
+`stmt.point().len()` — `stmt.point : Fin m₀ → F`, so the vector's length *is*
+the arity, the same "arities come from the data" reading `zerocheck.rs` argues
+for. `K`, `bound`, `bDig`, `b`, `φF` are the chain's fixed values
+(`Correctness.lean:254` at `ofPinnedDigitBase 16`): `d_key` an argument,
+`CHAIN_GAMMA = 15`, `B_ZERO = GADGET_BASE = 16`, `Ext4::from_base`. Nothing is
+hoisted: the digit block of `ρ` is rebuilt inside all three conjuncts, because
+that is where the specification's three definitions each compute it, and
+sharing it is the brief's highest-ratio `perf-loop` candidate.
+
+Conjunct C's `==` is cpoly's **derived** `PartialEq for Ext4`, and that is the
+right call, not a shortcut: cpoly's own development proves `ext_eq_spec` about
+exactly that derived body (`cpoly/lean/Field.lean:691-700`, "the derived
+`impl PartialEq for Ext4` decides equality in the field"). It is the first `==`
+on a field element anywhere in `hachi/src`, so the extraction gained two new
+transparent bodies through the `cpoly::_` whitelist,
+`cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq` and
+`cpoly.field.Ext4.Insts.CoreCmpPartialEqExt4.eq` (a four-deep `if` of `Fp`
+equalities). `Check.lean` § 2b pins both as `def`s, together with the shape of
+the record, the three accessors, and `end_piece_prove w = ok w` /
+`end_piece_witness stmt w = ok w` by `rfl`.
+
+### Extraction, build, tests
+
+`make extract`: `Generated.lean` +333/−221 lines, of which every `−` is a move —
+the ten added definitions are the four items, the record's `new` + three
+accessors, and the two `eq` bodies; a name-keyed comparison of every `def`
+block against the staged model found **zero changed bodies**. Zero axioms,
+deterministic (`unchanged` on the re-run), and the extracted
+`end_piece_check` is the specification's own nesting: `if PolyVec.equals … then
+if lift_short_check … then CoreCmpPartialEqExt4.eq … else false else false`.
+`make build` green, 99 headline specs on exactly the three kernel axioms —
+which re-checks `lean/RingSwitch.lean` and everything else against the
+reordered model.
+
+`tests/endpiece_semantics.rs` (new `[[test]]` in `Cargo.toml`): nine tests,
+references written unlike the crate — `w̃(i)` through a `Nat.digits`-style
+balanced digit, the MLE as an explicit `Σ w̃(i)·eq̃(i, a)` with a bit-product
+`eq̃`, the commitment as a `u128` unreduced schoolbook product folded by
+`X^d = −1`, the norm through a signed `valMinAbs`. Honest `t` and `value` come
+from *those* references, so the accept case pins each conjunct and not only
+the conjunction. Each reject case isolates one conjunct with the other two
+honest; the `z` boundary is pinned at `‖z‖∞ ∈ {14, 15, 16}` through
+`end_piece_check` itself; `endPieceCheck_eq_true_iff` is pinned over a
+nine-entry corpus hitting all seven non-empty failing subsets of `{A, B, C}`;
+and one **live** test runs the whole check with a quotient row at
+`(μ, n, m₀) = (1, 1, 14)` — 3.1 s in debug, so no `#[ignore]`. Conjunct B2 is
+asserted vacuously and the file says so. 144 live tests total, strict clippy
+clean.
+
+One observation from that oracle worth carrying into the spec layer:
+`end_piece_check` never compares `d_key.cols()` with `μ + n·8`. `PolyVec::dot`
+runs over the shorter length, so a key of the wrong width commits to a
+truncated message rather than rejecting. The specification's `Fin`-indexed
+types make that state unreachable, so it is not a translation defect; it is a
+`WfMat dRows (μ + n * 8) dKey` hypothesis `end_piece_check_spec` must carry,
+exactly as `lift_commit_spec` already does.
+
+### Bench: one row, two walls, stated separately
+
+`benches/endpiece.rs` gains `endpiece/end_piece_check`, **REDUCED**, and it is
+the one row in the repository where two different scale walls fire inside one
+function, so the case doc carries both removal notes apart: **W1** — conjunct
+A is `lift_commit` at `LIFT_COLS = 57 384` schoolbook products, `≈ 6.0 × 10^10`
+coefficient mult-adds and ≈ 900 MiB of key plus message; the wall is
+`ring::mul`'s width and a sub-quadratic `ring::mul` champion removes it.
+**W2** — conjunct C is `w_table_mle_eval` at `M_ZERO = 26`: `2^26` points, a
+2.0 GiB `Ext4` table twice over; the wall is `m₀`'s cube, which no
+multiplication speedup touches and which the split/`eval_mle` rewrites shrink
+in *allocation* but not in point count. Reduced shape, each dimension a
+file-scope `const` beside the `params` constant it cuts: `RING_DEGREE = 1024`
+**real**, `μ = 8` (from `RLIN_COLS`), `n = 1` (from `RLIN_ROWS`), so
+`16 · 1024 = 2^14` and `m₀ = 14` is the least legal cube (`const`-asserted both
+ways; note the cube is exactly full, where the real one has 12.4% padding). The
+input takes the accepting path by construction — `t` and `value` recomputed in
+setup, outside the timed region — and the case asserts `‖z‖∞ ≤ CHAIN_GAMMA`,
+the coverage inequality, and `end_piece_check(...) == true` before timing, so
+a corpus edit that flips any conjunct fails the run instead of silently
+shortening the row through `&&`. `z` is drawn from `[1, 15] ∪ {q − c}`, not
+zeros: zeros would be half of every `ring::mul` operand and half the table, a
+gift to any zero-skipping candidate. The digest is one `bool`, so `check()`
+pins what the oracle cannot — honest accepts; `t` bumped rejects; `‖z‖∞ = 16`
+with `t`/`value` recomputed honestly rejects; `value + 1` rejects. Sizing
+information only: one call at the benched shape took ≈ 82 ms in a plain
+release build (no bench, no number to publish).
+
+`end_piece_prove`, `end_piece_witness` and the `WEvalStatement` type are
+excluded by name (identities/moves, O(1) by inspection — a run would time the
+`black_box` and the move). `coverage --strict`: **110 mirrored, 60 benched,
+50 excluded, 0 unaccounted** — moved by exactly the four new markers.
+Candidate slot byte-identical; `check-genesis` fails only on the nine unstamped
+items (target 4's five, target 6's four), which is the choreography's state
+before commit 1.
+
+A harness finding, riding along: `harness.py`'s `BENCH_CASE` regex reads
+`bench_case!(c, "<group>", <fn>,` on one line, and rustfmt's `fn_call_width`
+wraps the new call into a form the regex rejects — verified: rustfmt's reflow
+made `coverage --strict` report all three `endpiece` markers orphaned. HEAD's
+file already failed `rustfmt --check` on those lines for the same reason. The
+registration function now carries `#[rustfmt::skip]` with a comment; the
+real fix is a multi-line-tolerant regex in `harness.py`, not taken here.
+
+### The spec layer is debt, and why it cannot be stubbed yet
+
+`end_piece_check_spec` would be stated against `relWEvalClaim`
+(`endPieceCheck_eq_true_iff`) with a `RepWEvalStatement` relation whose
+`point`/`value` halves need `lean-wip/Ext.lean`'s `toExt`/`Reduced`, and a
+`w_table_mle_eval_spec` that does not exist yet (target 4's 19 triples are
+themselves unauthored). A wip file cannot import another wip file
+(`lean-wip/README.md`), so the end piece's obligations cannot be typechecked
+before `Ext.lean` is promoted. They join target 4's Aristotle batch: the three
+headline triples (`end_piece_check_spec` — the `iff` shape `QuadEval` set the
+precedent for — and the two identities, which are `rfl`-grade), plus the
+`WfMat` hypothesis above.
+
+### Required next actions
+
+1. *(user)* commit 1 — **one commit for targets 4 and 6 together**: both sit
+   unstamped in the same tree, both touch `Generated.lean`, `Check.lean` and
+   `exclusions.toml`, and the stamp names whichever commit first contains each
+   item's text, so folding them costs nothing and halves the stamp dance. Then
+   `make bench-stamp`, then commit 2 (stamps alone; never `--amend`).
+2. `make bench-check` green.
+3. Birth run at a quiet window, then the `rust-bench` § 4 audit of
+   `endpiece/end_piece_check` (the `nm` merge check included — a `bool` through
+   borrowed inputs, expected merged like every other row in that binary).
+4. Promote `lean-wip/Ext.lean`, then author targets 4 + 6's spec layer as one
+   Aristotle batch.

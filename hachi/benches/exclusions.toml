@@ -325,4 +325,34 @@ the Lagrange twin of `eval_split`, same `2^20` ring-mul bilinear form on the
 same ~8 GiB shape. Excluded per the Fig. 9 policy exception (header) until a
 sub-quadratic `ring::mul` lands."""
 
+# --- end piece: the statement type and the two identities -------------------
+#
+# Target 6's `endPieceCheck` itself is benched (`endpiece/end_piece_check`,
+# REDUCED, both walls stated at the case). What is excluded here is the record
+# it reads and the two functions around it that ArkLib defines as identities.
 
+"endpiece::WEvalStatement" = """
+a type declaration, not code: the three-field record `(t, point, value)` the
+sumcheck hands the end piece (`Sumcheck/FinalEval.lean:72`), with no
+computation of its own. Its three accessors are single-field reads and carry
+no `Mirrors` marker. The one operation that reads it, `end_piece_check`, is
+benched as `endpiece/end_piece_check`."""
+
+"endpiece::end_piece_prove" = """
+the identity on a `LiftedWitness`, by value (`hachi/src/endpiece.rs`): the
+body is `w`. `endPieceProver`'s single `sendMessage` is `fun w => pure (w, w)`
+and its state before and after that round is the witness
+(`EndPiece/Reduction.lean:241-252`), so there is no arithmetic to translate
+and none to time: a criterion run would measure the `black_box` around the
+argument and the move out of it, i.e. the harness. O(1) by inspection, the
+`ring::Rq::coeff` class. Its cost as a *caller* pays it -- one move of two
+`Vec` headers -- is what `endpiece/end_piece_check` pays to receive the same
+witness by reference."""
+
+"endpiece::end_piece_witness" = """
+the identity on the transcript's one message, with the statement taken and
+ignored (`hachi/src/endpiece.rs`): the body is `message`. `endPieceWitness
+_stmt tr = tr 0` (`EndPiece/Reduction.lean:172-174`), and a `FullTranscript`
+of the one-round `pSpecEndPiece` is that one message, so the function is a
+move exactly as `end_piece_prove` is. O(1) by inspection; a criterion run
+would time the harness, not the item."""

@@ -551,6 +551,39 @@ example (rho : alloc.vec.Vec ringswitch.QuotientRow) : Result Bool :=
   endpiece.rho_digits_short_check rho
 example (w : ringswitch.LiftedWitness) : Result Bool := endpiece.lift_short_check w
 
+-- The end piece (target 6): the terminal statement and the single decision
+-- procedure of the closing link. Three shape facts the equivalence proofs will
+-- lean on:
+--
+-- * `WEvalStatement` is a three-field record whose `point` is a plain
+--   `Vec Ext4` -- the specification's `Fin m0 -> F` -- so `m0` is the vector's
+--   length and nothing about the arity is carried separately;
+-- * `end_piece_check` extracts as the specification's own `&&`-nesting: an `if`
+--   on `PolyVec.equals`, then an `if` on `lift_short_check`, then the derived
+--   `PartialEq for Ext4` (`CoreCmpPartialEqExt4.eq`, whitelisted through
+--   `cpoly::_` like every other field item, so it is a `def` and not an axiom);
+-- * the prover message and the transcript read-off are both `ok` of their
+--   argument -- identities, as `endPieceProver`/`endPieceWitness` are.
+example (t : linalg.PolyVec) (point : alloc.vec.Vec cpoly.field.Ext4) (value : cpoly.field.Ext4) :
+    Result endpiece.WEvalStatement := endpiece.WEvalStatement.new t point value
+example (stmt : endpiece.WEvalStatement) : Result linalg.PolyVec :=
+  endpiece.WEvalStatement.impl.t stmt
+example (stmt : endpiece.WEvalStatement) : Result (alloc.vec.Vec cpoly.field.Ext4) :=
+  endpiece.WEvalStatement.impl.point stmt
+example (stmt : endpiece.WEvalStatement) : Result cpoly.field.Ext4 :=
+  endpiece.WEvalStatement.impl.value stmt
+example (a b : cpoly.field.Ext4) : Result Bool :=
+  cpoly.field.Ext4.Insts.CoreCmpPartialEqExt4.eq a b
+example (dKey : linalg.PolyMatrix) (stmt : endpiece.WEvalStatement)
+    (w : ringswitch.LiftedWitness) : Result Bool := endpiece.end_piece_check dKey stmt w
+example (w : ringswitch.LiftedWitness) : Result ringswitch.LiftedWitness :=
+  endpiece.end_piece_prove w
+example (stmt : endpiece.WEvalStatement) (w : ringswitch.LiftedWitness) :
+    Result ringswitch.LiftedWitness := endpiece.end_piece_witness stmt w
+example (w : ringswitch.LiftedWitness) : endpiece.end_piece_prove w = Result.ok w := rfl
+example (stmt : endpiece.WEvalStatement) (w : ringswitch.LiftedWitness) :
+    endpiece.end_piece_witness stmt w = Result.ok w := rfl
+
 -- The zero-check layer, and the crate's first extension-field carrier. Two shape
 -- facts the equivalence proofs will lean on:
 --
