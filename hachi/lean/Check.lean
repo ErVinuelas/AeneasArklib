@@ -417,24 +417,55 @@ example (a b : cpoly.field.Fp) :
       = (do let p ← a * b; let r ← p % cpoly.field.P; Result.ok r) := by
   simp [cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul]
 
--- `Ext4` -- the quartic extension, the case a one-field newtype does not cover --
--- is deliberately *not* asserted here any more, and the reason is a finding rather
--- than a retreat.
+-- `Ext4` -- the quartic extension, the case a one-field newtype does not cover.
 --
--- Workstream 0 checked it, because `smoke.rs` (the extraction probe) used it. The
--- probe is gone and no module of the scheme touches the extension field yet: the
--- ring, the gadget and the commitment are all over `Z_q`, and `Ext4` enters with
--- the *protocol* layer, which commits to multilinear polynomials over the
--- extension and is out of scope until its ArkLib specification is frozen.
---
--- So `Ext4` is no longer in `Generated.lean` at all -- charon's `--include
--- 'cpoly::_'` whitelist decides which foreign items *may* be translated, not which
--- are: it still only follows what the local crate reaches. Asserting anything
--- about it here would be asserting about a name that does not exist, and this
--- section's claim -- that the field layer arrives transparently rather than as
--- axioms -- is made by the `Fp` items above, which are the ones the scheme
--- actually computes with. See NOTES.md § "The model contains what the crate
--- reaches".
+-- This block was absent for most of the crate's life, and the reason it is back is
+-- the condition its own removal note named: "`Ext4` enters with the *protocol*
+-- layer, which commits to multilinear polynomials over the extension". That layer
+-- has arrived. `src/zerocheck.rs` is the first module whose carrier is the
+-- extension field, so charon now follows `cpoly::field::Ext4` and
+-- `cpoly::multilinear` into the model -- the `--include 'cpoly::_'` whitelist
+-- decides which foreign items *may* be translated, and what is actually
+-- translated is what the local crate reaches. See NOTES.md § "The model contains
+-- what the crate reaches" and § "Target 4 opens".
+
+example (a b c d : cpoly.field.Fp) : cpoly.field.Ext4 :=
+  { c0 := a, c1 := b, c2 := c, c3 := d }
+
+-- The base-field embedding `φF` every `wTable` branch goes through: the constant
+-- coefficient, and three zeros.
+example (a : cpoly.field.Fp) :
+    cpoly.field.Ext4.from_base a
+      = Result.ok { c0 := a, c1 := cpoly.field.Fp.ZERO, c2 := cpoly.field.Fp.ZERO,
+                    c3 := cpoly.field.Fp.ZERO } := by
+  simp [cpoly.field.Ext4.from_base]
+
+-- Addition is coefficientwise, through the `Fp` addition asserted above -- so a
+-- single `Ext4` add is four modular reductions, which is the arithmetic the cost
+-- model in briefs/target-4-zero-check.md is written against.
+example (a b : cpoly.field.Ext4) :
+    cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add a b
+      = (do let f ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a.c0 b.c0
+            let f1 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a.c1 b.c1
+            let f2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a.c2 b.c2
+            let f3 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a.c3 b.c3
+            Result.ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }) := by
+  simp [cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add]
+
+-- `W` is the extension modulus's constant, `Y^4 - W`, and it arrives as a value
+-- rather than a parameter -- which is what makes the multiplication below a
+-- closed-form 19 `Fp` multiplies.
+example : cpoly.field.W = params.EXT_W := by simp [cpoly.field.W, params.EXT_W]
+
+-- The multiplication's *body* is deliberately not transcribed here, unlike the
+-- four `Fp` operators: it is 19 `Fp` multiplies and 13 adds, and copying it into
+-- this tripwire would duplicate cpoly's own proved code without adding a claim.
+-- What guards it is § 4's axiom audit, which is global: `--include 'cpoly::_'`
+-- is all-or-nothing, so an `Ext4.mul` that arrived as an `axiom` would take
+-- `Fp.add` (asserted above) with it, and would in any case print in § 4. The one
+-- shape worth recording in prose, because the cost model turns on it: the
+-- `W`-foldback lands on `c0`, `c1` and `c2` only -- `c3` is the plain `t3` sum --
+-- so the `Y^4 = W` reduction costs three extra multiplies, not four.
 
 -- Deliberately *not* asserted here: that `add 1 2` evaluates to `ok 3`. It is
 -- true, but `simp` and `decide` do not get there on their own -- the checked
@@ -518,6 +549,32 @@ example (dKey : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) : Result linal
 example (rho : alloc.vec.Vec ringswitch.QuotientRow) : Result Bool :=
   endpiece.rho_digits_short_check rho
 example (w : ringswitch.LiftedWitness) : Result Bool := endpiece.lift_short_check w
+
+-- The zero-check layer, and the crate's first extension-field carrier. Two shape
+-- facts the equivalence proofs will lean on:
+--
+-- * `MultilinearEvals` is a plain alias for `Vec Ext4`, so a statement about
+--   `hZero`'s table *is* a statement about a vector and nothing is transported
+--   across a wrapper -- the same property `Rq`/`PolyVec`/`PolyMatrix` have above;
+-- * `w_table` takes the cube point as its flat `Usize` index, which is what makes
+--   the `finFunctionFinEquiv`/`.symm` cancellation of `wTable_zRow` a definitional
+--   step rather than a rewrite.
+example : cpoly.multilinear.MultilinearEvals = alloc.vec.Vec cpoly.field.Ext4 := rfl
+example (values : alloc.vec.Vec cpoly.field.Ext4) :
+    cpoly.multilinear.MultilinearEvals.from_values values = Result.ok values := by
+  simp [cpoly.multilinear.MultilinearEvals.from_values]
+example (v : cpoly.field.Ext4) : Result cpoly.field.Ext4 := zerocheck.range_product v
+example (w : ringswitch.LiftedWitness) (idx : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.w_table w idx
+example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+    Result cpoly.multilinear.MultilinearEvals := zerocheck.c_w_table_mle w m0
+example (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
+    (a : alloc.vec.Vec cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
+  zerocheck.w_table_mle_eval w m0 a
+example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+    Result cpoly.multilinear.MultilinearEvals := zerocheck.h_zero w m0
+example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool :=
+  zerocheck.h_zero_is_zero w m0
 
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which

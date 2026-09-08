@@ -2437,3 +2437,295 @@ sample against 3).
 0 unaccounted), `make test` green (111 tests), strict clippy clean on all
 benches under `--all-features`, and `make extract` reports `lean/Generated.lean`
 unchanged — `autobins = false` does not move the model.
+
+
+## Target 3's birth run, on a machine that was actually quiet (2026-09-07)
+
+Run `20260907T1848+0200-bf4a4457`, source `9ae732b` clean, full pass (no
+`BENCH=` filter, no candidate slot), `nightly-2026-06-01` /
+`rustc 1.98.0-nightly (14210df0e)`, AMD Ryzen 7 8845HS, 16 cores. Taken after
+the desktop was emptied — 1-minute load `0.11` at launch against the `1.20` the
+shakeout in the section above ran under, with Firefox, Spotify, VS Code (whose
+`rust-analyzer` was the largest single consumer) and the system monitor all
+closed. This is the first full run on this host that met the "benchmarking needs
+the machine to itself" rule rather than working around it, and the difference is
+visible in one number: the worst identical-code control reads **2.64%**, against
+the 10–59% that `NOTES.md § "The first benchmark run…"` records and the 2.6% /
+5.2% pair the shakeout printed on rows that were *supposed* to be identical.
+
+`op-genesis` stage 7's bar is that the new op's rows read noise against the
+printed threshold. They do — the threshold is the flat 5%, since the measured
+A/B bias (2.64%) does not exceed it:
+
+| row | vs genesis | significant | timed copies (`nm`) |
+|---|---|---|---|
+| `ringswitch/lift_commit/4` | −0.01% | no | two — a real A/B |
+| `ringswitch/lift_message/57344` | +0.18% | no | two — a real A/B |
+| `ringswitch/rho_digit_as_rq/5` | +1.05% | yes | two — a real A/B |
+| `endpiece/lift_short_check/57344` | −0.10% | no | **merged** |
+| `endpiece/rho_digits_short_check/5` | +1.60% | yes | **merged** |
+| `ringswitch/rho_digits/1024` | +2.18% | yes | **merged** |
+| `ringswitch/rho_as_rq/1024` | +3.40% | yes | **merged** |
+
+Controls: `_control/endpiece` −0.61% (the new binary's own control, healthy on
+its first real outing), `_control/ringswitch` −0.46%, worst of the eight
+`_control/commit` +2.64%; run marked `usable`. Widest row in the whole report is
+not a target-3 row at all — `ring/constant/1024` at +4.14%.
+
+**Read the two columns together, because they say different things.** The `nm`
+check was re-run on the exact binaries this run executed (the non-candidate
+build: `ringswitch-f90ec929b516ae9f`, `endpiece-a8c0e834f88e58f0`), and it
+reproduces the table in both bench headers, which was taken under
+`--features candidate`. So four of the seven rows time *literally the same
+machine code* in both variants: their deltas are not a comparison of anything
+and cannot be evidence that the freeze is faithful. What they are instead is a
+free measurement of this host's per-row noise floor, and it is size-dependent in
+a way the report's single bias line does not show — **+3.40% on a 660 ns row and
++2.18% on a 2.1 µs row, where the 33 ms control that sets the bias number reads
+2.64% and the 30 ms merged row reads 0.10%.** The flat 5% covered it here, but a
+floor derived for a sub-µs row from an 8192-sized control understates that row's
+noise; the certified-floor section's caveats apply to the small end of this
+table, not only to the merged/fat-LTO argument it was written about.
+
+The freeze's actual evidence is the other three rows, the ones that kept two
+copies: **−0.01%, +0.18%, +1.05%.** Those are byte-identical sources compiled
+into distinct functions and separately timed, and they agree to about a percent.
+
+**The report's `(skipping 7 case(s) not measured in this run)` line is benign
+and was checked rather than assumed.** A stale case is a `criterion/` directory
+with no variant written after the run started, and all seven are historical
+sizes from earlier sizing sessions, none of them a case any bench file registers
+today: `_control/{commit,gadget,linalg,ring}/128` (the control before it moved to
+8192), `ring/mul/64`, `linalg/scalar_vec_mul/8192` (the live case is `/16`), and
+`smoke/sum`. Every registered case ran: 55 rows plus 8 controls.
+
+Target 3 is therefore through `op-genesis` stage 7 and loop-eligible: naive
+translation is the champion, genesis is its baseline, brief 3 exists re-based.
+No ledger row — an onboarding's provenance is the `@genesis` stamp, and the
+ledger records candidate verdicts. Its Lean debt (`hachi/lean-wip/RingSwitch.lean`,
+6 `sorry`s) is out with Aristotle session `8d26c89e` and is not touched here.
+
+
+## Target 4 opens: the zero-check's `H₀` side (2026-09-08)
+
+Stage 3 target 4 of `PLAN_PROTOCOL_LAYER.md`. `op-genesis` stages 1–6 are done
+and staged; stage 7 (the birth run) is the plan's tail, below.
+
+### The brief's re-base, and what moved
+
+`briefs/target-4-zero-check.md` was written at `294b3f0b0` and is now at
+`d51d8bc`. **Every definition the target translates is byte-identical across the
+move** — checked by extracting each declaration block from both revs and
+comparing, not by reading. The only change in `ZeroCheck/Constraints.lean`'s
+whole diff is four *deleted* theorems (`hZeroML_eq_zero_iff`,
+`hAlphaML_eq_zero_iff`, and the two `sum_sumcheckPoly*'` aliases the file itself
+labelled "retained for the sumcheck bridge"); target 5's bridge must stop citing
+the primed names.
+
+What did change is the instantiation, and in a way the old brief could not have
+predicted: a **new `Hachi/Params.lean`** pins the profile that brief 4 treated as
+free — `hachiTau = 5` (`:90`), `mu0_eq : mu0 = 57344` (`:415`),
+`liftKeyWidth_eq : 57384` (`:425`), and `sumcheckWidthAtProfile` at `M = 25` with
+`sumcheckWidthAtProfile_minimal` ruling out `M = 24` (`:432`, `:439`), i.e.
+`m₀ = 26`. So μ₀ / `LIFT_COLS` / `m₀` move from *derived under an inequality
+ArkLib leaves open* (the brief's flag F4) to **pinned and discharged upstream**,
+and every cube-sized figure halves: `2^27 → 2^26`, `wTableMleEval`
+`3.76·10⁹ → 1.81·10⁹` `Ext4` mults at 4.0 GiB resident, `hZero`
+`4.16·10⁹ → 2.08·10⁹`, naive `alphaPublicEvals` `8.3·10¹¹ → 4.1·10¹¹`; dense
+`s.M` 3.2 → 2.2 GiB. No conclusion of the brief reverses — `hZero` is still the
+largest cube term (`31·2^m₀` beats `(m₀+1)·2^m₀` while `m₀ < 30`) and the
+`d = 2^10` split is still a bit-boundary split, since `d` did not move.
+
+The citation re-base was mechanical but **verified rather than trusted**: each
+`file:line` was remapped from the two revs' diff hunks and accepted only if the
+old and new blobs carry *identical text* at the mapped line. 116 moved, 77 were
+already right, 5 were held back. Two classes were deliberately left alone —
+`CompPoly/…` and `cpoly/…` citations (that package's rev is `a09455a…` at *both*
+ArkLib pins, so its lines did not move) and this repo's own `.rs`/`.md` cites.
+Ambiguous bare `:N` forms were resolved by hand against the declaration they
+name, after a context-inference pass was caught mis-attributing `wTable`'s body
+lines to `RingSwitch/Reduction.lean`: the brief's bare-citation convention is
+"the file this section is about", which is semantics, not a regex. The brief now
+carries a per-file shift table so any citation it does not hold can be checked.
+
+### Why this pass is the `H₀` side only
+
+**A scope decision, taken by the user.** The α-side (`hAlphaEvals`, `hAlpha`,
+and through them `alphaPublicEvals`, `mAlphaTilde`, `zcTargetAlpha`) is reached
+through `cRowSum` (`RingSwitch/Reduction.lean:439`), `∑ⱼ (s.M i j).1 * (z j).1`
+— a sum of products of the *`CPolynomial` representatives*, and the `*` there is
+**not** the ring product. `Rq::mul` reduces modulo `X^1024 + 1`; this one does
+not, so two degree-1023 inputs give degree 2046.
+
+That difference is the entire content of the check, which is why the obvious
+shortcut is not available: `hAlphaEvals`' third term carries `cEvalAt α Φ.φ` —
+the modulus polynomial itself — as an explicit factor, so the identity says "the
+row sum equals `yᵢ` plus a multiple of the modulus", i.e. it *certifies the ring
+reduction was performed correctly*. Computing `cRowSum` with `Rq::mul` would
+apply that reduction in advance, make the `Φ.φ·(…)` term indistinguishable from
+zero, and leave a check that is vacuously satisfiable. It would compile, pass a
+careless test, and prove the wrong theorem.
+
+So the α-side needs a carrier this crate does not have (a `Vec<Fp>` polynomial
+of up to 2047 coefficients with non-wrapping multiplication); cpoly's
+`UnivariatePoly` is not a drop-in because its coefficients are `Ext4`, not `Fp`,
+which would put an embedding in the equivalence proof that the ArkLib statement
+never mentions. Brief 4's Correction 3 already recorded that **no target owns
+`cEvalAt`/`cRowSum` today**. Verified while scoping: `cRowSum` is the *only*
+place an unreduced product appears — `zcTargetAlpha` evaluates `(s.yvec i).1` and
+`mAlphaTilde` evaluates `(s.M i u).1`, both plain `Rq` representatives, and
+`cEvalAt α Φ.φ` is just `α^d + 1`. So the α-side splits cleanly and everything
+except `hAlphaEvals`/`hAlpha` is carrier-free whenever it is picked up.
+
+### The six items, and three deliberate shapes
+
+`src/zerocheck.rs`: `range_product`, `w_table`, `c_w_table_mle`,
+`w_table_mle_eval`, `h_zero`, `h_zero_is_zero` (plus a private `two_pow`, which
+carries no `Mirrors` marker and is owed no bench).
+
+* **Arities come from the data, against the crate's habit.** `m₀` is an argument
+  and `μ`, `n` are read off the witness. At `M_ZERO = 26` a cube table is 2.0 GiB,
+  so a `w_table` hard-wired to `params` could not be tested or benched at all.
+  The precedent is inside `evalsplit.rs` (`to_matrix` reads a const,
+  `lagrange_basis` reads `w.len()`), and the bonus is that the `_spec` statements
+  will be the generic ArkLib ones at arbitrary `m₀`.
+* **The cube point is taken as its flat index**, which is faithful rather than a
+  shortcut: every consumer feeds `finFunctionFinEquiv.symm i` into a `wTable`
+  whose first act is `finFunctionFinEquiv`, and the two cancel by
+  `Equiv.apply_symm_apply` — the simp step of `wTable_zRow`'s own proof.
+* **The `d`-factor redundancy is kept.** `w_table`'s digit branch rebuilds a
+  whole `Rq` — `d = 1024` `balanced_digit_at` calls — to read one coefficient.
+  That is `rhoDigits`' own shape (`CPolynomial.ofFinCoeff d`), not a translation
+  artefact, and freezing an improved body would zero that gain out of the
+  baseline forever (`op-genesis` § "The one rule").
+
+### `Check.lean` § 2 was asserting a falsehood, and the file said so itself
+
+`zerocheck.rs` is the crate's **first `Ext4` consumer**. § 2 carried a long note
+explaining that `Ext4` "is no longer in `Generated.lean` at all" because "no
+module of the scheme touches the extension field yet", with the condition for its
+return spelled out: "`Ext4` enters with the *protocol* layer, which commits to
+multilinear polynomials over the extension". That condition has now arrived, so
+the note was replaced by live assertions: the four-field structure,
+`from_base a = ok ⟨a,0,0,0⟩` (the `φF` every `wTable` branch goes through),
+addition as four `Fp` additions, and `cpoly.field.W = params.EXT_W`.
+
+`Ext4.mul`'s 19-multiply body is deliberately *not* transcribed, and the reason
+is stated in the file: copying cpoly's proved code into a tripwire adds no claim,
+while `--include 'cpoly::_'` is all-or-nothing — an axiomatized `Ext4.mul` would
+take `Fp.add` (asserted) with it and would print in § 4 anyway. One shape is
+recorded in prose because the cost model turns on it: the `W`-foldback lands on
+`c0`, `c1`, `c2` only, `c3` being the plain `t3` sum, so `Y^4 = W` costs three
+extra multiplies rather than four. § 2b gains the module, including
+`MultilinearEvals = Vec Ext4` by `rfl` — so a statement about `hZero`'s table is
+a statement about a vector, with nothing transported across a wrapper.
+
+### The oracle, and the hole mutation testing found
+
+`tests/zerocheck_semantics.rs`, 10 tests, REDUCED (`μ = 1`, `n = 0`,
+`m₀ = 10`/`11`; branch tests probe single indices and materialize no table).
+References written unlike the crate: the balanced digit as `Nat.digits b` on a
+shifted representative, `eq̃(i, a)` as an explicit bit product, and the range
+factor as a *descending* product of `(v² − j²)` against the crate's ascending
+`(v−j)(v+j)` pairs.
+
+The tests passed on the first run, which is exactly when they are worth least, so
+five mutations were injected into `src/zerocheck.rs` to see which the suite could
+actually catch. Four were caught — the `range_product` loop stopping one short,
+the `w_table` digit split transposed, `row`/`col` swapped, and `h_zero`'s loop
+starting at 1. **One was not**: `h_zero_is_zero` scanning `2^m₀ − 1` entries
+instead of `2^m₀` passed everything, because the out-of-range coefficients the
+test planted sat at indices 7 and 9 and never at the end of the scan. Fixed by
+pinning both endpoints (cube index `0` and `2^m₀ − 1`, which at `μ = 1`, `n = 0`,
+`m₀ = 10` are exactly `z₀`'s first and last coefficients); both fencepost
+mutations are caught now. The general lesson, worth carrying to the next
+`_semantics.rs`: a test that plants a defect in the *interior* of a scan cannot
+see a fencepost error, and a `bool`-returning verifier check is where that
+matters most, because its digest is one bit.
+
+### Extraction and proofs
+
+`make extract` clean and **deterministic** (a second run reports
+`lean/Generated.lean unchanged`), **zero axioms**, and the six items arrive with
+the counter-loop shapes the proofs want — `(acc1, j1)`-style state tuples,
+`Result`-valued throughout, and `h_zero_is_zero`'s accumulation branchless to the
+end. The one construct worth noting: `w_table_mle_eval` passes a `&Vec<Ext4>`
+where cpoly's `eval` takes `&[Ext4]`, and the deref coercion extracts as the
+modelled `alloc.vec.Vec.deref` rather than as an axiom. `make build` green — no
+errors, no `sorry`, and § 4 still prints exactly the three Lean kernel axioms
+(`propext`, `Classical.choice`, `Quot.sound`) on every spec.
+
+No `_spec` was written for the new items: they are proof debt, and per
+`op-genesis` stage 4 unproved obligations do not go under `lean/`. Nothing was
+staged under `lean-wip/` either — the specs are target 4's verification work and
+belong to a `verify-campaign`, not to this onboarding.
+
+### The bench binary, its floor, and the §4 audit
+
+`benches/zerocheck.rs`, a tenth `[[bench]]` and the tenth `MODULES` entry, with
+`_control/zerocheck` — the one-binary-per-file gate added on 09-07 accepts it,
+which is the first new binary to be built under that rule rather than repaired
+into it.
+
+REDUCED at `m₀ = 14`, and unusually the size is bounded **below**: the cube must
+cover the table, `(μ + n·δρ)·d ≤ 2^m₀`, and `d = 1024` is pinned, so at the
+smallest witness with a quotient block at all (`μ = 1`, `n = 1`) the table is
+`9·1024 = 9216`, `2^13` is too small, and `m₀ = 14` is the *least legal* value —
+brief 4's Correction 6(a). A row at a smaller `m₀` would not be a smaller version
+of this computation but an illegal one. Both dimensions of every two-dimensional
+case sit at file scope, beside the constant each is a reduction of.
+
+`w_table` gets **two** rows rather than one, because its branches differ by a
+factor of `d`: `w_table_z_row` is a coefficient read, `w_table_rho_row` builds
+`RING_DEGREE` balanced digits. A single row would report whichever branch it
+happened to index and call it the entry cost. The digit row is taken at the
+deepest digit index for `ringswitch.rs`'s reason: every real consumer walks the
+whole block, so the worst entry of a loop run to completion is representative.
+
+`zerocheck/range_product` sits at ~1.2 µs, **inside the 100 ns – 2 µs band** the
+certified sweep found false verdicts in, so it carries no candidate verdict on
+its own; that is tolerable here rather than a gap, because `h_zero` applies the
+same arithmetic `2^m₀` times at ~40 ms and is the vector-shaped reading of it —
+the `vec_in_sb`/`in_sb` relationship.
+
+The §4 `nm` audit was run *before* any number is believed, on this binary built
+`--features candidate` against the null slot. Note the symbol shape: these case
+bodies are large enough that the `Bencher::iter` closure inlines into them, so
+the thing to grep is `zerocheck::<variant>::<case>`, not the closure the older
+headers name. **Three real copies**: `range_product`, `w_table_rho_row`,
+`w_table_mle_eval`. **Merged into one**: `_control/zerocheck`, `w_table_z_row`,
+`c_w_table_mle`, `h_zero`, and `h_zero_is_zero` (fully inlined — no symbol at
+all). Consequence as in the 09-07 audit: a merged row has no layout bias to
+measure, so a floor borrowed from a null sweep is optimistic for exactly those,
+while a real candidate is not byte-identical and so does not merge.
+
+### Gate state, and the plan's tail
+
+`coverage --strict` moved by exactly the six new markers — **92 mirrored items,
+53 benched, 39 excluded, 0 unaccounted** (from 86/47/39) — and `cargo test`
+is green at **121 tests**, strict clippy clean on the crate, the tests and all
+benches under `--all-features`. `cargo bench --bench zerocheck -- --test` runs
+every case in both variants, so `check()` and `case!`'s digest equality both
+pass.
+
+Two gates fail, and both are the documented "resolves at commit 1" pair:
+`check-genesis` on six unstamped items, and `check-candidate` because the slot's
+`lib.rs` differs from its git-pinned content — which a *new module* necessarily
+changes, since the slot needs `pub mod zerocheck;`. Neither can be fixed before
+the commit exists.
+
+Required next actions, in this order (`op-genesis` § "The commit choreography"):
+
+1. *(user)* **commit 1** — everything staged, in one commit: `src/zerocheck.rs`,
+   `src/lib.rs`, the semantics test, `Cargo.toml`'s `[[test]]` + `[[bench]]`,
+   `benches/zerocheck.rs`, `harness.py`'s `MODULES`, both slots' `lib.rs`, the
+   **unstamped** genesis copy, the candidate slot copy, `lean/Generated.lean`,
+   `lean/Check.lean`, the re-based brief, `briefs/README.md`, and this section.
+2. `make bench-stamp` — derives `// @genesis <sha> <date>` from commit 1; stage.
+3. *(user)* **commit 2** — the stamp lines alone. Never `--amend` commit 1: the
+   stamp stores its sha, and an amend orphans every annotation.
+4. `make bench-check` green.
+5. Stage 7, the **birth run**: `make run-bench` on a quiet machine. The new rows
+   must read noise against the printed threshold; the three-copy rows above are
+   the ones whose agreement is evidence that the freeze is faithful, and the
+   merged five cannot be (they time the same machine code twice).

@@ -41,3 +41,5 @@ pub mod ringswitch;
 pub mod quadeval;
 
 pub mod endpiece;
+
+pub mod zerocheck;

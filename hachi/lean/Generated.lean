@@ -61,6 +61,14 @@ def cpoly.field.Fp.new (v : Std.U64) : Result cpoly.field.Fp := do
 def cpoly.field.Fp.to_u64 (self : cpoly.field.Fp) : Result Std.U64 := do
   ok self
 
+/-- [cpoly::field::{cpoly::field::Fp}::is_zero]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 95:4-95:32
+    Name pattern: [cpoly::field::{cpoly::field::Fp}::is_zero]
+    Visibility: public -/
+@[rust_fun "cpoly::field::{cpoly::field::Fp}::is_zero"]
+def cpoly.field.Fp.is_zero (self : cpoly.field.Fp) : Result Bool := do
+  ok (self = 0#u64)
+
 /-- [cpoly::field::{impl core::ops::arith::Add<cpoly::field::Fp, cpoly::field::Fp> for cpoly::field::Fp}::add]:
     Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 111:4-111:31
     Name pattern: [cpoly::field::{core::ops::arith::Add<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::add]
@@ -109,6 +117,373 @@ def cpoly.field.Fp.Insts.CoreOpsArithNegFp.neg
   let i ← cpoly.field.P - self
   let i1 ← i % cpoly.field.P
   ok i1
+
+/-- [cpoly::field::W]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 171:0-171:15
+    Name pattern: [cpoly::field::W]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "cpoly::field::W"]
+def cpoly.field.W : cpoly.field.Fp := 2#u64
+
+/-- [cpoly::field::Ext4]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 185:0-185:15
+    Name pattern: [cpoly::field::Ext4]
+    Visibility: public -/
+@[rust_type "cpoly::field::Ext4"]
+structure cpoly.field.Ext4 where
+  c0 : cpoly.field.Fp
+  c1 : cpoly.field.Fp
+  c2 : cpoly.field.Fp
+  c3 : cpoly.field.Fp
+
+/-- [cpoly::field::{cpoly::field::Ext4}::ZERO]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 198:4-198:24
+    Name pattern: [cpoly::field::{cpoly::field::Ext4}::ZERO]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "cpoly::field::{cpoly::field::Ext4}::ZERO"]
+def cpoly.field.Ext4.ZERO : cpoly.field.Ext4 :=
+  {
+    c0 := cpoly.field.Fp.ZERO,
+    c1 := cpoly.field.Fp.ZERO,
+    c2 := cpoly.field.Fp.ZERO,
+    c3 := cpoly.field.Fp.ZERO
+  }
+
+/-- [cpoly::field::{cpoly::field::Ext4}::ONE]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 206:4-206:23
+    Name pattern: [cpoly::field::{cpoly::field::Ext4}::ONE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "cpoly::field::{cpoly::field::Ext4}::ONE"]
+def cpoly.field.Ext4.ONE : cpoly.field.Ext4 :=
+  {
+    c0 := cpoly.field.Fp.ONE,
+    c1 := cpoly.field.Fp.ZERO,
+    c2 := cpoly.field.Fp.ZERO,
+    c3 := cpoly.field.Fp.ZERO
+  }
+
+/-- [cpoly::field::{cpoly::field::Ext4}::from_base]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 231:4-231:41
+    Name pattern: [cpoly::field::{cpoly::field::Ext4}::from_base]
+    Visibility: public -/
+@[rust_fun "cpoly::field::{cpoly::field::Ext4}::from_base"]
+def cpoly.field.Ext4.from_base
+  (a : cpoly.field.Fp) : Result cpoly.field.Ext4 := do
+  ok
+    {
+      c0 := a,
+      c1 := cpoly.field.Fp.ZERO,
+      c2 := cpoly.field.Fp.ZERO,
+      c3 := cpoly.field.Fp.ZERO
+    }
+
+/-- [cpoly::field::{cpoly::field::Ext4}::is_zero]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 246:4-246:32
+    Name pattern: [cpoly::field::{cpoly::field::Ext4}::is_zero]
+    Visibility: public -/
+@[rust_fun "cpoly::field::{cpoly::field::Ext4}::is_zero"]
+def cpoly.field.Ext4.is_zero (self : cpoly.field.Ext4) : Result Bool := do
+  let b ← cpoly.field.Fp.is_zero self.c0
+  if b
+  then
+    let b1 ← cpoly.field.Fp.is_zero self.c1
+    if b1
+    then
+      let b2 ← cpoly.field.Fp.is_zero self.c2
+      if b2
+      then cpoly.field.Fp.is_zero self.c3
+      else ok false
+    else ok false
+  else ok false
+
+/-- [cpoly::field::{impl core::ops::arith::Add<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::add]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 268:4-268:35
+    Name pattern: [cpoly::field::{core::ops::arith::Add<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::add]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::ops::arith::Add<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::add"]
+def cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add
+  (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let f ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add self.c0 rhs.c0
+  let f1 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add self.c1 rhs.c1
+  let f2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add self.c2 rhs.c2
+  let f3 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add self.c3 rhs.c3
+  ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
+
+/-- [cpoly::field::{impl core::ops::arith::Sub<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::sub]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 282:4-282:35
+    Name pattern: [cpoly::field::{core::ops::arith::Sub<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::sub]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::ops::arith::Sub<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::sub"]
+def cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub
+  (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let f ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub self.c0 rhs.c0
+  let f1 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub self.c1 rhs.c1
+  let f2 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub self.c2 rhs.c2
+  let f3 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub self.c3 rhs.c3
+  ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
+
+/-- [cpoly::field::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::mul]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 315:4-315:35
+    Name pattern: [cpoly::field::{core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::mul]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::mul"]
+def cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul
+  (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let t0 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c0
+  let f ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c1
+  let f1 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c0
+  let t1 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f f1
+  let f2 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c2
+  let f3 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c1
+  let f4 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f2 f3
+  let f5 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c0
+  let t2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f4 f5
+  let f6 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c3
+  let f7 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c2
+  let f8 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f6 f7
+  let f9 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c1
+  let f10 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f8 f9
+  let f11 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c0
+  let t3 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f10 f11
+  let f12 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c3
+  let f13 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c2
+  let f14 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f12 f13
+  let f15 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c1
+  let t4 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f14 f15
+  let f16 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c3
+  let f17 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c2
+  let t5 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f16 f17
+  let t6 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c3
+  let f18 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t4
+  let f19 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t0 f18
+  let f20 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t5
+  let f21 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t1 f20
+  let f22 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t6
+  let f23 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t2 f22
+  ok { c0 := f19, c1 := f21, c2 := f23, c3 := t3 }
+
+/-- [cpoly::field::{impl core::ops::arith::AddAssign<cpoly::field::Ext4> for cpoly::field::Ext4}::add_assign]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 348:4-348:39
+    Name pattern: [cpoly::field::{core::ops::arith::AddAssign<cpoly::field::Ext4, cpoly::field::Ext4>}::add_assign]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::ops::arith::AddAssign<cpoly::field::Ext4, cpoly::field::Ext4>}::add_assign"]
+def cpoly.field.Ext4.Insts.CoreOpsArithAddAssignExt4.add_assign
+  (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add self rhs
+
+/-- [cpoly::field::{impl core::ops::arith::MulAssign<cpoly::field::Ext4> for cpoly::field::Ext4}::mul_assign]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 360:4-360:39
+    Name pattern: [cpoly::field::{core::ops::arith::MulAssign<cpoly::field::Ext4, cpoly::field::Ext4>}::mul_assign]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::ops::arith::MulAssign<cpoly::field::Ext4, cpoly::field::Ext4>}::mul_assign"]
+def cpoly.field.Ext4.Insts.CoreOpsArithMulAssignExt4.mul_assign
+  (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul self rhs
+
+/-- [cpoly::multilinear::table_len]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 107:0-107:38
+    Name pattern: [cpoly::multilinear::table_len]
+    Visibility: public -/
+@[rust_fun "cpoly::multilinear::table_len"]
+def cpoly.multilinear.table_len (vars : Std.Usize) : Result Std.Usize := do
+  1#usize <<< vars
+
+/-- [cpoly::multilinear::dot]: loop body 0:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 127:4-130:5
+    Name pattern: [cpoly::multilinear::dot]
+    Visibility: public -/
+@[rust_loop_body, rust_fun "cpoly::multilinear::dot"]
+def cpoly.multilinear.dot_loop.body
+  (a : Slice cpoly.field.Ext4) (b : Slice cpoly.field.Ext4) (n : Std.Usize)
+  (acc : cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  := do
+  if i < n
+  then
+    let e ← Slice.index_usize a i
+    let e1 ← Slice.index_usize b i
+    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
+    let acc1 ←
+      cpoly.field.Ext4.Insts.CoreOpsArithAddAssignExt4.add_assign acc e2
+    let i1 ← i + 1#usize
+    ok (cont (acc1, i1))
+  else ok (done acc)
+
+/-- [cpoly::multilinear::dot]: loop 0:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 127:4-130:5
+    Name pattern: [cpoly::multilinear::dot]
+    Visibility: public -/
+@[rust_loop, rust_fun "cpoly::multilinear::dot"]
+def cpoly.multilinear.dot_loop
+  (a : Slice cpoly.field.Ext4) (b : Slice cpoly.field.Ext4) (n : Std.Usize)
+  (acc : cpoly.field.Ext4) (i : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, i1) => cpoly.multilinear.dot_loop.body a b n acc1 i1)
+    (acc, i)
+
+/-- [cpoly::multilinear::dot]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 123:0-123:42
+    Name pattern: [cpoly::multilinear::dot]
+    Visibility: public -/
+@[rust_fun "cpoly::multilinear::dot"]
+def cpoly.multilinear.dot
+  (a : Slice cpoly.field.Ext4) (b : Slice cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let n := Slice.len a
+  cpoly.multilinear.dot_loop a b n cpoly.field.Ext4.ZERO 0#usize
+
+/-- [cpoly::multilinear::MultilinearEvals]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 487:0-487:27
+    Name pattern: [cpoly::multilinear::MultilinearEvals]
+    Visibility: public -/
+@[reducible, rust_type "cpoly::multilinear::MultilinearEvals"]
+def cpoly.multilinear.MultilinearEvals := alloc.vec.Vec cpoly.field.Ext4
+
+/-- [cpoly::multilinear::lagrange_basis]: loop body 1:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 178:8-186:9
+    Name pattern: [cpoly::multilinear::lagrange_basis]
+    Visibility: public -/
+@[rust_loop_body, rust_fun "cpoly::multilinear::lagrange_basis"]
+def cpoly.multilinear.lagrange_basis_loop0_loop0.body
+  (point : Slice cpoly.field.Ext4) (vars : Std.Usize) (acc : cpoly.field.Ext4)
+  (m : Std.Usize) (j : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize × Std.Usize)
+    cpoly.field.Ext4)
+  := do
+  if j < vars
+  then
+    let i ← m % 2#usize
+    let acc1 ←
+      if i = 1#usize
+      then
+        do
+        let e ← Slice.index_usize point j
+        cpoly.field.Ext4.Insts.CoreOpsArithMulAssignExt4.mul_assign acc e
+      else
+        do
+        let e ← Slice.index_usize point j
+        let e1 ←
+          cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub
+            cpoly.field.Ext4.ONE e
+        cpoly.field.Ext4.Insts.CoreOpsArithMulAssignExt4.mul_assign acc e1
+    let m1 ← m / 2#usize
+    let j1 ← j + 1#usize
+    ok (cont (acc1, m1, j1))
+  else ok (done acc)
+
+/-- [cpoly::multilinear::lagrange_basis]: loop 1:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 178:8-186:9
+    Name pattern: [cpoly::multilinear::lagrange_basis]
+    Visibility: public -/
+@[rust_loop, rust_fun "cpoly::multilinear::lagrange_basis"]
+def cpoly.multilinear.lagrange_basis_loop0_loop0
+  (point : Slice cpoly.field.Ext4) (vars : Std.Usize) (acc : cpoly.field.Ext4)
+  (m : Std.Usize) (j : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, m1, j1) => cpoly.multilinear.lagrange_basis_loop0_loop0.body
+      point vars acc1 m1 j1)
+    (acc, m, j)
+
+/-- [cpoly::multilinear::lagrange_basis]: loop body 0:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 174:4-189:5
+    Name pattern: [cpoly::multilinear::lagrange_basis]
+    Visibility: public -/
+@[rust_loop_body, rust_fun "cpoly::multilinear::lagrange_basis"]
+def cpoly.multilinear.lagrange_basis_loop0.body
+  (point : Slice cpoly.field.Ext4) (vars : Std.Usize) (sz : Std.Usize)
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < sz
+  then
+    let acc ←
+      cpoly.multilinear.lagrange_basis_loop0_loop0 point vars
+        cpoly.field.Ext4.ONE i 0#usize
+    let basis1 ← alloc.vec.Vec.push basis acc
+    let i1 ← i + 1#usize
+    ok (cont (basis1, i1))
+  else ok (done basis)
+
+/-- [cpoly::multilinear::lagrange_basis]: loop 0:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 174:4-189:5
+    Name pattern: [cpoly::multilinear::lagrange_basis]
+    Visibility: public -/
+@[rust_loop, rust_fun "cpoly::multilinear::lagrange_basis"]
+def cpoly.multilinear.lagrange_basis_loop0
+  (point : Slice cpoly.field.Ext4) (vars : Std.Usize) (sz : Std.Usize)
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (basis1, i1) => cpoly.multilinear.lagrange_basis_loop0.body point vars
+      sz basis1 i1)
+    (basis, i)
+
+/-- [cpoly::multilinear::lagrange_basis]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 169:0-169:57
+    Name pattern: [cpoly::multilinear::lagrange_basis]
+    Visibility: public -/
+@[rust_fun "cpoly::multilinear::lagrange_basis"]
+def cpoly.multilinear.lagrange_basis
+  (point : Slice cpoly.field.Ext4) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let vars := Slice.len point
+  let sz ← cpoly.multilinear.table_len vars
+  let basis ←
+    cpoly.multilinear.lagrange_basis_loop0 point vars sz (alloc.vec.Vec.new
+      cpoly.field.Ext4) 0#usize
+  ok basis
+
+/-- [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::from_values]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 502:4-502:61
+    Name pattern: [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::from_values]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::from_values"]
+def cpoly.multilinear.MultilinearEvals.from_values
+  (values : alloc.vec.Vec cpoly.field.Ext4) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  ok values
+
+/-- [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::eval]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 531:4-531:46
+    Name pattern: [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::eval]
+    Visibility: public -/
+@[rust_fun "cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::eval"]
+def cpoly.multilinear.MultilinearEvals.eval
+  (self : cpoly.multilinear.MultilinearEvals) (point : Slice cpoly.field.Ext4)
+  :
+  Result cpoly.field.Ext4
+  := do
+  let basis ← cpoly.multilinear.lagrange_basis point
+  let s := alloc.vec.Vec.deref self
+  let s1 := alloc.vec.Vec.deref basis
+  cpoly.multilinear.dot s s1
 
 /-- [hachi::params::Q]
     Source: 'src/params.rs', lines 67:0-67:33
@@ -4273,5 +4648,246 @@ def ringswitch.lift_commit
   := do
   let message ← ringswitch.lift_message w
   linalg.PolyMatrix.mat_vec_mul d_key message
+
+/-- [hachi::zerocheck::two_pow]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+@[rust_loop_body]
+def zerocheck.two_pow_loop.body
+  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  if t < n
+  then
+    let size1 ← size * 2#usize
+    let t1 ← t + 1#usize
+    ok (cont (size1, t1))
+  else ok (done size)
+
+/-- [hachi::zerocheck::two_pow]: loop 0:
+    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+@[rust_loop]
+def zerocheck.two_pow_loop
+  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun (size1, t1) => zerocheck.two_pow_loop.body n size1 t1)
+    (size, t)
+
+/-- [hachi::zerocheck::two_pow]:
+    Source: 'src/zerocheck.rs', lines 55:0-63:1 -/
+@[reducible]
+def zerocheck.two_pow (n : Std.Usize) : Result Std.Usize := do
+  zerocheck.two_pow_loop n 1#usize 0#usize
+
+/-- [hachi::zerocheck::range_product]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 82:4-88:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.range_product_loop.body
+  (v : cpoly.field.Ext4) (base : Std.U64) (acc : cpoly.field.Ext4)
+  (j : Std.U64) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.U64) cpoly.field.Ext4)
+  := do
+  if j < base
+  then
+    let f ← cpoly.field.Fp.new j
+    let scalar ← cpoly.field.Ext4.from_base f
+    let lo ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub v scalar
+    let hi ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add v scalar
+    let e ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul acc lo
+    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e hi
+    let j1 ← j + 1#u64
+    ok (cont (acc1, j1))
+  else ok (done acc)
+
+/-- [hachi::zerocheck::range_product]: loop 0:
+    Source: 'src/zerocheck.rs', lines 82:4-88:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.range_product_loop
+  (v : cpoly.field.Ext4) (base : Std.U64) (acc : cpoly.field.Ext4)
+  (j : Std.U64) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, j1) => zerocheck.range_product_loop.body v base acc1 j1)
+    (acc, j)
+
+/-- [hachi::zerocheck::range_product]:
+    Source: 'src/zerocheck.rs', lines 78:0-90:1
+    Visibility: public -/
+@[reducible]
+def zerocheck.range_product
+  (v : cpoly.field.Ext4) : Result cpoly.field.Ext4 := do
+  zerocheck.range_product_loop v params.GADGET_BASE v 1#u64
+
+/-- [hachi::zerocheck::w_table]:
+    Source: 'src/zerocheck.rs', lines 123:0-138:1
+    Visibility: public -/
+def zerocheck.w_table
+  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let pv ← ringswitch.LiftedWitness.impl.z w
+  let mu ← linalg.PolyVec.len pv
+  let v ← ringswitch.LiftedWitness.impl.rho w
+  let rows := alloc.vec.Vec.len v
+  let row ← idx / params.RING_DEGREE
+  let col ← idx % params.RING_DEGREE
+  if row < mu
+  then
+    let r ← linalg.PolyVec.get pv row
+    let f ← ring.Rq.coeff r col
+    cpoly.field.Ext4.from_base f
+  else
+    let i ← row - mu
+    let i1 ← rows * params.GADGET_DIGITS
+    if i < i1
+    then
+      let r ← ringswitch.rho_digit_as_rq v i
+      let f ← ring.Rq.coeff r col
+      cpoly.field.Ext4.from_base f
+    else ok cpoly.field.Ext4.ZERO
+
+/-- [hachi::zerocheck::c_w_table_mle]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 151:4-154:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.c_w_table_mle_loop.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < size
+  then
+    let e ← zerocheck.w_table w i
+    let values1 ← alloc.vec.Vec.push values e
+    let i1 ← i + 1#usize
+    ok (cont (values1, i1))
+  else ok (done values)
+
+/-- [hachi::zerocheck::c_w_table_mle]: loop 0:
+    Source: 'src/zerocheck.rs', lines 151:4-154:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.c_w_table_mle_loop
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (values1, i1) => zerocheck.c_w_table_mle_loop.body w size values1 i1)
+    (values, i)
+
+/-- [hachi::zerocheck::c_w_table_mle]:
+    Source: 'src/zerocheck.rs', lines 147:0-156:1
+    Visibility: public -/
+def zerocheck.c_w_table_mle
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let size ← zerocheck.two_pow m0
+  let values ←
+    zerocheck.c_w_table_mle_loop w size (alloc.vec.Vec.new cpoly.field.Ext4)
+      0#usize
+  cpoly.multilinear.MultilinearEvals.from_values values
+
+/-- [hachi::zerocheck::w_table_mle_eval]:
+    Source: 'src/zerocheck.rs', lines 169:0-172:1
+    Visibility: public -/
+def zerocheck.w_table_mle_eval
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
+  (a : alloc.vec.Vec cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let table ← zerocheck.c_w_table_mle w m0
+  let s := alloc.vec.Vec.deref a
+  cpoly.multilinear.MultilinearEvals.eval table s
+
+/-- [hachi::zerocheck::h_zero]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 185:4-188:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_zero_loop.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < size
+  then
+    let e ← zerocheck.w_table w i
+    let e1 ← zerocheck.range_product e
+    let values1 ← alloc.vec.Vec.push values e1
+    let i1 ← i + 1#usize
+    ok (cont (values1, i1))
+  else ok (done values)
+
+/-- [hachi::zerocheck::h_zero]: loop 0:
+    Source: 'src/zerocheck.rs', lines 185:4-188:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_zero_loop
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (values1, i1) => zerocheck.h_zero_loop.body w size values1 i1)
+    (values, i)
+
+/-- [hachi::zerocheck::h_zero]:
+    Source: 'src/zerocheck.rs', lines 181:0-190:1
+    Visibility: public -/
+def zerocheck.h_zero
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let size ← zerocheck.two_pow m0
+  let values ←
+    zerocheck.h_zero_loop w size (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+  cpoly.multilinear.MultilinearEvals.from_values values
+
+/-- [hachi::zerocheck::h_zero_is_zero]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 206:4-211:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_zero_is_zero_loop.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
+  (i : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if i < size
+  then
+    let e ← zerocheck.w_table w i
+    let e1 ← zerocheck.range_product e
+    let b ← cpoly.field.Ext4.is_zero e1
+    let zero1 ← if b
+                  then ok zero
+                  else ok false
+    let i1 ← i + 1#usize
+    ok (cont (zero1, i1))
+  else ok (done zero)
+
+/-- [hachi::zerocheck::h_zero_is_zero]: loop 0:
+    Source: 'src/zerocheck.rs', lines 206:4-211:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_zero_is_zero_loop
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (zero1, i1) => zerocheck.h_zero_is_zero_loop.body w size zero1 i1)
+    (zero, i)
+
+/-- [hachi::zerocheck::h_zero_is_zero]:
+    Source: 'src/zerocheck.rs', lines 202:0-213:1
+    Visibility: public -/
+def zerocheck.h_zero_is_zero
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool := do
+  let size ← zerocheck.two_pow m0
+  zerocheck.h_zero_is_zero_loop w size true 0#usize
 
 end hachi

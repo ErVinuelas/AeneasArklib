@@ -43,6 +43,9 @@
 //!   (`Commitments/Functional/Hachi/RingSwitch/RhoDigits.lean`).
 //! * [`quadeval`] -- the QuadEval fold and its Eq. (20) checks
 //!   (`Commitments/Functional/Hachi/QuadEval/`).
+//! * [`zerocheck`] -- the committed table `w̃` and the range-constraint block
+//!   `H₀` (`Commitments/Functional/Hachi/ZeroCheck/Constraints.lean`); the
+//!   first module whose carrier is the extension field `Ext4`.
 //!
 //! The layering is strict and bottom-up: `linalg` uses `ring`, `gadget` uses
 //! both, `commit` uses all three, `evalsplit` uses `ring` and `linalg`, and
@@ -123,3 +126,5 @@ pub mod ringswitch;
 pub mod quadeval;
 
 pub mod endpiece;
+
+pub mod zerocheck;
