@@ -97,6 +97,51 @@ allocation; measured through `to_polynomial`, which calls it per entry."""
 # bench files, and the semantics they exercised run on demand via the
 # `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
 
+"zerocheck::alpha_contract" = """
+infeasible even REDUCED, and the arithmetic is the specification's own shape.
+The double sum walks `(mu + n*delta) * d` table cells and `alphaContract`
+(`ZeroCheck/Constraints.lean:540`) puts `M~_alpha(i, u)` *inside* the `ell`
+loop, so every cell recomputes it -- and on a digit column that reaches
+`ringswitch::c_eval_at_modulus`, which is the `O(d^2)` power-sum `eval2`
+(`~5.2e5` `Ext4` multiplies at `d = 1024`). At the smallest witness with a digit
+block at all (`mu = 1`, `n = 1`) that is `8 * 1024 = 8192` such calls, ~172 s
+per criterion iteration; the real `(n, mu) = (5, 57344)` is astronomically
+worse. Excluded per the Fig. 9 policy exception (header).
+
+**Removal condition, and it is precise**: either hoist `M~_alpha` out of the
+inner loop into the `n x mu` table the brief identifies
+(briefs/target-4-zero-check.md, cost model item 4), or collapse
+`cEvalAt alpha Phi.phi` to `alpha^d + 1` (ten squarings; item 3 of that
+brief's Corrections). Either alone brings this within criterion's reach, and
+both are `perf-loop` candidates rather than translation choices. The semantics
+are exercised on demand by `zerocheck_semantics::alpha_defect_vanishes_exactly_on_an_honest_lift`
+and `..._is_the_double_sum_either_way_round`, both `#[ignore]`d and both run
+green in release before the genesis freeze."""
+
+"zerocheck::alpha_defect" = """
+`alpha_contract` minus one `c_eval_at`, so it inherits that item's cost and its
+exclusion verbatim -- the subtraction is one `Ext4` operation against ~172 s.
+Same removal condition."""
+
+"zerocheck::h_alpha_evals" = """
+`alpha_defect` behind the `idx < n` padding guard: on a real row it is
+`alpha_defect`'s cost, and above the rows it is free. Excluded for the real-row
+half; the padding half is measured by nothing because there is nothing to
+measure (one comparison). Same removal condition as `alpha_contract`. Its
+padding semantics are pinned live by
+`zerocheck_semantics::h_alpha_pads_above_the_real_rows`."""
+
+"zerocheck::h_alpha" = """
+`2^m_1` entries of `h_alpha_evals`, i.e. eight times that item's cost at the
+pinned `M_ONE = 3`. Same removal condition as `alpha_contract`."""
+
+"zerocheck::h_alpha_is_zero" = """
+the same `2^m_1` scan as `h_alpha` plus one `Ext4::is_zero` per entry, and the
+`H_alpha` verdict the verifier actually computes. Same removal condition as
+`alpha_contract`. Note for whoever lifts that condition: this row's digest is
+one `bool`, so it wants `check()`-style pinning in its bench file the way
+`endpiece/lift_short_check` has, not just the digest oracle."""
+
 "commit::generate_decomps" = """
 per block: one `gadget_decompose` (8192 digit loops), one `A · s` (8192 ring
 muls, ~25 s at d = 1024 schoolbook), one more decompose. Hours at the scheme's
@@ -279,3 +324,5 @@ sub-quadratic `ring::mul` lands."""
 the Lagrange twin of `eval_split`, same `2^20` ring-mul bilinear form on the
 same ~8 GiB shape. Excluded per the Fig. 9 policy exception (header) until a
 sub-quadratic `ring::mul` lands."""
+
+

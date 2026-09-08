@@ -28,6 +28,16 @@ def cpoly.field.P : Std.U64 := 4294967197#u64
 @[reducible, rust_type "cpoly::field::Fp"]
 def cpoly.field.Fp := Std.U64
 
+/-- [cpoly::field::{impl core::cmp::PartialEq<cpoly::field::Fp> for cpoly::field::Fp}::eq]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 71:22-71:31
+    Name pattern: [cpoly::field::{core::cmp::PartialEq<cpoly::field::Fp, cpoly::field::Fp>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::cmp::PartialEq<cpoly::field::Fp, cpoly::field::Fp>}::eq"]
+def cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq
+  (self : cpoly.field.Fp) (other : cpoly.field.Fp) : Result Bool := do
+  ok (self = other)
+
 /-- [cpoly::field::{cpoly::field::Fp}::ZERO]
     Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 76:4-76:22
     Name pattern: [cpoly::field::{cpoly::field::Fp}::ZERO]
@@ -135,6 +145,27 @@ structure cpoly.field.Ext4 where
   c1 : cpoly.field.Fp
   c2 : cpoly.field.Fp
   c3 : cpoly.field.Fp
+
+/-- [cpoly::field::{impl core::cmp::PartialEq<cpoly::field::Ext4> for cpoly::field::Ext4}::eq]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 184:22-184:31
+    Name pattern: [cpoly::field::{core::cmp::PartialEq<cpoly::field::Ext4, cpoly::field::Ext4>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "cpoly::field::{core::cmp::PartialEq<cpoly::field::Ext4, cpoly::field::Ext4>}::eq"]
+def cpoly.field.Ext4.Insts.CoreCmpPartialEqExt4.eq
+  (self : cpoly.field.Ext4) (other : cpoly.field.Ext4) : Result Bool := do
+  let b ← cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq self.c0 other.c0
+  if b
+  then
+    let b1 ← cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq self.c1 other.c1
+    if b1
+    then
+      let b2 ← cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq self.c2 other.c2
+      if b2
+      then cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq self.c3 other.c3
+      else ok false
+    else ok false
+  else ok false
 
 /-- [cpoly::field::{cpoly::field::Ext4}::ZERO]
     Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 198:4-198:24
@@ -2415,7 +2446,7 @@ def ringswitch.rho_digits_at
 @[global_simps, irreducible] def params.CHAIN_GAMMA : Std.U64 := 15#u64
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop body 2:
-    Source: 'src/endpiece.rs', lines 52:12-57:13
+    Source: 'src/endpiece.rs', lines 81:12-86:13
     Visibility: public -/
 @[rust_loop_body]
 def endpiece.rho_digits_short_check_loop0_loop0_loop0.body
@@ -2434,7 +2465,7 @@ def endpiece.rho_digits_short_check_loop0_loop0_loop0.body
   else ok (done short)
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop 2:
-    Source: 'src/endpiece.rs', lines 52:12-57:13
+    Source: 'src/endpiece.rs', lines 81:12-86:13
     Visibility: public -/
 @[rust_loop]
 def endpiece.rho_digits_short_check_loop0_loop0_loop0
@@ -2445,7 +2476,7 @@ def endpiece.rho_digits_short_check_loop0_loop0_loop0
     (short, k)
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop body 1:
-    Source: 'src/endpiece.rs', lines 49:8-59:9
+    Source: 'src/endpiece.rs', lines 78:8-88:9
     Visibility: public -/
 @[rust_loop_body]
 def endpiece.rho_digits_short_check_loop0_loop0.body
@@ -2463,7 +2494,7 @@ def endpiece.rho_digits_short_check_loop0_loop0.body
   else ok (done short)
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop 1:
-    Source: 'src/endpiece.rs', lines 49:8-59:9
+    Source: 'src/endpiece.rs', lines 78:8-88:9
     Visibility: public -/
 @[rust_loop]
 def endpiece.rho_digits_short_check_loop0_loop0
@@ -2477,7 +2508,7 @@ def endpiece.rho_digits_short_check_loop0_loop0
     (short, u)
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop body 0:
-    Source: 'src/endpiece.rs', lines 47:4-61:5
+    Source: 'src/endpiece.rs', lines 76:4-90:5
     Visibility: public -/
 @[rust_loop_body]
 def endpiece.rho_digits_short_check_loop0.body
@@ -2494,7 +2525,7 @@ def endpiece.rho_digits_short_check_loop0.body
   else ok (done short)
 
 /-- [hachi::endpiece::rho_digits_short_check]: loop 0:
-    Source: 'src/endpiece.rs', lines 47:4-61:5
+    Source: 'src/endpiece.rs', lines 76:4-90:5
     Visibility: public -/
 @[rust_loop]
 def endpiece.rho_digits_short_check_loop0
@@ -2508,7 +2539,7 @@ def endpiece.rho_digits_short_check_loop0
     (i, short)
 
 /-- [hachi::endpiece::rho_digits_short_check]:
-    Source: 'src/endpiece.rs', lines 43:0-63:1
+    Source: 'src/endpiece.rs', lines 72:0-92:1
     Visibility: public -/
 def endpiece.rho_digits_short_check
   (rho : alloc.vec.Vec ringswitch.QuotientRow) : Result Bool := do
@@ -2539,7 +2570,7 @@ def ringswitch.LiftedWitness.impl.z
   ok self.z
 
 /-- [hachi::endpiece::lift_short_check]:
-    Source: 'src/endpiece.rs', lines 69:0-71:1
+    Source: 'src/endpiece.rs', lines 98:0-100:1
     Visibility: public -/
 def endpiece.lift_short_check
   (w : ringswitch.LiftedWitness) : Result Bool := do
@@ -2550,6 +2581,300 @@ def endpiece.lift_short_check
     let v ← ringswitch.LiftedWitness.impl.rho w
     endpiece.rho_digits_short_check v
   else ok false
+
+/-- [hachi::endpiece::WEvalStatement]
+    Source: 'src/endpiece.rs', lines 118:0-122:1
+    Visibility: public -/
+structure endpiece.WEvalStatement where
+  t : linalg.PolyVec
+  point : alloc.vec.Vec cpoly.field.Ext4
+  value : cpoly.field.Ext4
+
+/-- [hachi::endpiece::{hachi::endpiece::WEvalStatement}::new]:
+    Source: 'src/endpiece.rs', lines 126:4-128:5
+    Visibility: public -/
+def endpiece.WEvalStatement.new
+  (t : linalg.PolyVec) (point : alloc.vec.Vec cpoly.field.Ext4)
+  (value : cpoly.field.Ext4) :
+  Result endpiece.WEvalStatement
+  := do
+  ok { t, point, value }
+
+/-- [hachi::endpiece::{hachi::endpiece::WEvalStatement}::t]:
+    Source: 'src/endpiece.rs', lines 131:4-133:5
+    Visibility: public -/
+def endpiece.WEvalStatement.impl.t
+  (self : endpiece.WEvalStatement) : Result linalg.PolyVec := do
+  ok self.t
+
+/-- [hachi::endpiece::{hachi::endpiece::WEvalStatement}::point]:
+    Source: 'src/endpiece.rs', lines 136:4-138:5
+    Visibility: public -/
+def endpiece.WEvalStatement.impl.point
+  (self : endpiece.WEvalStatement) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  ok self.point
+
+/-- [hachi::endpiece::{hachi::endpiece::WEvalStatement}::value]:
+    Source: 'src/endpiece.rs', lines 141:4-143:5
+    Visibility: public -/
+def endpiece.WEvalStatement.impl.value
+  (self : endpiece.WEvalStatement) : Result cpoly.field.Ext4 := do
+  ok self.value
+
+/-- [hachi::ringswitch::rho_digit_as_rq]:
+    Source: 'src/ringswitch.rs', lines 167:0-172:1
+    Visibility: public -/
+def ringswitch.rho_digit_as_rq
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (j : Std.Usize) :
+  Result ring.Rq
+  := do
+  let row ← j / params.GADGET_DIGITS
+  let u ← j % params.GADGET_DIGITS
+  let qr ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      ringswitch.QuotientRow) rho row
+  ringswitch.rho_digits qr u
+
+/-- [hachi::zerocheck::w_table]:
+    Source: 'src/zerocheck.rs', lines 123:0-138:1
+    Visibility: public -/
+def zerocheck.w_table
+  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let pv ← ringswitch.LiftedWitness.impl.z w
+  let mu ← linalg.PolyVec.len pv
+  let v ← ringswitch.LiftedWitness.impl.rho w
+  let rows := alloc.vec.Vec.len v
+  let row ← idx / params.RING_DEGREE
+  let col ← idx % params.RING_DEGREE
+  if row < mu
+  then
+    let r ← linalg.PolyVec.get pv row
+    let f ← ring.Rq.coeff r col
+    cpoly.field.Ext4.from_base f
+  else
+    let i ← row - mu
+    let i1 ← rows * params.GADGET_DIGITS
+    if i < i1
+    then
+      let r ← ringswitch.rho_digit_as_rq v i
+      let f ← ring.Rq.coeff r col
+      cpoly.field.Ext4.from_base f
+    else ok cpoly.field.Ext4.ZERO
+
+/-- [hachi::zerocheck::two_pow]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+@[rust_loop_body]
+def zerocheck.two_pow_loop.body
+  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  if t < n
+  then
+    let size1 ← size * 2#usize
+    let t1 ← t + 1#usize
+    ok (cont (size1, t1))
+  else ok (done size)
+
+/-- [hachi::zerocheck::two_pow]: loop 0:
+    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+@[rust_loop]
+def zerocheck.two_pow_loop
+  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
+  loop
+    (fun (size1, t1) => zerocheck.two_pow_loop.body n size1 t1)
+    (size, t)
+
+/-- [hachi::zerocheck::two_pow]:
+    Source: 'src/zerocheck.rs', lines 55:0-63:1 -/
+@[reducible]
+def zerocheck.two_pow (n : Std.Usize) : Result Std.Usize := do
+  zerocheck.two_pow_loop n 1#usize 0#usize
+
+/-- [hachi::zerocheck::c_w_table_mle]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 151:4-154:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.c_w_table_mle_loop.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < size
+  then
+    let e ← zerocheck.w_table w i
+    let values1 ← alloc.vec.Vec.push values e
+    let i1 ← i + 1#usize
+    ok (cont (values1, i1))
+  else ok (done values)
+
+/-- [hachi::zerocheck::c_w_table_mle]: loop 0:
+    Source: 'src/zerocheck.rs', lines 151:4-154:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.c_w_table_mle_loop
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (values1, i1) => zerocheck.c_w_table_mle_loop.body w size values1 i1)
+    (values, i)
+
+/-- [hachi::zerocheck::c_w_table_mle]:
+    Source: 'src/zerocheck.rs', lines 147:0-156:1
+    Visibility: public -/
+def zerocheck.c_w_table_mle
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let size ← zerocheck.two_pow m0
+  let values ←
+    zerocheck.c_w_table_mle_loop w size (alloc.vec.Vec.new cpoly.field.Ext4)
+      0#usize
+  cpoly.multilinear.MultilinearEvals.from_values values
+
+/-- [hachi::zerocheck::w_table_mle_eval]:
+    Source: 'src/zerocheck.rs', lines 169:0-172:1
+    Visibility: public -/
+def zerocheck.w_table_mle_eval
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
+  (a : alloc.vec.Vec cpoly.field.Ext4) :
+  Result cpoly.field.Ext4
+  := do
+  let table ← zerocheck.c_w_table_mle w m0
+  let s := alloc.vec.Vec.deref a
+  cpoly.multilinear.MultilinearEvals.eval table s
+
+/-- [hachi::ringswitch::lift_message]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 183:4-186:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.lift_message_loop0.body
+  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if i < z_len
+  then
+    let r ← linalg.PolyVec.get pv i
+    let r1 ← ring.Rq.copy r
+    let out1 ← alloc.vec.Vec.push out r1
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::lift_message]: loop 0:
+    Source: 'src/ringswitch.rs', lines 183:4-186:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.lift_message_loop0
+  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, i1) => ringswitch.lift_message_loop0.body pv z_len out1 i1)
+    (out, i)
+
+/-- [hachi::ringswitch::lift_message]: loop body 1:
+    Source: 'src/ringswitch.rs', lines 188:4-191:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.lift_message_loop1.body
+  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if j < rho_len
+  then
+    let r ← ringswitch.rho_digit_as_rq v j
+    let out1 ← alloc.vec.Vec.push out r
+    let j1 ← j + 1#usize
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::lift_message]: loop 1:
+    Source: 'src/ringswitch.rs', lines 188:4-191:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.lift_message_loop1
+  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, j1) => ringswitch.lift_message_loop1.body v rho_len out1 j1)
+    (out, j)
+
+/-- [hachi::ringswitch::lift_message]:
+    Source: 'src/ringswitch.rs', lines 178:0-193:1
+    Visibility: public -/
+def ringswitch.lift_message
+  (w : ringswitch.LiftedWitness) : Result linalg.PolyVec := do
+  let z_len ← linalg.PolyVec.len w.z
+  let i := alloc.vec.Vec.len w.rho
+  let rho_len ← i * params.GADGET_DIGITS
+  let out ←
+    ringswitch.lift_message_loop0 w.z z_len (alloc.vec.Vec.new ring.Rq) 0#usize
+  let out1 ← ringswitch.lift_message_loop1 w.rho rho_len out 0#usize
+  linalg.PolyVec.new out1
+
+/-- [hachi::ringswitch::lift_commit]:
+    Source: 'src/ringswitch.rs', lines 202:0-205:1
+    Visibility: public -/
+def ringswitch.lift_commit
+  (d_key : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) :
+  Result linalg.PolyVec
+  := do
+  let message ← ringswitch.lift_message w
+  linalg.PolyMatrix.mat_vec_mul d_key message
+
+/-- [hachi::endpiece::end_piece_check]:
+    Source: 'src/endpiece.rs', lines 183:0-189:1
+    Visibility: public -/
+def endpiece.end_piece_check
+  (d_key : linalg.PolyMatrix) (stmt : endpiece.WEvalStatement)
+  (w : ringswitch.LiftedWitness) :
+  Result Bool
+  := do
+  let com ← ringswitch.lift_commit d_key w
+  let v ← endpiece.WEvalStatement.impl.point stmt
+  let m0 := alloc.vec.Vec.len v
+  let pv ← endpiece.WEvalStatement.impl.t stmt
+  let b ← linalg.PolyVec.equals com pv
+  if b
+  then
+    let b1 ← endpiece.lift_short_check w
+    if b1
+    then
+      let e ← zerocheck.w_table_mle_eval w m0 v
+      let e1 ← endpiece.WEvalStatement.impl.value stmt
+      cpoly.field.Ext4.Insts.CoreCmpPartialEqExt4.eq e e1
+    else ok false
+  else ok false
+
+/-- [hachi::endpiece::end_piece_prove]:
+    Source: 'src/endpiece.rs', lines 203:0-205:1
+    Visibility: public -/
+def endpiece.end_piece_prove
+  (w : ringswitch.LiftedWitness) : Result ringswitch.LiftedWitness := do
+  ok w
+
+/-- [hachi::endpiece::end_piece_witness]:
+    Source: 'src/endpiece.rs', lines 219:0-221:1
+    Visibility: public -/
+def endpiece.end_piece_witness
+  (_stmt : endpiece.WEvalStatement) (message : ringswitch.LiftedWitness) :
+  Result ringswitch.LiftedWitness
+  := do
+  ok message
 
 /-- [hachi::params::ML_LOW_LEN]
     Source: 'src/params.rs', lines 259:0-259:35
@@ -4560,106 +4885,6 @@ def ringswitch.LiftedWitness.new
   := do
   ok { z, rho }
 
-/-- [hachi::ringswitch::rho_digit_as_rq]:
-    Source: 'src/ringswitch.rs', lines 167:0-172:1
-    Visibility: public -/
-def ringswitch.rho_digit_as_rq
-  (rho : alloc.vec.Vec ringswitch.QuotientRow) (j : Std.Usize) :
-  Result ring.Rq
-  := do
-  let row ← j / params.GADGET_DIGITS
-  let u ← j % params.GADGET_DIGITS
-  let qr ←
-    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-      ringswitch.QuotientRow) rho row
-  ringswitch.rho_digits qr u
-
-/-- [hachi::ringswitch::lift_message]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 183:4-186:5
-    Visibility: public -/
-@[rust_loop_body]
-def ringswitch.lift_message_loop0.body
-  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-  (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
-    ring.Rq))
-  := do
-  if i < z_len
-  then
-    let r ← linalg.PolyVec.get pv i
-    let r1 ← ring.Rq.copy r
-    let out1 ← alloc.vec.Vec.push out r1
-    let i1 ← i + 1#usize
-    ok (cont (out1, i1))
-  else ok (done out)
-
-/-- [hachi::ringswitch::lift_message]: loop 0:
-    Source: 'src/ringswitch.rs', lines 183:4-186:5
-    Visibility: public -/
-@[rust_loop]
-def ringswitch.lift_message_loop0
-  (pv : linalg.PolyVec) (z_len : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-  (i : Std.Usize) :
-  Result (alloc.vec.Vec ring.Rq)
-  := do
-  loop
-    (fun (out1, i1) => ringswitch.lift_message_loop0.body pv z_len out1 i1)
-    (out, i)
-
-/-- [hachi::ringswitch::lift_message]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 188:4-191:5
-    Visibility: public -/
-@[rust_loop_body]
-def ringswitch.lift_message_loop1.body
-  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
-    ring.Rq))
-  := do
-  if j < rho_len
-  then
-    let r ← ringswitch.rho_digit_as_rq v j
-    let out1 ← alloc.vec.Vec.push out r
-    let j1 ← j + 1#usize
-    ok (cont (out1, j1))
-  else ok (done out)
-
-/-- [hachi::ringswitch::lift_message]: loop 1:
-    Source: 'src/ringswitch.rs', lines 188:4-191:5
-    Visibility: public -/
-@[rust_loop]
-def ringswitch.lift_message_loop1
-  (v : alloc.vec.Vec ringswitch.QuotientRow) (rho_len : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (j : Std.Usize) :
-  Result (alloc.vec.Vec ring.Rq)
-  := do
-  loop
-    (fun (out1, j1) => ringswitch.lift_message_loop1.body v rho_len out1 j1)
-    (out, j)
-
-/-- [hachi::ringswitch::lift_message]:
-    Source: 'src/ringswitch.rs', lines 178:0-193:1
-    Visibility: public -/
-def ringswitch.lift_message
-  (w : ringswitch.LiftedWitness) : Result linalg.PolyVec := do
-  let z_len ← linalg.PolyVec.len w.z
-  let i := alloc.vec.Vec.len w.rho
-  let rho_len ← i * params.GADGET_DIGITS
-  let out ←
-    ringswitch.lift_message_loop0 w.z z_len (alloc.vec.Vec.new ring.Rq) 0#usize
-  let out1 ← ringswitch.lift_message_loop1 w.rho rho_len out 0#usize
-  linalg.PolyVec.new out1
-
-/-- [hachi::ringswitch::lift_commit]:
-    Source: 'src/ringswitch.rs', lines 202:0-205:1
-    Visibility: public -/
-def ringswitch.lift_commit
-  (d_key : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) :
-  Result linalg.PolyVec
-  := do
-  let message ← ringswitch.lift_message w
-  linalg.PolyMatrix.mat_vec_mul d_key message
-
 /-- [hachi::ringswitch::RlinStatement]
     Source: 'src/ringswitch.rs', lines 218:0-222:1
     Visibility: public -/
@@ -4822,35 +5047,6 @@ def ringswitch.c_eval_at_modulus
   ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE
     cpoly.field.Ext4.ZERO 0#usize
 
-/-- [hachi::zerocheck::two_pow]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
-@[rust_loop_body]
-def zerocheck.two_pow_loop.body
-  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
-  := do
-  if t < n
-  then
-    let size1 ← size * 2#usize
-    let t1 ← t + 1#usize
-    ok (cont (size1, t1))
-  else ok (done size)
-
-/-- [hachi::zerocheck::two_pow]: loop 0:
-    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
-@[rust_loop]
-def zerocheck.two_pow_loop
-  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
-  loop
-    (fun (size1, t1) => zerocheck.two_pow_loop.body n size1 t1)
-    (size, t)
-
-/-- [hachi::zerocheck::two_pow]:
-    Source: 'src/zerocheck.rs', lines 55:0-63:1 -/
-@[reducible]
-def zerocheck.two_pow (n : Std.Usize) : Result Std.Usize := do
-  zerocheck.two_pow_loop n 1#usize 0#usize
-
 /-- [hachi::zerocheck::range_product]: loop body 0:
     Source: 'src/zerocheck.rs', lines 82:4-88:5
     Visibility: public -/
@@ -4892,90 +5088,6 @@ def zerocheck.range_product_loop
 def zerocheck.range_product
   (v : cpoly.field.Ext4) : Result cpoly.field.Ext4 := do
   zerocheck.range_product_loop v params.GADGET_BASE v 1#u64
-
-/-- [hachi::zerocheck::w_table]:
-    Source: 'src/zerocheck.rs', lines 123:0-138:1
-    Visibility: public -/
-def zerocheck.w_table
-  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
-  Result cpoly.field.Ext4
-  := do
-  let pv ← ringswitch.LiftedWitness.impl.z w
-  let mu ← linalg.PolyVec.len pv
-  let v ← ringswitch.LiftedWitness.impl.rho w
-  let rows := alloc.vec.Vec.len v
-  let row ← idx / params.RING_DEGREE
-  let col ← idx % params.RING_DEGREE
-  if row < mu
-  then
-    let r ← linalg.PolyVec.get pv row
-    let f ← ring.Rq.coeff r col
-    cpoly.field.Ext4.from_base f
-  else
-    let i ← row - mu
-    let i1 ← rows * params.GADGET_DIGITS
-    if i < i1
-    then
-      let r ← ringswitch.rho_digit_as_rq v i
-      let f ← ring.Rq.coeff r col
-      cpoly.field.Ext4.from_base f
-    else ok cpoly.field.Ext4.ZERO
-
-/-- [hachi::zerocheck::c_w_table_mle]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 151:4-154:5
-    Visibility: public -/
-@[rust_loop_body]
-def zerocheck.c_w_table_mle_loop.body
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if i < size
-  then
-    let e ← zerocheck.w_table w i
-    let values1 ← alloc.vec.Vec.push values e
-    let i1 ← i + 1#usize
-    ok (cont (values1, i1))
-  else ok (done values)
-
-/-- [hachi::zerocheck::c_w_table_mle]: loop 0:
-    Source: 'src/zerocheck.rs', lines 151:4-154:5
-    Visibility: public -/
-@[rust_loop]
-def zerocheck.c_w_table_mle_loop
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (values1, i1) => zerocheck.c_w_table_mle_loop.body w size values1 i1)
-    (values, i)
-
-/-- [hachi::zerocheck::c_w_table_mle]:
-    Source: 'src/zerocheck.rs', lines 147:0-156:1
-    Visibility: public -/
-def zerocheck.c_w_table_mle
-  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
-  Result cpoly.multilinear.MultilinearEvals
-  := do
-  let size ← zerocheck.two_pow m0
-  let values ←
-    zerocheck.c_w_table_mle_loop w size (alloc.vec.Vec.new cpoly.field.Ext4)
-      0#usize
-  cpoly.multilinear.MultilinearEvals.from_values values
-
-/-- [hachi::zerocheck::w_table_mle_eval]:
-    Source: 'src/zerocheck.rs', lines 169:0-172:1
-    Visibility: public -/
-def zerocheck.w_table_mle_eval
-  (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
-  (a : alloc.vec.Vec cpoly.field.Ext4) :
-  Result cpoly.field.Ext4
-  := do
-  let table ← zerocheck.c_w_table_mle w m0
-  let s := alloc.vec.Vec.deref a
-  cpoly.multilinear.MultilinearEvals.eval table s
 
 /-- [hachi::zerocheck::h_zero]: loop body 0:
     Source: 'src/zerocheck.rs', lines 185:4-188:5
@@ -5308,5 +5420,216 @@ def zerocheck.zc_target_alpha
   let cube ← zerocheck.two_pow i
   zerocheck.zc_target_alpha_loop s alpha tau1 rows cube cpoly.field.Ext4.ZERO
     0#usize
+
+/-- [hachi::zerocheck::alpha_contract]: loop body 1:
+    Source: 'src/zerocheck.rs', lines 391:8-396:9
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.alpha_contract_loop0_loop0.body
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) (degree : Std.Usize)
+  (u : Std.Usize) (acc : cpoly.field.Ext4) (l : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  := do
+  if l < degree
+  then
+    let entry ← zerocheck.m_alpha_tilde s alpha i u
+    let i1 ← degree * u
+    let i2 ← i1 + l
+    let cell ← zerocheck.w_table w i2
+    let e ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul entry cell
+    let e1 ← zerocheck.alpha_tilde alpha l
+    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
+    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e2
+    let l1 ← l + 1#usize
+    ok (cont (acc1, l1))
+  else ok (done acc)
+
+/-- [hachi::zerocheck::alpha_contract]: loop 1:
+    Source: 'src/zerocheck.rs', lines 391:8-396:9
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.alpha_contract_loop0_loop0
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) (degree : Std.Usize)
+  (acc : cpoly.field.Ext4) (u : Std.Usize) (l : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, l1) => zerocheck.alpha_contract_loop0_loop0.body s alpha w i
+      degree u acc1 l1)
+    (acc, l)
+
+/-- [hachi::zerocheck::alpha_contract]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 389:4-398:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.alpha_contract_loop0.body
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) (degree : Std.Usize)
+  (table_rows : Std.Usize) (acc : cpoly.field.Ext4) (u : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  := do
+  if u < table_rows
+  then
+    let acc1 ←
+      zerocheck.alpha_contract_loop0_loop0 s alpha w i degree acc u 0#usize
+    let u1 ← u + 1#usize
+    ok (cont (acc1, u1))
+  else ok (done acc)
+
+/-- [hachi::zerocheck::alpha_contract]: loop 0:
+    Source: 'src/zerocheck.rs', lines 389:4-398:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.alpha_contract_loop0
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) (degree : Std.Usize)
+  (table_rows : Std.Usize) (acc : cpoly.field.Ext4) (u : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, u1) => zerocheck.alpha_contract_loop0.body s alpha w i degree
+      table_rows acc1 u1)
+    (acc, u)
+
+/-- [hachi::zerocheck::alpha_contract]:
+    Source: 'src/zerocheck.rs', lines 376:0-400:1
+    Visibility: public -/
+def zerocheck.alpha_contract
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let pm ← ringswitch.RlinStatement.impl.m s
+  let mu ← linalg.PolyMatrix.cols pm
+  let rows ← linalg.PolyMatrix.rows pm
+  let i1 ← rows * params.GADGET_DIGITS
+  let table_rows ← mu + i1
+  zerocheck.alpha_contract_loop0 s alpha w i params.RING_DEGREE table_rows
+    cpoly.field.Ext4.ZERO 0#usize
+
+/-- [hachi::zerocheck::alpha_defect]:
+    Source: 'src/zerocheck.rs', lines 411:0-418:1
+    Visibility: public -/
+def zerocheck.alpha_defect
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (i : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let e ← zerocheck.alpha_contract s alpha w i
+  let pv ← ringswitch.RlinStatement.impl.yvec s
+  let r ← linalg.PolyVec.get pv i
+  let e1 ← ringswitch.c_eval_at alpha r
+  cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub e e1
+
+/-- [hachi::zerocheck::h_alpha_evals]:
+    Source: 'src/zerocheck.rs', lines 446:0-458:1
+    Visibility: public -/
+def zerocheck.h_alpha_evals
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let pv ← ringswitch.RlinStatement.impl.yvec s
+  let rows ← linalg.PolyVec.len pv
+  if idx < rows
+  then zerocheck.alpha_defect s alpha w idx
+  else ok cpoly.field.Ext4.ZERO
+
+/-- [hachi::zerocheck::h_alpha]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 476:4-479:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_alpha_loop.body
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < size
+  then
+    let e ← zerocheck.h_alpha_evals s alpha w i
+    let values1 ← alloc.vec.Vec.push values e
+    let i1 ← i + 1#usize
+    ok (cont (values1, i1))
+  else ok (done values)
+
+/-- [hachi::zerocheck::h_alpha]: loop 0:
+    Source: 'src/zerocheck.rs', lines 476:4-479:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_alpha_loop
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (size : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (values1, i1) => zerocheck.h_alpha_loop.body s alpha w size values1
+      i1)
+    (values, i)
+
+/-- [hachi::zerocheck::h_alpha]:
+    Source: 'src/zerocheck.rs', lines 467:0-481:1
+    Visibility: public -/
+def zerocheck.h_alpha
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (m1 : Std.Usize) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let size ← zerocheck.two_pow m1
+  let values ←
+    zerocheck.h_alpha_loop s alpha w size (alloc.vec.Vec.new cpoly.field.Ext4)
+      0#usize
+  cpoly.multilinear.MultilinearEvals.from_values values
+
+/-- [hachi::zerocheck::h_alpha_is_zero]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 498:4-503:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_alpha_is_zero_loop.body
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
+  (i : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if i < size
+  then
+    let e ← zerocheck.h_alpha_evals s alpha w i
+    let b ← cpoly.field.Ext4.is_zero e
+    let zero1 ← if b
+                  then ok zero
+                  else ok false
+    let i1 ← i + 1#usize
+    ok (cont (zero1, i1))
+  else ok (done zero)
+
+/-- [hachi::zerocheck::h_alpha_is_zero]: loop 0:
+    Source: 'src/zerocheck.rs', lines 498:4-503:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_alpha_is_zero_loop
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (zero1, i1) => zerocheck.h_alpha_is_zero_loop.body s alpha w size
+      zero1 i1)
+    (zero, i)
+
+/-- [hachi::zerocheck::h_alpha_is_zero]:
+    Source: 'src/zerocheck.rs', lines 489:0-505:1
+    Visibility: public -/
+def zerocheck.h_alpha_is_zero
+  (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+  (w : ringswitch.LiftedWitness) (m1 : Std.Usize) :
+  Result Bool
+  := do
+  let size ← zerocheck.two_pow m1
+  zerocheck.h_alpha_is_zero_loop s alpha w size true 0#usize
 
 end hachi

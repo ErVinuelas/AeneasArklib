@@ -30,14 +30,15 @@
 mod support;
 
 use cpoly::{Ext4, Fp, MultilinearEvals};
-use hachi::linalg::PolyVec;
+use hachi::linalg::{PolyMatrix, PolyVec};
 use hachi::params::{BALANCED_SHIFT, GADGET_BASE, GADGET_DIGITS, HALF_BASE, Q, RING_DEGREE};
 use hachi::ringswitch::RlinStatement;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::ring::Rq;
-use hachi::zerocheck::{alpha_public_evals, alpha_tilde, c_w_table_mle, eq_weight, h_zero,
-                       h_zero_is_zero, m_alpha_tilde, range_product, w_table, w_table_mle_eval,
-                       zc_target_alpha};
+use hachi::zerocheck::{alpha_contract, alpha_defect, alpha_public_evals, alpha_tilde,
+                       c_w_table_mle, eq_weight, h_alpha, h_alpha_evals, h_alpha_is_zero,
+                       h_zero, h_zero_is_zero, m_alpha_tilde, range_product, w_table,
+                       w_table_mle_eval, zc_target_alpha};
 use support::{rq_from_u64s, Lcg};
 
 /// `φF` -- the ring map `ZMod q →+* F` the specification carries everywhere.
@@ -497,4 +498,159 @@ fn zc_target_alpha_is_the_weighted_sum_of_the_right_hand_side() {
         expected = expected + eq_weight(&tau, i) * horner_ref(alpha, s.yvec().get(i));
     }
     assert_eq!(zc_target_alpha(&s, alpha, &tau), expected);
+}
+
+// --- the H_alpha defect: the ring-switching identity itself -----------------
+//
+// `alphaDefect` is zero exactly when row `i` of the lift equation holds,
+// `M_i · z = y_i + phi * rho_i` **as polynomials over Zq** -- unreduced, which
+// is the whole content of the ring-switch claim. The reference below therefore
+// builds an *honest* witness the way the identity demands: it multiplies
+// without reducing, divides by `X^d + 1`, and hands the quotient to the witness
+// and the remainder to the statement. That unreduced 2047-coefficient carrier
+// lives here, in the test, and deliberately nowhere in the crate -- ArkLib's
+// own `alphaDefect`/`hAlphaEvals_eq_alphaDefect` route means the translation
+// never needs it (NOTES.md "The computable route around cRowSum").
+
+/// Schoolbook product of two coefficient vectors **without** reducing modulo
+/// `X^d + 1`: `2d - 1` coefficients, `u128` accumulation so a `u64` overflow
+/// would mismatch rather than be reproduced.
+fn mul_unreduced(a: &[u64], b: &[u64]) -> Vec<u64> {
+    let mut out = vec![0u128; a.len() + b.len() - 1];
+    for (i, x) in a.iter().enumerate() {
+        for (j, y) in b.iter().enumerate() {
+            out[i + j] = (out[i + j] + u128::from(*x) * u128::from(*y)) % u128::from(Q);
+        }
+    }
+    out.into_iter().map(|v| v as u64).collect()
+}
+
+fn add_into(acc: &mut [u64], x: &[u64]) {
+    for (a, b) in acc.iter_mut().zip(x.iter()) {
+        *a = (*a + *b) % Q;
+    }
+}
+
+/// Divide by the cyclotomic modulus `X^d + 1`, returning `(quotient,
+/// remainder)`. Uses `X^k = X^{k-d}(X^d + 1) - X^{k-d}`, top down.
+fn div_by_modulus(p: &[u64]) -> (Vec<u64>, Vec<u64>) {
+    let d = RING_DEGREE;
+    let mut c: Vec<u64> = p.to_vec();
+    let mut quot = vec![0u64; d];
+    for k in (d..c.len()).rev() {
+        let ck = c[k];
+        if ck != 0 {
+            quot[k - d] = (quot[k - d] + ck) % Q;
+            c[k - d] = (c[k - d] + Q - ck) % Q;
+            c[k] = 0;
+        }
+    }
+    c.truncate(d);
+    (quot, c)
+}
+
+fn coeffs(a: &Rq) -> Vec<u64> {
+    (0..RING_DEGREE).map(|k| a.coeff(k).to_u64()).collect()
+}
+
+/// An honest lift: `(statement, witness)` with `M_i · z = y_i + phi * rho_i`
+/// for every row, by construction.
+fn honest_lift(seed: u64, n: usize, mu: usize) -> (RlinStatement, LiftedWitness) {
+    let mut r = Lcg::new(seed);
+    let m = r.next_poly_matrix(n, mu);
+    let z = r.next_poly_vec(mu);
+    let mut yv = Vec::new();
+    let mut rho = Vec::new();
+    for i in 0..n {
+        let mut acc = vec![0u64; 2 * RING_DEGREE - 1];
+        for j in 0..mu {
+            add_into(&mut acc, &mul_unreduced(&coeffs(m.row(i).get(j)), &coeffs(z.get(j))));
+        }
+        let (q_i, y_i) = div_by_modulus(&acc);
+        yv.push(rq_from_u64s(&y_i));
+        rho.push(QuotientRow::new(&q_i.iter().map(|v| Fp::new(*v)).collect::<Vec<Fp>>()));
+    }
+    (
+        RlinStatement::new(m, PolyVec::new(yv), 15),
+        LiftedWitness::new(z, rho),
+    )
+}
+
+/// The headline property, and the reason this module exists: on an honest lift
+/// the Eq. (22) defect is **zero** at every real row, and a single corrupted
+/// coefficient of the right-hand side breaks it.
+///
+/// `#[ignore]`d for cost, not for doubt: `alpha_contract` walks
+/// `(mu + n*delta) * d` table cells and the specification recomputes `M~_alpha`
+/// inside the inner loop, where each digit column reaches the `O(d^2)`
+/// `c_eval_at_modulus`. That is the specification's own shape, kept so the
+/// hoist stays measurable (see the function's docstring), and it puts this test
+/// at minutes rather than milliseconds. Run it with
+/// `cargo test --release -- --ignored` -- it was run and passed before the
+/// genesis freeze, which is what `op-genesis` requires of it.
+#[test]
+#[ignore = "full-const scale: the specification's un-hoisted M~_alpha makes this minutes"]
+fn alpha_defect_vanishes_exactly_on_an_honest_lift() {
+    let (s, w) = honest_lift(0x5A17_5001, 1, 1);
+    let mut r = Lcg::new(0x5A17_5002);
+    let alpha = ext4(&mut r);
+    assert!(
+        alpha_defect(&s, alpha, &w, 0).is_zero(),
+        "the defect must vanish on an honest lift"
+    );
+    assert!(h_alpha_evals(&s, alpha, &w, 0).is_zero());
+
+    // Corrupt one coefficient of y_0: the identity no longer holds.
+    let mut bad_y = coeffs(s.yvec().get(0));
+    bad_y[3] = (bad_y[3] + 1) % Q;
+    let bad = RlinStatement::new(
+        PolyMatrix::new(vec![s.m().row(0).copy()]),
+        PolyVec::new(vec![rq_from_u64s(&bad_y)]),
+        15,
+    );
+    assert!(
+        !alpha_defect(&bad, alpha, &w, 0).is_zero(),
+        "a corrupted right-hand side must not vanish"
+    );
+}
+
+/// `alphaContract` is the double sum in the order the specification writes it;
+/// this recomputes it in the *other* order (columns outer, rows inner) with an
+/// independently squared power, so the summation structure is pinned rather
+/// than restated.
+#[test]
+#[ignore = "full-const scale: same un-hoisted M~_alpha as above"]
+fn alpha_contract_is_the_double_sum_either_way_round() {
+    let (s, w) = honest_lift(0x5A17_5003, 1, 1);
+    let mut r = Lcg::new(0x5A17_5004);
+    let alpha = ext4(&mut r);
+    let table_rows = 1 + GADGET_DIGITS;
+    let mut expected = Ext4::ZERO;
+    for l in 0..RING_DEGREE {
+        let a_l = pow_by_squaring(alpha, l);
+        for u in 0..table_rows {
+            expected = expected + m_alpha_tilde(&s, alpha, 0, u) * w_table(&w, RING_DEGREE * u + l) * a_l;
+        }
+    }
+    assert_eq!(alpha_contract(&s, alpha, &w, 0), expected);
+}
+
+/// The padding half of `hAlphaEvals`, which costs nothing and is therefore the
+/// live half: above the `n` real rows the `m_1` cube contributes zero, and
+/// `h_alpha`'s table is `2^m_1` long whatever `n` is.
+#[test]
+fn h_alpha_pads_above_the_real_rows() {
+    let (s, w) = honest_lift(0x5A17_5005, 0, 1);
+    let mut r = Lcg::new(0x5A17_5006);
+    let alpha = ext4(&mut r);
+    for m1 in 1..=3usize {
+        let block = h_alpha(&s, alpha, &w, m1);
+        assert_eq!(block.len(), 1 << m1, "H_alpha is 2^m1 entries");
+        for (i, e) in block.values().iter().enumerate() {
+            assert!(e.is_zero(), "padding entry {i} must vanish");
+        }
+        assert!(h_alpha_is_zero(&s, alpha, &w, m1));
+    }
+    // And the guard is `idx < n`, so every index is padding when `n = 0`.
+    assert!(h_alpha_evals(&s, alpha, &w, 0).is_zero());
 }

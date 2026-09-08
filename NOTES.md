@@ -3058,3 +3058,191 @@ documented "resolves at commit 1" state.
 5. Still owed from this morning and unaffected by this pass: the
    `gadget/balanced_digit_decompose` inlining asymmetry, and
    `zerocheck/w_table_rho_row`'s reproducible −5.13%.
+
+
+## The two flagged rows, diagnosed — and they are not the same defect (2026-09-08)
+
+Static analysis only (`objdump`/`nm`), no timing, so this was done on a busy
+machine. It supersedes the inlining hypothesis in § "The two flagged rows,
+diagnosed" above: that guess was wrong, and the truth is worse in one case and
+milder in the other.
+
+### `gadget/balanced_digit_decompose` (+74.98%, +92.25%): both variants run *the same function*
+
+In the gadget bench binary there is exactly one `Bencher::iter` instantiation
+for this case, named `&mut gadget::now::balanced_digit_decompose::{closure#0}`,
+and **both** `gadget::now::balanced_digit_decompose` and
+`gadget::genesis::balanced_digit_decompose` call it — 142 instructions each,
+identical call sets. That instantiation in turn calls
+`hachi_genesis::gadget::balanced_digit_decompose`. So LLVM merged the two
+identical library copies, kept the genesis one, merged the two closures on top,
+and both timed regions now execute **the same machine code at the same
+address**.
+
+A row whose two sides are the same code cannot differ by 92% for any reason
+having to do with code. It is a *measurement* difference, and the only thing
+that distinguishes the two readings is when each ran: `case!` times `now` first,
+then `genesis`. On a 28 ns body that allocates (three `free`s, eight
+`Vec::push`/`grow_one` calls in the out-of-line form), 27 ns is ~80 cycles —
+one different malloc path or one extra cache miss per iteration covers it.
+
+**The consequence is about the harness, not about `gadget.rs`.** This row is, in
+effect, a second `_control` — identical code timed twice — and it read **92%**
+in the same run where the official control read **1.42%**. The control's body is
+`PolyVec::zeros(8192)`: one large allocation, 33 ms, insensitive to exactly the
+effects a 28 ns eight-push body is dominated by. So the printed `A/B bias` is
+not an upper bound on measurement error for small allocation-heavy rows, and no
+amount of machine quiet fixes it — the clean re-run made it *worse* (+92% vs
++75%).
+
+Not explained, and left open: why `gadget/digit_decompose` has the identical
+structure (same merge, same shape, `now` timed first) and reads −0.37%. Two rows
+this similar diverging this much is itself information, and the next step needs
+timing, not disassembly.
+
+### `zerocheck/w_table_rho_row` (−8.51%, −5.13%): a genuine A/B, and a real placement difference
+
+The opposite finding. Here the two case bodies are 160 instructions each but
+call **different** functions — `now` calls `hachi::zerocheck::w_table`, `genesis`
+calls `hachi_genesis::zerocheck::w_table`. Nothing merged, so this row really is
+two separately compiled copies of identical source, and −5% is the *placement
+bias* the §4 audit predicted for exactly that case (NOTES.md § "The §4 audit of
+target 2's rows", finding 1: "a real candidate is not byte-identical, so it is
+not merged and pays a placement term no null-slot sweep exercises").
+
+So the row is behaving correctly and the **threshold** is what is wrong: a 5%
+flat floor cannot separate placement bias from a real 5% win on a genuine A/B
+row. −5.13% is a *false verdict* produced by a correct measurement.
+
+### What this means for the birth run, and what it would take to fix
+
+The birth-run criterion — "the new rows read noise against the printed
+threshold" — currently rests on a threshold derived from one 33 ms
+allocation-bound control per binary. Both diagnoses say that is too weak:
+
+* a merged row's noise can be **92%** at the ns scale while the control says
+  1.42%, so "reads noise" carries little information there;
+* an unmerged row pays a placement term of ~5%, so a row landing at 5% cannot be
+  told from a genuine improvement.
+
+Three fixes, in increasing order of cost, none yet made:
+
+1. **Record both rows as verdict-incapable, with the reason** — cheap, honest,
+   and it only stops the loop believing them. Extends the existing list in
+   NOTES.md § "Rows that cannot carry a verdict".
+2. **Controls that resemble the rows.** The §4 audit already recommended more
+   than one control per binary and nobody made it; this adds the shape argument
+   — a control should match the row's *scale and allocation profile*, so a ns
+   scale eight-push control belongs beside the 8192-element one. Blocked on the
+   same `report` change the audit named: its `leans` dict is keyed by binary and
+   would overwrite rather than average.
+3. **A per-band or per-row threshold** instead of the flat 5% `MIN_EFFECT`,
+   which the certified sweep's band finding already pointed at and this
+   sharpens: the band is not only about *time* but about allocation profile.
+
+Until at least (1) is done, a birth run can establish that target 4's cases
+compile, digest and scale — which is what `op-genesis` stage 7 says a run on a
+noisy host establishes — but not that a freeze is faithful to within a few
+percent.
+
+
+## The computable route around `cRowSum` (2026-09-08)
+
+Target 4's α side was blocked on `hAlphaEvals` being `noncomputable` and on
+`cRowSum` needing a 2047-coefficient `Fp` carrier this crate does not have (see
+§ "Target 4's α side, carrier-free" for why `Rq` cannot stand in: `Rq::mul`
+reduces modulo `X^d + 1`, and the `φ·ρ` term that reduction deletes is the
+entire content of the ring-switch claim). The user pointed out the way round it,
+and it is ArkLib's own.
+
+**`alphaDefect` is computable, and ArkLib proves it equals `hAlphaEvals`.**
+`alphaContract` (`ZeroCheck/Constraints.lean:540`) is a plain `def`:
+
+```
+∑ u : Fin (μ + n·δ), ∑ ℓ : Fin d,
+  mAlphaTilde Φ φF b s α i u * T (wTablePoint Φ m₀ b hμn u ℓ) * alphaTilde α ℓ
+```
+
+`alphaDefect` (`:549`) is that minus `cEvalAt φF α (s.yvec i).1`, and
+`hAlphaEvals_eq_alphaDefect` (`:771`) proves `hAlphaEvals = alphaDefect` at
+`T = wTable`, under `1 < b`, `0 < d` and the coverage bound `hμn` — the last of
+which is now ArkLib's own pinned `sumcheckWidthAtProfile`. So:
+
+* **no carrier**: `cRowSum` occurs only in the noncomputable form and is now
+  needed by nothing in target 4;
+* **no weakening**: the headline `_spec` can still be stated against
+  `hAlphaEvals`, the Eq. (22) object the protocol reasons about, and discharged
+  by rewriting with ArkLib's theorem. The equivalence is supplied, not assumed;
+* **no rule bent**: what is translated is an ArkLib definition, so
+  `op-genesis`'s "the frozen body is the spec's trivial translation" still holds.
+
+Every ingredient was already translated — `m_alpha_tilde`, `w_table`,
+`alpha_tilde`, `c_eval_at` — and `wTablePoint` (`:525`) is the flat index
+`d·u + ℓ` carrying a proof it lands in the cube: the proof erases and the
+arithmetic that remains is exactly the argument `w_table` already takes.
+
+**Convention check on the H₀ side, at the user's request.** `Constraints.lean`
+has exactly four `noncomputable def`s, and they are two different things:
+`hZeroML` (`:255`) and `hAlphaML` (`:261`) are the *Mathlib views* (`MLE` inside
+`MvPolynomial.restrictDegree`, "used only in algebraic proofs"), while
+`hAlphaEvals` (`:176`) and `hAlpha` (`:213`) are the α table itself. All nine
+previously translated items resolve to computable sources — `hZero` (`:204`) is
+a plain `def`, as are `wTable`, `rangeProduct`, `cWTableMle` and
+`wTableMleEval` — so H₀ was already on the computable side, and no change was
+needed there. With `alphaDefect` the two sides are now structurally parallel:
+both translate the computable Boolean-evaluation object and neither touches the
+`…ML` view. Incidental confirmation that this is the right side: the two bridges
+*to* the ML views, `hZeroML_eq_zero_iff` and `hAlphaML_eq_zero_iff`, are among
+the four theorems **deleted** at the current pin.
+
+### Five items, and the test that validates all of them at once
+
+`alpha_contract`, `alpha_defect`, `h_alpha_evals`, `h_alpha`,
+`h_alpha_is_zero`. `M̃_α(i, u)` is recomputed inside the `ℓ` loop because that is
+where the specification's nested sum puts it; hoisting it is the brief's largest
+identified win on this operation and a baseline that had already hoisted it
+would report that win as zero forever.
+
+The oracle is the **ring-switching identity itself**:
+`alpha_defect_vanishes_exactly_on_an_honest_lift` builds a witness for which
+`Mᵢ·z = yᵢ + φ·ρᵢ` holds by construction — multiplying *without* reducing,
+dividing by `X^d + 1`, handing the quotient to the witness and the remainder to
+the statement — and asserts the defect is zero, then that corrupting one
+coefficient of `y` makes it nonzero. That one test exercises `alpha_contract`'s
+double sum, `m_alpha_tilde`'s three cases *and its sign*, `w_table`'s two-level
+layout, `alpha_tilde`'s powers, `c_eval_at` on `yvec`, and the digit
+reconstruction `Σ_e bᵉρ_e = ρ`, against the mathematics rather than against a
+restatement of the code. Note where the unreduced 2047-coefficient carrier
+ended up: in the test, and nowhere in the crate.
+
+It costs 228 s in release, so it and the double-sum test are `#[ignore]`d — and
+both were **run green before the freeze**, which is what `op-genesis` requires
+of the birth oracle. `h_alpha_pads_above_the_real_rows` is the live half.
+
+### All five rows are excluded, with a precise removal condition
+
+`alpha_contract` is infeasible *even REDUCED*: at the smallest witness with a
+digit block (`μ = 1`, `n = 1`) the double sum makes `8 · 1024 = 8192` calls to
+the `O(d²)` `c_eval_at_modulus`, ~172 s per criterion iteration. Excluded under
+the Fig. 9 policy exception, and the removal condition is exact — hoist `M̃_α`
+out of the inner loop, **or** collapse `cEvalAt α Φ.φ` to `α^d + 1` (ten
+squarings). Either alone brings the rows within criterion's reach, and both are
+`perf-loop` candidates rather than translation choices.
+
+`coverage --strict` moved by exactly the five new markers: **106 mirrored, 59
+benched, 47 excluded, 0 unaccounted**. 135 live tests plus the two `#[ignore]`d,
+strict clippy clean, extraction deterministic and axiom-free, `Check.lean` § 2b
+extended, `make build` green over 3844 jobs — which now re-checks target 3's
+promoted `lean/RingSwitch.lean` against the regenerated model as well.
+
+### Required next actions
+
+1. *(user)* commit 1, then `make bench-stamp`, then commit 2 (stamps alone).
+2. `make bench-check` green.
+3. **Target 4's spec layer**, which is now the whole of its remaining debt: 19
+   triples (the six H₀ items, the eight α-side items, these five) on top of
+   `lean-wip/Ext.lean`'s 8 ported obligations — one Aristotle batch. `Ext.lean`
+   is deliberately *not* submitted alone: those 8 are pure ports and belong with
+   the new work.
+4. The birth run, at the next quiet window, reading against the threshold
+   caveats in § "The two flagged rows, diagnosed".

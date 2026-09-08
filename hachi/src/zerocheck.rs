@@ -346,3 +346,160 @@ pub fn zc_target_alpha(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: 
     }
     sum
 }
+
+/// Eq. (22)'s public contraction of the committed table, at row `i` (spec:
+/// `alphaContract` instantiated at `T = wTable`, `Constraints.lean:540`).
+///
+/// Mirrors `alphaContract`.
+///
+/// `∑_u ∑_ℓ M̃_α(i, u) · w̃(d·u + ℓ) · α̃(ℓ)` over the `μ + n·δ` table rows and
+/// the `d` coefficient columns.
+///
+/// **Why the table is a witness and not a function.** The specification takes
+/// the table as an argument, `T : (Fin m₀ → Fin 2) → F`. A function argument has
+/// no translation here -- closures are outside the supported subset -- so this
+/// translates the *instantiated* form, and the instantiation is not a choice:
+/// `hAlphaEvals_eq_alphaDefect` (`Constraints.lean:771`) is stated at
+/// `T = wTable Φ m₀ φF b w`, which is the only instantiation the chain uses.
+///
+/// The cube point `wTablePoint Φ m₀ b hμn u ℓ` (`:525`) is the flat index
+/// `d·u + ℓ`, carrying a proof that it lies in the cube. The proof erases and
+/// the arithmetic is what remains, which is exactly the argument
+/// [`w_table`] already takes.
+///
+/// `M̃_α(i, u)` is recomputed inside the `ℓ` loop, where the specification's
+/// nested sum puts it. That is deliberate and it is expensive -- one
+/// `m_alpha_tilde` can reach `c_eval_at_modulus` -- but hoisting it into an
+/// `n × μ` table is the brief's largest identified win on this operation
+/// (briefs/target-4-zero-check.md § "The dominant term", item 4), and a
+/// baseline that had already hoisted it would report that win as zero forever.
+pub fn alpha_contract(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    w: &LiftedWitness,
+    i: usize,
+) -> Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let digits: usize = params::GADGET_DIGITS;
+    let mu: usize = s.m().cols();
+    let rows: usize = s.m().rows();
+    let table_rows: usize = mu + rows * digits;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut u: usize = 0;
+    while u < table_rows {
+        let mut l: usize = 0;
+        while l < degree {
+            let entry: Ext4 = m_alpha_tilde(s, alpha, i, u);
+            let cell: Ext4 = w_table(w, degree * u + l);
+            acc = acc + entry * cell * alpha_tilde(alpha, l);
+            l += 1;
+        }
+        u += 1;
+    }
+    acc
+}
+
+/// Eq. (22)'s per-row defect: the public contraction minus the public
+/// right-hand side (spec: `alphaDefect` at `T = wTable`,
+/// `Constraints.lean:549`).
+///
+/// Mirrors `alphaDefect`.
+///
+/// `H_α`'s Boolean table is exactly this at `T = w̃`, which is what
+/// `alphaDefect_wTable` (`:620`) and `hAlphaEvals_eq_alphaDefect` (`:771`)
+/// prove.
+pub fn alpha_defect(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    w: &LiftedWitness,
+    i: usize,
+) -> Ext4 {
+    alpha_contract(s, alpha, w, i) - crate::ringswitch::c_eval_at(alpha, s.yvec().get(i))
+}
+
+/// Entry `idx` of the `H_α` constraint table (spec: `hAlphaEvals`,
+/// `Constraints.lean:176`, through `hAlphaEvals_eq_alphaDefect`).
+///
+/// Mirrors `hAlphaEvals`.
+///
+/// **This is the computable route to a `noncomputable` definition, and the
+/// equivalence is ArkLib's, not ours.** `hAlphaEvals` is
+/// `noncomputable def`: its digit term reads `evalAt φF α (…).toPoly`, and
+/// `evalAt` is noncomputable (`Transport/Eval.lean:46`). Its defect form is
+/// not: `alphaDefect` is a plain `def` built from `mAlphaTilde`, `wTable`,
+/// `alphaTilde` and `cEvalAt`, and `hAlphaEvals_eq_alphaDefect`
+/// (`Constraints.lean:771`) **proves** the two agree, under `1 < b`,
+/// `0 < d` and the coverage bound `hμn` -- all three of which hold at the
+/// pinned profile, the last one being ArkLib's own `sumcheckWidthAtProfile`.
+///
+/// So the `_spec` for this function can be stated against `hAlphaEvals`, the
+/// Eq. (22) object the protocol reasons about, and discharged by rewriting with
+/// that theorem. Nothing is assumed and no weaker statement is taken.
+///
+/// It also means `cRowSum` -- the unreduced product of two `CPolynomial`
+/// representatives, which would need a 2047-coefficient carrier this crate does
+/// not have -- never appears: it occurs only in the noncomputable form.
+/// See NOTES.md § "The computable route around `cRowSum`".
+///
+/// The `idx < n` guard is the specification's own (`:179`): the `m₁` cube is
+/// padded above the `n` real rows, and padding contributes zero.
+pub fn h_alpha_evals(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    w: &LiftedWitness,
+    idx: usize,
+) -> Ext4 {
+    let rows: usize = s.yvec().len();
+    if idx < rows {
+        alpha_defect(s, alpha, w, idx)
+    } else {
+        Ext4::ZERO
+    }
+}
+
+/// The `H_α` constraint block in Boolean-evaluation form (spec: `hAlpha`,
+/// `Constraints.lean:213`, through the same equivalence).
+///
+/// Mirrors `hAlpha`.
+///
+/// `2^m₁` entries -- at the pinned `M_ONE = 3` that is eight, one per row of
+/// the batching cube, of which `RLIN_ROWS = 5` are real and three are padding.
+pub fn h_alpha(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    w: &LiftedWitness,
+    m1: usize,
+) -> MultilinearEvals {
+    let size: usize = two_pow(m1);
+    let mut values: Vec<Ext4> = Vec::new();
+    let mut i: usize = 0;
+    while i < size {
+        values.push(h_alpha_evals(s, alpha, w, i));
+        i += 1;
+    }
+    MultilinearEvals::from_values(values)
+}
+
+/// The `H_α` verdict: is every entry zero? (spec: `hAlpha = 0`, in the
+/// pointwise form of `hAlpha_eq_zero_iff`, `Constraints.lean:233`).
+///
+/// Mirrors `hAlpha_eq_zero_iff`.
+///
+/// Branchless to the end, as [`h_zero_is_zero`] is and for the same reason.
+pub fn h_alpha_is_zero(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    w: &LiftedWitness,
+    m1: usize,
+) -> bool {
+    let size: usize = two_pow(m1);
+    let mut zero: bool = true;
+    let mut i: usize = 0;
+    while i < size {
+        if !h_alpha_evals(s, alpha, w, i).is_zero() {
+            zero = false;
+        }
+        i += 1;
+    }
+    zero
+}

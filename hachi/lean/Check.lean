@@ -611,6 +611,33 @@ example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
   zerocheck.zc_target_alpha s alpha tau1
 
+-- The `H_alpha` side, reached through ArkLib's *computable* `alphaDefect`
+-- rather than the `noncomputable` `hAlphaEvals` it is proved equal to
+-- (`ZeroCheck/Constraints.lean:771`). Two shape facts follow from that choice
+-- and are worth pinning:
+--
+-- * `alpha_contract` takes the witness, not a table function: the
+--   specification's `T : (Fin m0 -> Fin 2) -> F` is instantiated at `wTable`,
+--   which is the only instantiation the chain uses and the one the equivalence
+--   theorem is stated at -- a function argument has no translation here;
+-- * `h_alpha` is a `MultilinearEvals` like `h_zero`, so both constraint blocks
+--   are the same carrier and `Check.lean`'s alias fact above covers both.
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (w : ringswitch.LiftedWitness) (i : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.alpha_contract s alpha w i
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (w : ringswitch.LiftedWitness) (i : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.alpha_defect s alpha w i
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (w : ringswitch.LiftedWitness) (idx : Std.Usize) : Result cpoly.field.Ext4 :=
+  zerocheck.h_alpha_evals s alpha w idx
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (w : ringswitch.LiftedWitness) (m1 : Std.Usize) :
+    Result cpoly.multilinear.MultilinearEvals := zerocheck.h_alpha s alpha w m1
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (w : ringswitch.LiftedWitness) (m1 : Std.Usize) : Result Bool :=
+  zerocheck.h_alpha_is_zero s alpha w m1
+
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which
 -- is what makes the equivalence statement an equality of decisions.
