@@ -544,6 +544,7 @@ pub fn h_alpha_is_zero(
     zero
 }
 
+// @genesis b95b7ec 2026-09-09 — zerocheck::below_two_pow
 /// `i < 2^m`, decided by halving `i` exactly `m` times.
 ///
 /// Mirrors `alphaPublicEvals` at its cube guard (`Constraints.lean:845`; the
