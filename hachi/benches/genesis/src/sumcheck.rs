@@ -746,6 +746,7 @@ pub fn round_loop(
     Some(current)
 }
 
+// @genesis eca78d0 2026-09-09 — sumcheck::nested_to_round_statement
 /// The bridge into the paired sumcheck: install the empty challenge prefix and
 /// the initial target pair (spec: `nestedToRoundStatement`,
 /// `Sumcheck/Bridge.lean:49`).
