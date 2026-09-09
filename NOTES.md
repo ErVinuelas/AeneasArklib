@@ -3997,3 +3997,199 @@ Two consequences worth keeping:
   correct. The fix and the next step are the same action. (Patching the helper
   to use the detour is still worth doing for the general case — nothing
   guarantees the next staged pair won't have the same shape.)
+
+## Two invented powers of two, removed (2026-09-09)
+
+Step 1 of the hypothesis repair. Aristotle's ZeroCheck proofs came back with
+five headline specs carrying checked-`usize` fit conditions. Two of the three
+Rust causes are now gone; the third (`hmax`, on four specs) is a Lean-side
+change because the bound is *derivable* rather than earned.
+
+**`eq_weight` walks a running quotient.** It read bit `j` as
+`(i / two_pow(j)) % 2`, materializing `2^j` as a `usize`. `q` now starts at `i`
+and is halved each iteration, so `q % 2` at step `j` is the same
+`finFunctionFinEquiv` bit with no power formed. That was the sole cause of
+`hm1 : 2 ^ m₁ ≤ Usize.max` on `eq_weight_spec`. It is also cpoly's own idiom in
+`lagrange_basis`, which this function mirrors — so the fix moves us *onto*
+upstream's shape rather than away from it.
+
+**A new private `below_two_pow(i, m)` decides the specification's guard.**
+`alpha_public_evals` and `zc_target_alpha` bound `cube = two_pow(tau1.len())`
+and compared `i < cube`. They need the *predicate*, never the number, and
+`i < 2^m` holds exactly when halving `i` `m` times gives zero. Both locals are
+gone and each loop state is one variable shorter.
+
+**`two_pow` stays**, and the reason is worth writing down because it is the
+line between an artefact and an earned bound: its remaining callers
+(`c_w_table_mle`, `h_zero`, `h_zero_is_zero`, `h_alpha`, `h_alpha_is_zero`)
+*build* `2^m`-entry tables. There the caller owes `2 ^ m ≤ Usize.max` anyway —
+a table that does not fit in a `usize` does not fit in memory — so removing the
+arithmetic would remove nothing real. A bound is an artefact when the function
+needs a predicate and computes a number; it is earned when the number is the
+output's own size.
+
+### The change is not semantics-preserving, and that is the point
+
+At the pinned `m₁ = 3` old and new agree on every input, which is why the four
+existing `eq_weight`/`zc_target_alpha` property tests pass unchanged — and why
+the `case!` digest will not fire when the bench next runs. They diverge exactly
+where the old code was already wrong: at `m₁ = 64`, `two_pow(64)` doubles `1`
+sixty-four times and **wraps to `0`** in release, so `i < cube` was false for
+every row and `zc_target_alpha` returned `0` with nothing reported.
+`the_cube_guard_survives_a_width_whose_cube_size_does_not_fit` pins that, and
+mutation-checked: restoring the old guard fails it in release.
+
+So this is the `rho_digits_at` pattern a second time. The translation invented
+arithmetic the specification does not have; the proof layer was the only thing
+that noticed; and the repair deletes a hypothesis rather than discharging one.
+Worth stating as a rule: **when a statement acquires a `≤ Usize.max`
+hypothesis, ask first whether the function needs the number or only the
+predicate.** Three of this session's five came from computing a number that was
+only ever compared against.
+
+### Owed next on this repair
+
+`below_two_pow` is a new item, so `check-genesis` gains one more unfrozen
+entry (35 now). The Lean half cannot be written yet: the Rust change makes
+`lean/Generated.lean` stale, and the loop specs move with it —
+`eq_weight_loop_spec` gains `q` in its state and the two callers' loop states
+each lose a variable. So Step 2 is downstream of `make extract`, which is now
+unblocked: no Aristotle session is running.
+
+## The extraction audit, and a faithfulness re-freeze (2026-09-09)
+
+Steps 3 and 4 of the hypothesis repair.
+
+### The audit: the failure source is gone, not moved
+
+`make extract` regenerated `lean/Generated.lean` (deterministic: a second run
+is byte-identical; 0 axioms; `cpoly.field.Fp := Std.U64` still transparent, so
+the `--include 'cpoly::_'` whitelist held). The check that matters, against the
+previous `Generated.lean` from git:
+
+| extracted item | before | after |
+|---|---|---|
+| `eq_weight_loop.body` | `let i1 ← zerocheck.two_pow j` | — |
+| `alpha_public_evals` | `let cube ← zerocheck.two_pow i` | — |
+| `zc_target_alpha` | `let cube ← zerocheck.two_pow i` | — |
+
+**Zero checked multiplications** across all eight bodies (the four functions
+and their four loops), and `two_pow` is called by none of them. Its five
+remaining callers are all `let size ← zerocheck.two_pow …` — table sizes, the
+earned-bound case. What is left in the repaired four is the loop counter's
+`k + 1#usize`, discharged by the loop guard, and division by the literal `2`.
+
+One methodological note, because it nearly produced a vacuous audit: a checked
+multiplication extracts as ``let size1 ← size * 2#usize``, **not** as
+`Usize.mul`. Grepping for `Usize.mul` returns zero on any input and proves
+nothing. The bodies use `*`, `+`, `/` notation under a monadic bind, and the
+bind is the tell — a pure comparison like `if k < m` carries no obligation.
+
+`make build` re-checked the proofs after the regeneration: 0 errors, and all
+**99** `#print axioms` lines report exactly
+`[propext, Classical.choice, Quot.sound]`. The eighteen
+`declaration uses 'sorry'` warnings in the log are all in dependencies
+(`Aeneas/Std/Slice.lean`, `ArkLib/Data/Fin/Basic.lean`, …), which the Makefile
+§ 220-229 documents as expected: Aeneas and ArkLib ship `sorry`s in definitions
+this development never reaches, and `sorryAx` in the axiom audit is the check
+that needs no exemption.
+
+### The re-freeze, under the open carve-out
+
+`benches/genesis/src/zerocheck.rs` normally may not be edited at all. This is a
+**faithfulness re-freeze** under `op-genesis` § "the one rule": a defect caught
+before any measurement has been published against the item is repaired by
+replacing the frozen text with the fixed first translation and re-stamping.
+The carve-out is still open for every item in this repository —
+`logs/ledger.jsonl` has no rows, and the birth runs are provenance rather than
+verdicts — so no measurement history is rewritten by this.
+
+Replaced verbatim from `hachi/src`: `eq_weight`, `alpha_public_evals`,
+`zc_target_alpha`. Appended: `below_two_pow`. `check-genesis` now reports the
+three as *"frozen text do NOT match zerocheck.rs at 1e57c54"*, which is the
+gate working: the stamps still name the commit the old text lived in.
+`make bench-stamp` re-points them **after** commit 1, per the interleaved
+choreography — the stamp stores commit 1's sha, so it cannot be derived before
+that commit exists.
+
+Two riders the re-freeze picked up:
+
+* the candidate slot needed **all four** changed modules synced, not just
+  `zerocheck` — `params`, `quadeval` and `sumcheck` had drifted since their own
+  work landed. `check-candidate` is now null again (11 modules byte-identical).
+* copying the fixed text verbatim also carried the *current* doc wording into
+  genesis, which incidentally retired that file's dangling references to the
+  gitignored planning documents. A re-freeze is the only occasion on which
+  genesis's comments may move, and it is worth knowing that they do.
+
+### `below_two_pow`'s marker was invisible for one commit
+
+Its doc comment read ``Mirrors the `i < 2 ^ m₁` guard of `alphaPublicEvals` ``.
+The scanner is ``Mirrors\s+(?:ArkLib(?:'s)?\s+)?`(?P<name>[^`]+)` `` — a word
+between `Mirrors` and the backticks makes the marker **invisible rather than
+wrong**, so coverage silently did not track the item. This is the third
+instance of that trap (the `evalsplit` pass recorded the first). Fixed to
+``Mirrors `alphaPublicEvals` at its cube guard``, with an `exclusions.toml`
+entry: `O(m)` where `m` is a point-count exponent, so a criterion run would
+measure the harness.
+
+## Step 5: re-stub only what moved (2026-09-09)
+
+`lean-wip/ZeroCheck.lean`: **0 errors, 9 sorries**, typechecked against the
+regenerated `Generated.lean` with the `LEAN_PATH` detour. **47 of 56 theorems
+still prove** — the option that preserves proof work rather than re-running it.
+
+Re-stubbed, because their extracted shape moved or they are new:
+
+| statement | why |
+|---|---|
+| `eq_weight_loop_spec` | state gained `q`, lost `i`; invariant `q.val = i.val / 2 ^ j.val` |
+| `eq_weight_spec` | `hm1` retired; keeps `hi`, which `.get` needs |
+| `below_two_pow_loop_spec` | new |
+| `below_two_pow_spec` | new; `b = true ↔ i.val < 2 ^ m.val`, **no hypothesis at all** |
+| `alpha_public_evals_loop_spec` | `cube` argument gone; `hm1` retired, `hmax` kept |
+| `alpha_public_evals_spec` | `hm1` retired, `hmax` kept |
+| `zc_target_alpha_loop_spec` | `cube` argument gone; `hm1` retired |
+| `zc_target_alpha_spec` | `hm1` retired — now **unconditional in the machine model** |
+
+Untouched and still proved: `w_table_spec`, `c_w_table_mle_spec`,
+`h_zero_spec`, `h_zero_is_zero_spec` and the whole `h_alpha` family. Their Rust
+did not change, so the regeneration did not move them — which is the whole
+argument for re-stubbing by *shape* rather than by *file*.
+
+### `hmax` is not minimal, and that is deliberately left standing
+
+The four table-side statements carry `hmax : μ + n * 8 ≤ Usize.max`, and the
+audit says it is **not minimal**: `w_table` forms only the product
+`rows * digits`, never the sum. The sum is formed by `m_alpha_tilde`
+(`zerocheck.rs:334`) and `alpha_contract` (`:441`), whose statements genuinely
+need it. So of the twelve `hmax` sites, eight could take the weaker
+`n * 8 ≤ Usize.max` and four could not.
+
+Not changed, and the reason is worth recording: `hmax` is consumed *implicitly*
+— it appears once as a binder and the proofs reach it through `omega`'s context
+scan, e.g. `have hmul : … ≤ Usize.max := by rw [hrholen, hgd]; omega`.
+Weakening a hypothesis that eight proofs consume invisibly is exactly the kind
+of change that turns into hand-repair of working proofs, which is what
+re-stubbing by shape was chosen to avoid. It belongs in a pass of its own, with
+each of the eight re-checked.
+
+### The wording change on the bounds that stay
+
+"Model artefact" is retired in favour of **"implied by representability,
+invisible to the `Vec` model"**, which is the accurate description and draws
+the line this session established. `two_pow`'s `2 ^ n ≤ Usize.max` and
+`alpha_contract`'s `hm0` size objects that must exist: a caller who cannot
+supply the bound could not hold the table either. What the `Vec` type exposes
+is `length ≤ Usize.max` for a vector that *already exists*; it says nothing
+about a size computed before the vector is built, so the obligation must be
+stated rather than derived. The bounds this session *dropped* were of the other
+kind — they sized nothing, and existed only because the code computed a number
+where a predicate was wanted.
+
+### The next Aristotle batch
+
+Sixteen obligations across three files, once `982bd0af` resolves: ZeroCheck's
+nine (the eight stubs plus `w_table_mle_eval_spec`), EndPiece's four, and
+QuadEvalProtocol's eleven if that session returns partial. Promoting `Ext.lean`
+first would let the helper validate all three without the manual rescue.

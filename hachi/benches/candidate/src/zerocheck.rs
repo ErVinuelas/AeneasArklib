@@ -62,6 +62,38 @@ fn two_pow(n: usize) -> usize {
     size
 }
 
+/// `i < 2^m`, decided by halving `i` exactly `m` times.
+///
+/// Mirrors `alphaPublicEvals` at its cube guard (`Constraints.lean:845`; the
+/// same guard appears in `zcTargetAlpha`, `:877`).
+///
+/// The marker's shape matters: the scanner's regex is
+/// ``Mirrors (ArkLib's)? `name` ``, so a word between `Mirrors` and the
+/// backticks makes the marker **invisible** rather than wrong. This comment
+/// said "Mirrors the `i < 2 ^ m₁` guard of …" for one commit, which the
+/// coverage gate could not see (NOTES.md § the `evalsplit` lessons).
+///
+/// The *predicate*, never the bound: `i < 2^m` holds exactly when `i` shifted
+/// right by `m` is zero, and halving is how this crate shifts (`lib.rs`
+/// § "Style notes"). The point is that it decides the guard **for any `m`**
+/// and cannot fail, where the earlier `i < two_pow(m)` had to build `2^m` as a
+/// `usize` first -- a checked doubling -- which is what put
+/// `2 ^ m₁ ≤ Usize.max` on the statements of both callers.
+///
+/// [`two_pow`] itself stays. Its remaining callers size `2^m₀`-entry tables,
+/// and there the bound is not an artefact to be removed: a table that does not
+/// fit in a `usize` does not fit in memory either, so the caller owes it
+/// anyway.
+pub fn below_two_pow(i: usize, m: usize) -> bool {
+    let mut q: usize = i;
+    let mut k: usize = 0;
+    while k < m {
+        q /= 2;
+        k += 1;
+    }
+    q == 0
+}
+
 /// Hachi Eq. (23)'s per-entry range factor `P_b(v) = v·∏_{j=1}^{b-1} (v−j)(v+j)`
 /// (spec: `rangeProduct`, `Constraints.lean:96`).
 ///
@@ -245,18 +277,32 @@ pub fn alpha_tilde(alpha: Ext4, l: usize) -> Ext4 {
 /// product the bits do not cancel (the target-4 brief § Corrections
 /// item 1). The bit test is `/` and `%` rather than `>>` and `&`, per `lib.rs`
 /// § "Style notes".
+///
+/// The bits are read by a **running quotient**, and that is not a
+/// micro-optimization: `q` starts at `i` and is halved each iteration, so
+/// `q % 2` at step `j` is exactly the specification's `finFunctionFinEquiv`
+/// bit `i / 2^j % 2`, computed without ever forming `2^j`. The earlier
+/// translation wrote `(i / two_pow(j)) % 2`, which materialized the power as a
+/// `usize`, and that was the sole reason `eq_weight_spec` needed
+/// `2 ^ m₁ ≤ Usize.max`: [`two_pow`] doubles a *checked* `usize`, so it can
+/// fail, and the statement had to assume it does not. Forming no power at all
+/// is what makes the statement unconditional -- the same move as
+/// [`crate::ringswitch::rho_digits_at`], and cpoly's own idiom in
+/// `lagrange_basis` (`multilinear.rs:169`), which this function mirrors.
 pub fn eq_weight(tau1: &Vec<Ext4>, i: usize) -> Ext4 {
     let vars: usize = tau1.len();
     let mut acc: Ext4 = Ext4::ONE;
+    let mut q: usize = i;
     let mut j: usize = 0;
     while j < vars {
-        let bit: usize = (i / two_pow(j)) % 2;
+        let bit: usize = q % 2;
         let factor: Ext4 = if bit == 1 {
             tau1[j]
         } else {
             Ext4::ONE - tau1[j]
         };
         acc = acc * factor;
+        q /= 2;
         j += 1;
     }
     acc
@@ -307,14 +353,19 @@ pub fn m_alpha_tilde(s: &crate::ringswitch::RlinStatement, alpha: Ext4, i: usize
 /// `i < 2^m₁` guard is the specification's own: at the pinned `n = 5 ≤ 8 = 2^3`
 /// it never fires, and it is translated rather than dropped because a parameter
 /// move that broke `n ≤ 2^m₁` must not silently change what this computes.
+///
+/// It is decided by [`below_two_pow`], which halves `i` and never forms the
+/// cube size. An earlier version bound `cube = two_pow(tau1.len())` and
+/// compared against it; that local was the only fallible arithmetic in this
+/// function, and carrying it meant `2 ^ m₁ ≤ Usize.max` on the statement of a
+/// function that never needs the number -- only the predicate.
 pub fn alpha_public_evals(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: &Vec<Ext4>, idx: usize) -> Ext4 {
     let degree: usize = params::RING_DEGREE;
     let rows: usize = s.m().rows();
-    let cube: usize = two_pow(tau1.len());
     let mut sum: Ext4 = Ext4::ZERO;
     let mut i: usize = 0;
     while i < rows {
-        if i < cube {
+        if below_two_pow(i, tau1.len()) {
             let weight: Ext4 = eq_weight(tau1, i);
             sum = sum + weight * m_alpha_tilde(s, alpha, i, idx / degree);
         }
@@ -332,13 +383,17 @@ pub fn alpha_public_evals(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau
 /// cube: `n` rows, each one `m₁`-factor weight and one polynomial evaluation at
 /// `α`. It is the one operation of this target that is feasible at the real
 /// constants, which is why its bench row is not REDUCED.
+///
+/// "No cube" is now literal. The specification's `i < 2^m₁` guard is decided
+/// by [`below_two_pow`], so the cube size is never built: this function walks
+/// `n` rows and forms no `usize` that can overflow, which is what keeps its
+/// statement free of `2 ^ m₁ ≤ Usize.max`.
 pub fn zc_target_alpha(s: &crate::ringswitch::RlinStatement, alpha: Ext4, tau1: &Vec<Ext4>) -> Ext4 {
     let rows: usize = s.yvec().len();
-    let cube: usize = two_pow(tau1.len());
     let mut sum: Ext4 = Ext4::ZERO;
     let mut i: usize = 0;
     while i < rows {
-        if i < cube {
+        if below_two_pow(i, tau1.len()) {
             let weight: Ext4 = eq_weight(tau1, i);
             sum = sum + weight * crate::ringswitch::c_eval_at(alpha, s.yvec().get(i));
         }

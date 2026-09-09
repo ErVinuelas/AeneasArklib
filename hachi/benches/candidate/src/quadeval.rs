@@ -501,3 +501,83 @@ pub fn paper_rel_out(
 
     c1 && c2 && c3 && c4 && c5 && c6
 }
+
+// ---------------------------------------------------------------------------
+// The polynomial-level bridge (chain row 1)
+// ---------------------------------------------------------------------------
+
+/// The composed chain's **input statement**, at the polynomial level (spec:
+/// `PolyEvalStatement`, `QuadEval/Bridge.lean:108`).
+///
+/// Mirrors ArkLib's `PolyEvalStatement`.
+///
+/// Lives in this module because its ArkLib home is `QuadEval/Bridge.lean` and
+/// its only computation is [`to_quad_eval_statement`]; the four adapter rows of
+/// `Composition.lean` each sit with the link they adapt rather than in a module
+/// of their own.
+///
+/// The evaluation point travels **pre-split** as the two halves `xl` (the first
+/// `r` variables, indexing matrix rows) and `xh` (the last `m` variables,
+/// indexing columns), which is the specification's own choice: it "avoids
+/// `take`/`drop` casts", and `xl ++ xh` recovers the paper's point. Their
+/// lengths are `ML_VARS_LOW` and `ML_VARS_HIGH`, which travel as `_spec`
+/// hypotheses since Aeneas cannot see a privacy boundary.
+pub struct PolyEvalStatement {
+    u: PolyVec,
+    xl: PolyVec,
+    xh: PolyVec,
+    y: Rq,
+}
+
+impl PolyEvalStatement {
+    /// Bundle the outer commitment, the two point halves and the claim.
+    pub fn new(u: PolyVec, xl: PolyVec, xh: PolyVec, y: Rq) -> PolyEvalStatement {
+        PolyEvalStatement { u, xl, xh, y }
+    }
+
+    /// The outer commitment `u`.
+    pub fn u(&self) -> &PolyVec {
+        &self.u
+    }
+
+    /// The low/outer point half `x₁ … x_r`.
+    pub fn xl(&self) -> &PolyVec {
+        &self.xl
+    }
+
+    /// The high/inner point half `x_{r+1} … x_l`.
+    pub fn xh(&self) -> &PolyVec {
+        &self.xh
+    }
+
+    /// The claimed evaluation `y = f(xl ++ xh)`.
+    pub fn y(&self) -> &Rq {
+        &self.y
+    }
+}
+
+/// The bridge: reinterpret the polynomial-level statement as a
+/// `QuadEvalStatement` by taking the Eq. (12) bases to be the monomial tensor
+/// bases of the two point halves (spec: `toQuadEvalStatement`,
+/// `QuadEval/Bridge.lean:124`).
+///
+/// Mirrors ArkLib's `toQuadEvalStatement`.
+///
+/// **The halves cross, and that is the whole content of this function**:
+/// `avec := mb(xh)` (inner, the *high* half, indexing columns) and
+/// `bvec := mb(xl)` (outer, the *low* half, indexing rows). At this crate's
+/// parameters `ML_VARS_LOW = ML_VARS_HIGH = 10`, so both bases have `1024`
+/// entries and a swap would still typecheck and still run -- it would simply
+/// compute the transpose of the intended form. Nothing but a value test can
+/// catch that, which is what
+/// `quadeval_semantics.rs`'s `the_bridge_bases_reproduce_the_polynomial_evaluation`
+/// is for, and why it uses *unequal* toy widths.
+///
+/// The row is zero-round and its verifier is a `ReduceClaim` head -- pure, with
+/// no challenge and nothing to decide (`bridgeVerifier`, `:135`). So there is
+/// no `bridge_check` to translate: the statement map *is* the row.
+pub fn to_quad_eval_statement(s: &PolyEvalStatement) -> QuadEvalStatement {
+    let avec: PolyVec = crate::evalsplit::monomial_basis(s.xh());
+    let bvec: PolyVec = crate::evalsplit::monomial_basis(s.xl());
+    QuadEvalStatement::new(s.u().copy(), avec, bvec, s.y().copy())
+}

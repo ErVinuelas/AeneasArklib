@@ -129,8 +129,19 @@ theorem ofBase_natCast (k : ℕ) : (Ext.ofBase ((k : ZMod q)) : F) = (k : F) := 
 
 `zerocheck::two_pow` is the crate's own copy of the doubling loop `EvalSplit`
 already has for `evalsplit::two_pow`: a distinct extracted constant, so a
-distinct statement, with the same `2 ^ n ≤ Usize.max` model artefact the checked
-multiplication forces. -/
+distinct statement, carrying the same `2 ^ n ≤ Usize.max` the checked
+multiplication forces.
+
+That bound is **implied by representability and invisible to the `Vec` model**,
+which is the distinction worth keeping. Every remaining caller of `two_pow`
+uses its result to size a `2 ^ m`-entry table, so a caller that cannot supply
+`2 ^ m ≤ Usize.max` could not hold the table either -- the hypothesis is a fact
+about the output's own existence. What the `Vec` type exposes is only
+`length ≤ Usize.max` for a vector that already exists; it says nothing about a
+size computed before the vector is built, so the obligation has to be stated
+rather than derived. Contrast the bounds this file *dropped*
+(NOTES.md § "Two invented powers of two, removed"): those sized nothing, and
+were forced only by computing a number where a predicate was wanted. -/
 
 /-- The loop of `zerocheck::two_pow`: the accumulator is `2 ^ t` after `t`
 doublings. -/
@@ -825,88 +836,60 @@ theorem lagrangeBasis_get_toPoint {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field
   simp only [BitVec.getLsb_eq_getElem, Fin.getElem_fin, BitVec.getElem_ofFin, Vector.get_ofFn,
     toPoint]
 
-/-- The loop of `eq_weight`: the accumulator is the running bit product. -/
+/-- The loop of `eq_weight`: the accumulator is the running bit product, and the
+new state component `q` is the running quotient.
+
+`i` is no longer an argument of the extracted loop. The translation carries
+`q = i / 2 ^ j` through the state instead of rebuilding `i / 2 ^ j` from a
+materialized power, so `i` appears here as a specification-level index tied to
+the state by `hq`. That is exactly what retires the old
+`hm1 : 2 ^ m₁ ≤ Usize.max`: nothing in this loop forms a power of two any
+more (NOTES.md § "Two invented powers of two, removed"). -/
 theorem eq_weight_loop_spec {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4)
-    (i vars : Std.Usize) (acc : cpoly.field.Ext4) (j : Std.Usize)
-    (ht : WfPoint m₁ tau1) (hvars : vars.val = m₁) (hm1 : 2 ^ m₁ ≤ Usize.max)
-    (hj : j.val ≤ m₁) (hacc : Reduced acc)
+    (i vars : Std.Usize) (acc : cpoly.field.Ext4) (q j : Std.Usize)
+    (ht : WfPoint m₁ tau1) (hvars : vars.val = m₁)
+    (hj : j.val ≤ m₁) (hacc : Reduced acc) (hq : q.val = i.val / 2 ^ j.val)
     (hval : toExt acc = ∏ s ∈ Finset.range j.val,
       (if Nat.testBit i.val s then toExt (tau1.val.getD s cpoly.field.Ext4.ZERO)
         else 1 - toExt (tau1.val.getD s cpoly.field.Ext4.ZERO))) :
-    zerocheck.eq_weight_loop tau1 i vars acc j
+    zerocheck.eq_weight_loop tau1 vars acc q j
       ⦃ out => Reduced out ∧ toExt out = ∏ s ∈ Finset.range m₁,
         (if Nat.testBit i.val s then toExt (tau1.val.getD s cpoly.field.Ext4.ZERO)
           else 1 - toExt (tau1.val.getD s cpoly.field.Ext4.ZERO)) ⦄ := by
-  rw [zerocheck.eq_weight_loop]
-  apply loop.spec_decr_nat (fun s => m₁ - s.2.val)
-    (fun s => s.2.val ≤ m₁ ∧ Reduced s.1 ∧ toExt s.1 = ∏ t ∈ Finset.range s.2.val,
-      (if Nat.testBit i.val t then toExt (tau1.val.getD t cpoly.field.Ext4.ZERO)
-        else 1 - toExt (tau1.val.getD t cpoly.field.Ext4.ZERO)))
-  · rintro ⟨a1, j1⟩ ⟨hj1, hR1, hv1⟩
-    dsimp only at hj1 hR1 hv1
-    simp only [zerocheck.eq_weight_loop.body]
-    by_cases hlt : j1 < vars
-    · rw [if_pos hlt]
-      have hjlt : j1.val < m₁ := by rw [← hvars]; scalar_tac
-      have hjlen : j1.val < tau1.val.length := by rw [ht.1]; exact hjlt
-      have hpow : 2 ^ j1.val ≤ Usize.max :=
-        le_trans (Nat.pow_le_pow_right (by norm_num) (le_of_lt hjlt)) hm1
-      step with two_pow_spec j1 hpow as ⟨pw, hpw⟩
-      have hpwpos : 0 < pw.val := by rw [hpw]; exact Nat.two_pow_pos _
-      have hpwne : pw ≠ 0#usize := by scalar_tac
-      step as ⟨d, hd⟩
-      step as ⟨bit, hbit⟩
-      have hbitv : bit.val = i.val / 2 ^ j1.val % 2 := by rw [hbit, hd, hpw]
-      have hRentry : Reduced (tau1.val[j1.val]'hjlen) := ht.2 _ (List.getElem_mem hjlen)
-      by_cases hb1 : bit = 1#usize
-      · have htb : Nat.testBit i.val j1.val = true := by
-          rw [Nat.testBit_eq_decide_div_mod_eq, ← hbitv, decide_eq_true_iff]
-          scalar_tac
-        rw [if_pos hb1]
-        step as ⟨fac, hfac⟩
-        have hRfac : Reduced fac := by rw [hfac]; exact hRentry
-        step with ext_mul_spec a1 fac hR1 hRfac as ⟨a2, hR2, ha2⟩
-        step as ⟨j2, hj2⟩
-        have hj2n : j2.val = j1.val + 1 := by scalar_tac
-        refine ⟨by omega, hR2, ?_, by scalar_tac⟩
-        rw [ha2, hv1, hfac, hj2n, Finset.prod_range_succ, if_pos htb,
-          List.getD_eq_getElem _ _ hjlen]
-      · have htb : Nat.testBit i.val j1.val = false := by
-          rw [Nat.testBit_eq_decide_div_mod_eq, ← hbitv, decide_eq_false_iff_not]
-          intro h
-          exact hb1 (by scalar_tac)
-        rw [if_neg hb1]
-        step as ⟨e, he⟩
-        step with ext_sub_spec cpoly.field.Ext4.ONE e reduced_ONE (by rw [he]; exact hRentry)
-          as ⟨fac, hRfac, hfac⟩
-        step with ext_mul_spec a1 fac hR1 hRfac as ⟨a2, hR2, ha2⟩
-        step as ⟨j2, hj2⟩
-        have hj2n : j2.val = j1.val + 1 := by scalar_tac
-        refine ⟨by omega, hR2, ?_, by scalar_tac⟩
-        rw [ha2, hv1, hfac, he, toExt_ONE, hj2n, Finset.prod_range_succ, if_neg (by simp [htb]),
-          List.getD_eq_getElem _ _ hjlen]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : j1.val = m₁ := by rw [← hvars] at hj1 ⊢; scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hj, hacc, hval⟩
-
+  sorry
 /-- `eq_weight` computes the `m₁`-cube equality weight.
 
-`hm1` is the `two_pow` model artefact: the bit test forms `2 ^ j` as a checked
-`usize`, exactly as `c_w_table_mle_spec`'s `hm0` does. -/
+**Unconditional in the machine model.** The previous statement carried
+`hm1 : 2 ^ m₁ ≤ Usize.max`, forced by the bit test building `2 ^ j` as a
+checked `usize`. The running quotient forms no power, so the only hypothesis
+left is `hi`, which is not an artefact: `.get` needs its index in range, and
+that is the specification's own `i < 2 ^ m₁`. -/
 theorem eq_weight_spec {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4)
-    (i : Std.Usize) (ht : WfPoint m₁ tau1) (hi : i.val < 2 ^ m₁)
-    (hm1 : 2 ^ m₁ ≤ Usize.max) :
+    (i : Std.Usize) (ht : WfPoint m₁ tau1) (hi : i.val < 2 ^ m₁) :
     zerocheck.eq_weight tau1 i
       ⦃ out => Reduced out ∧ toExt out =
         (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m₁) tau1))).get
           ⟨i.val, hi⟩ ⦄ := by
-  have hvars : (alloc.vec.Vec.len tau1).val = m₁ := by simpa using ht.1
-  rw [zerocheck.eq_weight, lagrangeBasis_get_toPoint]
-  exact eq_weight_loop_spec tau1 i (alloc.vec.Vec.len tau1) cpoly.field.Ext4.ONE 0#usize
-    ht hvars hm1 (by simp) reduced_ONE (by simp)
+  sorry
 
+/-- The loop of `below_two_pow`: `q` is the running quotient `i / 2 ^ k`. -/
+theorem below_two_pow_loop_spec (i m q k : Std.Usize)
+    (hk : k.val ≤ m.val) (hq : q.val = i.val / 2 ^ k.val) :
+    zerocheck.below_two_pow_loop m q k
+      ⦃ out => out.val = i.val / 2 ^ m.val ⦄ := by
+  sorry
+
+/-- `below_two_pow` decides the specification's cube guard `i < 2 ^ m`.
+
+**No hypothesis at all**, which is the point of the item: halving `i` exactly
+`m` times cannot fail, so the decision procedure is total at every `m` --
+including those where `2 ^ m` exceeds `Usize.max` and the previous
+`i < two_pow m` wrapped to zero. An equality of decisions rather than an
+implication, per the house rule for decision procedures. -/
+theorem below_two_pow_spec (i m : Std.Usize) :
+    zerocheck.below_two_pow i m
+      ⦃ b => b = true ↔ i.val < 2 ^ m.val ⦄ := by
+  sorry
 /-- `m_alpha_tilde` computes `mAlphaTilde`, the public constraint matrix at `α`
 (`Constraints.lean:517`), in the specification's three cases. -/
 theorem poly_matrix_cols_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
@@ -1043,100 +1026,40 @@ noncomputable def apTerm {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n �
      else 0)
   else 0
 
-/-- The loop of `alpha_public_evals`: the accumulator is the partial row sum. -/
+/-- The loop of `alpha_public_evals`: the accumulator is the partial row sum.
+
+The `cube` argument is gone: the loop decides the specification's `i < 2 ^ m₁`
+guard with `below_two_pow` instead of comparing against a materialized cube
+size, so the state is one component shorter and `hm1` is retired. `hmax`
+stays -- `m_alpha_tilde` genuinely forms `μ + n · 8` as a `usize`. -/
 theorem alpha_public_evals_loop_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
-    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (idx rows cube : Std.Usize)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (idx rows : Std.Usize)
     (sum : cpoly.field.Ext4) (i : Std.Usize)
     (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
-    (htau : WfPoint m₁ tau1) (hm1 : 2 ^ m₁ ≤ Usize.max) (hmax : μ + n * 8 ≤ Usize.max)
-    (hrows : rows.val = n) (hcube : cube.val = 2 ^ m₁) (hi : i.val ≤ n)
-    (hRsum : Reduced sum)
+    (htau : WfPoint m₁ tau1) (hmax : μ + n * 8 ≤ Usize.max)
+    (hrows : rows.val = n) (hi : i.val ≤ n) (hRsum : Reduced sum)
     (hval : toExt sum = ∑ t ∈ Finset.range i.val,
       apTerm (m₁ := m₁) rs (toExt alpha) tau1 (idx.val / N) t) :
-    zerocheck.alpha_public_evals_loop s alpha tau1 idx params.RING_DEGREE rows cube sum i
+    zerocheck.alpha_public_evals_loop s alpha tau1 idx params.RING_DEGREE rows sum i
       ⦃ out => Reduced out ∧ toExt out =
         ∑ t ∈ Finset.range n, apTerm (m₁ := m₁) rs (toExt alpha) tau1 (idx.val / N) t ⦄ := by
-  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
-  rw [zerocheck.alpha_public_evals_loop]
-  apply loop.spec_decr_nat (fun st => n - st.2.val)
-    (fun st => st.2.val ≤ n ∧ Reduced st.1 ∧ toExt st.1 =
-      ∑ t ∈ Finset.range st.2.val, apTerm (m₁ := m₁) rs (toExt alpha) tau1 (idx.val / N) t)
-  · rintro ⟨a1, i1⟩ ⟨hi1, hR1, hv1⟩
-    dsimp only at hi1 hR1 hv1
-    simp only [zerocheck.alpha_public_evals_loop.body]
-    by_cases hlt : i1 < rows
-    · rw [if_pos hlt]
-      have hilt : i1.val < n := by rw [← hrows]; scalar_tac
-      by_cases hcut : i1 < cube
-      · have hcubelt : i1.val < 2 ^ m₁ := by rw [← hcube]; scalar_tac
-        rw [if_pos hcut]
-        step with eq_weight_spec (m₁ := m₁) tau1 i1 htau hcubelt hm1 as ⟨weight, hRw, hwv⟩
-        step as ⟨u, hu⟩
-        have huv : u.val = idx.val / N := by rw [hu, hrd]
-        step with m_alpha_tilde_spec (n := n) (μ := μ) s rs alpha i1 u hs ha hilt hmax
-          as ⟨e, hRe, he⟩
-        step with ext_mul_spec weight e hRw hRe as ⟨e1, hRe1, he1⟩
-        step with ext_add_spec a1 e1 hR1 hRe1 as ⟨a2, hR2, ha2⟩
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        refine ⟨by omega, hR2, ?_, by omega⟩
-        rw [ha2, hv1, he1, hwv, he, huv, hi2n, Finset.sum_range_succ, apTerm,
-          dif_pos hilt, dif_pos hcubelt]
-      · have hcubege : ¬ i1.val < 2 ^ m₁ := by rw [← hcube]; scalar_tac
-        rw [if_neg hcut]
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        refine ⟨by omega, hR1, ?_, by omega⟩
-        rw [hv1, hi2n, Finset.sum_range_succ, apTerm, dif_pos hilt, dif_neg hcubege, add_zero]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = n := by rw [← hrows] at hi1 ⊢; scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hi, hRsum, hval⟩
-
+  sorry
 /-- `alpha_public_evals` computes `alphaPublicEvals`.
 
-Carries `eq_weight_spec`'s `two_pow` artefact `hm1` and `m_alpha_tilde_spec`'s
-arity bound `hmax`. -/
+Carries `m_alpha_tilde_spec`'s arity bound `hmax` and no longer carries
+`eq_weight_spec`'s retired `hm1`. -/
 theorem alpha_public_evals_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize)
     (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
     (ht : WfPoint m₁ tau1) (hidx : idx.val < 2 ^ m₀)
-    (hm1 : 2 ^ m₁ ≤ Usize.max) (hmax : μ + n * 8 ≤ Usize.max) :
+    (hmax : μ + n * 8 ≤ Usize.max) :
     zerocheck.alpha_public_evals s alpha tau1 idx
       ⦃ out => Reduced out ∧ toExt out =
         InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
           (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm ⟨idx.val, hidx⟩) ⦄ := by
-  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hs.1.1
-  have hvars : (alloc.vec.Vec.len tau1).val = m₁ := by simpa using ht.1
-  rw [zerocheck.alpha_public_evals]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with two_pow_spec (alloc.vec.Vec.len tau1) (by rw [hvars]; exact hm1) as ⟨cube, hcube⟩
-  step with alpha_public_evals_loop_spec (m₁ := m₁) s rs alpha tau1 idx
-    (alloc.vec.Vec.len s.m) cube cpoly.field.Ext4.ZERO 0#usize hs ha ht hm1 hmax hrows
-    (by rw [hcube, hvars]) (by simp) reduced_ZERO
-    (by rw [show (0#usize).val = 0 from rfl, Finset.range_zero, Finset.sum_empty, toExt_ZERO])
-    as ⟨sum, hRsum, hsum⟩
-  step as ⟨l, hl⟩
-  have hlv : l.val = idx.val % N := by rw [hl, hrd]
-  step with alpha_tilde_spec alpha l ha as ⟨at1, hRat, hat⟩
-  apply spec_mono (ext_mul_spec at1 sum hRat hRsum)
-  rintro out ⟨hRout, hout⟩
-  refine ⟨hRout, ?_⟩
-  rw [hout, hat, hsum, hlv]
-  simp only [InnerOuter.alphaPublicEvals, Equiv.apply_symm_apply, phi_natDegree]
-  rw [sum_fin_eq_sum_range_dite]
-  refine congrArg (fun z => InnerOuter.alphaTilde (toExt alpha) (idx.val % N) * z) ?_
-  refine Finset.sum_congr rfl fun t htmem => ?_
-  have htn : t < n := Finset.mem_range.mp htmem
-  rw [dif_pos htn, apTerm, dif_pos htn]
-  by_cases hc : t < 2 ^ m₁
-  · rw [dif_pos hc, dif_pos hc, lagrangeBasis_get_eq_cube_prod]
-  · rw [dif_neg hc, dif_neg hc]
-
+  sorry
 /-- Term `t` of the public initial target, as a function of a plain `ℕ`. -/
 noncomputable def zcTerm {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (alpha : F)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4) (t : ℕ) : F :=
@@ -1147,93 +1070,36 @@ noncomputable def zcTerm {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n �
      else 0)
   else 0
 
-/-- The loop of `zc_target_alpha`: the accumulator is the partial target sum. -/
+/-- The loop of `zc_target_alpha`: the accumulator is the partial row sum.
+
+Like `alpha_public_evals_loop`, one component shorter and free of `hm1`: the
+cube size is decided rather than built. -/
 theorem zc_target_alpha_loop_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
-    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows cube : Std.Usize)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows : Std.Usize)
     (sum : cpoly.field.Ext4) (i : Std.Usize)
     (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
-    (htau : WfPoint m₁ tau1) (hm1 : 2 ^ m₁ ≤ Usize.max)
-    (hrows : rows.val = n) (hcube : cube.val = 2 ^ m₁) (hi : i.val ≤ n)
-    (hRsum : Reduced sum)
+    (htau : WfPoint m₁ tau1)
+    (hrows : rows.val = n) (hi : i.val ≤ n) (hRsum : Reduced sum)
     (hval : toExt sum = ∑ t ∈ Finset.range i.val, zcTerm (m₁ := m₁) rs (toExt alpha) tau1 t) :
-    zerocheck.zc_target_alpha_loop s alpha tau1 rows cube sum i
+    zerocheck.zc_target_alpha_loop s alpha tau1 rows sum i
       ⦃ out => Reduced out ∧ toExt out =
         ∑ t ∈ Finset.range n, zcTerm (m₁ := m₁) rs (toExt alpha) tau1 t ⦄ := by
-  obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
-  rw [zerocheck.zc_target_alpha_loop]
-  apply loop.spec_decr_nat (fun st => n - st.2.val)
-    (fun st => st.2.val ≤ n ∧ Reduced st.1 ∧ toExt st.1 =
-      ∑ t ∈ Finset.range st.2.val, zcTerm (m₁ := m₁) rs (toExt alpha) tau1 t)
-  · rintro ⟨a1, i1⟩ ⟨hi1, hR1, hv1⟩
-    dsimp only at hi1 hR1 hv1
-    simp only [zerocheck.zc_target_alpha_loop.body]
-    by_cases hlt : i1 < rows
-    · rw [if_pos hlt]
-      have hilt : i1.val < n := by rw [← hrows]; scalar_tac
-      by_cases hcut : i1 < cube
-      · have hcubelt : i1.val < 2 ^ m₁ := by rw [← hcube]; scalar_tac
-        rw [if_pos hcut]
-        step with eq_weight_spec (m₁ := m₁) tau1 i1 htau hcubelt hm1 as ⟨weight, hRw, hwv⟩
-        simp only [ringswitch.RlinStatement.impl.yvec, bind_tc_ok]
-        have hylen : i1.val < s.yvec.val.length := by rw [hWy.1]; exact hilt
-        simp only [linalg.PolyVec.get]
-        step as ⟨r, hr⟩
-        have hWr : Wf r := by rw [hr]; exact hWy.2 _ (List.getElem_mem hylen)
-        step with c_eval_at_spec alpha r ha hWr as ⟨e, hRe, he⟩
-        step with ext_mul_spec weight e hRw hRe as ⟨e1, hRe1, he1⟩
-        step with ext_add_spec a1 e1 hR1 hRe1 as ⟨a2, hR2, ha2⟩
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        have hyentry : rs.yvec ⟨i1.val, hilt⟩ = toRq r := by
-          rw [← hyeq]
-          show toRq (s.yvec.val.getD i1.val (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r
-          rw [List.getD_eq_getElem _ _ hylen, hr]
-        refine ⟨by omega, hR2, ?_, by omega⟩
-        rw [ha2, hv1, he1, hwv, he, ← hyentry, hi2n, Finset.sum_range_succ, zcTerm,
-          dif_pos hilt, dif_pos hcubelt]
-      · have hcubege : ¬ i1.val < 2 ^ m₁ := by rw [← hcube]; scalar_tac
-        rw [if_neg hcut]
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        refine ⟨by omega, hR1, ?_, by omega⟩
-        rw [hv1, hi2n, Finset.sum_range_succ, zcTerm, dif_pos hilt, dif_neg hcubege, add_zero]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = n := by rw [← hrows] at hi1 ⊢; scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hi, hRsum, hval⟩
-
+  sorry
 /-- `zc_target_alpha` computes `zcTargetAlpha`.
 
-`hm1` is `eq_weight_spec`'s `two_pow` model artefact. -/
+**Unconditional in the machine model**: this function forms no `usize` that can
+overflow. It walks `n` rows, and the cube guard is decided by
+`below_two_pow`. -/
 theorem zc_target_alpha_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4)
     (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
-    (ht : WfPoint m₁ tau1) (hm1 : 2 ^ m₁ ≤ Usize.max) :
+    (ht : WfPoint m₁ tau1) :
     zerocheck.zc_target_alpha s alpha tau1
       ⦃ out => Reduced out ∧ toExt out =
         InnerOuter.zcTargetAlpha Φ m₁ phiF rs (toExt alpha) (toPoint (m := m₁) tau1) ⦄ := by
-  have hrows : (alloc.vec.Vec.len s.yvec).val = n := by simpa using hs.2.1.1
-  have hvars : (alloc.vec.Vec.len tau1).val = m₁ := by simpa using ht.1
-  rw [zerocheck.zc_target_alpha]
-  simp only [ringswitch.RlinStatement.impl.yvec, linalg.PolyVec.len, bind_tc_ok]
-  step with two_pow_spec (alloc.vec.Vec.len tau1) (by rw [hvars]; exact hm1) as ⟨cube, hcube⟩
-  apply spec_mono (zc_target_alpha_loop_spec (m₁ := m₁) s rs alpha tau1
-    (alloc.vec.Vec.len s.yvec) cube cpoly.field.Ext4.ZERO 0#usize hs ha ht hm1 hrows
-    (by rw [hcube, hvars]) (by simp) reduced_ZERO
-    (by rw [show (0#usize).val = 0 from rfl, Finset.range_zero, Finset.sum_empty, toExt_ZERO]))
-  rintro out ⟨hRout, hout⟩
-  refine ⟨hRout, ?_⟩
-  rw [hout, InnerOuter.zcTargetAlpha, sum_fin_eq_sum_range_dite]
-  refine Finset.sum_congr rfl fun t htmem => ?_
-  have htn : t < n := Finset.mem_range.mp htmem
-  rw [dif_pos htn, zcTerm, dif_pos htn]
-  by_cases hc : t < 2 ^ m₁
-  · rw [dif_pos hc, dif_pos hc, lagrangeBasis_get_eq_cube_prod]
-  · rw [dif_neg hc, dif_neg hc]
-
+  sorry
 /-- `alpha_contract` computes `alphaContract` at `T = wTable`
 (`Constraints.lean:540`).
 
@@ -1398,9 +1264,11 @@ theorem alpha_contract_outer_loop_spec {n μ m₀ : ℕ} (s : ringswitch.RlinSta
 
 /-- `alpha_contract` computes `alphaContract` at `T = wTable`.
 
-`hm0` is the model artefact of the checked flat index `degree * u + ℓ`: the
-specification's `wTablePoint` forms the same index, and `hmn` bounds it by
-`2 ^ m₀`, so all that is added is that the cube itself fits a `usize`. -/
+`hm0` is implied by representability and invisible to the `Vec` model: the
+checked flat index `degree * u + ℓ` is the same index the specification's
+`wTablePoint` forms, `hmn` bounds it by `2 ^ m₀`, and all `hm0` adds is that
+the cube itself fits a `usize` -- which anything holding a `2 ^ m₀`-entry table
+already owes. -/
 theorem alpha_contract_spec {n μ m₀ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)

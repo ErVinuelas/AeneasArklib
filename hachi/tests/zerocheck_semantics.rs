@@ -38,7 +38,7 @@ use hachi::ring::Rq;
 use hachi::zerocheck::{alpha_contract, alpha_defect, alpha_public_evals, alpha_tilde,
                        c_w_table_mle, eq_weight, h_alpha, h_alpha_evals, h_alpha_is_zero,
                        h_zero, h_zero_is_zero, m_alpha_tilde, range_product, w_table,
-                       w_table_mle_eval, zc_target_alpha};
+                       w_table_mle_eval, zc_target_alpha, below_two_pow};
 use support::{rq_from_u64s, Lcg};
 
 /// `φF` -- the ring map `ZMod q →+* F` the specification carries everywhere.
@@ -653,4 +653,231 @@ fn h_alpha_pads_above_the_real_rows() {
     }
     // And the guard is `idx < n`, so every index is padding when `n = 0`.
     assert!(h_alpha_evals(&s, alpha, &w, 0).is_zero());
+}
+
+// --- the cube guard and the bit walk, after the two_pow removal -----------
+
+/// `eq_weight` reads only the low `m₁` bits of its index, so it is periodic in
+/// `i` with period `2^m₁`. That is what `i / 2^j % 2` for `j < m₁` does, and
+/// the running quotient has to agree with it *outside* the cube as well as
+/// inside -- a property of the family, not a re-computation of one entry.
+#[test]
+fn eq_weight_reads_only_the_low_m1_bits() {
+    let mut r = Lcg::new(0x51DE_0B17_5A17_3002);
+    let m1 = 3usize;
+    let tau: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
+    for i in 0..64usize {
+        assert_eq!(
+            eq_weight(&tau, i),
+            eq_weight(&tau, i % (1usize << m1)),
+            "i = {i} must agree with its residue mod 2^{m1}"
+        );
+    }
+}
+
+/// **The `i < 2^m₁` guard is decided even when `2^m₁` does not fit in a
+/// `usize`.** This is the test the previous implementation could not pass: it
+/// bound `cube = two_pow(tau1.len())`, and at `m₁ = 64` that doubles `1`
+/// sixty-four times and wraps to `0` in release, so `i < cube` was false for
+/// every row and the target came out `0` -- silently, with nothing reported.
+///
+/// `below_two_pow` halves `i` instead and never forms the size, so the guard is
+/// the specification's predicate at any width. The reference reads the bits
+/// with `>>` and `&`, which the crate does not use, and shifts cannot overflow
+/// here because `j < 64`.
+#[test]
+fn the_cube_guard_survives_a_width_whose_cube_size_does_not_fit() {
+    let mut r = Lcg::new(0xC0DE_FA11_5A17_3003);
+    let n = 3usize;
+    let s = statement(0x5A17_3004, n, 2);
+    let alpha = ext4(&mut r);
+    let vars = 64usize;
+    let tau: Vec<Ext4> = (0..vars).map(|_| ext4(&mut r)).collect();
+
+    let got = zc_target_alpha(&s, alpha, &tau);
+
+    let mut expected = Ext4::ZERO;
+    for i in 0..n {
+        let mut w = Ext4::ONE;
+        for j in 0..vars {
+            w = w * if (i >> j) & 1 == 1 {
+                tau[j]
+            } else {
+                Ext4::ONE - tau[j]
+            };
+        }
+        expected = expected + w * horner_ref(alpha, s.yvec().get(i));
+    }
+
+    assert_eq!(
+        got, expected,
+        "every row must contribute: i < 2^64 holds for all three"
+    );
+    assert!(
+        !got.is_zero(),
+        "a zero target here is the old wrap-to-zero bug, not a coincidence"
+    );
+}
+
+// --- the guard and the bit walk at widths the old form could not reach -----
+
+/// Bit `j` of `k`, safe for `j` beyond the word: `>>` by `usize::BITS` or more
+/// is a panic in Rust, which is itself a reason the crate walks a quotient.
+fn bit_at(k: usize, j: usize) -> usize {
+    if j < usize::BITS as usize {
+        (k >> j) & 1
+    } else {
+        0
+    }
+}
+
+/// The old power form of the weight, spelled out: bit `j` is `(i / 2^j) % 2`,
+/// with the power materialized. This is the reference the running quotient has
+/// to reproduce, and it is only usable where `1 << j` does not overflow --
+/// which is exactly the limitation that made it the wrong thing to compute.
+fn eq_weight_power_ref(tau: &[Ext4], i: usize) -> Ext4 {
+    let mut acc = Ext4::ONE;
+    for (j, t) in tau.iter().enumerate() {
+        let bit = (i / (1usize << j)) % 2;
+        acc = acc * if bit == 1 { *t } else { Ext4::ONE - *t };
+    }
+    acc
+}
+
+/// `below_two_pow` decides `i < 2^m` at **every** width: it agrees with the
+/// shift form wherever the shift is defined, and is unconditionally true once
+/// `2^m` exceeds `usize::MAX`.
+///
+/// The reference computes `1u128 << m`, which is why it can only check
+/// `m < 64` directly -- and why the second half asserts the mathematical fact
+/// instead of comparing against a number that cannot be built.
+#[test]
+fn below_two_pow_decides_the_cube_guard_at_every_width() {
+    let probes = [
+        0usize, 1, 2, 3, 7, 8, 63, 64, 255, 256, 1023, 1 << 20, usize::MAX,
+    ];
+    for m in 0..64usize {
+        for i in probes {
+            let expected = (i as u128) < (1u128 << m);
+            assert_eq!(below_two_pow(i, m), expected, "i = {i}, m = {m}");
+        }
+    }
+    for m in [64usize, 65, 100, 1000] {
+        for i in probes {
+            assert!(
+                below_two_pow(i, m),
+                "2^{m} exceeds usize::MAX, so i = {i} is below it"
+            );
+        }
+    }
+}
+
+/// At a **70-variable** Boolean `τ₁` encoding row `k`, the weight is the row-`k`
+/// indicator and the target is row `k`'s evaluation -- and neither panics.
+///
+/// Seventy is past the word: the old `cube = two_pow(70)` wrapped to zero and
+/// skipped every row, and a reference reading bits with `>>` would panic. The
+/// existing tests in this file run `m₁ ≤ 4`, which is precisely why they could
+/// not see any of that.
+#[test]
+fn a_seventy_variable_boolean_point_still_selects_row_k() {
+    let vars = 70usize;
+    let n = 3usize;
+    let s = statement(0x5A17_3005, n, 2);
+    let mut r = Lcg::new(0x5A17_3006);
+    let alpha = ext4(&mut r);
+
+    for k in 0..n {
+        let tau: Vec<Ext4> = (0..vars)
+            .map(|j| {
+                if bit_at(k, j) == 1 {
+                    Ext4::ONE
+                } else {
+                    Ext4::ZERO
+                }
+            })
+            .collect();
+
+        for i in 0..n {
+            let w = eq_weight(&tau, i);
+            if i == k {
+                assert_eq!(w, Ext4::ONE, "eq(e_{k}, {i}) at 70 vars");
+            } else {
+                assert!(w.is_zero(), "eq(e_{k}, {i}) must vanish at 70 vars");
+            }
+        }
+
+        assert_eq!(
+            zc_target_alpha(&s, alpha, &tau),
+            horner_ref(alpha, s.yvec().get(k)),
+            "the target at a 70-variable e_{k} must be row {k}'s evaluation"
+        );
+    }
+}
+
+/// The running quotient agrees with the power form wherever the power form is
+/// computable -- inside the cube and beyond it, over random points.
+#[test]
+fn the_running_quotient_agrees_with_the_power_form() {
+    let mut r = Lcg::new(0x5A17_3007);
+    for m1 in 1..=6usize {
+        let tau: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
+        for i in 0..(4usize << m1) {
+            assert_eq!(
+                eq_weight(&tau, i),
+                eq_weight_power_ref(&tau, i),
+                "m1 = {m1}, i = {i}"
+            );
+        }
+    }
+}
+
+/// **The guard's upper boundary**, which nothing else in this file exercises.
+///
+/// At the pinned `n = 5 ≤ 8 = 2^m₁` the `i < 2^m₁` guard never fires, so every
+/// other test here passes whether the bound is right, too large, or absent.
+/// Found by mutation: `below_two_pow(i, tau1.len() + 1)` survived all
+/// twenty-four. This one puts *more rows than the cube can index* -- `n = 3`
+/// against `m₁ = 1` -- so rows at or above `2^m₁` are padding and must
+/// contribute nothing, and it checks the dropped contribution is nonzero so
+/// the assertion cannot pass vacuously.
+#[test]
+fn the_cube_guard_drops_rows_above_the_cube() {
+    let n = 3usize;
+    let m1 = 1usize;
+    let s = statement(0x5A17_3008, n, 2);
+    let mut r = Lcg::new(0x5A17_3009);
+    let alpha = ext4(&mut r);
+    let tau: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
+    let cube = 1usize << m1;
+
+    // zc_target_alpha: only rows below the cube may contribute.
+    let mut expected = Ext4::ZERO;
+    for i in 0..cube {
+        expected = expected + eq_weight(&tau, i) * horner_ref(alpha, s.yvec().get(i));
+    }
+    assert_eq!(
+        zc_target_alpha(&s, alpha, &tau),
+        expected,
+        "rows at or above 2^m1 are padding and must be dropped"
+    );
+    let dropped = eq_weight(&tau, cube) * horner_ref(alpha, s.yvec().get(cube));
+    assert!(
+        !dropped.is_zero(),
+        "row {cube}'s contribution must be nonzero, else this test is vacuous"
+    );
+
+    // alpha_public_evals carries the same guard over the matrix's rows.
+    let idx = 3usize;
+    let mut expected_ap = Ext4::ZERO;
+    for i in 0..cube {
+        expected_ap = expected_ap
+            + eq_weight(&tau, i) * m_alpha_tilde(&s, alpha, i, idx / RING_DEGREE);
+    }
+    expected_ap = expected_ap * alpha_tilde(alpha, idx % RING_DEGREE);
+    assert_eq!(
+        alpha_public_evals(&s, alpha, &tau, idx),
+        expected_ap,
+        "the same padding rule applies to the public table"
+    );
 }

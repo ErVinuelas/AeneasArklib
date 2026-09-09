@@ -97,6 +97,17 @@ allocation; measured through `to_polynomial`, which calls it per entry."""
 # bench files, and the semantics they exercised run on demand via the
 # `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
 
+"zerocheck::below_two_pow" = """
+O(m) by inspection and m is a *point-count exponent*: `m1 = 3` at the pinned
+parameters, `m0 = 26` at the widest, so the loop body runs at most 26 times and
+a criterion run would measure the harness rather than the item -- the
+`ring::len`/`ring::coeff` class of the header, one step up. It is benched
+transitively wherever `alpha_public_evals` and `zc_target_alpha` are.
+
+Removal condition: none. This does not become measurable at any parameter the
+specification admits; if it ever needs a row, that is a sign `m` stopped being
+an exponent."""
+
 "zerocheck::alpha_contract" = """
 infeasible even REDUCED, and the arithmetic is the specification's own shape.
 The double sum walks `(mu + n*delta) * d` table cells and `alphaContract`

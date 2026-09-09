@@ -41,10 +41,27 @@
 //! prover holds the folded `w̃` table and evaluates:
 //!
 //! ```text
-//! g_i(T) = Σ_y  eq_suffix(y) · P_b( (1 - T)·W[2y] + T·W[2y+1] )
+//! g_i(T) = eq̃(τ₀|<i, a) · eq(τ₀ᵢ, T) · Σ_y eq̃(τ₀|>i, y) · P_b( (1-T)·W[2y] + T·W[2y+1] )
 //! ```
 //!
-//! for each of the `2b + 1` nodes `T`, then interpolates. The fold that produces
+//! for each of the `2b + 1` nodes `T`, then interpolates.
+//!
+//! **The three factors are applied in two different places, and that split is
+//! why the degree works out.** `sumcheckPolyZero` is
+//! `cEqualityPolynomial m₀ τ₀ * cRangeProduct …` (`Constraints.lean:860`), so
+//! the equality kernel contributes one degree in the free coordinate and
+//! `rangeProduct b v = v·∏_{j=1}^{b-1}(v-j)(v+j)` (`:96`) contributes
+//! `2b - 1` — together exactly `roundDegZero b = 2b` (`:87`), which is what
+//! [`params::ROUND_NODES`] is `2b + 1` for.
+//!
+//! [`round_value_zero`] and its callers compute **only the sum**: the suffix
+//! table arrives as an argument and the free coordinate's own `eq(τ₀ᵢ, T)`
+//! factor is *not* applied there, so what they return has degree `2b - 1`, not
+//! `2b`. The prefix constant and the free linear factor are applied by
+//! [`honest_compute_g`], which is therefore the item that mirrors
+//! `computableRoundPoly (sumcheckPolyZero …)` as a whole. Reading any of the
+//! three lower functions as the round polynomial itself is a mistake this
+//! module made once (NOTES.md § "The dropped `eq̃` factor"). The fold that produces
 //! `W_{i+1}` from `W_i` is cpoly's `eval_mle_layer`, whose pairing of
 //! `values[2j]`/`values[2j+1]` eliminates the low bit -- which under the
 //! little-endian `finFunctionFinEquiv` is coordinate `0`, exactly the
@@ -165,7 +182,11 @@ pub fn round_node_weights() -> Vec<Fp> {
 /// one node, through `computableRoundPoly_eval` (`RoundPoly.lean:316`) and
 /// `eval_sumcheckPolyZero` (`ZeroCheck/Constraints.lean:1382`)).
 ///
-/// Mirrors `computableRoundPoly` (at the `sumcheckPolyZero` summand, one node).
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyZero` summand, one node,
+/// **without** that summand's `cEqualityPolynomial` factor on the free
+/// coordinate: this is the inner sum only, of degree `2b - 1` in `node`.
+/// [`honest_compute_g`] applies the missing `eq(τ₀ᵢ, T)` and the prefix
+/// constant; see the module header.
 ///
 /// `w` is the folded `w̃` table of round `i`, of length `2·eq.len()`; the fold
 /// pairs `2y`/`2y+1` because that is the orientation `evalMleStep` fixes
@@ -188,7 +209,8 @@ pub fn round_value_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>, node: Ext4) -> Ext4 {
 /// The whole range summand of a round message: its value at every node
 /// (spec: `computableRoundPoly` at the `sumcheckPolyZero` summand).
 ///
-/// Mirrors `computableRoundPoly`.
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyZero` summand, less its
+/// `cEqualityPolynomial` factor ([`round_value_zero`]).
 ///
 /// `2b + 1` nodes, because the summand's per-round degree is `roundDegZero b =
 /// 2b` (`ZeroCheck/Constraints.lean:87`) and that many values determine it --
@@ -208,9 +230,503 @@ pub fn round_values_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> Vec<Ext4> {
 /// The range summand as a polynomial: its node values, interpolated
 /// (spec: `computableRoundPoly Φ … (sumcheckPolyZero …) i cs`).
 ///
-/// Mirrors `computableRoundPoly`.
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyZero` summand, less its
+/// `cEqualityPolynomial` factor ([`round_value_zero`]).
 pub fn round_poly_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> UnivariatePoly {
     let values: Vec<Ext4> = round_values_zero(w, eq);
     let weights: Vec<Fp> = round_node_weights();
     interpolate(&values, &weights)
+}
+
+/// `2^vars`, by doubling.
+///
+/// A local copy of `zerocheck`'s private helper of the same shape: that one is
+/// private and frozen, and widening a frozen item's visibility is not an
+/// append. Written as a doubling loop rather than `1 << vars` for the reason
+/// [`params::ROUND_NODES`] is a literal -- a shift is a `Result` in the
+/// extracted model.
+fn cube_size(vars: usize) -> usize {
+    let mut sz: usize = 1;
+    let mut k: usize = 0;
+    while k < vars {
+        sz *= 2;
+        k += 1;
+    }
+    sz
+}
+
+/// The equality kernel over the coordinates the sumcheck has already consumed:
+/// `∏_{k < i} eq(τ₀ₖ, aₖ)`, where `i = challenges.len()`
+/// (spec: `cEqualityPolynomial m₀ τ₀` restricted to its bound prefix,
+/// `ZeroCheck/Constraints.lean:860`).
+///
+/// Mirrors `cEqualityPolynomial` at its bound prefix.
+///
+/// This is cpoly's `eq_tilde` (`multilinear.rs:248`) on a *prefix* of `tau0`,
+/// and it is written out here rather than reused because reuse would need
+/// `&tau0[..i]`: this crate's extracted model contains no subslice operation
+/// anywhere, and introducing one for a three-line product is an extraction risk
+/// for no gain. [`final_check`], which needs the kernel over *all* of `τ₀`,
+/// calls cpoly's function directly.
+pub fn eq_prefix(tau0: &Vec<Ext4>, challenges: &Vec<Ext4>) -> Ext4 {
+    let i: usize = challenges.len();
+    let mut acc: Ext4 = Ext4::ONE;
+    let mut k: usize = 0;
+    while k < i {
+        let t: Ext4 = tau0[k];
+        let a: Ext4 = challenges[k];
+        acc = acc * (t * a + (Ext4::ONE - t) * (Ext4::ONE - a));
+        k += 1;
+    }
+    acc
+}
+
+/// The equality kernel's hypercube table over the coordinates *after* the free
+/// one: entry `y` is `∏_{k > i} eq(τ₀ₖ, y_{k-i-1})`, little-endian in `y`
+/// (spec: `cEqualityPolynomial`'s trailing factors, as the table
+/// `lagrangeBasis` builds).
+///
+/// Mirrors `lagrangeBasis` at the suffix coordinates.
+///
+/// Built by doubling: each coordinate is appended as the new *high* bit, and
+/// the coordinates are consumed in increasing order, so `τ₀_{i+1}` ends at bit
+/// `0`. That is the orientation `lagrange_basis` uses (bit `j` of the index
+/// selects `point[j]`, `multilinear.rs:163`) and the one
+/// [`round_value_zero`]'s fold expects, since `eval_mle_layer` folds the
+/// least-significant variable (`multilinear.rs:280`).
+// `vec![…]` is what clippy wants here (the empty-suffix table is the one-entry vector `[1]`), and this crate does not
+// use that macro anywhere the extraction sees: see [`interpolate`].
+#[allow(clippy::vec_init_then_push)]
+pub fn eq_suffix_table(tau0: &Vec<Ext4>, i: usize) -> Vec<Ext4> {
+    let m0: usize = tau0.len();
+    let mut tab: Vec<Ext4> = Vec::new();
+    tab.push(Ext4::ONE);
+    let mut k: usize = i + 1;
+    while k < m0 {
+        let t: Ext4 = tau0[k];
+        let one_minus: Ext4 = Ext4::ONE - t;
+        let half: usize = tab.len();
+        let mut next: Vec<Ext4> = Vec::new();
+        let mut j: usize = 0;
+        while j < half {
+            next.push(tab[j] * one_minus);
+            j += 1;
+        }
+        let mut j2: usize = 0;
+        while j2 < half {
+            next.push(tab[j2] * t);
+            j2 += 1;
+        }
+        tab = next;
+        k += 1;
+    }
+    tab
+}
+
+/// The free coordinate's own equality factor, as a polynomial in the round
+/// variable: `eq(t, X) = (1 - t) + (2t - 1)·X`
+/// (spec: `cEqualityPolynomial`'s factor at the free coordinate).
+///
+/// Mirrors `cEqualityPolynomial` at its free coordinate.
+///
+/// Degree exactly one, which is the degree `roundDegZero b = 2b` has that
+/// [`round_poly_zero`] alone does not: see the module header. `2t` is written
+/// `t + t` because the extension carries no integer scalar multiplication.
+// `vec![…]` is what clippy wants here (a two-coefficient polynomial), and this crate does not
+// use that macro anywhere the extraction sees: see [`interpolate`].
+#[allow(clippy::vec_init_then_push)]
+pub fn eq_free_factor(t: Ext4) -> UnivariatePoly {
+    let mut coeffs: Vec<Ext4> = Vec::new();
+    coeffs.push(Ext4::ONE - t);
+    coeffs.push(t + t - Ext4::ONE);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
+/// One node's worth of the linear summand: `Σ_y W(T, y) · Ã(T, y)`, both tables
+/// folded at the same node (spec: `computableRoundPoly` at the
+/// `sumcheckPolyAlpha` summand, one node).
+///
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand, one node.
+///
+/// `sumcheckPolyAlpha` is `mle[w̃] * mle[Ã]` (`Constraints.lean:868`) -- a
+/// product of two multilinears and *no* equality kernel, which is why this one
+/// needs no companion factor and why its per-round degree is
+/// `roundDegAlpha = 2` (`:90`) rather than `2b`.
+pub fn round_value_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>, node: Ext4) -> Ext4 {
+    let half: usize = w.len() / 2;
+    let one_minus: Ext4 = Ext4::ONE - node;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let w_folded: Ext4 = one_minus * w[2 * y] + node * w[2 * y + 1];
+        let a_folded: Ext4 = one_minus * a_tab[2 * y] + node * a_tab[2 * y + 1];
+        acc = acc + w_folded * a_folded;
+        y += 1;
+    }
+    acc
+}
+
+/// The whole linear summand of a round message: its value at each of the
+/// `roundDegAlpha + 1 = 3` nodes (spec: `computableRoundPoly` at the
+/// `sumcheckPolyAlpha` summand).
+///
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand.
+pub fn round_values_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_alpha(w, a_tab, round_node(t)));
+        t += 1;
+    }
+    out
+}
+
+/// The weights for the three linear-side nodes, read out of
+/// [`params::ROUND_NODE_INV_ALPHA`].
+///
+/// Separate from [`round_node_weights`] because the weights of a node set
+/// depend on the whole set, not on a prefix of it.
+pub fn round_node_weights_alpha() -> Vec<Fp> {
+    let n: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Fp> = Vec::new();
+    let mut i: usize = 0;
+    while i < n {
+        out.push(Fp::new(params::ROUND_NODE_INV_ALPHA[i]));
+        i += 1;
+    }
+    out
+}
+
+/// The linear summand as a polynomial: its node values, interpolated
+/// (spec: `computableRoundPoly Φ … (sumcheckPolyAlpha …) i cs`).
+///
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand,
+/// interpolated.
+pub fn round_poly_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_alpha(w, a_tab);
+    let weights: Vec<Fp> = round_node_weights_alpha();
+    interpolate(&values, &weights)
+}
+
+/// The public table `Ã` in Boolean-evaluation form: `alphaPublicEvals` at every
+/// cube index (spec: `cMultilinearExtension m₀ (alphaPublicEvals …)`,
+/// `ZeroCheck/Constraints.lean:871`).
+///
+/// Mirrors `alphaPublicEvals` as a hypercube table.
+///
+/// `2^m₀` entries, each one `alphaPublicEvals` call, which is the whole reason
+/// the linear side's benchmark rows are REDUCED: at the pinned `m₀ = 26` this
+/// table is `6.7·10⁷` extension elements. The tensor split that avoids
+/// building it is strategy S6 of the target-5 brief and is `perf-loop`'s.
+pub fn alpha_public_table(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    tau1: &Vec<Ext4>,
+    m0: usize,
+) -> Vec<Ext4> {
+    let sz: usize = cube_size(m0);
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut idx: usize = 0;
+    while idx < sz {
+        out.push(crate::zerocheck::alpha_public_evals(s, alpha, tau1, idx));
+        idx += 1;
+    }
+    out
+}
+
+/// The zero-check statement the paired sumcheck starts from (spec:
+/// `NestedZeroCheckStatement`, `ZeroCheck/Constraints.lean:1407`).
+///
+/// Mirrors `NestedZeroCheckStatement`.
+///
+/// `TCom` is instantiated at the concrete chain's commitment type, a `PolyVec`,
+/// exactly as in [`crate::endpiece::WEvalStatement`]. The two direct points
+/// travel as `Vec`s whose lengths are `m₀` and `m₁`; the specification's
+/// `Fin m₀ → F` erases to that, and the lengths become `_spec` hypotheses
+/// because Aeneas cannot see a privacy boundary.
+pub struct NestedZeroCheckStmt {
+    rlin: crate::ringswitch::RlinStatement,
+    t: crate::linalg::PolyVec,
+    alpha: Ext4,
+    tau0: Vec<Ext4>,
+    tau1: Vec<Ext4>,
+}
+
+impl NestedZeroCheckStmt {
+    /// Bundle the `R^lin` statement, the commitment, the ring-switching
+    /// challenge and the two direct points.
+    pub fn new(
+        rlin: crate::ringswitch::RlinStatement,
+        t: crate::linalg::PolyVec,
+        alpha: Ext4,
+        tau0: Vec<Ext4>,
+        tau1: Vec<Ext4>,
+    ) -> NestedZeroCheckStmt {
+        NestedZeroCheckStmt {
+            rlin,
+            t,
+            alpha,
+            tau0,
+            tau1,
+        }
+    }
+
+    /// The `R^lin` statement, carrying the public `M`, `yvec` and bound.
+    pub fn rlin(&self) -> &crate::ringswitch::RlinStatement {
+        &self.rlin
+    }
+
+    /// The commitment to `w̃` from the lift stage.
+    pub fn t(&self) -> &crate::linalg::PolyVec {
+        &self.t
+    }
+
+    /// The ring-switching evaluation challenge `α`.
+    pub fn alpha(&self) -> Ext4 {
+        self.alpha
+    }
+
+    /// The direct range-polynomial evaluation point `τ₀`.
+    pub fn tau0(&self) -> &Vec<Ext4> {
+        &self.tau0
+    }
+
+    /// The direct linear-polynomial evaluation point `τ_α`.
+    pub fn tau1(&self) -> &Vec<Ext4> {
+        &self.tau1
+    }
+}
+
+/// A round message: the two computable univariate round polynomials
+/// (spec: `RoundMsg`, `Sumcheck/Rounds.lean:65`).
+///
+/// Mirrors `RoundMsg`.
+///
+/// The specification's two `degreeLE` subtypes erase: the bounds hold by
+/// construction on the prover's side ([`honest_compute_g`] interpolates
+/// `2b + 1` resp. `3` nodes) and are what a verifier would re-check on the
+/// wire.
+pub struct RoundMsg {
+    g_zero: UnivariatePoly,
+    g_alpha: UnivariatePoly,
+}
+
+impl RoundMsg {
+    /// Pair the two round polynomials.
+    pub fn new(g_zero: UnivariatePoly, g_alpha: UnivariatePoly) -> RoundMsg {
+        RoundMsg { g_zero, g_alpha }
+    }
+
+    /// The range summand's round polynomial `g_i^{(0)}`.
+    pub fn g_zero(&self) -> &UnivariatePoly {
+        &self.g_zero
+    }
+
+    /// The linear summand's round polynomial `g_i^{(α)}`.
+    pub fn g_alpha(&self) -> &UnivariatePoly {
+        &self.g_alpha
+    }
+}
+
+/// The statement after `i` paired-sumcheck rounds (spec:
+/// `NestedRoundStatement`, `ZeroCheck/Constraints.lean:1421`).
+///
+/// Mirrors `NestedRoundStatement`.
+///
+/// The specification's family is indexed by the round number `i`, whose only
+/// computational content is the length of `challenges : Fin i → F`; here that
+/// is one struct for every round and `challenges.len() == i` travels as a
+/// `_spec` hypothesis. One `push` per round is the erasure of `Fin.snoc`.
+pub struct RoundStatement {
+    zc: NestedZeroCheckStmt,
+    challenges: Vec<Ext4>,
+    target_zero: Ext4,
+    target_alpha: Ext4,
+}
+
+impl RoundStatement {
+    /// Open a round statement at the two initial targets.
+    pub fn new(
+        zc: NestedZeroCheckStmt,
+        challenges: Vec<Ext4>,
+        target_zero: Ext4,
+        target_alpha: Ext4,
+    ) -> RoundStatement {
+        RoundStatement {
+            zc,
+            challenges,
+            target_zero,
+            target_alpha,
+        }
+    }
+
+    /// The zero-check statement carrying the direct evaluation points.
+    pub fn zc(&self) -> &NestedZeroCheckStmt {
+        &self.zc
+    }
+
+    /// The paired-sumcheck challenges drawn so far.
+    pub fn challenges(&self) -> &Vec<Ext4> {
+        &self.challenges
+    }
+
+    /// The current target of the range sumcheck.
+    pub fn target_zero(&self) -> Ext4 {
+        self.target_zero
+    }
+
+    /// The current target of the linear sumcheck.
+    pub fn target_alpha(&self) -> Ext4 {
+        self.target_alpha
+    }
+}
+
+/// **The honest round message** (spec: `honestComputeG`,
+/// `Sumcheck/Completeness.lean:74`).
+///
+/// Mirrors `honestComputeG`.
+///
+/// This is the item that mirrors `computableRoundPoly` of each summand *whole*:
+/// it applies the two factors [`round_poly_zero`] leaves out -- the prefix
+/// constant [`eq_prefix`] and the free coordinate's [`eq_free_factor`] -- so its
+/// range component has degree `2b` and its linear component degree `2`, the
+/// specification's two bounds (`ZeroCheck/Constraints.lean:87,90`).
+///
+/// `w_tab` and `a_tab` are the two tables folded through the `i` challenges
+/// already drawn, each of length `2^{m₀-i}`; folding them is [`round_loop`]'s
+/// job, and holding them rather than rebuilding `H` is this module's
+/// documented dense-form decision (module header).
+pub fn honest_compute_g(
+    stmt: &RoundStatement,
+    w_tab: &Vec<Ext4>,
+    a_tab: &Vec<Ext4>,
+    i: usize,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, i);
+    let inner: UnivariatePoly = round_poly_zero(w_tab, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[i]);
+    let with_free: UnivariatePoly = &inner * &free;
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha(w_tab, a_tab);
+    RoundMsg { g_zero, g_alpha }
+}
+
+/// The round check: both round polynomials sum to the current targets over
+/// `{0, 1}` (spec: `roundCheck`, `Sumcheck/Rounds.lean:100`).
+///
+/// Mirrors `roundCheck`.
+///
+/// The specification is `Bool`-valued and phrased with `==`, so the translation
+/// is an equality of decisions and not an implication -- a verifier that
+/// accepted everything would satisfy the accepting direction alone.
+pub fn round_check(stmt: &RoundStatement, g: &RoundMsg) -> bool {
+    let zero_sum: Ext4 = g.g_zero().eval(Ext4::ZERO) + g.g_zero().eval(Ext4::ONE);
+    let alpha_sum: Ext4 = g.g_alpha().eval(Ext4::ZERO) + g.g_alpha().eval(Ext4::ONE);
+    zero_sum == stmt.target_zero() && alpha_sum == stmt.target_alpha()
+}
+
+/// The round's output map: extend the challenge prefix by `a` and replace both
+/// targets by the round polynomials' values there (spec: `roundOut`,
+/// `Sumcheck/Rounds.lean:109`).
+///
+/// Mirrors `roundOut`.
+///
+/// Takes the statement by value and moves its fields into the successor, which
+/// is what makes this a straight-line function in the extracted model: the
+/// specification builds a new statement of the next index, and a `clone` of the
+/// public data would be a trait call with no model.
+pub fn round_out(stmt: RoundStatement, g: &RoundMsg, a: Ext4) -> RoundStatement {
+    let target_zero: Ext4 = g.g_zero().eval(a);
+    let target_alpha: Ext4 = g.g_alpha().eval(a);
+    let mut challenges: Vec<Ext4> = stmt.challenges;
+    challenges.push(a);
+    RoundStatement {
+        zc: stmt.zc,
+        challenges,
+        target_zero,
+        target_alpha,
+    }
+}
+
+/// The honest claimed evaluation `y′ := mle[w̃](a)` (spec: `honestComputeY`,
+/// `Sumcheck/FinalEval.lean:246`).
+///
+/// Mirrors `honestComputeY`.
+///
+/// Literally `wTableMleEval` at the sumcheck point, which is the whole
+/// definition; it is named because the final-evaluation prover's `computeY`
+/// parameter is what the completeness theorem is stated about.
+pub fn honest_compute_y(
+    w: &crate::ringswitch::LiftedWitness,
+    m0: usize,
+    challenges: &Vec<Ext4>,
+) -> Ext4 {
+    crate::zerocheck::w_table_mle_eval(w, m0, challenges)
+}
+
+/// The final check, after the sumcheck has consumed every cube coordinate
+/// (spec: `finalCheck`, `Sumcheck/FinalEval.lean:99`).
+///
+/// Mirrors `finalCheck`.
+///
+/// Three conjuncts in the specification's order: the range claim
+/// `eq̃(τ₀, a)·P_b(y′) = target₀`, the linear claim `y′·Ã(a) = target_α`, and
+/// the bound-sanity fact `bound ≤ rlin.bound`. The first factor uses cpoly's
+/// `eq_tilde` over the whole of `τ₀` -- the point where [`eq_prefix`]'s prefix
+/// form is not needed, since at `i = m₀` the prefix *is* the whole vector.
+///
+/// This is the first check in the chain that can actually reject: every earlier
+/// link's verifier is a pass-through.
+pub fn final_check(stmt: &RoundStatement, y_prime: Ext4, bound: u64) -> bool {
+    let zc: &NestedZeroCheckStmt = stmt.zc();
+    let m0: usize = zc.tau0().len();
+    let eq_all: Ext4 = cpoly::multilinear::eq_tilde(zc.tau0(), stmt.challenges());
+    let table: Vec<Ext4> = alpha_public_table(zc.rlin(), zc.alpha(), zc.tau1(), m0);
+    let a_mle: Ext4 = cpoly::MultilinearEvals::from_values(table).eval(stmt.challenges());
+    eq_all * crate::zerocheck::range_product(y_prime) == stmt.target_zero()
+        && y_prime * a_mle == stmt.target_alpha()
+        && bound <= zc.rlin().bound()
+}
+
+/// The `m₀` paired-sumcheck rounds, run honestly against a challenge list
+/// (spec: `roundsReductionAux`'s computational residue,
+/// `Sumcheck/Completeness.lean:347` and `Sumcheck/Rounds.lean:360`).
+///
+/// Mirrors `roundsReductionAux`.
+///
+/// `None` is the specification's `failure`: `roundVerifier` applies `roundOut`
+/// on a passing `roundCheck` and fails otherwise (`Rounds.lean:113`). The two
+/// tables are folded one coordinate per round with cpoly's `eval_mle_layer`,
+/// the fold whose `2j`/`2j+1` pairing eliminates the least-significant variable
+/// and so matches [`eq_suffix_table`]'s orientation.
+pub fn round_loop(
+    stmt: RoundStatement,
+    w: &crate::ringswitch::LiftedWitness,
+    challenges: &Vec<Ext4>,
+) -> Option<RoundStatement> {
+    let m0: usize = stmt.zc().tau0().len();
+    let mut w_tab: Vec<Ext4> = crate::zerocheck::c_w_table_mle(w, m0).into_values();
+    let mut a_tab: Vec<Ext4> = alpha_public_table(
+        stmt.zc().rlin(),
+        stmt.zc().alpha(),
+        stmt.zc().tau1(),
+        m0,
+    );
+    let mut current: RoundStatement = stmt;
+    let mut i: usize = 0;
+    while i < m0 {
+        let g: RoundMsg = honest_compute_g(&current, &w_tab, &a_tab, i);
+        if !round_check(&current, &g) {
+            return None;
+        }
+        let a: Ext4 = challenges[i];
+        current = round_out(current, &g, a);
+        w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
+        a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
+        i += 1;
+    }
+    Some(current)
 }
