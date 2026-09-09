@@ -200,9 +200,15 @@ private theorem coeff_monomialMod_val (k : ℕ) (m : Fin Hachi.ext4Params.toExte
 /-- `Fp::is_zero` decides whether a reduced word is the zero of the base field.
 `lean/Field.lean` specifies `Fp`'s operators and its construction boundary but
 not this predicate, and `Ext4::is_zero` below is four calls to it; reducedness is
-what makes the word test sound, exactly as in the extension-level statement. -/
+what makes the word test sound, exactly as in the extension-level statement.
+
+Public, where this file's other three helpers are `private`: it is the only
+statement anywhere in the development about `cpoly::field::Fp::is_zero`, so it
+is a headline spec rather than a local convenience, and `Check.lean` § 4 pins
+it. `private` would put it beyond that audit's reach -- which is how it was
+first written, and `make build` caught it as an unknown constant. -/
 @[step]
-private theorem fp_is_zero_spec (a : cpoly.field.Fp) (ha : Red a) :
+theorem fp_is_zero_spec (a : cpoly.field.Fp) (ha : Red a) :
     cpoly.field.Fp.is_zero a ⦃ b => (b = true ↔ toK a = 0) ⦄ := by
   rw [cpoly.field.Fp.is_zero]
   simp only [spec_ok, decide_eq_true_eq]

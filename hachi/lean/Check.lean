@@ -1,11 +1,13 @@
 import Generated
 import Field
+import Ext
 import Ring
 import RqBridge
 import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import QuadEvalProtocol
 import RingSwitch
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
@@ -1012,5 +1014,53 @@ development, which joins this list when it is proved and promoted. -/
 #print axioms HachiEquiv.EvalSplit.to_matrix_eval_spec
 #print axioms HachiEquiv.EvalSplit.eval_split_spec
 #print axioms HachiEquiv.EvalSplit.eval_split_eval_spec
+
+-- The `Ext4` extension-field layer (`lean/Ext.lean`), ported from cpoly's own
+-- equivalence development and re-proved here against *this* crate's extraction:
+-- the arithmetic impls of `cpoly::field::Ext4` against `CompPoly.Extension.Ext`
+-- at `Hachi.ext4Params`. Not importable from upstream -- cpoly's statements are
+-- about its own `Generated.lean`, under a v4.32.0 toolchain this build cannot
+-- adopt -- so the layer is a port, and NOTES.md § "The dropped `eq~` factor"'s
+-- neighbour § records why the ported scripts needed one bridging lemma:
+-- `ext4Params.d` and `ext4Params.toExtensionParams.d` are definitionally equal
+-- and syntactically distinct, which every tactic notices and the kernel does
+-- not. Exact: no model-artefact hypothesis anywhere in this file.
+#print axioms HachiEquiv.Ext.fp_is_zero_spec
+#print axioms HachiEquiv.Ext.ext_add_spec
+#print axioms HachiEquiv.Ext.ext_sub_spec
+#print axioms HachiEquiv.Ext.ext_mul_spec
+#print axioms HachiEquiv.Ext.ext_add_assign_spec
+#print axioms HachiEquiv.Ext.ext_mul_assign_spec
+#print axioms HachiEquiv.Ext.ext_from_base_spec
+#print axioms HachiEquiv.Ext.ext_is_zero_spec
+
+-- The QuadEval protocol layer (`lean/QuadEvalProtocol.lean`): target 2's three
+-- carriers, the two gadget-level helpers, `jMatrix` applied to `z^`, the honest
+-- prover's three functions and the two output relations. This is the statement
+-- debt `make spec-check` found on 2026-09-08 -- the fold's arithmetic was proved
+-- and promoted a week earlier, while eleven of the module's items carried
+-- `Mirrors` lines and no `_spec` at all, because `coverage` asked "is it
+-- measured" and nothing asked "is it stated".
+--
+-- Two conventions to know before reading them. `toChals` takes the challenge
+-- subtype's `l1Norm <= omega` bound as an *argument*: `relOut` checks no
+-- challenge norm precisely because `ShortChallenge` carries it in the type
+-- (`QuadEval/Reduction.lean:148-151`), and the extracted verifier takes a plain
+-- `PolyVec`, so a faithful statement has to say the challenges are short
+-- somewhere. And both relation specs are iffs, not implications -- a verifier
+-- that rejected everything would satisfy one direction, and `paperRelOut` is
+-- the strictly stronger check (`paperRelOut_subset_relOut` under `beta/2 <= gamma`,
+-- here `8 <= 15`), so neither statement implies the other.
+#print axioms HachiEquiv.QuadEvalProtocol.PublicParamsD_new_spec
+#print axioms HachiEquiv.QuadEvalProtocol.QuadEvalStatement_new_spec
+#print axioms HachiEquiv.QuadEvalProtocol.QuadEvalResponse_new_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_spec
+#print axioms HachiEquiv.QuadEvalProtocol.j_mul_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_spec
+#print axioms HachiEquiv.QuadEvalProtocol.rel_out_spec
+#print axioms HachiEquiv.QuadEvalProtocol.paper_rel_out_spec
 
 end HachiEquiv.Check

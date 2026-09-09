@@ -4193,3 +4193,47 @@ Sixteen obligations across three files, once `982bd0af` resolves: ZeroCheck's
 nine (the eight stubs plus `w_table_mle_eval_spec`), EndPiece's four, and
 QuadEvalProtocol's eleven if that session returns partial. Promoting `Ext.lean`
 first would let the helper validate all three without the manual rescue.
+
+## Two promotions: the Ext4 layer and target 2's protocol layer (2026-09-09)
+
+`lean-wip/Ext.lean` → `lean/Ext.lean` and `lean-wip/QuadEvalProtocol.lean` →
+`lean/QuadEvalProtocol.lean`, both at zero `sorry`s. `Check.lean` § 4 goes from
+**99 pins to 118**, and all 118 print exactly
+`[propext, Classical.choice, Quot.sound]`. `make build`: 0 errors, no `sorry`.
+
+Three things worth keeping.
+
+**`private` puts a statement beyond the audit's reach, and the build says so.**
+`fp_is_zero_spec` came back `private` — Aristotle marked all four of its new
+helpers that way — and `Check.lean`'s pin failed with
+`Unknown constant HachiEquiv.Ext.fp_is_zero_spec`. It is not a helper: it is
+the *only* statement in the development about `cpoly::field::Fp::is_zero`
+(`lean/Field.lean` covers `Fp`'s operators and its construction boundary, not
+this predicate), so it is a headline spec and is now public with the pin kept.
+The other three helpers stay private, correctly. The general point: a `private`
+`_spec` is invisible to § 4, so the promotion step "add a `#print axioms` line
+per headline spec" is also what *detects* a mis-scoped statement — it is a
+check, not just bookkeeping.
+
+**The promotion retired a tooling failure, not just a debt.** `ZeroCheck.lean`
+now typechecks with a plain `lake env lean` — 0 errors, 9 sorries, no
+`LEAN_PATH` detour — because `import Ext` resolves from the built library. That
+is precisely the thing that made `aristotle_check.py` refuse session
+`396eb25b`'s good proofs, so the next check on ZeroCheck or EndPiece needs no
+manual rescue. Promoting the lower layer was the fix and the next step at once.
+
+**I masked a failed `make` again.** The build ran as
+`make build > log 2>&1; echo "exit: $?"` in the background; the task wrapper
+reported the *compound* command's status (0, from the `echo`), and I read
+make's stdout rather than the wrapper's output, so a genuine
+`make: *** Error 1` looked green for one round. NOTES already records this
+exact failure mode from the bench harness. The rule that actually works:
+capture the status into a variable on the line whose output you read
+(`rc=$?; echo "make build exit: $rc"`), and for a background command read the
+task output file, not only the redirected log.
+
+State after this: `lean/` holds twelve audited modules; `lean-wip/` holds
+`ZeroCheck.lean` (9) and `EndPiece.lean` (4) — thirteen obligations, from
+thirty-two this morning. `make spec-check` reads 134 mirrored, **111 stated**,
+23 owed: the bridge row's two new items and target 5's twenty-one, both
+awaiting their own passes.

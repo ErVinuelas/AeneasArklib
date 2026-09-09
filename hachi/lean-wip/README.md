@@ -1,10 +1,9 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt:** `Ext.lean`, the `Ext4` extension-field layer ported from
-cpoly's own equivalence development, eight `sorry`s where the upstream proof
-scripts did not survive the Lean v4.32 → v4.33.1 gap (the statements are about
-identical extracted code and were proved upstream). Everything earlier that
-passed through here has been promoted: the
+**Current debt (2026-09-09):** `ZeroCheck.lean`, nine `sorry`s — eight of them
+re-stubbed when the `two_pow` repair moved their extracted shape, plus
+`w_table_mle_eval_spec` — and `EndPiece.lean`, four, never yet attempted by a
+prover. Everything earlier that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
 into `lean/Scheme.lean` beside their siblings), the multilinear evaluation
@@ -22,9 +21,16 @@ perfect correctness of the extracted scheme at its top-level API,
 evaluation, the balanced committer (`commit_balanced_spec`: the honest Hachi
 commitment, `Hachi.commit`), and the QuadEval fold's `z`-side gadget, carrier,
 `tensorG1` and Eq. (20) decisions, and the ring-switch lift, commitment and
-shortness decisions. `lean/Check.lean` § 4 prints the axiom
-dependencies of all ninety-nine headline specs, and they come out as the three
-Lean kernel axioms and nothing else.
+shortness decisions. On 2026-09-09 two more were promoted together: the `Ext4`
+extension-field layer (`lean/Ext.lean`, Aristotle session `63ebbc60`, eight
+obligations to zero — its predecessor `be85dad4` returned non-compiling proofs,
+and the difference was one bridging lemma between `ext4Params.d` and
+`ext4Params.toExtensionParams.d`, definitionally equal and syntactically
+distinct) and target 2's QuadEval protocol layer
+(`lean/QuadEvalProtocol.lean`, session `982bd0af`, eleven obligations to zero
+with no headline signature changed). `lean/Check.lean` § 4 prints the axiom
+dependencies of all **one hundred and eighteen** headline specs, and they come
+out as the three Lean kernel axioms and nothing else.
 
 Two things the QuadEval passage through here established, worth keeping:
 
@@ -103,9 +109,23 @@ once in this repository (NOTES.md § "The model contains what the crate reaches"
 **Second staged file (2026-09-08):** `ZeroCheck.lean`, twenty-four statements
 covering target 4's zero-check link (sixteen `zerocheck` items), the three
 `ringswitch` items the α side introduced (`c_eval_at`, `c_eval_at_modulus`,
-`RlinStatement`) and target 6's four `endpiece` items. It imports `Ext.lean`,
-which is the case this README's "Working here" warns about, so it is checked
-with the `LEAN_PATH` detour:
+`RlinStatement`) and target 6's four `endpiece` items. It imports `Ext`, which **was** the case this
+README's "Working here" warns about; since `Ext.lean`'s promotion on
+2026-09-09 that import resolves from the built library and no detour is needed:
+
+```sh
+cd hachi
+lake build
+lake env lean lean-wip/ZeroCheck.lean
+```
+
+That promotion also fixed a real tooling failure. `aristotle_check.py`
+validates a returned file with a plain `lake env lean`, which cannot build a
+staged file that imports another staged file — and it refused session
+`396eb25b`'s otherwise-good ZeroCheck proofs for exactly that reason
+(NOTES.md § "`aristotle-check` cannot validate a wip file that imports a wip
+file"). With `Ext` promoted the helper's own command is correct. The historical
+detour, for the next time two files are staged at once:
 
 ```sh
 cd hachi
