@@ -37,10 +37,11 @@ use hachi::params::{
     SB_HI, Z_BOUND, Z_DIGITS,
 };
 use hachi::quadeval::{
+    to_quad_eval_statement, PolyEvalStatement,
     carrier, carrier_entry, in_sb, j_mul, tensor_g, tensor_g1, vec_in_sb,
 };
 use hachi::ring::Rq;
-use support::{rq_from_u64s, Lcg};
+use support::{rq_from_u64s, show, Lcg};
 
 /// An `Rq` whose coefficient `0` is the given *centered* integer.
 fn rq_with_centered(x: i64) -> Rq {
@@ -282,4 +283,92 @@ fn j_mul_is_gadget_mul_z_at_the_scheme_width() {
     assert_eq!(out.len(), n, "j_mul must produce n = 2^m · δ entries");
     assert!(out.equals(&gadget_mul_z(n, &zhat)));
     assert_eq!(BLOCKS * GADGET_DIGITS, n, "the two widths coincide at Fig. 9");
+}
+
+// --- the polynomial-level bridge (chain row 1) -----------------------------
+
+/// A multilinear polynomial evaluated the direct way: `Σ_k f[k]·∏_{bit j of k}
+/// point[j]`, summing over all `2^n` monomials with the point given as one
+/// vector. The crate never computes it this way -- it goes through the reshaped
+/// matrix and two monomial bases -- so this is an independent reference for
+/// what the split form is supposed to equal.
+fn eval_direct(f: &[Rq], point: &[Rq]) -> Rq {
+    let mut acc = Rq::zero();
+    for (k, coeff) in f.iter().enumerate() {
+        let mut term = coeff.copy();
+        for (j, x) in point.iter().enumerate() {
+            if (k >> j) & 1 == 1 {
+                term = term.mul(x);
+            }
+        }
+        acc = acc.add(&term);
+    }
+    acc
+}
+
+/// **The bridge's two bases reproduce the polynomial evaluation, and in the
+/// right order.**
+///
+/// `toQuadEvalStatement` sets `avec := mb(xh)` and `bvec := mb(xl)` -- the
+/// halves cross. At the pinned parameters `ML_VARS_LOW = ML_VARS_HIGH = 10`, so
+/// a swap would still typecheck, still run, and quietly compute the transpose;
+/// only a value test catches it. This test therefore uses **unequal** widths
+/// (`nl = 2`, `nh = 3`), where a swap is caught twice over: by the value and by
+/// the length.
+///
+/// The split form is written out here rather than taken from
+/// `MlPoly::eval_split`, because that one is hard-wired to `ML_LOW_LEN` /
+/// `ML_HIGH_LEN` and cannot run at a toy width -- and because a reference taken
+/// from the code under test is not a reference.
+#[test]
+fn the_bridge_bases_reproduce_the_polynomial_evaluation() {
+    let mut r = Lcg::new(0xB0DE_1DEA_5EED_5EED);
+    let nl = 2usize;
+    let nh = 3usize;
+
+    let f: Vec<Rq> = (0..1 << (nl + nh)).map(|_| r.next_rq()).collect();
+    let xl: Vec<Rq> = (0..nl).map(|_| r.next_rq()).collect();
+    let xh: Vec<Rq> = (0..nh).map(|_| r.next_rq()).collect();
+
+    // the reference: f at the concatenated point
+    let mut point: Vec<Rq> = xl.iter().map(Rq::copy).collect();
+    point.extend(xh.iter().map(Rq::copy));
+    let y = eval_direct(&f, &point);
+
+    let stmt = PolyEvalStatement::new(
+        r.next_poly_vec(1),
+        PolyVec::new(xl.iter().map(Rq::copy).collect()),
+        PolyVec::new(xh.iter().map(Rq::copy).collect()),
+        y.copy(),
+    );
+    let q = to_quad_eval_statement(&stmt);
+
+    assert_eq!(q.bvec().len(), 1 << nl, "bvec must be the LOW half's basis");
+    assert_eq!(q.avec().len(), 1 << nh, "avec must be the HIGH half's basis");
+
+    // the split form, written out: entry (i, j) of the reshaped matrix is
+    // coefficient `i + 2^nl · j`, rows indexed by the low half.
+    let mut split = Rq::zero();
+    for i in 0..1 << nl {
+        for j in 0..1 << nh {
+            let term = q
+                .bvec()
+                .get(i)
+                .mul(&f[i + (1 << nl) * j])
+                .mul(q.avec().get(j));
+            split = split.add(&term);
+        }
+    }
+
+    assert!(
+        split.equals(&y),
+        "the bridge's bases, fed through the split form, must reproduce f(xl ++ xh):\n  split {}\n  direct {}",
+        show(&split),
+        show(&y)
+    );
+    assert!(
+        q.y().equals(stmt.y()),
+        "the claim must pass through unchanged"
+    );
+    assert_eq!(q.u().len(), stmt.u().len(), "the commitment passes through");
 }

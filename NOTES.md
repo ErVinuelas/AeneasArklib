@@ -3882,3 +3882,118 @@ Three things this pass established:
 This is the only proof work in the tree not gated on `Ext.lean`: it imports the
 promoted `lean/QuadEval.lean` and nothing staged, so it can be proved and
 promoted while the extension-field layer is still red.
+
+## The chain has four rows no Stage 3 target owned (2026-09-09)
+
+Checking whether Stage 5 could start turned up a gap in the plan's own
+accounting. `Composition.lean:244` composes the evaluation chain as
+
+```text
+(bridge ▷ quadEval) ▷ rlin ▷ lift ▷ batch ▷ zeroCheck ▷ sumcheckBridge
+then (core ▷ rounds) ▷ finalEval
+```
+
+— **nine rows.** Stage 3's six targets took the compute-heavy ones (quadEval,
+lift, zeroCheck, rounds/finalEval, endPiece). The four **zero-round adapter
+rows** were never assigned to a target and none was in the crate:
+
+| Row | ArkLib source | Status |
+|---|---|---|
+| `bridge` | `QuadEval/Bridge.lean:124,135` | **translated 2026-09-09** (below) |
+| `rlin` adapter | `RingSwitch/Rlin.lean`, `Completeness.lean:73` | owed |
+| `batch` | `ZeroCheck/Batch.lean:81,267` | owed |
+| `nestedSumcheckBridge` | `Sumcheck/Bridge.lean:123` | owed |
+
+They carry no arithmetic — each is a statement map with a pure or guarded
+verifier — but they are exactly where one link's output statement becomes the
+next link's input, so there is nothing to compose without them. Stage 5's
+Rust half is otherwise unblocked: it needs only per-link Rust, all of which
+exists.
+
+**Two items in target 4's written scope are also absent from the crate**:
+`hypercubeSum` and `relBatched`, both named in the Stage 3 table's target-4
+row. Recorded as erasure items in `STAGE2_SCOPING.md`: `hypercubeSum` is
+superseded by target 5's dense-form decision (a `CMvPolynomial` hypercube sum
+is precisely what the folded table replaces), and `relBatched` belongs with
+the `batch` adapter row.
+
+**Neither gate can see a missing translation.** `coverage` and `spec-check`
+both work from `Mirrors` lines in `hachi/src`, so they can only report on items
+that *exist*: an unstated item is caught, an untranslated one is invisible.
+That is a third gate-shaped hole after the two already recorded (`coverage`
+asked "is it measured" and nothing asked "is it stated"; now nothing asks "is
+it translated"). A scope audit against the brief is the only thing that finds
+this class, and it is worth one before Stage 5 closes.
+
+## The bridge row (2026-09-09)
+
+`quadeval::PolyEvalStatement` + `to_quad_eval_statement`, the chain's first
+seam (`QuadEval/Bridge.lean:108,124`). It lands in `quadeval.rs` rather than a
+module of its own: its ArkLib home is `QuadEval/Bridge.lean`, and a new module
+would cost the `MODULES` sync in both `harness.py` and `ledger_check.py`, both
+slot mirrors, and a declared `[[bench]]` *and* `[[test]]` — ceremony for two
+items. The remaining three adapter rows should sit with their links for the
+same reason.
+
+Three things worth keeping:
+
+* **The halves cross, and nothing structural protects it.** The map is
+  `avec := mb(xh)`, `bvec := mb(xl)` — inner basis from the *high* half, outer
+  from the *low*. At this crate's parameters `ML_VARS_LOW = ML_VARS_HIGH = 10`,
+  so a swap typechecks, runs, and computes the transpose of the intended
+  bilinear form. The semantics test therefore uses **unequal** toy widths
+  (`nl = 2`, `nh = 3`), where the swap is caught by the value *and* the length;
+  mutation-checked both ways.
+* **The reference had to be written out, not borrowed.** `MlPoly::eval_split`
+  is hard-wired to `ML_LOW_LEN`/`ML_HIGH_LEN` and cannot run at a toy width, so
+  the test spells out the split form and evaluates `f` by the direct monomial
+  sum. That is the better arrangement anyway, for the reason the dropped-`eq̃`
+  finding made expensive: a reference taken from the code under test is not a
+  reference.
+* **There is no `bridge_check` to translate.** The row is a `ReduceClaim` head
+  — pure, zero-round, nothing to decide — so the statement map *is* the row.
+  The same will be true of the other three adapters, which is why they are
+  cheap.
+
+`monomial_basis` was already in `evalsplit.rs` and is the only arithmetic
+involved: `2^n · n` ring products, so `1024 · 10 ≈ 10 240` muls per half at the
+real width, ~15 s per half at the current schoolbook `ring::mul`. Its bench
+case is a REDUCED one when the freeze comes.
+
+Tests: 160 passing, `cargo clippy --all-targets` clean.
+
+## `aristotle-check` cannot validate a wip file that imports a wip file (2026-09-09)
+
+Session `396eb25b` (ZeroCheck's 20 + EndPiece's 4) came back at **24 sorries → 5**
+and was refused with `integration_blocked`. The refusal was **not** a proof
+failure. Its recorded error is
+
+```
+`lake env lean lean-wip/ZeroCheck.lean` failed: …/proofwidgets/.lake/build/lib/lean …
+```
+
+— a truncated `LEAN_PATH` dump, because `ZeroCheck.lean` imports `Ext`, and
+`lake build` produces no `.olean` for `lean-wip/`. That is the exact case
+`lean-wip/README.md` § "Working here" documents, with the detour recipe beside
+it; `aristotle_check.py` validates with a plain `lake env lean` and so cannot
+build any staged file that imports another staged file.
+
+Re-validated by hand with the detour, against the **now-proved** `Ext.lean`:
+**0 errors, 1 sorry** (`w_table_mle_eval_spec`). Integrated manually; the log
+carries an `integrated_manual` event saying so, because the helper did not do
+it and the provenance should not pretend otherwise.
+
+Two consequences worth keeping:
+
+* **A blocked integration is not evidence of a bad proof.** Both blocks so far
+  had different causes — `be85dad4` returned genuinely non-compiling proofs,
+  `396eb25b` returned good ones the validator could not build. Read the
+  recorded `error` before concluding anything, and note `task_status`:
+  `FAILED` and `OUT_OF_BUDGET` mean different things (the second is a partial
+  result worth keeping, and 19 of 24 obligations came back from it).
+* **Promoting `Ext.lean` makes the problem disappear**, rather than needing the
+  helper fixed: once `Ext` is a Lake root under `lean/`, `import Ext` resolves
+  from the built library and the plain `lake env lean` the helper runs is
+  correct. The fix and the next step are the same action. (Patching the helper
+  to use the detour is still worth doing for the general case — nothing
+  guarantees the next staged pair won't have the same shape.)
