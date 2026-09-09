@@ -481,3 +481,43 @@ pub fn gadget_mul_z(rows: usize, v: &PolyVec) -> PolyVec {
     }
     PolyVec::new(out)
 }
+
+/// `Gᵗ·a`, the transposed gadget matrix applied to a vector (spec: the
+/// `gadgetMatrix Φ base rows digits |>.transpose *ᵥ ·` of `rlinStmt`'s c3 and
+/// c4 rows, `RingSwitch/Rlin.lean:205`).
+///
+/// Mirrors `gadgetMatrix` transposed, applied to a vector.
+///
+/// `gadgetEntry base i j` is `base^(j % digits)` when `j / digits = i` and `0`
+/// otherwise (`Gadget/Core.lean:391`), so the transpose has **one nonzero per
+/// row**: entry `i·digits + e` of `Gᵗ·a` is `base^e · a[i]`, with no sum. The
+/// nested loop below is that, and it is why no `rows · digits` product is
+/// formed -- the output length is `rows · digits` by construction instead.
+///
+/// Computing this from the matrix's structure rather than materializing `G` is
+/// the convention [`crate::quadeval::j_mul`] already froze ("`jMatrix` itself
+/// is ~2.5 TB at these parameters and is never materialized"), and it is a
+/// faithful translation rather than an optimization for the reason that item
+/// gives: `gadgetMul` is *defined* as `gadgetMatrix *ᵥ v`, so the closed form
+/// computes the same function. At these parameters `G_{2^r}` alone would be
+/// `1024 × 8192` `Rq` = 64 GiB.
+///
+/// `digits` is an argument, where [`gadget_mul`]'s is `params::GADGET_DIGITS`
+/// and [`gadget_mul_z`]'s is `params::Z_DIGITS`. That is deliberate: the
+/// `R^lin` adapter applies this at *two* different digit counts in the same
+/// expression, and the toy-width oracle its freeze depends on needs the
+/// dimensions to travel (NOTES.md § "Decision: the `R^lin` adapter's genesis
+/// holds the reshaped form").
+pub fn gadget_transpose_mul(rows: usize, digits: usize, a: &PolyVec) -> PolyVec {
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < rows {
+        let mut e: usize = 0;
+        while e < digits {
+            out.push(a.get(i).scalar_mul(base_pow(e)));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
