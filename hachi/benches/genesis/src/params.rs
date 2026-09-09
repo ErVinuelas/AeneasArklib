@@ -565,3 +565,29 @@ pub const ROUND_NODE_INV: [u64; ROUND_NODES] = [
     426_935_230, 2_684_811_907, 3_628_443_679,
     2_643_632_670, 3_154_578_948, 2_585_773_906,
 ];
+
+// @genesis 2152e10 2026-09-09 — params::ROUND_NODES_ALPHA
+/// The number of Lagrange nodes the **linear** round message is sampled at:
+/// `roundDegAlpha + 1 = 3`, since `sumcheckPolyAlpha` is a product of two
+/// multilinears and so has per-round degree `roundDegAlpha = 2`
+/// (`ZeroCheck/Constraints.lean:90`). The nodes are `0, 1, 2`.
+///
+/// **Derived**, a literal for the reason [`ROUND_NODES`] is. Kept separate from
+/// [`ROUND_NODES`] rather than reusing a prefix of it, because the
+/// interpolation weights of a node *set* depend on the whole set: the weights
+/// for `{0, 1, 2}` are not the first three entries of [`ROUND_NODE_INV`], which
+/// belong to `{0, …, 32}`. Reusing them would be a silent wrong answer, which
+/// is why the two arrays are named and tested separately.
+pub const ROUND_NODES_ALPHA: usize = 3;
+
+// @genesis 2152e10 2026-09-09 — params::ROUND_NODE_INV_ALPHA
+/// The Lagrange interpolation weights for the nodes `0, 1, 2`: entry `i` is
+/// `(∏_{j ≠ i} (i - j))⁻¹` in `F_q`.
+///
+/// **Derived**, precomputed for the reason [`ROUND_NODE_INV`] is. The
+/// denominators are `(0-1)(0-2) = 2`, `(1-0)(1-2) = -1` and `(2-0)(2-1) = 2`,
+/// so the entries are `2⁻¹ = (q+1)/2`, `-1 = q-1` and `2⁻¹` again — checked
+/// against those denominators in `tests/sumcheck_semantics.rs` by the same
+/// `w_i · ∏_{j≠i}(i-j) = 1` test that checks the range side.
+pub const ROUND_NODE_INV_ALPHA: [u64; ROUND_NODES_ALPHA] =
+    [2_147_483_599, 4_294_967_196, 2_147_483_599];

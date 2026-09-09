@@ -45,6 +45,7 @@ use hachi::linalg::PolyVec;
 use hachi::params::{ROUND_NODES_ALPHA, ROUND_NODE_INV_ALPHA};
 use hachi::ringswitch::RlinStatement;
 use hachi::sumcheck::{alpha_public_table, eq_free_factor, eq_prefix, eq_suffix_table,
+                      nested_to_round_statement,
                       final_check, honest_compute_g, interpolate, round_check, round_node,
                       round_node_weights, round_out, round_poly_zero, round_value_zero,
                       round_values_zero, NestedZeroCheckStmt, RoundStatement};
@@ -629,4 +630,76 @@ fn the_three_equality_pieces_reconstruct_the_kernel() {
             );
         }
     }
+}
+
+// --- the sumcheck bridge (chain row 7) ------------------------------------
+
+/// `y(α)` by Horner, where the crate's `c_eval_at` is the specification's
+/// *power sum* `Σ aᵢ·αⁱ` with the power recomputed per term (`eval₂` is not
+/// Horner — `CompPoly/Univariate/Basic.lean:251`). Different association, same
+/// value, which is what makes it a reference.
+fn horner_ref(alpha: Ext4, p: &hachi::ring::Rq) -> Ext4 {
+    let n = p.len();
+    let mut acc = Ext4::ZERO;
+    let mut k = n;
+    while k > 0 {
+        k -= 1;
+        acc = acc * alpha + Ext4::from_base(p.coeff(k));
+    }
+    acc
+}
+
+/// **The bridge installs `(∅, 0, zcTargetAlpha)`.** The asymmetry is the row's
+/// whole content: the range target is the literal `0` because `H₀` vanishes
+/// identically, while the linear target is `n` rows of work. A translation that
+/// made them symmetric — both `0`, or both computed — would pass any test that
+/// only checked shapes, so this one checks the value.
+#[test]
+fn the_bridge_installs_zero_and_the_alpha_target() {
+    let mut r = Lcg::new(0x5A17_7100);
+    let n = 3usize;
+    let m0 = 4usize;
+    let m1 = 2usize;
+    let rlin = RlinStatement::new(r.next_poly_matrix(n, 2), r.next_poly_vec(n), 15);
+    let alpha = ext4(&mut r);
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
+
+    // the reference: sum over the rows of eq~(tau1, i) * y_i(alpha)
+    let mut expected = Ext4::ZERO;
+    for i in 0..n {
+        let mut w = Ext4::ONE;
+        for j in 0..m1 {
+            w = w * eq_ref(tau1[j], if (i >> j) & 1 == 1 { Ext4::ONE } else { Ext4::ZERO });
+        }
+        expected = expected + w * horner_ref(alpha, rlin.yvec().get(i));
+    }
+
+    let zc = NestedZeroCheckStmt::new(
+        rlin,
+        PolyVec::new(vec![]),
+        alpha,
+        tau0.clone(),
+        tau1.clone(),
+    );
+    let st = nested_to_round_statement(zc);
+
+    assert!(st.challenges().is_empty(), "the challenge prefix starts empty");
+    assert!(
+        st.target_zero().is_zero(),
+        "the range target is the literal 0 -- H_0 vanishes identically"
+    );
+    assert_eq!(
+        st.target_alpha(),
+        expected,
+        "the linear target is zcTargetAlpha, computed from the statement alone"
+    );
+    assert!(
+        !st.target_alpha().is_zero(),
+        "a zero alpha target here would make the asymmetry untestable"
+    );
+    // and the carried data survives
+    assert_eq!(st.zc().tau0().len(), m0);
+    assert_eq!(st.zc().tau1().len(), m1);
+    assert_eq!(st.zc().alpha(), alpha);
 }

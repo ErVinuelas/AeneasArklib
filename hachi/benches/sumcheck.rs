@@ -38,6 +38,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 /// table `1024`.
 const HALF: usize = 1024;
 
+/// The suffix-kernel width the `eq_suffix_table` row runs at: **REDUCED** from
+/// the round-0 real `m₀ - 1 = 25`. Chosen as `HALF.trailing_zeros()` so the
+/// table it builds is exactly the `eq̃` table the round rows consume.
+const SUFFIX_VARS: usize = 10;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -53,6 +58,10 @@ macro_rules! define_cases {
             use crate::support::{self, Mode};
 
             type PolyVec = hc::linalg::PolyVec;
+            type Rq = hc::ring::Rq;
+            type RlinStatement = hc::ringswitch::RlinStatement;
+            type RoundStatement = hc::sumcheck::RoundStatement;
+            type RoundMsg = hc::sumcheck::RoundMsg;
 
             // -- corpus -----------------------------------------------------
 
@@ -65,6 +74,44 @@ macro_rules! define_cases {
                     i += 1;
                 }
                 out
+            }
+
+            /// A round statement whose *carried* halves are minimal on purpose.
+            /// `honest_compute_g` reads `τ₀` and the challenges; `round_check`
+            /// reads the two targets; neither touches `M` or `yvec`, so the
+            /// `R^lin` statement is `1 × 1` rather than the `2.2 GiB` real one
+            /// (`benches/zerocheck.rs` § the statement builder). Sizing a
+            /// carried field up would measure the corpus, not the item.
+            fn round_stmt(seed: u64, m0: usize, drawn: usize) -> RoundStatement {
+                let degree = hc::params::RING_DEGREE;
+                let one = |k: u64| Rq::from_coeffs(&support::corpus(seed.wrapping_add(k), degree));
+                let rlin = RlinStatement::new(
+                    hc::linalg::PolyMatrix::new(vec![PolyVec::new(vec![one(1)])]),
+                    PolyVec::new(vec![one(2)]),
+                    hc::params::CHAIN_GAMMA,
+                );
+                let zc = hc::sumcheck::NestedZeroCheckStmt::new(
+                    rlin,
+                    PolyVec::new(vec![one(3)]),
+                    ext_table(seed.wrapping_add(4), 1)[0],
+                    ext_table(seed.wrapping_add(5), m0),
+                    ext_table(seed.wrapping_add(6), hc::params::M_ONE),
+                );
+                let t = ext_table(seed.wrapping_add(7), 2);
+                RoundStatement::new(zc, ext_table(seed.wrapping_add(8), drawn), t[0], t[1])
+            }
+
+            /// A round message, built from coefficients rather than from
+            /// `honest_compute_g`, so a `round_check`/`round_out` row measures
+            /// the check and not the prover.
+            fn round_msg(seed: u64) -> RoundMsg {
+                RoundMsg::new(
+                    UnivariatePoly::from_coeffs(ext_table(seed, hc::params::ROUND_NODES)),
+                    UnivariatePoly::from_coeffs(ext_table(
+                        seed.wrapping_add(1),
+                        hc::params::ROUND_NODES_ALPHA,
+                    )),
+                )
             }
 
             // -- digests (outside every timed region) -----------------------
@@ -95,6 +142,16 @@ macro_rules! define_cases {
                     i += 1;
                 }
                 acc
+            }
+
+            fn d_round_stmt(st: &RoundStatement) -> u64 {
+                let mut acc = support::mix(0, d_vec(st.challenges()));
+                acc = support::mix(acc, d_ext4(&st.target_zero()));
+                support::mix(acc, d_ext4(&st.target_alpha()))
+            }
+
+            fn d_bool(b: &bool) -> u64 {
+                support::mix(0, u64::from(*b))
             }
 
             fn d_polyvec(v: &PolyVec) -> u64 {
@@ -202,6 +259,128 @@ macro_rules! define_cases {
                 )
             }
 
+            /// One node of the **linear** summand: two folds and one product
+            /// per remaining cube point, against the range side's fold plus
+            /// `range_product`. The pair is what makes the `2b + 1` versus `3`
+            /// node counts legible.
+            pub fn round_value_alpha(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = ext_table(0x5A17_7010, 2 * half);
+                let a = ext_table(0x5A17_7011, 2 * half);
+                let node = hc::sumcheck::round_node(2);
+                support::run(
+                    m,
+                    || {
+                        hc::sumcheck::round_value_alpha(
+                            black_box(&w),
+                            black_box(&a),
+                            black_box(node),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
+            /// All three of its nodes -- `roundDegAlpha + 1`, not reduced.
+            pub fn round_values_alpha(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = ext_table(0x5A17_7012, 2 * half);
+                let a = ext_table(0x5A17_7013, 2 * half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_values_alpha(black_box(&w), black_box(&a)),
+                    d_vec,
+                )
+            }
+
+            /// And interpolated: the linear half of a round message.
+            pub fn round_poly_alpha(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = ext_table(0x5A17_7014, 2 * half);
+                let a = ext_table(0x5A17_7015, 2 * half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_alpha(black_box(&w), black_box(&a)),
+                    d_poly,
+                )
+            }
+
+            /// The equality kernel over the drawn challenges, at the **real**
+            /// `m₀`: `M_ZERO` products, one per round already played. Cheap and
+            /// unreduced, which makes it the one row here that needs no caveat.
+            pub fn eq_prefix(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let tau0 = ext_table(0x5A17_7016, m0);
+                let cs = ext_table(0x5A17_7017, m0);
+                support::run(
+                    m,
+                    || hc::sumcheck::eq_prefix(black_box(&tau0), black_box(&cs)),
+                    d_ext4,
+                )
+            }
+
+            /// The suffix kernel table, REDUCED: `2^{vars}` entries built by
+            /// doubling, at `vars = 10` against the round-0 real `2^25`.
+            pub fn eq_suffix_table(m: Mode<'_, '_>, vars: usize) -> u64 {
+                let tau0 = ext_table(0x5A17_7018, vars + 1);
+                support::run(
+                    m,
+                    || hc::sumcheck::eq_suffix_table(black_box(&tau0), black_box(0)),
+                    d_vec,
+                )
+            }
+
+            /// **The honest round message**, both summands with their equality
+            /// factors applied: what a prover actually computes per round.
+            /// REDUCED on the cube like the rows above; `τ₀` is sized so the
+            /// suffix table matches the folded tables.
+            pub fn honest_compute_g(m: Mode<'_, '_>, half: usize) -> u64 {
+                let vars = half.trailing_zeros() as usize + 1;
+                let st = round_stmt(0x5A17_7019, vars, 0);
+                let w = ext_table(0x5A17_701A, 2 * half);
+                let a = ext_table(0x5A17_701B, 2 * half);
+                support::run(
+                    m,
+                    || {
+                        hc::sumcheck::honest_compute_g(
+                            black_box(&st),
+                            black_box(&w),
+                            black_box(&a),
+                            black_box(0),
+                        )
+                    },
+                    d_poly_pair,
+                )
+            }
+
+            fn d_poly_pair(g: &RoundMsg) -> u64 {
+                support::mix(d_poly(g.g_zero()), d_poly(g.g_alpha()))
+            }
+
+            /// The verifier's round check: four polynomial evaluations against
+            /// the two targets. Real constants -- there is nothing to reduce.
+            pub fn round_check(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let st = round_stmt(0x5A17_701C, m0, 3);
+                let g = round_msg(0x5A17_701D);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_check(black_box(&st), black_box(&g)),
+                    d_bool,
+                )
+            }
+
+            /// The round's output map. It takes the statement **by value** (so
+            /// the extracted model stays straight-line), so each iteration
+            /// needs a fresh one: `run_batched` builds it in setup, outside the
+            /// timed region. Timing it any other way would measure
+            /// `round_stmt`, which is corpus.
+            pub fn round_out(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let g = round_msg(0x5A17_701E);
+                let a = ext_table(0x5A17_701F, 1)[0];
+                support::run_batched(
+                    m,
+                    || round_stmt(0x5A17_7020, m0, 3),
+                    |st| hc::sumcheck::round_out(st, black_box(&g), black_box(a)),
+                    d_round_stmt,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control, the same body as every other
@@ -234,6 +413,23 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_values_zero", round_values_zero, [HALF]);
     // @covers sumcheck::round_poly_zero
     bench_case!(c, "sumcheck/round_poly_zero", round_poly_zero, [HALF]);
+
+    // @covers sumcheck::round_value_alpha
+    bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);
+    // @covers sumcheck::round_values_alpha
+    bench_case!(c, "sumcheck/round_values_alpha", round_values_alpha, [HALF]);
+    // @covers sumcheck::round_poly_alpha
+    bench_case!(c, "sumcheck/round_poly_alpha", round_poly_alpha, [HALF]);
+    // @covers sumcheck::eq_prefix
+    bench_case!(c, "sumcheck/eq_prefix", eq_prefix, [hachi::params::M_ZERO]);
+    // @covers sumcheck::eq_suffix_table
+    bench_case!(c, "sumcheck/eq_suffix_table", eq_suffix_table, [SUFFIX_VARS]);
+    // @covers sumcheck::honest_compute_g
+    bench_case!(c, "sumcheck/honest_compute_g", honest_compute_g, [HALF]);
+    // @covers sumcheck::round_check
+    bench_case!(c, "sumcheck/round_check", round_check, [hachi::params::M_ZERO]);
+    // @covers sumcheck::round_out
+    bench_case!(c, "sumcheck/round_out", round_out, [hachi::params::M_ZERO]);
 }
 
 criterion_group! {

@@ -95,12 +95,30 @@ moment of the copy:
 
   Then freeze the optimized form, say so in `NOTES.md`, and **put the naive form
   in the tests at a toy width instead** — that is what recovers the independent
-  oracle the freeze would otherwise lose, and it is not optional. Travelled once,
-  for Stage 3 target 5 (the sumcheck): `(2b+1)^{m₀}` monomials is `3.9·10^7`
+  oracle the freeze would otherwise lose, and it is not optional.
+
+  **Travelled twice.** First for Stage 3 target 5 (the sumcheck): `(2b+1)^{m₀}` monomials is `3.9·10^7`
   already at `m₀ = 5` and `1.4·10^12` at `m₀ = 8` with `b = 16`, so only
   `b = 3, m₀ = 5` runs — a width at which the operation is no longer itself.
   What follows for readers of the ledger: a target-5 `vs genesis` figure measures
   distance from the *dense* form, never from the specification's shape.
+
+  Stage 5's `R^lin` adapter (2026-09-09): `rlinStmt`'s c4 block is written
+  `(matMul G2m J).transpose *ᵥ a`, and that product materializes at
+  `1024 × 40960` `Rq` = **320 GiB** where the answer is a 320 MiB vector — a
+  1024× overhead, one factor per row of `G` the contraction discards. A
+  *memory* wall, so its removal condition is **not** a faster `ring::mul`.
+  Frozen form: the associativity reshape `Jᵀ(Gᵀa)`, an identity rather than an
+  algorithm change.
+
+  The two instances differ in one way worth carrying. Target 5's naive form
+  only runs at a width where the operation stops being itself, so its toy-width
+  oracle tests something else and the gap is stated rather than closed. The
+  `R^lin` naive form is dimension-parametric and runs outright at
+  `2^m = 4, md = 2, zd = 2`, so its oracle is faithful — which makes the
+  "arities travel as arguments" convention **load-bearing rather than
+  stylistic**: hard-wiring the `params` constants into the reshaped body would
+  delete the only oracle the freeze gets.
 
 If a defect slips past both and is caught at birth — before any run has been
 reported against the item — the honest repair is an immediate re-freeze: replace

@@ -97,6 +97,83 @@ allocation; measured through `to_polynomial`, which calls it per entry."""
 # bench files, and the semantics they exercised run on demand via the
 # `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
 
+"quadeval::PolyEvalStatement" = """
+The composed chain's input statement: a four-field struct, its constructor and
+its four accessors. O(1) by inspection, the `RlinStatement` class -- a criterion
+run would measure the harness. Its content is measured wherever
+`to_quad_eval_statement` is."""
+
+"quadeval::to_quad_eval_statement" = """
+Two `evalsplit::monomial_basis` calls, one per point half. Each builds `2^10`
+entries as a product of `10` factors, so `2 * 1024 * 10 = 20 480` ring
+products: **~29 s per iteration** at `ring/mul/1024 = 1.43 ms` measured
+(`bench-report-20260908-t456-birth.json`). Excluded per the Fig. 9 policy
+exception (header) until a sub-quadratic `ring::mul` lands -- and note the
+honest arithmetic of that condition: Karatsuba's 2-4x leaves this at ~8 s,
+still not a criterion row. What it actually needs is the ~30x an NTT would
+give, which q = 2^32 - 99 forbids at radix 2 (NOTES.md § "The parameters forbid
+a radix-2 NTT")."""
+
+"sumcheck::nested_to_round_statement" = """
+`zc_target_alpha` plus a move: the range target is the literal `0`, the
+challenge prefix is `Vec::new()`, and the carried statement is moved rather
+than copied, so the only work in the row is that one call. It is measured under
+its own name by `zerocheck/zc_target_alpha` (the item belongs to `zerocheck`,
+which is where its row lives), so a row here would time the same `n` rows
+twice. The `honest_compute_y` precedent."""
+
+"sumcheck::NestedZeroCheckStmt" = """
+The zero-check statement carrier: five fields, a constructor, five accessors.
+O(1) by inspection."""
+
+"sumcheck::RoundMsg" = """
+A pair of `UnivariatePoly` with a constructor and two accessors. O(1) by
+inspection."""
+
+"sumcheck::RoundStatement" = """
+The per-round statement carrier: four fields, a constructor, four accessors.
+O(1) by inspection. Note `round_out`, which *builds* one, IS benched -- through
+`run_batched`, so the construction sits in setup rather than in the timed
+region."""
+
+"sumcheck::eq_free_factor" = """
+Two `Ext4` coefficients: `(1 - t)` and `t + t - 1`. O(1) by inspection, the
+`ring::len`/`ring::coeff` class of the header."""
+
+"sumcheck::alpha_public_table" = """
+`2^m0` entries, each one `zerocheck::alpha_public_evals`. At the pinned
+`M_ZERO = 26` that is `67 108 864` calls, and `alpha_public_evals` is itself
+`n` rows of `m_alpha_tilde` -- so this is `alpha_contract`'s wall one level up,
+infeasible even REDUCED. The tensor split of `A~` that avoids materializing it
+is strategy S6 of the target-5 brief.
+
+Removal condition: that tensor split landing (a `perf-loop` accept), not a
+faster `ring::mul` -- this wall is `2^m0`, not multiplication."""
+
+"sumcheck::final_check" = """
+Builds `alpha_public_table` and evaluates its multilinear extension, so it
+inherits that item's `2^m0` wall verbatim; the two `Ext4` comparisons and the
+`range_product` beside it are free by comparison. Same removal condition."""
+
+"sumcheck::honest_compute_y" = """
+`zerocheck::w_table_mle_eval` at the sumcheck point, and nothing else -- the
+specification's `honestComputeY` is literally that call
+(`Sumcheck/FinalEval.lean:246`). Measured one level up by
+`zerocheck/w_table_mle_eval`, so a row here would time the same work under a
+second name and invite a `vs genesis` comparison between two rows that are the
+same function. The `alpha_defect`/`h_alpha_evals` precedent."""
+
+"sumcheck::round_loop" = """
+`m0` rounds, each an `honest_compute_g` over the full folded tables plus two
+`eval_mle_layer` folds, starting from `c_w_table_mle` and `alpha_public_table`.
+So it carries both the `2^m0` table wall and `M_ZERO = 26` iterations of the
+per-round cost: infeasible even REDUCED, and the sum of rows that are already
+measured or already excluded individually.
+
+Removal condition: the same tensor split as `alpha_public_table`, plus a
+REDUCED-shape decision about what a whole-protocol row would even mean -- a
+27-round loop at a toy cube measures the loop overhead, not the protocol."""
+
 "zerocheck::below_two_pow" = """
 O(m) by inspection and m is a *point-count exponent*: `m1 = 3` at the pinned
 parameters, `m0 = 26` at the widest, so the loop body runs at most 26 times and

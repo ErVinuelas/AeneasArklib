@@ -4237,3 +4237,279 @@ State after this: `lean/` holds twelve audited modules; `lean-wip/` holds
 thirty-two this morning. `make spec-check` reads 134 mirrored, **111 stated**,
 23 owed: the bridge row's two new items and target 5's twenty-one, both
 awaiting their own passes.
+
+## The freeze that opened the bench gate (2026-09-09)
+
+`make bench-check` is **green** for the first time since target 5's Rust
+landed: 260 frozen items verified against git, the candidate slot null across
+11 modules, and coverage at **0 unaccounted for** (134 mirrored, 72 benched, 62
+excluded). `make run-bench` is therefore possible again, which is the
+prerequisite for the `ring::mul` campaign.
+
+Frozen: 41 items — `params`'s two α-side round constants, the bridge row's
+seven `quadeval` items, and target 5's thirty-two. Eight new bench cases and
+ten new exclusions.
+
+### Three things the freeze turned up
+
+**`bench-stamp` does not re-point a stale stamp.** After this morning's
+re-freeze the three repaired items still carried
+`// @genesis 1e57c54 2026-09-08`, and `bench-stamp` had already run — it fills
+in *missing* annotations and never asks whether an existing one still holds.
+`check-genesis` caught it (*"frozen text do NOT match zerocheck.rs at
+1e57c54"*), so the gate is sound; the tool just cannot repair what the gate
+reports. The fix is to **delete the stale lines and re-run `bench-stamp`**,
+which re-derives them from git — `b95b7ec 2026-09-09` here — rather than
+hand-typing a sha, which is the whole point of the mechanism ("a hand-typed
+stamp is not a stamp"). Worth teaching `stamp-genesis` to re-point, since a
+faithfulness re-freeze will happen again.
+
+**The two-commit choreography collapses when the src text is already
+committed.** `op-genesis` prescribes commit 1 (src + genesis) → `bench-stamp` →
+commit 2 (stamps). Here the *src* side of all 41 items had landed in earlier
+commits, so `stamp-genesis` found each item's text in git immediately and
+stamped all 44 in one pass, pre-commit. That is not a loophole: the stamp
+asserts "the frozen text equals `hachi/src` at this sha", and `check-genesis`
+verifies it against git either way. The dance exists for the case where the
+freeze and the source arrive together.
+
+**`BETA_SQ` is frozen at its pre-τ=5 value, and that is correct.** My first
+freeze pass matched items by signature *line* and so tried to append `BETA_SQ`,
+whose value differs between `hachi/src` (`41_976_510_894_886_092_800`, the
+ArkLib #847 correction) and genesis (`163_966_054_471_565_312`). Genesis is
+append-only and never follows a change, so the old value standing there is the
+baseline doing its job. Match frozen items by *name*, never by signature text —
+a re-freeze aside, any difference in the text is the point of the file.
+
+### The exclusion arithmetic, stated honestly
+
+`quadeval::to_quad_eval_statement` is two `monomial_basis` calls =
+`2 · 1024 · 10 = 20 480` ring products = **~29 s per iteration** at the
+measured `ring/mul/1024 = 1.43 ms`. Its removal condition says "until a
+sub-quadratic `ring::mul` lands", and the entry now spells out what that is
+worth: Karatsuba's 2–4× leaves it at ~8 s, still not a criterion row. What it
+needs is the ~30× an NTT would give, which `q = 2^32 − 99` forbids at radix 2.
+Same honesty applied to `alpha_public_table`, `final_check` and `round_loop`,
+whose wall is `2^m₀` and **not** multiplication — their removal condition is
+the tensor split (S6 of the target-5 brief), and conflating the two walls is
+what the exclusions header warns against.
+
+### And the MODULES rider fired for real
+
+`ledger_check.py`'s `MODULES` had drifted **three modules behind**
+`harness.py`'s — `endpiece`, `zerocheck` and `sumcheck` onboarded while that
+set was not touched. Nothing catches it: the two lists are compared only by a
+human reading both, and the drift is harmless until a ledger row is written,
+at which point it silently rejects or mis-attributes rows for three modules.
+Fixed, with the failure recorded in the file's own comment. The first ledger
+row is `ring::mul`'s, which is next — so this would have fired then.
+
+## Stage 5's remaining rows, sized (2026-09-09)
+
+Reading the three un-onboarded adapter rows of `Composition.lean:244` before
+writing any of them turned two of the three into much less work than the row
+count suggested, and the third into a decision.
+
+### Row 7, the sumcheck bridge — done
+
+`sumcheck::nested_to_round_statement` (spec: `nestedToRoundStatement`,
+`Sumcheck/Bridge.lean:49`). Zero-round and pure like every adapter, so the
+statement map *is* the row.
+
+**Its content is an asymmetry.** The range target opens at the literal `0` —
+`H₀` vanishes identically on the cube — while the linear target opens at
+`zcTargetAlpha`, which is `n` rows of work the verifier does from the statement
+alone. A translation that made the two symmetric (both `0`, or both computed)
+would pass any test that checked only shapes, so
+`the_bridge_installs_zero_and_the_alpha_target` checks the value, against an
+independent reference: `eq̃` by the bit product and `yᵢ(α)` by **Horner**, where
+the crate's `c_eval_at` is the specification's power sum with the exponent
+recomputed per term. Frozen, excluded by name (it is `zc_target_alpha` plus a
+move, measured under its own name in `benches/zerocheck.rs`), 167 tests, strict
+clippy clean.
+
+### Row 5, the batching bridge — needs no Rust at all
+
+`batchVerifierPureForm`'s statement map is **`id`**:
+`verify := fun stmt _ => stmt` (`ZeroCheck/Batch.lean:267`). The row is a
+zero-round `ReduceClaim` at `mapStmt := id`, so nothing is computed and nothing
+is reshaped; its whole content is the *relation* `relBatched` and the pull-back
+`mem_relLift_of_relBatched`, both proof-side.
+
+That **resolves erasure item 14**: `relBatched` was recorded as owed to the
+batch row, and the batch row turns out to have no computable content to hang it
+on. It is a spec-layer obligation for Stage 5's proof half, not a translation.
+
+### Row 3, the `R^lin` adapter — its trivial translation cannot be written
+
+`rlinStmt` (`RingSwitch/Rlin.lean:205`) assembles the Eq. (20) block matrix,
+five row blocks over three column blocks, with `rlinCols = 8192 + 8192 + 40960
+= 57 344` — which is exactly `μ₀`, so the arithmetic confirms the pin. Two
+walls, and they are different in kind:
+
+* **`M` itself is 2.2 GiB** (`5 × 57 344` `Rq` at `d = 1024`), matching the
+  target-4 brief's note. Large, but holdable; it forces a REDUCED test and an
+  excluded bench row, nothing more.
+* **the `c4` block is not holdable at all.** It needs
+  `(G_{2^m} · J)ᵀ · a`, and `matMul G2m J` is `1024 × 40 960` `Rq` =
+  **320 GiB** materialized. There is no width at the pinned parameters where
+  the specification's own shape runs.
+
+The reshape that saves it is associativity: `(G J)ᵀ a = Jᵀ (G ᵀ a)`, whose
+intermediate is a vector of `8192` `Rq` = **64 MiB**. So the row is
+translatable — but only in a form that is *not* the trivial translation of the
+definition, which is precisely target 5's situation. It therefore needs
+`op-genesis`'s narrow documented exception and its three-part test, and the
+decision belongs to the user, not to the translating session. Recording it
+rather than quietly taking the reshape is the whole point of that rule: a
+freeze that silently contains an optimization zeroes out its own gain forever.
+
+One further flag for whoever takes the row: `rlinStmt` is `noncomputable`
+upstream, and ArkLib says why — "only because `rlinStmt` is (it is assembled
+through the `stack`/`unstack` reshapes); nothing probabilistic or classical
+enters the protocol". So the noncomputability is bookkeeping, not a barrier,
+but it means the usual "state against a computable definition" convention needs
+the same care the α side needed (`alphaDefect` over `hAlphaEvals`).
+
+## Decision: the `R^lin` adapter's genesis holds the reshaped form (2026-09-09)
+
+Approved by the user. This is the **second** use of `op-genesis`'s narrow
+exception to the freeze-the-naive-form rule, after target 5's dense form. Its
+three-part test, answered:
+
+**1. The naive form cannot run at any width that still resembles the
+operation.** `rlinStmt`'s c4 block is `(G_{2^m}·J)ᵀ·a`, written upstream as a
+literal matrix product (`ArkLib.Lattices.matMul G2m J`,
+`RingSwitch/Rlin.lean:205`). At the pinned parameters:
+
+```
+G  1,024 x  8,192
+J  8,192 x 40,960
+G·J materialized = 41,943,040 Rq = 320 GiB
+```
+
+The **answer** is a vector of `40 960` `Rq` = 320 MiB. The **recipe as
+written** costs 1,024× that, one factor for every row of `G` the contraction
+against `a` immediately discards. Note this is a *memory* wall, not
+`ring::mul`'s time wall — the exclusions header's standing warning against
+conflating the two applies, and its removal condition is therefore **not** a
+faster multiplication.
+
+**2. So the `case!` digest cannot be computed either.** The digest requires one
+Digest-mode execution of the item. A body that allocates 320 GiB does not
+execute once, so no bench case can be *built* for it — not merely none
+registered.
+
+**3. And it would carry spec and proof debt for a body that never runs.**
+`rlin_stmt` is a mirrored item; it would need a `_spec` against `rlinStmt`,
+proved about code no test and no bench ever reaches.
+
+The frozen form is therefore the associativity reshape
+`(G·J)ᵀa = Jᵀ(Gᵀa)` — an *identity*, not an algorithm change — whose
+intermediate is `8 192` `Rq` = 64 MiB.
+
+### Why this exception is cheaper than target 5's, and what that obliges
+
+Target 5's naive form only ran at `b = 3, m₀ = 5`, "a width at which the
+operation is no longer itself", so its toy-width oracle tests a *different*
+operation and the gap had to be stated rather than closed. **Row 3's naive form
+is dimension-parametric**: at `2^m = 4, md = 2, zd = 2` the product `G·J` is
+`4 × 16 = 64` `Rq` and the literal `matMul` runs outright. So the mandatory
+oracle — "put the naive form in the tests at a toy width instead", which the
+exception says is *not optional* — is genuinely available here, testing the
+same operation at a smaller size.
+
+That imposes a design constraint on whoever writes the row, and it is the
+reason to record this before the code exists: **the arities must travel as
+arguments**, as target 4's and 5's do. Hard-wiring `params::MESSAGE_ROWS` and
+friends into the reshaped functions would make the toy-width comparison
+impossible and would destroy the only oracle this freeze gets — the same
+mistake that made `MlPoly::eval_split` untestable at toy width and forced
+`tests/quadeval_semantics.rs` to spell the split form out by hand.
+
+### What a reader of a number from this row must know
+
+A `vs genesis` figure for the `R^lin` adapter measures distance from the
+**reshaped** form, never from the specification's literal shape. The 1,024×
+that associativity already bought is inside the baseline and reads as zero, by
+decision. The module header carries this note where the code lands, the same
+way `src/sumcheck.rs`'s does.
+
+## The `R^lin` adapter, translated (2026-09-09)
+
+`op-genesis` stages 1–3 for chain row 3. Eleven items:
+`gadget::gadget_transpose_mul` and `quadeval::{rlin_cw, rlin_ct, rlin_cz,
+rlin_cols, rlin_rows, unflatten, tensor_g_matrix, stack, unstack, rlin_stmt}`.
+**173 tests**, strict clippy clean. Stages 4–7 (extraction, freeze, cases,
+commits, birth run) are queued; see the ordering note at the end.
+
+### Its Rust home is `quadeval.rs`, and the layering forces that
+
+The ArkLib home is `RingSwitch/Rlin.lean`, and the house convention has been
+that the ArkLib home picks the module. Not here: `stack`/`unstack` are maps on
+`QuadEvalResponse`, and `lib.rs` declares `ringswitch` *below* `quadeval`. The
+adapter consumes QuadEval's output and produces a `ringswitch::RlinStatement`,
+so it can only sit on the QuadEval side of that boundary. Layering beats
+provenance when they disagree.
+
+### The second wall dissolved on inspection
+
+c5's block is `matMul pp.innerMatrix J`, and the naive product is
+`40 960 × 8 192 = 335 544 320` ring multiplications — **5.5 days** at the
+measured `ring/mul/1024`. That looked like a second infeasibility needing its
+own exception, of a different kind from c4's (time, not memory: the *result* is
+only 320 MiB).
+
+It is not. `J`'s columns have exactly one nonzero each, so
+`(A·J)[p][k·zd+f] = A[p][k]·base^f` — which is precisely `Jᵀ` applied to row
+`p` of `A`. That is the convention `quadeval::j_mul` already froze
+("`jMatrix` itself is ~2.5 TB at these parameters and is never materialized"),
+and it is faithful rather than optimized for the reason that item gives:
+`gadgetMul` is *defined* as `gadgetMatrix *ᵥ v`, so reading the structure
+computes the same function. **The same helper therefore serves c3, c4 and c5**,
+and the approved exception covers only what it was approved for: c4's
+associativity reorder. Worth recording because the 5.5-day figure is alarming
+and the resolution is not obvious from it.
+
+### The oracle needed *unequal* digit counts, and mutation found that
+
+The mandatory toy-width test builds `G·J` naively and compares `(G·J)ᵀa`
+against the frozen `Jᵀ(Gᵀa)`. First written at `messageDigits = zDigits = 2`,
+where a mutant that **swaps the two digit counts** passed: with the counts
+equal the two transposed applications commute, so the test could not see the
+ordering at all. Re-run at `messageDigits = 2, zDigits = 3` it dies.
+
+That is the **third** instance of one pattern today, and it is worth stating as
+a rule: **equal parameters hide ordering bugs, so a toy width must make the
+parameters it is testing distinct.** The other two were the sumcheck cube guard
+(every case had `n ≤ 2^m₁`, so the guard's upper boundary was never exercised,
+and an off-by-one bound survived 24 tests) and the bridge row's crossed point
+halves (`ML_VARS_LOW = ML_VARS_HIGH = 10`, so a swap typechecks, runs, and
+silently transposes). In all three the fix was to choose unequal toy values;
+in none of them would a larger test count have helped.
+
+### Two smaller things
+
+`quadeval::tensor_g` is params-locked to `GADGET_DIGITS`, so the c5 identity
+`tensorGMatrix c *ᵥ flatten x = tensorG c x` (upstream's `tensorGMatrix_mulVec`)
+can only be checked at that digit count. A live demonstration of why the new
+items take their arities as arguments — a frozen item's hard-wired dimension
+narrows every future test that has to agree with it.
+
+`rlin_stmt` carries `#[allow(clippy::too_many_arguments, too_many_lines)]` with
+the reasons written out: eleven arguments because the six dimensions must
+travel for the oracle to exist, and 118 lines because five row blocks over
+three column blocks with **no closures** (Aeneas does not support them) means
+every block is its own explicit loop with its zero padding written out.
+
+### The ordering that stopped this at stage 3
+
+A bench case for a new item cannot compile before the item is frozen: the
+`define_cases!` macro instantiates every case for `now`, `genesis` *and*
+`candidate`, so `hc::gadget::gadget_transpose_mul` is an unresolved name in the
+`hachi-genesis` crate until the freeze lands. And the freeze must follow the
+extraction pass, because a ceiling failure there reshapes the translation —
+i.e. changes the text that would have been frozen. So stages 4 and 5 are
+genuinely sequential, and the eleven items sit uncovered (`coverage` reports
+them) until the extraction runs. That is the expected mid-onboarding state, not
+a gap.

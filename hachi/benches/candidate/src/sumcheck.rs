@@ -730,3 +730,33 @@ pub fn round_loop(
     }
     Some(current)
 }
+
+// ---------------------------------------------------------------------------
+// The sumcheck bridge (chain row 7)
+// ---------------------------------------------------------------------------
+
+/// The bridge into the paired sumcheck: install the empty challenge prefix and
+/// the initial target pair (spec: `nestedToRoundStatement`,
+/// `Sumcheck/Bridge.lean:49`).
+///
+/// Mirrors `nestedToRoundStatement`.
+///
+/// Zero-round and pure, like the other three adapter rows of
+/// `Composition.lean:244`, so the statement map *is* the row -- there is no
+/// check to translate.
+///
+/// **The range side's initial target is the literal `0`, and that is the
+/// content of the row.** `H₀` must vanish identically on the cube, so the
+/// range sumcheck opens at zero; the linear side opens at `zcTargetAlpha`,
+/// which the verifier computes from the statement alone. Reading the two as
+/// symmetric is the mistake this comment exists to prevent: one is a constant
+/// the specification fixes, the other is `n` rows of work.
+///
+/// Takes the zero-check statement **by value** for the reason
+/// [`round_out`] does: the specification builds a statement of the next index,
+/// and a `clone` of the carried public data would be a trait call with no
+/// extracted model. The borrow for `zc_target_alpha` ends before the move.
+pub fn nested_to_round_statement(zc: NestedZeroCheckStmt) -> RoundStatement {
+    let target_alpha: Ext4 = crate::zerocheck::zc_target_alpha(zc.rlin(), zc.alpha(), zc.tau1());
+    RoundStatement::new(zc, Vec::new(), Ext4::ZERO, target_alpha)
+}

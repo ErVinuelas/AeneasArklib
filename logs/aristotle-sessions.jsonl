@@ -63,3 +63,8 @@
 {"at":"2026-09-09T16:20:57Z","event":"checked","percent_complete":40,"session_id":"982bd0af-86d8-4289-973c-e61626c90856","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-09T16:26:49Z","event":"checked","percent_complete":59,"session_id":"982bd0af-86d8-4289-973c-e61626c90856","state":"running","task_status":"IN_PROGRESS"}
 {"after_sorries":0,"at":"2026-09-09T16:38:49Z","before_sorries":11,"event":"integrated_complete","session_id":"982bd0af-86d8-4289-973c-e61626c90856","state":"closed","task_status":"COMPLETE"}
+{"at":"2026-09-09T16:58:38Z","event":"submitted","project_id":"bba6a145-ca86-4573-8719-b3894f1c0aca","session_id":"2266ab16-0b2f-48fa-a5b4-62907e72f99a","state":"running","targets":[{"path":"hachi/lean-wip/ZeroCheck.lean","project_root":"hachi","sha256":"5b7148a7d9be7983f51ef14f03ba998f1aa1049c8c4114e2aa147c54b4280c7f","sorries":9},{"path":"hachi/lean-wip/EndPiece.lean","project_root":"hachi","sha256":"dfe4e829e48156b2acdc0da2e5b545a763bb1faaecf478d60e28d709b7f38cc9","sorries":4}],"total_sorries":13}
+{"at":"2026-09-09T17:07:58Z","event":"checked","percent_complete":3,"session_id":"2266ab16-0b2f-48fa-a5b4-62907e72f99a","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-09T17:28:41Z","event":"checked","percent_complete":34,"session_id":"2266ab16-0b2f-48fa-a5b4-62907e72f99a","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-09T17:40:24Z","event":"checked","percent_complete":34,"session_id":"2266ab16-0b2f-48fa-a5b4-62907e72f99a","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-09T17:45:00Z","event":"checked","percent_complete":34,"session_id":"2266ab16-0b2f-48fa-a5b4-62907e72f99a","state":"running","task_status":"IN_PROGRESS"}

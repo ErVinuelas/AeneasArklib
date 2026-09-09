@@ -51,12 +51,17 @@ POSITIONAL_RE = re.compile(
 
 # The crate's modules, bottom-up (hachi/src/lib.rs). A criterion case is named
 # `<module>/<op>`, and a ledger row's `op` is that name or the bare module.
-# Keep in sync with `hachi/benches/harness.py § MODULES`: `evalsplit` was added
+# Keep in sync with `hachi/benches/harness.py § MODULES`. It drifted three
+# modules behind between 2026-09-07 and 2026-09-09 -- `endpiece`, `zerocheck`
+# and `sumcheck` onboarded while this set was not touched -- which nothing
+# caught, because the two lists are only compared by a human reading both. The
+# drift is harmless until a ledger row is written and then it silently rejects
+# or mis-attributes rows for three modules. `evalsplit` was added
 # here when its promotion (2a0168f) reached the bench layer, and `ringswitch`
 # when Stage 3 target 1 onboarded `rho_digits` into a module of its own, and
 # `quadeval` when target 2 onboarded the QuadEval fold.
 MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
-           "quadeval"}
+           "quadeval", "endpiece", "zerocheck", "sumcheck"}
 
 CANDIDATE_VERDICTS = {
     "accepted", "rejected-slower", "rejected-noise", "rejected-mixed",
