@@ -133,6 +133,467 @@ def RepResp (r : quadeval.QuadEvalResponse)
     toBlocks (blocks := 2 ^ 10) (width := 1 * 8) r.inner_dec = sr.innerDec ∧
     toVec (k := 2 ^ 10 * 8 * 5) r.z_dec = sr.zDec
 
+/-! ## Target-local helpers
+
+Six extracted folds have no spec in the promoted files: `PolyVec::zeros` and
+`PolyVec::copy`, the `carrier` and `tensor_g` loops, the `honest_z` loop and the
+pass-through loop of `honest_compute_resp`. Their loop invariants are
+`lean/Scheme.lean`'s scaffold, unchanged. Nothing in this section is part of the
+file's public surface; the eleven obligations below are. -/
+
+/-- A guarded `if` whose `else` rejects: the decision is the conjunction of the
+guard and the decision the `then` branch makes. This is the shape both output
+relations end in -- five nested flags and then the range block. -/
+theorem ite_reject_spec {c : Prop} [Decidable c] {P R : Prop} (hc : c ↔ P)
+    (m : Result Bool) (hm : m ⦃ b => b = true ↔ R ⦄) :
+    (if c then m else ok false) ⦃ b => b = true ↔ (P ∧ R) ⦄ := by
+  by_cases h : c
+  · rw [if_pos h]
+    apply spec_mono hm
+    intro b hb
+    rw [hb]
+    exact (and_iff_right (hc.mp h)).symm
+  · rw [if_neg h, WP.spec_ok]
+    constructor
+    · intro hb; exact absurd hb (by simp)
+    · rintro ⟨hp, _⟩; exact absurd (hc.mpr hp) h
+
+/-- `gadget::gadget_mul_z` (`lean/QuadEval.lean:414`) with the row count given as
+an `ℕ` rather than read off the `usize`. -/
+theorem gadget_mul_z_spec' {rows : ℕ} (n : Std.Usize) (v : linalg.PolyVec)
+    (hn : n.val = rows) (hv : WfVec (rows * 5) v) (hmax : 5 * rows ≤ Usize.max) :
+    gadget.gadget_mul_z n v
+      ⦃ z => WfVec rows z ∧ toVec (k := rows) z
+        = gadgetMul Φ (16 : ZMod q) (toVec (k := rows * 5) v) ⦄ := by
+  subst hn
+  exact QuadEval.gadget_mul_z_spec n v hv hmax
+
+/-- The loop of `PolyVec::zeros`. -/
+theorem poly_vec_zeros_loop_spec (k : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (hi : i.val ≤ k.val) (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
+    (hval : ∀ j, j < i.val → toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 0) :
+    linalg.PolyVec.zeros_loop k out i
+      ⦃ z => z.val.length = k.val ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < k.val → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
+  rw [linalg.PolyVec.zeros_loop]
+  apply loop.spec_decr_nat (fun s => k.val - s.2.val)
+    (fun s => s.2.val ≤ k.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [linalg.PolyVec.zeros_loop.body]
+    by_cases hlt : i1 < k
+    · rw [if_pos hlt]
+      step with RqBridge.zero_spec as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = k.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, by intro j hj; exact hval1 j (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- `PolyVec::zeros` is the all-zero vector of the requested length. Stated
+entrywise rather than as a `toVec` equality: the length is a `usize`, and the
+callers below read it at an `ℕ` the `usize` is only propositionally equal to. -/
+theorem poly_vec_zeros_spec (n : Std.Usize) :
+    linalg.PolyVec.zeros n
+      ⦃ z => z.val.length = n.val ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < n.val → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
+  rw [linalg.PolyVec.zeros]
+  simp only [bind_ok_id]
+  exact poly_vec_zeros_loop_spec n (alloc.vec.Vec.new ring.Rq) 0#usize
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+
+/-- The loop of `PolyVec::copy`. -/
+theorem poly_vec_copy_loop_spec {k : ℕ} (v : linalg.PolyVec) (n : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (hv : WfVec k v) (hn : n.val = k) (hi : i.val ≤ n.val)
+    (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
+    (hval : ∀ j, j < i.val → toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+      = toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) :
+    linalg.PolyVec.copy_loop v n out i
+      ⦃ z => z.val.length = k ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < k → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+          = toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [linalg.PolyVec.copy_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [linalg.PolyVec.copy_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hiv : i1.val < v.val.length := by rw [hv.1, ← hn]; scalar_tac
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by rw [hr]; exact hv.2 _ (List.getElem_mem hiv)
+      step with RqBridge.copy_spec r hWr as ⟨r1, hWr1, hr1⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr1
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr1, hr, hlen1, List.getD_eq_getElem _ _ hiv]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = k := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, by intro j hj; exact hval1 j (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- `PolyVec::copy` represents the same vector. -/
+theorem poly_vec_copy_spec {k : ℕ} (v : linalg.PolyVec) (hv : WfVec k v) :
+    linalg.PolyVec.copy v ⦃ z => WfVec k z ∧ toVec (k := k) z = toVec (k := k) v ⦄ := by
+  rw [linalg.PolyVec.copy]
+  simp only [bind_ok_id]
+  apply spec_mono (poly_vec_copy_loop_spec v (alloc.vec.Vec.len v)
+    (alloc.vec.Vec.new ring.Rq) 0#usize hv (by simp [hv.1]) (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  simp only [toVec]
+  exact hzval i.val i.isLt
+
+/-- The loop of `quadeval::carrier`: entry `j` already written is the carrier
+entry of block `j`. -/
+theorem carrier_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (s : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+    (i : Std.Usize) (ha : WfVec rows a) (hs : WfBlocks blocks (rows * 8) s)
+    (hmax : 8 * rows ≤ Usize.max) (hn : n.val = blocks) (hi : i.val ≤ n.val)
+    (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
+    (hval : ∀ j, j < i.val → toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+      = Hachi.carrierEntry Φ (16 : ZMod q) (toVec (k := rows) a)
+          (toVec (k := rows * 8) (s.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
+    quadeval.carrier_loop a s n out i
+      ⦃ z => z.val.length = blocks ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < blocks → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+          = Hachi.carrierEntry Φ (16 : ZMod q) (toVec (k := rows) a)
+              (toVec (k := rows * 8) (s.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
+  rw [quadeval.carrier_loop]
+  apply loop.spec_decr_nat (fun t => n.val - t.2.val)
+    (fun t => t.2.val ≤ n.val ∧ t.1.val.length = t.2.val ∧ (∀ y ∈ t.1.val, Wf y) ∧
+      ∀ j, j < t.2.val → toRq (t.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = Hachi.carrierEntry Φ (16 : ZMod q) (toVec (k := rows) a)
+            (toVec (k := rows * 8) (s.val.getD j (alloc.vec.Vec.new ring.Rq))))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [quadeval.carrier_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have his : i1.val < s.val.length := by rw [hs.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec (rows * 8) pv := by
+        rw [hpv]; exact hs.2 _ (List.getElem_mem his)
+      step with QuadEval.carrier_entry_spec (rows := rows) a pv ha hWpv hmax as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr, hlen1, List.getD_eq_getElem _ _ his, hpv]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = blocks := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, by intro j hj; exact hval1 j (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- `quadeval::carrier` computes ArkLib's `carrier`: `wᵢ = aᵀ G sᵢ`. -/
+theorem carrier_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (s : alloc.vec.Vec linalg.PolyVec) (ha : WfVec rows a)
+    (hs : WfBlocks blocks (rows * 8) s) (hmax : 8 * rows ≤ Usize.max) :
+    quadeval.carrier a s
+      ⦃ out => WfVec blocks out ∧ toVec (k := blocks) out
+        = Hachi.carrier Φ (16 : ZMod q) (toVec (k := rows) a)
+            (toBlocks (blocks := blocks) (width := rows * 8) s) ⦄ := by
+  rw [quadeval.carrier]
+  simp only [linalg.PolyVec.new, bind_ok_id]
+  apply spec_mono (carrier_loop_spec a s (alloc.vec.Vec.len s) (alloc.vec.Vec.new ring.Rq)
+    0#usize ha hs hmax (by simpa using hs.1) (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  simp only [toVec, Hachi.carrier, toBlocks]
+  exact hzval i.val i.isLt
+
+/-- The loop of `quadeval::tensor_g`: the accumulator is the partial
+challenge-weighted gadget sum. -/
+theorem tensor_g_loop_spec {krows blocks : ℕ} (r : Std.Usize) (c : linalg.PolyVec)
+    (x : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (acc : linalg.PolyVec) (i : Std.Usize)
+    (hr : r.val = krows) (hc : WfVec blocks c) (hx : WfBlocks blocks (krows * 8) x)
+    (hn : n.val = blocks) (hi : i.val ≤ n.val) (hacc : WfVec krows acc)
+    (hval : toVec (k := krows) acc
+      = ∑ j ∈ Finset.range i.val,
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (gadgetMul Φ (16 : ZMod q)
+              (toVec (k := krows * 8) (x.val.getD j (alloc.vec.Vec.new ring.Rq))))) :
+    quadeval.tensor_g_loop r c x n acc i
+      ⦃ z => WfVec krows z ∧ toVec (k := krows) z
+        = ∑ j ∈ Finset.range blocks,
+            scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+              (gadgetMul Φ (16 : ZMod q)
+                (toVec (k := krows * 8) (x.val.getD j (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [quadeval.tensor_g_loop]
+  apply loop.spec_decr_nat (fun t => n.val - t.2.val)
+    (fun t => t.2.val ≤ n.val ∧ WfVec krows t.1 ∧ toVec (k := krows) t.1
+      = ∑ j ∈ Finset.range t.2.val,
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (gadgetMul Φ (16 : ZMod q)
+              (toVec (k := krows * 8) (x.val.getD j (alloc.vec.Vec.new ring.Rq)))))
+  · rintro ⟨a1, i1⟩ ⟨hi1, hacc1, hval1⟩
+    dsimp only at hi1 hacc1 hval1
+    simp only [quadeval.tensor_g_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hix : i1.val < x.val.length := by rw [hx.1, ← hn]; scalar_tac
+      have hic : i1.val < c.val.length := by rw [hc.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec (krows * 8) pv := by
+        rw [hpv]; exact hx.2 _ (List.getElem_mem hix)
+      step with gadget_mul_spec (rows := krows) r pv hr hWpv as ⟨rc, hRwf, hRval⟩
+      simp only [linalg.PolyVec.get]
+      step as ⟨cr, hcr⟩
+      have hWcr : Wf cr := by rw [hcr]; exact hc.2 _ (List.getElem_mem hic)
+      step with scalar_vec_mul_spec (k := krows) cr rc hWcr hRwf as ⟨scaled, hSwf, hSval⟩
+      step with vec_add_spec (k := krows) a1 scaled hacc1 hSwf as ⟨a2, hAwf, hAval⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, hAwf, ?_, ?_⟩
+      · have hterm : scalarVecMul (toRq cr) (toVec (k := krows) rc)
+            = scalarVecMul (toRq (c.val.getD i1.val (alloc.vec.Vec.new cpoly.field.Fp)))
+                (gadgetMul Φ (16 : ZMod q)
+                  (toVec (k := krows * 8) (x.val.getD i1.val (alloc.vec.Vec.new ring.Rq)))) := by
+          rw [hRval, hcr, hpv, List.getD_eq_getElem _ _ hic, List.getD_eq_getElem _ _ hix]
+        rw [hAval, hSval, hval1, hterm, hi2, Finset.sum_range_succ]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = blocks := by rw [← hn]; scalar_tac
+      rw [← heq]
+      exact ⟨hacc1, hval1⟩
+  · exact ⟨hi, hacc, hval⟩
+
+/-- `quadeval::tensor_g` computes ArkLib's `tensorG`, the Eq. (20) row-5 left
+side. -/
+theorem tensor_g_spec {krows blocks : ℕ} (r : Std.Usize) (c : linalg.PolyVec)
+    (x : alloc.vec.Vec linalg.PolyVec) (hr : r.val = krows) (hc : WfVec blocks c)
+    (hx : WfBlocks blocks (krows * 8) x) :
+    quadeval.tensor_g r c x
+      ⦃ out => WfVec krows out ∧ toVec (k := krows) out
+        = Hachi.tensorG Φ (16 : ZMod q) krows 8 (toVec (k := blocks) c)
+            (toBlocks (blocks := blocks) (width := krows * 8) x) ⦄ := by
+  rw [quadeval.tensor_g]
+  step with poly_vec_zeros_spec r as ⟨acc, hAlen, hAwf, hAval⟩
+  have hWacc : WfVec krows acc := ⟨by rw [hAlen, hr], hAwf⟩
+  have hAzero : toVec (k := krows) acc = 0 := by
+    funext j
+    simp only [toVec, Pi.zero_apply]
+    exact hAval j.val (by rw [hr]; exact j.isLt)
+  apply spec_mono (tensor_g_loop_spec r c x (alloc.vec.Vec.len x) acc 0#usize hr hc hx
+    (by simpa using hx.1) (by simp) hWacc (by rw [hAzero]; simp))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, Hachi.tensorG,
+    ← Fin.sum_univ_eq_sum_range (fun j =>
+      scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+        (gadgetMul Φ (16 : ZMod q)
+          (toVec (k := krows * 8) (x.val.getD j (alloc.vec.Vec.new ring.Rq))))) blocks]
+  rfl
+
+/-- The loop of `quadeval::honest_z`: the accumulator is the partial
+challenge-weighted fold of the message blocks. -/
+theorem honest_z_loop_spec {width blocks : ℕ} (message : alloc.vec.Vec linalg.PolyVec)
+    (c : linalg.PolyVec) (n : Std.Usize) (acc : linalg.PolyVec) (i : Std.Usize)
+    (hm : WfBlocks blocks width message) (hc : WfVec blocks c)
+    (hn : n.val = blocks) (hi : i.val ≤ n.val) (hacc : WfVec width acc)
+    (hval : toVec (k := width) acc
+      = ∑ j ∈ Finset.range i.val,
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
+    quadeval.honest_z_loop message c n acc i
+      ⦃ z => WfVec width z ∧ toVec (k := width) z
+        = ∑ j ∈ Finset.range blocks,
+            scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+              (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
+  rw [quadeval.honest_z_loop]
+  apply loop.spec_decr_nat (fun t => n.val - t.2.val)
+    (fun t => t.2.val ≤ n.val ∧ WfVec width t.1 ∧ toVec (k := width) t.1
+      = ∑ j ∈ Finset.range t.2.val,
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq))))
+  · rintro ⟨a1, i1⟩ ⟨hi1, hacc1, hval1⟩
+    dsimp only at hi1 hacc1 hval1
+    simp only [quadeval.honest_z_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have him : i1.val < message.val.length := by rw [hm.1, ← hn]; scalar_tac
+      have hic : i1.val < c.val.length := by rw [hc.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec width pv := by
+        rw [hpv]; exact hm.2 _ (List.getElem_mem him)
+      simp only [linalg.PolyVec.get]
+      step as ⟨cr, hcr⟩
+      have hWcr : Wf cr := by rw [hcr]; exact hc.2 _ (List.getElem_mem hic)
+      step with scalar_vec_mul_spec (k := width) cr pv hWcr hWpv as ⟨scaled, hSwf, hSval⟩
+      step with vec_add_spec (k := width) a1 scaled hacc1 hSwf as ⟨a2, hAwf, hAval⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, hAwf, ?_, ?_⟩
+      · have hterm : scalarVecMul (toRq cr) (toVec (k := width) pv)
+            = scalarVecMul (toRq (c.val.getD i1.val (alloc.vec.Vec.new cpoly.field.Fp)))
+                (toVec (k := width) (message.val.getD i1.val (alloc.vec.Vec.new ring.Rq))) := by
+          rw [hcr, hpv, List.getD_eq_getElem _ _ hic, List.getD_eq_getElem _ _ him]
+        rw [hAval, hSval, hval1, hterm, hi2, Finset.sum_range_succ]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = blocks := by rw [← hn]; scalar_tac
+      rw [← heq]
+      exact ⟨hacc1, hval1⟩
+  · exact ⟨hi, hacc, hval⟩
+
+/-- The copy loop of `quadeval::honest_compute_resp`: the inner decompositions
+are passed through unchanged. -/
+theorem honest_compute_resp_loop_spec {blocks width : ℕ}
+    (inner_decomp inner : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hid : WfBlocks blocks width inner_decomp) (hi : i.val ≤ blocks)
+    (hlen : inner.val.length = i.val) (hwf : ∀ y ∈ inner.val, WfVec width y)
+    (hval : ∀ j, j < i.val → toVec (k := width) (inner.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq))) :
+    quadeval.honest_compute_resp_loop inner_decomp inner i
+      ⦃ z => z.val.length = blocks ∧ (∀ y ∈ z.val, WfVec width y) ∧
+        ∀ j, j < blocks → toVec (k := width) (z.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  have hnn : (alloc.vec.Vec.len inner_decomp).val = blocks := by simpa using hid.1
+  rw [quadeval.honest_compute_resp_loop]
+  apply loop.spec_decr_nat (fun t => blocks - t.2.val)
+    (fun t => t.2.val ≤ blocks ∧ t.1.val.length = t.2.val ∧ (∀ y ∈ t.1.val, WfVec width y) ∧
+      ∀ j, j < t.2.val → toVec (k := width) (t.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [quadeval.honest_compute_resp_loop.body]
+    by_cases hlt : i1.val < blocks
+    · rw [if_pos (by scalar_tac : i1 < alloc.vec.Vec.len inner_decomp)]
+      have hix : i1.val < inner_decomp.val.length := by rw [hid.1]; exact hlt
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec width pv := by
+        rw [hpv]; exact hid.2 _ (List.getElem_mem hix)
+      step with poly_vec_copy_spec (k := width) pv hWpv as ⟨pv1, hPwf, hPval⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hPwf
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hPval, hpv, hlen1, List.getD_eq_getElem _ _ hix]
+      · scalar_tac
+    · rw [if_neg (by scalar_tac : ¬ i1 < alloc.vec.Vec.len inner_decomp), WP.spec_ok]
+      dsimp only
+      have heq : i1.val = blocks := by omega
+      exact ⟨by rw [hlen1, heq], hwf1, by intro j hj; exact hval1 j (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- `linalg::flatten_blocks` (`lean/Scheme.lean:656`) restated against
+`toBlocks`, which is the spelling the two relation obligations consume. -/
+theorem flatten_blocks_spec' {blocks width : ℕ} (xs : alloc.vec.Vec linalg.PolyVec)
+    (hsize : blocks * width ≤ Usize.max) (hxs : WfBlocks blocks width xs) :
+    linalg.flatten_blocks xs
+      ⦃ z => WfVec (blocks * width) z ∧ toVec (k := blocks * width) z
+        = PolyVec.flattenBlocks (toBlocks (blocks := blocks) (width := width) xs) ⦄ :=
+  flatten_blocks_spec xs hsize hxs
+
+/-- The `ℓ∞` range block of `rel_out`: the three `≤ γ` checks at `γ = 15`. -/
+theorem chain_gamma_spec {k2 k3 : ℕ} (n1 : Std.U64) (flat zd : linalg.PolyVec)
+    (hf : WfVec k2 flat) (hz : WfVec k3 zd) (m1 : ℕ) (hn1 : n1.val = m1) :
+    (if n1 ≤ params.CHAIN_GAMMA then
+      (do
+        let i1 ← commit.vec_l_infty_norm flat
+        if i1 ≤ params.CHAIN_GAMMA then
+          (do
+            let i2 ← commit.vec_l_infty_norm zd
+            ok (i2 ≤ params.CHAIN_GAMMA))
+        else ok false)
+      else ok false)
+      ⦃ b => b = true ↔ (m1 ≤ 15 ∧ vecLInftyNorm Φ (toVec (k := k2) flat) ≤ 15 ∧
+        vecLInftyNorm Φ (toVec (k := k3) zd) ≤ 15) ⦄ := by
+  have hg : (params.CHAIN_GAMMA).val = 15 := by simp [params.CHAIN_GAMMA]
+  refine ite_reject_spec ?_ _ ?_
+  · constructor <;> intro h <;> scalar_tac
+  · step with vec_l_infty_norm_spec (k := k2) flat hf as ⟨n2, hn2⟩
+    refine ite_reject_spec ?_ _ ?_
+    · constructor <;> intro h <;> scalar_tac
+    · step with vec_l_infty_norm_spec (k := k3) zd hz as ⟨n3, hn3⟩
+      simp only [decide_eq_true_eq]
+      constructor <;> intro h <;> scalar_tac
+
+/-- The `S_β` range block of `paper_rel_out`: the three box checks at `β = 16`. -/
+theorem paper_chain_spec {k2 k3 : ℕ} (b0 : Bool) (flat zd : linalg.PolyVec)
+    (hf : WfVec k2 flat) (hz : WfVec k3 zd) (P0 : Prop) (hb0 : b0 = true ↔ P0) :
+    (if b0 then
+      (do
+        let b1 ← quadeval.vec_in_sb flat
+        if b1 then quadeval.vec_in_sb zd else ok false)
+      else ok false)
+      ⦃ b => b = true ↔ (P0 ∧ InnerOuter.vecInSb Φ 16 (toVec (k := k2) flat) ∧
+        InnerOuter.vecInSb Φ 16 (toVec (k := k3) zd)) ⦄ := by
+  refine ite_reject_spec hb0 _ ?_
+  step with QuadEval.vec_in_sb_spec (cols := k2) flat hf as ⟨b1, hb1⟩
+  exact ite_reject_spec hb1 _ (QuadEval.vec_in_sb_spec (cols := k3) zd hz)
+
+/-- The five-flag `if` chain both output relations end in: the run accepts
+exactly when every one of the six checks passes. -/
+theorem rel_chain_spec {c1 c2 c3 c4 c5 c6 : Bool} {P1 P2 P3 P4 P5 P6 : Prop}
+    (h1 : c1 = true ↔ P1) (h2 : c2 = true ↔ P2) (h3 : c3 = true ↔ P3)
+    (h4 : c4 = true ↔ P4) (h5 : c5 = true ↔ P5) (h6 : c6 = true ↔ P6) :
+    (if c1 then if c2 then if c3 then if c4 then if c5 then ok c6 else ok false
+      else ok false else ok false else ok false else ok false)
+      ⦃ b => b = true ↔ (P1 ∧ P2 ∧ P3 ∧ P4 ∧ P5 ∧ P6) ⦄ :=
+  ite_reject_spec h1 _ (ite_reject_spec h2 _ (ite_reject_spec h3 _
+    (ite_reject_spec h4 _ (ite_reject_spec h5 (ok c6) (by rw [WP.spec_ok]; exact h6)))))
+
 /-! ## The three carriers -/
 
 /-- The commitment key's constructor preserves the relation. -/
@@ -143,7 +604,8 @@ theorem PublicParamsD_new_spec (inner : commit.PublicParams) (d_matrix : linalg.
     (hWi : WfParams inner) (hWd : WfMat 1 (2 ^ 10 * 8) d_matrix) :
     quadeval.PublicParamsD.new inner d_matrix
       ⦃ out => RepParamsD out sp ⦄ := by
-  sorry
+  rw [quadeval.PublicParamsD.new, WP.spec_ok]
+  exact ⟨hWi, hWd, hi, hd⟩
 
 /-- The input statement's constructor preserves the relation. -/
 theorem QuadEvalStatement_new_spec (u avec bvec : linalg.PolyVec) (y : ring.Rq)
@@ -153,7 +615,8 @@ theorem QuadEvalStatement_new_spec (u avec bvec : linalg.PolyVec) (y : ring.Rq)
     (hWu : WfVec 1 u) (hWa : WfVec (2 ^ 10) avec) (hWb : WfVec (2 ^ 10) bvec) (hWy : Wf y) :
     quadeval.QuadEvalStatement.new u avec bvec y
       ⦃ out => RepStmt out ss ⦄ := by
-  sorry
+  rw [quadeval.QuadEvalStatement.new, WP.spec_ok]
+  exact ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩
 
 /-- The response triple's constructor preserves the relation. -/
 theorem QuadEvalResponse_new_spec (carrier_dec : linalg.PolyVec)
@@ -166,7 +629,8 @@ theorem QuadEvalResponse_new_spec (carrier_dec : linalg.PolyVec)
     (hWz : WfVec (2 ^ 10 * 8 * 5) z_dec) :
     quadeval.QuadEvalResponse.new carrier_dec inner_dec z_dec
       ⦃ out => RepResp out sr ⦄ := by
-  sorry
+  rw [quadeval.QuadEvalResponse.new, WP.spec_ok]
+  exact ⟨hWc, hWi, hWz, hc, hi, hz⟩
 
 /-! ## The two gadget-level helpers -/
 
@@ -183,7 +647,12 @@ theorem carrier_decomp_spec (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyV
         toVec (k := 2 ^ 10 * 8) out
           = Hachi.carrierDecomp Φ ddBal (toVec (k := 2 ^ 10) a)
               (toBlocks (blocks := 2 ^ 10) (width := 2 ^ 10 * 8) s) ⦄ := by
-  sorry
+  rw [quadeval.carrier_decomp]
+  step with carrier_spec (rows := 2 ^ 10) (blocks := 2 ^ 10) a s hWa hWs (by scalar_tac)
+    as ⟨w, hWw, hw⟩
+  apply spec_mono (Balanced.balanced_gadget_decompose_spec (rows := 2 ^ 10) w hWw (by scalar_tac))
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, by rw [hzval, hw, Hachi.carrierDecomp]⟩
 
 /-- `carrier_commit` computes `carrierCommit`, the honest round-0 message
 `v = D ŵ` (`QuadEval/Gadgets.lean:110`; `Simple.commit Φ D x` is `D *ᵥ x`). -/
@@ -197,7 +666,11 @@ theorem carrier_commit_spec (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
           = Hachi.carrierCommit Φ (toMat (rows := 1) (cols := 2 ^ 10 * 8) d_matrix) ddBal
               (toVec (k := 2 ^ 10) a)
               (toBlocks (blocks := 2 ^ 10) (width := 2 ^ 10 * 8) s) ⦄ := by
-  sorry
+  rw [quadeval.carrier_commit]
+  step with carrier_decomp_spec a s hWa hWs as ⟨what, hWwhat, hwhat⟩
+  apply spec_mono (mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) d_matrix what hWd hWwhat)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, by rw [Hachi.carrierCommit, Simple.commit, hzval, hwhat]⟩
 
 /-- `j_mul` computes `jMatrix *ᵥ ẑ`, the verifier's reconstruction `z = J ẑ` of
 Eq. (20) (`QuadEval/Gadgets.lean:126`).
@@ -212,7 +685,17 @@ theorem j_mul_spec (z_dec : linalg.PolyVec) (hWz : WfVec (2 ^ 10 * 8 * 5) z_dec)
         toVec (k := 2 ^ 10 * 8) out
           = Hachi.jMatrix Φ (16 : ZMod q) (2 ^ 10 * 8) 5
               *ᵥ toVec (k := 2 ^ 10 * 8 * 5) z_dec ⦄ := by
-  sorry
+  rw [quadeval.j_mul]
+  step as ⟨n, hn⟩
+  case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
+  have hnv : n.val = 2 ^ 10 * 8 := by
+    have h : (2 : ℕ) ^ 10 * 8 = 8192 := by norm_num
+    rw [h]
+    simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hn
+    scalar_tac
+  apply spec_mono (gadget_mul_z_spec' n z_dec hnv hWz (by scalar_tac))
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, by rw [hzval]; rfl⟩
 
 /-! ## The honest prover -/
 
@@ -230,7 +713,30 @@ theorem honest_z_spec (message : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyV
     quadeval.honest_z message c
       ⦃ out => WfVec (2 ^ 10 * 8) out ∧
         toVec (k := 2 ^ 10 * 8) out = InnerOuter.honestZ Φ wo (toChals c hc) ⦄ := by
-  sorry
+  rw [quadeval.honest_z]
+  step as ⟨width, hwidth⟩
+  case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
+  have hwv : width.val = 2 ^ 10 * 8 := by
+    have h : (2 : ℕ) ^ 10 * 8 = 8192 := by norm_num
+    rw [h]
+    simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
+    scalar_tac
+  step with poly_vec_zeros_spec width as ⟨acc, hAlen, hAwf, hAval⟩
+  have hWacc : WfVec (2 ^ 10 * 8) acc := ⟨by rw [hAlen, hwv], hAwf⟩
+  have hAzero : toVec (k := 2 ^ 10 * 8) acc = 0 := by
+    funext j
+    simp only [toVec, Pi.zero_apply]
+    exact hAval j.val (by rw [hwv]; exact j.isLt)
+  apply spec_mono (honest_z_loop_spec (width := 2 ^ 10 * 8) (blocks := 2 ^ 10) message c
+    (alloc.vec.Vec.len message) acc 0#usize hWm hWc (by simpa using hWm.1) (by simp) hWacc
+    (by rw [hAzero]; simp))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, InnerOuter.honestZ, ← hm,
+    ← Fin.sum_univ_eq_sum_range (fun j =>
+      scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+        (toVec (k := 2 ^ 10 * 8) (message.val.getD j (alloc.vec.Vec.new ring.Rq)))) (2 ^ 10)]
+  rfl
 
 /-- `honest_compute_v` computes `honestComputeV`, the prover's round-0 message
 `v = D ŵ` (`QuadEval/Reduction.lean:502`). -/
@@ -245,7 +751,15 @@ theorem honest_compute_v_spec (pp : quadeval.PublicParamsD) (stmt : quadeval.Qua
     quadeval.honest_compute_v pp stmt message
       ⦃ out => WfVec 1 out ∧
         toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
-  sorry
+  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
+  rw [quadeval.honest_compute_v]
+  simp only [quadeval.PublicParamsD.impl.d_matrix, quadeval.QuadEvalStatement.impl.avec,
+    bind_tc_ok]
+  apply spec_mono (carrier_commit_spec pp.d_matrix stmt.avec message hWpd hWa hWm)
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hpd, ha, hm, InnerOuter.honestComputeV]
 
 /-- `honest_compute_resp` computes `honestComputeResp`, the honest output witness
 `(ŵ, t̂, ẑ)` of Eq. (20) (`QuadEval/Reduction.lean:531`).
@@ -267,7 +781,28 @@ theorem honest_compute_resp_spec (stmt : quadeval.QuadEvalStatement)
     quadeval.honest_compute_resp stmt message inner_decomp c
       ⦃ out => RepResp out
         (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
-  sorry
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
+  rw [quadeval.honest_compute_resp]
+  simp only [quadeval.QuadEvalStatement.impl.avec, bind_tc_ok]
+  step with carrier_decomp_spec stmt.avec message hWa hWm as ⟨cdec, hCwf, hCval⟩
+  step with honest_z_spec message c wo hc hm hWm hWc as ⟨zz, hZwf, hZval⟩
+  step with QuadEval.bounded_z_gadget_decompose_spec (rows := 2 ^ 10 * 8) zz hZwf (by scalar_tac)
+    as ⟨zdec, hDwf, hDval⟩
+  step with honest_compute_resp_loop_spec (blocks := 2 ^ 10) (width := 1 * 8) inner_decomp
+    (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWi (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+    as ⟨inner, hIlen, hIwf, hIval⟩
+  rw [quadeval.QuadEvalResponse.new, WP.spec_ok]
+  refine ⟨hCwf, ⟨hIlen, hIwf⟩, hDwf, ?_, ?_, ?_⟩
+  · show toVec (k := 2 ^ 10 * 8) cdec = Hachi.carrierDecomp Φ ddBal ss.avec wo.message
+    rw [hCval, ha, hm]
+  · show toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner = wo.innerDecomp
+    rw [← hi]
+    funext j
+    exact hIval j.val j.isLt
+  · show toVec (k := 2 ^ 10 * 8 * 5) zdec
+      = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
+    rw [hDval, hZval, Hachi.zDecompBounded]
 
 /-! ## The two output relations
 
@@ -287,7 +822,52 @@ theorem rel_out_spec (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStat
       ⦃ out => out = true ↔
         ((ss, toVec (k := 1) v, toChals c hc), sr)
           ∈ InnerOuter.relOut (zDigits := 5) Φ sp (16 : ZMod q) 16 15 ⦄ := by
-  sorry
+  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hbv, hy⟩ := hst
+  obtain ⟨hWrc, hWri, hWrz, hrc, hri, hrz⟩ := hre
+  have hinner : toMat (rows := 1) (cols := 2 ^ 10 * 8) pp.inner.inner_matrix = sp.innerMatrix :=
+    congrArg InnerOuter.PublicParams.innerMatrix hpi
+  have houter :
+      toMat (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp.inner.outer_matrix = sp.outerMatrix :=
+    congrArg InnerOuter.PublicParams.outerMatrix hpi
+  rw [quadeval.rel_out]
+  simp only [quadeval.QuadEvalResponse.impl.z_dec, quadeval.QuadEvalResponse.impl.inner_dec,
+    quadeval.QuadEvalResponse.impl.carrier_dec, quadeval.QuadEvalStatement.impl.u,
+    quadeval.QuadEvalStatement.impl.avec, quadeval.QuadEvalStatement.impl.bvec,
+    quadeval.QuadEvalStatement.impl.y, quadeval.PublicParamsD.impl.inner,
+    quadeval.PublicParamsD.impl.d_matrix, commit.PublicParams.impl.outer_matrix,
+    commit.PublicParams.impl.inner_matrix, bind_tc_ok]
+  step with j_mul_spec resp.z_dec hWrz as ⟨z, hZwf, hZval⟩
+  step with flatten_blocks_spec' (blocks := 2 ^ 10) (width := 1 * 8) resp.inner_dec
+    (by scalar_tac) hWri as ⟨flat, hFwf, hFval⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) pp.d_matrix resp.carrier_dec
+    hWpd hWrc as ⟨dv, hDwf, hDval⟩
+  step with poly_vec_equals_spec (k := 1) dv v hDwf hWv as ⟨c1, hc1⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp.inner.outer_matrix flat
+    hWpi.2 hFwf as ⟨uv, hUwf, hUval⟩
+  step with poly_vec_equals_spec (k := 1) uv stmt.u hUwf hWu as ⟨c2, hc2⟩
+  step with gadget_mul_spec (rows := 2 ^ 10) params.BLOCKS resp.carrier_dec
+    (by norm_num [params.BLOCKS]) hWrc as ⟨gw, hGwf, hGval⟩
+  step with dot_spec (k := 2 ^ 10) stmt.bvec gw hWb hGwf as ⟨yv, hYwf, hYval⟩
+  step with RqBridge.equals_spec yv stmt.y hYwf hWy as ⟨c3, hc3⟩
+  step with QuadEval.tensor_g1_spec (blocks := 2 ^ 10) c resp.carrier_dec hWc hWrc (by scalar_tac)
+    as ⟨t1, hT1wf, hT1val⟩
+  step with gadget_mul_spec (rows := 2 ^ 10) params.MESSAGE_ROWS z
+    (by norm_num [params.MESSAGE_ROWS]) hZwf as ⟨gz, hGZwf, hGZval⟩
+  step with dot_spec (k := 2 ^ 10) stmt.avec gz hWa hGZwf as ⟨az, hAZwf, hAZval⟩
+  step with RqBridge.equals_spec t1 az hT1wf hAZwf as ⟨c4, hc4⟩
+  step with tensor_g_spec (krows := 1) (blocks := 2 ^ 10) params.INNER_ROWS c resp.inner_dec
+    (by norm_num [params.INNER_ROWS]) hWc hWri as ⟨tg, hTGwf, hTGval⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) pp.inner.inner_matrix z
+    hWpi.1 hZwf as ⟨iz, hIZwf, hIZval⟩
+  step with poly_vec_equals_spec (k := 1) tg iz hTGwf hIZwf as ⟨c5, hc5⟩
+  step with vec_l_infty_norm_spec (k := 2 ^ 10 * 8) resp.carrier_dec hWrc as ⟨n1, hn1⟩
+  step with chain_gamma_spec n1 flat resp.z_dec hFwf hWrz _ hn1 as ⟨c6, hc6⟩
+  apply spec_mono (rel_chain_spec hc1 hc2 hc3 hc4 hc5 hc6)
+  intro b hb
+  rw [hb, hDval, hUval, hFval, hYval, hGval, hT1val, hAZval, hGZval, hTGval, hIZval, hZval,
+    hrc, hri, hrz, hu, ha, hbv, hy, hpd, hinner, houter]
+  exact Iff.rfl
 
 /-- `paper_rel_out` decides `paperRelOut`, the same checks with the paper's exact
 `S_β` **box** at `β = 16` (`QuadEval/Reduction.lean:335`).
@@ -308,6 +888,51 @@ theorem paper_rel_out_spec (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEv
       ⦃ out => out = true ↔
         ((ss, toVec (k := 1) v, toChals c hc), sr)
           ∈ InnerOuter.paperRelOut (zDigits := 5) Φ sp (16 : ZMod q) 16 16 ⦄ := by
-  sorry
+  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hbv, hy⟩ := hst
+  obtain ⟨hWrc, hWri, hWrz, hrc, hri, hrz⟩ := hre
+  have hinner : toMat (rows := 1) (cols := 2 ^ 10 * 8) pp.inner.inner_matrix = sp.innerMatrix :=
+    congrArg InnerOuter.PublicParams.innerMatrix hpi
+  have houter :
+      toMat (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp.inner.outer_matrix = sp.outerMatrix :=
+    congrArg InnerOuter.PublicParams.outerMatrix hpi
+  rw [quadeval.paper_rel_out]
+  simp only [quadeval.QuadEvalResponse.impl.z_dec, quadeval.QuadEvalResponse.impl.inner_dec,
+    quadeval.QuadEvalResponse.impl.carrier_dec, quadeval.QuadEvalStatement.impl.u,
+    quadeval.QuadEvalStatement.impl.avec, quadeval.QuadEvalStatement.impl.bvec,
+    quadeval.QuadEvalStatement.impl.y, quadeval.PublicParamsD.impl.inner,
+    quadeval.PublicParamsD.impl.d_matrix, commit.PublicParams.impl.outer_matrix,
+    commit.PublicParams.impl.inner_matrix, bind_tc_ok]
+  step with j_mul_spec resp.z_dec hWrz as ⟨z, hZwf, hZval⟩
+  step with flatten_blocks_spec' (blocks := 2 ^ 10) (width := 1 * 8) resp.inner_dec
+    (by scalar_tac) hWri as ⟨flat, hFwf, hFval⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) pp.d_matrix resp.carrier_dec
+    hWpd hWrc as ⟨dv, hDwf, hDval⟩
+  step with poly_vec_equals_spec (k := 1) dv v hDwf hWv as ⟨c1, hc1⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp.inner.outer_matrix flat
+    hWpi.2 hFwf as ⟨uv, hUwf, hUval⟩
+  step with poly_vec_equals_spec (k := 1) uv stmt.u hUwf hWu as ⟨c2, hc2⟩
+  step with gadget_mul_spec (rows := 2 ^ 10) params.BLOCKS resp.carrier_dec
+    (by norm_num [params.BLOCKS]) hWrc as ⟨gw, hGwf, hGval⟩
+  step with dot_spec (k := 2 ^ 10) stmt.bvec gw hWb hGwf as ⟨yv, hYwf, hYval⟩
+  step with RqBridge.equals_spec yv stmt.y hYwf hWy as ⟨c3, hc3⟩
+  step with QuadEval.tensor_g1_spec (blocks := 2 ^ 10) c resp.carrier_dec hWc hWrc (by scalar_tac)
+    as ⟨t1, hT1wf, hT1val⟩
+  step with gadget_mul_spec (rows := 2 ^ 10) params.MESSAGE_ROWS z
+    (by norm_num [params.MESSAGE_ROWS]) hZwf as ⟨gz, hGZwf, hGZval⟩
+  step with dot_spec (k := 2 ^ 10) stmt.avec gz hWa hGZwf as ⟨az, hAZwf, hAZval⟩
+  step with RqBridge.equals_spec t1 az hT1wf hAZwf as ⟨c4, hc4⟩
+  step with tensor_g_spec (krows := 1) (blocks := 2 ^ 10) params.INNER_ROWS c resp.inner_dec
+    (by norm_num [params.INNER_ROWS]) hWc hWri as ⟨tg, hTGwf, hTGval⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) pp.inner.inner_matrix z
+    hWpi.1 hZwf as ⟨iz, hIZwf, hIZval⟩
+  step with poly_vec_equals_spec (k := 1) tg iz hTGwf hIZwf as ⟨c5, hc5⟩
+  step with QuadEval.vec_in_sb_spec (cols := 2 ^ 10 * 8) resp.carrier_dec hWrc as ⟨b0, hb0⟩
+  step with paper_chain_spec b0 flat resp.z_dec hFwf hWrz _ hb0 as ⟨c6, hc6⟩
+  apply spec_mono (rel_chain_spec hc1 hc2 hc3 hc4 hc5 hc6)
+  intro b hb
+  rw [hb, hDval, hUval, hFval, hYval, hGval, hT1val, hAZval, hGZval, hTGval, hIZval, hZval,
+    hrc, hri, hrz, hu, ha, hbv, hy, hpd, hinner, houter]
+  exact Iff.rfl
 
 end HachiEquiv.QuadEvalProtocol
