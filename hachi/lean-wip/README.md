@@ -116,6 +116,40 @@ LEAN_PATH="$(lake env printenv LEAN_PATH):/tmp/wiplean" lake env lean lean-wip/Z
 Zero errors, twenty-four `sorry`s. Promotion order is forced: `Ext.lean` first
 (it is the lower layer), then `ZeroCheck.lean`.
 
+**Third staged file (2026-09-09):** `QuadEvalProtocol.lean`, eleven statements
+closing target 2's statement debt -- the three QuadEval carriers
+(`PublicParamsD`, `QuadEvalStatement`, `QuadEvalResponse`), the two gadget-level
+helpers (`carrierDecomp`, `carrierCommit`, plus `jMatrix` applied to `ẑ`), the
+honest prover's three functions (`honestZ`, `honestComputeV`,
+`honestComputeResp`) and the two output relations (`relOut`, `paperRelOut`).
+
+It is the one staged file that needs **no `LEAN_PATH` detour**, because it
+imports only the promoted `QuadEval.lean`:
+
+```sh
+cd hachi
+lake build
+lake env lean lean-wip/QuadEvalProtocol.lean
+```
+
+Zero errors, eleven `sorry`s. It is also, for the same reason, the only proof
+work currently **not** gated on `Ext.lean`: it rests on a promoted file, so it
+can be proved and promoted while the extension-field layer is still red.
+
+Two things in it worth knowing:
+
+* `toChals` takes the `ℓ₁` bound as an **argument**, because
+  `ShortChallenge Φ ω` is the subtype `{c // ‖c‖₁ ≤ ω}`
+  (`QuadEval/Reduction.lean:151`). That bound then appears as a hypothesis on
+  the two relation specs. It is not a weakening: `relOut` checks no challenge
+  norm precisely *because* the type carries it (`:148-150`), so a faithful
+  statement about the extracted verifier -- which also checks none -- has to say
+  the challenges are short somewhere, and this is where.
+* both relation specs are **iffs**, the third instance of the shape this README
+  already records for `InSb`/`vecInSb`. `paperRelOut` is the strictly stronger
+  check (`paperRelOut ⊆ relOut` under `β/2 ≤ γ`, i.e. `8 ≤ 15` here), so the two
+  are not interchangeable and neither statement implies the other.
+
 Three conventions in it worth knowing before touching it:
 
 * every statement is against a **computable** ArkLib definition — the α side
