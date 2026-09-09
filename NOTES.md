@@ -3659,3 +3659,226 @@ The round machinery above the message: `honest_compute_g`, `round_check`,
 the round loop. `honest_compute_y` should be free once the folded table exists
 (S2's shared-subexpression point), and `round_check` needs only the node values
 at `0` and `1`, which are nodes — no evaluation machinery.
+
+
+## The birth run for targets 4, 5 and 6 — and both anomalies dissolved (2026-09-08)
+
+Run **`20260908T1646+0200-10de67cd`**, source `48606df` clean, full pass over
+all eleven bench binaries on a genuinely quiet machine (1-min load `0.10`,
+Firefox and the editor closed, zero Lean processes — checked, since a Lean build
+is what spoiled the 09:01 attempt). Report JSON
+`bench-report-20260908-t456-birth.json` (repo root, gitignored).
+
+**The cleanest run this project has had.** 74 rows, **one** flagged, A/B bias
+**1.53%**, usable. It is the first measurement for the **42 frozen items** added
+since the last good run (176 → 218 frozen), covering targets 4, 5 and 6 at once,
+and it doubles as the re-take of the run the concurrent Lean build spoiled.
+
+`op-genesis` stage 7 is satisfied for all three targets: the **19 registered
+rows** over those items read noise with a **worst |Δ| of 1.61%**
+(`zerocheck/c_w_table_mle`), against a 5% printed threshold. The sumcheck rows
+are the sharpest — `interpolate`, `round_value_zero`, `round_values_zero`,
+`round_poly_zero` all at ±0.0% — and the `nm` audit confirms each keeps **two
+real variant copies**, so that agreement is evidence rather than an artifact of
+timing the same function twice.
+
+The single flagged row is `ring/from_coeffs/1024` at **+10.20%**, which is a
+known member of the sub-µs `Vec::new()`+push constructor class the § 4 audit
+identified; it carries no verdict and needs none.
+
+### Both open anomalies vanished, and the reason matters more than the relief
+
+`gadget/balanced_digit_decompose` — reproducibly **+74.98%** then **+92.25%**
+across two runs of the same binary — reads **−0.2%** here.
+`zerocheck/w_table_rho_row` — **−8.51%** then **−5.13%** — reads **+1.1%**.
+
+The `nm` audit on the binaries *this* run used explains it, and inverts the
+intuition I had recorded:
+
+* in the earlier binary, `balanced_digit_decompose`'s two case wrappers both
+  called the **same merged function** — one copy, one address — and the row read
+  +92%;
+* in this binary it keeps **two distinct copies**, a genuine A/B, and reads
+  noise.
+
+So the +92% was never placement bias *between* two copies: with one copy there
+is no placement difference to have. It was a property of how that particular
+binary reached the single merged function from two wrappers, and it **did not
+survive a rebuild** — the crate gained `zerocheck` and `sumcheck` between the
+two builds, which moved the merge decisions.
+
+**The rule that follows, and it is the useful part**: a small-row `vs genesis`
+verdict is valid only **within one build**. A rebuild can move such a row by tens
+of percent without a line of its code changing, so a cross-build comparison of a
+sub-millisecond row is not evidence of anything. Before trusting a candidate
+verdict on one, confirm it inside the same binary. This supersedes the earlier
+reading of these two rows as deterministic placement bias — that reading was
+consistent with two runs and wrong about the third.
+
+What survives from the earlier diagnosis: the `_control` rows are merged in every
+binary (1 copy each, confirmed again here), so the control still cannot exhibit
+the merge-related effects the rows it certifies can, and the printed A/B bias
+remains a weaker bound than it looks for small compute-bound rows. The proposals
+stand — a control matching each row's scale and allocation profile, and a
+per-band threshold — but they are no longer urgent, since no row currently
+carries a false verdict.
+
+### Ledger note
+
+No ledger row: this is an onboarding birth run, and an onboarding's provenance
+is the `@genesis` stamp. When target 5's rows *do* appear in a ledger row, that
+row must state that its `vs genesis` column measures distance from the **dense**
+form, per the decision above.
+
+## The dropped `eq̃` factor, and the oracle that could not have caught it (2026-09-08)
+
+Target 5's first increment froze `round_value_zero`, `round_values_zero` and
+`round_poly_zero` with `Mirrors computableRoundPoly` lines and a module-header
+formula reading
+
+```text
+g_i(T) = Σ_y  eq_suffix(y) · P_b( (1 - T)·W[2y] + T·W[2y+1] )
+```
+
+**That formula is not `computableRoundPoly (sumcheckPolyZero …)`.** It is missing
+two factors of the equality kernel. `sumcheckPolyZero` is
+`cEqualityPolynomial m₀ τ₀ * cRangeProduct m₀ b (mle[w̃])`
+(`ZeroCheck/Constraints.lean:860`), so the round polynomial at round `i` is
+
+```text
+g_i(T) = eq̃(τ₀|<i, a) · eq(τ₀ᵢ, T) · Σ_y eq̃(τ₀|>i, y) · P_b(W(T,y))
+```
+
+— a prefix constant over the challenges already drawn, and the free
+coordinate's own linear factor. The frozen functions compute the sum alone.
+
+### How the arithmetic gives it away, in one line
+
+`rangeProduct b v = v·∏_{j=1}^{b-1}(v-j)(v+j)` (`:96`) has degree `2b - 1`, and
+`w̃` is multilinear, so the sum has degree `2b - 1` in `T`. The specification's
+per-round bound is `roundDegZero b = 2b` (`:87`), and `ROUND_NODES = 2b + 1`
+exists because of it. The missing degree is exactly the equality kernel's free
+factor. A frozen object whose degree is one less than the bound its own node
+count is derived from was the tell, and nobody read it.
+
+### Why none of the three gates could see it
+
+* **the `case!` digest** compares `now` against `genesis`, and both hold the
+  same formula — this is the shared-semantics-bug-at-birth case `op-genesis`
+  warns about, exactly as written;
+* **the benchmark** timed a faithful implementation of the wrong formula. The
+  birth run's `±0.0%` on all four sumcheck rows was true and told us nothing;
+* **the semantics test** — `round_value_is_the_eq_weighted_range_sum` — checked
+  the crate against *the same formula the crate implements*, restated. The house
+  rule is that a reference is written deliberately unlike the crate and derived
+  from the specification; this one was derived from the module header. A
+  reference copied from the code under test is not an oracle, however different
+  its expression looks.
+* and `round_poly_has_degree_at_most_two_b` asserted `≤ 2b`, which `2b - 1`
+  satisfies. An inequality where the specification states a tight bound admits
+  exactly one defect, and this was it.
+
+Mutation-checked after the fix: dropping the free factor again fails the new
+oracle **and** the new exact-degree test; dropping the prefix constant fails the
+oracle. Both old tests pass under both mutants.
+
+### Why this is not a re-freeze
+
+The frozen bodies are correct as what they are — the eq-weighted range sum — and
+a trivial translation of the dense form legitimately factors this way, since the
+kernel is a separate multiplication. Nothing was optimized away and no frozen
+byte is wrong. What was wrong was the *labels*: the header formula, and three
+`Mirrors` qualifiers that named the whole definition for a factor of it. Those
+are comments in `hachi/src`, so the repair is an ordinary edit, and
+`benches/genesis` keeps its bytes (its own stale header comments are left alone,
+per the append-only rule).
+
+`honest_compute_g` is now the item that mirrors `computableRoundPoly` whole: it
+applies `eq_prefix` and `eq_free_factor` around `round_poly_zero`, and its range
+component has degree exactly `2b`. The three lower functions keep `Mirrors`
+markers — so the coverage gate's work list does not move — with qualifiers that
+say precisely which factor they are and which item supplies the rest.
+
+### The rule this leaves
+
+**A semantics test's reference is derived from the specification, never from the
+module's own header.** The house pattern already says "written deliberately
+unlike the crate", and that was followed to the letter — different order,
+different expression — while the *content* came from the code. Restating an
+implementation in another order tests the restatement. The check that catches
+this class is arithmetic rather than stylistic: when the specification pins a
+degree, a node count or a length, assert it **exactly**, because the tight bound
+is what a dropped factor violates.
+
+## Target 5's round machinery (2026-09-08)
+
+Fourteen items appended to `hachi/src/sumcheck.rs`, closing the translation of
+target 5: `eq_prefix`, `eq_suffix_table`, `eq_free_factor`, `round_value_alpha`,
+`round_values_alpha`, `round_node_weights_alpha`, `round_poly_alpha`,
+`alpha_public_table`, the three carriers (`NestedZeroCheckStmt`, `RoundMsg`,
+`RoundStatement`), `honest_compute_g`, `round_check`, `round_out`,
+`honest_compute_y`, `final_check` and `round_loop`; plus
+`params::ROUND_NODES_ALPHA` and `params::ROUND_NODE_INV_ALPHA`.
+
+Four things worth keeping:
+
+* **The linear side's interpolation weights are not a prefix of the range
+  side's.** The weights of a node set depend on the whole set: for `{0,1,2}`
+  they are `2⁻¹, -1, 2⁻¹`, not `ROUND_NODE_INV[0..3]` (which belong to
+  `{0,…,32}`). Two separately named and separately tested arrays, because
+  reusing the prefix would be a silent wrong answer of exactly the kind above.
+* **`round_out` takes its statement by value.** The specification builds a
+  statement at the next index; a `clone` of the public data would be a trait
+  call with no extracted model, so the fields are moved into the successor and
+  the function stays straight-line.
+* **No subslice appears anywhere in this crate's extracted model**, which is why
+  `eq_prefix` writes its product out instead of calling cpoly's `eq_tilde` on
+  `&tau0[..i]`. `final_check`, which needs the kernel over all of `τ₀`, calls
+  cpoly's function directly — the reuse rule is satisfied where reuse costs
+  nothing.
+* **`cube_size` is a deliberate local duplicate** of `zerocheck`'s private
+  `two_pow`. Widening a frozen item's visibility is not an append, and the
+  duplicate's only cost is that two identical private functions may be merged by
+  LTO — which matters to nothing, since neither carries a bench row.
+
+Tests: 15 in `tests/sumcheck_semantics.rs` (was 8), full suite 159 passing / 23
+ignored, `cargo clippy --all-targets` clean under pedantic.
+
+Owed on this target, in order: the extraction pass (`make extract`, § 2b
+entries), then the freeze/case/slot plumbing for the fourteen items and the
+`round_loop` end-to-end test — which needs a `LiftedWitness` builder at toy
+width, the one piece of the honest-run oracle not yet written.
+
+## Target 2's statement debt is closed (2026-09-09)
+
+`hachi/lean-wip/QuadEvalProtocol.lean`: eleven statements, zero errors, eleven
+`sorry`s, typechecked against the pinned ArkLib (`d51d8bc`) on the first pass.
+`make spec-check` goes from **99 stated / 32 owed** to **110 stated / 21 owed**,
+and `quadeval` disappears from the owed list. The remaining 21 are target 5's,
+which cannot be stated until its extraction pass has run.
+
+Three things this pass established:
+
+* **The subtype that carries a norm is where the hypothesis goes.** ArkLib's
+  `relOut` checks no challenge norm, and that is faithful to Eq. (20) *because*
+  `ShortChallenge Φ ω = {c : Rq Φ // ‖c‖₁ ≤ ω}` carries it in the type
+  (`QuadEval/Reduction.lean:148-151`). The extracted verifier takes a plain
+  `PolyVec` and also checks none — so the `ℓ₁` bound has to appear somewhere in
+  the statement or the theorem would claim the Rust decides membership for
+  challenges the specification's type cannot even express. `toChals` takes the
+  proof as an argument and the bound rides on the two relation specs. This is
+  the general shape for any erased subtype: the erased side condition becomes a
+  rep-function argument, not a dropped obligation.
+* **No accessor specs, by precedent.** `RlinStatement` has a `new_spec` and no
+  theorems for `m`/`yvec`/`bound`; the projections are consumed through the
+  relation. Following that keeps the file at exactly eleven theorems for eleven
+  owed items, which is also what makes the gate's arithmetic legible.
+* **Three values collide at these parameters and must not be conflated**:
+  `ω = 16` (the challenge `ℓ₁` bound), `β = 16` (the paper's digit box, whose
+  `[-8, 7]` is `lean/QuadEval.lean`'s `InBoxK`) and `γ = 15` (the `ℓ∞` ball).
+  Stage 2 § F3's rule is the mitigation — rewrite hypotheses, never goals — and
+  the file's header names all three so a prover reads them before touching it.
+
+This is the only proof work in the tree not gated on `Ext.lean`: it imports the
+promoted `lean/QuadEval.lean` and nothing staged, so it can be proved and
+promoted while the extension-field layer is still red.

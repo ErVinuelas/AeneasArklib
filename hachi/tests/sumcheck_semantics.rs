@@ -9,8 +9,9 @@
 //!
 //! Two levels, because one test cannot do both jobs:
 //!
-//! * **the identity** the dense form rests on -- `g(T) = Σ_y eq(y)·P_b(W(T,y))`
-//!   is what `computableRoundPoly` computes -- checked at the toy width where
+//! * **the identity** the dense form rests on -- `g(T) = eq̃(τ₀|<i,a)·eq(τ₀ᵢ,T)·Σ_y
+//!   eq̃(τ₀|>i,y)·P_b(W(T,y))` is what `computableRoundPoly` computes -- checked
+//!   at the toy width where
 //!   the naive `CMvPolynomial` shape actually runs. Both sides are written here;
 //!   the crate is not involved, because the crate's `range_product` is
 //!   hard-wired to `GADGET_BASE = 16` and the naive shape needs `b = 3` to fit
@@ -22,6 +23,17 @@
 //! the crate's own code against the specification's naive shape, because no
 //! width exists where both are possible. That is the cost of the decision, and
 //! it is the reason the decision is recorded in three places.
+//!
+//! **A correction, 2026-09-08.** This header, the module header of
+//! `src/sumcheck.rs` and the `Mirrors` lines of the three `round_*_zero`
+//! functions all used to state that identity *without* its two `eq̃` factors,
+//! and `round_value_is_the_eq_weighted_range_sum` below checks the crate
+//! against that same incomplete formula -- so it could not have caught the
+//! omission. The oracle that does is
+//! `honest_compute_g_range_component_is_the_specifications_partial_sum`, which
+//! builds its reference from `sumcheckPolyZero` itself. NOTES.md
+//! § "The dropped eq~ factor" records how the gap arose and why no benchmark
+//! or digest could have found it.
 
 #![allow(clippy::cast_possible_truncation)]
 
@@ -29,8 +41,13 @@ mod support;
 
 use cpoly::{Ext4, Fp};
 use hachi::params::{GADGET_BASE, Q, ROUND_NODES, ROUND_NODE_INV};
-use hachi::sumcheck::{interpolate, round_node, round_node_weights, round_poly_zero,
-                      round_value_zero, round_values_zero};
+use hachi::linalg::PolyVec;
+use hachi::params::{ROUND_NODES_ALPHA, ROUND_NODE_INV_ALPHA};
+use hachi::ringswitch::RlinStatement;
+use hachi::sumcheck::{alpha_public_table, eq_free_factor, eq_prefix, eq_suffix_table,
+                      final_check, honest_compute_g, interpolate, round_check, round_node,
+                      round_node_weights, round_out, round_poly_zero, round_value_zero,
+                      round_values_zero, NestedZeroCheckStmt, RoundStatement};
 use support::Lcg;
 
 fn ext4(r: &mut Lcg) -> Ext4 {
@@ -178,5 +195,438 @@ fn round_poly_has_degree_at_most_two_b() {
             "degree {d} exceeds roundDegZero = {}",
             2 * GADGET_BASE
         ),
+    }
+}
+
+// --- the round message as a whole, against the specification's own sum -----
+
+/// `eq(t, x)`, written `1 - t - x + 2tx`. The crate writes the same function as
+/// `t·x + (1-t)·(1-x)`; expanding it here is what makes this an independent
+/// reference rather than a copy.
+fn eq_ref(t: Ext4, x: Ext4) -> Ext4 {
+    Ext4::ONE - t - x + (t * x + t * x)
+}
+
+/// `eq̃(tau, point)` as the product of per-coordinate factors.
+fn eq_tilde_ref(tau: &[Ext4], point: &[Ext4]) -> Ext4 {
+    let mut acc = Ext4::ONE;
+    for k in 0..tau.len() {
+        acc = acc * eq_ref(tau[k], point[k]);
+    }
+    acc
+}
+
+/// A multilinear extension evaluated as the Lagrange dot against the whole
+/// table: `Σ_z table[z]·∏_k (bit k of z ? point[k] : 1 - point[k])`. The crate
+/// reaches the same value by folding one coordinate at a time
+/// (`eval_mle_layer`), so the two computations share no structure.
+fn mle_ref(table: &[Ext4], point: &[Ext4]) -> Ext4 {
+    let mut acc = Ext4::ZERO;
+    for z in 0..table.len() {
+        let mut term = table[z];
+        for k in 0..point.len() {
+            term = term
+                * if (z >> k) & 1 == 1 {
+                    point[k]
+                } else {
+                    Ext4::ONE - point[k]
+                };
+        }
+        acc = acc + term;
+    }
+    acc
+}
+
+/// The cube point `(a₀ … a_{i-1}, T, y)`, with `y` little-endian in its bits.
+fn point_at(challenges: &[Ext4], big_t: Ext4, y: usize, suffix_vars: usize) -> Vec<Ext4> {
+    let mut point: Vec<Ext4> = challenges.to_vec();
+    point.push(big_t);
+    for k in 0..suffix_vars {
+        point.push(if (y >> k) & 1 == 1 {
+            Ext4::ONE
+        } else {
+            Ext4::ZERO
+        });
+    }
+    point
+}
+
+/// `hypercubeSum` of `sumcheckPolyZero` with the prefix fixed to `(a, T)` --
+/// i.e. the round polynomial's value at `T`, by `computableRoundPoly_eval`
+/// (`RoundPoly.lean:316`). Built straight from `sumcheckPolyZero`'s definition
+/// (`cEqualityPolynomial * cRangeProduct ∘ mle`, `Constraints.lean:860`), with
+/// no folded table anywhere.
+fn g_zero_ref(
+    table: &[Ext4],
+    tau0: &[Ext4],
+    challenges: &[Ext4],
+    i: usize,
+    big_t: Ext4,
+    b: u64,
+) -> Ext4 {
+    let suffix_vars = tau0.len() - i - 1;
+    let mut acc = Ext4::ZERO;
+    for y in 0..(1usize << suffix_vars) {
+        let point = point_at(challenges, big_t, y, suffix_vars);
+        acc = acc + eq_tilde_ref(tau0, &point) * range_product_ref(b, mle_ref(table, &point));
+    }
+    acc
+}
+
+/// The same for `sumcheckPolyAlpha = mle[w̃] * mle[Ã]` (`Constraints.lean:868`):
+/// no equality kernel, two multilinears.
+fn g_alpha_ref(
+    w_table: &[Ext4],
+    a_table: &[Ext4],
+    challenges: &[Ext4],
+    i: usize,
+    m0: usize,
+    big_t: Ext4,
+) -> Ext4 {
+    let suffix_vars = m0 - i - 1;
+    let mut acc = Ext4::ZERO;
+    for y in 0..(1usize << suffix_vars) {
+        let point = point_at(challenges, big_t, y, suffix_vars);
+        acc = acc + mle_ref(w_table, &point) * mle_ref(a_table, &point);
+    }
+    acc
+}
+
+/// Fold a table through the challenges already drawn, one coordinate per
+/// challenge -- the crate's own prover state.
+fn fold_through(table: &[Ext4], challenges: &[Ext4]) -> Vec<Ext4> {
+    let mut cur = table.to_vec();
+    for a in challenges {
+        cur = cpoly::multilinear::eval_mle_layer(&cur, *a);
+    }
+    cur
+}
+
+/// A round statement whose only live fields are `τ₀`, `τ₁`, `α` and the
+/// challenges: `honest_compute_g` reads nothing else, and the `R^lin` statement
+/// and commitment are along for the ride.
+fn round_stmt(
+    seed: u64,
+    tau0: Vec<Ext4>,
+    tau1: Vec<Ext4>,
+    alpha: Ext4,
+    challenges: Vec<Ext4>,
+    target_zero: Ext4,
+    target_alpha: Ext4,
+) -> RoundStatement {
+    let mut r = Lcg::new(seed);
+    let rlin = RlinStatement::new(r.next_poly_matrix(2, 2), r.next_poly_vec(2), 15);
+    let t: PolyVec = r.next_poly_vec(2);
+    let zc = NestedZeroCheckStmt::new(rlin, t, alpha, tau0, tau1);
+    RoundStatement::new(zc, challenges, target_zero, target_alpha)
+}
+
+/// **The load-bearing test of this module.** `honest_compute_g`'s range
+/// component, evaluated anywhere, is the specification's partial hypercube sum
+/// of `sumcheckPolyZero` -- equality kernel included.
+///
+/// This is the test the previous oracle could not be: the reference here is
+/// `sumcheckPolyZero`'s definition, so a missing `eq̃` factor fails it. The
+/// crate's `range_product` is fixed at `b = GADGET_BASE`, which is why the
+/// reference is called at that same `b` while the *width* is toy (`m₀ = 4`).
+#[test]
+fn honest_compute_g_range_component_is_the_specifications_partial_sum() {
+    let mut r = Lcg::new(0x9E37_79B9_7F4A_7C15);
+    let m0 = 4usize;
+    let i = 1usize;
+    let table: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let challenges: Vec<Ext4> = (0..i).map(|_| ext4(&mut r)).collect();
+
+    let w_tab = fold_through(&table, &challenges);
+    let a_tab: Vec<Ext4> = (0..w_tab.len()).map(|_| ext4(&mut r)).collect();
+    let stmt = round_stmt(
+        1,
+        tau0.clone(),
+        tau1,
+        alpha,
+        challenges.clone(),
+        Ext4::ZERO,
+        Ext4::ZERO,
+    );
+    let g = honest_compute_g(&stmt, &w_tab, &a_tab, i);
+
+    for t in 0..5u64 {
+        let big_t = Ext4::from_base(Fp::new(t * 7 + 3));
+        assert_eq!(
+            g.g_zero().eval(big_t),
+            g_zero_ref(&table, &tau0, &challenges, i, big_t, GADGET_BASE),
+            "range component disagrees with sumcheckPolyZero's partial sum at T = {t}"
+        );
+    }
+}
+
+/// The linear component, against `sumcheckPolyAlpha`'s partial sum.
+#[test]
+fn honest_compute_g_linear_component_is_the_specifications_partial_sum() {
+    let mut r = Lcg::new(0xD1B5_4A32_D192_ED03);
+    let m0 = 4usize;
+    let i = 2usize;
+    let w_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let a_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let challenges: Vec<Ext4> = (0..i).map(|_| ext4(&mut r)).collect();
+
+    let w_tab = fold_through(&w_full, &challenges);
+    let a_tab = fold_through(&a_full, &challenges);
+    let stmt = round_stmt(
+        2,
+        tau0,
+        tau1,
+        alpha,
+        challenges.clone(),
+        Ext4::ZERO,
+        Ext4::ZERO,
+    );
+    let g = honest_compute_g(&stmt, &w_tab, &a_tab, i);
+
+    for t in 0..4u64 {
+        let big_t = Ext4::from_base(Fp::new(t * 11 + 5));
+        assert_eq!(
+            g.g_alpha().eval(big_t),
+            g_alpha_ref(&w_full, &a_full, &challenges, i, m0, big_t),
+            "linear component disagrees with sumcheckPolyAlpha's partial sum at T = {t}"
+        );
+    }
+}
+
+/// The degrees are the specification's two bounds, and the range side's is
+/// `2b` **exactly** -- which is the arithmetic statement that the equality
+/// kernel's free factor is present. Without it the degree is `2b - 1`, and that
+/// is precisely the defect the earlier `<= 2b` test admitted.
+#[test]
+fn round_message_degrees_are_two_b_and_two_exactly() {
+    let mut r = Lcg::new(0x2545_F491_4F6C_DD1D);
+    let m0 = 3usize;
+    let i = 0usize;
+    let w_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let a_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let stmt = round_stmt(3, tau0, tau1, alpha, Vec::new(), Ext4::ZERO, Ext4::ZERO);
+    let g = honest_compute_g(&stmt, &w_full, &a_full, i);
+
+    assert_eq!(
+        g.g_zero().clone().trim().degree(),
+        Some((2 * GADGET_BASE) as usize),
+        "the range component must have degree exactly roundDegZero = 2b"
+    );
+    assert_eq!(
+        g.g_alpha().clone().trim().degree(),
+        Some(2),
+        "the linear component must have degree exactly roundDegAlpha = 2"
+    );
+}
+
+// --- the two checks, in both directions ------------------------------------
+
+/// `round_check` accepts the honest message and rejects a moved target. The
+/// rejection half is the load-bearing one: a check that accepted everything
+/// would satisfy the accepting direction alone.
+#[test]
+fn round_check_accepts_the_honest_message_and_rejects_moved_targets() {
+    let mut r = Lcg::new(0x8A5C_D789_635D_2DFF);
+    let m0 = 3usize;
+    let w_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let a_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+
+    let probe = round_stmt(
+        4,
+        tau0.clone(),
+        tau1.clone(),
+        alpha,
+        Vec::new(),
+        Ext4::ZERO,
+        Ext4::ZERO,
+    );
+    let g = honest_compute_g(&probe, &w_full, &a_full, 0);
+    let t0 = g.g_zero().eval(Ext4::ZERO) + g.g_zero().eval(Ext4::ONE);
+    let ta = g.g_alpha().eval(Ext4::ZERO) + g.g_alpha().eval(Ext4::ONE);
+
+    let good = round_stmt(4, tau0.clone(), tau1.clone(), alpha, Vec::new(), t0, ta);
+    assert!(round_check(&good, &g), "the honest message must pass");
+
+    let bad_zero = round_stmt(
+        4,
+        tau0.clone(),
+        tau1.clone(),
+        alpha,
+        Vec::new(),
+        t0 + Ext4::ONE,
+        ta,
+    );
+    assert!(!round_check(&bad_zero, &g), "a moved range target must fail");
+
+    let bad_alpha = round_stmt(4, tau0, tau1, alpha, Vec::new(), t0, ta + Ext4::ONE);
+    assert!(
+        !round_check(&bad_alpha, &g),
+        "a moved linear target must fail"
+    );
+}
+
+/// `round_out` appends the challenge and replaces both targets by the round
+/// polynomials' values there -- the erasure of `Fin.snoc` plus two evaluations.
+#[test]
+fn round_out_extends_the_challenges_and_moves_both_targets() {
+    let mut r = Lcg::new(0x1234_5678_9ABC_DEF0);
+    let m0 = 3usize;
+    let w_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let a_full: Vec<Ext4> = (0..1 << m0).map(|_| ext4(&mut r)).collect();
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let a = ext4(&mut r);
+
+    let stmt = round_stmt(
+        5,
+        tau0.clone(),
+        tau1.clone(),
+        alpha,
+        Vec::new(),
+        Ext4::ZERO,
+        Ext4::ZERO,
+    );
+    let g = honest_compute_g(&stmt, &w_full, &a_full, 0);
+    let next = round_out(stmt, &g, a);
+
+    assert_eq!(next.challenges().len(), 1);
+    assert_eq!(next.challenges()[0], a);
+    assert_eq!(next.target_zero(), g.g_zero().eval(a));
+    assert_eq!(next.target_alpha(), g.g_alpha().eval(a));
+}
+
+/// `final_check` needs all three of its conjuncts: each one is moved in turn
+/// and must reject. The two claim values are computed with the independent
+/// references above, so the equality halves are not checked against the crate's
+/// own arithmetic; only `Ã`'s table is taken from the crate, because
+/// `alphaPublicEvals` is target 4's item and has its own oracle.
+#[test]
+fn final_check_needs_all_three_conjuncts() {
+    let mut r = Lcg::new(0xFEED_FACE_CAFE_BEEF);
+    let m0 = 3usize;
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let y_prime = ext4(&mut r);
+
+    let mut probe = Lcg::new(6);
+    let rlin_probe = RlinStatement::new(probe.next_poly_matrix(2, 2), probe.next_poly_vec(2), 15);
+    let table = alpha_public_table(&rlin_probe, alpha, &tau1, m0);
+    let t0 = eq_tilde_ref(&tau0, &challenges) * range_product_ref(GADGET_BASE, y_prime);
+    let ta = y_prime * mle_ref(&table, &challenges);
+
+    let build = |tz: Ext4, tal: Ext4| {
+        round_stmt(
+            6,
+            tau0.clone(),
+            tau1.clone(),
+            alpha,
+            challenges.clone(),
+            tz,
+            tal,
+        )
+    };
+
+    assert!(
+        final_check(&build(t0, ta), y_prime, 15),
+        "the honest claim must pass at bound = rlin.bound"
+    );
+    assert!(
+        !final_check(&build(t0 + Ext4::ONE, ta), y_prime, 15),
+        "a moved range target must fail"
+    );
+    assert!(
+        !final_check(&build(t0, ta + Ext4::ONE), y_prime, 15),
+        "a moved linear target must fail"
+    );
+    assert!(
+        !final_check(&build(t0, ta), y_prime, 16),
+        "a bound above rlin.bound must fail"
+    );
+}
+
+// --- the new pieces, individually -------------------------------------------
+
+/// The three linear-side weights invert their denominators, the same audit the
+/// range side gets.
+#[test]
+fn linear_interpolation_weights_invert_their_denominators() {
+    for i in 0..ROUND_NODES_ALPHA {
+        let mut denom: u128 = 1;
+        for j in 0..ROUND_NODES_ALPHA {
+            if j != i {
+                let d = ((i as i128 - j as i128).rem_euclid(Q as i128)) as u128;
+                denom = denom * d % u128::from(Q);
+            }
+        }
+        let prod = denom * u128::from(ROUND_NODE_INV_ALPHA[i]) % u128::from(Q);
+        assert_eq!(prod, 1, "weight {i} does not invert its denominator");
+    }
+}
+
+/// `eq_prefix` is the equality kernel over the drawn challenges, and
+/// `eq_suffix_table` is its hypercube table over the coordinates after the free
+/// one -- checked against the independent product form, and against each other
+/// through the identity that the two of them plus `eq_free_factor` at a Boolean
+/// point reconstruct `eq̃(τ₀, ·)` on the whole cube.
+#[test]
+fn the_three_equality_pieces_reconstruct_the_kernel() {
+    let mut r = Lcg::new(0x0BAD_C0DE_0BAD_C0DE);
+    let m0 = 4usize;
+    let i = 1usize;
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let challenges: Vec<Ext4> = (0..i).map(|_| ext4(&mut r)).collect();
+
+    assert_eq!(
+        eq_prefix(&tau0, &challenges),
+        eq_tilde_ref(&tau0[..i], &challenges),
+        "eq_prefix is not the kernel over the drawn challenges"
+    );
+
+    let suffix = eq_suffix_table(&tau0, i);
+    let suffix_vars = m0 - i - 1;
+    assert_eq!(suffix.len(), 1 << suffix_vars);
+    for y in 0..suffix.len() {
+        let point: Vec<Ext4> = (0..suffix_vars)
+            .map(|k| {
+                if (y >> k) & 1 == 1 {
+                    Ext4::ONE
+                } else {
+                    Ext4::ZERO
+                }
+            })
+            .collect();
+        assert_eq!(
+            suffix[y],
+            eq_tilde_ref(&tau0[i + 1..], &point),
+            "suffix table entry {y} is wrong"
+        );
+    }
+
+    // eq̃(τ₀, (a, T, y)) = prefix · eq(τ₀ᵢ, T) · suffix[y], at Boolean T.
+    let free = eq_free_factor(tau0[i]);
+    for big_t in [Ext4::ZERO, Ext4::ONE] {
+        for y in 0..suffix.len() {
+            let point = point_at(&challenges, big_t, y, suffix_vars);
+            assert_eq!(
+                eq_prefix(&tau0, &challenges) * free.eval(big_t) * suffix[y],
+                eq_tilde_ref(&tau0, &point),
+                "the three pieces do not reconstruct the kernel"
+            );
+        }
     }
 }
