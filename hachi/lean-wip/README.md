@@ -7,7 +7,15 @@ with every ported proof intact -- `zero`, `from_coeffs`, `trim`, `eval` and
 both `Mul` impls). **0 errors, 32 `sorry`s** for the prover: the twenty-four
 items and eight scaffolding lemmas (`toUni_eval`, the kernel identity, the two
 degree lemmas, `cube_size`, the two weight identities). It imports only promoted files (`EndPiece`), so the
-plain `lake env lean lean-wip/Sumcheck.lean` validates it. Everything before it has been promoted, and
+plain `lake env lean lean-wip/Sumcheck.lean` validates it. Beside it,
+`Chain.lean` (2026-09-10): the two composed-chain rows -- `chain_verify` against
+the composed verifier's verdict (`chainVerdict`: `verifyRounds`, then
+`finalCheck` and `endPieceCheck`) and `chain_open` against the honest prover's
+four wire messages -- **0 errors, 5 `sorry`s** (the two rows and three helpers).
+It imports `Sumcheck`, so it is the two-staged-files case: validate it with the
+`LEAN_PATH` detour under "Working here", promote `Sumcheck.lean` first, and
+prove it locally -- its obligations are compositions of existing specs, not
+Aristotle work. Everything before both has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one

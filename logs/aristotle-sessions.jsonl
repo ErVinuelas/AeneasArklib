@@ -83,3 +83,7 @@
 {"at":"2026-09-10T15:01:22Z","event":"checked","percent_complete":3,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-10T15:46:43Z","event":"checked","percent_complete":24,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-10T16:00:14Z","event":"checked","percent_complete":47,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:18:40Z","event":"checked","percent_complete":79,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:19:41Z","event":"checked","percent_complete":80,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:23:39Z","event":"checked","percent_complete":85,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:37:32Z","event":"checked","percent_complete":99,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}

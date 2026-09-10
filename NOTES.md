@@ -4960,3 +4960,40 @@ Pre-flight: `make extract` deterministic, `lake build` green against the fresh
 extraction (the new `chain`/`sumcheck` items reorder `Generated.lean`, as
 recorded yesterday). Imports only promoted files, so the Aristotle helper's
 plain validation works on the return.
+
+## The chain's two rows are stated: `Chain.lean` (2026-09-10)
+
+`hachi/lean-wip/Chain.lean`: `chain_verify_spec` and `chain_open_spec`, **0
+errors, 5 `sorry`s** (the two rows plus `copy_point`'s pair and the one-line
+`μR + nR·8 ≤ Usize.max`). `make spec-check`: **150 stated / 0 owed**, the first
+time every mirrored item in the crate has a statement.
+
+Extraction first, this time by the skill: `make extract` reported
+`unchanged`; `check-toolchain` green; 0 axioms; loop-state histogram and
+`Shared<n>` names identical to the previous generation; declaration set
+identical. The chain rows had already been re-extracted with the prover /
+verifier split of `chain.rs`.
+
+What the statements are against, since `evaluation` is not a function:
+`chainStart` (rows 1–7 as one statement map — `toQuadEvalStatement`,
+`rlinStmt`, the `NestedZeroCheckStatement` the lift and zero-check rows adjoin
+`(t, α, τ₀, τ_α)` to, `nestedToRoundStatement`) and `chainVerdict` (the
+**three** decisions the composed verifier runs: `verifyRounds`, then
+`finalCheck && endPieceCheck`, with `γ` as both `rlinStmt`'s and `finalCheck`'s
+bound and `hachiLiftCom` at the extracted key as the commitment scheme, exactly
+`end_piece_check_spec`'s shape). Eq. (20), the lift's shortness and the two
+zero-check blocks appear in neither, faithfully: they are relations, not
+checks, per `chain.rs` § "What the verifier checks". `chain_open_spec` is the
+conjunction of `honest_compute_v_spec`, `lift_commit_spec`,
+`honest_round_messages_spec` along `honestRounds` from `chainStart` at the
+honest `v` and `t`, and `wTableMleEval`.
+
+Two mechanics worth keeping. `LiftCom` is not greppable as a `structure`/
+`class` under the pinned ArkLib tree from here (it is reached through
+`hachiLiftCom`'s result type), so the verdict takes the extracted key matrix
+and builds `hachiLiftCom Φ 15 16 (toMat d_key)` inside, as the promoted end-piece
+spec does — no bare `LiftCom` in a signature. And `Chain.lean` imports the
+staged `Sumcheck.lean`, so it is validated with the `LEAN_PATH` detour
+(`lake env lean -o scratch/Sumcheck.olean lean-wip/Sumcheck.lean`, then
+`LEAN_PATH="$(lake env printenv LEAN_PATH):scratch"`); promotion order is
+`Sumcheck` then `Chain`, and the chain's proofs are local work, not Aristotle's.
