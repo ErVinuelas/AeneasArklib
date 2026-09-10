@@ -70,7 +70,7 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # `covered_paths` now enforces from the other end (one `_control` per file, and
 # every row in the file under it).
 MODULES = ("params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
-           "quadeval", "endpiece", "zerocheck", "sumcheck")
+           "quadeval", "endpiece", "zerocheck", "sumcheck", "chain")
 
 # Items whose text is worth freezing and annotating. `impl` headers and
 # associated `type`s are structure, not code that runs.

@@ -61,7 +61,7 @@ POSITIONAL_RE = re.compile(
 # when Stage 3 target 1 onboarded `rho_digits` into a module of its own, and
 # `quadeval` when target 2 onboarded the QuadEval fold.
 MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
-           "quadeval", "endpiece", "zerocheck", "sumcheck"}
+           "quadeval", "endpiece", "zerocheck", "sumcheck", "chain"}
 
 CANDIDATE_VERDICTS = {
     "accepted", "rejected-slower", "rejected-noise", "rejected-mixed",

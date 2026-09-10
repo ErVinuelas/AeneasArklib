@@ -4513,3 +4513,278 @@ i.e. changes the text that would have been frozen. So stages 4 and 5 are
 genuinely sequential, and the eleven items sit uncovered (`coverage` reports
 them) until the extraction runs. That is the expected mid-onboarding state, not
 a gap.
+
+## Targets 4 and 6 are proved, and `lean-wip/` is empty (2026-09-09)
+
+Aristotle session `2266ab16`: **13 obligations to zero**, `ZeroCheck.lean` and
+`EndPiece.lean` both fully proved. Promoted the same day. `lean/` now holds
+**fourteen** audited modules and `Check.lean` § 4 prints **147** headline specs,
+all reporting exactly `[propext, Classical.choice, Quot.sound]`. `make build`:
+0 errors, no `sorry`. `hachi/lean-wip/` contains nothing but its README for the
+first time in the project's history.
+
+### The helper blocked it again, for the third time, for the same reason
+
+`task_status` was `COMPLETE_WITH_ERRORS` and the recorded error was
+`lake env lean lean-wip/EndPiece.lean` failing — `EndPiece` imports the
+still-staged `ZeroCheck`, and `aristotle_check.py` validates with a plain
+`lake env lean`. Third instance today (`be85dad4` was a genuine proof failure;
+`396eb25b` and this one were the validator). The pattern is now unmistakable:
+**a blocked integration says nothing about the proofs until you read the
+recorded `error`.** Rescue is mechanical — build the lower file's `.olean` into
+a scratch `LEAN_PATH`, validate, integrate, log `integrated_manual`.
+
+One wrinkle worth writing down: `lake env lean -o out.olean file.lean` refuses
+an input outside the Lake root ("must be contained in root directory"), so the
+returned files have to be validated **in place**, not from a scratch copy. That
+is safe precisely because both were committed and therefore revertible — check
+`git status` on the targets before overwriting them, which is also what proves
+the local files had not drifted since submission.
+
+### The signature audit found one change, and it was consistent
+
+`w_table_mle_eval_spec` gained `hmax : μ + n * 8 ≤ Usize.max`. Not a new class:
+it calls `c_w_table_mle` → `w_table`, whose `rows * digits` product earns the
+bound, and the four other table-side statements already carry it. So it joins
+the deferred minimality pass (the bound is not minimal — `w_table` forms the
+product, never the sum) rather than needing its own decision. Seven new
+helper/loop specs otherwise, and no other signature moved.
+
+### What the promotion step caught, again
+
+Nothing this time — but only because the `private` check was run *before* the
+build. `Ext.lean`'s promotion failed on exactly that (a `private` `_spec` is an
+unknown constant to `Check.lean`), so checking for `private theorem` in the
+headline list is now a pre-flight step, not a post-mortem. Both files came back
+clean.
+
+## Row 3's tail: extraction, freeze, green gate (2026-09-09)
+
+`op-genesis` stages 4–6 for the `R^lin` adapter. **`make bench-check` green**:
+272 frozen items verified against git, candidate slot null across 11 modules,
+coverage 146 mirrored / 74 benched / 72 excluded / **0 unaccounted for**.
+173 tests, strict clippy clean.
+
+**The extraction was additive, checked properly.** A line diff of
+`Generated.lean` showed 102 non-comment *deletions*, including
+`ring.Rq.neg_loop.body` — alarming until compared the right way: the set of
+definition names went 509 → 587 with **zero disappearances**, all 78 additions
+being row 3's items and their loops. Aeneas reorders definitions as new ones
+interleave, so a line diff reports moves as delete+add. **The additivity
+invariant is about names, not lines**; the same lesson as matching frozen items
+by name rather than signature text. Determinism byte-identical, 0 axioms, `Fp`
+still transparent, and `make build` re-checked all **147** pins clean against
+the regenerated model.
+
+**Two bench rows, nine exclusions.** `gadget/gadget_transpose_mul` and
+`quadeval/tensor_g_matrix` do real arithmetic and got rows — the second
+deliberately paired with the existing `quadeval/tensor_g`, since upstream's
+`tensorGMatrix_mulVec` says the two compute the same thing, so the pair
+measures what materializing the c5 block costs over applying it. The nine
+excluded split cleanly: five `rlinC*`/`rlin_rows` are O(1) `usize` arithmetic,
+three (`unflatten`, `stack`, `unstack`) are pure reshapes whose row would time
+the allocator, and `rlin_stmt` is the 2.2 GiB matrix — infeasible even REDUCED,
+with its arithmetic already measured through the two rows above.
+
+### The stamp guard, understood properly this time
+
+`stamp-genesis` refuses when `found == head && src_dirty`, where `src_dirty` is
+any uncommitted change under `hachi/src` **or** `hachi/benches`. Earlier today
+that blocked `nested_to_round_statement`: its text matched at HEAD while row 3
+sat uncommitted in the same crate. This time the eleven stamped straight away
+despite a dirty `benches`, because HEAD had moved past the commit containing
+their text (`found != head`), so the guard does not apply.
+
+So the rule is narrower than "the tree must be clean": **the guard fires only
+when the matching commit *is* HEAD.** Stamp immediately after the introducing
+commit and it fires; stamp once anything else has landed on top and it does
+not. That is why the choreography's step 3 says "commit 1, *then*
+`bench-stamp`" — and why two overlapping onboardings trip it, which
+`op-genesis`'s written steps do not currently mention.
+
+## The `R^lin` spec layer (2026-09-09)
+
+`hachi/lean-wip/Rlin.lean`: thirteen statements, **0 errors, 13 sorries**,
+typechecked against the pinned ArkLib. `make spec-check` goes 111 → **124
+stated**, 35 → 22 owed; `gadget` and `quadeval` are clear and only target 5's
+sumcheck remains.
+
+**The obligation the file exists for is `rlin_stmt_spec`, and its right-hand
+side is the specification's `rlinStmt` — not the reshaped form the crate
+computes.** That is the one rule holding: the statement names the ArkLib
+definition, and bridging `(matMul G J).transpose *ᵥ a` to `Jᵀ(Gᵀa)` is the
+*proof's* job, an associativity argument in `Matrix.transpose_mul` /
+`mulVec_mulVec`. Which means the freeze exception is sound exactly when that
+theorem is proved, and nothing else can substitute for it — no benchmark, no
+digest, and not the toy-width oracle, which checks the identity at `2^m = 4`
+rather than at the parameters the crate runs.
+
+### Instantiated or generic: the file had to pick, and the reps decided
+
+Four statements failed to typecheck generically, and the reason is worth
+recording because it is a real constraint rather than a slip. `RepParamsD`,
+`RepStmt` and `RepResp` live in the promoted `lean/QuadEvalProtocol.lean` and
+are **instantiated** at the pinned dimensions (`Φ 1 (2^10) 8 1 (2^10) 8 1`),
+per the house rule that a statement instantiates a generic ArkLib one at
+`params.rs` values. A statement generic in `blocks`/`messageRows` cannot use
+them.
+
+So `stack`, `unstack`, `to_quad_eval_statement` and `rlin_stmt` are stated at
+the pinned dimensions, with the Rust's dimension arguments pinned by hypotheses
+(`hb : b.val = 2 ^ 10`). The other nine — the five `rlinC*`/`rlin_rows`,
+`unflatten`, `tensor_g_matrix`, `gadget_transpose_mul` — are generic, because
+they touch no carrier relation. **Both conventions are live in this tree**
+(`ZeroCheck.lean` is generic, `QuadEvalProtocol.lean` instantiated), and which
+one a file can use is decided by the reps it consumes, not by preference.
+
+Note this does not weaken the toy-width oracle: the *Rust* still takes its
+arities as arguments, which is what lets `tests/quadeval_semantics.rs` run the
+naive `matMul` at `2^m = 4, md = 2, zd = 3`. The Lean statement being pinned
+and the Rust being parametric are independent facts.
+
+### What target 5's file will need first
+
+The remaining 22 are all `sumcheck`, and they are not simply more of the same:
+`RoundMsg` is a pair of `UnivariatePoly`, and **this tree has no
+representation for a univariate polynomial yet**. Every carrier so far is a
+vector or a matrix (`toRq`, `toVec`, `toMat`, `toEvals`, `toPoint`), and
+`CPolynomial`'s invariant is *canonicity* — no trailing zeros, `Trim` — which
+is a second invariant beyond a length, and the reason `Rq` could get away with
+a plain fixed length and this cannot. Per `aeneas-spec-author`, a genuinely new
+carrier gets its representation function, its invariant, its coefficient kit
+and its `Check.lean` non-degeneracy entries **before** its first spec. So the
+sumcheck file opens with a design step, not with a statement.
+
+## Cross-review of the `R^lin` adapter, and what it caught (2026-09-09)
+
+An independent adversarial review of the adapter, its freeze exception, its
+oracle and its statements. The mathematics held; the **oracle did not**, and the
+finding is the most useful thing to come out of this session.
+
+### What was verified independently, and is correct
+
+The reviewer derived the associativity claim from first principles rather than
+from the docstrings — `gadgetEntry` (`Gadget/Core.lean:391`), `matMul`/
+`matVecMul` (`Data/Lattices/Vectors.lean:87,93`), and `jMatrix = gadgetMatrix`
+at the **same base** (`QuadEval/Gadgets.lean:126`) — and confirmed that
+`(G·J)ᵀa` and `Jᵀ(Gᵀa)` both come out as `base^(e+f)·a[i]` at index
+`(i·md+e)·zd+f`. Also confirmed correct: c5's `(A·J)[p] = Jᵀ` applied to row `p`
+of `A`; `tensor_g_matrix`'s column walk against `finProdFinEquiv` (whose
+`.val = e + digits*i'` is `rfl` at `Gadget/Core.lean:418`); the `yvec` order;
+the `stack`/`unstack` layout; and the spec's deliberate parenthesisation. All
+thirteen statements in `Rlin.lean` name the ArkLib definition they claim, at the
+right argument order and instantiation, and `rlin_stmt_spec` is stated against
+`rlinStmt` rather than the reshape.
+
+### What it caught: three mutants alive against the whole 173-test suite
+
+`the_assembled_rlin_system_has_the_specified_blocks` asserted **only** c1, c4's
+`ẑ` block and four `yvec` entries. c2, c3, c4's carrier block, c5's tensor block
+and c5's `ẑ` block were asserted nowhere. I reproduced two of the mutants
+before believing them:
+
+| mutant | before | after |
+|---|---|---|
+| swap `Gᵀb` and `Gᵀc` (c3 ↔ c4 carrier) | 173 pass | **fails** |
+| drop the sign on c5's `ẑ` block | 173 pass | **fails** |
+| collapse c2 to column `0` | 173 pass | **fails** |
+| build c5's tensor at `z_digits` | 173 pass | **fails** |
+
+The test now asserts every block and both paddings by value, plus two
+non-vacuity checks (`bvec ≠ c`, so the c3/c4 swap is ruled out non-trivially;
+and c5's response block nonzero, so the sign is testable at all).
+
+**The rule this yields, and it is not the "unequal toy values" rule from
+earlier today.** A block-structured object needs **every block asserted**,
+because each block is the only place its own data appears — no choice of
+parameters makes a missing assertion visible. Earlier today three bugs were
+hidden by *equal* parameters (the sumcheck guard, the bridge's crossed halves,
+the two digit counts); this one was hidden by *absent assertions*, and more
+parameters would not have helped. The reviewer's own diagnosis is worth
+keeping verbatim: at these parameters `RLIN_CW = RLIN_CT = 8192` and
+`messageRows = blocks`, `messageDigits = innerDigits`, so **`z_digits` is the
+only dimension that differs from its neighbours anywhere in this row** — every
+ordering bug not involving it is structurally invisible to a shape-based test.
+
+### Three statement defects, one of which I had already hit
+
+* `rlin_ct_spec`/`rlin_cz_spec` were **false as stated** — the outer `hfit` is
+  satisfied at `blocks = 0` where the inner product overflows and the code
+  `fail`s, so the triple cannot hold. I found this independently while
+  *proving* them (the goal came out as `ir * idg ≤ Usize.max`); the reviewer
+  found it by reading. `rlin_cols_spec` inherited it and is now fixed too.
+* `unflatten_spec` was **false at `width = 0`**: the loop never runs, `out` is
+  empty, and the postcondition asserts `out.val.length = blocks` with nothing
+  determining `blocks`. Now carries `0 < width`.
+* The recorded **proof plan was wrong**. `ArkLib.Lattices.matMul` is standalone
+  (`fun i k => dot (M i) …`, `Vectors.lean:93`), *not* Mathlib's `Matrix.mul`,
+  so `Matrix.transpose_mul` does not apply and no `(matMul M N)ᵀ = matMul Nᵀ Mᵀ`
+  exists in ArkLib. The bridge is an index computation — `Matrix.transpose_apply`,
+  `matMul_apply`, `dot_eq_sum`, `Finset.sum_comm` — and the docstring now says
+  so. Cheap to fix on paper; a prover would have burned a run finding it.
+
+Also fixed: `Rlin.lean`'s header claimed all thirteen statements were generic
+when four are instantiated — a contradiction in the paragraph a reviewer reads
+first.
+
+### On the `Shared<n>` gap, the review narrowed the risk usefully
+
+Not a present soundness hole: `honest_compute_g` is in no promoted file, so it
+is outside the transitive closure of all 147 headline specs. What the pins
+actually defend against is a **cpoly rev bump** changing a body under an
+unchanged name — and the `Shared<n>` index is assigned by Aeneas per `&T`
+occurrence, so it is not a stable identifier and a renumbering would silently
+rebind a spec. One detail worth carrying into target 5's specs: the poly×poly
+`mul` returns `zero` on an empty operand and **ends in `trim`**, so its result
+is canonical. A spec assuming untrimmed convolution would assume something
+nothing checks.
+
+## The composed chain has no practical oracle (2026-09-09)
+
+`chain_verify` cannot be exercised, and the reason splits into two independent
+halves of which only one is fixable.
+
+**It cannot run at a toy width at all.** Row 2's `paper_rel_out` is hard-wired
+to `params::BLOCKS`, `MESSAGE_ROWS` and `INNER_ROWS`, so there is no reduced
+shape: an attempt at `blocks = 2` panicked in `PolyVec::get` in all four tests.
+A frozen item's arity narrowing every test above it — the fourth instance this
+session, after `tensor_g`, `MlPoly::eval_split` and `gadget_mul`.
+
+**At the real width it is too slow, and the dominator is not what it looks
+like.** Three `chain_verify` calls were OOM-killed (2.2 GiB each for the
+`R^lin` matrix); one ran **24 minutes at 99.9% CPU and 3.9 GB resident without
+finishing**. The cost is not the matrix and not `ring::mul`'s mat-vecs (~12 s
+each): it is `h_alpha_is_zero` → `alpha_defect` → `alpha_contract`, where the
+specification recomputes `M̃_α` *inside* the `ℓ` loop and each `c_eval_at` is a
+1024-term power sum with the exponent rebuilt per term.
+`zerocheck_semantics.rs` already marks that shape "makes this minutes" for a
+single row; the chain multiplies it by the cube.
+
+So Stage 5's exit criterion — "one composed `open`/`verify` pair, proved, with
+a bench case" — **cannot be met as written**: no bench case, and no executable
+acceptance test. The composition rests on the per-link specs plus a composition
+proof, with tests limited to the plumbing and the guard-rejection paths. The
+removal condition is the `M̃_α` hoist — strategy S8 of the target-5 brief, a
+`perf-loop` accept — and **not** a faster `ring::mul`. One more place where the
+two walls must not be conflated.
+
+## `Rlin.lean` readied for Aristotle (2026-09-10)
+
+Pre-flight per `aeneas-spec-author` § 1: `make extract` regenerated
+`Generated.lean` with **5 new `chain` defs and a whole-file reorder** relative
+to the staged copy — the `chain` module had been added to the crate after that
+extraction, and Aeneas orders output by dependency, so the file moved around it.
+Deterministic (two runs byte-identical); a block-by-block comparison ignoring
+`Source` spans finds 621 → 626 declarations, three new names, **no body
+changed**. `lake build` against the fresh file: 0 errors, 147 axiom lines
+unchanged. `lake env lean lean-wip/Rlin.lean`: **0 errors, 9 `sorry`s**
+(`gadget_transpose_mul`, `rlin_cols`, `unflatten`, `tensor_g_matrix`, `stack`,
+`unstack`, `PolyEvalStatement_new`, `to_quad_eval_statement`, `rlin_stmt`); the
+four `usize` dimension specs are proved in place. Header corrected (it still said
+"none proved here"), `rlin_cols_spec`'s four inner bounds given their fail-point
+justification, `lean-wip/README.md` "Current debt" re-pointed at this file.
+
+Lesson: a staged `Generated.lean` is not a fresh one. Adding a module — even one
+no spec mentions — reorders the whole extraction, so the "is it fresh" probe is
+`make extract` + `git diff`, never the absence of a Rust diff in the modules a
+spec touches.

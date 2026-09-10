@@ -97,6 +97,85 @@ allocation; measured through `to_polynomial`, which calls it per entry."""
 # bench files, and the semantics they exercised run on demand via the
 # `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
 
+"chain::chain_verify" = """
+The composed chain: ten rows, and it inherits every wall of every link at once
+-- `paper_rel_out`'s `2^23`-order mat-vecs, the `R^lin` matrix's 2.2 GiB, the
+`2^m0` cube and `M_ZERO = 26` rounds of the sumcheck. Infeasible even REDUCED,
+and not reducible either: row 2 is hard-wired to `params::BLOCKS`,
+`params::MESSAGE_ROWS` and `params::INNER_ROWS`, so there is no toy width at
+which the composed path runs at all (`tests/chain_semantics.rs` § the shape).
+
+Every row that *can* be measured is measured under its own name; what a row
+here would add is the threading, which is statement maps and no arithmetic.
+
+Removal condition: none as a single row. If the chain is ever to be timed
+end-to-end that is Stage 7's job -- an ell = 30 span comparison against
+`logs/paper-impl/`, on a machine given over to it -- not a criterion row."""
+
+"chain::chain_open" = """
+The honest side: `honest_compute_v` (a `2^23`-order commitment),
+`honest_compute_resp` (the same plus the bounded `z` decomposition) and
+`honest_compute_y`. All three are excluded under their own names for the same
+reasons; this composes them and adds nothing timeable. Same removal condition
+as `chain_verify`."""
+
+"quadeval::rlin_cw" = """
+`blocks * messageDigits`: one `usize` product. O(1) by inspection, the
+`params.rs`-constant class of the header. The four `rlinC*` siblings and
+`rlin_rows` are the same."""
+
+"quadeval::rlin_ct" = """
+`blocks * (innerRows * innerDigits)`: two `usize` products. O(1) by
+inspection."""
+
+"quadeval::rlin_cz" = """
+`messageRows * messageDigits * zDigits`: two `usize` products. O(1) by
+inspection."""
+
+"quadeval::rlin_cols" = """
+The sum of the three block widths, in the specification's own parenthesisation.
+Five `usize` operations. O(1) by inspection."""
+
+"quadeval::rlin_rows" = """
+`dRows + (outerRows + (1 + (1 + innerRows)))`: four `usize` additions. O(1) by
+inspection."""
+
+"quadeval::unflatten" = """
+A reshape: it copies every entry of the input into per-block vectors and does
+no arithmetic at all. A criterion row would measure the allocator and the
+memcpy, which is the "measures the harness, not the item" bar of the header.
+Its correctness is pinned by `unflatten_inverts_flatten_blocks` in
+`tests/quadeval_semantics.rs`, at a width where the block count and the block
+width differ so a transposed reshape cannot pass.
+
+Removal condition: none. A reshape does not become arithmetic at any
+parameter."""
+
+"quadeval::stack" = """
+`w-hat ++ flatten(t-hat) ++ z-hat`, a concatenation with no arithmetic. At the
+pinned parameters it copies `rlinCols = 57 344` `Rq` = 448 MiB, so a row here
+would be a memcpy benchmark. Same class as `unflatten`; pinned by
+`stack_and_unstack_are_inverse`."""
+
+"quadeval::unstack" = """
+The inverse split, likewise pure copying. Same class and same test."""
+
+"quadeval::rlin_stmt" = """
+The Eq. (20) block matrix, `rlinRows x rlinCols` = `5 x 57 344` `Rq` =
+**2.2 GiB** at the pinned parameters -- the wall the target-4 brief records for
+this matrix, and it is a *memory* wall, independent of `ring::mul`. Infeasible
+even REDUCED: a shape small enough to hold is a shape where the block structure
+no longer resembles Eq. (20).
+
+Its arithmetic is measured through the pieces it calls, all of which have their
+own rows: `gadget/gadget_transpose_mul` (c3, c4 and c5's blocks all go through
+it) and `quadeval/tensor_g_matrix` (c5's tensor block). What a row here would
+add over those is the zero padding and the copying, which is the excluded
+class.
+
+Removal condition: none at these parameters. A smaller `d` or `mu_0` would
+change the object rather than make this measurable."""
+
 "quadeval::PolyEvalStatement" = """
 The composed chain's input statement: a four-field struct, its constructor and
 its four accessors. O(1) by inspection, the `RlinStatement` class -- a criterion

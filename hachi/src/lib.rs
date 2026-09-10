@@ -134,3 +134,6 @@ pub mod endpiece;
 pub mod zerocheck;
 
 pub mod sumcheck;
+
+/// The composed evaluation chain: `open`/`verify` over the proved links.
+pub mod chain;

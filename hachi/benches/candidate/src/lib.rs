@@ -45,3 +45,5 @@ pub mod endpiece;
 pub mod zerocheck;
 
 pub mod sumcheck;
+
+pub mod chain;

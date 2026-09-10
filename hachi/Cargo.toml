@@ -80,6 +80,9 @@ name = "sumcheck_semantics"
 bench = false
 
 [[test]]
+name = "chain_semantics"
+
+[[test]]
 name = "endpiece_semantics"
 bench = false
 
