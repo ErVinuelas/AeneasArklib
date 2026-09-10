@@ -103,6 +103,7 @@ use crate::quadeval::{PolyEvalStatement, PublicParamsD};
 use crate::ringswitch::LiftedWitness;
 use crate::sumcheck::{NestedZeroCheckStmt, RoundMsg, RoundStatement};
 
+// @genesis 821a5f8 2026-09-10 — chain::chain_verify
 /// The composed verifier: the statement maps of rows 1–7 threaded in the
 /// specification's order, then the three boolean checks it runs on what the
 /// prover sent (spec: the verifier of `evaluation`, `Composition.lean:283`).
@@ -192,6 +193,7 @@ pub fn chain_verify(
     }
 }
 
+// @genesis 951f0d9 2026-09-10 — chain::copy_point
 /// Copy an evaluation point.
 ///
 /// A `Vec<Ext4>` is `Copy` element-wise but the vector is not, and the chain
@@ -207,6 +209,7 @@ fn copy_point(p: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
+// @genesis 821a5f8 2026-09-10 — chain::chain_open
 /// The honest prover's side of the chain: every message the verifier reads
 /// off the wire, in wire order (spec: the honest `computeV`, `hachiLiftCom`,
 /// `honestComputeG` and `computeY` parameters `evaluation` is instantiated at,

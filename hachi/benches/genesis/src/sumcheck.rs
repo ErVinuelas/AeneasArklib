@@ -777,6 +777,7 @@ pub fn nested_to_round_statement(zc: NestedZeroCheckStmt) -> RoundStatement {
 // The rounds, split into the prover's and the verifier's halves (chain row 8)
 // ---------------------------------------------------------------------------
 
+// @genesis 821a5f8 2026-09-10 — sumcheck::honest_round_messages
 /// The honest prover's side of the `m₀` paired-sumcheck rounds: the messages
 /// `g₁, …, g_{m₀}` the verifier receives, computed against a challenge list
 /// (spec: `roundProver`'s `sendMessage` at `computeG := honestComputeG`, one
@@ -825,6 +826,7 @@ pub fn honest_round_messages(
     out
 }
 
+// @genesis 821a5f8 2026-09-10 — sumcheck::round_verify_loop
 /// The verifier's side of the `m₀` paired-sumcheck rounds: `roundCheck` on
 /// each received message, `roundOut` on a pass, `failure` on the first
 /// rejection (spec: `roundVerifier`, `Sumcheck/Rounds.lean:116-123`, one per
