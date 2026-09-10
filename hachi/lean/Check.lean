@@ -11,6 +11,7 @@ import QuadEvalProtocol
 import RingSwitch
 import ZeroCheck
 import EndPiece
+import Rlin
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -1157,5 +1158,31 @@ development, which joins this list when it is proved and promoted. -/
 #print axioms HachiEquiv.EndPiece.end_piece_check_spec
 #print axioms HachiEquiv.EndPiece.end_piece_prove_spec
 #print axioms HachiEquiv.EndPiece.end_piece_witness_spec
+
+-- Stage 5's `R^lin` adapter (`lean/Rlin.lean`, chain row 3) plus the
+-- polynomial-level bridge (row 1): the transposed gadget application every
+-- block goes through, the five `usize` dimension abbrevs, the two reshapes, the
+-- two witness maps, the bridge's carrier and map, and the assembly
+-- `rlin_stmt_spec`. That last one is stated against the specification's own
+-- `rlinStmt`, whose c4 block is `(matMul G J).transpose *ᵥ a`, while the crate
+-- computes `Jᵀ(Gᵀa)` -- the 320 GiB product never exists -- so its proof is
+-- what makes the genesis freeze of the reshaped form faithful. Four of the
+-- thirteen are stated at the pinned dimensions because the carrier relations
+-- they consume (`RepParamsD`/`RepStmt`/`RepResp`) are; the other nine are
+-- generic. Aristotle session `4d70f965`, nine obligations to zero, no headline
+-- signature changed.
+#print axioms HachiEquiv.Rlin.gadget_transpose_mul_spec
+#print axioms HachiEquiv.Rlin.rlin_cw_spec
+#print axioms HachiEquiv.Rlin.rlin_ct_spec
+#print axioms HachiEquiv.Rlin.rlin_cz_spec
+#print axioms HachiEquiv.Rlin.rlin_cols_spec
+#print axioms HachiEquiv.Rlin.rlin_rows_spec
+#print axioms HachiEquiv.Rlin.unflatten_spec
+#print axioms HachiEquiv.Rlin.tensor_g_matrix_spec
+#print axioms HachiEquiv.Rlin.stack_spec
+#print axioms HachiEquiv.Rlin.unstack_spec
+#print axioms HachiEquiv.Rlin.PolyEvalStatement_new_spec
+#print axioms HachiEquiv.Rlin.to_quad_eval_statement_spec
+#print axioms HachiEquiv.Rlin.rlin_stmt_spec
 
 end HachiEquiv.Check

@@ -1,21 +1,19 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt (2026-09-10): `Rlin.lean`**, Stage 5's `R^lin` adapter (chain
-row 3) plus the polynomial-level bridge (row 1): thirteen statements, four
-dimension specs proved in place, **nine `sorry`s** for the prover. It imports
-only promoted files (`QuadEvalProtocol`, `ZeroCheck`), so the plain
-`lake env lean lean-wip/Rlin.lean` validates it and the Aristotle helper's own
-check works. Everything before it has been promoted, and
+**Current debt (2026-09-10): none.** This directory holds nothing but this
+file. The last file through was `Rlin.lean` (Stage 5's `R^lin` adapter plus the
+polynomial-level bridge, thirteen headline specs, Aristotle session `4d70f965`,
+nine obligations to zero). Everything before it has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
-hundred and forty-seven** headline specs and they all come out as the three
+hundred and sixty** headline specs and they all come out as the three
 Lean kernel axioms.
 
 That is worth a note rather than a celebration: the next translated operation
-puts debt back here, and the directory exists for that. The 35 items
-`make spec-check` currently reports owed — `gadget_transpose_mul`, the bridge
-and `R^lin` rows in `quadeval`, and target 5's in `sumcheck` — are all
+puts debt back here, and the directory exists for that. The 24 items
+`make spec-check` currently reports owed — the two `chain` rows and target 5's
+`sumcheck` — are all
 *unstated*, not unproved; when they are written they will be staged here first.
 
 Everything earlier that passed through here has been promoted: the
@@ -198,3 +196,18 @@ Three conventions in it worth knowing before touching it:
   (`Composition.lean:287`) — `K.TCom` is a function type, so there is no
   instance to find, and the binders sit on the `.TCom` projection because
   instance search will not unfold it.
+
+**Fourth staged file (2026-09-09 → 2026-09-10):** `Rlin.lean`, thirteen
+statements for the `R^lin` adapter (`gadget_transpose_mul`, the five dimension
+abbrevs, `unflatten`, `tensor_g_matrix`, `stack`, `unstack`, `rlin_stmt`) and
+the polynomial-level bridge (`PolyEvalStatement`, `to_quad_eval_statement`).
+Imported only promoted files, so it needed no detour and the helper's own
+validation worked on the return -- the first session this week that the helper
+integrated without manual rescue. Four dimension specs were proved in place;
+Aristotle `4d70f965` took the other nine to zero (`OUT_OF_BUDGET` with nothing
+left open -- read `after_sorries`, not the status). Statement audit: fourteen
+declarations compared hypothesis-by-hypothesis to the submitted baseline, none
+changed; forty-one helper/loop lemmas added; one `set_option maxHeartbeats
+2000000 in` on `rlin_stmt_spec`. Pre-flight lesson recorded in NOTES.md:
+`make extract` before submitting -- the staged `Generated.lean` was stale
+because a new module reorders the whole extraction.

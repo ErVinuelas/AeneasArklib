@@ -4788,3 +4788,36 @@ Lesson: a staged `Generated.lean` is not a fresh one. Adding a module — even o
 no spec mentions — reorders the whole extraction, so the "is it fresh" probe is
 `make extract` + `git diff`, never the absence of a Rust diff in the modules a
 spec touches.
+
+## `Rlin.lean` is proved and promoted (2026-09-10)
+
+Aristotle session `4d70f965`: **9 obligations to zero**, `task_status`
+`OUT_OF_BUDGET` — the budget ran out *after* the last `sorry` went, so the
+status is misleading on its own and `after_sorries` is the field to read. The
+helper integrated it unaided: the file imports only promoted modules, so its
+plain `lake env lean` validation was correct for the first time this week.
+
+Audit before promotion: fourteen declarations (thirteen headline specs plus
+`RepPolyEval`) compared hypothesis-by-hypothesis against the submitted
+baseline — **none changed**, nothing removed. Forty-one declarations added,
+all helper or loop lemmas: per-loop specs for the reshapes, the witness maps
+and the five row blocks of `rlin_stmt`, two index helpers for
+`tensor_g_matrix`, and the two pieces of the associativity bridge,
+`matMul_transpose_mulVec` and `matMul_row`, which are exactly what the
+corrected proof plan said would be needed once `Matrix.transpose_mul` was
+ruled out. No `axiom`, `native_decide` or `admit`; one
+`set_option maxHeartbeats 2000000 in` on `rlin_stmt_spec`, which is the
+3000-line-file's one heavy elaboration and is local to that theorem.
+
+Promoted per the README's five steps: `lean/Rlin.lean`, `Rlin` root,
+`import Rlin`, thirteen `#print axioms` lines. `make build`: 0 errors, **160**
+headline specs all on `[propext, Classical.choice, Quot.sound]`, no `sorry`
+outside the eighteen known dependency warnings. `make spec-check`: 148
+mirrored / 124 stated / **24 owed** — the two `chain` rows and target 5's
+twenty-two `sumcheck` items. `lean-wip/` is empty again.
+
+What this closes: the genesis freeze of the *reshaped* c4 block
+(NOTES.md § "Decision: the `R^lin` adapter's genesis holds the reshaped
+form") rested on `rlin_stmt_spec` being true against the specification's
+`rlinStmt`. It now is, machine-checked, so the reshaped genesis is a faithful
+baseline rather than a decision awaiting its proof.
