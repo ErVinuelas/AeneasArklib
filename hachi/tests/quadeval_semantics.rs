@@ -637,6 +637,10 @@ fn unflatten_inverts_flatten_blocks() {
 /// row block is `D` padded with zeros, and its `c4` response block is the
 /// negated reshape — checked against the naive matrix product again, this time
 /// through `rlin_stmt` rather than the helper directly.
+// 145 lines because it asserts all five row blocks and both paddings by value.
+// Splitting it would mean rebuilding the 2.2 GiB-shaped statement per part, and
+// asserting fewer blocks is exactly what let three mutants live.
+#[allow(clippy::too_many_lines)]
 #[test]
 fn the_assembled_rlin_system_has_the_specified_blocks() {
     let mut r = Lcg::new(0x810C_C50F_1700_0003);
@@ -712,16 +716,100 @@ fn the_assembled_rlin_system_has_the_specified_blocks() {
         assert!(out.m().row(0).get(k).is_zero(), "c1 padding entry {k}");
     }
 
-    // c4's response block is the negated naive product
-    let g = gadget_matrix_ref(message_rows, message_digits);
+    // --- every block, by value. Found necessary by cross-review: asserting
+    // only c1 and c4's response block left three mutants alive against the
+    // whole 173-test suite (c2 collapsed to one column, c3/c4's carrier blocks
+    // swapped, and c5's sign dropped). A block-structured matrix needs every
+    // block asserted, because each one is the only place its own data appears.
+    let g_r = gadget_matrix_ref(blocks, message_digits);
+    let g_m = gadget_matrix_ref(message_rows, message_digits);
     let j = gadget_matrix_ref(message_rows * message_digits, z_digits);
-    let gj = mat_mul_ref(&g, &j);
-    let naive = transpose_mul_ref(&gj, &entries_of(stmt.avec()));
+    let gj = mat_mul_ref(&g_m, &j);
+
+    // c2: [ 0 | B | 0 ]
+    let c2 = d_rows;
+    for k in 0..cw {
+        assert!(out.m().row(c2).get(k).is_zero(), "c2 carrier padding {k}");
+    }
+    for k in 0..ct {
+        assert!(
+            out.m().row(c2).get(cw + k).equals(pp.inner().outer_matrix().row(0).get(k)),
+            "c2 inner block entry {k} must be B"
+        );
+    }
+    for k in 0..cz {
+        assert!(out.m().row(c2).get(cw + ct + k).is_zero(), "c2 response padding {k}");
+    }
+
+    // c3: [ (G_{2^r})^T b | 0 | 0 ] -- against bvec, not the challenge
+    let c3 = d_rows + outer_rows;
+    let from_bvec = transpose_mul_ref(&g_r, &entries_of(stmt.bvec()));
+    for k in 0..cw {
+        assert!(
+            out.m().row(c3).get(k).equals(&from_bvec[k]),
+            "c3 carrier block entry {k} must be (G_blocks)^T bvec"
+        );
+    }
+    for k in cw..cols {
+        assert!(out.m().row(c3).get(k).is_zero(), "c3 padding {k}");
+    }
+
+    // c4: [ (G_{2^r})^T c | 0 | -(G_{2^m} J)^T a ] -- against the challenge,
+    // which is what distinguishes it from c3.
     let c4 = d_rows + outer_rows + 1;
+    let from_challenge = transpose_mul_ref(&g_r, &entries_of(&c));
+    for k in 0..cw {
+        assert!(
+            out.m().row(c4).get(k).equals(&from_challenge[k]),
+            "c4 carrier block entry {k} must be (G_blocks)^T c, not bvec"
+        );
+    }
+    for k in 0..ct {
+        assert!(out.m().row(c4).get(cw + k).is_zero(), "c4 inner padding {k}");
+    }
+    let naive = transpose_mul_ref(&gj, &entries_of(stmt.avec()));
     for k in 0..cz {
         assert!(
             out.m().row(c4).get(cw + ct + k).equals(&naive[k].neg()),
             "c4 response block entry {k} must be -(G*J)^T a"
+        );
+    }
+    // and the two carrier blocks are genuinely different data, so the swap the
+    // assertions above rule out is not ruled out vacuously.
+    assert!(
+        !from_bvec[0].equals(&from_challenge[0]),
+        "bvec and c must differ, else c3/c4 cannot be told apart"
+    );
+
+    // c5: [ 0 | (c^T (x) G_{n_A}) | -(A J) ]
+    let c5 = d_rows + outer_rows + 2;
+    let g_k = gadget_matrix_ref(inner_rows, inner_digits);
+    for p in 0..inner_rows {
+        for k in 0..cw {
+            assert!(out.m().row(c5 + p).get(k).is_zero(), "c5 carrier padding {k}");
+        }
+        // the tensor block, from the specification's own entry formula
+        for i in 0..blocks {
+            for gg in 0..inner_rows * inner_digits {
+                let want = c.get(i).mul(&g_k[p][gg]);
+                let flat = i * (inner_rows * inner_digits) + gg;
+                assert!(
+                    out.m().row(c5 + p).get(cw + flat).equals(&want),
+                    "c5 tensor entry ({i},{gg}) must be c_i * G(p,g)"
+                );
+            }
+        }
+        // the response block: -(A J)[p], negated
+        let a_row = transpose_mul_ref(&j, &entries_of(pp.inner().inner_matrix().row(p)));
+        for k in 0..cz {
+            assert!(
+                out.m().row(c5 + p).get(cw + ct + k).equals(&a_row[k].neg()),
+                "c5 response entry {k} must be -(A J)[p], negated"
+            );
+        }
+        assert!(
+            !a_row[1].is_zero(),
+            "the c5 response block must be nonzero, else the sign is untestable"
         );
     }
 

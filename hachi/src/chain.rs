@@ -21,37 +21,77 @@
 //! plan scoped this module to "a composed commit → open → verify over the
 //! proved links, with `D` and the challenge stream as **explicit inputs**".
 //!
-//! So what follows is the *computational residue* of the chain: the statement
-//! maps threaded in order, and the conjunction of the guards that actually
-//! decide. The challenge stream arrives as arguments because there is no
-//! sampler here — a verifier that drew its own challenges would be a different
-//! object from the one ArkLib proves sound.
+//! So what follows is the *computational residue* of the chain's two parties:
+//! [`chain_verify`] is the composed **verifier** -- the statement maps threaded
+//! in order and the boolean checks the specification's verifiers actually run
+//! -- and [`chain_open`] is the composed **honest prover**, producing the
+//! messages the verifier reads off the wire. The challenge stream arrives as
+//! arguments on both sides because there is no sampler here: a verifier that
+//! drew its own challenges would be a different object from the one ArkLib
+//! proves sound.
 //!
-//! # Which rows decide, and which only reshape
+//! # What the verifier checks, and what it does not
 //!
-//! Four of the nine rows are pure or zero-round and contribute no check at
-//! all, which is why this function is shorter than the row count suggests:
+//! The composed verifier has **exactly three boolean checks** --
+//! `roundCheck` once per round, `finalCheck`, and `endPieceCheck` -- and rows
+//! 1–7 are pure statement maps (`STAGE2_SCOPING.md` § "API mapping", read off
+//! `Correctness.lean`'s wire format and confirmed row by row below):
 //!
-//! | row | contributes |
+//! | row | verifier |
 //! |---|---|
-//! | 1 bridge | `to_quad_eval_statement`, a statement map |
-//! | 2 quadEval | **`paper_rel_out`** — Eq. (20), the Figure 3 verifier |
-//! | 3 `R^lin` adapter | `rlin_stmt`, a statement map |
-//! | 4 lift | **`lift_short_check`** — the shortness index |
-//! | 5 batch | nothing: its map is `id` (`ZeroCheck/Batch.lean:267`) |
-//! | 6 zeroCheck | **`h_zero_is_zero`**, **`h_alpha_is_zero`** |
-//! | 7 sumcheck bridge | `nested_to_round_statement`, a statement map |
-//! | 8 rounds | **`round_loop`**, which runs `round_check` per round |
-//! | 9 finalEval | **`final_check`** |
-//! | closing | **`end_piece_check`** |
+//! | 1 bridge | `to_quad_eval_statement`, a statement map (`QuadEval/Bridge.lean:182`) |
+//! | 2 quadEval | pass-through: re-emits the statement, the message `v` and the challenge `c` (`QuadEval/Reduction.lean:434`) |
+//! | 3 `R^lin` adapter | `rlin_stmt`, a statement map (`RingSwitch/Rlin.lean:529`) |
+//! | 4 lift | a statement map: adjoins the message `t` and the challenge `α` |
+//! | 5 batch | nothing: its map is `id` (`ZeroCheck/Batch.lean:271`) |
+//! | 6 zeroCheck | a statement map: adjoins the challenges `τ₀`, `τ_α` (`nestedZcMapStmt`, `ZeroCheck/Reduction.lean:379`) |
+//! | 7 sumcheck bridge | `nested_to_round_statement`, a statement map (`Sumcheck/Bridge.lean:165`) |
+//! | 8 rounds | **`round_verify_loop`**: `roundCheck` on each received message (`Sumcheck/Rounds.lean:120`) |
+//! | 9 finalEval | **`final_check`** on the received `y′` (`Sumcheck/FinalEval.lean:114`) |
+//! | closing | **`end_piece_check`** on the received witness (`EndPiece/Reduction.lean:154`) |
+//!
+//! **What is absent from that table is the point of it.** Eq. (20)
+//! (`paper_rel_out`), the lift's shortness (`lift_short_check` on its own), and
+//! the two zero-check blocks (`h_zero_is_zero`, `h_alpha_is_zero`) are
+//! *relations* -- `relOut`, `relLift`, `relNestedZeroCheck` -- the sets the
+//! soundness theorems quantify over. No verifier in the composition evaluates
+//! them: the `(ŵ, t̂, ẑ)` triple is never sent (§4.3 proves knowledge of it),
+//! and `H₀ ≡ 0`, `H_α ≡ 0` are what the sumcheck exists to establish. That is
+//! the paper's headline -- the verifier performs no `R_q` multiplication
+//! (§1.2) -- and it is why the verifier here never touches the witness before
+//! the end piece, whose one message *is* the witness (`endPieceProver`,
+//! `EndPiece/Reduction.lean:241`). A first draft of this module ran all four
+//! relations as guards and recomputed the prover's round messages inside the
+//! verifier; NOTES.md § "The composed verifier was not a verifier" records
+//! what that cost and how it was found.
+//!
+//! # Inputs, classified
+//!
+//! Three kinds, and the classification is the wire format
+//! (`Correctness.lean:189-201`):
+//!
+//! * **public**: `pp`, the lift key `d_key`, the evaluation claim `poly_stmt`,
+//!   the bound `gamma`, and the six dimensions;
+//! * **messages**, prover to verifier, in wire order: `v` (row 2), `t` (row
+//!   4), `msgs` (row 8, one pair per round), `y_prime` (row 9), `w` (the end
+//!   piece's single message);
+//! * **challenges**, verifier to prover, in wire order: `c` (row 2), `alpha`
+//!   (row 4), `tau0` and `tau1` (row 6), `challenges` (row 8).
+//!
+//! The specification's `FullTranscript` types every length; here the lengths
+//! (`msgs.len() == challenges.len() == m₀`, `tau0.len() == m₀`,
+//! `tau1.len() == m₁`) travel as `_spec` hypotheses.
 //!
 //! # Scale
 //!
-//! Every wall of every link is inherited here at once: `μ₀ = 57 344` for the
-//! `R^lin` matrix (2.2 GiB), `2^m₀ = 6.7·10⁷` for the cube, and `M_ZERO = 26`
-//! rounds of the sumcheck. So the composed rows are excluded from the bench by
-//! name and the end-to-end test runs at the smallest shapes that keep every
-//! row's *shape*, per the scale policy. That is the honest position: this
+//! The verifier inherits two walls, not every wall: the `R^lin` matrix
+//! (`rlin_stmt`, 2.2 GiB at `μ₀ = 57 344`) and the `2^m₀` table
+//! `alpha_public_table` that `final_check` builds (`6.7·10⁷` extension
+//! elements at `M_ZERO = 26`). Neither is a `ring::mul` wall, and neither is
+//! the cube-sized *witness* work the first draft carried -- that now sits
+//! where the specification puts it, in [`chain_open`]. The composed rows are
+//! excluded from the bench by name and the end-to-end test runs at the
+//! smallest shapes that keep every row's shape, per the scale policy: this
 //! module is where the chain is shown to compose, not where it is measured.
 
 use alloc::vec::Vec;
@@ -59,26 +99,28 @@ use alloc::vec::Vec;
 use cpoly::Ext4;
 
 use crate::linalg::{PolyMatrix, PolyVec};
-use crate::quadeval::{PolyEvalStatement, PublicParamsD, QuadEvalResponse};
+use crate::quadeval::{PolyEvalStatement, PublicParamsD};
 use crate::ringswitch::LiftedWitness;
-use crate::sumcheck::{NestedZeroCheckStmt, RoundStatement};
+use crate::sumcheck::{NestedZeroCheckStmt, RoundMsg, RoundStatement};
 
-/// The composed verifier: every guard of the chain, in the specification's row
-/// order, threaded through the statement maps between them (spec: the
-/// computational residue of `evaluation`, `Composition.lean:283`).
+/// The composed verifier: the statement maps of rows 1–7 threaded in the
+/// specification's order, then the three boolean checks it runs on what the
+/// prover sent (spec: the verifier of `evaluation`, `Composition.lean:283`).
 ///
-/// Mirrors `evaluation` at its guards.
+/// Mirrors `evaluation` at its verifier.
 ///
-/// **Branchless in the rows.** Each guard is evaluated and the results are
-/// combined at the end, rather than short-circuiting row by row. That costs
-/// every row's work whatever the answer, and it is deliberate: it is the shape
-/// the composed-verifier proof mirrors, exactly as `quadeval::rel_out` and
-/// `ring::equals` are branchless for the same reason. The one exception is the
-/// round loop, which *must* stop early — `roundVerifier` fails the round it
-/// rejects in and there is no later round to run (`Sumcheck/Rounds.lean:113`).
+/// **Short-circuits where the specification does, and only there.** The round
+/// loop stops at the first rejected round, which is `roundVerifier`'s
+/// `failure` (`Sumcheck/Rounds.lean:123`); `finalEvalVerifier` and
+/// `endPieceVerifier` fail the same way (`FinalEval.lean:118`,
+/// `EndPiece/Reduction.lean:156`), so a `false` from either ends the chain.
+/// The two final checks are still evaluated as the conjunction their
+/// verifiers' `GuardedForm`s name, which is what the composed-verifier proof
+/// mirrors.
 ///
-/// The `Option` from [`crate::sumcheck::round_loop`] is the specification's
-/// `failure`; a `None` there is a rejected round and fails the whole chain.
+/// Rows 4–6 have no carrier of their own here: `LiftStatement` is
+/// `(rlin, t, α)` and `nestedZcMapStmt` adjoins `(τ₀, τ_α)` to it, so the two
+/// maps compose into one [`NestedZeroCheckStmt::new`].
 #[allow(clippy::too_many_arguments)]
 pub fn chain_verify(
     pp: &PublicParamsD,
@@ -86,13 +128,14 @@ pub fn chain_verify(
     poly_stmt: &PolyEvalStatement,
     v: &PolyVec,
     c: &PolyVec,
-    resp: &QuadEvalResponse,
-    w: &LiftedWitness,
+    t: &PolyVec,
     alpha: Ext4,
     tau0: &Vec<Ext4>,
     tau1: &Vec<Ext4>,
+    msgs: &Vec<RoundMsg>,
     challenges: &Vec<Ext4>,
     y_prime: Ext4,
+    w: &LiftedWitness,
     gamma: u64,
     blocks: usize,
     message_rows: usize,
@@ -101,14 +144,11 @@ pub fn chain_verify(
     inner_digits: usize,
     z_digits: usize,
 ) -> bool {
-    let m0: usize = tau0.len();
-    let m1: usize = tau1.len();
-
     // row 1, the bridge: a statement map.
     let stmt = crate::quadeval::to_quad_eval_statement(poly_stmt);
 
-    // row 2, QuadEval: the Figure 3 verifier, Eq. (20) with the paper's box.
-    let c_quadeval: bool = crate::quadeval::paper_rel_out(pp, &stmt, v, c, resp);
+    // row 2, QuadEval: a pass-through. `v` and `c` are read off the wire and
+    // re-emitted; Eq. (20) lives in `relOut` and is not evaluated here.
 
     // row 3, the R^lin adapter: a statement map.
     let rlin = crate::quadeval::rlin_stmt(
@@ -125,37 +165,29 @@ pub fn chain_verify(
         z_digits,
     );
 
-    // row 4, the lift: the shortness index that makes a colliding pair a
-    // Module-SIS break.
-    let c_lift: bool = crate::endpiece::lift_short_check(w);
-
-    // row 5, the batching bridge: nothing to check, its map is the identity.
-
-    // row 6, the zero check: both constraint blocks vanish on the cube.
-    let c_zero: bool = crate::zerocheck::h_zero_is_zero(w, m0);
-    let c_alpha: bool = crate::zerocheck::h_alpha_is_zero(&rlin, alpha, w, m1);
-
-    // the commitment to `w~` that the lift produced, needed twice below.
-    let t: PolyVec = crate::ringswitch::lift_commit(d_key, w);
+    // rows 4 to 6: the lift adjoins `t` and `α`, batch is the identity, the
+    // zero check adjoins `τ₀` and `τ_α`. Three maps, one carrier.
+    let zc = NestedZeroCheckStmt::new(rlin, t.copy(), alpha, copy_point(tau0), copy_point(tau1));
 
     // row 7, the sumcheck bridge: install the empty prefix and the two initial
     // targets.
-    let zc = NestedZeroCheckStmt::new(rlin, t.copy(), alpha, copy_point(tau0), copy_point(tau1));
     let opened: RoundStatement = crate::sumcheck::nested_to_round_statement(zc);
 
-    // row 8, the paired sumcheck rounds. `None` is the round that rejected.
-    let after = crate::sumcheck::round_loop(opened, w, challenges);
+    // row 8, the paired sumcheck rounds: `roundCheck` on each received
+    // message. `None` is the round that rejected.
+    let after = crate::sumcheck::round_verify_loop(opened, msgs, challenges);
     match after {
         None => false,
         Some(final_stmt) => {
-            // row 9, the final evaluation claim.
+            // row 9, the final evaluation claim, on the received `y′`.
             let c_final: bool = crate::sumcheck::final_check(&final_stmt, y_prime, gamma);
 
-            // the closing end piece, on the claim the final row emits.
-            let weval = crate::endpiece::WEvalStatement::new(t, copy_point(challenges), y_prime);
+            // the closing end piece: the claim the final row emits, checked
+            // against the witness the prover sent in the clear.
+            let weval = crate::endpiece::WEvalStatement::new(t.copy(), copy_point(challenges), y_prime);
             let c_end: bool = crate::endpiece::end_piece_check(d_key, &weval, w);
 
-            c_quadeval && c_lift && c_zero && c_alpha && c_final && c_end
+            c_final && c_end
         }
     }
 }
@@ -175,33 +207,89 @@ fn copy_point(p: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
-/// The honest prover's side of the chain: the round-0 carrier commitment, the
-/// Eq. (20) response, and the claimed evaluation (spec: the honest
-/// `computeV`/`computeResp`/`computeY` parameters `evaluation` is instantiated
-/// at, `Composition.lean:283` through `Sumcheck/Completeness.lean:74` and
+/// The honest prover's side of the chain: every message the verifier reads
+/// off the wire, in wire order (spec: the honest `computeV`, `hachiLiftCom`,
+/// `honestComputeG` and `computeY` parameters `evaluation` is instantiated at,
+/// `Composition.lean:283` through `Sumcheck/Completeness.lean:74` and
 /// `FinalEval.lean:246`).
 ///
-/// Mirrors `evaluation` at its honest instantiation.
+/// Mirrors `evaluation` at its honest prover.
 ///
-/// Three values rather than a transcript type: the wire format upstream is a
+/// Four values rather than a transcript type: the wire format upstream is a
 /// `ProtocolSpec` append-chain whose messages are indexed by `Fin`, and there
-/// is no carrier for that here — the composed statement types erase to the
+/// is no carrier for that here -- the composed statement types erase to the
 /// arguments [`chain_verify`] already takes. So the honest side produces
-/// exactly the three things the verifier cannot compute for itself, and the
-/// challenge stream stays an input on both sides.
+/// exactly the things the verifier cannot compute for itself -- `v`, `t`, the
+/// `m₀` round-message pairs and `y′` -- and the challenge stream stays an input
+/// on both sides. The fifth message, the witness itself, is the end piece's
+/// (`end_piece_prove`, the identity) and is already in the caller's hands.
+///
+/// The prover threads the same statement maps the verifier does (rows 1, 3,
+/// 4–7), because `roundProver` carries the statement and `honestComputeG`
+/// reads `τ₀`, the challenges drawn so far and, through `alpha_public_table`,
+/// the `R^lin` statement. That is the specification's shape, not a
+/// convenience: an honest prover that skipped the maps would have nothing to
+/// compute its messages against.
+///
+/// **The lifted witness is an input, not an output.** The honest lift prover
+/// builds `w = (z, ρ)` from the QuadEval response by synthetic division
+/// (`honestLiftWitnessC`, `RingSwitch/ComputableWitness.lean:85`), and that
+/// item is not translated in this crate -- a scope gap found while writing
+/// this module and recorded as owed (NOTES.md § "The composed verifier was
+/// not a verifier"). Until it lands, the caller supplies `w`, and the
+/// QuadEval response `(ŵ, t̂, ẑ)` -- which is never sent -- is not produced
+/// here either: `honest_compute_resp` remains its own mirrored item.
+#[allow(clippy::too_many_arguments)]
 pub fn chain_open(
     pp: &PublicParamsD,
+    d_key: &PolyMatrix,
     poly_stmt: &PolyEvalStatement,
     message: &Vec<PolyVec>,
-    inner_decomp: &Vec<PolyVec>,
     c: &PolyVec,
     w: &LiftedWitness,
+    alpha: Ext4,
+    tau0: &Vec<Ext4>,
+    tau1: &Vec<Ext4>,
     challenges: &Vec<Ext4>,
-) -> (PolyVec, QuadEvalResponse, Ext4) {
+    gamma: u64,
+    blocks: usize,
+    message_rows: usize,
+    message_digits: usize,
+    inner_rows: usize,
+    inner_digits: usize,
+    z_digits: usize,
+) -> (PolyVec, PolyVec, Vec<RoundMsg>, Ext4) {
+    let m0: usize = tau0.len();
+
+    // row 1, then row 2's message: the carrier commitment.
     let stmt = crate::quadeval::to_quad_eval_statement(poly_stmt);
     let v: PolyVec = crate::quadeval::honest_compute_v(pp, &stmt, message);
-    let resp: QuadEvalResponse =
-        crate::quadeval::honest_compute_resp(&stmt, message, inner_decomp, c);
-    let y_prime: Ext4 = crate::sumcheck::honest_compute_y(w, challenges.len(), challenges);
-    (v, resp, y_prime)
+
+    // row 3, the statement the rounds are computed against.
+    let rlin = crate::quadeval::rlin_stmt(
+        pp,
+        &stmt,
+        &v,
+        c,
+        gamma,
+        blocks,
+        message_rows,
+        message_digits,
+        inner_rows,
+        inner_digits,
+        z_digits,
+    );
+
+    // row 4's message: the commitment to `w̃`.
+    let t: PolyVec = crate::ringswitch::lift_commit(d_key, w);
+
+    // rows 4 to 7, as the verifier threads them.
+    let zc = NestedZeroCheckStmt::new(rlin, t.copy(), alpha, copy_point(tau0), copy_point(tau1));
+    let opened: RoundStatement = crate::sumcheck::nested_to_round_statement(zc);
+
+    // row 8's messages, and row 9's.
+    let msgs: Vec<RoundMsg> = crate::sumcheck::honest_round_messages(opened, w, challenges);
+    let y_prime: Ext4 = crate::sumcheck::honest_compute_y(w, m0, challenges);
+
+    (v, t, msgs, y_prime)
 }

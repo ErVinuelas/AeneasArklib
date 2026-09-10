@@ -44,8 +44,10 @@ use hachi::params::{GADGET_BASE, Q, ROUND_NODES, ROUND_NODE_INV};
 use hachi::linalg::PolyVec;
 use hachi::params::{ROUND_NODES_ALPHA, ROUND_NODE_INV_ALPHA};
 use hachi::ringswitch::RlinStatement;
+use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::sumcheck::{alpha_public_table, eq_free_factor, eq_prefix, eq_suffix_table,
-                      nested_to_round_statement,
+                      honest_round_messages, nested_to_round_statement, round_loop,
+                      round_verify_loop,
                       final_check, honest_compute_g, interpolate, round_check, round_node,
                       round_node_weights, round_out, round_poly_zero, round_value_zero,
                       round_values_zero, NestedZeroCheckStmt, RoundStatement};
@@ -702,4 +704,106 @@ fn the_bridge_installs_zero_and_the_alpha_target() {
     assert_eq!(st.zc().tau0().len(), m0);
     assert_eq!(st.zc().tau1().len(), m1);
     assert_eq!(st.zc().alpha(), alpha);
+}
+
+// --- the rounds, split into the prover's and the verifier's halves ----------
+
+/// A toy lifted witness whose `z` covers an `m₀`-variable cube: `w_table`
+/// reads `z[idx / d]`, so at `m₀ ≤ 10` only `z[0]` is ever touched.
+fn toy_witness(seed: u64) -> LiftedWitness {
+    let mut r = Lcg::new(seed);
+    LiftedWitness::new(r.next_poly_vec(1), (0..1).map(|_| QuotientRow::new(&Vec::new())).collect())
+}
+
+/// A round-0 statement whose two targets are the honest initial sums over the
+/// witness's own tables, so that every round of an honest run passes
+/// `round_check`. The targets are read off `g₁(0) + g₁(1)`, which is what the
+/// sumcheck's first round asserts they are; `round_check` has its own test
+/// against moved targets above.
+fn honest_opening(seed: u64, w: &LiftedWitness, m0: usize) -> RoundStatement {
+    let probe = round_stmt(seed, tau_of(seed, m0), tau1_of(seed), alpha_of(seed), Vec::new(),
+                           Ext4::ZERO, Ext4::ZERO);
+    let w_tab = hachi::zerocheck::c_w_table_mle(w, m0).into_values();
+    let a_tab = alpha_public_table(probe.zc().rlin(), probe.zc().alpha(), probe.zc().tau1(), m0);
+    let g = honest_compute_g(&probe, &w_tab, &a_tab, 0);
+    let t0 = g.g_zero().eval(Ext4::ZERO) + g.g_zero().eval(Ext4::ONE);
+    let ta = g.g_alpha().eval(Ext4::ZERO) + g.g_alpha().eval(Ext4::ONE);
+    round_stmt(seed, tau_of(seed, m0), tau1_of(seed), alpha_of(seed), Vec::new(), t0, ta)
+}
+
+fn tau_of(seed: u64, m0: usize) -> Vec<Ext4> {
+    let mut r = Lcg::new(seed ^ 0x7A00);
+    (0..m0).map(|_| ext4(&mut r)).collect()
+}
+
+fn tau1_of(seed: u64) -> Vec<Ext4> {
+    let mut r = Lcg::new(seed ^ 0x7A01);
+    (0..2).map(|_| ext4(&mut r)).collect()
+}
+
+fn alpha_of(seed: u64) -> Ext4 {
+    let mut r = Lcg::new(seed ^ 0xA1FA);
+    ext4(&mut r)
+}
+
+/// The two halves compose to the fused reduction: the verifier's loop accepts
+/// the honest prover's messages and lands on the statement `round_loop` lands
+/// on -- same challenge prefix, same two targets. This is the test that lets
+/// [`round_verify_loop`] stand in for `round_loop` on the verifier's path.
+#[test]
+fn round_verify_loop_accepts_the_honest_messages_and_agrees_with_round_loop() {
+    let seed = 0x5EED_0001u64;
+    let m0 = 3usize;
+    let w = toy_witness(seed);
+    let mut r = Lcg::new(seed ^ 0xC4);
+    let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+
+    let msgs = honest_round_messages(honest_opening(seed, &w, m0), &w, &challenges);
+    assert_eq!(msgs.len(), m0, "one message pair per round");
+
+    let verified = round_verify_loop(honest_opening(seed, &w, m0), &msgs, &challenges)
+        .expect("the verifier must accept the honest messages");
+    let fused = round_loop(honest_opening(seed, &w, m0), &w, &challenges)
+        .expect("the fused reduction accepts its own honest run");
+
+    assert_eq!(verified.challenges(), fused.challenges());
+    assert_eq!(verified.target_zero(), fused.target_zero());
+    assert_eq!(verified.target_alpha(), fused.target_alpha());
+    assert_eq!(verified.challenges(), &challenges);
+}
+
+/// A message from another prover's run, spliced in at round `k`, is rejected
+/// at round `k` and not before: the rounds before it still pass, which is what
+/// shows the rejection is the message's and not the statement's.
+#[test]
+fn round_verify_loop_rejects_a_spliced_message_at_its_own_round() {
+    let seed = 0x5EED_0002u64;
+    let m0 = 4usize;
+    let w = toy_witness(seed);
+    let other = toy_witness(seed ^ 0xFFFF);
+    let mut r = Lcg::new(seed ^ 0xC4);
+    let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+
+    for k in 0..m0 {
+        let mut msgs = honest_round_messages(honest_opening(seed, &w, m0), &w, &challenges);
+        let foreign = honest_round_messages(honest_opening(seed, &other, m0), &other, &challenges);
+        msgs[k] = foreign.into_iter().nth(k).expect("the foreign run has a message at k");
+
+        assert!(
+            round_verify_loop(honest_opening(seed, &w, m0), &msgs, &challenges).is_none(),
+            "a foreign message at round {k} must be rejected"
+        );
+
+        // the honest prefix still passes: truncate both lists to `k` rounds by
+        // running a `k`-variable check -- the first `k` messages of the honest
+        // run are the honest run of the same statement on the first `k`
+        // challenges only if `k == m0`, so instead check each honest message
+        // against the statement it was produced for.
+        let mut current = honest_opening(seed, &w, m0);
+        let honest = honest_round_messages(honest_opening(seed, &w, m0), &w, &challenges);
+        for (i, g) in honest.iter().enumerate().take(k) {
+            assert!(round_check(&current, g), "honest round {i} passes before the splice at {k}");
+            current = round_out(current, g, challenges[i]);
+        }
+    }
 }

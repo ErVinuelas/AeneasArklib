@@ -760,3 +760,93 @@ pub fn nested_to_round_statement(zc: NestedZeroCheckStmt) -> RoundStatement {
     let target_alpha: Ext4 = crate::zerocheck::zc_target_alpha(zc.rlin(), zc.alpha(), zc.tau1());
     RoundStatement::new(zc, Vec::new(), Ext4::ZERO, target_alpha)
 }
+
+// ---------------------------------------------------------------------------
+// The rounds, split into the prover's and the verifier's halves (chain row 8)
+// ---------------------------------------------------------------------------
+
+/// The honest prover's side of the `m₀` paired-sumcheck rounds: the messages
+/// `g₁, …, g_{m₀}` the verifier receives, computed against a challenge list
+/// (spec: `roundProver`'s `sendMessage` at `computeG := honestComputeG`, one
+/// per round of `roundsReductionAux`, `Sumcheck/Rounds.lean:157-171` and
+/// `Sumcheck/Completeness.lean:347`).
+///
+/// Mirrors `roundProver` at `computeG := honestComputeG`, over every round.
+///
+/// [`round_loop`] is the *reduction's* honest execution -- prover and
+/// verifier fused, `roundsReductionAux`'s residue -- and it returns only the
+/// final statement, so a verifier cannot be handed its messages. This is the
+/// prover's half on its own: the same tables, the same folds, the same
+/// `round_out` threading (the prover carries the statement too,
+/// `roundProver.output`), but what comes out is the wire content. The
+/// verifier's half is [`round_verify_loop`]; `tests/sumcheck_semantics.rs`
+/// checks that the two halves together reproduce [`round_loop`].
+///
+/// `challenges` must hold at least `m₀` entries; the specification's
+/// `roundsSpec F b count` types that, and here it travels as a `_spec`
+/// hypothesis.
+pub fn honest_round_messages(
+    stmt: RoundStatement,
+    w: &crate::ringswitch::LiftedWitness,
+    challenges: &Vec<Ext4>,
+) -> Vec<RoundMsg> {
+    let m0: usize = stmt.zc().tau0().len();
+    let mut w_tab: Vec<Ext4> = crate::zerocheck::c_w_table_mle(w, m0).into_values();
+    let mut a_tab: Vec<Ext4> = alpha_public_table(
+        stmt.zc().rlin(),
+        stmt.zc().alpha(),
+        stmt.zc().tau1(),
+        m0,
+    );
+    let mut current: RoundStatement = stmt;
+    let mut out: Vec<RoundMsg> = Vec::new();
+    let mut i: usize = 0;
+    while i < m0 {
+        let g: RoundMsg = honest_compute_g(&current, &w_tab, &a_tab, i);
+        let a: Ext4 = challenges[i];
+        current = round_out(current, &g, a);
+        w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
+        a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
+        out.push(g);
+        i += 1;
+    }
+    out
+}
+
+/// The verifier's side of the `m₀` paired-sumcheck rounds: `roundCheck` on
+/// each received message, `roundOut` on a pass, `failure` on the first
+/// rejection (spec: `roundVerifier`, `Sumcheck/Rounds.lean:116-123`, one per
+/// round of `roundsChain`, `:402`).
+///
+/// Mirrors `roundVerifier`, over every round.
+///
+/// This is the only thing the composed verifier does in row 8. It holds no
+/// witness and no table: the messages arrive over the wire, and each round
+/// costs four evaluations of a univariate polynomial of degree at most `2b`.
+/// The `Option` is the specification's `failure` -- `roundVerifier` fails the
+/// round it rejects in, and there is no later round to run.
+///
+/// The specification's `RoundMsg` carries its two degree bounds as subtypes,
+/// so a message of the wrong degree is not a value of the wire type at all;
+/// here the bounds are the erasure recorded on [`RoundMsg`], and a
+/// `_spec` hypothesis, not a runtime check. `msgs` and `challenges` must hold
+/// at least `m₀` entries each, as `roundsSpec F b count` types.
+pub fn round_verify_loop(
+    stmt: RoundStatement,
+    msgs: &Vec<RoundMsg>,
+    challenges: &Vec<Ext4>,
+) -> Option<RoundStatement> {
+    let m0: usize = stmt.zc().tau0().len();
+    let mut current: RoundStatement = stmt;
+    let mut i: usize = 0;
+    while i < m0 {
+        let g: &RoundMsg = &msgs[i];
+        if !round_check(&current, g) {
+            return None;
+        }
+        let a: Ext4 = challenges[i];
+        current = round_out(current, g, a);
+        i += 1;
+    }
+    Some(current)
+}

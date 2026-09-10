@@ -98,12 +98,15 @@ allocation; measured through `to_polynomial`, which calls it per entry."""
 # `#[ignore]`d full-const tests (`cargo test --release -- --ignored`).
 
 "chain::chain_verify" = """
-The composed chain: ten rows, and it inherits every wall of every link at once
--- `paper_rel_out`'s `2^23`-order mat-vecs, the `R^lin` matrix's 2.2 GiB, the
-`2^m0` cube and `M_ZERO = 26` rounds of the sumcheck. Infeasible even REDUCED,
-and not reducible either: row 2 is hard-wired to `params::BLOCKS`,
-`params::MESSAGE_ROWS` and `params::INNER_ROWS`, so there is no toy width at
-which the composed path runs at all (`tests/chain_semantics.rs` § the shape).
+The composed verifier: seven statement maps and the three boolean checks the
+specification's verifiers run (`roundCheck` per round, `finalCheck`,
+`endPieceCheck`). Two walls, and it is worth saying which are *not* here: no
+`paper_rel_out` (Eq. (20) is the relation `relOut`, never evaluated by a
+verifier) and no `2^m0` witness table (the prover's, in `chain_open`). What
+remains is `rlin_stmt` -- the `R^lin` matrix, 2.2 GiB at `mu0 = 57 344` -- and
+`final_check`'s `alpha_public_table`, `2^m0` extension elements at
+`M_ZERO = 26`. Infeasible as a criterion row; runnable as a test, which is what
+`tests/chain_semantics.rs` does at a toy cube.
 
 Every row that *can* be measured is measured under its own name; what a row
 here would add is the threading, which is statement maps and no arithmetic.
@@ -113,11 +116,11 @@ end-to-end that is Stage 7's job -- an ell = 30 span comparison against
 `logs/paper-impl/`, on a machine given over to it -- not a criterion row."""
 
 "chain::chain_open" = """
-The honest side: `honest_compute_v` (a `2^23`-order commitment),
-`honest_compute_resp` (the same plus the bounded `z` decomposition) and
-`honest_compute_y`. All three are excluded under their own names for the same
-reasons; this composes them and adds nothing timeable. Same removal condition
-as `chain_verify`."""
+The honest prover: `honest_compute_v` (a `2^23`-order commitment),
+`lift_commit`, `honest_round_messages` (the `2^m0` witness table folded through
+`M_ZERO = 26` rounds of `honest_compute_g`) and `honest_compute_y`. Each is
+excluded under its own name for its own reason; this composes them and adds
+nothing timeable. Same removal condition as `chain_verify`."""
 
 "quadeval::rlin_cw" = """
 `blocks * messageDigits`: one `usize` product. O(1) by inspection, the
@@ -252,6 +255,21 @@ measured or already excluded individually.
 Removal condition: the same tensor split as `alpha_public_table`, plus a
 REDUCED-shape decision about what a whole-protocol row would even mean -- a
 27-round loop at a toy cube measures the loop overhead, not the protocol."""
+
+"sumcheck::honest_round_messages" = """
+The prover's half of `round_loop`, and the same accounting: `m0` rounds of
+`honest_compute_g` over the folded `2^m0` tables, starting from `c_w_table_mle`
+and `alpha_public_table`. Both walls of `round_loop`, minus its `round_check`;
+infeasible even REDUCED for the reason given there, and the sum of rows that
+are measured individually. Same removal condition as `round_loop`."""
+
+"sumcheck::round_verify_loop" = """
+The verifier's half of `round_loop`: `m0` iterations of `round_check` then
+`round_out` on a received message, no table and no witness. Both are benched
+under their own names (`sumcheck/round_check`, `sumcheck/round_out`), and
+`m0 = 26` at the widest, so a row here would time twenty-six of two rows that
+already exist plus the loop -- the `round_loop` class of "the sum of rows
+already measured", at a size where the loop overhead is the measurement."""
 
 "zerocheck::below_two_pow" = """
 O(m) by inspection and m is a *point-count exponent*: `m1 = 3` at the pinned
