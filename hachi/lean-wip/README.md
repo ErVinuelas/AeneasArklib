@@ -1,9 +1,13 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt (2026-09-10): none.** This directory holds nothing but this
-file. The last file through was `Rlin.lean` (Stage 5's `R^lin` adapter plus the
-polynomial-level bridge, thirteen headline specs, Aristotle session `4d70f965`,
-nine obligations to zero). Everything before it has been promoted, and
+**Current debt (2026-09-10): `Sumcheck.lean`**, target 5's paired sumcheck
+(chain rows 6 and 8): twenty-four `sumcheck` statements plus the univariate
+carrier they rest on (`toRaw`/`toUni`, ported from cpoly's own `Univariate.lean`
+with every ported proof intact -- `zero`, `from_coeffs`, `trim`, `eval` and
+both `Mul` impls). **0 errors, 32 `sorry`s** for the prover: the twenty-four
+items and eight scaffolding lemmas (`toUni_eval`, the kernel identity, the two
+degree lemmas, `cube_size`, the two weight identities). It imports only promoted files (`EndPiece`), so the
+plain `lake env lean lean-wip/Sumcheck.lean` validates it. Everything before it has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
@@ -11,9 +15,8 @@ hundred and sixty** headline specs and they all come out as the three
 Lean kernel axioms.
 
 That is worth a note rather than a celebration: the next translated operation
-puts debt back here, and the directory exists for that. The 24 items
-`make spec-check` currently reports owed — the two `chain` rows and target 5's
-`sumcheck` — are all
+puts debt back here, and the directory exists for that. The 2 items
+`make spec-check` currently reports owed — the two `chain` rows — are
 *unstated*, not unproved; when they are written they will be staged here first.
 
 Everything earlier that passed through here has been promoted: the

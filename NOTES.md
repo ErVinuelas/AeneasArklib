@@ -4821,3 +4821,142 @@ What this closes: the genesis freeze of the *reshaped* c4 block
 form") rested on `rlin_stmt_spec` being true against the specification's
 `rlinStmt`. It now is, machine-checked, so the reshaped genesis is a faithful
 baseline rather than a decision awaiting its proof.
+
+## Target 5's statement debt is closed: `Sumcheck.lean` (2026-09-10)
+
+`hachi/lean-wip/Sumcheck.lean`: twenty-four `sumcheck` statements, **0 errors,
+32 `sorry`s** (24 items + 8 scaffolding lemmas). `make spec-check` goes 124 →
+**146 stated**, owed 24 → **2** (the two `chain` rows, whose Rust is still
+moving). Two adversarial reviews (ArkLib side; Rust fail points) converged on
+one defect, fixed: `eq_suffix_table_spec` lacked the bound its own doubling
+pushes need, `2^(m₀ − i − 1) ≤ Usize.max`, and its `i < m₀` was not a fail
+point at all (the statement is true at `i ≥ m₀`, table `[1]`), so it now
+carries `i < Usize.max` instead. Everything else -- argument orders,
+little-endian bit conventions, the "interpolant equals the node function
+everywhere" claims, `honest_compute_g` against `honestComputeG`, the honest
+run for `round_loop`, the weights identities for all 36 literals -- verified.
+
+Four things this pass established:
+
+* **The univariate carrier is a port, not a design.** cpoly's own
+  `Univariate.lean` has `toRaw : Vec Ext4 → CPolynomial.Raw F` with
+  `VecReduced` as the only invariant and proved specs for `zero`,
+  `from_coeffs`, `trim`, `eval` and both `Mul` impls; all ten ported proofs
+  compiled across the v4.32 → v4.33.1 gap unchanged (Ext.lean's eight did
+  not). The one new definition is `toUni := ofArray ∘ toRaw` -- `ofArray` is
+  trim -- which lands in `CPolynomial F` and lets `RepRoundMsg` compare
+  against the `degreeLE` subtypes' values. Right call because the extracted
+  code is **not canonical**: `interpolate` returns exactly `n` coefficients
+  with a zero top one, `from_coeffs` never trims, scalar `Mul` never trims.
+* **Two forms of the round polynomial, one statement shape.** ArkLib builds
+  `computableRoundPoly` symbolically; the crate samples 33 resp. 3 nodes and
+  interpolates. The pieces (`round_value_*`, `round_values_*`,
+  `round_poly_*`, the three kernel pieces) get lower-half statements in
+  explicit field arithmetic (`rangeSumZero`, `linSumAlpha`, `eqProd`, `fold`),
+  with `round_poly_*_spec` asserting the interpolant equals the node function
+  **everywhere** (degree 31 < 33, 2 < 3); `honest_compute_g_spec` is the
+  headline against `honestComputeG`, and its proof is an equality of two
+  degree-≤32 polynomials through `computableRoundPoly_eval` and
+  `eval_sumcheckPolyZero`. `computableRoundPoly_toPoly` never appears.
+* **The round loop is stated three ways.** `round_loop_spec` is the honest
+  run (`honestRounds`, built from `roundOut`/`honestComputeG`, `some` when the
+  initial targets are the two hypercube sums); `honest_round_messages_spec`
+  is the prover's half (`roundProver` at `computeG := honestComputeG`);
+  `round_verify_loop_spec` is the verifier's half **for any messages**, via
+  `verifyRounds` (the chained `if roundCheck then roundOut else failure`) and
+  `RepOptStmt`, so it carries both directions of every round's decision. The
+  last two items landed in `sumcheck.rs` while the file was being written;
+  `make spec-check` caught them.
+* **`LawfulBEq F` is not exported anywhere.** `EndPiece.lean` proves it
+  inline as a `have`; every `CPolynomial` operation over `F` needs it. Now an
+  instance at the top of `Sumcheck.lean` -- worth moving into `Ext.lean` at
+  promotion.
+
+Pre-flight per `aeneas-extract` (run late, after the user asked why the
+skill was skipped; recorded so the omission is not repeated): 0 axioms,
+`Shared<n>` names unchanged, loop-state histogram gained exactly the two new
+loops (a 5-tuple for `honest_round_messages`, the model's largest), no-op
+re-extraction `unchanged`, `check-toolchain` green, `make build` green on
+the fresh file (160 axiom lines, kernel-only). The two changed `chain` bodies
+are the user's live edit to `chain.rs`, not drift.
+
+## Target 5's spec layer: `Sumcheck.lean` readied for Aristotle (2026-09-10)
+
+`hachi/lean-wip/Sumcheck.lean`: **twenty-four `sumcheck` statements** — every
+`Mirrors`-marked item, including the two rows added the same day
+(`honest_round_messages`, `round_verify_loop`) — on top of the univariate
+carrier the tree did not have. `make spec-check`: 150 mirrored / **148
+stated / 2 owed**, the two `chain` rows. 0 errors, **32 `sorry`s**.
+
+### The design step: the carrier is a port, and it is not canonical
+
+NOTES § "What target 5's file will need first" predicted the file would open
+with a representation for `UnivariatePoly`, and that canonicity was the
+difficulty. Both true, but the resolution was cheaper than feared: cpoly's own
+equivalence development (`cpoly/lean/Univariate.lean`, the file `Ext.lean` was
+ported from) already has it — `toRaw : Vec Ext4 → CPolynomial.Raw F`, the
+coefficient array **as it stands**, with `VecReduced` as the only invariant.
+Canonicity is what `trim` *establishes*, not what the representation assumes,
+and that is forced by the extracted code: `interpolate` returns exactly `n`
+coefficients with a zero top coefficient, `from_coeffs` never trims, and the
+scalar `Mul<Ext4>` does not trim; only the poly×poly `Mul` trims, once, as
+`CPolynomial.Raw.mul` does. The one new definition is
+`toUni v := CPolynomial.ofArray (toRaw v)` (`ofArray` **is** trim), which lands
+in the specification's `CPolynomial F` and lets `RepRoundMsg` compare against
+the `degreeLE` subtypes' values. Ported: ten `cpoly.univariate` specs
+(`uni_*`), six proved in place across the v4.32 → v4.33.1 gap
+(`zero`, `from_coeffs`, `trim_loop`, `trim`, `eval_loop`, `eval`), the scalar
+and convolution `Mul`s carried with their upstream scripts. Two frictions:
+hachi's extraction spells the impls without the `cpoly.` prefix, and
+`LawfulBEq F` is not exported by `Ext.lean` (EndPiece proved it inline; now an
+instance).
+
+### Headline against the definition, lower half in field arithmetic
+
+The `Mirrors` lines split the round polynomial into pieces ArkLib does not
+name ("`computableRoundPoly` at the `sumcheckPolyZero` summand, one node,
+*without* its `cEqualityPolynomial` factor"). Those get lower-half statements
+in plain defs (`rangeSumZero`, `linSumAlpha`, `eqProd`, `fold`); the items
+mirroring an ArkLib definition *whole* get the headline against it —
+`honest_compute_g_spec` against `honestComputeG`, `interpolate_spec` against
+`CLagrange.interpolateArray`, `round_check`/`round_out`/`final_check`/
+`nested_to_round_statement` against their names, `honest_compute_y` against
+`wTableMleEval` (Correction 5: `honestComputeY` picks up `[SampleableType F]`
+by section accident). ArkLib builds the round polynomial *symbolically* while
+the crate samples `33` resp. `3` nodes and interpolates, so
+`round_poly_{zero,alpha}_spec` say the interpolant equals the node function
+**everywhere** (degree `31 < 33`, `2 < 3`), and `honest_compute_g_spec`'s proof
+is an equality of two polynomials of degree `≤ 2b` through
+`computableRoundPoly_eval` and `eval_sumcheckPolyZero`; the `CPolynomial`
+identity `computableRoundPoly_toPoly` never has to appear. The round loop is
+stated as the **honest run**: `honestRounds` iterates `roundOut ∘ honestComputeG`,
+`verifyRounds` iterates `roundVerifier`'s `if roundCheck then roundOut else
+failure`; `round_loop_spec` returns `some` under exactly the two sum clauses of
+`nestedRoundRel` that `roundCheck_honestComputeG` consumes.
+
+### Cross-review: two independent adversarial passes
+
+One walked every `sumcheck.*` fail point in `Generated.lean` and every callee
+spec's hypotheses; the other checked all nineteen ArkLib/CompPoly names for
+argument order and instantiation, both bit-order conventions (the suffix table
+against `lagrangeBasis`'s `getLsb`; `fold`'s `(2y, 2y+1)` against
+`finFunctionFinEquiv`'s units bit and `hypercubePoint`'s pivot), the
+prefix/pivot/suffix kernel decomposition, and the round-loop sufficiency. One
+statement was **false**: `eq_suffix_table_spec` had no bound on the table's
+`2^(m₀−i−1)` pushes — at `m₀ = 65, i = 0` the 64th doubling pushes onto a
+vector of length `Usize.max`. Fixed with the output's own size, the same shape
+as `cube_size`'s bound; `honest_compute_g` derives it from `w_tab`'s `Vec`
+length and needs nothing new. Everything else verified: no vacuous hypothesis
+set, `hw` on `interpolate` subsumes node distinctness (a repeated node makes
+it read `0 = 1`), `finalCheck`'s `bound`/`b` — the one place two same-typed
+`ℕ`s could permute silently — in the right order.
+
+Proof debt the file leaves for the prover, noted in the docstrings: specs for
+`cpoly.multilinear.eval_mle_layer` and `eq_tilde` do not exist yet; the
+`toUni g = sg.1.1` equalities go through "equal at more than `deg` points",
+not `Polynomial.funext`.
+
+Pre-flight: `make extract` deterministic, `lake build` green against the fresh
+extraction (the new `chain`/`sumcheck` items reorder `Generated.lean`, as
+recorded yesterday). Imports only promoted files, so the Aristotle helper's
+plain validation works on the return.
