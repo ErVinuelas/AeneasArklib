@@ -152,6 +152,11 @@ issue that blocks `rw` on `l[i]`). Ported from cpoly's `Field.lean`. -/
 theorem getElem_of_list_eq {α} {l l' : List α} (h : l = l') {i : ℕ}
     {hi : i < l.length} : l[i] = l'[i]'(h ▸ hi) := by cases h; rfl
 
+/-- A `usize` holds at least `2 ^ 32 - 1`: the small literal lengths below fit. -/
+theorem usize_max_ge : 4294967295 ≤ Usize.max := by
+  rw [Usize.max_def]
+  rcases System.Platform.numBits_eq with h | h <;> simp [Usize.numBits, h]
+
 /-! ## The univariate carrier (ported from cpoly's `Univariate.lean`)
 
 A `Vec Ext4` whose words are all `Reduced` represents the `CPolynomial.Raw F`
@@ -198,7 +203,29 @@ theorem toUni_val (v : alloc.vec.Vec cpoly.field.Ext4) :
 raw vector evaluate alike. The bridge every `eval` statement below crosses. -/
 theorem toUni_eval (v : alloc.vec.Vec cpoly.field.Ext4) (x : F) :
     CPolynomial.eval x (toUni v) = (toRaw v).eval x := by
-  sorry
+  show CPolynomial.Raw.eval x ((toRaw v).trim) = (toRaw v).eval x
+  exact CPolynomial.Raw.eval_trim_eq_eval x (toRaw v)
+
+set_option maxHeartbeats 1000000 in
+/-- The evaluation of a represented coefficient vector as an explicit finite sum,
+over any range that covers its length. -/
+theorem toRaw_eval_eq_sum (v : alloc.vec.Vec cpoly.field.Ext4) (x : F) (n : ℕ)
+    (hn : v.val.length ≤ n) :
+    (toRaw v).eval x = ∑ i ∈ Finset.range n, (toRaw v).coeff i * x ^ i := by
+  have hco : ∀ i, (toUni v).coeff i = (toRaw v).coeff i := by
+    intro i; rw [toUni, CPolynomial.coeff_ofArray]
+  rw [← toUni_eval v x, CPolynomial.eval_eq_sum_support,
+    Finset.sum_congr rfl (fun i _ => by rw [hco i])]
+  refine Finset.sum_subset (s₁ := (toUni v).support) (s₂ := Finset.range n) ?_ ?_
+  · intro i hi
+    simp only [Finset.mem_range]
+    by_contra hc
+    exact (CPolynomial.mem_support_iff _ i).mp hi
+      (by rw [hco]; exact toRaw_coeff_of_ge v (by simpa using by omega))
+  · intro i _ hi
+    have hz : (toUni v).coeff i = 0 := by
+      by_contra hc; exact hi ((CPolynomial.mem_support_iff _ i).mpr hc)
+    rw [← hco i, hz, MulZeroClass.zero_mul]
 
 /-- `Ext4::clone` is the identity — what `Vec.resize_spec` and `from_elem_spec`
 ask for. Ported from cpoly's `Field.lean`. -/
@@ -705,20 +732,120 @@ def tableFn {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) : Fin (2 ^ m) → F :
 `CMvPolynomial`. -/
 theorem cEqualityPolynomial_eval_eq_eqProd {k : ℕ} (τ a : Fin k → F) :
     (InnerOuter.cEqualityPolynomial k τ).eval a = eqProd τ a := by
-  sorry
+  rw [InnerOuter.cEqualityPolynomial, InnerOuter.cMultilinearExtension_eval,
+    InnerOuter.eval_MLE_eq_sum, eqProd]
+  have hstep : ∀ x : Fin k → Fin 2,
+      (∏ i, if x i = 1 then τ i else 1 - τ i) * ∏ i, (if x i = 1 then a i else 1 - a i)
+        = ∏ i, (if x i = 1 then τ i * a i else (1 - τ i) * (1 - a i)) := by
+    intro x
+    rw [← Finset.prod_mul_distrib]
+    exact Finset.prod_congr rfl (fun i _ => by split <;> rfl)
+  have hsplit : ∀ i : Fin k, τ i * a i + (1 - τ i) * (1 - a i)
+      = ∑ j : Fin 2, (if j = 1 then τ i * a i else (1 - τ i) * (1 - a i)) := by
+    intro i; rw [Fin.sum_univ_two]; simp; ring
+  rw [Finset.sum_congr rfl (fun x _ => hstep x),
+    Finset.prod_congr rfl (fun i _ => hsplit i),
+    Finset.prod_univ_sum (fun _ => (Finset.univ : Finset (Fin 2)))
+      (fun i j => if j = 1 then τ i * a i else (1 - τ i) * (1 - a i)),
+    Fintype.piFinset_univ]
+
+/-- A Mathlib polynomial of bounded degree, read as a `CPolynomial` with the same
+values: the bridge the two degree lemmas below cross. -/
+theorem exists_cpoly_of_polynomial (P : Polynomial F) (n : ℕ) (hdeg : P.natDegree ≤ n) :
+    ∃ p : CPolynomial F, p ∈ CPolynomial.degreeLE (R := F) (n : ℕ) ∧
+      ∀ T, CPolynomial.eval T p = P.eval T := by
+  refine ⟨⟨P.toImpl, CPolynomial.Raw.isCanonical_toImpl P⟩, ?_, ?_⟩
+  · rw [CPolynomial.degreeLE_toPoly, CPolynomial.toPoly_mk_toImpl, Polynomial.mem_degreeLE]
+    exact le_trans Polynomial.degree_le_natDegree (by exact_mod_cast hdeg)
+  · intro T
+    show CPolynomial.Raw.eval T P.toImpl = _
+    exact CPolynomial.eval_toImpl_eq_eval T P
+
+/-- The affine polynomial a multilinear fold is in the free coordinate. -/
+private noncomputable def foldPoly (c₀ c₁ : F) : Polynomial F :=
+  Polynomial.C c₀ + Polynomial.C (c₁ - c₀) * Polynomial.X
+
+private theorem foldPoly_natDegree (c₀ c₁ : F) : (foldPoly c₀ c₁).natDegree ≤ 1 := by
+  refine le_trans (Polynomial.natDegree_add_le _ _) ?_
+  simp only [Polynomial.natDegree_C, max_le_iff]
+  exact ⟨Nat.zero_le _, le_trans (Polynomial.natDegree_mul_le)
+    (by simp [Polynomial.natDegree_C, Polynomial.natDegree_X])⟩
+
+private theorem foldPoly_eval (c₀ c₁ T : F) :
+    (foldPoly c₀ c₁).eval T = (1 - T) * c₀ + T * c₁ := by
+  simp only [foldPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C,
+    Polynomial.eval_X]
+  ring
 
 /-- `rangeSumZero` is a polynomial function of degree `≤ 2b − 1 = 31` in the
 node — the fact that makes `2b + 1 = 33` interpolation nodes reproduce it. -/
 theorem rangeSumZero_poly {k : ℕ} (w : Fin (2 ^ (k + 1)) → F) (eq : Fin (2 ^ k) → F) :
     ∃ p : CPolynomial F, p ∈ CPolynomial.degreeLE (R := F) (31 : ℕ) ∧
       ∀ T, CPolynomial.eval T p = rangeSumZero w eq T := by
-  sorry
+  classical
+  set u : Fin (2 ^ k) → Polynomial F := fun y => foldPoly (w (lo y)) (w (hi y)) with hu
+  set P : Polynomial F := ∑ y : Fin (2 ^ k), Polynomial.C (eq y) *
+    (u y * ∏ j ∈ Finset.Icc 1 15,
+      ((u y - Polynomial.C ((j : ℕ) : F)) * (u y + Polynomial.C ((j : ℕ) : F)))) with hP
+  have hdegu : ∀ y, (u y).natDegree ≤ 1 := fun y => foldPoly_natDegree _ _
+  have hdegfac : ∀ (y : Fin (2 ^ k)) (j : ℕ),
+      ((u y - Polynomial.C ((j : ℕ) : F)) * (u y + Polynomial.C ((j : ℕ) : F))).natDegree ≤ 2 := by
+    intro y j
+    refine le_trans Polynomial.natDegree_mul_le ?_
+    have h1 : (u y - Polynomial.C ((j : ℕ) : F)).natDegree ≤ 1 :=
+      le_trans (Polynomial.natDegree_sub_le _ _) (by simp [hdegu y])
+    have h2 : (u y + Polynomial.C ((j : ℕ) : F)).natDegree ≤ 1 :=
+      le_trans (Polynomial.natDegree_add_le _ _) (by simp [hdegu y])
+    omega
+  have hdeg : P.natDegree ≤ 31 := by
+    refine Polynomial.natDegree_sum_le_of_forall_le _ _ (fun y _ => ?_)
+    refine le_trans Polynomial.natDegree_mul_le ?_
+    have hC : (Polynomial.C (eq y)).natDegree = 0 := Polynomial.natDegree_C _
+    have hrest : (u y * ∏ j ∈ Finset.Icc 1 15,
+        ((u y - Polynomial.C ((j : ℕ) : F)) * (u y + Polynomial.C ((j : ℕ) : F)))).natDegree
+          ≤ 31 := by
+      refine le_trans Polynomial.natDegree_mul_le ?_
+      have hprod : (∏ j ∈ Finset.Icc 1 15,
+          ((u y - Polynomial.C ((j : ℕ) : F)) * (u y + Polynomial.C ((j : ℕ) : F)))).natDegree
+            ≤ 30 := by
+        refine le_trans (Polynomial.natDegree_prod_le _ _) ?_
+        calc ∑ j ∈ Finset.Icc 1 15,
+              ((u y - Polynomial.C ((j : ℕ) : F)) * (u y + Polynomial.C ((j : ℕ) : F))).natDegree
+            ≤ ∑ _j ∈ Finset.Icc 1 15, 2 :=
+              Finset.sum_le_sum (fun j _ => hdegfac y j)
+          _ = 30 := by simp
+      have := hdegu y
+      omega
+    omega
+  obtain ⟨p, hp1, hp2⟩ := exists_cpoly_of_polynomial P 31 hdeg
+  refine ⟨p, hp1, fun T => ?_⟩
+  rw [hp2, hP, rangeSumZero]
+  rw [Polynomial.eval_finsetSum]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [InnerOuter.rangeProduct]
+  simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_prod, Polynomial.eval_add,
+    Polynomial.eval_sub, hu, foldPoly_eval]
+  have hfold : (1 - T) * w (lo y) + T * w (hi y) = fold w T y := by rw [fold]
+  rw [hfold]
 
 /-- `linSumAlpha` is a polynomial function of degree `≤ 2` in the node. -/
 theorem linSumAlpha_poly {k : ℕ} (w a : Fin (2 ^ (k + 1)) → F) :
     ∃ p : CPolynomial F, p ∈ CPolynomial.degreeLE (R := F) (2 : ℕ) ∧
       ∀ T, CPolynomial.eval T p = linSumAlpha w a T := by
-  sorry
+  classical
+  set P : Polynomial F := ∑ y : Fin (2 ^ k),
+    foldPoly (w (lo y)) (w (hi y)) * foldPoly (a (lo y)) (a (hi y)) with hP
+  have hdeg : P.natDegree ≤ 2 := by
+    refine Polynomial.natDegree_sum_le_of_forall_le _ _ (fun y _ => ?_)
+    refine le_trans Polynomial.natDegree_mul_le ?_
+    have h1 := foldPoly_natDegree (w (lo y)) (w (hi y))
+    have h2 := foldPoly_natDegree (a (lo y)) (a (hi y))
+    omega
+  obtain ⟨p, hp1, hp2⟩ := exists_cpoly_of_polynomial P 2 hdeg
+  refine ⟨p, hp1, fun T => ?_⟩
+  rw [hp2, hP, linSumAlpha, Polynomial.eval_finsetSum]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [Polynomial.eval_mul, foldPoly_eval, foldPoly_eval, fold, fold]
 
 /-! ## The representation relations -/
 
@@ -765,7 +892,9 @@ theorem NestedZeroCheckStmt_new_spec {n μ m₀ m₁ dRows : ℕ}
     (h0 : toPoint (m := m₀) tau0 = ss.τ₀) (h1 : toPoint (m := m₁) tau1 = ss.τα) :
     sumcheck.NestedZeroCheckStmt.new rlin t alpha tau0 tau1
       ⦃ out => RepNestedZC (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (dRows := dRows) out ss ⦄ := by
-  sorry
+  rw [sumcheck.NestedZeroCheckStmt.new]
+  simp only [spec_ok]
+  exact ⟨hr, hWt, hWa, hW0, hW1, ht, ha, h0, h1⟩
 
 /-- `RoundMsg::new` preserves the relation. -/
 theorem RoundMsg_new_spec (g_zero g_alpha : cpoly.univariate.UnivariatePoly)
@@ -773,7 +902,9 @@ theorem RoundMsg_new_spec (g_zero g_alpha : cpoly.univariate.UnivariatePoly)
     (hW0 : VecReduced g_zero) (hWa : VecReduced g_alpha)
     (h0 : toUni g_zero = sg.1.1) (ha : toUni g_alpha = sg.2.1) :
     sumcheck.RoundMsg.new g_zero g_alpha ⦃ out => RepRoundMsg out sg ⦄ := by
-  sorry
+  rw [sumcheck.RoundMsg.new]
+  simp only [spec_ok]
+  exact ⟨hW0, hWa, h0, ha⟩
 
 /-- `RoundStatement::new` preserves the relation. -/
 theorem RoundStatement_new_spec {n μ m₀ m₁ i dRows : ℕ}
@@ -787,7 +918,9 @@ theorem RoundStatement_new_spec {n μ m₀ m₁ i dRows : ℕ}
     sumcheck.RoundStatement.new zc challenges target_zero target_alpha
       ⦃ out => RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := i) (dRows := dRows)
         out ss ⦄ := by
-  sorry
+  rw [sumcheck.RoundStatement.new]
+  simp only [spec_ok]
+  exact ⟨hzc, hWc, hW0, hWa, hc, h0, ha⟩
 
 /-! ## The cube size and the nodes -/
 
@@ -795,21 +928,57 @@ theorem RoundStatement_new_spec {n μ m₀ m₁ i dRows : ℕ}
 theorem cube_size_loop_spec (vars sz k : Std.Usize) (hn : 2 ^ vars.val ≤ Usize.max)
     (hk : k.val ≤ vars.val) (hsz : sz.val = 2 ^ k.val) :
     sumcheck.cube_size_loop vars sz k ⦃ s => s.val = 2 ^ vars.val ⦄ := by
-  sorry
+  rw [sumcheck.cube_size_loop]
+  apply loop.spec_decr_nat (fun s => vars.val - s.2.val)
+    (fun s => s.2.val ≤ vars.val ∧ s.1.val = 2 ^ s.2.val)
+  · rintro ⟨s1, k1⟩ ⟨hk1, hs1⟩
+    dsimp only at hk1 hs1
+    simp only [sumcheck.cube_size_loop.body]
+    by_cases hlt : k1 < vars
+    · rw [if_pos hlt]
+      have hfit : s1.val * 2 ≤ Usize.max := by
+        have hmono : 2 ^ (k1.val + 1) ≤ 2 ^ vars.val :=
+          Nat.pow_le_pow_right (by norm_num) (by scalar_tac)
+        rw [hs1, ← pow_succ] at *
+        omega
+      step as ⟨s2, hs2⟩
+      step as ⟨k2, hk2⟩
+      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+      rw [hs2, hs1, hk2, pow_succ]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = vars.val := by scalar_tac
+      rw [hs1, heq]
+  · exact ⟨hk, hsz⟩
 
 /-- `cube_size` computes `2 ^ vars`, sizing the tables `alpha_public_table`
 fills. The bound is `two_pow_spec`'s (`ZeroCheck.lean`): a checked doubling
 that forms the number, and a table that does not fit a `usize` does not fit
 memory either. -/
 theorem cube_size_spec (vars : Std.Usize) (hn : 2 ^ vars.val ≤ Usize.max) :
-    sumcheck.cube_size vars ⦃ s => s.val = 2 ^ vars.val ⦄ := by
-  sorry
+    sumcheck.cube_size vars ⦃ s => s.val = 2 ^ vars.val ⦄ :=
+  cube_size_loop_spec vars 1#usize 0#usize hn (by simp) (by simp)
 
 /-- `round_node i` is the field element `i` (spec: `CPolynomial.pointNode` at
 the node array `0 … 2b`): `φF (i : ZMod q) = (i : F)`. Total. -/
 theorem round_node_spec (i : Std.Usize) :
     sumcheck.round_node i ⦃ out => Reduced out ∧ toExt out = (i.val : F) ⦄ := by
-  sorry
+  rw [sumcheck.round_node]
+  have hcast : lift (UScalar.cast .U64 i) ⦃ y => y.val = i.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 i (by
+      have h1 : i.val ≤ Usize.max := by scalar_tac
+      have h3 : UScalar.max UScalarTy.U64 = 18446744073709551615 := by
+        simp [UScalar.max_def, UScalarTy.numBits]
+      have h2 : Usize.max ≤ 18446744073709551615 := by
+        rw [Usize.max_def]
+        rcases System.Platform.numBits_eq with h | h <;> simp [Usize.numBits, h]
+      omega)
+  step with hcast as ⟨w, hw⟩
+  step with fp_new_spec w as ⟨c, hRc, hc⟩
+  apply spec_mono (ext_from_base_spec c hRc)
+  rintro out ⟨hRout, hout⟩
+  refine ⟨hRout, ?_⟩
+  rw [hout, hc, hw, ofBase_natCast]
 
 /-- The `2b + 1 = 33` range-side weights: entry `i` inverts `∏_{j ≠ i} (i − j)`
 over the nodes `0 … 32`. The arithmetic content of `params.ROUND_NODE_INV`. -/
@@ -817,14 +986,100 @@ theorem round_node_weights_spec :
     sumcheck.round_node_weights ⦃ out => out.val.length = 33 ∧ (∀ a ∈ out.val, Red a) ∧
       ∀ i : Fin 33, toK (out.val.getD i.val (0#u64 : cpoly.field.Fp)) *
         ∏ j ∈ (Finset.univ : Finset (Fin 33)).erase i, ((i.val : ZMod q) - (j.val : ZMod q)) = 1 ⦄ := by
-  sorry
+  have hrn : (params.ROUND_NODES).val = 33 := by simp [params.ROUND_NODES]
+  have hmax := usize_max_ge
+  rw [sumcheck.round_node_weights, sumcheck.round_node_weights_loop]
+  apply loop.spec_decr_nat (fun st => 33 - st.2.val)
+    (fun st => st.2.val ≤ 33 ∧ st.1.val.length = st.2.val ∧ (∀ a ∈ st.1.val, Red a) ∧
+      ∀ t : ℕ, t < st.2.val → toK (st.1.val.getD t (0#u64 : cpoly.field.Fp)) =
+        (((params.ROUND_NODE_INV.val.getD t (0#u64 : Std.U64)).val : ℕ) : ZMod q))
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
+    dsimp only at hi1 hlen1 hred1 hval1
+    simp only [sumcheck.round_node_weights_loop.body]
+    by_cases hlt : i1 < params.ROUND_NODES
+    · rw [if_pos hlt]
+      have hi1lt : i1.val < 33 := by scalar_tac
+      have harr : i1.val < params.ROUND_NODE_INV.val.length := by
+        rw [params.ROUND_NODE_INV.property]; scalar_tac
+      step as ⟨u, hu⟩
+      step with fp_new_spec u as ⟨f, hRf, hf⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨i2, hi2⟩
+      have hi2n : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hi2n, hv2, List.length_append, hlen1]; simp
+      · intro a hmem
+        rw [hv2] at hmem
+        rcases List.mem_append.mp hmem with h | h
+        · exact hred1 a h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro t ht
+        rw [hi2n] at ht
+        rcases Nat.lt_or_ge t i1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, hf, hu, hlen1,
+            List.getD_eq_getElem _ _ harr]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i1.val = 33 := by scalar_tac
+      refine ⟨by rw [hlen1, hieq], hred1, fun i => ?_⟩
+      rw [hval1 i.val (by rw [hieq]; exact i.isLt)]
+      revert i
+      simp only [params.ROUND_NODE_INV]
+      decide
+  · exact ⟨by simp, by simp, by intro a ha; simp at ha, by intro t ht; simp at ht⟩
 
 /-- The three linear-side weights, for the nodes `0, 1, 2`: `2⁻¹, −1, 2⁻¹`. -/
 theorem round_node_weights_alpha_spec :
     sumcheck.round_node_weights_alpha ⦃ out => out.val.length = 3 ∧ (∀ a ∈ out.val, Red a) ∧
       ∀ i : Fin 3, toK (out.val.getD i.val (0#u64 : cpoly.field.Fp)) *
         ∏ j ∈ (Finset.univ : Finset (Fin 3)).erase i, ((i.val : ZMod q) - (j.val : ZMod q)) = 1 ⦄ := by
-  sorry
+  have hrn : (params.ROUND_NODES_ALPHA).val = 3 := by simp [params.ROUND_NODES_ALPHA]
+  have hmax := usize_max_ge
+  rw [sumcheck.round_node_weights_alpha, sumcheck.round_node_weights_alpha_loop]
+  apply loop.spec_decr_nat (fun st => 3 - st.2.val)
+    (fun st => st.2.val ≤ 3 ∧ st.1.val.length = st.2.val ∧ (∀ a ∈ st.1.val, Red a) ∧
+      ∀ t : ℕ, t < st.2.val → toK (st.1.val.getD t (0#u64 : cpoly.field.Fp)) =
+        (((params.ROUND_NODE_INV_ALPHA.val.getD t (0#u64 : Std.U64)).val : ℕ) : ZMod q))
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
+    dsimp only at hi1 hlen1 hred1 hval1
+    simp only [sumcheck.round_node_weights_alpha_loop.body]
+    by_cases hlt : i1 < params.ROUND_NODES_ALPHA
+    · rw [if_pos hlt]
+      have hi1lt : i1.val < 3 := by scalar_tac
+      have harr : i1.val < params.ROUND_NODE_INV_ALPHA.val.length := by
+        rw [params.ROUND_NODE_INV_ALPHA.property]; scalar_tac
+      step as ⟨u, hu⟩
+      step with fp_new_spec u as ⟨f, hRf, hf⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨i2, hi2⟩
+      have hi2n : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hi2n, hv2, List.length_append, hlen1]; simp
+      · intro a hmem
+        rw [hv2] at hmem
+        rcases List.mem_append.mp hmem with h | h
+        · exact hred1 a h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro t ht
+        rw [hi2n] at ht
+        rcases Nat.lt_or_ge t i1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, hf, hu, hlen1,
+            List.getD_eq_getElem _ _ harr]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i1.val = 3 := by scalar_tac
+      refine ⟨by rw [hlen1, hieq], hred1, fun i => ?_⟩
+      rw [hval1 i.val (by rw [hieq]; exact i.isLt)]
+      revert i
+      simp only [params.ROUND_NODE_INV_ALPHA]
+      decide
+  · exact ⟨by simp, by simp, by intro a ha; simp at ha, by intro t ht; simp at ht⟩
 
 /-! ## Interpolation -/
 
@@ -849,6 +1104,45 @@ theorem interpolate_spec {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
           (Array.ofFn fun i : Fin n => ((i.val : F), toPoint (m := n) values i)) ⦄ := by
   sorry
 
+/-- `tableFn` reads the underlying vector at the index. -/
+theorem tableFn_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ m)) :
+    tableFn (m := m) t y = toExt (t.val.getD y.val cpoly.field.Ext4.ZERO) := by
+  simp [tableFn, toEvals]
+
+/-- `rangeSumZero` at a represented pair of tables, as a sum over a range. -/
+theorem rangeSumZero_eq_sum_range {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4) (T : F) :
+    rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) T
+      = ∑ y ∈ Finset.range (2 ^ k),
+          toExt (eq.val.getD y cpoly.field.Ext4.ZERO) *
+            InnerOuter.rangeProduct 16
+              ((1 - T) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+                T * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)) := by
+  rw [rangeSumZero, ← Fin.sum_univ_eq_sum_range (fun y : ℕ =>
+    toExt (eq.val.getD y cpoly.field.Ext4.ZERO) *
+      InnerOuter.rangeProduct 16
+        ((1 - T) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+          T * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO))) (2 ^ k)]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [tableFn_apply, fold, tableFn_apply, tableFn_apply]
+  rfl
+
+/-- `linSumAlpha` at a represented pair of tables, as a sum over a range. -/
+theorem linSumAlpha_eq_sum_range {k : ℕ} (w a : alloc.vec.Vec cpoly.field.Ext4) (T : F) :
+    linSumAlpha (tableFn (m := k + 1) w) (tableFn (m := k + 1) a) T
+      = ∑ y ∈ Finset.range (2 ^ k),
+          ((1 - T) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+              T * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)) *
+            ((1 - T) * toExt (a.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+              T * toExt (a.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)) := by
+  rw [linSumAlpha, ← Fin.sum_univ_eq_sum_range (fun y : ℕ =>
+    ((1 - T) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+        T * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)) *
+      ((1 - T) * toExt (a.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+        T * toExt (a.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO))) (2 ^ k)]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [fold, fold, tableFn_apply, tableFn_apply, tableFn_apply, tableFn_apply]
+  rfl
+
 /-! ## The range summand -/
 
 /-- `round_value_zero` at one node is `rangeSumZero` (spec: `computableRoundPoly`
@@ -861,7 +1155,63 @@ theorem round_value_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
     sumcheck.round_value_zero w eq node
       ⦃ out => Reduced out ∧
         toExt out = rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) (toExt node) ⦄ := by
-  sorry
+  obtain ⟨hwlen, hwred⟩ := hw
+  obtain ⟨heqlen, heqred⟩ := heq
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  have hwmax : w.val.length ≤ Usize.max := w.property
+  rw [sumcheck.round_value_zero]
+  step as ⟨om, hRom, hom⟩
+  rw [sumcheck.round_value_zero_loop]
+  apply loop.spec_decr_nat (fun s => 2 ^ k - s.2.val)
+    (fun s => s.2.val ≤ 2 ^ k ∧ Reduced s.1 ∧
+      toExt s.1 = ∑ y ∈ Finset.range s.2.val,
+        toExt (eq.val.getD y cpoly.field.Ext4.ZERO) *
+          InnerOuter.rangeProduct 16
+            ((1 - toExt node) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+              toExt node * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)))
+  · rintro ⟨acc, y⟩ ⟨hy, hRacc, hacc⟩
+    dsimp only at hy hRacc hacc
+    simp only [sumcheck.round_value_zero_loop.body]
+    by_cases hlt : y < alloc.vec.Vec.len eq
+    · rw [if_pos hlt]
+      have hylt : y.val < 2 ^ k := by
+        have : y.val < eq.val.length := by scalar_tac
+        omega
+      have h2y : 2 * y.val + 1 < w.val.length := by rw [hwlen, pow_succ]; omega
+      have hmul : 2 * y.val ≤ Usize.max := by omega
+      step as ⟨i, hi⟩
+      have hib : i.val < w.val.length := by rw [hi]; omega
+      step as ⟨lo0, hlo0⟩
+      have hRlo0 : Reduced lo0 := hlo0 ▸ hwred _ (List.getElem_mem hib)
+      step as ⟨i1, hi1⟩
+      have hi1b : i1.val < w.val.length := by rw [hi1, hi]; omega
+      step as ⟨hi0, hhi0⟩
+      have hRhi0 : Reduced hi0 := hhi0 ▸ hwred _ (List.getElem_mem hi1b)
+      step as ⟨e, hRe, he⟩
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨folded, hRf, hf⟩
+      have hyb : y.val < eq.val.length := by omega
+      step as ⟨e2, he2⟩
+      have hRe2 : Reduced e2 := he2 ▸ heqred _ (List.getElem_mem hyb)
+      step with range_product_spec folded hRf as ⟨e3, hRe3, he3⟩
+      step as ⟨e4, hRe4, he4⟩
+      step as ⟨acc1, hRacc1, hacc1⟩
+      step as ⟨y1, hy1⟩
+      refine ⟨by scalar_tac, hRacc1, ?_, by scalar_tac⟩
+      rw [hacc1, hacc, hy1, Finset.sum_range_succ, he4, he3, hf, he, he1, hom, toExt_ONE,
+        he2, hlo0, hhi0,
+        ← List.getD_eq_getElem eq.val cpoly.field.Ext4.ZERO hyb,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hib,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hi1b, hi1, hi]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hyeq : y.val = 2 ^ k := by
+        have : eq.val.length ≤ y.val := by scalar_tac
+        omega
+      refine ⟨hRacc, ?_⟩
+      rw [hacc, hyeq, rangeSumZero_eq_sum_range]
+  · exact ⟨by simp, hRZ, by simp⟩
 
 /-- `round_values_zero`: the `33` node values of `rangeSumZero`, at `0 … 32`. -/
 theorem round_values_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
@@ -870,7 +1220,44 @@ theorem round_values_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
       ⦃ out => out.val.length = 33 ∧ VecReduced out ∧
         ∀ t : Fin 33, toExt (out.val.getD t.val cpoly.field.Ext4.ZERO) =
           rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) (t.val : F) ⦄ := by
-  sorry
+  have hrn : (params.ROUND_NODES).val = 33 := by simp [params.ROUND_NODES]
+  have hmax := usize_max_ge
+  rw [sumcheck.round_values_zero, sumcheck.round_values_zero_loop]
+  apply loop.spec_decr_nat (fun s => 33 - s.2.val)
+    (fun s => s.2.val ≤ 33 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
+      ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
+        rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) (t : F))
+  · rintro ⟨v1, t1⟩ ⟨ht1, hlen1, hred1, hval1⟩
+    dsimp only at ht1 hlen1 hred1 hval1
+    simp only [sumcheck.round_values_zero_loop.body]
+    by_cases hlt : t1 < params.ROUND_NODES
+    · rw [if_pos hlt]
+      have ht1lt : t1.val < 33 := by scalar_tac
+      step with round_node_spec t1 as ⟨nd, hRnd, hnd⟩
+      step with round_value_zero_spec (k := k) w eq nd hw heq hRnd as ⟨e, hRe, he⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨t2, ht2⟩
+      have ht2n : t2.val = t1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [ht2n, hv2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hv2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRe
+      · intro t ht
+        rw [ht2n] at ht
+        rcases Nat.lt_or_ge t t1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, he, hnd, hlen1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hteq : t1.val = 33 := by scalar_tac
+      exact ⟨by rw [hlen1, hteq], hred1, fun t => hval1 t.val (by rw [hteq]; exact t.isLt)⟩
+  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht; simp at ht⟩
+
 
 /-- `round_poly_zero` interpolates the `33` node values, and the interpolant
 **is** `rangeSumZero` everywhere: the node function is a polynomial of degree
@@ -896,7 +1283,177 @@ theorem eq_prefix_spec {m₀ i : ℕ} (tau0 challenges : alloc.vec.Vec cpoly.fie
       ⦃ out => Reduced out ∧ toExt out =
         eqProd (fun k : Fin i => toPoint (m := m₀) tau0 (Fin.castLE hi k))
           (toPoint (m := i) challenges) ⦄ := by
-  sorry
+  obtain ⟨h0len, h0red⟩ := h0
+  obtain ⟨hclen, hcred⟩ := hc
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  have hprod : eqProd (fun k : Fin i => toPoint (m := m₀) tau0 (Fin.castLE hi k))
+      (toPoint (m := i) challenges)
+      = ∏ j ∈ Finset.range i,
+        (toExt (tau0.val.getD j cpoly.field.Ext4.ZERO) *
+            toExt (challenges.val.getD j cpoly.field.Ext4.ZERO) +
+          (1 - toExt (tau0.val.getD j cpoly.field.Ext4.ZERO)) *
+            (1 - toExt (challenges.val.getD j cpoly.field.Ext4.ZERO))) := by
+    rw [eqProd, ← Fin.prod_univ_eq_prod_range (fun j : ℕ =>
+      (toExt (tau0.val.getD j cpoly.field.Ext4.ZERO) *
+          toExt (challenges.val.getD j cpoly.field.Ext4.ZERO) +
+        (1 - toExt (tau0.val.getD j cpoly.field.Ext4.ZERO)) *
+          (1 - toExt (challenges.val.getD j cpoly.field.Ext4.ZERO)))) i]
+    exact Finset.prod_congr rfl (fun j _ => rfl)
+  rw [sumcheck.eq_prefix, sumcheck.eq_prefix_loop, hprod]
+  apply loop.spec_decr_nat (fun s => i - s.2.val)
+    (fun s => s.2.val ≤ i ∧ Reduced s.1 ∧
+      toExt s.1 = ∏ j ∈ Finset.range s.2.val,
+        (toExt (tau0.val.getD j cpoly.field.Ext4.ZERO) *
+            toExt (challenges.val.getD j cpoly.field.Ext4.ZERO) +
+          (1 - toExt (tau0.val.getD j cpoly.field.Ext4.ZERO)) *
+            (1 - toExt (challenges.val.getD j cpoly.field.Ext4.ZERO))))
+  · rintro ⟨acc, k⟩ ⟨hk, hRacc, hacc⟩
+    dsimp only at hk hRacc hacc
+    simp only [sumcheck.eq_prefix_loop.body]
+    by_cases hlt : k < alloc.vec.Vec.len challenges
+    · rw [if_pos hlt]
+      have hkc : k.val < challenges.val.length := by scalar_tac
+      have hkt : k.val < tau0.val.length := by rw [h0len]; omega
+      step as ⟨t, ht⟩
+      have hRt : Reduced t := ht ▸ h0red _ (List.getElem_mem hkt)
+      step as ⟨a, ha⟩
+      have hRa : Reduced a := ha ▸ hcred _ (List.getElem_mem hkc)
+      step as ⟨e, hRe, he⟩
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨e2, hRe2, he2⟩
+      step as ⟨e3, hRe3, he3⟩
+      step as ⟨e4, hRe4, he4⟩
+      step as ⟨acc1, hRacc1, hacc1⟩
+      step as ⟨k1, hk1⟩
+      refine ⟨by scalar_tac, hRacc1, ?_, by scalar_tac⟩
+      rw [hacc1, hacc, hk1, Finset.prod_range_succ, he4, he, he3, he1, he2, toExt_ONE, ht, ha,
+        ← List.getD_eq_getElem tau0.val cpoly.field.Ext4.ZERO hkt,
+        ← List.getD_eq_getElem challenges.val cpoly.field.Ext4.ZERO hkc]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hkeq : k.val = i := by scalar_tac
+      exact ⟨hRacc, by rw [hacc, hkeq]⟩
+  · exact ⟨by simp, hR1, by simp⟩
+
+/-- `getD` into the left part of an append. -/
+theorem getD_append_left' {α : Type} (l1 l2 : List α) (d : α) {j : ℕ} (h : j < l1.length) :
+    (l1 ++ l2).getD j d = l1.getD j d := by
+  rw [List.getD_eq_getElem _ _ (by simp only [List.length_append]; omega),
+    List.getD_eq_getElem _ _ h, List.getElem_append_left h]
+
+/-- `getD` into the right part of an append. -/
+theorem getD_append_right' {α : Type} (l1 l2 : List α) (d : α) {j : ℕ} (h : l1.length ≤ j) :
+    (l1 ++ l2).getD j d = l2.getD (j - l1.length) d := by
+  by_cases hj : j - l1.length < l2.length
+  · rw [List.getD_eq_getElem _ _ (by simp only [List.length_append]; omega),
+      List.getD_eq_getElem _ _ hj, List.getElem_append_right h]
+  · rw [List.getD_eq_default _ _ (by simp only [List.length_append]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+/-- Reading a represented vector's entry through the `toExt`-image list. -/
+theorem toExt_getD_map (v : alloc.vec.Vec cpoly.field.Ext4) (idx : ℕ) :
+    toExt (v.val.getD idx cpoly.field.Ext4.ZERO) = (v.val.map toExt).getD idx 0 := by
+  by_cases h : idx < v.val.length
+  · rw [List.getD_eq_getElem _ _ h, List.getD_eq_getElem _ _ (by simpa using h),
+      List.getElem_map]
+  · rw [List.getD_eq_default _ _ (by omega), List.getD_eq_default _ _ (by simpa using by omega),
+      toExt_ZERO]
+
+/-- The doubling loop of `eq_suffix_table`, scaling the current table by one
+factor and appending it to what has been accumulated. -/
+theorem eq_suffix_scale_loop_spec (tab : alloc.vec.Vec cpoly.field.Ext4)
+    (c : cpoly.field.Ext4) (half : Std.Usize)
+    (htab : VecReduced tab) (hc : Reduced c) (hhalf : half.val = tab.val.length)
+    (pre : List F) (hpre : pre.length + tab.val.length ≤ Usize.max) :
+    ∀ (next : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
+      VecReduced next → j.val ≤ half.val →
+      next.val.map toExt = pre ++ (tab.val.take j.val).map (fun u => toExt u * toExt c) →
+      sumcheck.eq_suffix_table_loop0_loop0 tab c half next j
+        ⦃ z => VecReduced z ∧
+          z.val.map toExt = pre ++ tab.val.map (fun u => toExt u * toExt c) ⦄ := by
+  intro next j hnred hj hnmap
+  rw [sumcheck.eq_suffix_table_loop0_loop0]
+  apply loop.spec_decr_nat (fun st => half.val - st.2.val)
+    (fun st => st.2.val ≤ half.val ∧ VecReduced st.1 ∧
+      st.1.val.map toExt = pre ++ (tab.val.take st.2.val).map (fun u => toExt u * toExt c))
+  · rintro ⟨nx, j1⟩ ⟨hj1, hnx, hmap⟩
+    dsimp only at hj1 hnx hmap
+    simp only [sumcheck.eq_suffix_table_loop0_loop0.body]
+    by_cases hlt : j1 < half
+    · rw [if_pos hlt]
+      have hjt : j1.val < tab.val.length := by scalar_tac
+      have hnxlen : nx.val.length = pre.length + j1.val := by
+        have := congrArg List.length hmap
+        simp only [List.length_map, List.length_append, List.length_take] at this
+        omega
+      have hbound : nx.val.length < Usize.max := by omega
+      step as ⟨e, he⟩
+      have hRe : Reduced e := he ▸ htab _ (List.getElem_mem hjt)
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨nx1, hnx1⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, ?_, ?_, by scalar_tac⟩
+      · intro u hu
+        rw [hnx1] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hnx u h
+        · rw [List.mem_singleton.mp h]; exact hRe1
+      · rw [hnx1, show j2.val = j1.val + 1 from by scalar_tac,
+          ← List.take_concat_get' _ _ hjt]
+        simp only [List.map_append, List.map_cons, List.map_nil, hmap, he1, he, List.append_assoc]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      refine ⟨hnx, ?_⟩
+      rw [hmap, show j1.val = tab.val.length from by scalar_tac, List.take_length]
+  · exact ⟨hj, hnred, hnmap⟩
+
+/-- The second doubling loop of `eq_suffix_table`: the same shape at the other
+factor. -/
+theorem eq_suffix_scale_loop1_spec (tab : alloc.vec.Vec cpoly.field.Ext4)
+    (c : cpoly.field.Ext4) (half : Std.Usize)
+    (htab : VecReduced tab) (hc : Reduced c) (hhalf : half.val = tab.val.length)
+    (pre : List F) (hpre : pre.length + tab.val.length ≤ Usize.max) :
+    ∀ (next : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
+      VecReduced next → j.val ≤ half.val →
+      next.val.map toExt = pre ++ (tab.val.take j.val).map (fun u => toExt u * toExt c) →
+      sumcheck.eq_suffix_table_loop0_loop1 tab c half next j
+        ⦃ z => VecReduced z ∧
+          z.val.map toExt = pre ++ tab.val.map (fun u => toExt u * toExt c) ⦄ := by
+  intro next j hnred hj hnmap
+  rw [sumcheck.eq_suffix_table_loop0_loop1]
+  apply loop.spec_decr_nat (fun st => half.val - st.2.val)
+    (fun st => st.2.val ≤ half.val ∧ VecReduced st.1 ∧
+      st.1.val.map toExt = pre ++ (tab.val.take st.2.val).map (fun u => toExt u * toExt c))
+  · rintro ⟨nx, j1⟩ ⟨hj1, hnx, hmap⟩
+    dsimp only at hj1 hnx hmap
+    simp only [sumcheck.eq_suffix_table_loop0_loop1.body]
+    by_cases hlt : j1 < half
+    · rw [if_pos hlt]
+      have hjt : j1.val < tab.val.length := by scalar_tac
+      have hnxlen : nx.val.length = pre.length + j1.val := by
+        have := congrArg List.length hmap
+        simp only [List.length_map, List.length_append, List.length_take] at this
+        omega
+      have hbound : nx.val.length < Usize.max := by omega
+      step as ⟨e, he⟩
+      have hRe : Reduced e := he ▸ htab _ (List.getElem_mem hjt)
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨nx1, hnx1⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, ?_, ?_, by scalar_tac⟩
+      · intro u hu
+        rw [hnx1] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hnx u h
+        · rw [List.mem_singleton.mp h]; exact hRe1
+      · rw [hnx1, show j2.val = j1.val + 1 from by scalar_tac,
+          ← List.take_concat_get' _ _ hjt]
+        simp only [List.map_append, List.map_cons, List.map_nil, hmap, he1, he, List.append_assoc]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      refine ⟨hnx, ?_⟩
+      rw [hmap, show j1.val = tab.val.length from by scalar_tac, List.take_length]
+  · exact ⟨hj, hnred, hnmap⟩
 
 /-- `eq_suffix_table` is the Lagrange basis of the suffix `τ₀|>i`, indexed
 little-endian (the first suffix coordinate is the low bit, as
@@ -920,7 +1477,152 @@ theorem eq_suffix_table_spec {m₀ : ℕ} (tau0 : alloc.vec.Vec cpoly.field.Ext4
         toEvals (m := m₀ - i.val - 1) out =
           CMlPolynomialEval.lagrangeBasis (Vector.ofFn fun k : Fin (m₀ - i.val - 1) =>
             toPoint (m := m₀) tau0 ⟨i.val + 1 + k.val, by omega⟩) ⦄ := by
-  sorry
+  obtain ⟨h0len, h0red⟩ := h0
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  have hmaxbig := usize_max_ge
+  rw [sumcheck.eq_suffix_table]
+  have hpush0 : (alloc.vec.Vec.new cpoly.field.Ext4).val.length < Usize.max := by simp; omega
+  step as ⟨tab0, htab0⟩
+  step as ⟨k0, hk0⟩
+  have hk0v : k0.val = i.val + 1 := by scalar_tac
+  rw [sumcheck.eq_suffix_table_loop0]
+  apply loop.spec_decr_nat (fun st => m₀ - st.2.val)
+    (fun st => i.val + 1 ≤ st.2.val ∧ st.2.val ≤ max (i.val + 1) m₀ ∧ VecReduced st.1 ∧
+      st.1.val.length = 2 ^ (st.2.val - i.val - 1) ∧
+      ∀ idx : ℕ, idx < st.1.val.length →
+        toExt (st.1.val.getD idx cpoly.field.Ext4.ZERO) =
+          ∏ s ∈ Finset.range (st.2.val - i.val - 1),
+            (if Nat.testBit idx s then toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)
+              else 1 - toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)))
+  · rintro ⟨tab, k⟩ ⟨hk1, hk2, hred, hlen, hval⟩
+    dsimp only at hk1 hk2 hred hlen hval
+    simp only [sumcheck.eq_suffix_table_loop0.body]
+    by_cases hlt : k < alloc.vec.Vec.len tau0
+    · rw [if_pos hlt]
+      have hklt : k.val < m₀ := by rw [← h0len]; scalar_tac
+      have hd : k.val - i.val - 1 < m₀ - i.val - 1 := by omega
+      have hdlen : tab.val.length = 2 ^ (k.val - i.val - 1) := hlen
+      have hbnd : 2 * tab.val.length ≤ Usize.max := by
+        rw [hdlen]
+        calc 2 * 2 ^ (k.val - i.val - 1) = 2 ^ (k.val - i.val) := by
+              rw [← pow_succ']
+              congr 1
+              omega
+          _ ≤ 2 ^ (m₀ - i.val - 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
+          _ ≤ Usize.max := hsz
+      have hkt : k.val < tau0.val.length := by omega
+      step as ⟨t, ht⟩
+      have hRt : Reduced t := ht ▸ h0red _ (List.getElem_mem hkt)
+      step as ⟨om, hRom, hom⟩
+      rw [toExt_ONE] at hom
+      apply spec_bind (eq_suffix_scale_loop_spec tab om (alloc.vec.Vec.len tab) hred hRom
+        (by simp) [] (by simpa using by omega) (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+        (by intro u hu; simp at hu) (by simp) (by simp))
+      rintro nxt ⟨hnred, hnmap⟩
+      simp only [List.nil_append] at hnmap
+      have hnlen : nxt.val.length = tab.val.length := by
+        have := congrArg List.length hnmap
+        simpa using this
+      apply spec_bind (eq_suffix_scale_loop1_spec tab t (alloc.vec.Vec.len tab) hred hRt
+        (by simp) (nxt.val.map toExt) (by simp [hnlen]; omega) nxt 0#usize hnred (by simp)
+        (by simp))
+      rintro nxt1 ⟨hn1red, hn1map⟩
+      step as ⟨k1, hk1v⟩
+      have hk1n : k1.val = k.val + 1 := by scalar_tac
+      have hn1len : nxt1.val.length = 2 * tab.val.length := by
+        have := congrArg List.length hn1map
+        simp only [List.length_map, List.length_append] at this
+        omega
+      refine ⟨by omega, by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · exact hn1red
+      · rw [hk1n, hn1len, hdlen]
+        rw [show k.val + 1 - i.val - 1 = (k.val - i.val - 1) + 1 from by omega, pow_succ]
+        omega
+      · intro idx hidx
+        rw [hk1n]
+        rw [show k.val + 1 - i.val - 1 = (k.val - i.val - 1) + 1 from by omega,
+          Finset.prod_range_succ]
+        have hdt : i.val + 1 + (k.val - i.val - 1) = k.val := by omega
+        have htauk : toExt (tau0.val.getD k.val cpoly.field.Ext4.ZERO) = toExt t := by
+          rw [ht, List.getD_eq_getElem _ _ hkt]
+        rw [hdt, htauk]
+        rw [toExt_getD_map, hn1map]
+        rcases Nat.lt_or_ge idx tab.val.length with hlow | hhigh
+        · have hbitfalse : Nat.testBit idx (k.val - i.val - 1) = false :=
+            Nat.testBit_lt_two_pow (by rw [← hdlen]; exact hlow)
+          rw [hbitfalse, if_neg (by simp),
+            getD_append_left' _ _ _ (by simp only [List.length_map, hnlen]; omega), hnmap,
+            List.getD_eq_getElem _ _ (by simpa using hlow), List.getElem_map,
+            ← List.getD_eq_getElem _ _ hlow, hval idx hlow, hom]
+        · have hidx' : idx - tab.val.length < tab.val.length := by
+            rw [hn1len] at hidx; omega
+          have hidxsplit : idx = 2 ^ (k.val - i.val - 1) + (idx - tab.val.length) := by
+            rw [← hdlen]; omega
+          have hbittrue : Nat.testBit idx (k.val - i.val - 1) = true := by
+            rw [hidxsplit, Nat.testBit_two_pow_add_eq,
+              Nat.testBit_lt_two_pow (by rw [← hdlen]; exact hidx')]
+            rfl
+          have hbitlow : ∀ s ∈ Finset.range (k.val - i.val - 1),
+              (if Nat.testBit idx s then toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)
+                else 1 - toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO))
+              = (if Nat.testBit (idx - tab.val.length) s then
+                  toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)
+                else 1 - toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)) := by
+            intro s hs
+            have hbit : Nat.testBit idx s = Nat.testBit (idx - tab.val.length) s := by
+              conv_lhs => rw [hidxsplit]
+              exact Nat.testBit_two_pow_add_gt (Finset.mem_range.mp hs) _
+            rw [hbit]
+          have hlenmap : (nxt.val.map toExt).length = tab.val.length := by simp [hnlen]
+          rw [hbittrue, if_pos rfl, Finset.prod_congr rfl hbitlow, ← hval _ hidx',
+            getD_append_right' _ _ _ (by rw [hlenmap]; omega), hlenmap,
+            List.getD_eq_getElem _ _ (by simpa using hidx'), List.getElem_map,
+            ← List.getD_eq_getElem _ _ hidx']
+    · rw [if_neg hlt, WP.spec_ok]
+      have hkm : m₀ ≤ k.val := by rw [← h0len] at hk2 ⊢; scalar_tac
+      have hdeq : k.val - i.val - 1 = m₀ - i.val - 1 := by omega
+      rw [hdeq] at hlen hval
+      refine ⟨⟨hlen, hred⟩, ?_⟩
+      apply Vector.ext
+      intro idx hidx
+      have hidxlen : idx < tab.val.length := by rw [hlen]; exact hidx
+      have hbasis : (CMlPolynomialEval.lagrangeBasis
+          (Vector.ofFn fun s : Fin (m₀ - i.val - 1) =>
+            toPoint (m := m₀) tau0 ⟨i.val + 1 + s.val, by omega⟩))[idx]
+          = ∏ s : Fin (m₀ - i.val - 1),
+            (if (BitVec.ofFin (⟨idx, hidx⟩ : Fin (2 ^ (m₀ - i.val - 1)))).getLsb s then
+                (Vector.ofFn fun s : Fin (m₀ - i.val - 1) =>
+                  toPoint (m := m₀) tau0 ⟨i.val + 1 + s.val, by omega⟩).get s
+              else 1 - (Vector.ofFn fun s : Fin (m₀ - i.val - 1) =>
+                  toPoint (m := m₀) tau0 ⟨i.val + 1 + s.val, by omega⟩).get s) :=
+        Hachi.lagrangeBasis_get _ ⟨idx, hidx⟩
+      have hlhs : (toEvals (m := m₀ - i.val - 1) tab)[idx]
+          = toExt (tab.val.getD idx cpoly.field.Ext4.ZERO) := by
+        simp [toEvals]
+      rw [hlhs, hval idx hidxlen, hbasis]
+      rw [← Fin.prod_univ_eq_prod_range (fun s =>
+        (if Nat.testBit idx s then toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)
+          else 1 - toExt (tau0.val.getD (i.val + 1 + s) cpoly.field.Ext4.ZERO)))
+        (m₀ - i.val - 1)]
+      refine Finset.prod_congr rfl (fun s _ => ?_)
+      simp only [BitVec.getLsb_eq_getElem, Fin.getElem_fin, BitVec.getElem_ofFin, Vector.get_ofFn,
+        toPoint]
+  · dsimp only
+    refine ⟨by omega, by omega, ?_, ?_, ?_⟩
+    · intro u hu
+      rw [htab0] at hu
+      simp only [List.mem_append, List.mem_singleton] at hu
+      rcases hu with h | h
+      · simp at h
+      · exact h ▸ hR1
+    · rw [htab0, hk0v]
+      simp
+    · intro idx hidx
+      rw [htab0] at hidx ⊢
+      simp only [List.length_append, List.length_singleton] at hidx
+      have hidx0 : idx = 0 := by simpa using hidx
+      rw [hidx0, hk0v]
+      simp
 
 /-- `eq_free_factor t` is the degree-one polynomial `eq(t, X) = (1 − t) + (2t − 1)X`
 (spec: `cEqualityPolynomial` at its free coordinate), stated by its values.
@@ -929,7 +1631,37 @@ theorem eq_free_factor_spec (t : cpoly.field.Ext4) (ht : Reduced t) :
     sumcheck.eq_free_factor t
       ⦃ out => out.val.length = 2 ∧ VecReduced out ∧
         ∀ x : F, CPolynomial.eval x (toUni out) = (1 - toExt t) * (1 - x) + toExt t * x ⦄ := by
-  sorry
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  rw [sumcheck.eq_free_factor]
+  step as ⟨a, hRa, ha⟩
+  step as ⟨c1, hc1⟩
+  step as ⟨d, hRd, hd⟩
+  step as ⟨e, hRe, he⟩
+  step as ⟨c2, hc2⟩
+  have hc2v : c2.val = [a, e] := by rw [hc2, hc1]; simp
+  have hc2red : VecReduced c2 := by
+    intro u hu
+    rw [hc2v] at hu
+    rcases List.mem_cons.mp hu with h | h
+    · exact h ▸ hRa
+    · rcases List.mem_cons.mp h with h' | h'
+      · exact h' ▸ hRe
+      · simp at h'
+  apply spec_mono (uni_from_coeffs_spec c2 hc2red)
+  rintro z ⟨hzred, hzraw⟩
+  have hzlen : z.val.length = 2 := by
+    have := congrArg Array.size hzraw
+    rw [toRaw_size, toRaw_size, hc2v] at this
+    simpa using this
+  refine ⟨hzlen, hzred, ?_⟩
+  intro x
+  rw [toUni_eval, toRaw_eval_eq_sum z x 2 (by omega), Finset.sum_range_succ,
+    Finset.sum_range_one, hzraw, toRaw_coeff_of_lt c2 (by rw [hc2v]; simp),
+    toRaw_coeff_of_lt c2 (by rw [hc2v]; simp),
+    getElem_of_list_eq hc2v (i := 0), getElem_of_list_eq hc2v (i := 1)]
+  simp only [List.getElem_cons_zero, List.getElem_cons_succ, he, hd, ha, toExt_ONE, pow_zero,
+    pow_one, mul_one]
+  ring
 
 /-! ## The linear summand -/
 
@@ -942,7 +1674,76 @@ theorem round_value_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.Ex
     sumcheck.round_value_alpha w a_tab node
       ⦃ out => Reduced out ∧
         toExt out = linSumAlpha (tableFn (m := k + 1) w) (tableFn (m := k + 1) a_tab) (toExt node) ⦄ := by
-  sorry
+  obtain ⟨hwlen, hwred⟩ := hw
+  obtain ⟨halen, hared⟩ := ha
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  have hwmax : w.val.length ≤ Usize.max := w.property
+  rw [sumcheck.round_value_alpha]
+  step as ⟨half, hhalf⟩
+  have hlenw : (alloc.vec.Vec.len w).val = w.val.length := by simp
+  have hhalfv : half.val = 2 ^ k := by
+    rw [hhalf, hlenw, hwlen, pow_succ]
+    omega
+  step as ⟨om, hRom, hom⟩
+  rw [sumcheck.round_value_alpha_loop]
+  apply loop.spec_decr_nat (fun s => 2 ^ k - s.2.val)
+    (fun s => s.2.val ≤ 2 ^ k ∧ Reduced s.1 ∧
+      toExt s.1 = ∑ y ∈ Finset.range s.2.val,
+        ((1 - toExt node) * toExt (w.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+            toExt node * toExt (w.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)) *
+          ((1 - toExt node) * toExt (a_tab.val.getD (2 * y) cpoly.field.Ext4.ZERO) +
+            toExt node * toExt (a_tab.val.getD (2 * y + 1) cpoly.field.Ext4.ZERO)))
+  · rintro ⟨acc, y⟩ ⟨hy, hRacc, hacc⟩
+    dsimp only at hy hRacc hacc
+    simp only [sumcheck.round_value_alpha_loop.body]
+    by_cases hlt : y < half
+    · rw [if_pos hlt]
+      have hylt : y.val < 2 ^ k := by
+        have : y.val < half.val := by scalar_tac
+        omega
+      have h2y : 2 * y.val + 1 < w.val.length := by rw [hwlen, pow_succ]; omega
+      have h2ya : 2 * y.val + 1 < a_tab.val.length := by rw [halen, pow_succ]; omega
+      have hmul : 2 * y.val ≤ Usize.max := by omega
+      step as ⟨i, hi⟩
+      have hib : i.val < w.val.length := by rw [hi]; omega
+      step as ⟨wlo, hwlo⟩
+      have hRwlo : Reduced wlo := hwlo ▸ hwred _ (List.getElem_mem hib)
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨i1, hi1⟩
+      have hi1b : i1.val < w.val.length := by rw [hi1, hi]; omega
+      step as ⟨whi, hwhi⟩
+      have hRwhi : Reduced whi := hwhi ▸ hwred _ (List.getElem_mem hi1b)
+      step as ⟨e3, hRe3, he3⟩
+      step as ⟨wf, hRwf, hwf⟩
+      have hiba : i.val < a_tab.val.length := by rw [hi]; omega
+      step as ⟨alo, halo⟩
+      have hRalo : Reduced alo := halo ▸ hared _ (List.getElem_mem hiba)
+      step as ⟨e5, hRe5, he5⟩
+      step as ⟨i2, hi2⟩
+      have hi2b : i2.val < a_tab.val.length := by rw [hi2, hi]; omega
+      step as ⟨ahi, hahi⟩
+      have hRahi : Reduced ahi := hahi ▸ hared _ (List.getElem_mem hi2b)
+      step as ⟨e7, hRe7, he7⟩
+      step as ⟨af, hRaf, haf⟩
+      step as ⟨e8, hRe8, he8⟩
+      step as ⟨acc1, hRacc1, hacc1⟩
+      step as ⟨y1, hy1⟩
+      refine ⟨by scalar_tac, hRacc1, ?_, by scalar_tac⟩
+      rw [hacc1, hacc, hy1, Finset.sum_range_succ, he8, hwf, haf, he1, he3, he5, he7, hom,
+        toExt_ONE, hwlo, hwhi, halo, hahi,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hib,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hi1b,
+        ← List.getD_eq_getElem a_tab.val cpoly.field.Ext4.ZERO hiba,
+        ← List.getD_eq_getElem a_tab.val cpoly.field.Ext4.ZERO hi2b, hi1, hi2, hi]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hyeq : y.val = 2 ^ k := by
+        have : half.val ≤ y.val := by scalar_tac
+        omega
+      refine ⟨hRacc, ?_⟩
+      rw [hacc, hyeq, linSumAlpha_eq_sum_range]
+  · exact ⟨by simp, hRZ, by simp⟩
 
 /-- `round_values_alpha`: the `3` node values of `linSumAlpha`, at `0, 1, 2`. -/
 theorem round_values_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -951,7 +1752,43 @@ theorem round_values_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.E
       ⦃ out => out.val.length = 3 ∧ VecReduced out ∧
         ∀ t : Fin 3, toExt (out.val.getD t.val cpoly.field.Ext4.ZERO) =
           linSumAlpha (tableFn (m := k + 1) w) (tableFn (m := k + 1) a_tab) (t.val : F) ⦄ := by
-  sorry
+  have hrn : (params.ROUND_NODES_ALPHA).val = 3 := by simp [params.ROUND_NODES_ALPHA]
+  have hmax := usize_max_ge
+  rw [sumcheck.round_values_alpha, sumcheck.round_values_alpha_loop]
+  apply loop.spec_decr_nat (fun s => 3 - s.2.val)
+    (fun s => s.2.val ≤ 3 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
+      ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
+        linSumAlpha (tableFn (m := k + 1) w) (tableFn (m := k + 1) a_tab) (t : F))
+  · rintro ⟨v1, t1⟩ ⟨ht1, hlen1, hred1, hval1⟩
+    dsimp only at ht1 hlen1 hred1 hval1
+    simp only [sumcheck.round_values_alpha_loop.body]
+    by_cases hlt : t1 < params.ROUND_NODES_ALPHA
+    · rw [if_pos hlt]
+      have ht1lt : t1.val < 3 := by scalar_tac
+      step with round_node_spec t1 as ⟨nd, hRnd, hnd⟩
+      step with round_value_alpha_spec (k := k) w a_tab nd hw ha hRnd as ⟨e, hRe, he⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨t2, ht2⟩
+      have ht2n : t2.val = t1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [ht2n, hv2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hv2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRe
+      · intro t ht
+        rw [ht2n] at ht
+        rcases Nat.lt_or_ge t t1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, he, hnd, hlen1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hteq : t1.val = 3 := by scalar_tac
+      exact ⟨by rw [hlen1, hteq], hred1, fun t => hval1 t.val (by rw [hteq]; exact t.isLt)⟩
+  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht; simp at ht⟩
 
 /-- `round_poly_alpha` interpolates the `3` node values, and the interpolant is
 `linSumAlpha` everywhere (`linSumAlpha_poly`: degree `≤ 2 < 3`). -/
@@ -979,7 +1816,53 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
         Vector.ofFn fun idx : Fin (2 ^ m0.val) =>
           InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16 rs (toExt alpha)
             (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm idx) ⦄ := by
-  sorry
+  rw [sumcheck.alpha_public_table]
+  step with cube_size_spec m0 hm0 as ⟨sz, hsz⟩
+  rw [sumcheck.alpha_public_table_loop]
+  apply loop.spec_decr_nat (fun st => 2 ^ m0.val - st.2.val)
+    (fun st => st.2.val ≤ 2 ^ m0.val ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t : Fin (2 ^ m0.val), t.val < st.2.val →
+        toExt (st.1.val.getD t.val cpoly.field.Ext4.ZERO) =
+          InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16 rs (toExt alpha)
+            (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm t))
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
+    dsimp only at hi1 hlen1 hred1 hval1
+    simp only [sumcheck.alpha_public_table_loop.body]
+    by_cases hlt : i1 < sz
+    · rw [if_pos hlt]
+      have hilt : i1.val < 2 ^ m0.val := by rw [← hsz]; scalar_tac
+      step with alpha_public_evals_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁)
+        s rs alpha tau1 i1 hs ha ht hilt hmax as ⟨e, hRe, he⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨i2, hi2⟩
+      have hi2n : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hi2n, hv2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hv2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRe
+      · intro t ht'
+        rw [hi2n] at ht'
+        rcases Nat.lt_or_ge t.val i1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t.val = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, he]
+          congr 2
+          refine Fin.ext ?_
+          show i1.val = t.val
+          omega
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i1.val = 2 ^ m0.val := by rw [← hsz] at hi1 ⊢; scalar_tac
+      refine ⟨⟨by rw [hlen1, hieq], hred1⟩, ?_⟩
+      rw [toEvals]
+      congr 1
+      funext t
+      exact hval1 t (by rw [hieq]; exact t.isLt)
+  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht'; simp at ht'⟩
 
 /-! ## The honest prover's round message -/
 
@@ -1039,7 +1922,54 @@ theorem round_check_spec {n μ m₀ m₁ i dRows : ℕ} (stmt : sumcheck.RoundSt
     (hs : RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := i) (dRows := dRows) stmt ss)
     (hg : RepRoundMsg g sg) :
     sumcheck.round_check stmt g ⦃ b => b = InnerOuter.roundCheck Φ m₀ m₁ 16 ss sg ⦄ := by
-  sorry
+  obtain ⟨-, -, hRt0, hRta, -, ht0, hta⟩ := hs
+  obtain ⟨hg0red, hgared, hg0, hga⟩ := hg
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  rw [sumcheck.round_check, sumcheck.RoundMsg.impl.g_zero, sumcheck.RoundMsg.impl.g_alpha,
+    sumcheck.RoundStatement.impl.target_zero, sumcheck.RoundStatement.impl.target_alpha]
+  step with uni_eval_spec g.g_zero cpoly.field.Ext4.ZERO hg0red hRZ as ⟨e, hRe, he⟩
+  step with uni_eval_spec g.g_zero cpoly.field.Ext4.ONE hg0red hR1 as ⟨e1, hRe1, he1⟩
+  step as ⟨zs, hRzs, hzs⟩
+  step with uni_eval_spec g.g_alpha cpoly.field.Ext4.ZERO hgared hRZ as ⟨e2, hRe2, he2⟩
+  step with uni_eval_spec g.g_alpha cpoly.field.Ext4.ONE hgared hR1 as ⟨e3, hRe3, he3⟩
+  step as ⟨asum, hRasum, hasum⟩
+  have hzsv : toExt zs = CPolynomial.eval 0 sg.1.1 + CPolynomial.eval 1 sg.1.1 := by
+    rw [hzs, he, he1, ← hg0, toUni_eval, toUni_eval, toExt_ZERO, toExt_ONE]
+  have hasumv : toExt asum = CPolynomial.eval 0 sg.2.1 + CPolynomial.eval 1 sg.2.1 := by
+    rw [hasum, he2, he3, ← hga, toUni_eval, toUni_eval, toExt_ZERO, toExt_ONE]
+  step with ext_eq_spec zs stmt.target_zero hRzs hRt0 as ⟨b, hb⟩
+  rw [InnerOuter.roundCheck]
+  by_cases hbt : b = true
+  · rw [if_pos hbt]
+    have hfirst : (CPolynomial.eval 0 sg.1.1 + CPolynomial.eval 1 sg.1.1 == ss.target₀) = true := by
+      rw [beq_iff_eq, ← hzsv, ← ht0]
+      exact hb.mp hbt
+    apply spec_mono (ext_eq_spec asum stmt.target_alpha hRasum hRta)
+    intro r hr
+    rw [hfirst, Bool.true_and]
+    cases r with
+    | true =>
+      have hq : toExt asum = toExt stmt.target_alpha := hr.mp rfl
+      rw [← hasumv, ← hta, hq]
+      exact (beq_self_eq_true (toExt stmt.target_alpha)).symm
+    | false =>
+      have hne : toExt asum ≠ toExt stmt.target_alpha := by
+        intro hcon; simpa using hr.mpr hcon
+      rw [← hasumv, ← hta]
+      symm
+      simp only [beq_eq_false_iff_ne, ne_eq]
+      exact hne
+  · have hbf : b = false := by cases b <;> simp_all
+    rw [if_neg (by simp [hbf]), WP.spec_ok]
+    have hne : toExt zs ≠ toExt stmt.target_zero := by
+      intro hcon
+      rw [hb.mpr hcon] at hbf
+      simp at hbf
+    have hfirst : (CPolynomial.eval 0 sg.1.1 + CPolynomial.eval 1 sg.1.1 == ss.target₀) = false := by
+      rw [beq_eq_false_iff_ne, ne_eq, ← hzsv, ← ht0]
+      exact fun hcon => hne hcon
+    rw [hfirst, Bool.false_and]
 
 /-- `round_out` computes `roundOut` (`Rounds.lean:109`): the challenge is
 appended and both targets move to `g(a)`. The one push not bounded by an
@@ -1053,7 +1983,46 @@ theorem round_out_spec {n μ m₀ m₁ i dRows : ℕ} (stmt : sumcheck.RoundStat
     sumcheck.round_out stmt g a
       ⦃ out => RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := i + 1) (dRows := dRows)
         out (InnerOuter.roundOut Φ m₀ m₁ 16 ss sg (toExt a)) ⦄ := by
-  sorry
+  obtain ⟨hzc, hWc, hRt0, hRta, hc, ht0, hta⟩ := hs
+  obtain ⟨hg0red, hgared, hg0, hga⟩ := hg
+  obtain ⟨hclen, hcred⟩ := hWc
+  rw [sumcheck.round_out, sumcheck.RoundMsg.impl.g_zero, sumcheck.RoundMsg.impl.g_alpha]
+  step with uni_eval_spec g.g_zero a hg0red ha as ⟨t0, hRt0', ht0'⟩
+  step with uni_eval_spec g.g_alpha a hgared ha as ⟨ta', hRta', hta''⟩
+  have hbound : stmt.challenges.val.length < Usize.max := by rw [hclen]; exact hpush
+  step as ⟨chs, hchs⟩
+  refine ⟨hzc, ⟨?_, ?_⟩, hRt0', hRta', ?_, ?_, ?_⟩
+  · rw [hchs, List.length_append, hclen]; simp
+  · intro u hu
+    rw [hchs] at hu
+    rcases List.mem_append.mp hu with h | h
+    · exact hcred u h
+    · rw [List.mem_singleton.mp h]; exact ha
+  · funext j
+    rw [InnerOuter.roundOut]
+    dsimp only
+    rcases Nat.lt_or_ge j.val i with hj | hj
+    · rw [show (Fin.snoc ss.challenges (toExt a) : Fin (i + 1) → F) j
+        = ss.challenges ⟨j.val, hj⟩ from by
+          simp only [Fin.snoc]
+          rw [dif_pos hj]
+          rfl]
+      rw [← hc]
+      simp only [toPoint]
+      rw [hchs, getD_append_lt _ _ _ (by rw [hclen]; exact hj)]
+    · have hji : j.val = i := by omega
+      have hsnoc : (Fin.snoc ss.challenges (toExt a) : Fin (i + 1) → F) j = toExt a := by
+        have hjl : j = Fin.last i := Fin.ext (by simp only [Fin.val_last]; omega)
+        rw [hjl, Fin.snoc_last]
+      rw [hsnoc]
+      simp only [toPoint]
+      rw [hji, hchs, ← hclen, getD_append_eq]
+  · rw [InnerOuter.roundOut]
+    dsimp only
+    rw [ht0', ← hg0, toUni_eval]
+  · rw [InnerOuter.roundOut]
+    dsimp only
+    rw [hta'', ← hga, toUni_eval]
 
 /-- `final_check` decides `finalCheck` (`FinalEval.lean:99`) at round `m₀`: the
 three conjuncts, the third the `u64` bound compare. `m₀` is read off `tau0`;
@@ -1081,7 +2050,8 @@ theorem honest_compute_y_spec {μ n : ℕ} (w : ringswitch.LiftedWitness) (m0 : 
     sumcheck.honest_compute_y w m0 challenges
       ⦃ out => Reduced out ∧ toExt out =
         InnerOuter.wTableMleEval Φ m0.val phiF 16 sw (toPoint (m := m0.val) challenges) ⦄ := by
-  sorry
+  rw [sumcheck.honest_compute_y]
+  exact w_table_mle_eval_spec (μ := μ) (n := n) w sw m0 challenges hw hc hm0 hmax
 
 /-! ## The bridge into the rounds -/
 
@@ -1094,7 +2064,20 @@ theorem nested_to_round_statement_spec {n μ m₀ m₁ dRows : ℕ} (zc : sumche
     sumcheck.nested_to_round_statement zc
       ⦃ out => RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := 0) (dRows := dRows)
         out (InnerOuter.nestedToRoundStatement Φ m₀ m₁ phiF ss) ⦄ := by
-  sorry
+  obtain ⟨hr, hWt, hWa, hW0, hW1, ht, ha, h0, h1⟩ := hzc
+  rw [sumcheck.nested_to_round_statement, sumcheck.NestedZeroCheckStmt.impl.rlin,
+    sumcheck.NestedZeroCheckStmt.impl.alpha, sumcheck.NestedZeroCheckStmt.impl.tau1]
+  have hspec := zc_target_alpha_spec (n := n) (μ := μ) (m₁ := m₁) zc.rlin ss.rlin zc.alpha zc.tau1
+    hr hWa hW1
+  step with hspec as ⟨ta, hRta, hta⟩
+  apply RoundStatement_new_spec (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := 0) (dRows := dRows)
+    zc (alloc.vec.Vec.new cpoly.field.Ext4) cpoly.field.Ext4.ZERO ta _
+     ?_ ?_ reduced_ZERO hRta ?_ ?_ ?_
+  · exact ⟨hr, hWt, hWa, hW0, hW1, ht, ha, h0, h1⟩
+  · exact ⟨by simp, by intro u hu; simp at hu⟩
+  · funext j; exact j.elim0
+  · rw [toExt_ZERO, InnerOuter.nestedToRoundStatement]
+  · rw [hta, ha, h1, InnerOuter.nestedToRoundStatement]
 
 /-! ## The round loop, as the honest run -/
 
@@ -1181,6 +2164,30 @@ def verifyRounds {n μ m₀ m₁ dRows : ℕ}
         some (InnerOuter.roundOut Φ m₀ m₁ 16 s (gs ⟨k, hk⟩) (cs ⟨k, hk⟩))
       else none
 
+/-- Once a round fails, every later round of `verifyRounds` fails too. -/
+theorem verifyRounds_none_mono {n μ m₀ m₁ dRows : ℕ}
+    (ss : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ m₀ m₁ 0)
+    (gs : Fin m₀ → InnerOuter.RoundMsg F 16) (cs : Fin m₀ → F) :
+    ∀ (l : ℕ) (hl : l ≤ m₀) (k : ℕ) (hk : k ≤ m₀), k ≤ l →
+      verifyRounds ss gs cs k hk = none → verifyRounds ss gs cs l hl = none := by
+  intro l
+  induction l with
+  | zero =>
+    intro hl k hk hkl h
+    have hk0 : k = 0 := Nat.le_zero.mp hkl
+    subst hk0
+    exact h
+  | succ l ih =>
+    intro hl k hk hkl h
+    rcases Nat.lt_or_ge k (l + 1) with hlt | hge
+    · have hprev := ih (Nat.le_of_succ_le hl) k hk (by omega) h
+      show (verifyRounds ss gs cs l _).bind _ = _
+      rw [hprev]
+      rfl
+    · have hkeq : k = l + 1 := by omega
+      subst hkeq
+      exact h
+
 /-- Relation between a vector of extracted round messages and `m₀` specification
 messages, entrywise. -/
 def RepMsgs {m₀ : ℕ} (msgs : alloc.vec.Vec sumcheck.RoundMsg)
@@ -1208,6 +2215,80 @@ theorem round_verify_loop_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.Rou
         | some s' => ∃ s, out = some s ∧
             RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := m₀) (dRows := dRows)
               s s' ⦄ := by
-  sorry
+  obtain ⟨hmlen, hmrep⟩ := hg
+  obtain ⟨hclen, hcred⟩ := hc
+  set cs := toPoint (m := m₀) challenges with hcs
+  have hm0 : (alloc.vec.Vec.len (sumcheck.NestedZeroCheckStmt.tau0 stmt.zc)).val = m₀ := by
+    have := hs.1.2.2.2.1
+    simpa using this.1
+  simp only [sumcheck.round_verify_loop, sumcheck.RoundStatement.impl.zc,
+    sumcheck.NestedZeroCheckStmt.impl.tau0, bind_tc_ok]
+  rw [sumcheck.round_verify_loop_loop]
+  apply loop.spec_decr_nat (fun st => m₀ - st.2.val)
+    (fun st => ∃ (hi : st.2.val ≤ m₀) (s' : InnerOuter.NestedRoundStatement Φ
+        (PolyVec (Rq Φ) dRows) F n μ m₀ m₁ st.2.val),
+      verifyRounds ss gs cs st.2.val hi = some s' ∧
+        RepRoundStmt (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := st.2.val) (dRows := dRows)
+          st.1 s')
+  · rintro ⟨cur, i⟩ ⟨hi, s', hver, hrep⟩
+    dsimp only at hi hver hrep
+    simp only [sumcheck.round_verify_loop_loop.body]
+    by_cases hlt : i < alloc.vec.Vec.len (sumcheck.NestedZeroCheckStmt.tau0 stmt.zc)
+    · rw [if_pos hlt]
+      have hilt : i.val < m₀ := by rw [← hm0]; scalar_tac
+      have himsg : i.val < msgs.val.length := by omega
+      have hich : i.val < challenges.val.length := by omega
+      step as ⟨gmsg, hgmsg⟩
+      have hgrep : RepRoundMsg gmsg (gs ⟨i.val, hilt⟩) := by
+        have := hmrep ⟨i.val, hilt⟩
+        rwa [List.getD_eq_getElem _ _ himsg, ← hgmsg] at this
+      step with round_check_spec (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := i.val)
+        (dRows := dRows) cur gmsg s' (gs ⟨i.val, hilt⟩) hrep hgrep as ⟨b, hb⟩
+      by_cases hbt : b = true
+      · rw [if_pos hbt]
+        have hcheck : InnerOuter.roundCheck Φ m₀ m₁ 16 s' (gs ⟨i.val, hilt⟩) = true := by
+          rw [← hb]; exact hbt
+        step as ⟨a, ha⟩
+        have hRa : Reduced a := ha ▸ hcred _ (List.getElem_mem hich)
+        have hav : toExt a = cs ⟨i.val, hilt⟩ := by
+          rw [hcs]
+          simp only [toPoint]
+          rw [ha, List.getD_eq_getElem _ _ hich]
+        step with round_out_spec (n := n) (μ := μ) (m₀ := m₀) (m₁ := m₁) (i := i.val)
+          (dRows := dRows) cur gmsg a s' (gs ⟨i.val, hilt⟩) hrep hgrep hRa
+          (by have : i.val < m₀ := hilt
+              have : (m₀ : ℕ) ≤ Usize.max := by
+                have := challenges.property
+                omega
+              omega) as ⟨cur1, hrep1⟩
+        step as ⟨i1, hi1⟩
+        have hi1n : i1.val = i.val + 1 := by scalar_tac
+        refine ⟨?_, by scalar_tac⟩
+        rw [hi1n]
+        refine ⟨by omega,
+          InnerOuter.roundOut Φ m₀ m₁ 16 s' (gs ⟨i.val, hilt⟩) (cs ⟨i.val, hilt⟩), ?_, ?_⟩
+        · show (verifyRounds ss gs cs i.val _).bind _ = _
+          rw [hver]
+          simp only [Option.bind_some, hcheck, if_true]
+        · rw [hav] at hrep1
+          exact hrep1
+      · have hbf : b = false := by cases b <;> simp_all
+        rw [if_neg (by simp [hbf]), WP.spec_ok]
+        have hcheck : InnerOuter.roundCheck Φ m₀ m₁ 16 s' (gs ⟨i.val, hilt⟩) = false := by
+          rw [← hb]; exact hbf
+        have hnone : verifyRounds ss gs cs (i.val + 1) (by omega) = none := by
+          show (verifyRounds ss gs cs i.val _).bind _ = _
+          rw [hver]
+          simp only [Option.bind_some, hcheck]
+          rfl
+        have hall : verifyRounds ss gs cs m₀ le_rfl = none :=
+          verifyRounds_none_mono ss gs cs m₀ le_rfl (i.val + 1) (by omega) (by omega) hnone
+        rw [hall]
+    · rw [if_neg hlt, WP.spec_ok]
+      have hieq : i.val = m₀ := by rw [← hm0] at hi ⊢; scalar_tac
+      subst hieq
+      rw [hver]
+      exact ⟨cur, rfl, hrep⟩
+  · exact ⟨Nat.zero_le _, ss, rfl, hs⟩
 
 end HachiEquiv.Sumcheck

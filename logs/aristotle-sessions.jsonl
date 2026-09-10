@@ -87,3 +87,11 @@
 {"at":"2026-09-10T16:19:41Z","event":"checked","percent_complete":80,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-10T16:23:39Z","event":"checked","percent_complete":85,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
 {"at":"2026-09-10T16:37:32Z","event":"checked","percent_complete":99,"session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"running","task_status":"IN_PROGRESS"}
+{"after_sorries":7,"at":"2026-09-10T16:40:49Z","before_sorries":32,"event":"partial_result_integrated","session_id":"430518ae-a04c-4c59-84fd-f849eefde82c","state":"closed","task_status":"OUT_OF_BUDGET"}
+{"at":"2026-09-10T16:41:08Z","event":"submitted","parent_session":"430518ae-a04c-4c59-84fd-f849eefde82c","project_id":"7da7168b-d143-4551-ada2-755315d623a6","session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","targets":[{"path":"hachi/lean-wip/Sumcheck.lean","project_root":"hachi","sha256":"62d3f1039aff815f900009774b7aaf0a6a07eda5b1aa69db3e6191734877ffbd","sorries":7}],"total_sorries":7}
+{"at":"2026-09-10T16:49:29Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:52:03Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T16:59:43Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T17:02:48Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T17:07:26Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}
+{"at":"2026-09-10T17:10:59Z","event":"checked","percent_complete":3,"session_id":"c8d6894b-5738-4b29-8168-8e6beb0b9c4c","state":"running","task_status":"IN_PROGRESS"}

@@ -1,10 +1,16 @@
 /-
-Stage 5's composed evaluation chain (`hachi/src/chain.rs`): **statements only**.
+Stage 5's composed evaluation chain (`hachi/src/chain.rs`), **proved locally**.
 
 Two obligations, both mirroring `evaluation` (`Composition.lean:283`) — one at
 its verifier, one at its honest prover — and both compositions of specs that
 already exist: nine promoted links and the staged `Sumcheck.lean`. Nothing new
 is computed here; what is new is the *thread*, and that thread is the content.
+Both proofs are `step` chains through the link specs, one `rcases` on the
+verifier's `Option`, and nothing else. They are complete in this file, but two
+of the link specs they call — `final_check_spec` and
+`honest_round_messages_spec` in `Sumcheck.lean` — are still open there, so the
+axiom closure of both theorems carries `sorryAx` until `Sumcheck.lean` is
+proved out, and this file promotes only after it.
 
 # What `evaluation` is, and what these statements are against
 
@@ -52,8 +58,8 @@ helper lemma rather than a hypothesis.
 This imports `Sumcheck`, itself staged, so validating it needs the `LEAN_PATH`
 detour of `lean-wip/README.md` § "Working here", and the Aristotle helper's
 plain validation cannot integrate a return for it until `Sumcheck.lean` is
-promoted. Both statements are compositions of proved or stated specs and are
-expected to be proved locally, not by Aristotle.
+promoted. Both statements are compositions of proved or stated specs and were
+proved locally, not by Aristotle.
 -/
 import Rlin
 import Sumcheck
@@ -82,21 +88,56 @@ abbrev μR : ℕ := InnerOuter.rlinCols 1 8 8 5 10 10
 `lift_commit_spec`, `end_piece_check_spec` and the table specs ask for as
 `hmax`, discharged once here rather than carried as a hypothesis. -/
 theorem rlin_dims_fit : μR + nR * 8 ≤ Usize.max := by
-  sorry
+  have h := usize_max_ge
+  norm_num [μR, nR, InnerOuter.rlinCols, InnerOuter.rlinRows]
+  omega
 
-/-! ## `copy_point` -/
+/-! ## `copy_point`, and carrying a point through a copy -/
+
+/-- Two vectors with the same words are the same point. -/
+theorem toPoint_of_val_eq {m : ℕ} {a b : alloc.vec.Vec cpoly.field.Ext4} (h : a.val = b.val) :
+    toPoint (m := m) a = toPoint (m := m) b := by
+  funext j; simp only [toPoint, h]
+
+/-- Well-formedness transfers along equal words. -/
+theorem wfPoint_of_val_eq {m : ℕ} {a b : alloc.vec.Vec cpoly.field.Ext4} (h : a.val = b.val)
+    (hb : WfPoint m b) : WfPoint m a := by
+  refine ⟨by rw [h]; exact hb.1, ?_⟩
+  intro x hx; rw [h] at hx; exact hb.2 x hx
 
 /-- The loop of `copy_point`: the prefix pushed so far is the prefix of `p`. -/
 theorem copy_point_loop_spec (p out : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
     (hi : i.val ≤ p.val.length) (hout : out.val = p.val.take i.val) :
     chain.copy_point_loop p out i ⦃ z => z.val = p.val ⦄ := by
-  sorry
+  rw [chain.copy_point_loop]
+  apply loop.spec_decr_nat (fun s => p.val.length - s.2.val)
+    (fun s => s.2.val ≤ p.val.length ∧ s.1.val = p.val.take s.2.val)
+  · rintro ⟨out1, i1⟩ hinv
+    obtain ⟨hi1, hout1⟩ : i1.val ≤ p.val.length ∧ out1.val = p.val.take i1.val := hinv
+    simp only [chain.copy_point_loop.body]
+    by_cases hlt : i1 < alloc.vec.Vec.len p
+    · rw [if_pos hlt]
+      have hlt' : i1.val < p.val.length := by scalar_tac
+      have hlen1 : out1.val.length = i1.val := by
+        rw [hout1, List.length_take]; omega
+      step as ⟨e, he⟩
+      step as ⟨out2, hout2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+      rw [hout2, hi2, hout1, he]
+      exact List.take_concat_get' _ _ hlt'
+    · rw [if_neg hlt]
+      have heq : i1.val = p.val.length := by scalar_tac
+      simp only [WP.spec_ok]
+      rw [hout1, heq, List.take_length]
+  · exact ⟨hi, hout⟩
 
 /-- `copy_point` returns the same words. Total: every push is bounded by `p`'s
 own length. -/
 theorem copy_point_spec (p : alloc.vec.Vec cpoly.field.Ext4) :
     chain.copy_point p ⦃ z => z.val = p.val ⦄ := by
-  sorry
+  rw [chain.copy_point]
+  exact copy_point_loop_spec p (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize (by simp) (by simp)
 
 /-! ## The statement thread and the verdict -/
 
@@ -182,7 +223,61 @@ theorem chain_verify_spec {M m₁ dRows : ℕ}
           (toPoint (m := m₁) tau1))
         gs (toPoint (m := M + 1) challenges) gamma.val (toVec (k := dRows) t)
         (toExt y_prime) sw ⦄ := by
-  sorry
+  rw [chain.chain_verify]
+  step with to_quad_eval_statement_spec poly_stmt ps hps as ⟨stmt, hstmt⟩
+  step with rlin_stmt_spec pp stmt v c gamma b mr md ir idg zd sp
+    (InnerOuter.toQuadEvalStatement Φ ps) hpp hstmt hv hc hcn hb hmr hmd hir hidg hzd
+    as ⟨rlin, hrlin⟩
+  step with poly_vec_copy_spec (k := dRows) t ht as ⟨pv, hpvW, hpv⟩
+  step with copy_point_spec tau0 as ⟨v1, hv1⟩
+  step with copy_point_spec tau1 as ⟨v2, hv2⟩
+  step with NestedZeroCheckStmt_new_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁)
+    (dRows := dRows) rlin pv alpha v1 v2
+    ⟨InnerOuter.rlinStmt (zDigits := 5) Φ sp (16 : ZMod q) 16 gamma.val
+        (InnerOuter.toQuadEvalStatement Φ ps, toVec (k := 1) v, toChals c hcn),
+      toVec (k := dRows) t, toExt alpha, toPoint (m := M + 1) tau0, toPoint (m := m₁) tau1⟩
+    hrlin hpvW ha (wfPoint_of_val_eq hv1 h0) (wfPoint_of_val_eq hv2 h1) hpv rfl
+    (toPoint_of_val_eq hv1) (toPoint_of_val_eq hv2) as ⟨zc, hzc⟩
+  step with nested_to_round_statement_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁)
+    (dRows := dRows) zc _ hzc as ⟨opened, hopened⟩
+  set s0 := chainStart sp ps (toVec (k := 1) v) (toChals c hcn) gamma.val
+    (toVec (k := dRows) t) (toExt alpha) (toPoint (m := M + 1) tau0)
+    (toPoint (m := m₁) tau1) with hs0
+  have hopened' : RepRoundStmt (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁) (i := 0)
+      (dRows := dRows) opened s0 := hopened
+  step with round_verify_loop_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁)
+    (dRows := dRows) opened msgs challenges s0 gs hopened' hg hch as ⟨after, hafter⟩
+  rcases hver : verifyRounds s0 gs (toPoint (m := M + 1) challenges) (M + 1) le_rfl with _ | s'
+  · rw [hver] at hafter
+    simp only at hafter
+    rcases after with _ | s2
+    · simp only [WP.spec_ok, chainVerdict, hver]
+    · exact absurd hafter (by simp)
+  · rw [hver] at hafter
+    obtain ⟨s, hs_eq, hsrep⟩ := hafter
+    rcases after with _ | s2
+    · cases hs_eq
+    have hs2 : s2 = s := Option.some.inj hs_eq
+    subst hs2
+    simp only
+    step with final_check_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁) (dRows := dRows)
+      s2 y_prime gamma s' hsrep hy hm0 rlin_dims_fit as ⟨c_final, hcf⟩
+    step with copy_point_spec challenges as ⟨v3, hv3⟩
+    step with WEvalStatement_new_spec (dRows := dRows) (m₀ := M + 1) pv v3 y_prime
+      ⟨toVec (k := dRows) t, toPoint (m := M + 1) challenges, toExt y_prime⟩
+      hpvW (wfPoint_of_val_eq hv3 hch) hy hpv (toPoint_of_val_eq hv3) rfl as ⟨weval, hweval⟩
+    step with end_piece_check_spec (dRows := dRows) (μ := μR) (n := nR) (m₀ := M + 1) d_key weval
+      ⟨toVec (k := dRows) t, toPoint (m := M + 1) challenges, toExt y_prime⟩ w sw hD hweval hw
+      rlin_dims_fit hm0 as ⟨c_end, hce⟩
+    by_cases hcft : c_final = true
+    · rw [if_pos hcft]
+      simp only [WP.spec_ok, chainVerdict, hver]
+      rw [← hcf, hcft, Bool.true_and]
+      exact Bool.eq_iff_iff.mpr hce
+    · rw [if_neg hcft]
+      have hcff : c_final = false := by simpa using hcft
+      simp only [WP.spec_ok, chainVerdict, hver]
+      rw [← hcf, hcff, Bool.false_and]
 
 /-- `chain_open` computes the honest prover's wire content (spec: `evaluation`
 at its honest prover — `honestComputeV`, `hachiLiftCom`'s `com`,
@@ -232,6 +327,45 @@ theorem chain_open_spec {M m₁ dRows : ℕ}
         Reduced out.2.2.2 ∧
         toExt out.2.2.2 =
           InnerOuter.wTableMleEval Φ (M + 1) phiF 16 sw (toPoint (m := M + 1) challenges) ⦄ := by
-  sorry
+  have hm0v : (alloc.vec.Vec.len tau0).val = M + 1 := by simpa using h0.1
+  rw [chain.chain_open]
+  step with to_quad_eval_statement_spec poly_stmt ps hps as ⟨stmt, hstmt⟩
+  step with honest_compute_v_spec pp stmt message sp (InnerOuter.toQuadEvalStatement Φ ps) wo
+    hpp hstmt hm hWm as ⟨v, hvW, hvV⟩
+  step with rlin_stmt_spec pp stmt v c gamma b mr md ir idg zd sp
+    (InnerOuter.toQuadEvalStatement Φ ps) hpp hstmt hvW hc hcn hb hmr hmd hir hidg hzd
+    as ⟨rlin, hrlin⟩
+  rw [hvV] at hrlin
+  step with lift_commit_spec (dRows := dRows) (μ := μR) (n := nR) d_key w sw hD hw rlin_dims_fit
+    as ⟨t, htW, htV⟩
+  step with poly_vec_copy_spec (k := dRows) t htW as ⟨pv, hpvW, hpv⟩
+  step with copy_point_spec tau0 as ⟨v1, hv1⟩
+  step with copy_point_spec tau1 as ⟨v2, hv2⟩
+  step with NestedZeroCheckStmt_new_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁)
+    (dRows := dRows) rlin pv alpha v1 v2
+    ⟨InnerOuter.rlinStmt (zDigits := 5) Φ sp (16 : ZMod q) 16 gamma.val
+        (InnerOuter.toQuadEvalStatement Φ ps,
+          InnerOuter.honestComputeV Φ sp ddBal (InnerOuter.toQuadEvalStatement Φ ps) wo,
+          toChals c hcn),
+      toVec (k := dRows) t, toExt alpha, toPoint (m := M + 1) tau0, toPoint (m := m₁) tau1⟩
+    hrlin hpvW ha (wfPoint_of_val_eq hv1 h0) (wfPoint_of_val_eq hv2 h1) hpv rfl
+    (toPoint_of_val_eq hv1) (toPoint_of_val_eq hv2) as ⟨zc, hzc⟩
+  step with nested_to_round_statement_spec (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁)
+    (dRows := dRows) zc _ hzc as ⟨opened, hopened⟩
+  rw [htV] at hopened
+  have hopened' : RepRoundStmt (n := nR) (μ := μR) (m₀ := M + 1) (m₁ := m₁) (i := 0)
+      (dRows := dRows) opened
+      (chainStart sp ps
+        (InnerOuter.honestComputeV Φ sp ddBal (InnerOuter.toQuadEvalStatement Φ ps) wo)
+        (toChals c hcn) gamma.val
+        ((InnerOuter.hachiLiftCom Φ 15 16
+          (toMat (rows := dRows) (cols := μR + nR * 8) d_key)).com sw)
+        (toExt alpha) (toPoint (m := M + 1) tau0) (toPoint (m := m₁) tau1)) := hopened
+  step with honest_round_messages_spec (n := nR) (μ := μR) (M := M) (m₁ := m₁) (dRows := dRows)
+    opened w challenges _ sw hopened' hw hch hm0 rlin_dims_fit as ⟨msgs, hmlen, hmsgs⟩
+  step with honest_compute_y_spec (μ := μR) (n := nR) w (alloc.vec.Vec.len tau0) challenges sw hw
+    (by rw [hm0v]; exact hch) (by rw [hm0v]; exact hm0) rlin_dims_fit as ⟨y', hyR, hyv⟩
+  rw [hm0v] at hyv
+  exact ⟨hvW, hvV, htW, htV, ⟨hmlen, fun k => hmsgs k.val k.isLt⟩, hyR, hyv⟩
 
 end HachiEquiv.Chain

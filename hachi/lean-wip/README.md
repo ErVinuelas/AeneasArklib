@@ -11,11 +11,11 @@ plain `lake env lean lean-wip/Sumcheck.lean` validates it. Beside it,
 `Chain.lean` (2026-09-10): the two composed-chain rows -- `chain_verify` against
 the composed verifier's verdict (`chainVerdict`: `verifyRounds`, then
 `finalCheck` and `endPieceCheck`) and `chain_open` against the honest prover's
-four wire messages -- **0 errors, 5 `sorry`s** (the two rows and three helpers).
-It imports `Sumcheck`, so it is the two-staged-files case: validate it with the
-`LEAN_PATH` detour under "Working here", promote `Sumcheck.lean` first, and
-prove it locally -- its obligations are compositions of existing specs, not
-Aristotle work. Everything before both has been promoted, and
+four wire messages -- **proved locally, 0 errors, 0 `sorry`s**, statements
+unchanged. It imports `Sumcheck`, so it is the two-staged-files case: validate
+it with the `LEAN_PATH` detour under "Working here", and promote `Sumcheck.lean`
+first -- its two headline closures carry `sorryAx` only through Sumcheck's
+still-open `final_check_spec` and `honest_round_messages_spec`. Everything before both has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one

@@ -4997,3 +4997,36 @@ staged `Sumcheck.lean`, so it is validated with the `LEAN_PATH` detour
 (`lake env lean -o scratch/Sumcheck.olean lean-wip/Sumcheck.lean`, then
 `LEAN_PATH="$(lake env printenv LEAN_PATH):scratch"`); promotion order is
 `Sumcheck` then `Chain`, and the chain's proofs are local work, not Aristotle's.
+
+## `Chain.lean` is proved, locally (2026-09-10)
+
+All five obligations filled without touching a statement (signature diff
+against the committed file: empty; two helpers added, `toPoint_of_val_eq` and
+`wfPoint_of_val_eq`). `lake env lean` through the detour: 0 errors, 0 `sorry`,
+0 warnings. Axiom closures: `copy_point_spec` and `rlin_dims_fit` kernel-only;
+`chain_verify_spec` and `chain_open_spec` carry `sorryAx` **only** through
+`Sumcheck.lean`'s still-open `final_check_spec` and
+`honest_round_messages_spec`, the two link specs they call that Aristotle's
+restart session `c8d6894b` is working on. Once those close, both chain
+theorems are kernel-only with no further work here.
+
+The proofs are what the statements promised: `step with <link spec>` chains
+through eleven promoted or staged specs, an anonymous-constructor
+`NestedZeroCheckStatement` handed to `NestedZeroCheckStmt_new_spec`, one
+`rcases` on `verifyRounds`'s `Option` mirrored by `rcases` on the extracted
+`after`, and `Bool.eq_iff_iff` to turn `end_piece_check_spec`'s iff into the
+`&&`. Four mechanics cost a round-trip each and are worth keeping:
+
+* `subst` on the extracted `match after with …` fails with "invalid motive";
+  `rcases after with _ | s2` and a `cases` on the impossible equation does it.
+* The final `step … as` of a function whose body ends in `ok (…)` consumes that
+  `ok`: the goal is already the bare postcondition (`let`s included), and a
+  trailing `simp only [WP.spec_ok]` errors with "no progress".
+* `set s0 := chainStart …` and, separately, a constructor field written as
+  `(hachiLiftCom Φ 15 16 (toMat … d_key)).com sw` both hit `maxRecDepth` —
+  the unifier evaluating `8 =?= rhoDigitCount q 16` (`Nat.clog`) while
+  matching the key's column count. Build the statement with `toVec t`, prove
+  the constructor spec with the plain `hpv`, then `rw [htV] at hopened`.
+* `μR + nR * 8 ≤ Usize.max` is `norm_num [μR, nR, rlinCols, rlinRows]` down
+  to `57384 ≤ Usize.max`, closed from `usize_max_ge` (Aristotle's helper in
+  `Sumcheck.lean`) by `omega`.
