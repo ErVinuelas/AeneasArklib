@@ -1,9 +1,24 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt (2026-09-09):** `ZeroCheck.lean`, nine `sorry`s — eight of them
-re-stubbed when the `two_pow` repair moved their extracted shape, plus
-`w_table_mle_eval_spec` — and `EndPiece.lean`, four, never yet attempted by a
-prover. Everything earlier that passed through here has been promoted: the
+**Current debt (2026-09-10): `Rlin.lean`**, Stage 5's `R^lin` adapter (chain
+row 3) plus the polynomial-level bridge (row 1): thirteen statements, four
+dimension specs proved in place, **nine `sorry`s** for the prover. It imports
+only promoted files (`QuadEvalProtocol`, `ZeroCheck`), so the plain
+`lake env lean lean-wip/Rlin.lean` validates it and the Aristotle helper's own
+check works. Everything before it has been promoted, and
+the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
+(twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
+`2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
+hundred and forty-seven** headline specs and they all come out as the three
+Lean kernel axioms.
+
+That is worth a note rather than a celebration: the next translated operation
+puts debt back here, and the directory exists for that. The 35 items
+`make spec-check` currently reports owed — `gadget_transpose_mul`, the bridge
+and `R^lin` rows in `quadeval`, and target 5's in `sumcheck` — are all
+*unstated*, not unproved; when they are written they will be staged here first.
+
+Everything earlier that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
 (`lean/Scheme.lean`), the scheme-gap statements (`SchemeGaps.lean`, folded
 into `lean/Scheme.lean` beside their siblings), the multilinear evaluation

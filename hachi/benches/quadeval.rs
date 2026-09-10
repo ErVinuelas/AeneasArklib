@@ -120,6 +120,17 @@ macro_rules! define_cases {
                 acc
             }
 
+            fn d_polymatrix(a: &hc::linalg::PolyMatrix) -> u64 {
+                let r = a.rows();
+                let mut acc = support::mix_len(0, r);
+                let mut i = 0usize;
+                while i < r {
+                    acc = support::mix(acc, d_polyvec(a.row(i)));
+                    i += 1;
+                }
+                acc
+            }
+
             fn d_polyvec(v: &PolyVec) -> u64 {
                 let k = v.len();
                 let mut acc = support::mix_len(0, k);
@@ -283,6 +294,29 @@ macro_rules! define_cases {
                 )
             }
 
+            /// The c5 block matrix of the `R^lin` adapter, materialized:
+            /// `k × blocks·(k·digits)` entries, one `scalar_mul` on the gadget
+            /// diagonal and a zero elsewhere. Paired with the `tensor_g` row
+            /// above, since upstream's `tensorGMatrix_mulVec` says the two
+            /// compute the same thing -- so the pair measures what
+            /// materializing the block costs over applying it.
+            pub fn tensor_g_matrix(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let digits = hc::params::GADGET_DIGITS;
+                let rows = hc::params::INNER_ROWS;
+                let c = vec_of(0x9E11_0000_0000_000A, blocks);
+                support::run(
+                    m,
+                    || {
+                        hc::quadeval::tensor_g_matrix(
+                            black_box(rows),
+                            black_box(digits),
+                            black_box(&c),
+                        )
+                    },
+                    d_polymatrix,
+                )
+            }
+
             /// The A/B fairness control -- identical source in every variant.
             pub fn control(m: Mode<'_, '_>, n: usize) -> u64 {
                 support::run(m, || PolyVec::zeros(black_box(n)), d_polyvec)
@@ -330,6 +364,8 @@ fn quadeval_benches(c: &mut Criterion) {
     bench_case!(c, "quadeval/tensor_g1", tensor_g1, [reduced_blocks]);
     // @covers quadeval::tensor_g
     bench_case!(c, "quadeval/tensor_g", tensor_g, [reduced_blocks]);
+    // @covers quadeval::tensor_g_matrix
+    bench_case!(c, "quadeval/tensor_g_matrix", tensor_g_matrix, [reduced_blocks]);
 }
 
 criterion_group! {

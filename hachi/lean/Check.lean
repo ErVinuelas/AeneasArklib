@@ -9,6 +9,8 @@ import Balanced
 import QuadEval
 import QuadEvalProtocol
 import RingSwitch
+import ZeroCheck
+import EndPiece
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -390,6 +392,46 @@ typecheck against one. -/
 -- The newtype is free on this side: Aeneas extracts a single-field tuple struct
 -- as a `@[reducible]` abbreviation, so `Fp` *is* `U64` as far as proofs care.
 example : cpoly.field.Fp = Std.U64 := rfl
+
+-- ### The `Shared<n>` mangling, pinned
+--
+-- Target 5's round message multiplies univariate polynomials (`&p * &q` and
+-- `&p * scalar` in `sumcheck::honest_compute_g`), and cpoly implements those
+-- **by reference**. Aeneas mangles a by-reference operator impl's `Self` into a
+-- synthetic `Shared<n><T>`, so those two impls arrive as
+--
+--     Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul
+--     Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul
+--
+-- and every statement about a `RoundMsg` is about those names. A *name* is not
+-- a body: the mangling is an Aeneas artefact and the index is positional, so a
+-- future extraction could plausibly attach `Shared0`/`Shared1` to different
+-- impls and a spec bound to the old name would silently be about the new one.
+-- These ascriptions are what makes that a build failure. They were absent from
+-- 2026-09-08, when target 5 first pulled the impls in, until 2026-09-09 --
+-- the `aeneas-spec-author` skill predicted exactly this ("if a by-reference
+-- operator impl is ever added to `hachi`, the `Shared<n><T>` mangling returns
+-- ... and `Check.lean` has no alias-pin section, so the pins need one added").
+--
+-- Scalar multiply: a polynomial and a field element in, a polynomial out.
+example : cpoly.univariate.UnivariatePoly → cpoly.field.Ext4 →
+    Result cpoly.univariate.UnivariatePoly :=
+  Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul
+
+-- Polynomial multiply: two polynomials in, one out. The `Shared0` inside
+-- `Shared1`'s name is the *argument*'s mangling, which is why the two indices
+-- are not interchangeable.
+example : cpoly.univariate.UnivariatePoly → cpoly.univariate.UnivariatePoly →
+    Result cpoly.univariate.UnivariatePoly :=
+  Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul
+
+-- The two ascriptions above cannot distinguish the impls from each other by
+-- type alone -- a swap of `Shared0`/`Shared1` would change both signatures, so
+-- in fact they can, and that is the point: the scalar impl's second argument is
+-- an `Ext4` and the polynomial impl's is a `UnivariatePoly`, so neither
+-- ascription accepts the other's constant. A body pin (that each delegates to
+-- its own loop) is owed and would be strictly stronger; it needs `Result`'s
+-- `ok`/`do` notation, which this file does not open.
 
 -- The modulus travelled across the crate boundary as a value, not a symbol.
 example : cpoly.field.P = 4294967197#u64 := by simp [cpoly.field.P]
@@ -1062,5 +1104,58 @@ development, which joins this list when it is proved and promoted. -/
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_spec
 #print axioms HachiEquiv.QuadEvalProtocol.rel_out_spec
 #print axioms HachiEquiv.QuadEvalProtocol.paper_rel_out_spec
+
+-- Stage 3 target 4, the zero-check link (`lean/ZeroCheck.lean`): `wTable` and
+-- its multilinear extension, the range factor, the computable `H₀` and `H_α`
+-- layers, `alphaPublicEvals`, `zcTargetAlpha`, and the three `ringswitch` items
+-- the α side introduced. Three conventions in it are load-bearing. Every
+-- statement is against a **computable** ArkLib definition -- the α side goes
+-- through `alphaDefect`, with the bridge to the noncomputable `hAlphaEvals`
+-- stated as its own obligation (`h_alpha_evals_eq_hAlphaEvals_spec`) rather
+-- than assumed. Arities are arguments, so each is the generic ArkLib statement
+-- at arbitrary width rather than an instantiation at `M_ZERO`. And
+-- `eq_weight_spec`, `zc_target_alpha_spec` and `below_two_pow_spec` are
+-- unconditional in the machine model after the `two_pow` repair (NOTES.md
+-- § "Two invented powers of two, removed"); the four table-side statements
+-- carry `μ + n·8 ≤ Usize.max`, which `w_table`'s `rows · digits` product earns
+-- and which is not minimal -- recorded as owed, not forgotten.
+#print axioms HachiEquiv.ZeroCheck.ext_pow_spec
+#print axioms HachiEquiv.ZeroCheck.c_eval_at_spec
+#print axioms HachiEquiv.ZeroCheck.c_eval_at_modulus_spec
+#print axioms HachiEquiv.ZeroCheck.RlinStatement_new_spec
+#print axioms HachiEquiv.ZeroCheck.range_product_spec
+#print axioms HachiEquiv.ZeroCheck.w_table_spec
+#print axioms HachiEquiv.ZeroCheck.w_table_flat_spec
+#print axioms HachiEquiv.ZeroCheck.c_w_table_mle_spec
+#print axioms HachiEquiv.ZeroCheck.w_table_mle_eval_spec
+#print axioms HachiEquiv.ZeroCheck.h_zero_spec
+#print axioms HachiEquiv.ZeroCheck.h_zero_is_zero_spec
+#print axioms HachiEquiv.ZeroCheck.alpha_tilde_spec
+#print axioms HachiEquiv.ZeroCheck.eq_weight_spec
+#print axioms HachiEquiv.ZeroCheck.below_two_pow_spec
+#print axioms HachiEquiv.ZeroCheck.poly_matrix_cols_spec
+#print axioms HachiEquiv.ZeroCheck.m_alpha_tilde_spec
+#print axioms HachiEquiv.ZeroCheck.alpha_public_evals_spec
+#print axioms HachiEquiv.ZeroCheck.zc_target_alpha_spec
+#print axioms HachiEquiv.ZeroCheck.alpha_contract_spec
+#print axioms HachiEquiv.ZeroCheck.alpha_defect_spec
+#print axioms HachiEquiv.ZeroCheck.h_alpha_evals_spec
+#print axioms HachiEquiv.ZeroCheck.h_alpha_evals_eq_hAlphaEvals_spec
+#print axioms HachiEquiv.ZeroCheck.h_alpha_evals_flat_spec
+#print axioms HachiEquiv.ZeroCheck.h_alpha_spec
+#print axioms HachiEquiv.ZeroCheck.h_alpha_is_zero_spec
+
+-- Stage 3 target 6, the end piece (`lean/EndPiece.lean`): `endPieceCheck`'s
+-- three conjuncts in the specification's order and with its short-circuit, the
+-- honest prover's single message, and the witness read off the transcript.
+-- `end_piece_check_spec` takes `BEq`/`LawfulBEq` on the commitment carrier as
+-- instance *hypotheses*, which is ArkLib's own convention for `endPieceCheck`
+-- (`Composition.lean:287`): `K.TCom` is a function type, so there is no
+-- instance to find, and the binders sit on the `.TCom` projection because
+-- instance search will not unfold it.
+#print axioms HachiEquiv.EndPiece.WEvalStatement_new_spec
+#print axioms HachiEquiv.EndPiece.end_piece_check_spec
+#print axioms HachiEquiv.EndPiece.end_piece_prove_spec
+#print axioms HachiEquiv.EndPiece.end_piece_witness_spec
 
 end HachiEquiv.Check

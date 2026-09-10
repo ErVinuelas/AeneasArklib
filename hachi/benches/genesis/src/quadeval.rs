@@ -613,3 +613,399 @@ pub fn to_quad_eval_statement(s: &PolyEvalStatement) -> QuadEvalStatement {
     let bvec: PolyVec = crate::evalsplit::monomial_basis(s.xl());
     QuadEvalStatement::new(s.u().copy(), avec, bvec, s.y().copy())
 }
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_cw
+/// The carrier-block width `cW = 2^r · messageDigits` — the `ŵ` columns
+/// (spec: `rlinCW`, `RingSwitch/Rlin.lean:84`).
+///
+/// Mirrors `rlinCW`.
+///
+/// `blocks` is `2^r` already expanded, so no power is formed here; the
+/// specification writes the exponent because it is generic in `r`.
+pub fn rlin_cw(blocks: usize, message_digits: usize) -> usize {
+    blocks * message_digits
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_ct
+/// The inner-block width `cT = 2^r · (innerRows · innerDigits)` — the
+/// `flatten t̂` columns (spec: `rlinCT`, `:86`).
+///
+/// Mirrors `rlinCT`.
+pub fn rlin_ct(blocks: usize, inner_rows: usize, inner_digits: usize) -> usize {
+    blocks * (inner_rows * inner_digits)
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_cz
+/// The response-block width `cZ = 2^m · messageDigits · zDigits` — the `ẑ`
+/// columns (spec: `rlinCZ`, `:88`).
+///
+/// Mirrors `rlinCZ`.
+pub fn rlin_cz(message_rows: usize, message_digits: usize, z_digits: usize) -> usize {
+    message_rows * message_digits * z_digits
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_cols
+/// The column count `μ` of the Eq. (20) block system (spec: `rlinCols`, `:75`).
+///
+/// Mirrors `rlinCols`.
+///
+/// The parenthesisation is the specification's, which says of itself
+/// "Associativity fixed once, here" — so it is mirrored rather than
+/// normalised, because `a + (b + c)` and `(a + b) + c` are the same number and
+/// *not* the same extracted term, and the proof rewrites one of them.
+pub fn rlin_cols(
+    blocks: usize,
+    message_rows: usize,
+    message_digits: usize,
+    inner_rows: usize,
+    inner_digits: usize,
+    z_digits: usize,
+) -> usize {
+    rlin_cw(blocks, message_digits)
+        + (rlin_ct(blocks, inner_rows, inner_digits)
+            + rlin_cz(message_rows, message_digits, z_digits))
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_rows
+/// The row count `n` of the Eq. (20) block system (spec: `rlinRows`, `:80`).
+///
+/// Mirrors `rlinRows`.
+///
+/// `c1 ++ (c2 ++ (c3 ++ (c4 ++ c5)))`: `dRows` commitment rows, `outerRows`
+/// outer rows, one row each for c3 and c4, and `innerRows` for c5. Same
+/// associativity note as [`rlin_cols`].
+pub fn rlin_rows(inner_rows: usize, outer_rows: usize, d_rows: usize) -> usize {
+    d_rows + (outer_rows + (1 + (1 + inner_rows)))
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::unflatten
+/// Un-flatten a row-major block vector into blocks — the inverse of
+/// `linalg::flatten_blocks` (spec: `unflatten`, `RingSwitch/Rlin.lean:113`).
+///
+/// Mirrors `unflatten`.
+///
+/// Entry `w` of block `i` is entry `width·i + w` of the input, which is
+/// `flatten_blocks`' own convention read backwards; the round trip both ways is
+/// upstream's `flattenBlocks_unflatten` / `unflatten_flattenBlocks`.
+pub fn unflatten(v: &PolyVec, width: usize) -> Vec<PolyVec> {
+    let total: usize = v.len();
+    let mut out: Vec<PolyVec> = Vec::new();
+    let mut base: usize = 0;
+    while base < total {
+        let mut block: Vec<Rq> = Vec::new();
+        let mut w: usize = 0;
+        while w < width {
+            block.push(v.get(base + w).copy());
+            w += 1;
+        }
+        out.push(PolyVec::new(block));
+        base += width;
+    }
+    out
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::tensor_g_matrix
+/// The c5 block matrix `(cᵀ ⊗ G_k)` (spec: `tensorGMatrix`,
+/// `RingSwitch/Rlin.lean:132`).
+///
+/// Mirrors `tensorGMatrix`.
+///
+/// Entry `(p, flat)` is `cᵢ · G_k(p, e)` for `(i, e) = finProdFinEquiv.symm
+/// flat`, and `G_k(p, e)` is nonzero only when `e / digits = p` — which, with
+/// the column walked as `(i, e, f)` below, is the plain `e == p` test. So the
+/// matrix is materialized (it is a `PolyMatrix`, and `relRlin` applies it) but
+/// its entries come from the gadget's structure, never from a materialized
+/// `G`: the [`crate::gadget::gadget_transpose_mul`] convention.
+///
+/// `k × blocks·(k·digits)` = `1 × 8192` at the pinned parameters, which is why
+/// this one is holdable where c4's product is not.
+pub fn tensor_g_matrix(k: usize, digits: usize, c: &PolyVec) -> PolyMatrix {
+    let blocks: usize = c.len();
+    let mut rows: Vec<PolyVec> = Vec::new();
+    let mut p: usize = 0;
+    while p < k {
+        let mut row: Vec<Rq> = Vec::new();
+        let mut i: usize = 0;
+        while i < blocks {
+            let mut e: usize = 0;
+            while e < k {
+                let mut f: usize = 0;
+                while f < digits {
+                    let entry: Rq = if e == p {
+                        c.get(i).scalar_mul(gadget::base_pow(f))
+                    } else {
+                        Rq::zero()
+                    };
+                    row.push(entry);
+                    f += 1;
+                }
+                e += 1;
+            }
+            i += 1;
+        }
+        rows.push(PolyVec::new(row));
+        p += 1;
+    }
+    PolyMatrix::new(rows)
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::stack
+/// Witness stacking `ζ = ŵ ++ (flatten t̂ ++ ẑ)` (spec: `stack`,
+/// `RingSwitch/Rlin.lean:158`).
+///
+/// Mirrors `stack`.
+///
+/// The adapter's witness map. Its length is [`rlin_cols`] by construction, and
+/// the block order is what [`unstack`] and every column block of
+/// [`rlin_stmt`] agree on.
+pub fn stack(resp: &QuadEvalResponse) -> PolyVec {
+    let flat: PolyVec = linalg::flatten_blocks(resp.inner_dec());
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < resp.carrier_dec().len() {
+        out.push(resp.carrier_dec().get(i).copy());
+        i += 1;
+    }
+    let mut j: usize = 0;
+    while j < flat.len() {
+        out.push(flat.get(j).copy());
+        j += 1;
+    }
+    let mut k: usize = 0;
+    while k < resp.z_dec().len() {
+        out.push(resp.z_dec().get(k).copy());
+        k += 1;
+    }
+    PolyVec::new(out)
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::unstack
+/// Witness unstacking: split `ζ` back into `(ŵ, t̂, ẑ)` (spec: `unstack`,
+/// `RingSwitch/Rlin.lean:166`).
+///
+/// Mirrors `unstack`.
+///
+/// Inverse to [`stack`]. The three widths are arguments because the split is
+/// the `rlinCols` layout and nothing in `ζ` records where the boundaries are —
+/// the specification recovers them from the type indices, which erase.
+pub fn unstack(zeta: &PolyVec, cw: usize, ct: usize, inner_width: usize) -> QuadEvalResponse {
+    let mut carrier: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < cw {
+        carrier.push(zeta.get(i).copy());
+        i += 1;
+    }
+    let mut middle: Vec<Rq> = Vec::new();
+    let mut j: usize = 0;
+    while j < ct {
+        middle.push(zeta.get(cw + j).copy());
+        j += 1;
+    }
+    let mut z: Vec<Rq> = Vec::new();
+    let mut k: usize = cw + ct;
+    while k < zeta.len() {
+        z.push(zeta.get(k).copy());
+        k += 1;
+    }
+    QuadEvalResponse::new(
+        PolyVec::new(carrier),
+        unflatten(&PolyVec::new(middle), inner_width),
+        PolyVec::new(z),
+    )
+}
+
+// @genesis 8d0cd29 2026-09-09 — quadeval::rlin_stmt
+/// **The `R^lin` statement assembly**: build the Eq. (20) block matrix and
+/// right-hand side from QuadEval's output `(stmt, v, c)` (spec: `rlinStmt`,
+/// `RingSwitch/Rlin.lean:205`).
+///
+/// Mirrors `rlinStmt`.
+///
+/// # This body is a documented exception to the freeze-the-naive-form rule
+///
+/// The specification writes c4's `ẑ` block as
+/// `(matMul G_{2^m} J).transpose *ᵥ a` — a literal matrix product. At the
+/// pinned parameters `G·J` is `1024 × 40960` `Rq` = **320 GiB**, while the
+/// answer it contracts down to is a `40960`-entry vector = 320 MiB: a 1024×
+/// overhead, one factor for every row of `G` the contraction discards. There
+/// is no width at these parameters where the specification's own shape runs,
+/// so the naive form cannot be benched, cannot have a `case!` digest computed
+/// on it, and would carry spec debt for a body that never executes — all three
+/// parts of `op-genesis`' test. **Genesis therefore holds the associativity
+/// reshape `(G·J)ᵀa = Jᵀ(Gᵀa)`**, whose intermediate is `8192` `Rq` = 64 MiB,
+/// approved and recorded 2026-09-09 (NOTES.md § "Decision: the `R^lin`
+/// adapter's genesis holds the reshaped form"). A `vs genesis` figure for this
+/// item measures distance from the *reshaped* form.
+///
+/// Two things that are **not** part of that exception, so they are not
+/// optimizations here. Every gadget-matrix application goes through
+/// [`crate::gadget::gadget_transpose_mul`], which reads the matrix's structure
+/// instead of materializing it — the convention [`j_mul`] already froze, and
+/// faithful because `gadgetMul` is *defined* as `gadgetMatrix *ᵥ v`. And c5's
+/// `matMul A J` is the same convention rather than a second reshape: `J`'s
+/// columns have one nonzero each, so `(A·J)[p]` is exactly `Jᵀ` applied to row
+/// `p` of `A`, which is why the same helper serves both blocks.
+///
+/// # Scale
+///
+/// `M` is `rlinRows × rlinCols` = `5 × 57 344` `Rq` = **2.2 GiB** at the
+/// pinned parameters, independent of `ring::mul`. Its bench row is excluded and
+/// its semantics test is REDUCED for that reason alone.
+// Eleven arguments and a body over a hundred lines, both forced, both recorded
+// rather than worked around. The six dimensions travel as arguments because the
+// freeze exception's toy-width oracle depends on it -- bundling them into a
+// carrier would put a struct between the specification's own parameters and the
+// body, and the oracle needs to call this at `messageDigits != zDigits`. The
+// body is long because it assembles five row blocks over three column blocks
+// with **no closures**: Aeneas does not support them, so every block is its own
+// explicit loop and the zero padding is written out.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub fn rlin_stmt(
+    pp: &PublicParamsD,
+    stmt: &QuadEvalStatement,
+    v: &PolyVec,
+    c: &PolyVec,
+    gamma: u64,
+    blocks: usize,
+    message_rows: usize,
+    message_digits: usize,
+    inner_rows: usize,
+    inner_digits: usize,
+    z_digits: usize,
+) -> crate::ringswitch::RlinStatement {
+    let cw: usize = rlin_cw(blocks, message_digits);
+    let ct: usize = rlin_ct(blocks, inner_rows, inner_digits);
+    let cz: usize = rlin_cz(message_rows, message_digits, z_digits);
+    let inner_cols: usize = message_rows * message_digits;
+
+    // c4's `ẑ` block, by the approved reshape: `Jᵀ(Gᵀ a)`, never `(G·J)ᵀ a`.
+    let g_a: PolyVec = gadget::gadget_transpose_mul(message_rows, message_digits, stmt.avec());
+    let jt_g_a: PolyVec = gadget::gadget_transpose_mul(inner_cols, z_digits, &g_a);
+
+    let g_b: PolyVec = gadget::gadget_transpose_mul(blocks, message_digits, stmt.bvec());
+    let g_c: PolyVec = gadget::gadget_transpose_mul(blocks, message_digits, c);
+    let tensor: PolyMatrix = tensor_g_matrix(inner_rows, inner_digits, c);
+
+    let mut out: Vec<PolyVec> = Vec::new();
+
+    // c1: [ D | 0 | 0 ]
+    let mut i: usize = 0;
+    while i < pp.d_matrix().rows() {
+        let mut row: Vec<Rq> = Vec::new();
+        let mut k: usize = 0;
+        while k < cw {
+            row.push(pp.d_matrix().row(i).get(k).copy());
+            k += 1;
+        }
+        let mut z: usize = 0;
+        while z < ct + cz {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        out.push(PolyVec::new(row));
+        i += 1;
+    }
+
+    // c2: [ 0 | B | 0 ]
+    let mut i2: usize = 0;
+    while i2 < pp.inner().outer_matrix().rows() {
+        let mut row: Vec<Rq> = Vec::new();
+        let mut z: usize = 0;
+        while z < cw {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        let mut k: usize = 0;
+        while k < ct {
+            row.push(pp.inner().outer_matrix().row(i2).get(k).copy());
+            k += 1;
+        }
+        let mut z2: usize = 0;
+        while z2 < cz {
+            row.push(Rq::zero());
+            z2 += 1;
+        }
+        out.push(PolyVec::new(row));
+        i2 += 1;
+    }
+
+    // c3: [ (G_{2^r})ᵀ b | 0 | 0 ]
+    let mut row3: Vec<Rq> = Vec::new();
+    let mut k3: usize = 0;
+    while k3 < cw {
+        row3.push(g_b.get(k3).copy());
+        k3 += 1;
+    }
+    let mut z3: usize = 0;
+    while z3 < ct + cz {
+        row3.push(Rq::zero());
+        z3 += 1;
+    }
+    out.push(PolyVec::new(row3));
+
+    // c4: [ (G_{2^r})ᵀ c | 0 | −Jᵀ((G_{2^m})ᵀ a) ]
+    let mut row4: Vec<Rq> = Vec::new();
+    let mut k4: usize = 0;
+    while k4 < cw {
+        row4.push(g_c.get(k4).copy());
+        k4 += 1;
+    }
+    let mut z4: usize = 0;
+    while z4 < ct {
+        row4.push(Rq::zero());
+        z4 += 1;
+    }
+    let mut k4z: usize = 0;
+    while k4z < cz {
+        row4.push(jt_g_a.get(k4z).neg());
+        k4z += 1;
+    }
+    out.push(PolyVec::new(row4));
+
+    // c5: [ 0 | (cᵀ ⊗ G_{n_A}) | −(A J) ]
+    let mut p: usize = 0;
+    while p < inner_rows {
+        let mut row: Vec<Rq> = Vec::new();
+        let mut z: usize = 0;
+        while z < cw {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        let mut k: usize = 0;
+        while k < ct {
+            row.push(tensor.row(p).get(k).copy());
+            k += 1;
+        }
+        let aj: PolyVec =
+            gadget::gadget_transpose_mul(inner_cols, z_digits, pp.inner().inner_matrix().row(p));
+        let mut kz: usize = 0;
+        while kz < cz {
+            row.push(aj.get(kz).neg());
+            kz += 1;
+        }
+        out.push(PolyVec::new(row));
+        p += 1;
+    }
+
+    // yvec = (v, u, y, 0, 0)
+    let mut y: Vec<Rq> = Vec::new();
+    let mut a: usize = 0;
+    while a < v.len() {
+        y.push(v.get(a).copy());
+        a += 1;
+    }
+    let mut b: usize = 0;
+    while b < stmt.u().len() {
+        y.push(stmt.u().get(b).copy());
+        b += 1;
+    }
+    y.push(stmt.y().copy());
+    y.push(Rq::zero());
+    let mut e: usize = 0;
+    while e < inner_rows {
+        y.push(Rq::zero());
+        e += 1;
+    }
+
+    crate::ringswitch::RlinStatement::new(PolyMatrix::new(out), PolyVec::new(y), gamma)
+}

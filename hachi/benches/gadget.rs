@@ -336,6 +336,26 @@ macro_rules! define_cases {
                 )
             }
 
+            /// `Gᵗ · a`, the transposed application the `R^lin` adapter needs:
+            /// one `scalar_mul` per output entry and no sum, because the
+            /// transpose has a single nonzero per row. So this row is the honest
+            /// cost of *not* materializing `G`, which at `2^r` would be 64 GiB.
+            pub fn gadget_transpose_mul(m: Mode<'_, '_>, rows: usize) -> u64 {
+                let digits = hc::params::GADGET_DIGITS;
+                let a = vec_of(0x1A1A_0000_0000_0007, rows);
+                support::run(
+                    m,
+                    || {
+                        hc::gadget::gadget_transpose_mul(
+                            black_box(rows),
+                            black_box(digits),
+                            black_box(&a),
+                        )
+                    },
+                    d_polyvec,
+                )
+            }
+
             // -- the z-side siblings ----------------------------------------
 
             /// The bounded `J⁻¹` at `Z_DIGITS = 5`, on the same `x` the two
@@ -428,6 +448,8 @@ fn gadget_benches(c: &mut Criterion) {
     bench_case!(c, "gadget/balanced_gadget_decompose", balanced_gadget_decompose, [rows]);
     // @covers gadget::gadget_mul
     bench_case!(c, "gadget/gadget_mul", gadget_mul, [rows]);
+    // @covers gadget::gadget_transpose_mul
+    bench_case!(c, "gadget/gadget_transpose_mul", gadget_transpose_mul, [rows]);
 
     // REDUCED rows for the two `z`-side siblings: at the scheme's `n = 8192`
     // the decomposition is `n · Z_DIGITS = 40960` ring elements (320 MiB), so
