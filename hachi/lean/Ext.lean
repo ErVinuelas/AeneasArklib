@@ -28,8 +28,9 @@ where the reduction table has to be supplied exponent by exponent, and
 `ext_is_zero_spec`, whose base-field ingredient (`fp_is_zero_spec`) is not part
 of `lean/Field.lean` and is proved here.
 
-The file carries no `sorry`; what remains before it can move to `lean/` is the
-promotion checklist in `lean-wip/README.md`.
+Promoted from `lean-wip/` on 2026-09-09 (Aristotle
+session `63ebbc60`, eight obligations to zero); its eight headline specs are
+audited in `Check.lean` § 4.
 
 `K = Hachi.Field = ZMod Hachi.fieldSize` and hachi's `q` are the same modulus:
 `Check.lean` § 2's `cpoly.field.P = params.Q` is what pins that.
@@ -427,4 +428,3 @@ theorem ext_is_zero_spec (a : cpoly.field.Ext4) (ha : Reduced a) :
     simp only [spec_ok, Bool.false_eq_true, false_iff, not_and]
     intro hc
     exact absurd (hb0.mpr hc) e0
-

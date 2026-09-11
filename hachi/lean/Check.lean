@@ -252,6 +252,18 @@ example : params.D_QUAD_COLS = 8192#usize := by simp [params.D_QUAD_COLS]
 example : params.LIFT_COLS = 57384#usize := by simp [params.LIFT_COLS]
 example : params.M_ZERO = 26#usize := by simp [params.M_ZERO]
 example : params.M_ONE = 3#usize := by simp [params.M_ONE]
+example : params.ROUND_NODES = 33#usize := by simp [params.ROUND_NODES]
+example : params.ROUND_NODES_ALPHA = 3#usize := by simp [params.ROUND_NODES_ALPHA]
+
+-- The round messages' node counts are the per-round degree bounds plus one:
+-- `roundDegZero b = 2b` for the range summand (`Constraints.lean:87`) and
+-- `roundDegAlpha = 2` for the linear one (`:90`). `2 * 16 + 1` in
+-- `ROUND_NODES`'s docstring is now a checked relation against the named bound,
+-- as is the `3` that is deliberately *not* a prefix of the range side.
+example : params.ROUND_NODES.val = roundDegZero params.GADGET_BASE.val + 1 := by
+  simp [params.ROUND_NODES, params.GADGET_BASE, roundDegZero]
+example : params.ROUND_NODES_ALPHA.val = roundDegAlpha + 1 := by
+  simp [params.ROUND_NODES_ALPHA, roundDegAlpha]
 
 -- `ω`, and `κ = 2ω`: the weak-opening bound is the double of the sampled one, and
 -- the `2 * 16` in `KAPPA`'s docstring is now a checked relation.
@@ -742,6 +754,104 @@ example (w eq : alloc.vec.Vec cpoly.field.Ext4) :
     Result (alloc.vec.Vec cpoly.field.Ext4) := sumcheck.round_values_zero w eq
 example (w eq : alloc.vec.Vec cpoly.field.Ext4) :
     Result cpoly.univariate.UnivariatePoly := sumcheck.round_poly_zero w eq
+
+-- The rest of the sumcheck layer, as it stands after target 5's round machinery
+-- and the prover/verifier split. Four facts a re-extraction must not move:
+--
+-- * the three statement carriers are plain `structure`s whose accessors extract
+--   under an `impl` segment -- `sumcheck.RoundStatement.impl.zc`, not a Lean
+--   projection -- while the constructors are `sumcheck.<T>.new`. A spec that
+--   names the wrong spelling fails here, not in a proof;
+-- * the linear side has its *own* node count and weight array, `3` and
+--   `Array Std.U64 3`: the weights of a node *set* depend on the whole set, so
+--   `ROUND_NODE_INV_ALPHA` is not a prefix of `ROUND_NODE_INV`
+--   (NOTES.md § "Target 5's round machinery");
+-- * the two loops that can reject return `Option` inside `Result`: `none` is the
+--   specification's `failure`, and the round-message list is a `Vec RoundMsg`;
+-- * `cube_size` is `zerocheck::two_pow`'s local duplicate (a frozen item's
+--   visibility cannot be widened), so it is a separate item with its own bound.
+example : params.ROUND_NODES = 33#usize := by simp [params.ROUND_NODES]
+example : params.ROUND_NODES_ALPHA = 3#usize := by simp [params.ROUND_NODES_ALPHA]
+example : Array Std.U64 3#usize := params.ROUND_NODE_INV_ALPHA
+example (rlin : ringswitch.RlinStatement) (t : linalg.PolyVec) (alpha : cpoly.field.Ext4)
+    (tau0 tau1 : alloc.vec.Vec cpoly.field.Ext4) : Result sumcheck.NestedZeroCheckStmt :=
+  sumcheck.NestedZeroCheckStmt.new rlin t alpha tau0 tau1
+example (zc : sumcheck.NestedZeroCheckStmt) : Result (alloc.vec.Vec cpoly.field.Ext4) :=
+  sumcheck.NestedZeroCheckStmt.impl.tau0 zc
+example (g_zero g_alpha : cpoly.univariate.UnivariatePoly) : Result sumcheck.RoundMsg :=
+  sumcheck.RoundMsg.new g_zero g_alpha
+example (g : sumcheck.RoundMsg) : Result cpoly.univariate.UnivariatePoly :=
+  sumcheck.RoundMsg.impl.g_zero g
+example (zc : sumcheck.NestedZeroCheckStmt) (challenges : alloc.vec.Vec cpoly.field.Ext4)
+    (target_zero target_alpha : cpoly.field.Ext4) : Result sumcheck.RoundStatement :=
+  sumcheck.RoundStatement.new zc challenges target_zero target_alpha
+example (stmt : sumcheck.RoundStatement) : Result sumcheck.NestedZeroCheckStmt :=
+  sumcheck.RoundStatement.impl.zc stmt
+example (vars : Std.Usize) : Result Std.Usize := sumcheck.cube_size vars
+example : Result (alloc.vec.Vec cpoly.field.Fp) := sumcheck.round_node_weights
+example : Result (alloc.vec.Vec cpoly.field.Fp) := sumcheck.round_node_weights_alpha
+example (tau0 challenges : alloc.vec.Vec cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
+  sumcheck.eq_prefix tau0 challenges
+example (tau0 : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+    Result (alloc.vec.Vec cpoly.field.Ext4) := sumcheck.eq_suffix_table tau0 i
+example (t : cpoly.field.Ext4) : Result cpoly.univariate.UnivariatePoly :=
+  sumcheck.eq_free_factor t
+example (w a_tab : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Ext4) :
+    Result cpoly.field.Ext4 := sumcheck.round_value_alpha w a_tab node
+example (w a_tab : alloc.vec.Vec cpoly.field.Ext4) :
+    Result (alloc.vec.Vec cpoly.field.Ext4) := sumcheck.round_values_alpha w a_tab
+example (w a_tab : alloc.vec.Vec cpoly.field.Ext4) :
+    Result cpoly.univariate.UnivariatePoly := sumcheck.round_poly_alpha w a_tab
+example (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (m0 : Std.Usize) :
+    Result (alloc.vec.Vec cpoly.field.Ext4) := sumcheck.alpha_public_table s alpha tau1 m0
+example (stmt : sumcheck.RoundStatement) (w_tab a_tab : alloc.vec.Vec cpoly.field.Ext4)
+    (i : Std.Usize) : Result sumcheck.RoundMsg := sumcheck.honest_compute_g stmt w_tab a_tab i
+example (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg) : Result Bool :=
+  sumcheck.round_check stmt g
+example (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg) (a : cpoly.field.Ext4) :
+    Result sumcheck.RoundStatement := sumcheck.round_out stmt g a
+example (stmt : sumcheck.RoundStatement) (y_prime : cpoly.field.Ext4) (bound : Std.U64) :
+    Result Bool := sumcheck.final_check stmt y_prime bound
+example (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
+    (challenges : alloc.vec.Vec cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
+  sumcheck.honest_compute_y w m0 challenges
+example (zc : sumcheck.NestedZeroCheckStmt) : Result sumcheck.RoundStatement :=
+  sumcheck.nested_to_round_statement zc
+example (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)
+    (challenges : alloc.vec.Vec cpoly.field.Ext4) : Result (Option sumcheck.RoundStatement) :=
+  sumcheck.round_loop stmt w challenges
+example (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)
+    (challenges : alloc.vec.Vec cpoly.field.Ext4) : Result (alloc.vec.Vec sumcheck.RoundMsg) :=
+  sumcheck.honest_round_messages stmt w challenges
+example (stmt : sumcheck.RoundStatement) (msgs : alloc.vec.Vec sumcheck.RoundMsg)
+    (challenges : alloc.vec.Vec cpoly.field.Ext4) : Result (Option sumcheck.RoundStatement) :=
+  sumcheck.round_verify_loop stmt msgs challenges
+
+-- The composed chain (`src/chain.rs`), Stage 5's two rows. The verifier returns
+-- a bare `Bool` -- the three decisions it runs, conjoined -- and the honest prover
+-- returns the four wire messages as a tuple (`v`, `t`, the round messages, `y′`);
+-- there is no transcript carrier, by design (`chain.rs` § "What this module
+-- is"). `copy_point` is the `Vec<Ext4>` copy loop that stands in for the
+-- unmodelled `clone`.
+example (p : alloc.vec.Vec cpoly.field.Ext4) : Result (alloc.vec.Vec cpoly.field.Ext4) :=
+  chain.copy_point p
+example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
+    (poly_stmt : quadeval.PolyEvalStatement) (v c t : linalg.PolyVec)
+    (alpha : cpoly.field.Ext4) (tau0 tau1 : alloc.vec.Vec cpoly.field.Ext4)
+    (msgs : alloc.vec.Vec sumcheck.RoundMsg) (challenges : alloc.vec.Vec cpoly.field.Ext4)
+    (y_prime : cpoly.field.Ext4) (w : ringswitch.LiftedWitness) (gamma : Std.U64)
+    (b mr md ir idg zd : Std.Usize) : Result Bool :=
+  chain.chain_verify pp d_key poly_stmt v c t alpha tau0 tau1 msgs challenges y_prime w
+    gamma b mr md ir idg zd
+example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
+    (poly_stmt : quadeval.PolyEvalStatement) (message : alloc.vec.Vec linalg.PolyVec)
+    (c : linalg.PolyVec) (w : ringswitch.LiftedWitness) (alpha : cpoly.field.Ext4)
+    (tau0 tau1 challenges : alloc.vec.Vec cpoly.field.Ext4) (gamma : Std.U64)
+    (b mr md ir idg zd : Std.Usize) :
+    Result (linalg.PolyVec × linalg.PolyVec × alloc.vec.Vec sumcheck.RoundMsg × cpoly.field.Ext4) :=
+  chain.chain_open pp d_key poly_stmt message c w alpha tau0 tau1 challenges gamma
+    b mr md ir idg zd
 
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
 -- shape the specification's own `verify_weak` has (a `Bool`, not a `Prop`), which
