@@ -5030,3 +5030,59 @@ through eleven promoted or staged specs, an anonymous-constructor
 * `μR + nR * 8 ≤ Usize.max` is `norm_num [μR, nR, rlinCols, rlinRows]` down
   to `57384 ≤ Usize.max`, closed from `usize_max_ge` (Aristotle's helper in
   `Sumcheck.lean`) by `omega`.
+
+## Birth run for the Stage 5 rows (2026-09-10, evening)
+
+`bench-report-20260910-stage5-birth.json`, run `20260910T2014+0200-092bdc7f`,
+40 minutes on a quiet machine (0 `lean` processes, load 0.78 at start), source
+`d4093f4`. **Usable**, A/B bias **1.3%** -- the tightest control of any run so
+far (previous runs: 1.4–4.4%). 84 rows, none outside the noise band, as a
+birth run must be: `now` and `genesis` are the same bytes. The ten rows that
+had never been measured -- `gadget/gadget_transpose_mul`,
+`quadeval/tensor_g_matrix`, and the eight sumcheck round-machinery rows
+(`eq_prefix`, `eq_suffix_table`, `round_check`, `round_out`,
+`round_value_alpha`, `round_values_alpha`, `round_poly_alpha`,
+`honest_compute_g`) -- now have a baseline number. Sizing information worth
+one line each: `honest_compute_g/1024` 17.1 ms and `round_poly_zero/1024`
+16.9 ms, so at the REDUCED cube one round message is essentially one range-side
+interpolation; `round_check/26` 1.25 µs and `round_out/26` 0.67 µs, the
+verifier's per-round cost, four polynomial evaluations; `interpolate/33`
+172 µs; `gadget_transpose_mul/1024` 37 ms. This is provenance, not a verdict:
+the ledger is still empty and the re-freeze carve-out stays open.
+
+## Sumcheck: Aristotle's second pass adopted, three obligations left (2026-09-11)
+
+Restart session `c8d6894b` (the helper's automatic follow-up on the seven left
+by `430518ae`) came back `OUT_OF_BUDGET` at **7 → 3**, and the helper blocked
+integration with *"changed locally since Aristotle submission"* — correct this
+time: three of the seven had been proved by hand overnight (`final_check_spec`,
+`round_poly_zero_spec`, `round_poly_alpha_spec`, commit `d4093f4`). Aristotle
+proved those three **and `interpolate_spec`**, the Lagrange construction that
+had defeated it once; its open set is a strict subset of the local one, so its
+file was adopted wholesale and the local hand proofs (plus six helpers) are
+superseded, kept only in git history.
+
+Two facts from the audit:
+
+* **No statement moved on either side.** Every signature in Aristotle's return
+  and in the local edit is byte-identical to the submitted baseline. Aristotle
+  added thirty helper lemmas — the interpolation ones (`basisProd_*`,
+  `interpolate_*_loop_spec`, `interpPartial_*`, `weights_prod_eq_one`,
+  `interpolateArray_toPoly_eq`, `cpoly_eq_of_eval_eq`) and, for the round
+  message, `cMLE_eval_update` (one-coordinate multilinearity),
+  `finFunctionFinEquiv_cons_val`, `raw_eval_mul`, `raw_eval_smul`,
+  `toUni_mem_degreeLE` — exactly the bridge lemmas the statement-side plan had
+  named.
+* **Its `honest_compute_g_spec` did not compile here.** A 137-line partial
+  proof with eight elaboration errors in this environment (`omega` on a
+  `Fin.snoc` index, a `Fin.snoc` motive mismatch, unsolved goals) sat where
+  Aristotle's own count reported a `sorry`; replaced by `sorry`, and the file
+  re-validates at **0 errors, 3 `sorry`s**. `Chain.lean` re-typechecked over
+  it unchanged. Manual integration is logged (`integrated_manual`) with the new
+  sha, since the helper could not. A further restart on the three needs a
+  fresh submission (the blocked integration did not trigger the automatic one).
+
+Left: `honest_compute_g_spec` (the degree-32 polynomial identity through
+`computableRoundPoly_eval`, `eval_sumcheckPolyZero` and the kernel
+factorization — the lemma scaffolding for it now exists), and the two loop
+specs that consume it.

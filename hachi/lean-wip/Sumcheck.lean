@@ -157,38 +157,6 @@ theorem usize_max_ge : 4294967295 ≤ Usize.max := by
   rw [Usize.max_def]
   rcases System.Platform.numBits_eq with h | h <;> simp [Usize.numBits, h]
 
-/-- Natural nodes below `q` embed injectively into `F`. -/
-theorem natCast_F_inj_of_lt {i j : ℕ} (hi : i < q) (hj : j < q) :
-    (i : F) = (j : F) → i = j := by
-  intro h
-  rw [← ofBase_natCast, ← ofBase_natCast, ← phiF_apply, ← phiF_apply] at h
-  have h2 := phiF.injective h
-  rw [ZMod.natCast_eq_natCast_iff'] at h2
-  rwa [Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hj] at h2
-
-theorem fin_natCast_injOn {n : ℕ} (hn : n ≤ q) :
-    Set.InjOn (fun i : Fin n => (i.val : F)) (Finset.univ : Finset (Fin n)) := by
-  intro i _ j _ h
-  apply Fin.ext
-  exact natCast_F_inj_of_lt (lt_of_lt_of_le i.isLt hn) (lt_of_lt_of_le j.isLt hn) h
-
-theorem zmod_nodes_injective_of_weights {n : ℕ}
-    (hw : ∀ i : Fin n, (1 : ZMod q) *
-      ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i, ((i.val : ZMod q) - (j.val : ZMod q)) = 1) :
-    Function.Injective (fun i : Fin n => (i.val : ZMod q)) := by
-  intro i j h
-  by_contra hij
-  have hjmem : j ∈ (Finset.univ : Finset (Fin n)).erase i :=
-    Finset.mem_erase.mpr ⟨fun hji => hij hji.symm, Finset.mem_univ _⟩
-  have hfactor : ((i.val : ZMod q) - (j.val : ZMod q)) = 0 := by
-    exact sub_eq_zero.mpr h
-  have hzero :
-      ∏ x ∈ (Finset.univ : Finset (Fin n)).erase i, ((i.val : ZMod q) - (x.val : ZMod q)) = 0 := by
-    exact Finset.prod_eq_zero hjmem hfactor
-  have hiw := hw i
-  rw [hzero, MulZeroClass.mul_zero] at hiw
-  exact zero_ne_one hiw
-
 /-! ## The univariate carrier (ported from cpoly's `Univariate.lean`)
 
 A `Vec Ext4` whose words are all `Reduced` represents the `CPolynomial.Raw F`
@@ -879,32 +847,6 @@ theorem linSumAlpha_poly {k : ℕ} (w a : Fin (2 ^ (k + 1)) → F) :
   refine Finset.sum_congr rfl (fun y _ => ?_)
   rw [Polynomial.eval_mul, foldPoly_eval, foldPoly_eval, fold, fold]
 
-theorem interpolateArray_nat_eq_of_degree_lt {n : ℕ} (hn : n ≤ q) (p : CPolynomial F)
-    (hdeg : p.toPoly.degree < (n : WithBot ℕ)) (ys : Fin n → F)
-    (hy : ∀ i : Fin n, p.toPoly.eval (i.val : F) = ys i) :
-    CLagrange.interpolateArray (Array.ofFn fun i : Fin n => ((i.val : F), ys i)) = p := by
-  apply CPolynomial.toPoly_injective
-  rw [CLagrange.interpolateArray, CLagrange.cinterpolate_eq_interpolate]
-  symm
-  refine Lagrange.eq_interpolate_of_eval_eq (s := Finset.univ)
-    (v := fun i : Fin ((Array.ofFn fun i : Fin n => ((i.val : F), ys i)).size) =>
-      CLagrange.pointNode (Array.ofFn fun i : Fin n => ((i.val : F), ys i)) i)
-    (r := fun i : Fin ((Array.ofFn fun i : Fin n => ((i.val : F), ys i)).size) =>
-      CLagrange.pointValue (Array.ofFn fun i : Fin n => ((i.val : F), ys i)) i)
-    ?_ ?_ ?_
-  · intro i _ j _ h
-    apply Fin.ext
-    have hnsize : (Array.ofFn fun i : Fin n => ((i.val : F), ys i)).size ≤ q := by
-      simpa [Array.size_ofFn] using hn
-    apply natCast_F_inj_of_lt (i := i.val) (j := j.val)
-    · exact lt_of_lt_of_le i.isLt hnsize
-    · exact lt_of_lt_of_le j.isLt hnsize
-    · simpa [CLagrange.pointNode, Array.getElem_ofFn] using h
-  · simpa [Array.size_ofFn] using hdeg
-  · intro i _
-    convert hy ⟨i.val, by simpa [Array.size_ofFn] using i.isLt⟩ using 1 <;>
-      simp [CLagrange.pointNode, CLagrange.pointValue, Array.getElem_ofFn]
-
 /-! ## The representation relations -/
 
 /-- Relation between the extracted nested zero-check statement and ArkLib's
@@ -1141,63 +1083,602 @@ theorem round_node_weights_alpha_spec :
 
 /-! ## Interpolation -/
 
-theorem interpolate_loop0_spec (n : Std.Usize) :
-    sumcheck.interpolate_loop0 n (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-      ⦃ acc => acc.val.length = n.val ∧ VecReduced acc ∧
-        ∀ i, (toRaw acc).coeff i = 0 ⦄ := by
-  rw [sumcheck.interpolate_loop0]
-  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
-    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
-      ∀ i, (toRaw s.1).coeff i = 0)
-  · rintro ⟨acc, k⟩ ⟨hk, hlen, hred, hraw⟩
-    dsimp only at hk hlen hred hraw
-    simp only [sumcheck.interpolate_loop0.body]
-    by_cases hlt : k < n
+/-- Multiplying by a linear factor `X − c`, on coefficients. -/
+theorem coeff_X_sub_C_mul (c : F) (P : Polynomial F) (k : ℕ) :
+    ((Polynomial.X - Polynomial.C c) * P).coeff k
+      = (if k = 0 then 0 else P.coeff (k - 1)) - c * P.coeff k := by
+  rcases k with _ | k
+  · simp [Polynomial.mul_coeff_zero]
+  · rw [sub_mul, Polynomial.coeff_sub, Polynomial.coeff_C_mul, Polynomial.coeff_X_mul]
+    simp
+
+/-- The Lagrange numerator for node `i`, over the nodes below `J`. -/
+noncomputable def basisProd (i J : ℕ) : Polynomial F :=
+  ∏ l ∈ (Finset.range J).erase i, (Polynomial.X - Polynomial.C ((l : ℕ) : F))
+
+theorem basisProd_zero (i : ℕ) : basisProd i 0 = 1 := by simp [basisProd]
+
+theorem basisProd_succ_of_ne {i J : ℕ} (h : J ≠ i) :
+    basisProd i (J + 1) = (Polynomial.X - Polynomial.C ((J : ℕ) : F)) * basisProd i J := by
+  rw [basisProd, basisProd, Finset.range_add_one, Finset.erase_insert_of_ne h,
+    Finset.prod_insert (by simp)]
+
+theorem basisProd_succ_of_eq {i J : ℕ} (h : J = i) :
+    basisProd i (J + 1) = basisProd i J := by
+  subst h
+  rw [basisProd, basisProd, Finset.range_add_one, Finset.erase_insert (by simp),
+    Finset.erase_eq_of_notMem (by simp)]
+
+/-- The number of coefficients of the basis product built from the nodes below `J`. -/
+theorem basisLen_eq (i J : ℕ) :
+    1 + ((Finset.range J).erase i).card = if i < J then J else J + 1 := by
+  by_cases h : i < J
+  · rw [if_pos h, Finset.card_erase_of_mem (Finset.mem_range.mpr h), Finset.card_range]
+    omega
+  · rw [if_neg h, Finset.erase_eq_of_notMem (by simpa using h), Finset.card_range]
+    omega
+
+/-- `interpolate`'s innermost loop multiplies the basis by `X − xⱼ`, one
+coefficient per iteration: entry `t` is `basis[t−1] − basis[t]·xⱼ`. -/
+theorem interpolate_shift_loop_spec (basis : alloc.vec.Vec cpoly.field.Ext4)
+    (xj : cpoly.field.Ext4) (P : Polynomial F)
+    (hb : VecReduced basis) (hxj : Reduced xj)
+    (hP : ∀ k, (toRaw basis).coeff k = P.coeff k)
+    (hmax : basis.val.length + 1 ≤ Usize.max) :
+    ∀ (next : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize),
+      VecReduced next → t.val ≤ basis.val.length + 1 → next.val.length = t.val →
+      (∀ k, k < t.val → (toRaw next).coeff k
+        = ((Polynomial.X - Polynomial.C (toExt xj)) * P).coeff k) →
+      sumcheck.interpolate_loop1_loop0_loop0 basis xj next t
+        ⦃ z => VecReduced z ∧ z.val.length = basis.val.length + 1 ∧
+          ∀ k, (toRaw z).coeff k
+            = ((Polynomial.X - Polynomial.C (toExt xj)) * P).coeff k ⦄ := by
+  intro next t hnext ht hlen hval
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  rw [sumcheck.interpolate_loop1_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => basis.val.length + 1 - s.2.val)
+    (fun s => VecReduced s.1 ∧ s.2.val ≤ basis.val.length + 1 ∧ s.1.val.length = s.2.val ∧
+      ∀ k, k < s.2.val → (toRaw s.1).coeff k
+        = ((Polynomial.X - Polynomial.C (toExt xj)) * P).coeff k)
+  · rintro ⟨v1, t1⟩ ⟨hv1, ht1, hlen1, hval1⟩
+    dsimp only at hv1 ht1 hlen1 hval1
+    simp only [sumcheck.interpolate_loop1_loop0_loop0.body]
+    step as ⟨i1, hi1⟩
+    by_cases hlt : t1 < i1
     · rw [if_pos hlt]
-      have hbound : acc.val.length < Usize.max := by
-        scalar_tac
-      step as ⟨acc1, hacc1⟩
-      have hkadd : k.val + 1 ≤ Usize.max := by
-        have hklt : k.val < n.val := by scalar_tac
-        have hnmax : n.val ≤ Usize.max := by scalar_tac
-        omega
-      step as ⟨k1, hk1⟩
-      have hk1v : k1.val = k.val + 1 := by scalar_tac
-      refine ⟨by
-        rw [hk1v]
-        have hklt : k.val < n.val := by scalar_tac
-        omega, ?_, ?_, ?_, by
-        have hklt : k.val < n.val := by scalar_tac
-        have hnmax : n.val ≤ Usize.max := by scalar_tac
-        omega⟩
-      · rw [hk1v, hacc1, List.length_append, hlen]
-        simp
+      have htb : t1.val ≤ basis.val.length := by scalar_tac
+      have hshift :
+          (if t1 > 0#usize then
+            (do let i2 ← t1 - 1#usize
+                alloc.vec.Vec.index_usize basis i2)
+          else ok cpoly.field.Ext4.ZERO)
+            ⦃ s => Reduced s ∧ toExt s =
+              (if t1.val = 0 then 0 else (toRaw basis).coeff (t1.val - 1)) ⦄ := by
+        by_cases ht0 : t1 > 0#usize
+        · rw [if_pos ht0]
+          have hpos : 0 < t1.val := by scalar_tac
+          have hib : t1.val - 1 < basis.val.length := by omega
+          step as ⟨i2, hi2⟩
+          step as ⟨s, hs⟩
+          refine ⟨?_, ?_⟩
+          · rw [hs]; exact hb _ (List.getElem_mem (by scalar_tac))
+          · rw [hs, if_neg (by omega), toRaw_coeff_of_lt basis hib]
+            congr 1
+            scalar_tac
+        · rw [if_neg ht0, WP.spec_ok]
+          have ht0' : t1.val = 0 := by scalar_tac
+          exact ⟨hRZ, by rw [if_pos ht0', toExt_ZERO]⟩
+      step with hshift as ⟨sh, hRsh, hsh⟩
+      have hscale :
+          (if t1 < alloc.vec.Vec.len basis then
+            (do let e ← alloc.vec.Vec.index_usize basis t1
+                cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e xj)
+          else ok cpoly.field.Ext4.ZERO)
+            ⦃ s => Reduced s ∧ toExt s = (toRaw basis).coeff t1.val * toExt xj ⦄ := by
+        by_cases hts : t1 < alloc.vec.Vec.len basis
+        · rw [if_pos hts]
+          have hib : t1.val < basis.val.length := by scalar_tac
+          step as ⟨e, he⟩
+          have hRe : Reduced e := by rw [he]; exact hb _ (List.getElem_mem hib)
+          apply spec_mono (ext_mul_spec e xj hRe hxj)
+          rintro s ⟨hRs, hsv⟩
+          exact ⟨hRs, by rw [hsv, he, toRaw_coeff_of_lt basis hib]⟩
+        · rw [if_neg hts, WP.spec_ok]
+          have hge : basis.val.length ≤ t1.val := by scalar_tac
+          exact ⟨hRZ, by rw [toExt_ZERO, toRaw_coeff_of_ge basis hge, MulZeroClass.zero_mul]⟩
+      step with hscale as ⟨sc, hRsc, hsc⟩
+      step with ext_sub_spec sh sc hRsh hRsc as ⟨e, hRe, he⟩
+      have hpush : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨t2, ht2⟩
+      have ht2v : t2.val = t1.val + 1 := by scalar_tac
+      refine ⟨?_, by omega, ?_, ?_, by omega⟩
       · intro u hu
-        rw [hacc1] at hu
+        rw [hv2] at hu
         rcases List.mem_append.mp hu with h | h
-        · exact hred u h
-        · rw [List.mem_singleton.mp h]
-          exact reduced_ZERO
-      · intro i
-        rcases Nat.lt_or_ge i acc.val.length with hi | hi
-        · rw [toRaw_coeff, hacc1, List.map_append]
-          change ((acc.val.map toExt) ++ [toExt cpoly.field.Ext4.ZERO]).getD i 0 = 0
-          rw [getD_append_lt _ _ _ (by simpa using hi), ← toRaw_coeff acc i]
-          exact hraw i
-        · rcases Nat.lt_or_ge i acc1.val.length with hi1 | hi1
-          · have hii : i = acc.val.length := by
-              rw [hacc1, List.length_append] at hi1
-              simp at hi1
-              omega
-            rw [toRaw_coeff, hacc1, List.map_append, hii]
-            change ((acc.val.map toExt) ++ [toExt cpoly.field.Ext4.ZERO]).getD acc.val.length 0 = 0
-            rw [show acc.val.length = (acc.val.map toExt).length by simp, getD_append_eq]
-            rw [toExt_ZERO]
-          · rw [toRaw_coeff_of_ge acc1 hi1]
+        · exact hv1 u h
+        · rw [List.mem_singleton.mp h]; exact hRe
+      · rw [ht2v, hv2, List.length_append, hlen1]; simp
+      · intro k hk
+        rw [ht2v] at hk
+        rcases Nat.lt_or_ge k t1.val with hklt | hkge
+        · rw [toRaw_coeff_of_lt _ (by rw [hv2, List.length_append, hlen1]; simp; omega),
+            getElem_of_list_eq hv2, List.getElem_append_left (by omega),
+            ← toRaw_coeff_of_lt v1 (by omega)]
+          exact hval1 k hklt
+        · have hkeq : k = t1.val := by omega
+          subst hkeq
+          rw [toRaw_coeff_of_lt _ (by rw [hv2, List.length_append, hlen1]; simp),
+            getElem_of_list_eq hv2, List.getElem_append_right (by omega)]
+          simp only [hlen1, Nat.sub_self, List.getElem_cons_zero]
+          rw [he, hsh, hsc, coeff_X_sub_C_mul, hP, hP]
+          ring
     · rw [if_neg hlt, WP.spec_ok]
-      have heq : k.val = n.val := by scalar_tac
-      exact ⟨by rw [hlen, heq], hred, hraw⟩
-  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro i; simp [toRaw]⟩
+      dsimp only
+      have hteq : t1.val = basis.val.length + 1 := by scalar_tac
+      refine ⟨hv1, by rw [hlen1, hteq], fun k => ?_⟩
+      rcases Nat.lt_or_ge k t1.val with hklt | hkge
+      · exact hval1 k hklt
+      · have hk1 : basis.val.length + 1 ≤ k := by omega
+        rw [toRaw_coeff_of_ge _ (by omega), coeff_X_sub_C_mul, ← hP, ← hP,
+          toRaw_coeff_of_ge basis (by omega)]
+        rw [if_neg (by omega), toRaw_coeff_of_ge basis (by omega)]
+        ring
+  · exact ⟨hnext, ht, hlen, hval⟩
+
+/-- The `n` interpolation nodes `0 … n − 1` are distinct in `F`: the weights
+invert `∏_{j ≠ i} (i − j)`, so no factor of that product can vanish. -/
+theorem node_ne_of_weights {n : ℕ} (wt : Fin n → ZMod q)
+    (hwt : ∀ i : Fin n, wt i *
+      ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i, ((i.val : ZMod q) - (j.val : ZMod q)) = 1)
+    (i j : Fin n) (hij : i ≠ j) : ((i.val : ℕ) : F) - ((j.val : ℕ) : F) ≠ 0 := by
+  have hprodne : ∏ l ∈ (Finset.univ : Finset (Fin n)).erase i,
+      ((i.val : ZMod q) - (l.val : ZMod q)) ≠ 0 := by
+    intro h0
+    have h1 := hwt i
+    rw [h0, MulZeroClass.mul_zero] at h1
+    exact zero_ne_one h1
+  have hjmem : j ∈ (Finset.univ : Finset (Fin n)).erase i :=
+    Finset.mem_erase.mpr ⟨Ne.symm hij, Finset.mem_univ j⟩
+  have hfac : ((i.val : ZMod q) - (j.val : ZMod q)) ≠ 0 :=
+    fun h => hprodne (Finset.prod_eq_zero hjmem h)
+  intro hcon
+  refine hfac ?_
+  have hmap : phiF ((i.val : ZMod q) - (j.val : ZMod q))
+      = ((i.val : ℕ) : F) - ((j.val : ℕ) : F) := by
+    rw [map_sub, map_natCast, map_natCast]
+  have hzero : phiF ((i.val : ZMod q) - (j.val : ZMod q)) = 0 := by rw [hmap, hcon]
+  have hinj : Function.Injective phiF := phiF.injective
+  exact hinj (by rw [hzero, map_zero])
+
+/-- The uniqueness half of Lagrange interpolation at the nodes `0 … n − 1`: a
+polynomial of degree `< n` taking the prescribed values **is** the interpolant. -/
+theorem interpolateArray_toPoly_eq {n : ℕ} (g : Fin n → F) (Q : Polynomial F)
+    (hnodes : ∀ i j : Fin n, i ≠ j → ((i.val : ℕ) : F) - ((j.val : ℕ) : F) ≠ 0)
+    (hdeg : Q.degree < (n : WithBot ℕ))
+    (heval : ∀ i : Fin n, Q.eval ((i.val : ℕ) : F) = g i) :
+    (CLagrange.interpolateArray
+      (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i))).toPoly = Q := by
+  classical
+  have hsz : (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size = n := by simp
+  have hnode : ∀ i : Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size,
+      CLagrange.pointNode (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)) i
+        = ((i.val : ℕ) : F) := by
+    intro i; simp [CLagrange.pointNode]
+  have hvalue : ∀ i : Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size,
+      CLagrange.pointValue (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)) i
+        = g ⟨i.val, by have := i.isLt; simpa using this⟩ := by
+    intro i; simp [CLagrange.pointValue]
+  have hinj : Set.InjOn
+      (CLagrange.pointNode (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)))
+      ↑(Finset.univ :
+        Finset (Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size)) := by
+    intro i _ j _ hij
+    rw [hnode, hnode] at hij
+    by_contra hne
+    have hi : i.val < n := by have := i.isLt; omega
+    have hj : j.val < n := by have := j.isLt; omega
+    refine hnodes ⟨i.val, hi⟩ ⟨j.val, hj⟩ ?_ (by simp [hij])
+    intro hcon
+    have hvv : i.val = j.val := by simpa using hcon
+    exact hne (Fin.ext hvv)
+  have hdeg' : Q.degree < (Finset.univ :
+      Finset (Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size)).card := by
+    have h2 : (Finset.univ :
+        Finset (Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size)).card = n := by
+      simp [hsz]
+    rw [h2]
+    exact hdeg
+  have heval' : ∀ i ∈ (Finset.univ :
+      Finset (Fin (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)).size)),
+      Q.eval (CLagrange.pointNode
+          (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)) i)
+        = CLagrange.pointValue (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)) i := by
+    intro i _
+    rw [hnode, hvalue, heval ⟨i.val, by have := i.isLt; simpa using this⟩]
+  have hkey := Lagrange.eq_interpolate_of_eval_eq
+    (v := CLagrange.pointNode (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)))
+    (r := CLagrange.pointValue (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i)))
+    (s := Finset.univ) hinj hdeg' heval'
+  show (CLagrange.interpolate _ _ _).toPoly = _
+  rw [CLagrange.cinterpolate_eq_interpolate, ← hkey]
+
+/-- An `n`-node interpolant of a polynomial of degree `< n` is that polynomial. -/
+theorem interpolateArray_eval_of_degreeLE {n d : ℕ} (g : Fin n → F) (p : CPolynomial F)
+    (hd : d < n) (hdeg : p ∈ CPolynomial.degreeLE (R := F) (d : ℕ))
+    (hnodes : ∀ i j : Fin n, i ≠ j → ((i.val : ℕ) : F) - ((j.val : ℕ) : F) ≠ 0)
+    (hval : ∀ i : Fin n, g i = CPolynomial.eval ((i.val : ℕ) : F) p) (x : F) :
+    CPolynomial.eval x (CLagrange.interpolateArray
+      (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), g i))) = CPolynomial.eval x p := by
+  have hdeg' : p.toPoly.degree < (n : WithBot ℕ) := by
+    rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE] at hdeg
+    exact lt_of_le_of_lt hdeg (by exact_mod_cast hd)
+  have hkey := interpolateArray_toPoly_eq (n := n) g p.toPoly hnodes hdeg'
+    (fun i => by rw [← CPolynomial.eval_toPoly, ← hval i])
+  rw [CPolynomial.eval_toPoly, CPolynomial.eval_toPoly, hkey]
+
+/-- The `j` loop of `interpolate`: the basis is `∏_{l < J, l ≠ i} (X − l)`. -/
+theorem interpolate_basis_loop_spec {n : ℕ} (nn iu : Std.Usize)
+    (hnn : nn.val = n) (hiu : iu.val < n) (hnmax : n ≤ Usize.max) :
+    ∀ (basis : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
+      VecReduced basis → j.val ≤ n →
+      basis.val.length = (if iu.val < j.val then j.val else j.val + 1) →
+      (∀ k, (toRaw basis).coeff k = (basisProd iu.val j.val).coeff k) →
+      sumcheck.interpolate_loop1_loop0 nn iu basis j
+        ⦃ z => VecReduced z ∧ z.val.length = n ∧
+          ∀ k, (toRaw z).coeff k = (basisProd iu.val n).coeff k ⦄ := by
+  intro basis j hb hj hlen hcoeff
+  rw [sumcheck.interpolate_loop1_loop0]
+  apply loop.spec_decr_nat (fun s => n - s.2.val)
+    (fun s => VecReduced s.1 ∧ s.2.val ≤ n ∧
+      s.1.val.length = (if iu.val < s.2.val then s.2.val else s.2.val + 1) ∧
+      ∀ k, (toRaw s.1).coeff k = (basisProd iu.val s.2.val).coeff k)
+  · rintro ⟨b1, j1⟩ ⟨hb1, hj1, hlen1, hc1⟩
+    dsimp only at hb1 hj1 hlen1 hc1
+    simp only [sumcheck.interpolate_loop1_loop0.body]
+    by_cases hlt : j1 < nn
+    · rw [if_pos hlt]
+      have hjlt : j1.val < n := by scalar_tac
+      by_cases hne : j1.val = iu.val
+      · rw [if_neg (by simp only [bne_iff_ne, ne_eq, not_not]; exact Std.UScalar.eq_of_val_eq hne)]
+        step as ⟨j2, hj2⟩
+        have hj2v : j2.val = j1.val + 1 := by scalar_tac
+        refine ⟨hb1, by omega, ?_, ?_, by omega⟩
+        · rw [hj2v, hlen1, if_neg (by omega), if_pos (by omega)]
+        · intro k
+          rw [hj2v, basisProd_succ_of_eq hne]
+          exact hc1 k
+      · rw [if_pos (by simp only [bne_iff_ne, ne_eq]; exact fun h => hne (by rw [h]))]
+        have hlenb : b1.val.length + 1 ≤ n := by
+          rw [hlen1]
+          by_cases h : iu.val < j1.val
+          · rw [if_pos h]; omega
+          · rw [if_neg h]; omega
+        step with round_node_spec j1 as ⟨xj, hRxj, hxj⟩
+        step with interpolate_shift_loop_spec b1 xj (basisProd iu.val j1.val) hb1 hRxj hc1
+          (by omega) (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+          (by intro u hu; simp at hu) (by simp) (by simp) (by intro k hk; simp at hk)
+          as ⟨b2, hb2, hlen2, hc2⟩
+        step as ⟨j2, hj2⟩
+        have hj2v : j2.val = j1.val + 1 := by scalar_tac
+        refine ⟨hb2, by omega, ?_, ?_, by omega⟩
+        · rw [hj2v, hlen2, hlen1]
+          by_cases h : iu.val < j1.val
+          · rw [if_pos h, if_pos (by omega)]
+          · rw [if_neg h, if_neg (by omega)]
+        · intro k
+          rw [hj2v, basisProd_succ_of_ne hne, ← hxj]
+          exact hc2 k
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hjeq : j1.val = n := by scalar_tac
+      refine ⟨hb1, ?_, ?_⟩
+      · rw [hlen1, hjeq, if_pos hiu]
+      · rw [← hjeq]; exact hc1
+  · exact ⟨hb, hj, hlen, hcoeff⟩
+
+/-- The accumulation loop of `interpolate`: `acc += scale · basis`, coefficient
+by coefficient. -/
+theorem interpolate_acc_loop_spec (basis : alloc.vec.Vec cpoly.field.Ext4)
+    (scale : cpoly.field.Ext4) (A B : Polynomial F) (L : ℕ)
+    (hb : VecReduced basis) (hs : Reduced scale)
+    (hB : ∀ k, (toRaw basis).coeff k = B.coeff k)
+    (hblen : basis.val.length ≤ L) :
+    ∀ (acc : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize),
+      VecReduced acc → acc.val.length = L → t.val ≤ basis.val.length →
+      (∀ k, (toRaw acc).coeff k =
+        (if k < t.val then (A + Polynomial.C (toExt scale) * B).coeff k else A.coeff k)) →
+      sumcheck.interpolate_loop1_loop1 acc basis scale t
+        ⦃ z => VecReduced z ∧ z.val.length = L ∧
+          ∀ k, (toRaw z).coeff k = (A + Polynomial.C (toExt scale) * B).coeff k ⦄ := by
+  intro acc t hacc hlen ht hval
+  rw [sumcheck.interpolate_loop1_loop1]
+  apply loop.spec_decr_nat (fun s => basis.val.length - s.2.val)
+    (fun s => VecReduced s.1 ∧ s.1.val.length = L ∧ s.2.val ≤ basis.val.length ∧
+      ∀ k, (toRaw s.1).coeff k =
+        (if k < s.2.val then (A + Polynomial.C (toExt scale) * B).coeff k else A.coeff k))
+  · rintro ⟨a1, t1⟩ ⟨ha1, hl1, ht1, hv1⟩
+    dsimp only at ha1 hl1 ht1 hv1
+    simp only [sumcheck.interpolate_loop1_loop1.body]
+    by_cases hlt : t1 < alloc.vec.Vec.len basis
+    · rw [if_pos hlt]
+      have htb : t1.val < basis.val.length := by scalar_tac
+      have hta : t1.val < a1.val.length := by omega
+      step as ⟨e, he⟩
+      have hRe : Reduced e := by rw [he]; exact ha1 _ (List.getElem_mem hta)
+      step as ⟨e1, he1⟩
+      have hRe1 : Reduced e1 := by rw [he1]; exact hb _ (List.getElem_mem htb)
+      step with ext_mul_spec e1 scale hRe1 hs as ⟨e2, hRe2, he2⟩
+      step with ext_add_spec e e2 hRe hRe2 as ⟨e3, hRe3, he3⟩
+      step as ⟨_x, back, _hx, hback⟩
+      step as ⟨t2, ht2⟩
+      subst hback
+      have ht2v : t2.val = t1.val + 1 := by scalar_tac
+      have hset : (a1.set t1 e3).val = a1.val.set t1.val e3 := by simp
+      have hsetlen : (a1.set t1 e3).val.length = L := by rw [hset, List.length_set, hl1]
+      have hcset : ∀ k, (toRaw (a1.set t1 e3)).coeff k =
+          if t1.val = k then toExt e3 else (toRaw a1).coeff k := by
+        intro k
+        by_cases hk : k < a1.val.length
+        · rw [toRaw_coeff_of_lt _ (by rw [hsetlen]; omega), toRaw_coeff_of_lt a1 hk,
+            getElem_of_list_eq hset, List.getElem_set]
+          split <;> rfl
+        · rw [toRaw_coeff_of_ge _ (by omega), toRaw_coeff_of_ge a1 (by omega),
+            if_neg (by omega)]
+      refine ⟨?_, hsetlen, by omega, ?_, by omega⟩
+      · intro u hu
+        rw [hset] at hu
+        rcases List.mem_or_eq_of_mem_set hu with h | h
+        · exact ha1 u h
+        · exact h ▸ hRe3
+      · intro k
+        rw [hcset k, ht2v]
+        by_cases hke : t1.val = k
+        · rw [if_pos hke, if_pos (by omega), he3, he2, he, he1,
+            ← toRaw_coeff_of_lt a1 hta, ← toRaw_coeff_of_lt basis htb, hv1 t1.val,
+            if_neg (by omega), hB, hke, Polynomial.coeff_add, Polynomial.coeff_C_mul]
+          rw [hke] at *
+          ring
+        · rw [if_neg hke, hv1 k]
+          by_cases hcond : k < t1.val
+          · rw [if_pos hcond, if_pos (by omega)]
+          · rw [if_neg hcond, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hteq : t1.val = basis.val.length := by scalar_tac
+      refine ⟨ha1, hl1, fun k => ?_⟩
+      rw [hv1 k]
+      by_cases hk : k < t1.val
+      · rw [if_pos hk]
+      · rw [if_neg hk, Polynomial.coeff_add, Polynomial.coeff_C_mul, ← hB,
+          toRaw_coeff_of_ge basis (by omega), MulZeroClass.mul_zero, add_zero]
+  · exact ⟨hacc, hlen, ht, hval⟩
+
+/-- One summand's coefficient: `values[i] · φF(inv_weights[i])`. -/
+noncomputable def interpCoeff (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp) (i : ℕ) : F :=
+  toExt (values.val.getD i cpoly.field.Ext4.ZERO) *
+    Ext.ofBase (toK (inv_weights.val.getD i (0#u64 : cpoly.field.Fp)))
+
+/-- The partial interpolation sum after `I` summands. -/
+noncomputable def interpPartial (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n I : ℕ) : Polynomial F :=
+  ∑ i ∈ Finset.range I, Polynomial.C (interpCoeff values inv_weights i) * basisProd i n
+
+/-- The zeroing loop of `interpolate`: `n` zero coefficients. -/
+theorem interpolate_zeros_loop_spec {n : ℕ} (nn : Std.Usize) (hnn : nn.val = n)
+    (hnmax : n ≤ Usize.max) :
+    ∀ (acc : alloc.vec.Vec cpoly.field.Ext4) (k : Std.Usize),
+      VecReduced acc → k.val ≤ n → acc.val.length = k.val →
+      (∀ j, (toRaw acc).coeff j = 0) →
+      sumcheck.interpolate_loop0 nn acc k
+        ⦃ z => VecReduced z ∧ z.val.length = n ∧ ∀ j, (toRaw z).coeff j = 0 ⦄ := by
+  intro acc k hacc hk hlen hz
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  rw [sumcheck.interpolate_loop0]
+  apply loop.spec_decr_nat (fun s => n - s.2.val)
+    (fun s => VecReduced s.1 ∧ s.2.val ≤ n ∧ s.1.val.length = s.2.val ∧
+      ∀ j, (toRaw s.1).coeff j = 0)
+  · rintro ⟨v1, k1⟩ ⟨hv1, hk1, hl1, hz1⟩
+    dsimp only at hv1 hk1 hl1 hz1
+    simp only [sumcheck.interpolate_loop0.body]
+    by_cases hlt : k1 < nn
+    · rw [if_pos hlt]
+      have hklt : k1.val < n := by scalar_tac
+      have hpush : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨k2, hk2⟩
+      have hk2v : k2.val = k1.val + 1 := by scalar_tac
+      refine ⟨?_, by omega, ?_, ?_, by omega⟩
+      · intro u hu
+        rw [hv2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hv1 u h
+        · rw [List.mem_singleton.mp h]; exact hRZ
+      · rw [hk2v, hv2, List.length_append, hl1]; simp
+      · intro j
+        by_cases hj : j < v1.val.length
+        · rw [toRaw_coeff_of_lt _ (by rw [hv2, List.length_append]; simp; omega),
+            getElem_of_list_eq hv2, List.getElem_append_left hj,
+            ← toRaw_coeff_of_lt v1 hj]
+          exact hz1 j
+        · rcases Nat.lt_or_ge j (v1.val.length + 1) with hj2 | hj2
+          · have hje : j = v1.val.length := by omega
+            subst hje
+            rw [toRaw_coeff_of_lt _ (by rw [hv2, List.length_append]; simp),
+              getElem_of_list_eq hv2, List.getElem_append_right (by omega)]
+            simp only [Nat.sub_self, List.getElem_cons_zero]
+            exact toExt_ZERO
+          · rw [toRaw_coeff_of_ge _ (by rw [hv2, List.length_append]; simp; omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hkeq : k1.val = n := by scalar_tac
+      exact ⟨hv1, by rw [hl1, hkeq], hz1⟩
+  · exact ⟨hacc, hk, hlen, hz⟩
+
+theorem interpPartial_succ (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n I : ℕ) :
+    interpPartial values inv_weights n (I + 1)
+      = interpPartial values inv_weights n I
+        + Polynomial.C (interpCoeff values inv_weights I) * basisProd I n := by
+  rw [interpPartial, interpPartial, Finset.sum_range_succ]
+
+/-- The `i` loop of `interpolate`: the accumulator is the partial sum. -/
+theorem interpolate_outer_loop_spec {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp) (nn : Std.Usize)
+    (hv : WfPoint n values) (hnn : nn.val = n)
+    (hwlen : n ≤ inv_weights.val.length)
+    (hwred : ∀ k < n, Red (inv_weights.val.getD k (0#u64 : cpoly.field.Fp))) :
+    ∀ (acc : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize),
+      VecReduced acc → acc.val.length = n → i.val ≤ n →
+      (∀ k, (toRaw acc).coeff k = (interpPartial values inv_weights n i.val).coeff k) →
+      sumcheck.interpolate_loop1 values inv_weights nn acc i
+        ⦃ z => VecReduced z ∧ z.val.length = n ∧
+          ∀ k, (toRaw z).coeff k = (interpPartial values inv_weights n n).coeff k ⦄ := by
+  intro acc i hacc hlen hi hcoeff
+  obtain ⟨hvlen, hvred⟩ := hv
+  have hnmax : n ≤ Usize.max := by rw [← hvlen]; exact values.property
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  rw [sumcheck.interpolate_loop1]
+  apply loop.spec_decr_nat (fun s => n - s.2.val)
+    (fun s => VecReduced s.1 ∧ s.1.val.length = n ∧ s.2.val ≤ n ∧
+      ∀ k, (toRaw s.1).coeff k = (interpPartial values inv_weights n s.2.val).coeff k)
+  · rintro ⟨a1, i1⟩ ⟨ha1, hl1, hi1, hc1⟩
+    dsimp only at ha1 hl1 hi1 hc1
+    simp only [sumcheck.interpolate_loop1.body]
+    by_cases hlt : i1 < nn
+    · rw [if_pos hlt]
+      have hilt : i1.val < n := by scalar_tac
+      have hpush0 : (alloc.vec.Vec.new cpoly.field.Ext4).val.length < Usize.max := by
+        simp; omega
+      step as ⟨b0, hb0⟩
+      have hb0v : b0.val = [cpoly.field.Ext4.ONE] := by rw [hb0]; simp
+      have hb0len : b0.val.length = 1 := by rw [hb0v]; simp
+      have hb0red : VecReduced b0 := by
+        intro u hu; rw [hb0v] at hu; rw [List.mem_singleton.mp hu]; exact hR1
+      have hb0c : ∀ k, (toRaw b0).coeff k = (basisProd i1.val 0).coeff k := by
+        intro k
+        rw [basisProd_zero, toRaw_coeff, hb0v]
+        rcases k with _ | k <;> simp [Polynomial.coeff_one]
+      step with interpolate_basis_loop_spec (n := n) nn i1 hnn hilt hnmax b0 0#usize
+        hb0red (by simp) (by rw [hb0len]; simp) hb0c as ⟨b1, hb1red, hb1len, hb1c⟩
+      have hvb : i1.val < values.val.length := by omega
+      have hwb : i1.val < inv_weights.val.length := by omega
+      step as ⟨e, he⟩
+      step as ⟨f, hf⟩
+      have hRf : Red f := by
+        have := hwred i1.val hilt
+        rwa [List.getD_eq_getElem _ _ hwb, ← hf] at this
+      step with ext_from_base_spec f hRf as ⟨e1, hRe1, he1⟩
+      have hRe : Reduced e := by rw [he]; exact hvred _ (List.getElem_mem hvb)
+      step with ext_mul_spec e e1 hRe hRe1 as ⟨scale, hRscale, hscale⟩
+      have hscalev : toExt scale = interpCoeff values inv_weights i1.val := by
+        rw [hscale, he1, hf, he, interpCoeff, List.getD_eq_getElem _ _ hvb,
+          List.getD_eq_getElem _ _ hwb]
+      step with interpolate_acc_loop_spec b1 scale (interpPartial values inv_weights n i1.val)
+        (basisProd i1.val n) n hb1red hRscale hb1c (by omega) a1 0#usize
+        ha1 hl1 (by simp) (by intro k; simpa using hc1 k) as ⟨a2, ha2, hl2, hc2⟩
+      step as ⟨i2, hi2⟩
+      have hi2v : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨ha2, hl2, by omega, ?_, by omega⟩
+      intro k
+      rw [hi2v, interpPartial_succ, ← hscalev]
+      exact hc2 k
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i1.val = n := by scalar_tac
+      have hEq : interpPartial values inv_weights n i1.val
+          = interpPartial values inv_weights n n := by rw [hieq]
+      refine ⟨ha1, hl1, fun k => ?_⟩
+      rw [← hEq]
+      exact hc1 k
+  · exact ⟨hacc, hlen, hi, hcoeff⟩
+
+/-- A product over `(range n).erase i` is the same as one over `univ.erase i`. -/
+theorem prod_erase_range_eq_univ {n : ℕ} (i : Fin n) (f : ℕ → F) :
+    ∏ l ∈ (Finset.range n).erase i.val, f l
+      = ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i, f j.val := by
+  classical
+  have himg : Finset.image (fun j : Fin n => j.val) ((Finset.univ : Finset (Fin n)).erase i)
+      = (Finset.range n).erase i.val := by
+    ext l
+    simp only [Finset.mem_image, Finset.mem_erase, Finset.mem_univ, and_true, Finset.mem_range]
+    constructor
+    · rintro ⟨j, hj, rfl⟩
+      exact ⟨fun h => hj (Fin.ext h), j.isLt⟩
+    · rintro ⟨hne, hlt⟩
+      refine ⟨⟨l, hlt⟩, ?_, rfl⟩
+      intro h
+      exact hne (by rw [← h])
+  rw [← himg, Finset.prod_image (fun a _ b _ h => Fin.ext h)]
+
+/-- The supplied weights invert the node differences, in `F`. -/
+theorem weights_prod_eq_one {n : ℕ} (inv_weights : alloc.vec.Vec cpoly.field.Fp)
+    (hw : ∀ i : Fin n, toK (inv_weights.val.getD i.val (0#u64 : cpoly.field.Fp)) *
+      ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i,
+        ((i.val : ZMod q) - (j.val : ZMod q)) = 1)
+    (i : Fin n) :
+    Ext.ofBase (toK (inv_weights.val.getD i.val (0#u64 : cpoly.field.Fp))) *
+      ∏ l ∈ (Finset.range n).erase i.val, (((i.val : ℕ) : F) - ((l : ℕ) : F)) = 1 := by
+  rw [prod_erase_range_eq_univ i (fun l => ((i.val : ℕ) : F) - ((l : ℕ) : F))]
+  have h2 := congrArg phiF (hw i)
+  rw [map_mul, map_one, map_prod] at h2
+  simp only [map_sub, map_natCast] at h2
+  rw [← h2]
+  rfl
+
+/-- The interpolation sum has degree below the number of nodes. -/
+theorem interpPartial_degree_lt {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp) (I : ℕ) (hI : I ≤ n) :
+    (interpPartial values inv_weights n I).degree < (n : WithBot ℕ) := by
+  rcases Nat.eq_zero_or_pos n with hn0 | hnpos
+  · have hI0 : I = 0 := by omega
+    subst hn0
+    subst hI0
+    simp [interpPartial]
+  · have hnat : (interpPartial values inv_weights n I).natDegree ≤ n - 1 := by
+      refine Polynomial.natDegree_sum_le_of_forall_le _ _ (fun i hi => ?_)
+      have hin : i < n := lt_of_lt_of_le (Finset.mem_range.mp hi) hI
+      refine le_trans Polynomial.natDegree_mul_le ?_
+      have h1 : (Polynomial.C (interpCoeff values inv_weights i)).natDegree = 0 :=
+        Polynomial.natDegree_C _
+      have h2 : (basisProd i n).natDegree ≤ n - 1 := by
+        have hcard : ((Finset.range n).erase i).card = n - 1 := by
+          rw [Finset.card_erase_of_mem (Finset.mem_range.mpr hin), Finset.card_range]
+        have hstep : ∀ l ∈ (Finset.range n).erase i,
+            (Polynomial.X - Polynomial.C ((l : ℕ) : F)).natDegree ≤ 1 :=
+          fun l _ => le_trans (Polynomial.natDegree_sub_le _ _) (by simp)
+        rw [basisProd]
+        refine le_trans (Polynomial.natDegree_prod_le _ _) ?_
+        refine le_trans (Finset.sum_le_sum hstep) ?_
+        rw [Finset.sum_const, smul_eq_mul, mul_one, hcard]
+      omega
+    have hle : (interpPartial values inv_weights n I).degree ≤ ((n - 1 : ℕ) : WithBot ℕ) :=
+      le_trans Polynomial.degree_le_natDegree (by exact_mod_cast hnat)
+    have hlt : ((n - 1 : ℕ) : WithBot ℕ) < (n : WithBot ℕ) := by
+      exact_mod_cast (by omega : n - 1 < n)
+    exact lt_of_le_of_lt hle hlt
+
+/-- The interpolation sum takes the prescribed value at every node. -/
+theorem interpPartial_eval {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
+    (inv_weights : alloc.vec.Vec cpoly.field.Fp)
+    (hw : ∀ i : Fin n, toK (inv_weights.val.getD i.val (0#u64 : cpoly.field.Fp)) *
+      ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i,
+        ((i.val : ZMod q) - (j.val : ZMod q)) = 1)
+    (m : Fin n) :
+    (interpPartial values inv_weights n n).eval ((m.val : ℕ) : F)
+      = toPoint (m := n) values m := by
+  classical
+  rw [interpPartial, Polynomial.eval_finsetSum]
+  rw [Finset.sum_eq_single_of_mem m.val (Finset.mem_range.mpr m.isLt) ?_]
+  · rw [Polynomial.eval_mul, Polynomial.eval_C, basisProd, Polynomial.eval_prod]
+    simp only [Polynomial.eval_sub, Polynomial.eval_X, Polynomial.eval_C]
+    rw [interpCoeff, mul_assoc, weights_prod_eq_one inv_weights hw m, mul_one, toPoint]
+  · intro i hi hne
+    rw [Polynomial.eval_mul, basisProd, Polynomial.eval_prod]
+    have hmem : m.val ∈ (Finset.range n).erase i :=
+      Finset.mem_erase.mpr ⟨Ne.symm hne, Finset.mem_range.mpr m.isLt⟩
+    rw [Finset.prod_eq_zero hmem (by simp), MulZeroClass.mul_zero]
 
 /-- `interpolate` computes `CLagrange.interpolateArray` at the nodes `0 … n − 1`
 (spec: `CPolynomial.interpolateArray`, `LagrangeArray.lean:48`).
@@ -1218,7 +1699,35 @@ theorem interpolate_spec {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
       ⦃ out => out.val.length = n ∧ VecReduced out ∧
         toUni out = CLagrange.interpolateArray
           (Array.ofFn fun i : Fin n => ((i.val : F), toPoint (m := n) values i)) ⦄ := by
-  sorry
+  obtain ⟨hvlen, hvred⟩ := hv
+  have hnmax : n ≤ Usize.max := by rw [← hvlen]; exact values.property
+  have hnn : (alloc.vec.Vec.len values).val = n := by simpa using hvlen
+  rw [sumcheck.interpolate]
+  step with interpolate_zeros_loop_spec (n := n) (alloc.vec.Vec.len values) hnn hnmax
+    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize (by intro u hu; simp at hu) (by simp) (by simp)
+    (by intro j; simp [toRaw]) as ⟨acc0, hacc0red, hacc0len, hacc0z⟩
+  step with interpolate_outer_loop_spec (n := n) values inv_weights (alloc.vec.Vec.len values)
+    ⟨hvlen, hvred⟩ hnn hwlen hwred acc0 0#usize hacc0red hacc0len (by simp)
+    (by intro k; rw [hacc0z k, interpPartial]; simp) as ⟨acc, haccred, hacclen, haccc⟩
+  apply spec_mono (uni_from_coeffs_spec acc haccred)
+  rintro out ⟨houtred, houtraw⟩
+  have houtlen : out.val.length = n := by
+    have hs : (toRaw out).size = (toRaw acc).size := by rw [houtraw]
+    rw [toRaw_size, toRaw_size, hacclen] at hs
+    exact hs
+  refine ⟨houtlen, houtred, ?_⟩
+  have hnodes : ∀ i j : Fin n, i ≠ j → ((i.val : ℕ) : F) - ((j.val : ℕ) : F) ≠ 0 :=
+    node_ne_of_weights (fun i => toK (inv_weights.val.getD i.val (0#u64 : cpoly.field.Fp))) hw
+  have hQ : (CLagrange.interpolateArray
+      (Array.ofFn fun i : Fin n => (((i.val : ℕ) : F), toPoint (m := n) values i))).toPoly
+      = interpPartial values inv_weights n n :=
+    interpolateArray_toPoly_eq _ _ hnodes
+      (interpPartial_degree_lt values inv_weights n le_rfl)
+      (interpPartial_eval values inv_weights hw)
+  have htoUni : ∀ j, (toUni out).coeff j = (toRaw out).coeff j := by
+    intro j; rw [toUni, CPolynomial.coeff_ofArray]
+  refine CPolynomial.eq_iff_coeff.mpr (fun k => ?_)
+  rw [htoUni k, houtraw, haccc k, CPolynomial.coeff_toPoly, hQ]
 
 /-- `tableFn` reads the underlying vector at the index. -/
 theorem tableFn_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ m)) :
@@ -1387,30 +1896,24 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
         ∀ x : F, CPolynomial.eval x (toUni out) =
           rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
   rw [sumcheck.round_poly_zero]
-  step with round_values_zero_spec (k := k) w eq hw heq as ⟨values, hlen, hred, hval⟩
-  step with round_node_weights_spec as ⟨weights, hwlen, hwred, hwval⟩
-  have hwred_get : ∀ t < 33, Red (weights.val.getD t (0#u64 : cpoly.field.Fp)) := by
-    intro t ht
-    have htw : t < weights.val.length := by rw [hwlen]; exact ht
-    rw [List.getD_eq_getElem _ _ htw]
-    exact hwred _ (List.getElem_mem htw)
-  step with interpolate_spec (n := 33) values weights ⟨hlen, hred⟩
-      (by rw [hwlen]) hwred_get hwval as ⟨out, houtlen, houtred, hout⟩
-  obtain ⟨p, hpdeg, hpeval⟩ :=
-    rangeSumZero_poly (tableFn (m := k + 1) w) (tableFn (m := k) eq)
-  have hdeg : p.toPoly.degree < (33 : WithBot ℕ) := by
-    rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE] at hpdeg
-    exact lt_of_le_of_lt hpdeg (by norm_num)
-  have hp : CLagrange.interpolateArray
-      (Array.ofFn fun i : Fin 33 => ((i.val : F), toPoint (m := 33) values i)) = p := by
-    apply interpolateArray_nat_eq_of_degree_lt (n := 33)
-    · norm_num [q]
-    · exact hdeg
-    · intro i
-      rw [← CPolynomial.eval_toPoly, hpeval, ← hval i]
-      rfl
-  refine ⟨houtlen, houtred, fun x => ?_⟩
-  rw [hout, hp, hpeval]
+  step with round_values_zero_spec (k := k) w eq hw heq as ⟨values, hvlen, hvred, hvval⟩
+  step with round_node_weights_spec as ⟨weights, hwtlen, hwtred, hwtval⟩
+  obtain ⟨p, hpdeg, hpval⟩ := rangeSumZero_poly (tableFn (m := k + 1) w) (tableFn (m := k) eq)
+  have hpt : ∀ i : Fin 33, toPoint (m := 33) values i = CPolynomial.eval ((i.val : ℕ) : F) p := by
+    intro i
+    rw [toPoint, hvval i, hpval]
+  apply spec_mono (interpolate_spec (n := 33) values weights ⟨hvlen, hvred⟩ (by omega)
+    (fun t ht => hwtred _ (by
+      rw [List.getD_eq_getElem _ _ (by omega)]
+      exact List.getElem_mem (by omega))) hwtval)
+  rintro out ⟨holen, hored, hoval⟩
+  refine ⟨holen, hored, fun x => ?_⟩
+  rw [hoval]
+  rw [interpolateArray_eval_of_degreeLE (n := 33) (d := 31) (toPoint (m := 33) values) p
+    (by norm_num) hpdeg
+    (node_ne_of_weights (fun i => toK (weights.val.getD i.val (0#u64 : cpoly.field.Fp))) hwtval)
+    hpt x]
+  rw [hpval]
 
 /-! ## The equality kernel in three pieces -/
 
@@ -1939,30 +2442,25 @@ theorem round_poly_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.Ext
         ∀ x : F, CPolynomial.eval x (toUni out) =
           linSumAlpha (tableFn (m := k + 1) w) (tableFn (m := k + 1) a_tab) x ⦄ := by
   rw [sumcheck.round_poly_alpha]
-  step with round_values_alpha_spec (k := k) w a_tab hw ha as ⟨values, hlen, hred, hval⟩
-  step with round_node_weights_alpha_spec as ⟨weights, hwlen, hwred, hwval⟩
-  have hwred_get : ∀ t < 3, Red (weights.val.getD t (0#u64 : cpoly.field.Fp)) := by
-    intro t ht
-    have htw : t < weights.val.length := by rw [hwlen]; exact ht
-    rw [List.getD_eq_getElem _ _ htw]
-    exact hwred _ (List.getElem_mem htw)
-  step with interpolate_spec (n := 3) values weights ⟨hlen, hred⟩
-      (by rw [hwlen]) hwred_get hwval as ⟨out, houtlen, houtred, hout⟩
-  obtain ⟨p, hpdeg, hpeval⟩ :=
+  step with round_values_alpha_spec (k := k) w a_tab hw ha as ⟨values, hvlen, hvred, hvval⟩
+  step with round_node_weights_alpha_spec as ⟨weights, hwtlen, hwtred, hwtval⟩
+  obtain ⟨p, hpdeg, hpval⟩ :=
     linSumAlpha_poly (tableFn (m := k + 1) w) (tableFn (m := k + 1) a_tab)
-  have hdeg : p.toPoly.degree < (3 : WithBot ℕ) := by
-    rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE] at hpdeg
-    exact lt_of_le_of_lt hpdeg (by norm_num)
-  have hp : CLagrange.interpolateArray
-      (Array.ofFn fun i : Fin 3 => ((i.val : F), toPoint (m := 3) values i)) = p := by
-    apply interpolateArray_nat_eq_of_degree_lt (n := 3)
-    · norm_num [q]
-    · exact hdeg
-    · intro i
-      rw [← CPolynomial.eval_toPoly, hpeval, ← hval i]
-      rfl
-  refine ⟨houtlen, houtred, fun x => ?_⟩
-  rw [hout, hp, hpeval]
+  have hpt : ∀ i : Fin 3, toPoint (m := 3) values i = CPolynomial.eval ((i.val : ℕ) : F) p := by
+    intro i
+    rw [toPoint, hvval i, hpval]
+  apply spec_mono (interpolate_spec (n := 3) values weights ⟨hvlen, hvred⟩ (by omega)
+    (fun t ht => hwtred _ (by
+      rw [List.getD_eq_getElem _ _ (by omega)]
+      exact List.getElem_mem (by omega))) hwtval)
+  rintro out ⟨holen, hored, hoval⟩
+  refine ⟨holen, hored, fun x => ?_⟩
+  rw [hoval]
+  rw [interpolateArray_eval_of_degreeLE (n := 3) (d := 2) (toPoint (m := 3) values) p
+    (by norm_num) hpdeg
+    (node_ne_of_weights (fun i => toK (weights.val.getD i.val (0#u64 : cpoly.field.Fp))) hwtval)
+    hpt x]
+  rw [hpval]
 
 /-! ## The public α table -/
 
@@ -2027,6 +2525,147 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
       funext t
       exact hval1 t (by rw [hieq]; exact t.isLt)
   · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht'; simp at ht'⟩
+
+/-! ## Generic tools for the honest round message -/
+
+/-- A coefficient vector of length `≤ d + 1` denotes a polynomial of degree `≤ d`. -/
+theorem toUni_mem_degreeLE (v : alloc.vec.Vec cpoly.field.Ext4) (d : ℕ)
+    (hlen : v.val.length ≤ d + 1) :
+    toUni v ∈ CPolynomial.degreeLE (R := F) (d : ℕ) := by
+  rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE,
+    Polynomial.degree_le_iff_coeff_zero]
+  intro k hk
+  have hdj : d < k := by exact_mod_cast hk
+  rw [← CPolynomial.coeff_toPoly, toUni, CPolynomial.coeff_ofArray]
+  exact toRaw_coeff_of_ge v (by omega)
+
+/-- Two `CPolynomial`s of degree `≤ d`, with `d + 1 ≤ q`, that agree at every point of `F`
+are equal: `F` has `q ^ 4` elements, so `d + 1` distinct nodes are available and Lagrange
+uniqueness applies. -/
+theorem cpoly_eq_of_eval_eq {d : ℕ} (hdq : d + 1 ≤ q) (p₁ p₂ : CPolynomial F)
+    (h1 : p₁ ∈ CPolynomial.degreeLE (R := F) (d : ℕ))
+    (h2 : p₂ ∈ CPolynomial.degreeLE (R := F) (d : ℕ))
+    (h : ∀ x : F, CPolynomial.eval x p₁ = CPolynomial.eval x p₂) : p₁ = p₂ := by
+  classical
+  set v : Fin (d + 1) → F := fun j => ((j.val : ℕ) : F) with hv
+  have hinj : Set.InjOn v ↑(Finset.univ : Finset (Fin (d + 1))) := by
+    intro a _ b _ hab
+    rw [hv] at hab
+    dsimp only at hab
+    have hmap : ∀ c : ℕ, ((c : ℕ) : F) = phiF ((c : ℕ) : ZMod q) := fun c =>
+      (map_natCast phiF c).symm
+    rw [hmap, hmap] at hab
+    have hzm : ((a.val : ℕ) : ZMod q) = ((b.val : ℕ) : ZMod q) := phiF.injective hab
+    have ha : ((a.val : ℕ) : ZMod q).val = a.val :=
+      ZMod.val_natCast_of_lt (by have := a.isLt; omega)
+    have hb : ((b.val : ℕ) : ZMod q).val = b.val :=
+      ZMod.val_natCast_of_lt (by have := b.isLt; omega)
+    exact Fin.ext (by rw [← ha, ← hb, hzm])
+  have hcard : (Finset.univ : Finset (Fin (d + 1))).card = d + 1 := by simp
+  have hdeg : ∀ p : CPolynomial F, p ∈ CPolynomial.degreeLE (R := F) (d : ℕ) →
+      p.toPoly.degree < (Finset.univ : Finset (Fin (d + 1))).card := by
+    intro p hp
+    rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE] at hp
+    rw [hcard]
+    exact lt_of_le_of_lt hp (by exact_mod_cast Nat.lt_succ_self d)
+  have e1 := Lagrange.eq_interpolate_of_eval_eq (v := v)
+    (r := fun j => CPolynomial.eval (v j) p₁) (s := Finset.univ) hinj (hdeg p₁ h1)
+    (fun j _ => by rw [CPolynomial.eval_toPoly])
+  have e2 := Lagrange.eq_interpolate_of_eval_eq (v := v)
+    (r := fun j => CPolynomial.eval (v j) p₁) (s := Finset.univ) hinj (hdeg p₂ h2)
+    (fun j _ => by rw [← CPolynomial.eval_toPoly]; exact (h (v j)).symm)
+  have htp : p₁.toPoly = p₂.toPoly := by rw [e1, e2]
+  rw [CPolynomial.eq_iff_coeff]
+  intro k
+  rw [CPolynomial.coeff_toPoly, CPolynomial.coeff_toPoly, htp]
+
+/-- **Multilinearity of a multilinear extension in one coordinate.** -/
+theorem cMLE_eval_update {m : ℕ} (evals : (Fin m → Fin 2) → F) (p : Fin m → F) (c : Fin m) :
+    (InnerOuter.cMultilinearExtension m evals).eval p =
+      (1 - p c) * (InnerOuter.cMultilinearExtension m evals).eval (Function.update p c 0) +
+        p c * (InnerOuter.cMultilinearExtension m evals).eval (Function.update p c 1) := by
+  rw [InnerOuter.cMultilinearExtension_eval, InnerOuter.cMultilinearExtension_eval,
+    InnerOuter.cMultilinearExtension_eval, InnerOuter.eval_MLE_eq_sum,
+    InnerOuter.eval_MLE_eq_sum, InnerOuter.eval_MLE_eq_sum, Finset.mul_sum, Finset.mul_sum,
+    ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun x _ => ?_
+  have key : ∀ t : F, ∏ j : Fin m, (if x j = 1 then Function.update p c t j
+        else 1 - Function.update p c t j)
+      = (if x c = 1 then t else 1 - t) *
+        ∏ j ∈ Finset.univ.erase c, (if x j = 1 then p j else 1 - p j) := by
+    intro t
+    rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ c), Function.update_self]
+    congr 1
+    refine Finset.prod_congr rfl fun j hj => ?_
+    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  rw [key 0, key 1, ← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ c)]
+  by_cases h : x c = 1
+  · simp only [if_pos h]; ring
+  · simp only [if_neg h]; ring
+
+/-- The little-endian index of a cube point with a prepended bit. -/
+theorem finFunctionFinEquiv_cons_val {A B : ℕ} (hAB : A = B + 1)
+    (a : Fin A → Fin 2) (b : Fin B → Fin 2) (c : Fin 2)
+    (h0 : a ⟨0, by omega⟩ = c)
+    (hs : ∀ j : Fin B, a ⟨j.val + 1, by omega⟩ = b j) :
+    ((finFunctionFinEquiv a : Fin (2 ^ A)) : ℕ)
+      = 2 * ((finFunctionFinEquiv b : Fin (2 ^ B)) : ℕ) + (c : ℕ) := by
+  rw [finFunctionFinEquiv_apply, finFunctionFinEquiv_apply]
+  have hA : ∑ j : Fin A, ((a j : ℕ) * 2 ^ (j : ℕ))
+      = ∑ j ∈ Finset.range A, (if h : j < A then ((a ⟨j, h⟩ : ℕ) * 2 ^ j) else 0) := by
+    rw [← Fin.sum_univ_eq_sum_range (fun j => if h : j < A then ((a ⟨j, h⟩ : ℕ) * 2 ^ j) else 0) A]
+    exact Finset.sum_congr rfl fun j _ => by rw [dif_pos j.isLt]
+  have hB : ∑ j : Fin B, ((b j : ℕ) * 2 ^ (j : ℕ))
+      = ∑ j ∈ Finset.range B, (if h : j < B then ((b ⟨j, h⟩ : ℕ) * 2 ^ j) else 0) := by
+    rw [← Fin.sum_univ_eq_sum_range (fun j => if h : j < B then ((b ⟨j, h⟩ : ℕ) * 2 ^ j) else 0) B]
+    exact Finset.sum_congr rfl fun j _ => by rw [dif_pos j.isLt]
+  rw [hA, hB]
+  subst hAB
+  rw [Finset.sum_range_succ']
+  have hterm : ∀ j ∈ Finset.range B,
+      (if h : j + 1 < B + 1 then ((a ⟨j + 1, h⟩ : ℕ) * 2 ^ (j + 1)) else 0)
+        = 2 * (if h : j < B then ((b ⟨j, h⟩ : ℕ) * 2 ^ j) else 0) := by
+    intro j hj
+    have hjB : j < B := Finset.mem_range.mp hj
+    rw [dif_pos (by omega), dif_pos hjB]
+    have hab : a ⟨j + 1, by omega⟩ = b ⟨j, hjB⟩ := hs ⟨j, hjB⟩
+    rw [hab]
+    ring
+  rw [Finset.sum_congr rfl hterm, ← Finset.mul_sum, dif_pos (by omega), h0]
+  simp
+
+/-- Evaluating a schoolbook product. -/
+theorem raw_eval_mul (x : F) (p r : CPolynomial.Raw F) :
+    (CPolynomial.Raw.mul p r).eval x = p.eval x * r.eval x := by
+  show (p * r).eval x = _
+  rw [← CPolynomial.Raw.eval_toPoly_eq_eval, CPolynomial.Raw.toPoly_mul,
+    Polynomial.eval_mul, CPolynomial.Raw.eval_toPoly_eq_eval,
+    CPolynomial.Raw.eval_toPoly_eq_eval]
+
+/-- Evaluating a scalar multiple. -/
+theorem raw_eval_smul (x c : F) (p : CPolynomial.Raw F) :
+    (CPolynomial.Raw.smul c p).eval x = c * p.eval x := by
+  have hsm : (CPolynomial.Raw.smul c p).toPoly = c • p.toPoly := by
+    refine Polynomial.ext fun k => ?_
+    rw [Polynomial.coeff_smul, CPolynomial.Raw.coeff_toPoly, CPolynomial.Raw.coeff_toPoly]
+    exact CPolynomial.Raw.smul_coeff c p k
+  rw [← CPolynomial.Raw.eval_toPoly_eq_eval, hsm,
+    Polynomial.smul_eq_C_mul, Polynomial.eval_mul, Polynomial.eval_C,
+    CPolynomial.Raw.eval_toPoly_eq_eval]
+
+/-- `degreeLE` is monotone in the bound. -/
+theorem degreeLE_mono' {d₁ d₂ : ℕ} (h : d₁ ≤ d₂) {p : CPolynomial F}
+    (hp : p ∈ CPolynomial.degreeLE (R := F) (d₁ : ℕ)) :
+    p ∈ CPolynomial.degreeLE (R := F) (d₂ : ℕ) := by
+  rw [CPolynomial.degreeLE_toPoly, Polynomial.mem_degreeLE] at hp ⊢
+  exact le_trans hp (by exact_mod_cast h)
+
+/-- Reading a table at two indices of equal value gives the same entry, whatever the two
+arities recorded in the types. -/
+theorem tableFn_congr {a b : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
+    (u : Fin (2 ^ a)) (v : Fin (2 ^ b)) (h : u.val = v.val) :
+    tableFn (m := a) t u = tableFn (m := b) t v := by
+  rw [tableFn_apply, tableFn_apply, h]
 
 /-! ## The honest prover's round message -/
 
@@ -2188,26 +2827,58 @@ theorem round_out_spec {n μ m₀ m₁ i dRows : ℕ} (stmt : sumcheck.RoundStat
     dsimp only
     rw [hta'', ← hga, toUni_eval]
 
-/-- The dot product of a table against the Lagrange weights of a point is the
-specification-side multilinear extension evaluated at that point. -/
-theorem dot_lagrange_eq_mle_eval {m : ℕ} (u v cs : alloc.vec.Vec cpoly.field.Ext4)
-    (f : (Fin m → Fin 2) → F)
-    (hu : ∀ t, ∀ h : t < 2 ^ m, toExt (u.val.getD t cpoly.field.Ext4.ZERO) =
-      f (finFunctionFinEquiv.symm ⟨t, h⟩))
-    (hv : ∀ t, ∀ h : t < 2 ^ m, toExt (v.val.getD t cpoly.field.Ext4.ZERO) =
-      (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m) cs))).get ⟨t, h⟩) :
-    ∑ t ∈ Finset.range (2 ^ m),
-        toExt ((alloc.vec.Vec.deref u).val.getD t cpoly.field.Ext4.ZERO) *
-          toExt ((alloc.vec.Vec.deref v).val.getD t cpoly.field.Ext4.ZERO)
-      = MvPolynomial.eval (toPoint (m := m) cs) (MvPolynomial.MLE f) := by
-  rw [InnerOuter.eval_MLE_eq_sum, ← Equiv.sum_comp finFunctionFinEquiv.symm,
-    ← Fin.sum_univ_eq_sum_range (fun t => toExt ((alloc.vec.Vec.deref u).val.getD t
-      cpoly.field.Ext4.ZERO) * toExt ((alloc.vec.Vec.deref v).val.getD t
-      cpoly.field.Ext4.ZERO)) (2 ^ m)]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  simp only [deref_val]
-  rw [hu i.val i.isLt, hv i.val i.isLt, lagrangeBasis_get_eq_cube_prod, Fin.eta]
+/-- Entry `t` of a represented Lagrange-form table. -/
+theorem toEvals_get {m : ℕ} (tab : cpoly.multilinear.MultilinearEvals) (t : Fin (2 ^ m)) :
+    (toEvals (m := m) tab).get t = toExt (tab.val.getD t.val cpoly.field.Ext4.ZERO) :=
+  Vector.get_ofFn _ t
 
+/-- The multilinear extension of a cube table, at an arbitrary point, written as
+the flat-index sum the extracted dot product forms. -/
+theorem cMultilinearExtension_eval_flat {m : ℕ} (evals : (Fin m → Fin 2) → F) (a : Fin m → F) :
+    (InnerOuter.cMultilinearExtension m evals).eval a =
+      ∑ t : Fin (2 ^ m), evals (finFunctionFinEquiv.symm t) *
+        ∏ j : Fin m, (if (finFunctionFinEquiv.symm t) j = 1 then a j else 1 - a j) := by
+  rw [InnerOuter.cMultilinearExtension_eval, InnerOuter.eval_MLE_eq_sum]
+  exact (Equiv.sum_comp finFunctionFinEquiv.symm
+    (fun x : Fin m → Fin 2 => evals x * ∏ j : Fin m, if x j = 1 then a j else 1 - a j)).symm
+
+/-- `eq̃(p, q) = Σ_y eq̃(p, y) · eq̃(q, y)`: the kernel as a cube sum, which is
+what `eq_tilde` computes (a Lagrange basis dotted against a Lagrange basis). -/
+theorem eqProd_eq_flat_sum {m : ℕ} (p q : Fin m → F) :
+    eqProd p q =
+      ∑ t : Fin (2 ^ m),
+        (∏ j : Fin m, if (finFunctionFinEquiv.symm t) j = 1 then p j else 1 - p j) *
+          (∏ j : Fin m, if (finFunctionFinEquiv.symm t) j = 1 then q j else 1 - q j) := by
+  rw [← cEqualityPolynomial_eval_eq_eqProd p q, InnerOuter.cEqualityPolynomial,
+    cMultilinearExtension_eval_flat]
+
+/-- `cpoly::multilinear::eq_tilde` computes the equality kernel at the two
+represented points. -/
+theorem eq_tilde_spec {m : ℕ} (w x : alloc.vec.Vec cpoly.field.Ext4)
+    (hw : WfPoint m w) (hx : WfPoint m x) (hm : 2 ^ m ≤ Usize.max) :
+    cpoly.multilinear.eq_tilde (alloc.vec.Vec.deref w) (alloc.vec.Vec.deref x)
+      ⦃ out => Reduced out ∧
+        toExt out = eqProd (toPoint (m := m) w) (toPoint (m := m) x) ⦄ := by
+  rw [cpoly.multilinear.eq_tilde]
+  step with cpoly_lagrange_basis_spec (m := m) w hw hm as ⟨bw, hbwlen, hbwred, hbwval⟩
+  rw [cpoly.multilinear.MultilinearEvals.eval]
+  step with cpoly_lagrange_basis_spec (m := m) x hx hm as ⟨bx, hbxlen, hbxred, hbxval⟩
+  apply spec_mono (cpoly_dot_spec (k := 2 ^ m) (alloc.vec.Vec.deref bw)
+    (alloc.vec.Vec.deref bx) (sliceReduced_deref hbwred) (sliceReduced_deref hbxred)
+    (by simpa using hbwlen) (by simpa using hbxlen))
+  rintro out ⟨hR, hout⟩
+  refine ⟨hR, ?_⟩
+  rw [hout, eqProd_eq_flat_sum,
+    ← Fin.sum_univ_eq_sum_range (fun t =>
+      toExt ((alloc.vec.Vec.deref bw).val.getD t cpoly.field.Ext4.ZERO) *
+        toExt ((alloc.vec.Vec.deref bx).val.getD t cpoly.field.Ext4.ZERO)) (2 ^ m)]
+  refine Finset.sum_congr rfl fun t _ => ?_
+  simp only [deref_val]
+  rw [hbwval t.val t.isLt, hbxval t.val t.isLt,
+    lagrangeBasis_get_eq_cube_prod w t.val t.isLt,
+    lagrangeBasis_get_eq_cube_prod x t.val t.isLt]
+
+set_option maxHeartbeats 1000000 in
 /-- `final_check` decides `finalCheck` (`FinalEval.lean:99`) at round `m₀`: the
 three conjuncts, the third the `u64` bound compare. `m₀` is read off `tau0`;
 `2 ^ m₀ ≤ Usize.max` is `cube_size`'s and cpoly's `table_len` shift's; `hmax`
@@ -2219,81 +2890,103 @@ theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStat
     (hy : Reduced y_prime) (hm0 : 2 ^ m₀ ≤ Usize.max) (hmax : μ + n * 8 ≤ Usize.max) :
     sumcheck.final_check stmt y_prime bound
       ⦃ b => b = InnerOuter.finalCheck Φ m₀ m₁ bound.val 16 phiF ss (toExt y_prime) ⦄ := by
-  obtain ⟨⟨hrlin, hWt, hRa, htau0, htau1, ht, ha, h0, h1⟩, hch, hRtz, hRta, hcs, htz, hta⟩ := hs
-  have hm0v : (alloc.vec.Vec.len stmt.zc.tau0).val = m₀ := by simpa using htau0.1
-  rw [sumcheck.final_check]
-  simp only [sumcheck.RoundStatement.impl.zc, sumcheck.NestedZeroCheckStmt.impl.tau0,
-    sumcheck.RoundStatement.impl.challenges, sumcheck.NestedZeroCheckStmt.impl.rlin,
-    sumcheck.NestedZeroCheckStmt.impl.alpha, sumcheck.NestedZeroCheckStmt.impl.tau1,
-    sumcheck.RoundStatement.impl.target_zero, sumcheck.RoundStatement.impl.target_alpha,
-    ringswitch.RlinStatement.impl.bound, cpoly.multilinear.MultilinearEvals.from_values,
-    cpoly.multilinear.eq_tilde, cpoly.multilinear.MultilinearEvals.eval, bind_tc_ok]
-  step with cpoly_lagrange_basis_spec (m := m₀) stmt.zc.tau0 htau0 hm0
-    as ⟨b0, hb0len, hb0red, hb0val⟩
-  step with cpoly_lagrange_basis_spec (m := m₀) stmt.challenges hch hm0
-    as ⟨b1, hb1len, hb1red, hb1val⟩
-  step with cpoly_dot_spec (k := 2 ^ m₀) (alloc.vec.Vec.deref b0) (alloc.vec.Vec.deref b1)
-    (sliceReduced_deref hb0red) (sliceReduced_deref hb1red) (by simpa using hb0len)
-    (by simpa using hb1len) as ⟨eq_all, hReq, heq⟩
+  obtain ⟨hzc, hWc, hRt0, hRta, hc, ht0, hta⟩ := hs
+  obtain ⟨hr, hWt, hRalpha, hWtau0, hWtau1, hvt, hva, htau0, htau1⟩ := hzc
+  have hm0v : (alloc.vec.Vec.len stmt.zc.tau0).val = m₀ := by simpa using hWtau0.1
+  simp only [sumcheck.final_check, sumcheck.RoundStatement.impl.zc,
+    sumcheck.NestedZeroCheckStmt.impl.tau0, sumcheck.RoundStatement.impl.challenges,
+    sumcheck.NestedZeroCheckStmt.impl.rlin, sumcheck.NestedZeroCheckStmt.impl.alpha,
+    sumcheck.NestedZeroCheckStmt.impl.tau1, sumcheck.RoundStatement.impl.target_zero,
+    sumcheck.RoundStatement.impl.target_alpha, ringswitch.RlinStatement.impl.bound,
+    cpoly.multilinear.MultilinearEvals.from_values, bind_tc_ok]
+  set m0 : Std.Usize := alloc.vec.Vec.len stmt.zc.tau0 with hm0def
+  clear_value m0
+  subst hm0v
+  step with eq_tilde_spec stmt.zc.tau0 stmt.challenges hWtau0 hWc hm0 as ⟨eqall, hReqall, heqall⟩
   step with alpha_public_table_spec (n := n) (μ := μ) (m₁ := m₁) stmt.zc.rlin ss.zc.rlin
-    stmt.zc.alpha stmt.zc.tau1 (alloc.vec.Vec.len stmt.zc.tau0) hrlin hRa htau1
-    (by rw [hm0v]; exact hm0) hmax as ⟨table, hWt2, htval⟩
-  rw [hm0v] at hWt2 htval
-  step with cpoly_lagrange_basis_spec (m := m₀) stmt.challenges hch hm0
-    as ⟨b2, hb2len, hb2red, hb2val⟩
-  step with cpoly_dot_spec (k := 2 ^ m₀) (alloc.vec.Vec.deref table) (alloc.vec.Vec.deref b2)
-    (sliceReduced_deref hWt2.2) (sliceReduced_deref hb2red) (by simpa using hWt2.1)
-    (by simpa using hb2len) as ⟨a_mle, hRamle, hamle⟩
-  step with range_product_spec y_prime hy as ⟨e1, hRe1, he1⟩
-  step with ext_mul_spec eq_all e1 hReq hRe1 as ⟨e2, hRe2, he2⟩
-  step with ext_eq_spec e2 stmt.target_zero hRe2 hRtz as ⟨b, hb⟩
-  have heqv : toExt eq_all =
-      (InnerOuter.cEqualityPolynomial m₀ ss.zc.τ₀).eval ss.challenges := by
-    rw [heq, InnerOuter.cEqualityPolynomial, InnerOuter.cMultilinearExtension_eval, ← h0, ← hcs]
-    exact dot_lagrange_eq_mle_eval (m := m₀) b0 b1 stmt.challenges _
-      (fun t h => by rw [hb0val t h, lagrangeBasis_get_eq_cube_prod]) hb1val
-  have hav : toExt a_mle =
-      (InnerOuter.cMultilinearExtension m₀
-        (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)).eval
-          ss.challenges := by
-    rw [hamle, InnerOuter.cMultilinearExtension_eval, ← hcs, ← ha, ← h1]
-    exact dot_lagrange_eq_mle_eval (m := m₀) table b2 stmt.challenges _
-      (fun t h => by
-        rw [show toExt (table.val.getD t cpoly.field.Ext4.ZERO) =
-            (toEvals (m := m₀) table).get ⟨t, h⟩ from by rw [toEvals, Vector.get_ofFn],
-          htval, Vector.get_ofFn]) hb2val
-  have hA' : toExt e2 = (InnerOuter.cEqualityPolynomial m₀ ss.zc.τ₀).eval ss.challenges *
-      InnerOuter.rangeProduct 16 (toExt y_prime) := by
-    rw [he2, heqv, he1]
-  have hAb : (toExt e2 == toExt stmt.target_zero) = b :=
-    Bool.eq_iff_iff.mpr (beq_iff_eq.trans hb.symm)
-  have hbound : (bound <= stmt.zc.rlin.bound : Bool) = decide (bound.val ≤ ss.zc.rlin.bound) := by
-    rw [← hrlin.2.2.2.2]
-    simp
-  simp only [InnerOuter.finalCheck]
+    stmt.zc.alpha stmt.zc.tau1 m0 hr hRalpha hWtau1 hm0 hmax
+    as ⟨table, hWtab, htabval⟩
+  rw [cpoly.multilinear.MultilinearEvals.eval]
+  step with cpoly_lagrange_basis_spec stmt.challenges hWc hm0 as ⟨basis, hblen, hbred, hbval⟩
+  step with cpoly_dot_spec (k := 2 ^ m0.val)
+    (alloc.vec.Vec.deref table) (alloc.vec.Vec.deref basis)
+    (sliceReduced_deref hWtab.2) (sliceReduced_deref hbred)
+    (by simpa using hWtab.1) (by simpa using hblen) as ⟨amle, hRamle, hamle⟩
+  step with range_product_spec y_prime hy as ⟨rp, hRrp, hrp⟩
+  step with ext_mul_spec eqall rp hReqall hRrp as ⟨prod0, hRprod0, hprod0⟩
+  have hAval : toExt prod0 =
+      (InnerOuter.cEqualityPolynomial m0.val ss.zc.τ₀).eval
+        ss.challenges * InnerOuter.rangeProduct 16 (toExt y_prime) := by
+    rw [hprod0, heqall, hrp, cEqualityPolynomial_eval_eq_eqProd, htau0, hc]
+  have hBval : toExt amle =
+      (InnerOuter.cMultilinearExtension m0.val
+        (InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
+          ss.zc.rlin ss.zc.α ss.zc.τα)).eval ss.challenges := by
+    have htabget : ∀ t : Fin (2 ^ m0.val),
+        toExt (table.val.getD t.val cpoly.field.Ext4.ZERO) =
+          InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
+            ss.zc.rlin ss.zc.α ss.zc.τα (finFunctionFinEquiv.symm t) := by
+      intro t
+      rw [← toEvals_get table t, htabval, Vector.get_ofFn, hva, htau1]
+    rw [hamle, cMultilinearExtension_eval_flat,
+      ← Fin.sum_univ_eq_sum_range (fun t =>
+        toExt ((alloc.vec.Vec.deref table).val.getD t cpoly.field.Ext4.ZERO) *
+          toExt ((alloc.vec.Vec.deref basis).val.getD t cpoly.field.Ext4.ZERO))
+        (2 ^ m0.val)]
+    refine Finset.sum_congr rfl fun t _ => ?_
+    simp only [deref_val]
+    rw [htabget t, hbval t.val t.isLt,
+      lagrangeBasis_get_eq_cube_prod stmt.challenges t.val t.isLt, hc]
+  have hbnd : decide (bound ≤ stmt.zc.rlin.bound) =
+      decide (bound.val ≤ ss.zc.rlin.bound) := by
+    refine decide_eq_decide.mpr ?_
+    rw [← hr.2.2.2.2]
+    constructor <;> intro h <;> scalar_tac
+  step with ext_eq_spec prod0 stmt.target_zero hRprod0 hRt0 as ⟨b, hb⟩
+  rw [InnerOuter.finalCheck]
   by_cases hbt : b = true
   · rw [if_pos hbt]
-    step with ext_mul_spec y_prime a_mle hy hRamle as ⟨e4, hRe4, he4⟩
-    step with ext_eq_spec e4 stmt.target_alpha hRe4 hRta as ⟨b1, hb1⟩
-    have hB' : toExt e4 = toExt y_prime *
-        (InnerOuter.cMultilinearExtension m₀
-          (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)).eval
-            ss.challenges := by
-      rw [he4, hav]
-    have hBb : (toExt e4 == toExt stmt.target_alpha) = b1 :=
-      Bool.eq_iff_iff.mpr (beq_iff_eq.trans hb1.symm)
+    have hfirst : ((InnerOuter.cEqualityPolynomial
+        m0.val ss.zc.τ₀).eval ss.challenges *
+          InnerOuter.rangeProduct 16 (toExt y_prime) == ss.target₀) = true := by
+      rw [beq_iff_eq, ← hAval, ← ht0]
+      exact hb.mp hbt
+    step with ext_mul_spec y_prime amle hy hRamle as ⟨prod1, hRprod1, hprod1⟩
+    have hBmul : toExt prod1 = toExt y_prime *
+        (InnerOuter.cMultilinearExtension m0.val
+          (InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
+            ss.zc.rlin ss.zc.α ss.zc.τα)).eval ss.challenges := by
+      rw [hprod1, hBval]
+    step with ext_eq_spec prod1 stmt.target_alpha hRprod1 hRta as ⟨b1, hb1⟩
     by_cases hb1t : b1 = true
     · rw [if_pos hb1t, WP.spec_ok]
-      rw [← hA', ← htz, hAb, hbt, ← hB', ← hta, hBb, hb1t, hbound]
-      simp
+      have hsecond : (toExt y_prime *
+          (InnerOuter.cMultilinearExtension m0.val
+            (InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
+              ss.zc.rlin ss.zc.α ss.zc.τα)).eval ss.challenges == ss.targetα) = true := by
+        rw [beq_iff_eq, ← hBmul, ← hta]
+        exact hb1.mp hb1t
+      rw [hfirst, hsecond, Bool.true_and, Bool.true_and]
+      exact hbnd
     · have hb1f : b1 = false := by cases b1 <;> simp_all
       rw [if_neg (by simp [hb1f]), WP.spec_ok]
-      rw [← hA', ← htz, hAb, hbt, ← hB', ← hta, hBb, hb1f]
-      simp
+      have hne : toExt prod1 ≠ toExt stmt.target_alpha := fun hcon => hb1t (hb1.mpr hcon)
+      have hsecond : (toExt y_prime *
+          (InnerOuter.cMultilinearExtension m0.val
+            (InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
+              ss.zc.rlin ss.zc.α ss.zc.τα)).eval ss.challenges == ss.targetα) = false := by
+        rw [beq_eq_false_iff_ne, ne_eq, ← hBmul, ← hta]
+        exact hne
+      rw [hsecond, Bool.and_false, Bool.false_and]
   · have hbf : b = false := by cases b <;> simp_all
     rw [if_neg (by simp [hbf]), WP.spec_ok]
-    rw [← hA', ← htz, hAb, hbf]
-    simp
+    have hne : toExt prod0 ≠ toExt stmt.target_zero := fun hcon => hbt (hb.mpr hcon)
+    have hfirst : ((InnerOuter.cEqualityPolynomial
+        m0.val ss.zc.τ₀).eval ss.challenges *
+          InnerOuter.rangeProduct 16 (toExt y_prime) == ss.target₀) = false := by
+      rw [beq_eq_false_iff_ne, ne_eq, ← hAval, ← ht0]
+      exact hne
+    rw [hfirst, Bool.false_and, Bool.false_and]
 
 /-! ## The honest prover's final value -/
 
