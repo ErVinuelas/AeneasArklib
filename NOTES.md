@@ -5086,3 +5086,35 @@ Left: `honest_compute_g_spec` (the degree-32 polynomial identity through
 `computableRoundPoly_eval`, `eval_sumcheckPolyZero` and the kernel
 factorization — the lemma scaffolding for it now exists), and the two loop
 specs that consume it.
+
+## `Check.lean` § 2b covers sumcheck and chain; the docs catch up (2026-09-11)
+
+While Aristotle's third pass runs, the two Stage 4 chores that do not touch
+`Sumcheck.lean`.
+
+**§ 2b pins.** Until today the sumcheck block pinned six early items and
+nothing of the round machinery, the prover/verifier split, the three statement
+carriers or the chain module — the "is it stated" gap's older sibling, "is its
+shape pinned". Now every non-loop `sumcheck.*` and `chain.*` item has a
+term-position ascription, and the block records the four facts a re-extraction
+must not move: accessors extract under an `impl` segment
+(`sumcheck.RoundStatement.impl.zc`) while constructors are `.new`; the linear
+side's node count and weight array are their own objects (`3`,
+`Array Std.U64 3`), not a prefix of the range side's; the two rejecting loops
+return `Option` inside `Result`; `cube_size` is `two_pow`'s deliberate local
+duplicate. § 1's protocol block gains the node counts as checked relations
+against the named bounds — `ROUND_NODES = roundDegZero GADGET_BASE + 1` and
+`ROUND_NODES_ALPHA = roundDegAlpha + 1` — so the `2 · 16 + 1` and `2 + 1` in
+`params.rs`'s docstrings are no longer prose. `make build`: 0 errors, 160
+axiom lines, kernel-only.
+
+**Docs.** `lean/Ext.lean`'s header still said it had yet to move to `lean/`;
+the root README listed seven Lean modules and eight Rust ones, said
+"ninety-nine specs", and described ring-switch, zero-check, sumcheck and the
+end piece as "absent code"; INSTRUCTIONS named `Ext.lean` as the standing debt.
+All re-pointed at today's state: fourteen promoted modules and two staged, one
+hundred and sixty audited specs, every chain link translated and stated, and
+the two things actually absent named precisely — the honest lift prover
+(`honestLiftWitnessC`) and an executable oracle for the chain at real width.
+The wip README's "Working here" now records the two times the detour was used
+instead of claiming it never was.

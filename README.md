@@ -85,20 +85,24 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all ninety-nine proved specs: the three Lean kernel axioms, nothing else.
-> [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
-> proved — holds `Ext.lean`, the `Ext4` layer ported from cpoly with its proof
-> scripts still to be re-derived at Lean v4.33.1; its
-> [README](hachi/lean-wip/README.md) holds the procedure for promoting it. [`NOTES.md`](NOTES.md)
-> § "The scheme layer is proved, and checked" scores every claim in this repository
-> as verified or not.
+> of all one hundred and sixty proved specs: the three Lean kernel axioms, nothing
+> else. [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not
+> yet proved — holds `Sumcheck.lean`, target 5's paired sumcheck with three of its
+> twenty-four obligations still open, and `Chain.lean`, the composed chain's two
+> rows, proved but promotable only once `Sumcheck` is; its
+> [README](hachi/lean-wip/README.md) holds the procedure for promoting a file.
+> [`NOTES.md`](NOTES.md) § "The scheme layer is proved, and checked" scores every
+> claim in this repository as verified or not.
 >
-> The remaining protocol links — the ring-switch lift and commitment, zero-check,
-> sumcheck and the end piece — are the rest of
-> the protocol-layer plan Stage 3 (a local planning document, not
-> in the published repository). Their ArkLib
-> specification is definition-stable at the pinned rev (PR #847) and their
-> parameters already live in `params.rs`; what is absent is code, not spec.
+> Every protocol link of `Composition.lean`'s chain is now translated and stated:
+> the bridge, QuadEval, the `R^lin` adapter, the ring-switch lift, zero-check, the
+> sumcheck bridge, the paired sumcheck rounds, the final evaluation and the end
+> piece, plus the composed `chain_open`/`chain_verify` pair over them. What is
+> absent is narrower than code: the honest lift prover (`honestLiftWitnessC`,
+> the synthetic-division construction of the lifted witness, which the chain
+> still takes as an input), and an executable oracle for the chain at the real
+> width, where `alpha_contract`'s recomputation of `M̃_α` makes a single run
+> infeasible (`NOTES.md` § "The composed chain has no practical oracle").
 
 ## Usage
 
@@ -164,6 +168,10 @@ hachi/
     evalsplit.rs      the multilinear evaluation split uᵀ M v
     ringswitch.rs     the balanced quotient digits of the ring switch
     quadeval.rs       the QuadEval fold: carrier, tensors, honest z, the Eq. (20) checks
+    zerocheck.rs      the zero-check's H₀ and H_α tables and their two decisions
+    endpiece.rs       the end piece: check, prover and witness map
+    sumcheck.rs       the paired sumcheck: round messages, per-round checks, the loops, final check
+    chain.rs          the composed chain: honest `open` and `verify` over the proved links
   tests/              Rust-side semantics tests, one per src/ module
   benches/            criterion benchmarks, one file per src/ module
     support/          the corpus, the digest oracle, and the case macros
@@ -183,9 +191,17 @@ hachi/
     EvalSplit.lean    the evalsplit module against ArkLib's split evaluation -- proved
     Balanced.lean     the balanced digit layer, up to the honest Hachi commitment -- proved
     QuadEval.lean     the QuadEval fold's gadget, carrier and Eq. (20) decisions -- proved
+    QuadEvalProtocol.lean  the QuadEval carriers, honest prover and output relations -- proved
+    Ext.lean          the `Ext4` extension-field layer, ported from cpoly -- proved
+    RingSwitch.lean   the ring-switch lift, commitment and shortness decisions -- proved
+    ZeroCheck.lean    the zero-check's `H₀` and `H_α` sides, plus the mixed evaluation -- proved
+    EndPiece.lean     the end piece's check, prover and witness map -- proved
+    Rlin.lean         the `R^lin` adapter and the polynomial-level bridge -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
-    README.md         what has to happen before a file moves into lean/ (empty otherwise)
+    README.md         what has to happen before a file moves into lean/
+    Sumcheck.lean     the paired sumcheck, 24 statements, 3 still open
+    Chain.lean        the composed chain's two rows, proved; promotes behind Sumcheck
 ```
 
 Each module names the ArkLib file it is a translation of, and each operation the
