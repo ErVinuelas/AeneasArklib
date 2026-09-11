@@ -118,17 +118,15 @@ ready to merge: re-extract, review the champion's Rust, re-state the specs, prov
 each `sorry`, then the `hachi/lean/Check.lean` § 4 axiom audit. `main` only ever
 receives a green module.
 
-> The standing debt today is `hachi/lean-wip/Sumcheck.lean` — target 5's
-> paired sumcheck, three obligations open out of twenty-four (the honest round
-> message's degree-`2b` identity and the two round loops that consume it) — and
-> behind it `hachi/lean-wip/Chain.lean`, the composed chain's two rows, proved but
-> promotable only once `Sumcheck` is. The audited library covers the extracted
-> scheme up to perfect correctness plus the `evalsplit`, balanced-digit, QuadEval,
-> QuadEval-protocol, `Ext4`, ring-switch, zero-check, end-piece and `R^lin` layers
-> — **one hundred and sixty** headline specs on the three kernel axioms. Every
+> The standing debt today is `hachi/lean-wip/LiftProver.lean` — the honest lift
+> prover, five statements open. The audited library covers the extracted scheme
+> up to perfect correctness plus every protocol link — `evalsplit`,
+> balanced-digit, QuadEval and its protocol layer, `Ext4`, ring-switch,
+> zero-check, end-piece, `R^lin`, the paired sumcheck and the composed chain —
+> **one hundred and eighty-six** headline specs on the three kernel axioms. Every
 > file staged there so far went through the promotion procedure in
-> [`hachi/lean-wip/README.md`](hachi/lean-wip/README.md); all but the first
-> two were proved by Aristotle sessions within a day or two of being staged.
+> [`hachi/lean-wip/README.md`](hachi/lean-wip/README.md); all but the first two
+> were proved by Aristotle sessions within a day or two of being staged.
 
 **`autonomy-harness` — run unattended.** Under `/loop`, each iteration picks the
 next operation by headroom, runs a route end to end, proves the result, and

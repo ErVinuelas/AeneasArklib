@@ -85,23 +85,21 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all one hundred and sixty proved specs: the three Lean kernel axioms, nothing
-> else. [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not
-> yet proved — holds `Sumcheck.lean`, target 5's paired sumcheck with three of its
-> twenty-four obligations still open, and `Chain.lean`, the composed chain's two
-> rows, proved but promotable only once `Sumcheck` is; its
-> [README](hachi/lean-wip/README.md) holds the procedure for promoting a file.
-> [`NOTES.md`](NOTES.md) § "The scheme layer is proved, and checked" scores every
+> of all one hundred and eighty-six proved specs: the three Lean kernel axioms,
+> nothing else. [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not
+> yet proved — holds `LiftProver.lean`, the honest lift prover's five statements;
+> its [README](hachi/lean-wip/README.md) holds the procedure for promoting a file.
+> > [`NOTES.md`](NOTES.md) § "The scheme layer is proved, and checked" scores every
 > claim in this repository as verified or not.
 >
 > Every protocol link of `Composition.lean`'s chain is now translated and stated:
 > the bridge, QuadEval, the `R^lin` adapter, the ring-switch lift, zero-check, the
 > sumcheck bridge, the paired sumcheck rounds, the final evaluation and the end
 > piece, plus the composed `chain_open`/`chain_verify` pair over them. What is
-> absent is narrower than code: the honest lift prover (`honestLiftWitnessC`,
-> the synthetic-division construction of the lifted witness, which the chain
-> still takes as an input), and an executable oracle for the chain at the real
-> width, where `alpha_contract`'s recomputation of `M̃_α` makes a single run
+> absent is narrower than code: the honest lift prover is translated and stated
+> but not yet proved, `chain_open` still takes the lifted witness as an input
+> rather than computing it, and there is no executable oracle for the chain at
+> the real width, where `alpha_contract`'s recomputation of `M̃_α` makes a single run
 > infeasible (`NOTES.md` § "The composed chain has no practical oracle").
 
 ## Usage
@@ -197,11 +195,12 @@ hachi/
     ZeroCheck.lean    the zero-check's `H₀` and `H_α` sides, plus the mixed evaluation -- proved
     EndPiece.lean     the end piece's check, prover and witness map -- proved
     Rlin.lean         the `R^lin` adapter and the polynomial-level bridge -- proved
+    Sumcheck.lean     the paired sumcheck: round polynomials, checks, loops, final check -- proved
+    Chain.lean        the composed chain's honest `open` and `verify` -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
     README.md         what has to happen before a file moves into lean/
-    Sumcheck.lean     the paired sumcheck, 24 statements, 3 still open
-    Chain.lean        the composed chain's two rows, proved; promotes behind Sumcheck
+    LiftProver.lean   the honest lift prover, 5 statements, open
 ```
 
 Each module names the ArkLib file it is a translation of, and each operation the

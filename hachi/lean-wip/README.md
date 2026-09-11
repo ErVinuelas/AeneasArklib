@@ -1,28 +1,16 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt (2026-09-10): `Sumcheck.lean`**, target 5's paired sumcheck
-(chain rows 6 and 8): twenty-four `sumcheck` statements plus the univariate
-carrier they rest on (`toRaw`/`toUni`, ported from cpoly's own `Univariate.lean`
-with every ported proof intact -- `zero`, `from_coeffs`, `trim`, `eval` and
-both `Mul` impls). **0 errors, 32 `sorry`s** for the prover: the twenty-four
-items and eight scaffolding lemmas (`toUni_eval`, the kernel identity, the two
-degree lemmas, `cube_size`, the two weight identities). It imports only promoted files (`EndPiece`), so the
-plain `lake env lean lean-wip/Sumcheck.lean` validates it. Beside it,
-`Chain.lean` (2026-09-10): the two composed-chain rows -- `chain_verify` against
-the composed verifier's verdict (`chainVerdict`: `verifyRounds`, then
-`finalCheck` and `endPieceCheck`) and `chain_open` against the honest prover's
-four wire messages -- **proved locally, 0 errors, 0 `sorry`s**, statements
-unchanged. It imports `Sumcheck`, so it is the two-staged-files case: validate
-it with the `LEAN_PATH` detour under "Working here", and promote `Sumcheck.lean`
-first -- its two headline closures carry `sorryAx` only through Sumcheck's
-still-open `honest_compute_g_spec` and `honest_round_messages_spec`. And
-`LiftProver.lean` (2026-09-11): the honest lift prover's five statements
-(`honest_lift_witness`, `c_quotient`, `c_row_sum` and the two private helpers),
-0 errors, 5 `sorry`s, importing promoted files only. Everything before both has been promoted, and
+**Current debt (2026-09-11): `LiftProver.lean`**, the honest lift prover's five
+statements (`honest_lift_witness`, `c_quotient`, `c_row_sum` and the two
+private helpers), 0 errors, 5 `sorry`s, importing promoted files only. The two
+files before it were promoted together on 2026-09-11: `Sumcheck.lean` (twenty-four
+headline specs, Aristotle sessions `430518ae`, `c8d6894b`, `3fd1e8a2`,
+thirty-two obligations to zero) and `Chain.lean` (the composed chain's two
+rows, proved locally). Everything before both has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
-hundred and sixty** headline specs and they all come out as the three
+hundred and eighty-six** headline specs and they all come out as the three
 Lean kernel axioms.
 
 That is worth a note rather than a celebration: the next translated operation

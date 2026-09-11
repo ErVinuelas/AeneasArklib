@@ -12,6 +12,8 @@ import RingSwitch
 import ZeroCheck
 import EndPiece
 import Rlin
+import Sumcheck
+import Chain
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -1310,5 +1312,50 @@ development, which joins this list when it is proved and promoted. -/
 #print axioms HachiEquiv.Rlin.PolyEvalStatement_new_spec
 #print axioms HachiEquiv.Rlin.to_quad_eval_statement_spec
 #print axioms HachiEquiv.Rlin.rlin_stmt_spec
+
+-- Target 5's paired sumcheck (`lean/Sumcheck.lean`, chain rows 6 and 8): the
+-- three statement carriers, the node and interpolation layer, the range and
+-- linear round polynomials in their lower-half and headline forms, the
+-- verifier's two decisions and its state map, the honest prover's message and
+-- final value, the bridge into the rounds, and the round loop three ways --
+-- the fused honest run (`round_loop`), the prover's half
+-- (`honest_round_messages`) and the verifier's half for arbitrary messages
+-- (`round_verify_loop`). The univariate carrier underneath (`toRaw`/`toUni`,
+-- ported from cpoly's own equivalence development) is not itself a mirrored
+-- item and has no line here; its specs are reached through these. Three
+-- Aristotle sessions, `430518ae`, `c8d6894b`, `3fd1e8a2`, thirty-two
+-- obligations to zero with no headline signature changed.
+#print axioms HachiEquiv.Sumcheck.NestedZeroCheckStmt_new_spec
+#print axioms HachiEquiv.Sumcheck.RoundMsg_new_spec
+#print axioms HachiEquiv.Sumcheck.RoundStatement_new_spec
+#print axioms HachiEquiv.Sumcheck.interpolate_spec
+#print axioms HachiEquiv.Sumcheck.round_node_spec
+#print axioms HachiEquiv.Sumcheck.round_value_zero_spec
+#print axioms HachiEquiv.Sumcheck.round_values_zero_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
+#print axioms HachiEquiv.Sumcheck.eq_prefix_spec
+#print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec
+#print axioms HachiEquiv.Sumcheck.eq_free_factor_spec
+#print axioms HachiEquiv.Sumcheck.round_value_alpha_spec
+#print axioms HachiEquiv.Sumcheck.round_values_alpha_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_spec
+#print axioms HachiEquiv.Sumcheck.alpha_public_table_spec
+#print axioms HachiEquiv.Sumcheck.honest_compute_g_spec
+#print axioms HachiEquiv.Sumcheck.round_check_spec
+#print axioms HachiEquiv.Sumcheck.round_out_spec
+#print axioms HachiEquiv.Sumcheck.final_check_spec
+#print axioms HachiEquiv.Sumcheck.honest_compute_y_spec
+#print axioms HachiEquiv.Sumcheck.nested_to_round_statement_spec
+#print axioms HachiEquiv.Sumcheck.round_loop_spec
+#print axioms HachiEquiv.Sumcheck.honest_round_messages_spec
+#print axioms HachiEquiv.Sumcheck.round_verify_loop_spec
+
+-- Stage 5's composed chain (`lean/Chain.lean`): the verifier's verdict against
+-- `chainVerdict` -- `verifyRounds`, then `finalCheck && endPieceCheck` -- and
+-- the honest prover's four wire messages, both through the statement thread
+-- `chainStart` (rows 1 to 7 as one map). Proved locally as compositions of the
+-- link specs; kernel-clean once `Sumcheck.lean` closed.
+#print axioms HachiEquiv.Chain.chain_verify_spec
+#print axioms HachiEquiv.Chain.chain_open_spec
 
 end HachiEquiv.Check

@@ -5173,3 +5173,39 @@ Owed, in order: commit 1 (Rust, tests, bench, exclusions, genesis copy, slot,
 `make bench-stamp`, commit 2 (stamps only, never `--amend`), `make bench-check`,
 then a filtered shake-out and a birth run for the three rows. Then the decision
 on `chain_open` taking `w` as an input.
+
+## Sumcheck and the chain are proved and promoted (2026-09-11)
+
+Aristotle's third pass on `Sumcheck.lean`, session `3fd1e8a2`, returned
+`COMPLETE` at **3 → 0** and the helper integrated it unaided -- the file had not
+moved since submission. Audit before promotion: every statement byte-identical
+to the submitted baseline (the scanner's one flag, `honestRounds`, was a false
+alarm from a lemma appended right after the definition; the two texts are
+equal); fourteen helper lemmas added -- `hypercubePoint_snoc_update`,
+`hypercubePoint_cons_eq`, `lagrangeBasis_get_cube`, `fold_tableFn_eq_mle`,
+`eqProd_hypercubePoint_split`, `eval_mle_layer_spec` and its loop,
+`roundCheck_honest`, the two initial-table lemmas, and the `honestRounds`
+congruences -- which are exactly the bridge lemmas the statement-side plan
+named for the degree-32 identity and the loop invariants; six local
+`maxHeartbeats` overrides, no axiom, no `admit`. All twenty-five spec theorems
+(the twenty-four items plus `cube_size`) print the three kernel axioms.
+
+Promoted together with `Chain.lean`, which imports it and re-typechecked over
+the finished file at 0 errors / 0 `sorry` / 0 warnings. Twenty-six new lines in
+`Check.lean` § 4; `make build`: 0 errors, **186** headline specs, kernel-only.
+`lean-wip/` now holds `LiftProver.lean` alone.
+
+The record of the three sessions, since it is the first file here that took
+more than one: `430518ae` (32 → 7, `OUT_OF_BUDGET`), `c8d6894b` (7 → 3,
+`OUT_OF_BUDGET`, adopted over hand proofs of three of the seven because its
+open set was a strict subset -- and with its broken partial proof of
+`honest_compute_g_spec` cut back to `sorry`), `3fd1e8a2` (3 → 0, `COMPLETE`,
+submitted with `--allow-small` on the recorded grounds that the remaining three
+were the identity and its two consumers). Two lessons: read `after_sorries`, not
+`task_status`, on an out-of-budget return; and a restart's partial may not
+compile here even when its count is right -- validate before adopting, always.
+
+With this, every mirrored item in the crate except the five lift-prover items
+has a proved, audited specification, and the composed chain's two rows are
+kernel-clean. Stage 4's exit is one file away; Stage 5's remaining structural
+gap is `chain_open` computing the witness it now can.

@@ -1,6 +1,14 @@
 /-
-Target 5's paired sumcheck (chain rows 6 and 8): **statements only**, plus the
-univariate carrier they rest on.
+Target 5's paired sumcheck (chain rows 6 and 8), **proved**, plus the
+univariate carrier it rests on.
+
+Twenty-four headline specs, all audited in `Check.lean` § 4. Proved across
+three Aristotle sessions on 2026-09-10/11 -- `430518ae` (32 → 7), `c8d6894b`
+(7 → 3, adopted over hand proofs of three of the seven), `3fd1e8a2` (3 → 0) --
+with every headline statement byte-identical to the file as first staged;
+the sessions added the helper lemmas (`cMLE_eval_update`, the interpolation
+loop specs, `hypercubePoint_snoc_update`, `fold_tableFn_eq_mle`, …) and no
+hypothesis. The paragraphs below are the design record from the staging.
 
 Twenty-four `sumcheck` items carry `Mirrors` lines and had no `_spec` anywhere
 (`make spec-check`, 2026-09-10; the last two, the prover's and the verifier's
@@ -112,13 +120,8 @@ each at a concrete fail point:
   `i + 1`, and `2^(m₀ − i − 1) ≤ Usize.max` for the table it builds -- and
   those are what it carries.
 
-It imports only promoted files, so it needs **no `LEAN_PATH` detour**:
-
-```sh
-cd hachi
-lake build
-lake env lean lean-wip/Sumcheck.lean
-```
+Promoted from `lean-wip/` on 2026-09-11; the proofs here are re-checked by
+every `make build`, and a `sorry` in this file is a build failure.
 -/
 import EndPiece
 import CompPoly.Univariate.Raw.Ops
@@ -2667,8 +2670,230 @@ theorem tableFn_congr {a b : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
     tableFn (m := a) t u = tableFn (m := b) t v := by
   rw [tableFn_apply, tableFn_apply, h]
 
+/-- Overwriting the last challenge of a cube point. -/
+theorem hypercubePoint_snoc_update {M i : ℕ} (hi : i < M + 1) (cs : Fin i → F) (x v : F)
+    (z : Fin (M + 1 - (i + 1)) → Fin 2) :
+    Function.update (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z) ⟨i, hi⟩ v =
+      InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs v) z := by
+  funext j
+  by_cases hj : j = ⟨i, hi⟩
+  · subst hj
+    rw [Function.update_self]
+    simp only [InnerOuter.hypercubePoint]
+    rw [dif_pos (by omega)]
+    have : (⟨i, by omega⟩ : Fin (i + 1)) = Fin.last i := rfl
+    rw [this, Fin.snoc_last]
+  · rw [Function.update_of_ne hj]
+    simp only [InnerOuter.hypercubePoint]
+    by_cases h1 : j.val < i + 1
+    · rw [dif_pos h1, dif_pos h1]
+      have hjv : j.val < i := by
+        rcases Nat.lt_or_ge j.val i with h | h
+        · exact h
+        · exact absurd (Fin.ext (by omega : j.val = i)) hj
+      have : (⟨j.val, h1⟩ : Fin (i + 1)) = Fin.castSucc ⟨j.val, hjv⟩ := rfl
+      rw [this, Fin.snoc_castSucc, Fin.snoc_castSucc]
+    · rw [dif_neg h1, dif_neg h1]
+
+/-- Prepending a bit to a cube tail is extending the challenge prefix by that bit. -/
+theorem hypercubePoint_cons_eq {M i k : ℕ} (hi : i < M + 1) (hk : M + 1 - (i + 1) = k)
+    (cs : Fin i → F) (b : Fin 2) (z : Fin (M + 1 - (i + 1)) → Fin 2)
+    (zb : Fin (M + 1 - i) → Fin 2)
+    (hz0 : zb ⟨0, by omega⟩ = b)
+    (hzs : ∀ j : Fin k, zb ⟨j.val + 1, by omega⟩ = z (Fin.cast hk.symm j)) :
+    InnerOuter.hypercubePoint (M + 1) i cs zb =
+      InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs ((b.val : ℕ) : F)) z := by
+  funext j
+  simp only [InnerOuter.hypercubePoint]
+  by_cases h1 : j.val < i
+  · rw [dif_pos h1, dif_pos (by omega : j.val < i + 1)]
+    have : (⟨j.val, by omega⟩ : Fin (i + 1)) = Fin.castSucc ⟨j.val, h1⟩ := rfl
+    rw [this, Fin.snoc_castSucc]
+  · rw [dif_neg h1]
+    by_cases h2 : j.val = i
+    · rw [dif_pos (by omega : j.val < i + 1)]
+      have hlast : (⟨j.val, by omega⟩ : Fin (i + 1)) = Fin.last i := Fin.ext (by simp; omega)
+      rw [hlast, Fin.snoc_last]
+      have : (⟨j.val - i, by omega⟩ : Fin (M + 1 - i)) = ⟨0, by omega⟩ :=
+        Fin.ext (show j.val - i = 0 from by omega)
+      rw [this, hz0]
+    · rw [dif_neg (by omega : ¬ j.val < i + 1)]
+      have hjk : j.val - (i + 1) < k := by omega
+      have h3 : (⟨j.val - i, by omega⟩ : Fin (M + 1 - i)) = ⟨(j.val - (i+1)) + 1, by omega⟩ :=
+        Fin.ext (show j.val - i = (j.val - (i+1)) + 1 from by omega)
+      rw [h3, hzs ⟨j.val - (i+1), hjk⟩]
+      rfl
+
+/-- The Lagrange weight at a cube point, as a product over the bits. -/
+theorem lagrangeBasis_get_cube {k : ℕ} (v : Vector F k) (z : Fin k → Fin 2) :
+    (CMlPolynomialEval.lagrangeBasis v).get (finFunctionFinEquiv z)
+      = ∏ j : Fin k, (if z j = 1 then v.get j else 1 - v.get j) := by
+  rw [Hachi.lagrangeBasis_get]
+  refine Finset.prod_congr rfl fun j _ => ?_
+  have hsym : finFunctionFinEquiv.symm (finFunctionFinEquiv z : Fin (2 ^ k)) = z :=
+    Equiv.symm_apply_apply _ _
+  have hbit : ((BitVec.ofFin (finFunctionFinEquiv z : Fin (2 ^ k))).getLsb j = true)
+      ↔ z j = 1 := by
+    rw [← hsym]
+    rw [cube_coord_eq_one_iff ((finFunctionFinEquiv z : Fin (2 ^ k)) : ℕ)
+      (finFunctionFinEquiv z).isLt j]
+    simp [BitVec.getLsb_eq_getElem]
+  exact if_congr hbit rfl rfl
+
+
+/-- One fold step of a tabulated multilinear extension. -/
+theorem fold_tableFn_eq_mle {M i k : ℕ} (him : i < M + 1) (hk : M + 1 - (i + 1) = k)
+    (t : alloc.vec.Vec cpoly.field.Ext4) (evals : (Fin (M + 1) → Fin 2) → F)
+    (cs : Fin i → F) (x : F)
+    (hv : ∀ y : Fin (M + 1 - i) → Fin 2, tableFn (m := M + 1 - i) t (finFunctionFinEquiv y)
+        = (InnerOuter.cMultilinearExtension (M + 1) evals).eval
+            (InnerOuter.hypercubePoint (M + 1) i cs y))
+    (z : Fin (M + 1 - (i + 1)) → Fin 2) :
+    fold (tableFn (m := k + 1) t) x
+        (finFunctionFinEquiv (fun j : Fin k => z (Fin.cast hk.symm j)))
+      = (InnerOuter.cMultilinearExtension (M + 1) evals).eval
+          (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z) := by
+  have hk1 : M + 1 - i = k + 1 := by omega
+  set Y : Fin (2 ^ k) := finFunctionFinEquiv (fun j : Fin k => z (Fin.cast hk.symm j)) with hY
+  have key : ∀ b : Fin 2, ∀ idx : Fin (2 ^ (k + 1)), idx.val = 2 * Y.val + b.val →
+      tableFn (m := k + 1) t idx
+        = (InnerOuter.cMultilinearExtension (M + 1) evals).eval
+            (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs ((b.val : ℕ) : F)) z) := by
+    intro b idx hidx
+    set zb : Fin (M + 1 - i) → Fin 2 :=
+      fun j => if h : j.val = 0 then b
+        else z (Fin.cast hk.symm ⟨j.val - 1, by have := j.isLt; omega⟩) with hzb
+    have hz0 : zb ⟨0, by omega⟩ = b := by rw [hzb]; simp
+    have hzs : ∀ j : Fin k, zb ⟨j.val + 1, by omega⟩ = z (Fin.cast hk.symm j) := by
+      intro j
+      rw [hzb]
+      dsimp only
+      rw [dif_neg (by omega)]
+      congr 1
+    have hval : ((finFunctionFinEquiv zb : Fin (2 ^ (M + 1 - i))) : ℕ) = 2 * Y.val + b.val := by
+      rw [hY]
+      exact finFunctionFinEquiv_cons_val hk1 zb (fun j : Fin k => z (Fin.cast hk.symm j)) b
+        hz0 hzs
+    rw [tableFn_congr (a := k + 1) (b := M + 1 - i) t idx (finFunctionFinEquiv zb)
+      (by rw [hidx, hval]), hv zb,
+      hypercubePoint_cons_eq him hk cs b z zb hz0 hzs]
+  have h0 := key 0 (lo Y) (by simp [lo])
+  have h1 := key 1 (hi Y) (by simp [hi])
+  rw [fold, h0, h1]
+  have hpt : (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z) ⟨i, him⟩ = x := by
+    simp only [InnerOuter.hypercubePoint]
+    rw [dif_pos (by omega : i < i + 1)]
+    have : (⟨i, by omega⟩ : Fin (i + 1)) = Fin.last i := rfl
+    rw [this, Fin.snoc_last]
+  have hup := cMLE_eval_update (m := M + 1) evals
+    (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z) ⟨i, him⟩
+  rw [hpt, hypercubePoint_snoc_update him cs x 0 z,
+    hypercubePoint_snoc_update him cs x 1 z] at hup
+  rw [hup]
+  norm_num
+
+set_option maxHeartbeats 1000000 in
+/-- The equality kernel at a cube point splits into prefix, free coordinate and suffix. -/
+theorem eqProd_hypercubePoint_split {M i : ℕ} (him : i < M + 1) (tau : Fin (M + 1) → F)
+    (cs : Fin i → F) (x : F) (z : Fin (M + 1 - (i + 1)) → Fin 2) :
+    eqProd tau (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z)
+      = eqProd (fun j : Fin i => tau (Fin.castLE (by omega) j)) cs
+        * ((1 - tau ⟨i, him⟩) * (1 - x) + tau ⟨i, him⟩ * x)
+        * ∏ j : Fin (M + 1 - (i + 1)),
+            (if z j = 1 then tau ⟨i + 1 + j.val, by have := j.isLt; omega⟩
+              else 1 - tau ⟨i + 1 + j.val, by have := j.isLt; omega⟩) := by
+  set a := InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs x) z with ha
+  have halt : ∀ j : Fin i, a ⟨j.val, by have := j.isLt; omega⟩ = cs j := by
+    intro j
+    have hj := j.isLt
+    rw [ha]
+    simp only [InnerOuter.hypercubePoint]
+    rw [dif_pos (show j.val < i + 1 by omega)]
+    have h3 : (⟨j.val, show j.val < i + 1 by omega⟩ : Fin (i + 1)) = Fin.castSucc j := rfl
+    rw [h3, Fin.snoc_castSucc]
+  have haeq : a ⟨i, him⟩ = x := by
+    rw [ha]
+    simp only [InnerOuter.hypercubePoint]
+    rw [dif_pos (show i < i + 1 by omega)]
+    have : (⟨i, by omega⟩ : Fin (i + 1)) = Fin.last i := rfl
+    rw [this, Fin.snoc_last]
+  have hagt : ∀ v : Fin (M + 1 - (i + 1)), a ⟨i + 1 + v.val, by have := v.isLt; omega⟩
+      = ((z v).val : F) := by
+    intro v
+    have hv := v.isLt
+    rw [ha]
+    simp only [InnerOuter.hypercubePoint]
+    rw [dif_neg (show ¬ (i + 1 + v.val < i + 1) by omega)]
+    have hzz : z ⟨i + 1 + v.val - (i + 1), by omega⟩ = z v := by
+      congr 1
+      exact Fin.ext (show i + 1 + v.val - (i + 1) = v.val from by omega)
+    rw [hzz]
+  set g : ℕ → F := fun j => if h : j < M + 1 then
+    tau ⟨j, h⟩ * a ⟨j, h⟩ + (1 - tau ⟨j, h⟩) * (1 - a ⟨j, h⟩) else 1 with hg
+  have hfull : eqProd tau a = ∏ j ∈ Finset.range (M + 1), g j := by
+    rw [eqProd, ← Fin.prod_univ_eq_prod_range g (M + 1)]
+    refine Finset.prod_congr rfl fun j _ => ?_
+    rw [hg]
+    dsimp only
+    rw [dif_pos j.isLt, Fin.eta]
+  have hA : ∏ j ∈ Finset.range i, g j
+      = eqProd (fun j : Fin i => tau (Fin.castLE (by omega) j)) cs := by
+    rw [eqProd, ← Fin.prod_univ_eq_prod_range]
+    refine Finset.prod_congr rfl fun j _ => ?_
+    have hj := j.isLt
+    rw [hg]
+    dsimp only
+    rw [dif_pos (show j.val < M + 1 by omega), halt j]
+    have h4 : (⟨j.val, show j.val < M + 1 by omega⟩ : Fin (M + 1))
+        = Fin.castLE (by omega) j := Fin.ext rfl
+    rw [h4]
+  have hB : ∏ y ∈ Finset.range 1, g (i + y)
+      = (1 - tau ⟨i, him⟩) * (1 - x) + tau ⟨i, him⟩ * x := by
+    rw [Finset.prod_range_one, hg]
+    dsimp only
+    rw [dif_pos (show i + 0 < M + 1 by omega)]
+    have h1 : (⟨i + 0, show i + 0 < M + 1 by omega⟩ : Fin (M + 1)) = ⟨i, him⟩ :=
+      Fin.ext (show i + 0 = i from by omega)
+    rw [h1, haeq]
+    ring
+  have hC : ∏ v ∈ Finset.range (M + 1 - (i + 1)), g (i + (1 + v))
+      = ∏ j : Fin (M + 1 - (i + 1)),
+          (if z j = 1 then tau ⟨i + 1 + j.val, by have := j.isLt; omega⟩
+            else 1 - tau ⟨i + 1 + j.val, by have := j.isLt; omega⟩) := by
+    rw [← Fin.prod_univ_eq_prod_range]
+    refine Finset.prod_congr rfl fun v _ => ?_
+    have hv := v.isLt
+    rw [hg]
+    dsimp only
+    rw [dif_pos (show i + (1 + v.val) < M + 1 by omega)]
+    have h2 : (⟨i + (1 + v.val), show i + (1 + v.val) < M + 1 by omega⟩ : Fin (M + 1))
+        = ⟨i + 1 + v.val, by omega⟩ :=
+      Fin.ext (show i + (1 + v.val) = i + 1 + v.val from by omega)
+    rw [h2, hagt v]
+    by_cases hz : z v = 1
+    · rw [if_pos hz, hz]
+      push_cast
+      ring
+    · have hne : (z v).val ≠ 1 := fun hcon => hz (Fin.ext hcon)
+      have hz2 := (z v).isLt
+      have hz0 : z v = 0 := Fin.ext (by omega)
+      rw [if_neg hz, hz0]
+      push_cast
+      ring
+  have hsplit : M + 1 = i + (1 + (M + 1 - (i + 1))) := by omega
+  rw [hfull]
+  rw [show (Finset.range (M + 1)) = Finset.range (i + (1 + (M + 1 - (i + 1)))) from
+    by rw [← hsplit]]
+  rw [Finset.prod_range_add g i (1 + (M + 1 - (i + 1)))]
+  rw [Finset.prod_range_add (fun y => g (i + y)) 1 (M + 1 - (i + 1))]
+  rw [← mul_assoc, hA, hB]
+  rw [show (∏ v ∈ Finset.range (M + 1 - (i + 1)), g (i + (1 + v)))
+      = ∏ v ∈ Finset.range (M + 1 - (i + 1)), g (i + (1 + v)) from rfl]
+  rw [hC]
+
 /-! ## The honest prover's round message -/
 
+set_option maxHeartbeats 1000000 in
 /-- `honest_compute_g` computes `honestComputeG` (`Completeness.lean:74`), the
 one item that mirrors a summand's `computableRoundPoly` **whole**: it applies
 the kernel's prefix and free factor that `round_poly_zero` leaves out, so
@@ -2712,7 +2937,150 @@ theorem honest_compute_g_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.RoundSt
     sumcheck.honest_compute_g stmt w_tab a_tab i
       ⦃ out => RepRoundMsg out
         (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hi ss sw) ⦄ := by
-  sorry
+  obtain ⟨hzc, hWc, hRt0, hRta, hc, ht0, hta⟩ := hs
+  obtain ⟨hr, hWt, hWa, hW0, hW1, htv, hav', h0v, h1v⟩ := hzc
+  obtain ⟨h0len, h0red⟩ := hW0
+  have hM1 : M + 1 ≤ Usize.max := by
+    have := stmt.zc.tau0.property
+    omega
+  have hkk : M + 1 - i.val = (M + 1 - i.val - 1) + 1 := by omega
+  have hw' : WfEvals ((M + 1 - i.val - 1) + 1) w_tab := by rwa [hkk] at hw
+  have ha' : WfEvals ((M + 1 - i.val - 1) + 1) a_tab := by rwa [hkk] at ha
+  have hcube : 2 ^ (M + 1 - i.val) ≤ Usize.max := by
+    have hlen := hw.1
+    have := w_tab.property
+    omega
+  simp only [sumcheck.honest_compute_g, sumcheck.RoundStatement.impl.zc,
+    sumcheck.NestedZeroCheckStmt.impl.tau0, sumcheck.RoundStatement.impl.challenges, bind_tc_ok]
+  step with eq_prefix_spec (m₀ := M + 1) (i := i.val) stmt.zc.tau0 stmt.challenges
+    ⟨h0len, h0red⟩ hWc (by omega) as ⟨pref, hRpref, hprefv⟩
+  step with eq_suffix_table_spec (m₀ := M + 1) stmt.zc.tau0 i ⟨h0len, h0red⟩ (by omega)
+    (by
+      have hmono : (2 : ℕ) ^ (M + 1 - i.val - 1) ≤ 2 ^ (M + 1 - i.val) :=
+        Nat.pow_le_pow_right (by omega) (by omega)
+      omega)
+      as ⟨suffix, hWsuf, hsufv⟩
+  step with round_poly_zero_spec (k := M + 1 - i.val - 1) w_tab suffix hw' hWsuf
+    as ⟨inner, hinlen, hinred, hinval⟩
+  step as ⟨e, he⟩
+  have hRe : Reduced e := he ▸ h0red _ (List.getElem_mem (by omega))
+  step with eq_free_factor_spec e hRe as ⟨free, hfreelen, hfreered, hfreeval⟩
+  step with uni_mul_spec inner free hinred hfreered
+    (by rw [hinlen, hfreelen]; have := usize_max_ge; omega) as ⟨wf, hwfred, hwfraw, hwflen⟩
+  step with uni_smul_spec pref wf hRpref hwfred as ⟨gz, hgzred, hgzraw⟩
+  step with round_poly_alpha_spec (k := M + 1 - i.val - 1) w_tab a_tab hw' ha'
+    as ⟨ga, hgalen, hgared, hgaval⟩
+  have hwv2 : ∀ y : Fin (M + 1 - i.val) → Fin 2,
+      tableFn (m := M + 1 - i.val) w_tab (finFunctionFinEquiv y)
+        = (InnerOuter.cMultilinearExtension (M + 1)
+            (InnerOuter.wTable Φ (M + 1) phiF 16 sw)).eval
+            (InnerOuter.hypercubePoint (M + 1) i.val ss.challenges y) := by
+    intro y
+    rw [hwv y, InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval]
+  have hfoldw : ∀ (x : F) (z : Fin (M + 1 - i.val - 1) → Fin 2),
+      fold (tableFn (m := (M + 1 - i.val - 1) + 1) w_tab) x (finFunctionFinEquiv z)
+        = InnerOuter.wTableMleEval Φ (M + 1) phiF 16 sw
+            (InnerOuter.hypercubePoint (M + 1) (i.val + 1) (Fin.snoc ss.challenges x) z) := by
+    intro x z
+    have hstep := fold_tableFn_eq_mle (k := M + 1 - i.val - 1) hi rfl w_tab
+      (InnerOuter.wTable Φ (M + 1) phiF 16 sw) ss.challenges x hwv2 z
+    rw [show (fun j : Fin (M + 1 - i.val - 1) => z (Fin.cast rfl j)) = z from rfl] at hstep
+    rw [hstep, InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval]
+  have hfolda : ∀ (x : F) (z : Fin (M + 1 - i.val - 1) → Fin 2),
+      fold (tableFn (m := (M + 1 - i.val - 1) + 1) a_tab) x (finFunctionFinEquiv z)
+        = (InnerOuter.cMultilinearExtension (M + 1)
+            (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)).eval
+            (InnerOuter.hypercubePoint (M + 1) (i.val + 1) (Fin.snoc ss.challenges x) z) := by
+    intro x z
+    have hstep := fold_tableFn_eq_mle (k := M + 1 - i.val - 1) hi rfl a_tab
+      (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)
+      ss.challenges x hav z
+    rw [show (fun j : Fin (M + 1 - i.val - 1) => z (Fin.cast rfl j)) = z from rfl] at hstep
+    exact hstep
+  have hre : ∀ f : Fin (2 ^ (M + 1 - i.val - 1)) → F,
+      ∑ Y : Fin (2 ^ (M + 1 - i.val - 1)), f Y
+        = ∑ z : Fin (M + 1 - i.val - 1) → Fin 2, f (finFunctionFinEquiv z) :=
+    fun f => (Fintype.sum_equiv finFunctionFinEquiv _ f (fun _ => rfl)).symm
+  have htau : ∀ (j : ℕ) (h : j < M + 1),
+      ss.zc.τ₀ ⟨j, h⟩ = toExt (stmt.zc.tau0.val.getD j cpoly.field.Ext4.ZERO) := by
+    intro j h
+    rw [← h0v]
+    rfl
+  have hev : toExt e = ss.zc.τ₀ ⟨i.val, hi⟩ := by
+    rw [htau i.val hi, he, List.getD_eq_getElem _ _ (by omega)]
+  have hpref : toExt pref
+      = eqProd (fun j : Fin i.val => ss.zc.τ₀ (Fin.castLE (by omega) j)) ss.challenges := by
+    rw [hprefv, hc, h0v]
+  have hsuf : ∀ z : Fin (M + 1 - i.val - 1) → Fin 2,
+      tableFn (m := M + 1 - i.val - 1) suffix (finFunctionFinEquiv z)
+        = ∏ j : Fin (M + 1 - (i.val + 1)),
+            (if z j = 1 then ss.zc.τ₀ ⟨i.val + 1 + j.val, by have := j.isLt; omega⟩
+              else 1 - ss.zc.τ₀ ⟨i.val + 1 + j.val, by have := j.isLt; omega⟩) := by
+    intro z
+    rw [tableFn, hsufv, lagrangeBasis_get_cube]
+    refine Finset.prod_congr rfl fun j _ => ?_
+    rw [Vector.get_ofFn, htau (i.val + 1 + j.val) (by have := j.isLt; omega)]
+    rfl
+  refine ⟨hgzred, hgared, ?_, ?_⟩
+  · have hgzlen : gz.val.length ≤ 35 := by
+      have h1 : (toRaw gz).size = (CPolynomial.Raw.smul (toExt pref) (toRaw wf)).size := by
+        rw [hgzraw]
+      rw [toRaw_size] at h1
+      have h2 : (CPolynomial.Raw.smul (toExt pref) (toRaw wf)).size = (toRaw wf).size := by
+        simp [CPolynomial.Raw.smul]
+      rw [h2, toRaw_size] at h1
+      rw [h1, hinlen, hfreelen] at *
+      omega
+    refine cpoly_eq_of_eval_eq (d := 34) (by norm_num) _ _
+      (toUni_mem_degreeLE gz 34 (by omega))
+      (degreeLE_mono' (by simp [InnerOuter.roundDegZero])
+        (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hi ss sw).1.2) ?_
+    intro x
+    rw [toUni_eval, hgzraw, raw_eval_smul, hwfraw, raw_eval_mul, ← toUni_eval inner,
+      ← toUni_eval free, hinval x, hfreeval x]
+    show _ = CPolynomial.eval x
+      (InnerOuter.computableRoundPoly
+        (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 ss.zc.τ₀ sw) ⟨i.val, hi⟩ ss.challenges)
+    have hHS : InnerOuter.hypercubeSum (M + 1)
+        (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 ss.zc.τ₀ sw) (i.val + 1)
+        (Fin.snoc ss.challenges x)
+        = ∑ z : Fin (M + 1 - i.val - 1) → Fin 2,
+            (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 ss.zc.τ₀ sw).eval
+              (InnerOuter.hypercubePoint (M + 1) (i.val + 1) (Fin.snoc ss.challenges x) z) := rfl
+    rw [InnerOuter.computableRoundPoly_eval, hHS]
+    have hterm : ∀ z : Fin (M + 1 - i.val - 1) → Fin 2,
+        (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 ss.zc.τ₀ sw).eval
+            (InnerOuter.hypercubePoint (M + 1) (i.val + 1) (Fin.snoc ss.challenges x) z)
+          = toExt pref * (tableFn (m := M + 1 - i.val - 1) suffix (finFunctionFinEquiv z)
+              * InnerOuter.rangeProduct 16
+                (fold (tableFn (m := (M + 1 - i.val - 1) + 1) w_tab) x (finFunctionFinEquiv z)))
+            * ((1 - toExt e) * (1 - x) + toExt e * x) := by
+      intro z
+      rw [InnerOuter.eval_sumcheckPolyZero, cEqualityPolynomial_eval_eq_eqProd,
+        eqProd_hypercubePoint_split hi ss.zc.τ₀ ss.challenges x z, hfoldw x z, hsuf z,
+        hpref, hev]
+      ring
+    rw [Finset.sum_congr rfl (fun z _ => hterm z), rangeSumZero, hre,
+      ← Finset.sum_mul, ← Finset.mul_sum]
+    ring
+  · refine cpoly_eq_of_eval_eq (d := 2) (by norm_num) _ _
+      (toUni_mem_degreeLE ga 2 (by omega))
+      (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hi ss sw).2.2 ?_
+    intro x
+    rw [hgaval x]
+    show linSumAlpha _ _ x = CPolynomial.eval x
+      (InnerOuter.computableRoundPoly
+        (InnerOuter.sumcheckPolyAlpha Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα sw)
+        ⟨i.val, hi⟩ ss.challenges)
+    have hHS : InnerOuter.hypercubeSum (M + 1)
+        (InnerOuter.sumcheckPolyAlpha Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα sw)
+        (i.val + 1) (Fin.snoc ss.challenges x)
+        = ∑ z : Fin (M + 1 - i.val - 1) → Fin 2,
+            (InnerOuter.sumcheckPolyAlpha Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα sw).eval
+              (InnerOuter.hypercubePoint (M + 1) (i.val + 1) (Fin.snoc ss.challenges x) z) := rfl
+    rw [InnerOuter.computableRoundPoly_eval, hHS, linSumAlpha, hre]
+    refine Finset.sum_congr rfl fun z _ => ?_
+    rw [InnerOuter.eval_sumcheckPolyAlpha, hfoldw x z, hfolda x z]
 
 /-! ## The verifier's two decisions and its state map -/
 
@@ -3030,6 +3398,195 @@ theorem nested_to_round_statement_spec {n μ m₀ m₁ dRows : ℕ} (zc : sumche
   · rw [toExt_ZERO, InnerOuter.nestedToRoundStatement]
   · rw [hta, ha, h1, InnerOuter.nestedToRoundStatement]
 
+/-- The loop of `cpoly::multilinear::eval_mle_layer`: the output holds the `j`
+folded entries produced so far. -/
+theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
+    (x0 one_minus : cpoly.field.Ext4) (half : Std.Usize)
+    (hvred : SliceReduced values) (hvlen : values.val.length = 2 ^ (k + 1))
+    (hx : Reduced x0) (hom : Reduced one_minus) (homv : toExt one_minus = 1 - toExt x0)
+    (hhalf : half.val = 2 ^ k)
+    (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize)
+    (hj : j.val ≤ 2 ^ k) (holen : out.val.length = j.val) (hored : VecReduced out)
+    (hoval : ∀ t : ℕ, t < j.val →
+      toExt (out.val.getD t cpoly.field.Ext4.ZERO)
+        = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+          + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO)) :
+    cpoly.multilinear.eval_mle_layer_loop values x0 half one_minus out j
+      ⦃ o => o.val.length = 2 ^ k ∧ VecReduced o ∧
+        ∀ t : ℕ, t < 2 ^ k →
+          toExt (o.val.getD t cpoly.field.Ext4.ZERO)
+            = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+              + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO) ⦄ := by
+  have hmax : 2 ^ (k + 1) ≤ Usize.max := by
+    have := values.property
+    omega
+  rw [cpoly.multilinear.eval_mle_layer_loop]
+  apply loop.spec_decr_nat (fun st => 2 ^ k - st.2.val)
+    (fun st => st.2.val ≤ 2 ^ k ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t : ℕ, t < st.2.val →
+        toExt (st.1.val.getD t cpoly.field.Ext4.ZERO)
+          = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+            + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO))
+  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hred1, hval1⟩
+    dsimp only at hj1 hlen1 hred1 hval1
+    simp only [cpoly.multilinear.eval_mle_layer_loop.body]
+    by_cases hlt : j1 < half
+    · rw [if_pos hlt]
+      have hjlt : j1.val < 2 ^ k := by rw [← hhalf]; scalar_tac
+      have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
+      have hlo : 2 * j1.val < values.val.length := by rw [hvlen, hpow]; omega
+      have hhi : 2 * j1.val + 1 < values.val.length := by rw [hvlen, hpow]; omega
+      step as ⟨idx, hidx⟩
+      have hidxv : idx.val = 2 * j1.val := by scalar_tac
+      step as ⟨lo, hlov⟩
+      step as ⟨idx1, hidx1⟩
+      have hidx1v : idx1.val = 2 * j1.val + 1 := by scalar_tac
+      step as ⟨hiv, hhiv⟩
+      simp only [hidxv] at hlov
+      simp only [hidx1v] at hhiv
+      have hRlo : Reduced lo := by
+        rw [hlov]; exact hvred _ (List.getElem_mem (by omega))
+      have hRhi : Reduced hiv := by
+        rw [hhiv]; exact hvred _ (List.getElem_mem (by omega))
+      step with ext_mul_spec one_minus lo hom hRlo as ⟨p1, hRp1, hp1⟩
+      step with ext_mul_spec x0 hiv hx hRhi as ⟨p2, hRp2, hp2⟩
+      step with ext_add_spec p1 p2 hRp1 hRp2 as ⟨sm, hRsm, hsm⟩
+      have hpush : o1.val.length < Usize.max := by omega
+      step as ⟨o2, ho2⟩
+      step as ⟨j2, hj2⟩
+      have hj2v : j2.val = j1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hj2v, ho2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRsm
+      · intro t ht
+        rw [hj2v] at ht
+        rcases Nat.lt_or_ge t j1.val with htlt | htge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = o1.val.length := by omega
+          rw [hteq, ho2, getD_append_eq, hsm, hp1, hp2, homv, hlov, hhiv, hlen1,
+            List.getD_eq_getElem _ _ (show 2 * j1.val < values.val.length from by omega),
+            List.getD_eq_getElem _ _ (show 2 * j1.val + 1 < values.val.length from by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hjeq : j1.val = 2 ^ k := by rw [← hhalf] at hj1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, hjeq], hred1, by rw [← hjeq]; exact hval1⟩
+  · exact ⟨hj, holen, hored, hoval⟩
+
+/-- `cpoly::multilinear::eval_mle_layer` folds a table's first coordinate at `x0`:
+the specification's `fold`. -/
+theorem eval_mle_layer_spec {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
+    (x0 : cpoly.field.Ext4) (ht : WfEvals (k + 1) t) (hx : Reduced x0) :
+    cpoly.multilinear.eval_mle_layer (alloc.vec.Vec.deref t) x0
+      ⦃ o => WfEvals k o ∧ ∀ y : Fin (2 ^ k),
+          tableFn (m := k) o y = fold (tableFn (m := k + 1) t) (toExt x0) y ⦄ := by
+  obtain ⟨htlen, htred⟩ := ht
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  rw [cpoly.multilinear.eval_mle_layer]
+  step as ⟨half, hhalf⟩
+  have hhalfv : half.val = 2 ^ k := by
+    have : (Slice.len (alloc.vec.Vec.deref t)).val = 2 ^ (k + 1) := by
+      simp only [deref_len]
+      scalar_tac
+    have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
+    scalar_tac
+  step with ext_sub_spec cpoly.field.Ext4.ONE x0 hR1 hx as ⟨om, hRom, homv⟩
+  apply spec_mono (eval_mle_layer_loop_spec (k := k) (alloc.vec.Vec.deref t) x0 om half
+    (sliceReduced_deref htred) (by simpa using htlen) hx hRom
+    (by rw [homv, toExt_ONE]) hhalfv (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+    (by simp) (by simp) (by intro u hu; simp at hu) (by intro t' ht'; simp at ht'))
+  rintro o ⟨holen, hored, hoval⟩
+  refine ⟨⟨holen, hored⟩, fun y => ?_⟩
+  rw [tableFn_apply, hoval y.val y.isLt, fold, tableFn_apply, tableFn_apply]
+  simp only [deref_val, lo, hi]
+
+/-- The zero-round cube point is the Boolean point itself. -/
+theorem hypercubePoint_zero {m : ℕ} (cs : Fin 0 → F) (y : Fin m → Fin 2) :
+    InnerOuter.hypercubePoint m 0 cs y = fun j => ((y j : ℕ) : F) := by
+  funext j
+  simp only [InnerOuter.hypercubePoint]
+  rw [dif_neg (by omega)]
+  congr 2
+
+/-- The honest round message passes the round check whenever the two targets are the
+partial hypercube sums (spec: `roundCheck_honestComputeG`, `Completeness.lean:119`,
+without the relation's other conjuncts). -/
+theorem roundCheck_honest {n μ M m₁ dRows i : ℕ}
+    (s : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ (M + 1) m₁ i)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (hi : i < M + 1)
+    (h0 : s.target₀ = InnerOuter.hypercubeSum (M + 1)
+      (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 s.zc.τ₀ sw) i s.challenges)
+    (hα : s.targetα = InnerOuter.hypercubeSum (M + 1)
+      (InnerOuter.sumcheckPolyAlpha Φ (M + 1) m₁ phiF 16 s.zc.rlin s.zc.α s.zc.τα sw) i
+      s.challenges) :
+    InnerOuter.roundCheck Φ (M + 1) m₁ 16 s
+      (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i hi s sw) = true := by
+  rw [InnerOuter.roundCheck, Bool.and_eq_true, beq_iff_eq, beq_iff_eq,
+    InnerOuter.honestComputeG_fst_eval, InnerOuter.honestComputeG_fst_eval,
+    InnerOuter.honestComputeG_snd_eval, InnerOuter.honestComputeG_snd_eval, h0, hα,
+    InnerOuter.hypercubeSum_succ (i := ⟨i, hi⟩),
+    InnerOuter.hypercubeSum_succ (i := ⟨i, hi⟩)]
+  exact ⟨rfl, rfl⟩
+
+/-- One fold of a represented table: `eval_mle_layer` carries the round-`i` tabulation
+of a multilinear extension to the round-`(i+1)` one. -/
+theorem eval_mle_layer_table_spec {M i : ℕ} (him : i < M + 1)
+    (t : alloc.vec.Vec cpoly.field.Ext4) (evals : (Fin (M + 1) → Fin 2) → F)
+    (cs : Fin i → F) (a : cpoly.field.Ext4)
+    (ht : WfEvals (M + 1 - i) t) (hRa : Reduced a)
+    (hv : ∀ y : Fin (M + 1 - i) → Fin 2, tableFn (m := M + 1 - i) t (finFunctionFinEquiv y)
+        = (InnerOuter.cMultilinearExtension (M + 1) evals).eval
+            (InnerOuter.hypercubePoint (M + 1) i cs y)) :
+    cpoly.multilinear.eval_mle_layer (alloc.vec.Vec.deref t) a
+      ⦃ o => WfEvals (M + 1 - (i + 1)) o ∧
+          ∀ y : Fin (M + 1 - (i + 1)) → Fin 2,
+            tableFn (m := M + 1 - (i + 1)) o (finFunctionFinEquiv y)
+              = (InnerOuter.cMultilinearExtension (M + 1) evals).eval
+                  (InnerOuter.hypercubePoint (M + 1) (i + 1) (Fin.snoc cs (toExt a)) y) ⦄ := by
+  have ht' : WfEvals ((M + 1 - i - 1) + 1) t := by
+    rwa [show M + 1 - i = (M + 1 - i - 1) + 1 from by omega] at ht
+  apply spec_mono (eval_mle_layer_spec (k := M + 1 - i - 1) t a ht' hRa)
+  rintro o ⟨hWo, hov⟩
+  refine ⟨hWo, fun y => ?_⟩
+  rw [hov (finFunctionFinEquiv y)]
+  have hstep := fold_tableFn_eq_mle (k := M + 1 - i - 1) him rfl t evals cs (toExt a) hv y
+  rw [show (fun j : Fin (M + 1 - i - 1) => y (Fin.cast rfl j)) = y from rfl] at hstep
+  exact hstep
+
+/-- The witness table at round `0` tabulates `wTableMleEval` over the cube. -/
+theorem initial_w_table {μ n M : ℕ} (w_tab : alloc.vec.Vec cpoly.field.Ext4)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (cs : Fin 0 → F)
+    (h : toEvals (m := M + 1) w_tab = InnerOuter.cWTableMle Φ (M + 1) phiF 16 sw) :
+    ∀ y : Fin (M + 1) → Fin 2, tableFn (m := M + 1) w_tab (finFunctionFinEquiv y)
+      = InnerOuter.wTableMleEval Φ (M + 1) phiF 16 sw
+          (InnerOuter.hypercubePoint (M + 1) 0 cs y) := by
+  intro y
+  show (toEvals (m := M + 1) w_tab).get _ = _
+  rw [h, InnerOuter.cWTableMle, Vector.get_ofFn, Equiv.symm_apply_apply,
+    InnerOuter.wTableMleEval_eq, ← InnerOuter.cMultilinearExtension_eval,
+    hypercubePoint_zero]
+  exact (InnerOuter.cMultilinearExtension_eval_boolean (M + 1)
+    (InnerOuter.wTable Φ (M + 1) phiF 16 sw) y).symm
+
+/-- The public α table at round `0` tabulates its multilinear extension over the cube. -/
+theorem initial_a_table {m₁ n μ M : ℕ} (a_tab : alloc.vec.Vec cpoly.field.Ext4)
+    (rs : InnerOuter.RlinStatement Φ n μ) (al : F) (tau : Fin m₁ → F) (cs : Fin 0 → F)
+    (h : toEvals (m := M + 1) a_tab = Vector.ofFn fun idx : Fin (2 ^ (M + 1)) =>
+      InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 rs al tau (finFunctionFinEquiv.symm idx)) :
+    ∀ y : Fin (M + 1) → Fin 2, tableFn (m := M + 1) a_tab (finFunctionFinEquiv y)
+      = (InnerOuter.cMultilinearExtension (M + 1)
+          (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 rs al tau)).eval
+          (InnerOuter.hypercubePoint (M + 1) 0 cs y) := by
+  intro y
+  show (toEvals (m := M + 1) a_tab).get _ = _
+  rw [h, Vector.get_ofFn, Equiv.symm_apply_apply, hypercubePoint_zero]
+  exact (InnerOuter.cMultilinearExtension_eval_boolean (M + 1)
+    (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 rs al tau) y).symm
+
+
 /-! ## The round loop, as the honest run -/
 
 /-- The honest prover's statements, round by round: `roundOut` applied to
@@ -3047,6 +3604,29 @@ def honestRounds {n μ M m₁ dRows : ℕ}
         (honestRounds ss sw cs k (Nat.le_of_succ_le hk)) sw)
       (cs ⟨k, hk⟩)
 
+/-- The honest run never changes the zero-check statement it started from. -/
+theorem honestRounds_zc {n μ M m₁ dRows : ℕ}
+    (ss : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ (M + 1) m₁ 0)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (cs : Fin (M + 1) → F) :
+    ∀ (k : ℕ) (hk : k ≤ M + 1), (honestRounds ss sw cs k hk).zc = ss.zc := by
+  intro k
+  induction k with
+  | zero => intro _; rfl
+  | succ k ih => intro hk; exact ih (Nat.le_of_succ_le hk)
+
+/-- Transporting a round statement's relation along an equality of round indices. -/
+theorem repRoundStmt_honestRounds_congr {n μ M m₁ dRows : ℕ}
+    (ss : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ (M + 1) m₁ 0)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (cs : Fin (M + 1) → F)
+    (s : sumcheck.RoundStatement) {k k' : ℕ} (hk : k ≤ M + 1) (hk' : k' ≤ M + 1) (h : k = k')
+    (hrep : RepRoundStmt (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := k) (dRows := dRows)
+      s (honestRounds ss sw cs k hk)) :
+    RepRoundStmt (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := k') (dRows := dRows)
+      s (honestRounds ss sw cs k' hk') := by
+  subst h
+  exact hrep
+
+set_option maxHeartbeats 2000000 in
 /-- `round_loop` runs the honest prover through all `m₀` rounds against the
 verifier's checks (spec: `roundsReductionAux`, `Completeness.lean:347`): when
 the initial targets are the two hypercube sums — the sum clauses of
@@ -3071,10 +3651,135 @@ theorem round_loop_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.RoundStatemen
       ⦃ out => ∃ s, out = some s ∧
         RepRoundStmt (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := M + 1) (dRows := dRows)
           s (honestRounds ss sw (toPoint (m := M + 1) challenges) (M + 1) le_rfl) ⦄ := by
-  sorry
+  obtain ⟨hzc, hWc, hRt0, hRta, hcv, ht0, hta⟩ := id hs
+  obtain ⟨hr, hWt, hWa, hW0, hW1, htv, halv, h0v, h1v⟩ := hzc
+  obtain ⟨h0len, h0red⟩ := hW0
+  obtain ⟨hclen, hcred⟩ := hc
+  set cs := toPoint (m := M + 1) challenges with hcs
+  have hm0len : (alloc.vec.Vec.len stmt.zc.tau0).val = M + 1 := by simpa using h0len
+  have hMmax : M + 1 ≤ Usize.max := by
+    have := Nat.lt_two_pow_self (n := M + 1)
+    omega
+  simp only [sumcheck.round_loop, sumcheck.RoundStatement.impl.zc,
+    sumcheck.NestedZeroCheckStmt.impl.tau0, sumcheck.NestedZeroCheckStmt.impl.rlin,
+    sumcheck.NestedZeroCheckStmt.impl.alpha, sumcheck.NestedZeroCheckStmt.impl.tau1,
+    bind_tc_ok]
+  step with c_w_table_mle_spec (μ := μ) (n := n) w sw (alloc.vec.Vec.len stmt.zc.tau0) hw
+    (by rw [hm0len]; exact hm0) hmax as ⟨me, hWme, hmev⟩
+  rw [hm0len] at hWme hmev
+  simp only [cpoly.multilinear.MultilinearEvals.into_values, bind_tc_ok]
+  step with alpha_public_table_spec (n := n) (μ := μ) (m₁ := m₁) stmt.zc.rlin ss.zc.rlin
+    stmt.zc.alpha stmt.zc.tau1 (alloc.vec.Vec.len stmt.zc.tau0) hr hWa hW1
+    (by rw [hm0len]; exact hm0) hmax as ⟨a_tab, hWa_tab, hatv⟩
+  rw [hm0len] at hWa_tab hatv
+  rw [halv, h1v] at hatv
+  rw [sumcheck.round_loop_loop]
+  apply loop.spec_decr_nat (fun st => M + 1 - st.2.2.2.val)
+    (fun st => ∃ (j : ℕ) (hj : j ≤ M + 1), st.2.2.2.val = j ∧
+      RepRoundStmt (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := j)
+          (dRows := dRows) st.2.2.1 (honestRounds ss sw cs j hj) ∧
+        WfEvals (M + 1 - j) st.1 ∧ WfEvals (M + 1 - j) st.2.1 ∧
+        (∀ y : Fin (M + 1 - j) → Fin 2,
+          tableFn (m := M + 1 - j) st.1 (finFunctionFinEquiv y) =
+            InnerOuter.wTableMleEval Φ (M + 1) phiF 16 sw
+              (InnerOuter.hypercubePoint (M + 1) j (honestRounds ss sw cs j hj).challenges y)) ∧
+        (∀ y : Fin (M + 1 - j) → Fin 2,
+          tableFn (m := M + 1 - j) st.2.1 (finFunctionFinEquiv y) =
+            (InnerOuter.cMultilinearExtension (M + 1)
+              (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)).eval
+              (InnerOuter.hypercubePoint (M + 1) j (honestRounds ss sw cs j hj).challenges y)) ∧
+        (honestRounds ss sw cs j hj).target₀ = InnerOuter.hypercubeSum (M + 1)
+          (InnerOuter.sumcheckPolyZero Φ (M + 1) phiF 16 ss.zc.τ₀ sw) j
+          (honestRounds ss sw cs j hj).challenges ∧
+        (honestRounds ss sw cs j hj).targetα = InnerOuter.hypercubeSum (M + 1)
+          (InnerOuter.sumcheckPolyAlpha Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα sw) j
+          (honestRounds ss sw cs j hj).challenges)
+  · rintro ⟨wt, at1, cur, i⟩ ⟨j, hj, hij, hrep, hWw, hWa2, hwv, hav, htg0, htgα⟩
+    dsimp only at hij
+    subst hij
+    dsimp only at hrep hWw hWa2 hwv hav htg0 htgα
+    simp only [sumcheck.round_loop_loop.body]
+    by_cases hlt : i < alloc.vec.Vec.len stmt.zc.tau0
+    · rw [if_pos hlt]
+      have hilt : i.val < M + 1 := by rw [← hm0len]; scalar_tac
+      have hzceq : (honestRounds ss sw cs i.val hj).zc = ss.zc := honestRounds_zc ss sw cs i.val hj
+      have hav' : ∀ y : Fin (M + 1 - i.val) → Fin 2,
+          tableFn (m := M + 1 - i.val) at1 (finFunctionFinEquiv y) =
+            (InnerOuter.cMultilinearExtension (M + 1)
+              (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16
+                (honestRounds ss sw cs i.val hj).zc.rlin (honestRounds ss sw cs i.val hj).zc.α
+                (honestRounds ss sw cs i.val hj).zc.τα)).eval
+              (InnerOuter.hypercubePoint (M + 1) i.val
+                (honestRounds ss sw cs i.val hj).challenges y) := by
+        rw [hzceq]; exact hav
+      step with honest_compute_g_spec (n := n) (μ := μ) (M := M) (m₁ := m₁) (dRows := dRows)
+        cur wt at1 i (honestRounds ss sw cs i.val hj) sw hrep hilt hWw hWa2 hwv hav'
+          as ⟨g, hgrep⟩
+      step with round_check_spec (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := i.val)
+        (dRows := dRows) cur g (honestRounds ss sw cs i.val hj)
+        (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hilt
+          (honestRounds ss sw cs i.val hj) sw) hrep hgrep as ⟨b, hb⟩
+      have hbt : b = true := by
+        rw [hb]
+        exact roundCheck_honest (honestRounds ss sw cs i.val hj) sw hilt
+          (by rw [htg0, hzceq]) (by rw [htgα, hzceq])
+      rw [if_pos hbt]
+      have hich : i.val < challenges.val.length := by omega
+      step as ⟨a, hav2⟩
+      have hRa : Reduced a := hav2 ▸ hcred _ (List.getElem_mem hich)
+      have haval : toExt a = cs ⟨i.val, hilt⟩ := by
+        rw [hcs]
+        simp only [toPoint]
+        rw [hav2, List.getD_eq_getElem _ _ hich]
+      step with round_out_spec (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := i.val)
+        (dRows := dRows) cur g a (honestRounds ss sw cs i.val hj)
+        (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hilt
+          (honestRounds ss sw cs i.val hj) sw) hrep hgrep hRa (by omega) as ⟨cur1, hrep1⟩
+      step with eval_mle_layer_table_spec (M := M) (i := i.val) hilt wt
+        (InnerOuter.wTable Φ (M + 1) phiF 16 sw)
+        (honestRounds ss sw cs i.val hj).challenges a hWw hRa
+        (by
+          intro y
+          rw [hwv y, InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval])
+          as ⟨wt1, hWw1, hwv1⟩
+      step with eval_mle_layer_table_spec (M := M) (i := i.val) hilt at1
+        (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)
+        (honestRounds ss sw cs i.val hj).challenges a hWa2 hRa hav as ⟨at2, hWa3, hav3⟩
+      step as ⟨i1, hi1⟩
+      have hi1v : i1.val = i.val + 1 := by scalar_tac
+      have hnext : honestRounds ss sw cs (i.val + 1) (by omega)
+          = InnerOuter.roundOut Φ (M + 1) m₁ 16 (honestRounds ss sw cs i.val hj)
+              (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hilt
+                (honestRounds ss sw cs i.val hj) sw) (cs ⟨i.val, hilt⟩) := rfl
+      rw [haval] at hrep1 hwv1 hav3
+      refine ⟨⟨i.val + 1, by omega, hi1v, ?_, hWw1, hWa3, ?_, ?_, ?_, ?_⟩, by omega⟩
+      · rw [hnext]; exact hrep1
+      · intro y
+        rw [hwv1 y, hnext, InnerOuter.roundOut,
+          InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval]
+      · intro y
+        rw [hav3 y, hnext, InnerOuter.roundOut]
+      · rw [hnext, InnerOuter.roundOut]
+        dsimp only
+        rw [InnerOuter.honestComputeG_fst_eval, hzceq]
+      · rw [hnext, InnerOuter.roundOut]
+        dsimp only
+        rw [InnerOuter.honestComputeG_snd_eval, hzceq]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i.val = M + 1 := by rw [← hm0len] at hj ⊢; scalar_tac
+      exact ⟨cur, rfl,
+        repRoundStmt_honestRounds_congr ss sw cs cur hj le_rfl hieq hrep⟩
+  · exact ⟨0, Nat.zero_le _, by simp, hs, by simpa using hWme, by simpa using hWa_tab,
+      (fun y => initial_w_table (μ := μ) (n := n) (M := M) me sw _ hmev y),
+      (fun y => initial_a_table (m₁ := m₁) (n := n) (μ := μ) (M := M) a_tab ss.zc.rlin ss.zc.α
+        ss.zc.τα _ hatv y),
+      h0, hα⟩
+
 
 /-! ## The two halves of the rounds, separately -/
 
+set_option maxHeartbeats 2000000 in
 /-- `honest_round_messages` is the prover's half of `round_loop`: the `m₀` wire
 messages `honestComputeG` produces along `honestRounds` (spec: `roundProver`
 at `computeG := honestComputeG`, `Rounds.lean:157`, one per round of
@@ -3097,7 +3802,131 @@ theorem honest_round_messages_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.Ro
                               g_alpha := alloc.vec.Vec.new cpoly.field.Ext4 })
             (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF k hk
               (honestRounds ss sw (toPoint (m := M + 1) challenges) k (Nat.le_of_lt hk)) sw) ⦄ := by
-  sorry
+  obtain ⟨hzc, hWc, hRt0, hRta, hcv, ht0, hta⟩ := id hs
+  obtain ⟨hr, hWt, hWa, hW0, hW1, htv, halv, h0v, h1v⟩ := hzc
+  obtain ⟨h0len, h0red⟩ := hW0
+  obtain ⟨hclen, hcred⟩ := hc
+  set cs := toPoint (m := M + 1) challenges with hcs
+  have hm0len : (alloc.vec.Vec.len stmt.zc.tau0).val = M + 1 := by simpa using h0len
+  have hMmax : M + 1 ≤ Usize.max := by
+    have := Nat.lt_two_pow_self (n := M + 1)
+    omega
+  simp only [sumcheck.honest_round_messages, sumcheck.RoundStatement.impl.zc,
+    sumcheck.NestedZeroCheckStmt.impl.tau0, sumcheck.NestedZeroCheckStmt.impl.rlin,
+    sumcheck.NestedZeroCheckStmt.impl.alpha, sumcheck.NestedZeroCheckStmt.impl.tau1,
+    bind_tc_ok]
+  step with c_w_table_mle_spec (μ := μ) (n := n) w sw (alloc.vec.Vec.len stmt.zc.tau0) hw
+    (by rw [hm0len]; exact hm0) hmax as ⟨me, hWme, hmev⟩
+  rw [hm0len] at hWme hmev
+  simp only [cpoly.multilinear.MultilinearEvals.into_values, bind_tc_ok]
+  step with alpha_public_table_spec (n := n) (μ := μ) (m₁ := m₁) stmt.zc.rlin ss.zc.rlin
+    stmt.zc.alpha stmt.zc.tau1 (alloc.vec.Vec.len stmt.zc.tau0) hr hWa hW1
+    (by rw [hm0len]; exact hm0) hmax as ⟨a_tab, hWa_tab, hatv⟩
+  rw [hm0len] at hWa_tab hatv
+  rw [halv, h1v] at hatv
+  rw [sumcheck.honest_round_messages_loop]
+  apply loop.spec_decr_nat (fun st => M + 1 - st.2.2.2.2.val)
+    (fun st => ∃ (j : ℕ) (hj : j ≤ M + 1), st.2.2.2.2.val = j ∧
+      RepRoundStmt (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := j)
+          (dRows := dRows) st.2.2.1 (honestRounds ss sw cs j hj) ∧
+        WfEvals (M + 1 - j) st.1 ∧ WfEvals (M + 1 - j) st.2.1 ∧
+        (∀ y : Fin (M + 1 - j) → Fin 2,
+          tableFn (m := M + 1 - j) st.1 (finFunctionFinEquiv y) =
+            InnerOuter.wTableMleEval Φ (M + 1) phiF 16 sw
+              (InnerOuter.hypercubePoint (M + 1) j (honestRounds ss sw cs j hj).challenges y)) ∧
+        (∀ y : Fin (M + 1 - j) → Fin 2,
+          tableFn (m := M + 1 - j) st.2.1 (finFunctionFinEquiv y) =
+            (InnerOuter.cMultilinearExtension (M + 1)
+              (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)).eval
+              (InnerOuter.hypercubePoint (M + 1) j (honestRounds ss sw cs j hj).challenges y)) ∧
+        st.2.2.2.1.val.length = j ∧
+        ∀ (k : ℕ) (hk : k < j),
+          RepRoundMsg
+            (st.2.2.2.1.val.getD k { g_zero := alloc.vec.Vec.new cpoly.field.Ext4,
+                                      g_alpha := alloc.vec.Vec.new cpoly.field.Ext4 })
+            (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF k (by omega)
+              (honestRounds ss sw cs k (by omega)) sw))
+  · rintro ⟨wt, at1, cur, out, i⟩ ⟨j, hj, hij, hrep, hWw, hWa2, hwv, hav, houtlen, houtrep⟩
+    dsimp only at hij
+    subst hij
+    dsimp only at hrep hWw hWa2 hwv hav houtlen houtrep
+    simp only [sumcheck.honest_round_messages_loop.body]
+    by_cases hlt : i < alloc.vec.Vec.len stmt.zc.tau0
+    · rw [if_pos hlt]
+      have hilt : i.val < M + 1 := by rw [← hm0len]; scalar_tac
+      have hzceq : (honestRounds ss sw cs i.val hj).zc = ss.zc := honestRounds_zc ss sw cs i.val hj
+      have hav' : ∀ y : Fin (M + 1 - i.val) → Fin 2,
+          tableFn (m := M + 1 - i.val) at1 (finFunctionFinEquiv y) =
+            (InnerOuter.cMultilinearExtension (M + 1)
+              (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16
+                (honestRounds ss sw cs i.val hj).zc.rlin (honestRounds ss sw cs i.val hj).zc.α
+                (honestRounds ss sw cs i.val hj).zc.τα)).eval
+              (InnerOuter.hypercubePoint (M + 1) i.val
+                (honestRounds ss sw cs i.val hj).challenges y) := by
+        rw [hzceq]; exact hav
+      step with honest_compute_g_spec (n := n) (μ := μ) (M := M) (m₁ := m₁) (dRows := dRows)
+        cur wt at1 i (honestRounds ss sw cs i.val hj) sw hrep hilt hWw hWa2 hwv hav'
+          as ⟨g, hgrep⟩
+      have hich : i.val < challenges.val.length := by omega
+      step as ⟨a, hav2⟩
+      have hRa : Reduced a := hav2 ▸ hcred _ (List.getElem_mem hich)
+      have haval : toExt a = cs ⟨i.val, hilt⟩ := by
+        rw [hcs]
+        simp only [toPoint]
+        rw [hav2, List.getD_eq_getElem _ _ hich]
+      step with round_out_spec (n := n) (μ := μ) (m₀ := M + 1) (m₁ := m₁) (i := i.val)
+        (dRows := dRows) cur g a (honestRounds ss sw cs i.val hj)
+        (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hilt
+          (honestRounds ss sw cs i.val hj) sw) hrep hgrep hRa (by omega) as ⟨cur1, hrep1⟩
+      step with eval_mle_layer_table_spec (M := M) (i := i.val) hilt wt
+        (InnerOuter.wTable Φ (M + 1) phiF 16 sw)
+        (honestRounds ss sw cs i.val hj).challenges a hWw hRa
+        (by
+          intro y
+          rw [hwv y, InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval])
+          as ⟨wt1, hWw1, hwv1⟩
+      step with eval_mle_layer_table_spec (M := M) (i := i.val) hilt at1
+        (InnerOuter.alphaPublicEvals Φ (M + 1) m₁ phiF 16 ss.zc.rlin ss.zc.α ss.zc.τα)
+        (honestRounds ss sw cs i.val hj).challenges a hWa2 hRa hav as ⟨at2, hWa3, hav3⟩
+      have hpush : out.val.length < Usize.max := by omega
+      step as ⟨out1, hout1⟩
+      step as ⟨i1, hi1⟩
+      have hi1v : i1.val = i.val + 1 := by scalar_tac
+      have hnext : honestRounds ss sw cs (i.val + 1) (by omega)
+          = InnerOuter.roundOut Φ (M + 1) m₁ 16 (honestRounds ss sw cs i.val hj)
+              (InnerOuter.honestComputeG Φ m₁ 16 (by norm_num) phiF i.val hilt
+                (honestRounds ss sw cs i.val hj) sw) (cs ⟨i.val, hilt⟩) := rfl
+      rw [haval] at hrep1 hwv1 hav3
+      refine ⟨⟨i.val + 1, by omega, hi1v, ?_, hWw1, hWa3, ?_, ?_, ?_, ?_⟩, by omega⟩
+      · rw [hnext]; exact hrep1
+      · intro y
+        rw [hwv1 y, hnext, InnerOuter.roundOut,
+          InnerOuter.wTableMleEval_eq, InnerOuter.cMultilinearExtension_eval]
+      · intro y
+        rw [hav3 y, hnext, InnerOuter.roundOut]
+      · rw [hout1, List.length_append, houtlen]; simp
+      · intro k hk
+        rcases Nat.lt_or_ge k i.val with hklt | hkge
+        · rw [hout1, getD_append_lt _ _ _ (by omega)]
+          exact houtrep k hklt
+        · have hkeq : k = i.val := by omega
+          subst hkeq
+          have hgetd : out1.val.getD i.val
+              { g_zero := alloc.vec.Vec.new cpoly.field.Ext4,
+                g_alpha := alloc.vec.Vec.new cpoly.field.Ext4 } = g := by
+            rw [hout1, ← houtlen, getD_append_eq]
+          rw [hgetd]
+          exact hgrep
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i.val = M + 1 := by rw [← hm0len] at hj ⊢; scalar_tac
+      exact ⟨by rw [houtlen, hieq], fun k hk => houtrep k (by omega)⟩
+  · exact ⟨0, Nat.zero_le _, by simp, hs, by simpa using hWme, by simpa using hWa_tab,
+      (fun y => initial_w_table (μ := μ) (n := n) (M := M) me sw _ hmev y),
+      (fun y => initial_a_table (m₁ := m₁) (n := n) (μ := μ) (M := M) a_tab ss.zc.rlin ss.zc.α
+        ss.zc.τα _ hatv y),
+      by simp, fun k hk => absurd hk (by omega)⟩
+
 
 /-- The verifier's half, on the specification side: `roundVerifier`'s
 `if roundCheck then pure roundOut else failure` (`Rounds.lean:116`), iterated

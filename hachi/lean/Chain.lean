@@ -6,11 +6,9 @@ its verifier, one at its honest prover — and both compositions of specs that
 already exist: nine promoted links and the staged `Sumcheck.lean`. Nothing new
 is computed here; what is new is the *thread*, and that thread is the content.
 Both proofs are `step` chains through the link specs, one `rcases` on the
-verifier's `Option`, and nothing else. They are complete in this file, but two
-of the link specs they call — `final_check_spec` and
-`honest_round_messages_spec` in `Sumcheck.lean` — are still open there, so the
-axiom closure of both theorems carries `sorryAx` until `Sumcheck.lean` is
-proved out, and this file promotes only after it.
+verifier's `Option`, and nothing else. They are complete in this file and,
+since `Sumcheck.lean`'s last obligations closed on 2026-09-11, kernel-clean:
+the two headline closures print exactly the three Lean kernel axioms.
 
 # What `evaluation` is, and what these statements are against
 
@@ -53,13 +51,11 @@ two value bounds they earn: `2 ^ m₀ ≤ Usize.max` (tables) and the lift key's
 width `μR + nR·8 ≤ Usize.max`, which at the pin is a concrete `57 384` and is a
 helper lemma rather than a hypothesis.
 
-# Staging
+# Promotion
 
-This imports `Sumcheck`, itself staged, so validating it needs the `LEAN_PATH`
-detour of `lean-wip/README.md` § "Working here", and the Aristotle helper's
-plain validation cannot integrate a return for it until `Sumcheck.lean` is
-promoted. Both statements are compositions of proved or stated specs and were
-proved locally, not by Aristotle.
+Promoted from `lean-wip/` on 2026-09-11, behind `Sumcheck.lean`, which it
+imports. Both statements are compositions of proved specs and were proved
+locally, not by Aristotle.
 -/
 import Rlin
 import Sumcheck
