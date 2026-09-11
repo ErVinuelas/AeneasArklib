@@ -344,6 +344,7 @@ pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
 // The honest lift prover (spec: `RingSwitch/ComputableWitness.lean`)
 // ---------------------------------------------------------------------------
 
+// @genesis 594c984 2026-09-11 — ringswitch::long_mul
 /// The unreduced product of two ring elements' canonical representatives: the
 /// `2N - 1` coefficients of a polynomial in `Zq[X]` (spec: the `*` of
 /// `CPolynomial (ZMod q)` inside `cRowSum`, `RingSwitch/Reduction.lean:441`).
@@ -384,6 +385,7 @@ fn long_mul(a: &Rq, b: &Rq) -> Vec<Fp> {
     out
 }
 
+// @genesis 594c984 2026-09-11 — ringswitch::c_row_sum
 /// The `i`-th lifted row `Σⱼ Mᵢⱼ·zⱼ`, unreduced, as a polynomial in `Zq[X]`
 /// with `2N - 1` coefficients (spec: `cRowSum`, `RingSwitch/Reduction.lean:439`).
 ///
@@ -418,6 +420,7 @@ pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     acc
 }
 
+// @genesis 594c984 2026-09-11 — ringswitch::div_by_modulus
 /// The quotient of a `Zq[X]` polynomial with `2N - 1` coefficients by the monic
 /// modulus `X^N + 1` (spec: `CPolynomial.divByMonic` at `Φ.φ`,
 /// `CompPoly/Univariate/Basic.lean:841`, the division `cQuotient` performs).
@@ -465,6 +468,7 @@ fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
     quot
 }
 
+// @genesis 594c984 2026-09-11 — ringswitch::c_quotient
 /// The computable honest quotient of row `i`: the lifted row defect
 /// `Σⱼ Mᵢⱼ·zⱼ − yᵢ` divided by the modulus (spec: `cQuotient`,
 /// `RingSwitch/ComputableWitness.lean:65`).
@@ -488,6 +492,7 @@ pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
     QuotientRow::new(&quot)
 }
 
+// @genesis 594c984 2026-09-11 — ringswitch::honest_lift_witness
 /// The computable honest lifted witness: `z` itself and one quotient row per
 /// output row (spec: `honestLiftWitnessC`, `RingSwitch/ComputableWitness.lean:89`).
 ///
