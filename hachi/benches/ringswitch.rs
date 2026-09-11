@@ -181,6 +181,20 @@ const LIFT_COMMIT_Z: usize = 4;
 /// reduction that [`LIFT_MESSAGE_Z`] does not.
 const LIFT_COMMIT_RHO_ROWS: usize = 1;
 
+/// The honest lift prover's `R^lin` width: **REDUCED**, from `RLIN_COLS = 57 344`.
+///
+/// W1 again, in its unreduced form. `c_row_sum` performs `μ` products of two
+/// `RING_DEGREE`-coefficient polynomials **without** the negacyclic fold --
+/// `2^20` field multiplications each, the same count as `ring::mul` -- so at
+/// the pin one row is `57 344 × ~1.5 ms ≈ 86 s` and `honest_lift_witness` is
+/// `RLIN_ROWS = 5` of them. Removal condition: a sub-quadratic `ring::mul`
+/// champion whose kernel also serves the unreduced product (the `long_mul`
+/// helper is `ring::mul` minus the fold). What survives the reduction is the
+/// composition the row exists to price: `μ` long products, one coefficientwise
+/// accumulation, one `O(N)` division per row. Rows: one, so the
+/// `honest_lift_witness` row is one `c_quotient` plus the witness assembly.
+const LIFT_PROVER_COLS: usize = 4;
+
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
 /// computations; a macro makes that impossible.
@@ -427,6 +441,74 @@ macro_rules! define_cases {
                 )
             }
 
+            fn statement(seed: u64, rows: usize, cols: usize) -> hc::ringswitch::RlinStatement {
+                hc::ringswitch::RlinStatement::new(
+                    matrix_of(seed, rows, cols),
+                    vec_of(seed.wrapping_add(0x100), rows),
+                    hc::params::CHAIN_GAMMA,
+                )
+            }
+
+            fn d_words(v: &Vec<cpoly::Fp>) -> u64 {
+                let n = v.len();
+                let mut acc = support::mix_len(0, n);
+                let mut k = 0usize;
+                while k < n {
+                    acc = support::mix(acc, v[k].to_u64());
+                    k += 1;
+                }
+                acc
+            }
+
+            fn d_witness(w: &LiftedWitness) -> u64 {
+                let mut acc = d_polyvec(w.z());
+                let rows = w.rho().len();
+                acc = support::mix_len(acc, rows);
+                let mut i = 0usize;
+                while i < rows {
+                    acc = support::mix(acc, d_rq(&w.rho()[i].to_rq()));
+                    i += 1;
+                }
+                acc
+            }
+
+            /// `cRowSum` at one row of `LIFT_PROVER_COLS` columns: `μ` unreduced
+            /// `RING_DEGREE²` products plus a `2N − 1`-wide accumulation. W1
+            /// REDUCED; see `LIFT_PROVER_COLS`.
+            pub fn c_row_sum(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x8047_0000_0000_0080, 1, cols);
+                let z = vec_of(0x8047_0000_0000_0090, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_row_sum(black_box(&s), black_box(&z), black_box(0)),
+                    d_words,
+                )
+            }
+
+            /// `cQuotient` at one row: the row sum, the `yᵢ` subtraction and the
+            /// division by `X^N + 1`. W1 REDUCED; see `LIFT_PROVER_COLS`.
+            pub fn c_quotient(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x8047_0000_0000_00A0, 1, cols);
+                let z = vec_of(0x8047_0000_0000_00B0, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_quotient(black_box(&s), black_box(&z), black_box(0)),
+                    |r| d_rq(&r.to_rq()),
+                )
+            }
+
+            /// `honestLiftWitnessC` at one row: one `c_quotient` plus copying `z`
+            /// into the witness. W1 REDUCED; see `LIFT_PROVER_COLS`.
+            pub fn honest_lift_witness(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement(0x8047_0000_0000_00C0, 1, cols);
+                let z = vec_of(0x8047_0000_0000_00D0, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::honest_lift_witness(black_box(&s), black_box(&z)),
+                    d_witness,
+                )
+            }
+
             /// `cEvalAt` at the **real** ring degree: `d = 1024` terms, each
             /// one `Fp`→`Ext4` embedding, one extension multiply and one add --
             /// plus the power, which the specification's `eval₂` recomputes per
@@ -517,6 +599,15 @@ fn ringswitch_benches(c: &mut Criterion) {
     // removal condition, and why the composition survives this reduction.
     // @covers ringswitch::lift_commit
     bench_case!(c, "ringswitch/lift_commit", lift_commit, [LIFT_COMMIT_Z]);
+
+    // The honest lift prover, W1 REDUCED at one row of `LIFT_PROVER_COLS`
+    // columns; see that constant for the arithmetic and the removal condition.
+    // @covers ringswitch::c_row_sum
+    bench_case!(c, "ringswitch/c_row_sum", c_row_sum, [LIFT_PROVER_COLS]);
+    // @covers ringswitch::c_quotient
+    bench_case!(c, "ringswitch/c_quotient", c_quotient, [LIFT_PROVER_COLS]);
+    // @covers ringswitch::honest_lift_witness
+    bench_case!(c, "ringswitch/honest_lift_witness", honest_lift_witness, [LIFT_PROVER_COLS]);
 
     // Both at the **real** ring degree: the mixed `Fp`-coefficient/`Ext4`-point
     // evaluation the zero-check's α side is built on. Two rows for two

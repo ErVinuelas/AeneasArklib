@@ -5118,3 +5118,58 @@ the two things actually absent named precisely — the honest lift prover
 (`honestLiftWitnessC`) and an executable oracle for the chain at real width.
 The wip README's "Working here" now records the two times the detour was used
 instead of claiming it never was.
+
+## The honest lift prover is translated (2026-09-11)
+
+Stage 5's one untranslated item. Three ArkLib definitions
+(`RingSwitch/ComputableWitness.lean`, `RingSwitch/Reduction.lean:439`) land in
+`hachi/src/ringswitch.rs` as `honest_lift_witness`, `c_quotient` and
+`c_row_sum`, with two private helpers: `long_mul`, the product of two canonical
+representatives in `Zq[X]` **without** the negacyclic fold, and
+`div_by_modulus`, `CPolynomial.divByMonic` at `X^N + 1`. `chain_open` can now
+stop taking the lifted witness as an input; that change is a separate step,
+because `chain.rs` is frozen and stamped and the swap is a body change to a
+frozen item (carve-out open, no number published against it -- but a decision,
+not a reflex). Brief: `briefs/target-7-lift-prover.md`.
+
+Four things this pass established:
+
+* **The unreduced product finally has a carrier**, and it is a `Vec<Fp>` of
+  exactly `2N − 1 = 2047` words, not a newtype: only `c_quotient` consumes it.
+  It is the `Raw` array reading of a `CPolynomial (ZMod q)`; the Lean
+  representation `toCPolyK` is `ofArray` of the word map -- trim on the spec
+  side -- with the length a separate invariant (`WfWords`). This is the
+  object NOTES.md § "Target 4 opens" said the crate lacked; it exists now
+  because the lift prover cannot do without it, where the zero-check could.
+* **The division is the spec's recursion, densified.** `divModByMonicAux.go`
+  peels one leading term per step and trims; on the fixed-width carrier the
+  loop walks every slot from `2N − 2` down to `N`, and a zero slot is a step the
+  specification skipped -- a no-op subtraction. That equivalence ("skipped steps
+  are no-ops") is the one non-mechanical lemma the proof of `div_by_modulus`
+  will need, and the brief names it. The loop's state is a **3-tuple**
+  `(rem, quot, k)` -- two vectors plus the counter, the first such shape since
+  `mul_loop1_loop0`; the extraction audit recorded it.
+* **The oracle is the cross-route identity.** The semantics test states
+  `defect = ρ · (X^N + 1) + (M·z − y)ᵢ` in `Zq[X]` with the reduced term taken
+  from the ring layer's own (separately proved) `mat_vec_mul`/`sub` and the
+  products by a `u128` double sum -- two routes to one polynomial meeting in
+  the unreduced ring. A `+` for the modulus's sign, a dropped high half, or an
+  off-by-one in the leading slot all fail it; the honest case (`y := M·z`)
+  additionally has zero remainder, and the quotient's top word is asserted
+  zero (degree `≤ N − 2`, inside `hρ`'s `d − 1`).
+* **Everything before the freeze is green**: 20 ring-switch tests (4 new),
+  full suite, clippy pedantic; extraction regenerated with 27 declarations,
+  0 axioms, deterministic, no `Shared` change; `make build` 0 errors, 160
+  axiom lines kernel-only; `Check.lean` § 2b pins the five items;
+  `lean-wip/LiftProver.lean` states all five (0 errors, 5 `sorry`s);
+  `make spec-check` **155/155 stated**; coverage 155 mirrored, 77 benched
+  (three new W1-REDUCED rows at `LIFT_PROVER_COLS = 4`), 78 excluded (the two
+  private helpers, by name with the reason), 0 unaccounted. Genesis has the
+  five appended verbatim, the candidate slot is synced and null. `check-genesis`
+  fails only on the five missing stamps, which is the choreography's step 3.
+
+Owed, in order: commit 1 (Rust, tests, bench, exclusions, genesis copy, slot,
+`Check.lean`, `Generated.lean`, `LiftProver.lean`, brief stays local), then
+`make bench-stamp`, commit 2 (stamps only, never `--amend`), `make bench-check`,
+then a filtered shake-out and a birth run for the three rows. Then the decision
+on `chain_open` taking `w` as an input.

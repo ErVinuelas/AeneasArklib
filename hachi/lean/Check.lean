@@ -687,6 +687,22 @@ example (alpha : cpoly.field.Ext4) (p : ring.Rq) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at alpha p
 example (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at_modulus alpha
+
+-- The honest lift prover (`RingSwitch/ComputableWitness.lean`), the chain's last
+-- untranslated item. Two shape facts: the unreduced row sum is a `Vec Fp` of
+-- `2N - 1` words -- a `CPolynomial (ZMod q)` in the `Raw` array reading, the
+-- first carrier in this crate for a product that is *not* folded back into
+-- `Rq` -- and the division by the modulus returns the `N`-word quotient that
+-- `QuotientRow::new` wraps. The two helpers are private and still extracted.
+example (a b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := ringswitch.long_mul a b
+example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
+    Result (alloc.vec.Vec cpoly.field.Fp) := ringswitch.c_row_sum s z i
+example (p : alloc.vec.Vec cpoly.field.Fp) : Result (alloc.vec.Vec cpoly.field.Fp) :=
+  ringswitch.div_by_modulus p
+example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
+    Result ringswitch.QuotientRow := ringswitch.c_quotient s z i
+example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) : Result ringswitch.LiftedWitness :=
+  ringswitch.honest_lift_witness s z
 example (alpha : cpoly.field.Ext4) (l : Std.Usize) : Result cpoly.field.Ext4 :=
   zerocheck.alpha_tilde alpha l
 example (tau1 : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :

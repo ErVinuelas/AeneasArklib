@@ -8436,6 +8436,449 @@ def ringswitch.LiftedWitness.new
   := do
   ok { z, rho }
 
+/-- [hachi::ringswitch::long_mul]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 349:4-352:5 -/
+@[rust_loop_body]
+def ringswitch.long_mul_loop0.body
+  (width : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < width
+  then
+    let out1 ← alloc.vec.Vec.push out cpoly.field.Fp.ZERO
+    let k1 ← k + 1#usize
+    ok (cont (out1, k1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::long_mul]: loop 0:
+    Source: 'src/ringswitch.rs', lines 349:4-352:5 -/
+@[rust_loop]
+def ringswitch.long_mul_loop0
+  (width : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, k1) => ringswitch.long_mul_loop0.body width out1 k1)
+    (out, k)
+
+/-- [hachi::ringswitch::long_mul]: loop body 2:
+    Source: 'src/ringswitch.rs', lines 357:8-362:9 -/
+@[rust_loop_body]
+def ringswitch.long_mul_loop1_loop0.body
+  (b : ring.Rq) (n : Std.Usize) (i : Std.Usize) (ai : cpoly.field.Fp)
+  (out : alloc.vec.Vec cpoly.field.Fp) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if j < n
+  then
+    let f ← ring.Rq.coeff b j
+    let term ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul ai f
+    let s ← i + j
+    let f1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) out s
+    let f2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f1 term
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) out s
+    let j1 ← j + 1#usize
+    let out1 := index_mut_back f2
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::long_mul]: loop 2:
+    Source: 'src/ringswitch.rs', lines 357:8-362:9 -/
+@[rust_loop]
+def ringswitch.long_mul_loop1_loop0
+  (b : ring.Rq) (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
+  (i : Std.Usize) (ai : cpoly.field.Fp) (j : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, j1) => ringswitch.long_mul_loop1_loop0.body b n i ai out1 j1)
+    (out, j)
+
+/-- [hachi::ringswitch::long_mul]: loop body 1:
+    Source: 'src/ringswitch.rs', lines 354:4-364:5 -/
+@[rust_loop_body]
+def ringswitch.long_mul_loop1.body
+  (a : ring.Rq) (b : ring.Rq) (n : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if i < n
+  then
+    let ai ← ring.Rq.coeff a i
+    let out1 ← ringswitch.long_mul_loop1_loop0 b n out i ai 0#usize
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::ringswitch::long_mul]: loop 1:
+    Source: 'src/ringswitch.rs', lines 354:4-364:5 -/
+@[rust_loop]
+def ringswitch.long_mul_loop1
+  (a : ring.Rq) (b : ring.Rq) (n : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, i1) => ringswitch.long_mul_loop1.body a b n out1 i1)
+    (out, i)
+
+/-- [hachi::ringswitch::long_mul]:
+    Source: 'src/ringswitch.rs', lines 344:0-366:1 -/
+def ringswitch.long_mul
+  (a : ring.Rq) (b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := do
+  let i ← 2#usize * params.RING_DEGREE
+  let width ← i - 1#usize
+  let out ←
+    ringswitch.long_mul_loop0 width (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+  ringswitch.long_mul_loop1 a b params.RING_DEGREE out 0#usize
+
+/-- [hachi::ringswitch::c_row_sum]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 385:4-388:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.c_row_sum_loop0.body
+  (width : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < width
+  then
+    let acc1 ← alloc.vec.Vec.push acc cpoly.field.Fp.ZERO
+    let k1 ← k + 1#usize
+    ok (cont (acc1, k1))
+  else ok (done acc)
+
+/-- [hachi::ringswitch::c_row_sum]: loop 0:
+    Source: 'src/ringswitch.rs', lines 385:4-388:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.c_row_sum_loop0
+  (width : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (acc1, k1) => ringswitch.c_row_sum_loop0.body width acc1 k1)
+    (acc, k)
+
+/-- [hachi::ringswitch::c_row_sum]: loop body 2:
+    Source: 'src/ringswitch.rs', lines 393:8-396:9
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.c_row_sum_loop1_loop0.body
+  (width : Std.Usize) (prod : alloc.vec.Vec cpoly.field.Fp)
+  (acc : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if t < width
+  then
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) acc t
+    let f1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) prod t
+    let f2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f f1
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) acc t
+    let t1 ← t + 1#usize
+    let acc1 := index_mut_back f2
+    ok (cont (acc1, t1))
+  else ok (done acc)
+
+/-- [hachi::ringswitch::c_row_sum]: loop 2:
+    Source: 'src/ringswitch.rs', lines 393:8-396:9
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.c_row_sum_loop1_loop0
+  (width : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp)
+  (prod : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (acc1, t1) => ringswitch.c_row_sum_loop1_loop0.body width prod acc1
+      t1)
+    (acc, t)
+
+/-- [hachi::ringswitch::c_row_sum]: loop body 1:
+    Source: 'src/ringswitch.rs', lines 390:4-398:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.c_row_sum_loop1.body
+  (z : linalg.PolyVec) (width : Std.Usize) (cols : Std.Usize)
+  (row : linalg.PolyVec) (acc : alloc.vec.Vec cpoly.field.Fp) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if j < cols
+  then
+    let r ← linalg.PolyVec.get row j
+    let r1 ← linalg.PolyVec.get z j
+    let prod ← ringswitch.long_mul r r1
+    let acc1 ← ringswitch.c_row_sum_loop1_loop0 width acc prod 0#usize
+    let j1 ← j + 1#usize
+    ok (cont (acc1, j1))
+  else ok (done acc)
+
+/-- [hachi::ringswitch::c_row_sum]: loop 1:
+    Source: 'src/ringswitch.rs', lines 390:4-398:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.c_row_sum_loop1
+  (z : linalg.PolyVec) (width : Std.Usize) (cols : Std.Usize)
+  (row : linalg.PolyVec) (acc : alloc.vec.Vec cpoly.field.Fp) (j : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (acc1, j1) => ringswitch.c_row_sum_loop1.body z width cols row acc1
+      j1)
+    (acc, j)
+
+/-- [hachi::ringswitch::c_row_sum]:
+    Source: 'src/ringswitch.rs', lines 378:0-400:1
+    Visibility: public -/
+def ringswitch.c_row_sum
+  (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  let i1 ← 2#usize * params.RING_DEGREE
+  let width ← i1 - 1#usize
+  let pm ← ringswitch.RlinStatement.impl.m s
+  let cols ← linalg.PolyMatrix.cols pm
+  let row ← linalg.PolyMatrix.row pm i
+  let acc ←
+    ringswitch.c_row_sum_loop0 width (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+  ringswitch.c_row_sum_loop1 z width cols row acc 0#usize
+
+/-- [hachi::ringswitch::div_by_modulus]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 427:4-430:5 -/
+@[rust_loop_body]
+def ringswitch.div_by_modulus_loop0.body
+  (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
+  (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  let i := alloc.vec.Vec.len p
+  if t < i
+  then
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) p t
+    let rem1 ← alloc.vec.Vec.push rem f
+    let t1 ← t + 1#usize
+    ok (cont (rem1, t1))
+  else ok (done rem)
+
+/-- [hachi::ringswitch::div_by_modulus]: loop 0:
+    Source: 'src/ringswitch.rs', lines 427:4-430:5 -/
+@[rust_loop]
+def ringswitch.div_by_modulus_loop0
+  (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (rem1, t1) => ringswitch.div_by_modulus_loop0.body p rem1 t1)
+    (rem, t)
+
+/-- [hachi::ringswitch::div_by_modulus]: loop body 1:
+    Source: 'src/ringswitch.rs', lines 433:4-436:5 -/
+@[rust_loop_body]
+def ringswitch.div_by_modulus_loop1.body
+  (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if u < n
+  then
+    let quot1 ← alloc.vec.Vec.push quot cpoly.field.Fp.ZERO
+    let u1 ← u + 1#usize
+    ok (cont (quot1, u1))
+  else ok (done quot)
+
+/-- [hachi::ringswitch::div_by_modulus]: loop 1:
+    Source: 'src/ringswitch.rs', lines 433:4-436:5 -/
+@[rust_loop]
+def ringswitch.div_by_modulus_loop1
+  (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (quot1, u1) => ringswitch.div_by_modulus_loop1.body n quot1 u1)
+    (quot, u)
+
+/-- [hachi::ringswitch::div_by_modulus]: loop body 2:
+    Source: 'src/ringswitch.rs', lines 438:4-445:5 -/
+@[rust_loop_body]
+def ringswitch.div_by_modulus_loop2.body
+  (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
+  (quot : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × (alloc.vec.Vec
+    cpoly.field.Fp) × Std.Usize) (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k > 0#usize
+  then
+    let k1 ← k - 1#usize
+    let lead ← k1 + n
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) rem lead
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) quot k1
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) rem k1
+    let f1 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub f c
+    let (_, index_mut_back1) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) rem k1
+    let rem1 := index_mut_back1 f1
+    let (_, index_mut_back2) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) rem1 lead
+    let rem2 := index_mut_back2 cpoly.field.Fp.ZERO
+    let quot1 := index_mut_back c
+    ok (cont (rem2, quot1, k1))
+  else ok (done quot)
+
+/-- [hachi::ringswitch::div_by_modulus]: loop 2:
+    Source: 'src/ringswitch.rs', lines 438:4-445:5 -/
+@[rust_loop]
+def ringswitch.div_by_modulus_loop2
+  (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
+  (quot : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (rem1, quot1, k1) => ringswitch.div_by_modulus_loop2.body n rem1 quot1
+      k1)
+    (rem, quot, k)
+
+/-- [hachi::ringswitch::div_by_modulus]:
+    Source: 'src/ringswitch.rs', lines 423:0-447:1 -/
+def ringswitch.div_by_modulus
+  (p : alloc.vec.Vec cpoly.field.Fp) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  let rem ←
+    ringswitch.div_by_modulus_loop0 p (alloc.vec.Vec.new cpoly.field.Fp)
+      0#usize
+  let quot ←
+    ringswitch.div_by_modulus_loop1 params.RING_DEGREE (alloc.vec.Vec.new
+      cpoly.field.Fp) 0#usize
+  let k ← params.RING_DEGREE - 1#usize
+  ringswitch.div_by_modulus_loop2 params.RING_DEGREE rem quot k
+
+/-- [hachi::ringswitch::c_quotient]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 464:4-467:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.c_quotient_loop.body
+  (n : Std.Usize) (y : ring.Rq) (defect : alloc.vec.Vec cpoly.field.Fp)
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < n
+  then
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) defect k
+    let f1 ← ring.Rq.coeff y k
+    let f2 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub f f1
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) defect k
+    let k1 ← k + 1#usize
+    let defect1 := index_mut_back f2
+    ok (cont (defect1, k1))
+  else ok (done defect)
+
+/-- [hachi::ringswitch::c_quotient]: loop 0:
+    Source: 'src/ringswitch.rs', lines 464:4-467:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.c_quotient_loop
+  (n : Std.Usize) (defect : alloc.vec.Vec cpoly.field.Fp) (y : ring.Rq)
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (defect1, k1) => ringswitch.c_quotient_loop.body n y defect1 k1)
+    (defect, k)
+
+/-- [hachi::ringswitch::c_quotient]:
+    Source: 'src/ringswitch.rs', lines 459:0-470:1
+    Visibility: public -/
+def ringswitch.c_quotient
+  (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
+  Result ringswitch.QuotientRow
+  := do
+  let defect ← ringswitch.c_row_sum s z i
+  let pv ← ringswitch.RlinStatement.impl.yvec s
+  let y ← linalg.PolyVec.get pv i
+  let defect1 ←
+    ringswitch.c_quotient_loop params.RING_DEGREE defect y 0#usize
+  let quot ← ringswitch.div_by_modulus defect1
+  ringswitch.QuotientRow.new quot
+
+/-- [hachi::ringswitch::honest_lift_witness]: loop body 0:
+    Source: 'src/ringswitch.rs', lines 488:4-491:5
+    Visibility: public -/
+@[rust_loop_body]
+def ringswitch.honest_lift_witness_loop.body
+  (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (rows : Std.Usize)
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ringswitch.QuotientRow) × Std.Usize)
+    (alloc.vec.Vec ringswitch.QuotientRow))
+  := do
+  if i < rows
+  then
+    let qr ← ringswitch.c_quotient s z i
+    let rho1 ← alloc.vec.Vec.push rho qr
+    let i1 ← i + 1#usize
+    ok (cont (rho1, i1))
+  else ok (done rho)
+
+/-- [hachi::ringswitch::honest_lift_witness]: loop 0:
+    Source: 'src/ringswitch.rs', lines 488:4-491:5
+    Visibility: public -/
+@[rust_loop]
+def ringswitch.honest_lift_witness_loop
+  (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (rows : Std.Usize)
+  (rho : alloc.vec.Vec ringswitch.QuotientRow) (i : Std.Usize) :
+  Result (alloc.vec.Vec ringswitch.QuotientRow)
+  := do
+  loop
+    (fun (rho1, i1) => ringswitch.honest_lift_witness_loop.body s z rows rho1
+      i1)
+    (rho, i)
+
+/-- [hachi::ringswitch::honest_lift_witness]:
+    Source: 'src/ringswitch.rs', lines 484:0-493:1
+    Visibility: public -/
+def ringswitch.honest_lift_witness
+  (s : ringswitch.RlinStatement) (z : linalg.PolyVec) :
+  Result ringswitch.LiftedWitness
+  := do
+  let pm ← ringswitch.RlinStatement.impl.m s
+  let rows ← linalg.PolyMatrix.rows pm
+  let rho ←
+    ringswitch.honest_lift_witness_loop s z rows (alloc.vec.Vec.new
+      ringswitch.QuotientRow) 0#usize
+  let pv ← linalg.PolyVec.copy z
+  ringswitch.LiftedWitness.new pv rho
+
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::t]:
     Source: 'src/sumcheck.rs', lines 481:4-483:5
     Visibility: public -/

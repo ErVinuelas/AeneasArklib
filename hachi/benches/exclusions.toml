@@ -444,6 +444,20 @@ which calls it `33 x 32` times per invocation, and its *values* are pinned in
 that binary's `check()` -- nodes `0` and `1` explicitly, because those are the
 two `roundCheck` evaluates (`Sumcheck/Rounds.lean:100`)."""
 
+"ringswitch::long_mul" = """
+private (`hachi/src/ringswitch.rs`): the unreduced `RING_DEGREE²` product that
+`c_row_sum` sums over its `μ` columns -- `ring::mul` minus the negacyclic fold,
+so its cost is `ring/mul`'s and its shape is measured through
+`ringswitch/c_row_sum`, which calls it once per column. A case here would
+restate `ring/mul` without the fold and report it as a new number."""
+
+"ringswitch::div_by_modulus" = """
+private (`hachi/src/ringswitch.rs`): one `O(N)` pass over a `2N - 1`-word vector
+with one subtraction per slot, no products -- microseconds against the
+milliseconds of the long products it follows. Measured through
+`ringswitch/c_quotient`, which is exactly one row sum, one `yᵢ` subtraction and
+one division; the division's share of that row is the `O(N)` term."""
+
 "ringswitch::rho_digits_at" = """
 one bounds-checked `Vec` index over the benched `ringswitch/rho_digits`
 (`hachi/src/ringswitch.rs`): the body is `rho_digits(&rho[i].0, u)` and nothing

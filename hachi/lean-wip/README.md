@@ -15,7 +15,10 @@ four wire messages -- **proved locally, 0 errors, 0 `sorry`s**, statements
 unchanged. It imports `Sumcheck`, so it is the two-staged-files case: validate
 it with the `LEAN_PATH` detour under "Working here", and promote `Sumcheck.lean`
 first -- its two headline closures carry `sorryAx` only through Sumcheck's
-still-open `final_check_spec` and `honest_round_messages_spec`. Everything before both has been promoted, and
+still-open `honest_compute_g_spec` and `honest_round_messages_spec`. And
+`LiftProver.lean` (2026-09-11): the honest lift prover's five statements
+(`honest_lift_witness`, `c_quotient`, `c_row_sum` and the two private helpers),
+0 errors, 5 `sorry`s, importing promoted files only. Everything before both has been promoted, and
 the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
 (twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
 `2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
@@ -121,8 +124,10 @@ lake env lean lean-wip/<File>.lean
 A file here importing *another* file here still would — `lake build` produces no
 `.olean` for anything in this directory, so the importer cannot resolve it. Two
 staged files at once therefore means building the lower one by hand into a scratch
-`LEAN_PATH`; one staged file at a time avoids the problem entirely, and is how both
-promotions so far were done.
+`LEAN_PATH`; one staged file at a time avoids the problem entirely. The detour has
+been needed twice: `ZeroCheck.lean`/`EndPiece.lean` over the then-staged `Ext.lean`
+(2026-09-09), and `Chain.lean` over the staged `Sumcheck.lean` (2026-09-10), whose
+recipe is under "Fourth staged file" below.
 
 Set `autoImplicit false` in every file here. Both promoted files needed it: with it
 on, an unknown identifier in a binder becomes an implicitly bound variable, so a

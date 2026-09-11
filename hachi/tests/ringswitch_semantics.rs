@@ -38,8 +38,7 @@ use hachi::params::{
 use hachi::ring::Rq;
 use hachi::ringswitch::{
     c_eval_at, c_eval_at_modulus, lift_commit, lift_message, rho_digit_as_rq, rho_digits,
-    rho_digits_at, LiftedWitness, QuotientRow,
-};
+    rho_digits_at, LiftedWitness, QuotientRow, RlinStatement, c_quotient, c_row_sum, honest_lift_witness};
 use support::{coeffs_of, rq_from_u64s, show, Lcg};
 
 /// `Nat.digits b n`, the whole little-endian list.
@@ -402,4 +401,145 @@ fn lift_short_check_accepts_and_rejects_on_the_z_norm() {
         vec![quotient_row(&Rq::zero())],
     );
     assert!(!lift_short_check(&bad));
+}
+
+// --- the honest lift prover (`RingSwitch/ComputableWitness.lean`) -------------
+
+/// The unreduced product of two coefficient vectors in `Zq[X]`, by the plain
+/// double sum with `u128` accumulation -- no `Fp` arithmetic, no fold, so a
+/// negacyclic sign or a dropped high half in the crate mismatches here.
+fn long_mul_ref(a: &[u64], b: &[u64]) -> Vec<u64> {
+    let q = u128::from(hachi::params::Q);
+    let mut out = vec![0u128; a.len() + b.len() - 1];
+    for (i, x) in a.iter().enumerate() {
+        for (j, y) in b.iter().enumerate() {
+            out[i + j] = (out[i + j] + u128::from(*x) * u128::from(*y)) % q;
+        }
+    }
+    out.iter().map(|v| *v as u64).collect()
+}
+
+/// `(a - b) mod q` on words.
+fn sub_mod(a: u64, b: u64) -> u64 {
+    let q = hachi::params::Q;
+    (a + q - b) % q
+}
+
+/// The row defect `Σⱼ Mᵢⱼ·zⱼ − yᵢ` in `Zq[X]`, from the reference product.
+fn defect_ref(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<u64> {
+    let width = 2 * RING_DEGREE - 1;
+    let mut acc = vec![0u64; width];
+    for j in 0..z.len() {
+        let prod = long_mul_ref(&coeffs_of(s.m().row(i).get(j)), &coeffs_of(z.get(j)));
+        for t in 0..width {
+            acc[t] = (acc[t] + prod[t]) % hachi::params::Q;
+        }
+    }
+    let y = coeffs_of(s.yvec().get(i));
+    for t in 0..RING_DEGREE {
+        acc[t] = sub_mod(acc[t], y[t]);
+    }
+    acc
+}
+
+/// `ρ · (X^N + 1)` in `Zq[X]`, by shift-and-add on words.
+fn times_modulus_ref(rho: &[u64]) -> Vec<u64> {
+    let mut out = vec![0u64; 2 * RING_DEGREE - 1];
+    for (k, c) in rho.iter().enumerate() {
+        out[k] = (out[k] + c) % hachi::params::Q;
+        if k + RING_DEGREE < out.len() {
+            out[k + RING_DEGREE] = (out[k + RING_DEGREE] + c) % hachi::params::Q;
+        }
+    }
+    out
+}
+
+fn quotient_coeffs(row: &QuotientRow) -> Vec<u64> {
+    (0..RING_DEGREE).map(|k| row.coeff(k).to_u64()).collect()
+}
+
+fn random_statement(rng: &mut Lcg, rows: usize, cols: usize) -> RlinStatement {
+    RlinStatement::new(rng.next_poly_matrix(rows, cols), rng.next_poly_vec(rows), 15)
+}
+
+/// **`c_row_sum` is the unreduced row product**: `2N − 1` coefficients equal to
+/// the plain `Zq[X]` double sum, and genuinely unreduced -- the high half is
+/// populated, which is exactly what `Rq::mul` would have folded away.
+#[test]
+fn c_row_sum_is_the_unreduced_row_convolution() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0200);
+    let s = random_statement(&mut rng, 2, 3);
+    let z = rng.next_poly_vec(3);
+    for i in 0..2 {
+        let got: Vec<u64> = c_row_sum(&s, &z, i).iter().map(|c| c.to_u64()).collect();
+        assert_eq!(got.len(), 2 * RING_DEGREE - 1);
+        let mut want = vec![0u64; 2 * RING_DEGREE - 1];
+        for j in 0..3 {
+            let prod = long_mul_ref(&coeffs_of(s.m().row(i).get(j)), &coeffs_of(z.get(j)));
+            for t in 0..want.len() {
+                want[t] = (want[t] + prod[t]) % hachi::params::Q;
+            }
+        }
+        assert_eq!(got, want, "row {i}");
+        assert!(got[RING_DEGREE..].iter().any(|c| *c != 0), "the high half must be live");
+    }
+}
+
+/// **The quotient identity**: `defect = ρ · (X^N + 1) + r`, where `r` is the
+/// reduced defect `(M·z − y)ᵢ` taken from the ring layer's own (separately
+/// proved) `mat_vec_mul`/`sub` -- two different routes to the same polynomial
+/// meeting in `Zq[X]`. A `+` in place of the modulus's `−` fails this, and so
+/// does any off-by-one in the leading slot. The quotient's top coefficient is
+/// zero: degree at most `N − 2`.
+#[test]
+fn the_quotient_times_the_modulus_plus_the_reduced_defect_is_the_defect() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0210);
+    let s = random_statement(&mut rng, 2, 3);
+    let z = rng.next_poly_vec(3);
+    let reduced: PolyVec = s.m().mat_vec_mul(&z).sub(s.yvec());
+    for i in 0..2 {
+        let rho = quotient_coeffs(&c_quotient(&s, &z, i));
+        assert_eq!(rho[RING_DEGREE - 1], 0, "row {i}: degree at most N - 2");
+        let mut want = times_modulus_ref(&rho);
+        let r = coeffs_of(reduced.get(i));
+        for t in 0..RING_DEGREE {
+            want[t] = (want[t] + r[t]) % hachi::params::Q;
+        }
+        assert_eq!(want, defect_ref(&s, &z, i), "row {i}");
+        assert!(rho.iter().any(|c| *c != 0), "row {i}: a random defect has a nonzero quotient");
+    }
+}
+
+/// **The honest case divides exactly**: with `y := M·z` the reduced defect is
+/// zero, so the defect *is* `ρ · (X^N + 1)`.
+#[test]
+fn an_honest_right_hand_side_leaves_no_remainder() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0220);
+    let m = rng.next_poly_matrix(2, 3);
+    let z = rng.next_poly_vec(3);
+    let y = m.mat_vec_mul(&z);
+    let s = RlinStatement::new(m, y, 15);
+    for i in 0..2 {
+        let rho = quotient_coeffs(&c_quotient(&s, &z, i));
+        assert_eq!(times_modulus_ref(&rho), defect_ref(&s, &z, i), "row {i}");
+    }
+}
+
+/// **`honest_lift_witness` bundles `z` and the row quotients**, one per output
+/// row, and nothing else changes hands: `z` comes back verbatim.
+#[test]
+fn the_honest_lift_witness_is_z_and_the_row_quotients() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0230);
+    let s = random_statement(&mut rng, 3, 2);
+    let z = rng.next_poly_vec(2);
+    let w = honest_lift_witness(&s, &z);
+    assert!(w.z().equals(&z));
+    assert_eq!(w.rho().len(), 3);
+    for i in 0..3 {
+        assert_eq!(
+            quotient_coeffs(&w.rho()[i]),
+            quotient_coeffs(&c_quotient(&s, &z, i)),
+            "row {i}"
+        );
+    }
 }

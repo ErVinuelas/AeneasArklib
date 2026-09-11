@@ -320,3 +320,174 @@ pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
     }
     acc
 }
+
+// ---------------------------------------------------------------------------
+// The honest lift prover (spec: `RingSwitch/ComputableWitness.lean`)
+// ---------------------------------------------------------------------------
+
+/// The unreduced product of two ring elements' canonical representatives: the
+/// `2N - 1` coefficients of a polynomial in `Zq[X]` (spec: the `*` of
+/// `CPolynomial (ZMod q)` inside `cRowSum`, `RingSwitch/Reduction.lean:441`).
+///
+/// Mirrors `CPolynomial.Raw.mul` on the canonical representatives.
+///
+/// This is [`Rq::mul`] **without** the negacyclic fold: `aᵢbⱼ` lands in slot
+/// `i + j` and nowhere else. That is the whole difference between a product
+/// in `Zq[X]` and one in `Rq`, and the reason `cRowSum` had no carrier in this
+/// crate until now (NOTES.md § "Target 4 opens"): reducing here would erase
+/// exactly the quotient the lift prover has to extract. Fixed width: the slot
+/// count is `2N - 1 = 2047` whatever the true degree, so this is the `Raw`
+/// array reading of the polynomial rather than the trimmed `CPolynomial`; the
+/// two denote the same element of `Zq[X]`. `i + j ≤ 2N - 2` cannot overflow.
+///
+/// Private: a helper of [`c_row_sum`] alone, measured through it.
+fn long_mul(a: &Rq, b: &Rq) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let width: usize = 2 * n - 1;
+    let mut out: Vec<Fp> = Vec::new();
+    let mut k: usize = 0;
+    while k < width {
+        out.push(Fp::ZERO);
+        k += 1;
+    }
+    let mut i: usize = 0;
+    while i < n {
+        let ai: Fp = a.coeff(i);
+        let mut j: usize = 0;
+        while j < n {
+            let term: Fp = ai * b.coeff(j);
+            let s: usize = i + j;
+            out[s] = out[s] + term;
+            j += 1;
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The `i`-th lifted row `Σⱼ Mᵢⱼ·zⱼ`, unreduced, as a polynomial in `Zq[X]`
+/// with `2N - 1` coefficients (spec: `cRowSum`, `RingSwitch/Reduction.lean:439`).
+///
+/// Mirrors `cRowSum`.
+///
+/// The specification sums the `CPolynomial` products of the canonical
+/// representatives; here each product is [`long_mul`] and the sum is
+/// coefficientwise over the fixed width. `i < rows` and `z.len() = cols` are
+/// the two fail points -- `row(i)`, `z.get(j)` -- and travel as `_spec`
+/// hypotheses; the matrix's `Fin n → Fin μ → Rq Φ` type is what erases to them.
+pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let width: usize = 2 * n - 1;
+    let cols: usize = s.m().cols();
+    let row: &PolyVec = s.m().row(i);
+    let mut acc: Vec<Fp> = Vec::new();
+    let mut k: usize = 0;
+    while k < width {
+        acc.push(Fp::ZERO);
+        k += 1;
+    }
+    let mut j: usize = 0;
+    while j < cols {
+        let prod: Vec<Fp> = long_mul(row.get(j), z.get(j));
+        let mut t: usize = 0;
+        while t < width {
+            acc[t] = acc[t] + prod[t];
+            t += 1;
+        }
+        j += 1;
+    }
+    acc
+}
+
+/// The quotient of a `Zq[X]` polynomial with `2N - 1` coefficients by the monic
+/// modulus `X^N + 1` (spec: `CPolynomial.divByMonic` at `Φ.φ`,
+/// `CompPoly/Univariate/Basic.lean:841`, the division `cQuotient` performs).
+///
+/// Mirrors `CPolynomial.divByMonic` at `Φ.φ`.
+///
+/// The specification's `divModByMonicAux.go` (`Univariate/Raw/Division.lean:31`)
+/// peels one leading term per step: with `lc` the leading coefficient and `k`
+/// the degree gap, it subtracts `lc · X^k · (X^N + 1)` from the dividend, adds
+/// `lc · X^k` to the quotient, and trims. On the fixed-width carrier the
+/// leading slot is `k + N` for `k` counting down from `N - 2`, and a slot that
+/// holds zero is a step the specification skips by trimming -- subtracting
+/// `0 · X^k · (X^N + 1)` -- so walking every slot is the same computation with
+/// no-op steps made explicit. Each step reads `p[k + N]`, writes it into
+/// `q[k]`, and subtracts it from `p[k]`: that subtraction is `X^N ≡ -1`, the
+/// sign [`Rq::mul`] folds in and this function keeps separate. The quotient
+/// has degree at most `N - 2`, so it fits a [`QuotientRow`] with its top
+/// coefficient zero -- inside `LiftedWitness.hρ`'s bound `d - 1`.
+///
+/// `p.len() = 2N - 1` is the fail point `p[k + N]` and travels as a `_spec`
+/// hypothesis. Private: a helper of [`c_quotient`] alone, measured through it.
+fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let mut rem: Vec<Fp> = Vec::new();
+    let mut t: usize = 0;
+    while t < p.len() {
+        rem.push(p[t]);
+        t += 1;
+    }
+    let mut quot: Vec<Fp> = Vec::new();
+    let mut u: usize = 0;
+    while u < n {
+        quot.push(Fp::ZERO);
+        u += 1;
+    }
+    let mut k: usize = n - 1;
+    while k > 0 {
+        k -= 1;
+        let lead: usize = k + n;
+        let c: Fp = rem[lead];
+        quot[k] = c;
+        rem[k] = rem[k] - c;
+        rem[lead] = Fp::ZERO;
+    }
+    quot
+}
+
+/// The computable honest quotient of row `i`: the lifted row defect
+/// `Σⱼ Mᵢⱼ·zⱼ − yᵢ` divided by the modulus (spec: `cQuotient`,
+/// `RingSwitch/ComputableWitness.lean:65`).
+///
+/// Mirrors `cQuotient`.
+///
+/// `yᵢ` enters through its canonical representative -- the specification's
+/// `(s.yvec i).1` -- which has fewer than `N` coefficients, so the subtraction
+/// touches the low `N` slots only. The row and column bounds are
+/// [`c_row_sum`]'s; `i < yvec.len()` is the one this function adds.
+pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
+    let n: usize = params::RING_DEGREE;
+    let mut defect: Vec<Fp> = c_row_sum(s, z, i);
+    let y: &Rq = s.yvec().get(i);
+    let mut k: usize = 0;
+    while k < n {
+        defect[k] = defect[k] - y.coeff(k);
+        k += 1;
+    }
+    let quot: Vec<Fp> = div_by_modulus(&defect);
+    QuotientRow::new(&quot)
+}
+
+/// The computable honest lifted witness: `z` itself and one quotient row per
+/// output row (spec: `honestLiftWitnessC`, `RingSwitch/ComputableWitness.lean:89`).
+///
+/// Mirrors `honestLiftWitnessC`.
+///
+/// This is the lift prover the chain lacked: [`crate::chain::chain_open`] takes
+/// the lifted witness as an input because this item did not exist (NOTES.md
+/// § "The composed verifier was not a verifier"). The specification's `hd`
+/// (`0 < Φ.φ.natDegree`) and `hρ` (the degree bound) are `Prop`s and erase;
+/// `hd` holds at `N = 1024`, and the degree bound is what
+/// [`div_by_modulus`]'s zero top coefficient delivers. `z` is copied because
+/// the witness owns its block and `clone` has no model.
+pub fn honest_lift_witness(s: &RlinStatement, z: &PolyVec) -> LiftedWitness {
+    let rows: usize = s.m().rows();
+    let mut rho: Vec<QuotientRow> = Vec::new();
+    let mut i: usize = 0;
+    while i < rows {
+        rho.push(c_quotient(s, z, i));
+        i += 1;
+    }
+    LiftedWitness::new(z.copy(), rho)
+}
