@@ -14,6 +14,7 @@ import EndPiece
 import Rlin
 import Sumcheck
 import Chain
+import LiftProver
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -47,13 +48,17 @@ What it audits, in four sections:
 4. the axiom dependencies of every proved spec, which is what makes a `sorryAx`
    a build failure rather than a silent debt.
 
-§ 4 now covers the whole development: the base-field specs (`lean/Field.lean`), the
-coefficient-level ring specs (`lean/Ring.lean`), their lifts to ArkLib's `Rq Φ`
-(`lean/RqBridge.lean`), the `linalg`, `gadget` and `commit` layers
-(`lean/Scheme.lean`) up to perfect correctness of the extracted scheme, and the
-multilinear evaluation layer (`lean/EvalSplit.lean`). Every one is proved, so
-`lean-wip/` is empty; the procedure for promoting a file into here, should a later
-one land there first, is in `lean-wip/README.md`.
+§ 4 covers every module of this library: the base-field specs
+(`lean/Field.lean`), the coefficient-level ring specs (`lean/Ring.lean`), their
+lifts to ArkLib's `Rq Φ` (`lean/RqBridge.lean`), the `linalg`, `gadget` and
+`commit` layers (`lean/Scheme.lean`) up to perfect correctness of the extracted
+scheme, the multilinear evaluation layer (`lean/EvalSplit.lean`), the balanced
+committer, the QuadEval fold and its protocol layer, the `Ext4` extension field,
+the ring-switch link, the zero check, the end piece, the `R^lin` adapter, the
+paired sumcheck, the composed chain and -- since 2026-09-11 -- the honest lift
+prover (`lean/LiftProver.lean`). Every one is proved, so `lean-wip/` is empty
+again; the procedure for promoting a file into here, when the next translated
+operation lands there, is in `lean-wip/README.md`.
 -/
 
 -- Off, and load-bearing for an audit file specifically. With `autoImplicit` on (the
@@ -1002,8 +1007,10 @@ them stated as iffs because ArkLib states those as `Prop`s -- and, since
 presentation change, the quotient digits, the lifted message and its Ajtai
 commitment, and the two shortness decisions, both unconditional.
 
-Stated-but-unproved today: `lean-wip/Ext.lean`, the `Ext4` port from cpoly's own
-development, which joins this list when it is proved and promoted. -/
+Stated-but-unproved today: nothing. `Ext.lean` -- the `Ext4` port from cpoly's
+own development, which this sentence used to name -- was promoted 2026-09-09,
+and the honest lift prover, the last file to pass through `lean-wip/`, on
+2026-09-11. The next translated operation puts debt back there. -/
 
 -- The balanced digit layer (`lean/Balanced.lean`): the Hachi gadget inverse
 -- `G⁻¹` at `ddBal`, the bounded `z`-side digit map at `τ = 5`, the quotient
@@ -1357,5 +1364,21 @@ development, which joins this list when it is proved and promoted. -/
 -- link specs; kernel-clean once `Sumcheck.lean` closed.
 #print axioms HachiEquiv.Chain.chain_verify_spec
 #print axioms HachiEquiv.Chain.chain_open_spec
+
+-- The honest lift prover (`lean/LiftProver.lean`), the chain's last untranslated
+-- item and Stage 4's last proof debt: the unreduced row sum against
+-- `InnerOuter.cRowSum`, its division by the modulus against
+-- `InnerOuter.cQuotient`, the headline `honestLiftWitnessC` through
+-- `RepLiftedWitness`, and the two private helpers underneath -- the product in
+-- `Zq[X]` against `CPolynomial`'s `*` and the synthetic division against
+-- `CPolynomial.divByMonic`. The loop of `honest_lift_witness` is not a mirrored
+-- item and has no line here; it is reached through the headline. Aristotle
+-- session `1ddd5790`, five obligations to zero with no headline signature
+-- changed, promoted 2026-09-11.
+#print axioms HachiEquiv.LiftProver.long_mul_spec
+#print axioms HachiEquiv.LiftProver.div_by_modulus_spec
+#print axioms HachiEquiv.LiftProver.c_row_sum_spec
+#print axioms HachiEquiv.LiftProver.c_quotient_spec
+#print axioms HachiEquiv.LiftProver.honest_lift_witness_spec
 
 end HachiEquiv.Check

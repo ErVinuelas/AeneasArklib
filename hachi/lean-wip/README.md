@@ -1,22 +1,25 @@
 # `lean-wip/` — the staging area for statements that are not proved yet
 
-**Current debt (2026-09-11): `LiftProver.lean`**, the honest lift prover's five
-statements (`honest_lift_witness`, `c_quotient`, `c_row_sum` and the two
-private helpers), 0 errors, 5 `sorry`s, importing promoted files only. The two
-files before it were promoted together on 2026-09-11: `Sumcheck.lean` (twenty-four
+**No debt (2026-09-11): this directory is empty.** The last file through it was
+`LiftProver.lean`, the honest lift prover's five statements
+(`honest_lift_witness`, `c_quotient`, `c_row_sum` and the two private helpers
+`long_mul`, `div_by_modulus`), staged 2026-09-11 and promoted the same day —
+Aristotle session `1ddd5790`, five obligations to zero. The two files before it
+were promoted together, also on 2026-09-11: `Sumcheck.lean` (twenty-four
 headline specs, Aristotle sessions `430518ae`, `c8d6894b`, `3fd1e8a2`,
 thirty-two obligations to zero) and `Chain.lean` (the composed chain's two
-rows, proved locally). Everything before both has been promoted, and
-the ones that landed last are Stage 3's targets 4 and 6 — `lean/ZeroCheck.lean`
-(twenty-five headline specs) and `lean/EndPiece.lean` (four), Aristotle session
-`2266ab16`, thirteen obligations to zero. `Check.lean` § 4 now prints **one
-hundred and eighty-six** headline specs and they all come out as the three
-Lean kernel axioms.
+rows, proved locally). Everything before those has been promoted too, and the
+ones that landed just before were Stage 3's targets 4 and 6 —
+`lean/ZeroCheck.lean` (twenty-five headline specs) and `lean/EndPiece.lean`
+(four), Aristotle session `2266ab16`, thirteen obligations to zero.
+`Check.lean` § 4 now prints **one hundred and ninety-one** headline specs and
+they all come out as the three Lean kernel axioms.
 
 That is worth a note rather than a celebration: the next translated operation
-puts debt back here, and the directory exists for that. The 2 items
-`make spec-check` currently reports owed — the two `chain` rows — are
-*unstated*, not unproved; when they are written they will be staged here first.
+puts debt back here, and the directory exists for that. `make spec-check`
+reports **155 mirrored items, 155 stated, 0 owed** — the two `chain` rows that
+used to stand as *unstated* were written and promoted with `Chain.lean`, so for
+the moment nothing is either unstated or unproved.
 
 Everything earlier that passed through here has been promoted: the
 representation bridge (`lean/RqBridge.lean`), the scheme layer
@@ -43,9 +46,10 @@ and the difference was one bridging lemma between `ext4Params.d` and
 `ext4Params.toExtensionParams.d`, definitionally equal and syntactically
 distinct) and target 2's QuadEval protocol layer
 (`lean/QuadEvalProtocol.lean`, session `982bd0af`, eleven obligations to zero
-with no headline signature changed). `lean/Check.lean` § 4 prints the axiom
-dependencies of all **one hundred and eighteen** headline specs, and they come
-out as the three Lean kernel axioms and nothing else.
+with no headline signature changed). `lean/Check.lean` § 4 printed the axiom
+dependencies of all **one hundred and eighteen** headline specs on that day, and
+they came out as the three Lean kernel axioms and nothing else; the count above
+is the current one.
 
 Two things the QuadEval passage through here established, worth keeping:
 
@@ -215,3 +219,35 @@ changed; forty-one helper/loop lemmas added; one `set_option maxHeartbeats
 2000000 in` on `rlin_stmt_spec`. Pre-flight lesson recorded in NOTES.md:
 `make extract` before submitting -- the staged `Generated.lean` was stale
 because a new module reorders the whole extraction.
+
+**Fifth staged file (2026-09-11, staged and promoted the same day):**
+`LiftProver.lean`, the five honest-lift-prover statements plus the one carrier
+this crate had not needed before — `WfWords`/`toCPolyK`, a `CPolynomial (ZMod
+q)` of degree up to `2N − 2` that is *not* folded back into `Rq`, carried in
+Rust as a `Vec<Fp>` of exactly `2N − 1` words. It imported `ZeroCheck` (promoted)
+and cpoly's own `CompPoly.Univariate.Raw.Division`, so it needed no
+`LEAN_PATH` detour and the helper validated the return unaided. The loop spec
+`honest_lift_witness_loop_spec` was proved here in place before submission;
+Aristotle `1ddd5790` took the other five to zero (`COMPLETE`, 5 → 0). Statement
+audit before promotion: all eleven submitted declarations compared
+signature-for-signature against the baseline, none changed; twenty-six
+target-local helper lemmas added (coefficient bookkeeping, three single-slot
+`IndexMut` facts, eight extracted-loop specs, the convolution and division
+algebra); no `sorry`, `admit`, `axiom`, `native_decide` or `unsafe`, and no
+`set_option` beyond the two the file was submitted with.
+
+Two things in it worth knowing:
+
+* it holds a **local copy** of `PolyVec::copy`'s loop spec
+  (`poly_vec_copy_loop_spec`/`poly_vec_copy_spec`). The promoted file that
+  already proves that shape is `QuadEvalProtocol.lean`, which is not below this
+  one in the import graph, so the alternative was an import that the dependency
+  order does not justify. Duplication, not debt — but the next file to want it
+  should move the pair down into `Scheme.lean` instead of copying it a third
+  time;
+* instantiating a general polynomial lemma directly at `Φ.φ.toPoly` makes the
+  kernel unfold the concrete degree-`N` modulus and time out. The division
+  argument is therefore stated at the abstract `X ^ d + 1` and connected to the
+  modulus by rewriting with `phi_toPoly`. That is the same shape as the
+  `ext4Params.d` bridge `Ext.lean` needed, and it is worth reaching for first in
+  any future proof that mentions the modulus.

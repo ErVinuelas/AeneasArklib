@@ -5209,3 +5209,105 @@ With this, every mirrored item in the crate except the five lift-prover items
 has a proved, audited specification, and the composed chain's two rows are
 kernel-clean. Stage 4's exit is one file away; Stage 5's remaining structural
 gap is `chain_open` computing the witness it now can.
+
+## The full REDUCED run after the lift prover landed (2026-09-11)
+
+`bench-report-20260911-stage5-reduced.json`, run `20260911T1509+0200-53a20295`,
+source `8e2052c` clean, 15:09–15:50 (41 min), machine quiet (load 0.27 at
+start, only the editor's idle `lake serve`; no Lean build, no other `cargo`).
+**Usable**, A/B bias **1.6%** (`_control/sumcheck` +1.56% the worst; the other
+nine controls within ±0.9%). 87 rows: 84 `noise`, 3 printed `slower`. The
+three are the band, not a regression, and every one of them is already on the
+no-verdict list of § "The endpiece rows get a binary" and the certified sweep:
+`quadeval/in_sb_box/1024` +13.6% at ~0.6 µs (band *and* memorized branch),
+`ringswitch/rho_digits/1024` +7.4% at ~2 µs (the row noted as 20% clear of
+the band's upper edge — it is not clear of it), `ring/one/1024` +5.0% at
+~0.7 µs. `now` and `genesis` are the same bytes at this HEAD (`check-genesis`
+passed on 282 items), so a printed verdict on those rows is the flat 5% floor
+being wrong inside 100 ns – 2 µs, for the third run in a row. The next row down
+is `quadeval/in_sb/1024` at +3.9%, also on the list; everything above 2 µs is
+within ±3%.
+
+The three lift-prover rows get their first baseline, all `noise` at ±0.03%:
+`ringswitch/c_row_sum/4` 4.52 ms, `c_quotient/4` 4.52 ms,
+`honest_lift_witness/4` 4.52 ms (one row of `LIFT_PROVER_COLS = 4` columns, so
+the three rows are one `cRowSum` each — four unreduced `1024 × 1024` products at
+~1.1 ms — plus an `O(N)` division and a copy that the row cannot see). Sizing
+only: the ledger is still empty and the re-freeze carve-out stays open for
+every item.
+
+What this run *is*: the per-operation REDUCED measurement of every onboarded
+item, taken so the Stage 6 loop has a same-host reference for what its rows
+read at rest. What it is not: a composed-chain number — `chain::chain_verify`
+and `chain_open` stay excluded by name, and the discussion of the day (a
+REDUCED chain row needs an accepting transcript, hence a covering cube,
+`m₀ = 17` at the smallest widths the crate allows, ~20 s per verifier call in
+the naive `alpha_public_table`) is the reason the Stage 5 exit is to be read
+as "pair proved, bench case deferred to Stage 6" — a plan amendment still
+awaiting the user's word, not made.
+
+## The lift prover is proved, and Stage 4 closes (2026-09-11)
+
+Aristotle session `1ddd5790` on `lean-wip/LiftProver.lean` returned `COMPLETE`
+at **5 → 0** and the helper integrated it unaided -- the file had not moved
+since submission, so neither the merge guard nor the local `lake env lean`
+validation had anything to complain about. The five were the honest lift
+prover's own items: the unreduced row sum against `InnerOuter.cRowSum`, its
+division against `InnerOuter.cQuotient`, the headline `honestLiftWitnessC`
+through `RepLiftedWitness`, and the two private helpers -- the product in
+`Zq[X]` against `CPolynomial`'s `*` and the synthetic division against
+`CPolynomial.divByMonic`. `honest_lift_witness_loop_spec` had been proved here
+before submission and is unchanged.
+
+Audit before promotion: all **eleven** submitted declarations compared
+signature-for-signature against the recorded baseline, none changed (the
+comparison is mechanical -- declaration text up to the first top-level `:=`);
+**twenty-six** target-local helper lemmas added, which are the ones the
+statement-side plan named -- coefficient bookkeeping between
+`toCPolyK`/`coeffK`/`toRq`/`toQuotientRow`, three single-slot `IndexMut` facts,
+a loop spec for each of the eight extracted loops, and the convolution and
+division algebra; no `sorry`, `admit`, `axiom`, `native_decide` or `unsafe`, and
+**no `set_option` beyond the two it was submitted with** (`autoImplicit false`,
+`maxRecDepth 8192`) -- the first file back from Aristotle that needed no
+`maxHeartbeats` override anywhere. Independent re-elaboration over the built
+library: 13 s, no errors, no `declaration uses 'sorry'`; a throwaway probe
+copy printed the three Lean kernel axioms for all six statements, the loop
+spec included.
+
+Promoted by the five steps in `lean-wip/README.md`: `lean/LiftProver.lean`, a
+`LiftProver` root in `lakefile.lean` after `Chain`, `import LiftProver` in
+`Check.lean`, and five § 4 lines. `make build`: 0 errors, no `sorry`, **191**
+headline specs, every one kernel-only. `make spec-check`: 155 mirrored items,
+**155 stated, 0 owed**. `cargo test`: green (`chain_semantics` all four
+`#[ignore]`d, which is the working tree's own state, not this change).
+`lean-wip/` holds only its README again.
+
+Two things from it worth keeping:
+
+* the file carries a **local copy** of `PolyVec::copy`'s loop spec, because the
+  promoted file that already proves that shape (`QuadEvalProtocol.lean`) is not
+  below it in the import graph. Duplication rather than debt, but the pair
+  belongs in `Scheme.lean` before a third file wants it;
+* instantiating a general polynomial lemma at `Φ.φ.toPoly` directly makes the
+  kernel unfold the concrete degree-`N` modulus and time out. The division
+  argument is stated at the abstract `X ^ d + 1` and tied to the modulus by
+  rewriting with `phi_toPoly` -- the same move `Ext.lean` needed for
+  `ext4Params.d`, and the one to reach for first in any proof that mentions the
+  modulus.
+
+**Stage 4's exit criterion is met**, re-checked mechanically rather than
+asserted: of the 155 mirrored items, 145 have a `#print axioms` line in § 4 on
+a spec that names them, and the other ten are the nine carrier types (`Rq`,
+`PolyVec`, `PolyMatrix`, `MlPoly`, `MlEvals`, `Decomp`, `Opening`,
+`LiftedWitness`, `QuotientRow`), which are specified by representation
+functions rather than by a theorem of their own, plus `QuotientRow::to_rq`,
+whose spec is audited under its ArkLib name (`rho_as_rq_spec`). TE's half of
+the criterion -- the `Ext4` bridge -- was proved and promoted 2026-09-09. So:
+every onboarded operation's headline `_spec` proved and audited, axiom-clean.
+
+One loose end in the plan, not touched here: Stage 5's amended exit paragraph
+forward-references a § "Stage 5 — what remains" that does not exist in
+`PLAN_PROTOCOL_LAYER.md` or here. The item it points at -- the acceptance test,
+an honest transcript that verifies -- is sitting in the working tree as
+`the_honest_chain_verifies` (`#[ignore]`d, hours at `m₀ = 26`), so the pointer
+wants either that section written or the sentence rewritten to name the test.
