@@ -83,9 +83,14 @@ impl Rq {
     /// The spec's `constRq_val` records that no reduction happens here, since
     /// `deg (C c) = 0 < deg φ`; correspondingly this is just `c` in the
     /// zeroth slot.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn constant(c: Fp) -> Rq {
         let n: usize = params::RING_DEGREE;
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             if i == 0 {
@@ -107,10 +112,15 @@ impl Rq {
     /// `RING_DEGREE` on are dropped, which is what makes this total: the spec's
     /// `ofFinCoeff_coeff` reads `if k < N then c k else 0`, and its side
     /// condition `N ≤ deg φ` holds with equality here.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn from_coeffs(coeffs: &Vec<Fp>) -> Rq {
         let n: usize = params::RING_DEGREE;
         let m: usize = coeffs.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             if i < m {
@@ -193,9 +203,14 @@ impl Rq {
     /// is not among them would arrive as an opaque function -- a copy about which
     /// nothing is known, in the middle of a proof that needs to know the copy is
     /// a copy. A `push` loop is transparent and costs the same.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn copy(&self) -> Rq {
         let n: usize = self.0.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i]);
@@ -209,9 +224,14 @@ impl Rq {
     /// `Rq.mk` does nothing -- is the spec's `add_val`, `Rq.lean:246`).
     ///
     /// Mirrors ArkLib's `Add (Rq Φ)` instance.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn add(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i] + rhs.0[i]);
@@ -224,9 +244,14 @@ impl Rq {
     /// `sub_val`, `Rq.lean:231`).
     ///
     /// Mirrors ArkLib's `Sub (Rq Φ)` instance.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn sub(&self, rhs: &Rq) -> Rq {
         let n: usize = self.0.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i] - rhs.0[i]);
@@ -239,9 +264,14 @@ impl Rq {
     /// `neg_val`, `Rq.lean:239`).
     ///
     /// Mirrors ArkLib's `Neg (Rq Φ)` instance.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn neg(&self) -> Rq {
         let n: usize = self.0.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(-self.0[i]);
@@ -260,9 +290,14 @@ impl Rq {
     /// operation of its own because the gadget matrix is built entirely from
     /// constants (`gadgetEntry` is `constRq (base ^ e)`), so this is the shape
     /// the gadget product wants -- not a special case anyone has to recognise.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2): `Vec::with_capacity` is erased by
+    /// the extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn scalar_mul(&self, c: Fp) -> Rq {
         let n: usize = self.0.len();
-        let mut out: Vec<Fp> = Vec::new();
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(c * self.0[i]);

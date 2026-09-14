@@ -1,0 +1,25 @@
+# the_honest_chain_profile — started 2026-09-14T17:49:33+02:00 on 85e7917 +uncommitted, AC=1, 1 block
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+test the_honest_chain_profile ... [    12.5s] committed 1 block(s)
+[    50.9s] statement built
+[    52.5s] honest_compute_v done
+[    67.1s] honest_compute_resp + stack done
+[    68.7s] R^lin statement assembled: 5 x 40976
+[   365.5s] M zeta = y holds
+[   666.2s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 525.7ms
+[profile] lift_commit: 61.9s
+[profile] c_w_table_mle at 2^26: 802.2ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 12.5s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 1201.3s
+[profile] honest_compute_y: 4.1s
+[profile] chain_verify = true: 202.3s
+[  2179.0s] profile done
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2179.16s
+
+# exit 0 at 2026-09-14T18:25:52+02:00

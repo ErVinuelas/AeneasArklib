@@ -122,6 +122,36 @@ pub fn range_product(v: Ext4) -> Ext4 {
     acc
 }
 
+/// The range factor computed in the base field: `P_b(c)` over `Fp`, for the
+/// callers whose argument is an `Ext4::from_base` (spec: `rangeProduct` at an
+/// embedded argument, through `HachiEquiv.Opt.phiF_range_product_base`; opt:
+/// `HachiEquiv.Opt.range_product_base.opt`, `lean/Opt.lean`).
+///
+/// `φF` is a ring homomorphism, so `P_b(φF c) = φF(P_b^{Fp}(c))`: the product
+/// belongs in `Fp` and the embedding happens once, at the caller. [`h_zero`]
+/// and [`h_zero_is_zero`] are the two call sites (Stage 6 I5, candidate G);
+/// [`range_product`] stays for the sumcheck callers, whose arguments are
+/// general extension elements. The two symmetric factors are contracted as
+/// `(c − j)(c + j) = c² − j²` (candidate F's shape): one squaring plus `b − 1`
+/// multiplications and no additions. `j · j ≤ 225` at `b = GADGET_BASE`, so the
+/// checked product's side condition is immediate and `Fp::new` never reduces.
+///
+/// No `Mirrors` line: this is the crate's own optimized variant, not an ArkLib
+/// definition, so the coverage gate does not pair it with a row.
+pub fn range_product_base(c: Fp) -> Fp {
+    let base: u64 = params::GADGET_BASE;
+    let c2: Fp = c * c;
+    let mut acc: Fp = c;
+    let mut j: u64 = 1;
+    while j < base {
+        let sq: u64 = j * j;
+        let d: Fp = c2 - Fp::new(sq);
+        acc = acc * d;
+        j += 1;
+    }
+    acc
+}
+
 /// Entry `idx` of the committed table `w̃` (spec: `wTable`,
 /// `Constraints.lean:140`).
 ///
@@ -275,8 +305,10 @@ pub fn w_table_mle_eval(w: &LiftedWitness, m0: usize, a: &Vec<Ext4>) -> Ext4 {
 }
 
 /// The range-constraint block `H₀` in Boolean-evaluation form
-/// (spec: `hZero`, `Constraints.lean:204`; opt: `HachiEquiv.Opt.h_zero.opt`,
-/// `lean/Opt.lean`).
+/// (spec: `hZero`, `Constraints.lean:204`; opt: `HachiEquiv.Opt.h_zero.opt2`,
+/// `lean/Opt.lean` -- the row-hoisted traversal of candidate B with the range
+/// factor computed in the base field by [`range_product_base`] and embedded
+/// once, candidate G).
 ///
 /// Mirrors `hZero`.
 ///
@@ -293,7 +325,7 @@ pub fn h_zero(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
         let r: Rq = w_table_row(w, u);
         let mut l: usize = 0;
         while l < degree && idx < size {
-            values.push(range_product(Ext4::from_base(r.coeff(l))));
+            values.push(Ext4::from_base(range_product_base(r.coeff(l))));
             l += 1;
             idx += 1;
         }
@@ -304,8 +336,9 @@ pub fn h_zero(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
 
 /// The zero-check's own verdict: is every entry of `H₀` zero?
 /// (spec: `hZero = 0`, in the pointwise form of `hZero_eq_zero_iff`,
-/// `Constraints.lean:219`; opt: `HachiEquiv.Opt.h_zero_is_zero.opt`,
-/// `lean/Opt.lean`).
+/// `Constraints.lean:219`; opt: `HachiEquiv.Opt.h_zero_is_zero.opt2`,
+/// `lean/Opt.lean` -- candidate B's traversal with the range factor and its
+/// zero test in the base field, candidate G: `φF y = 0 ↔ y = 0`).
 ///
 /// Mirrors `hZero_eq_zero_iff`.
 ///
@@ -324,7 +357,7 @@ pub fn h_zero_is_zero(w: &LiftedWitness, m0: usize) -> bool {
         let r: Rq = w_table_row(w, u);
         let mut l: usize = 0;
         while l < degree && idx < size {
-            if !range_product(Ext4::from_base(r.coeff(l))).is_zero() {
+            if !range_product_base(r.coeff(l)).is_zero() {
                 zero = false;
             }
             l += 1;

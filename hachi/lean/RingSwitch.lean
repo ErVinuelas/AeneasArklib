@@ -322,7 +322,11 @@ theorem lift_message_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
   simp only [linalg.PolyVec.len, bind_tc_ok]
   step as ⟨rl, hrl⟩
   rw [hgd, hrholen] at hrl
-  · step with lift_message_loop0_spec (μ := μ) w.z (alloc.vec.Vec.len w.z)
+  · -- the pre-sizing (candidate D2): the checked `μ + n·8` total is covered by
+    -- `hmax`, and `with_capacity` is definitionally `Vec.new`.
+    step as ⟨total, htotal⟩
+    simp only [alloc.vec.Vec.with_capacity]
+    step with lift_message_loop0_spec (μ := μ) w.z (alloc.vec.Vec.len w.z)
       (alloc.vec.Vec.new ring.Rq) 0#usize hWz hzlen (by simp) (by simp)
       (by intro y hy; simp at hy) (by intro t ht; simp at ht) as ⟨o1, hlen1, hwf1, hval1⟩
     step with lift_message_loop1_spec (n := n) w.rho rl o1 0#usize μ

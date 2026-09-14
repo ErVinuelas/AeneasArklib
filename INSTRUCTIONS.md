@@ -95,6 +95,10 @@ strategies yields nothing.
   found it adequate outside the 100 ns–2 µs band, but byte-identical code inside
   that band produced false 5–8% verdicts. Do not act on a candidate verdict in
   that band until the floor is made per-band or the row gains its own control.
+  A callee whose own rows all sit in the band (the `ring` operations, ~1 µs) is
+  judged instead on the caller rows it dominates by arithmetic (`vec_add` is
+  8192 `Rq::add`s), every one of which must read `faster`; the row says which
+  (your decision, 2026-09-14).
 - *It may ask*: a candidate that is only equivalent under an input condition the
   ArkLib definition does not impose needs your sign-off. It is never accepted as
   an ordinary candidate.
@@ -178,6 +182,8 @@ make bench-check      verify the frozen baseline against git, and bench coverage
 make bench-stamp      re-derive the @genesis stamps after freezing a function
 make bench-coverage   report which mirrored items are benched, without failing
 make ledger-check     validate logs/ledger.jsonl rows and append-only history
+make gains            the scoreboard: cumulative vs-genesis per row over logs/runs/
+make changes          from each accepted ledger row to its commit and the diff under hachi/src/
 make check-toolchain  verify the charon/aeneas pin in both directions
 make clean            drop build output, keeping fetched dependencies
 ```

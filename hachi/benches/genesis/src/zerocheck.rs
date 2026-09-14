@@ -744,3 +744,38 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
     }
     out
 }
+
+// ---------------------------------------------------------------------------
+// Stage 6, I5 -- the base-field range factor (candidate G).
+// Frozen as a first translation the day the champion landed (2026-09-14).
+// ---------------------------------------------------------------------------
+
+/// The range factor computed in the base field: `P_b(c)` over `Fp`, for the
+/// callers whose argument is an `Ext4::from_base` (spec: `rangeProduct` at an
+/// embedded argument, through `HachiEquiv.Opt.phiF_range_product_base`; opt:
+/// `HachiEquiv.Opt.range_product_base.opt`, `lean/Opt.lean`).
+///
+/// `φF` is a ring homomorphism, so `P_b(φF c) = φF(P_b^{Fp}(c))`: the product
+/// belongs in `Fp` and the embedding happens once, at the caller. [`h_zero`]
+/// and [`h_zero_is_zero`] are the two call sites (Stage 6 I5, candidate G);
+/// [`range_product`] stays for the sumcheck callers, whose arguments are
+/// general extension elements. The two symmetric factors are contracted as
+/// `(c − j)(c + j) = c² − j²` (candidate F's shape): one squaring plus `b − 1`
+/// multiplications and no additions. `j · j ≤ 225` at `b = GADGET_BASE`, so the
+/// checked product's side condition is immediate and `Fp::new` never reduces.
+///
+/// No `Mirrors` line: this is the crate's own optimized variant, not an ArkLib
+/// definition, so the coverage gate does not pair it with a row.
+pub fn range_product_base(c: Fp) -> Fp {
+    let base: u64 = params::GADGET_BASE;
+    let c2: Fp = c * c;
+    let mut acc: Fp = c;
+    let mut j: u64 = 1;
+    while j < base {
+        let sq: u64 = j * j;
+        let d: Fp = c2 - Fp::new(sq);
+        acc = acc * d;
+        j += 1;
+    }
+    acc
+}

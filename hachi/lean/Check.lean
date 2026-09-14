@@ -695,6 +695,7 @@ example (alpha : cpoly.field.Ext4) (p : ring.Rq) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at alpha p
 example (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at_modulus alpha
+example (c : cpoly.field.Fp) : Result cpoly.field.Fp := zerocheck.range_product_base c
 
 -- The honest lift prover (`RingSwitch/ComputableWitness.lean`), the chain's last
 -- item to be translated (2026-09-11). Two shape facts: the unreduced row sum is a `Vec Fp` of
@@ -1410,5 +1411,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.lift_commit.opt_eq_spec_hachi
 -- The fused row of the lift commitment (no ArkLib mirror; one row of `hachiLiftCom`).
 #print axioms HachiEquiv.RingSwitch.lift_commit_row_spec
+-- Candidate F -- the range factor as `v · ∏ (v² − j²)` (brief 5's S5).
+#print axioms HachiEquiv.Opt.range_product.opt_eq_spec
+#print axioms HachiEquiv.Opt.range_product.opt_eq_spec_16
+-- Candidate G -- the table builders' range factor computed in the base field.
+#print axioms HachiEquiv.Opt.phiF_range_product_base
+#print axioms HachiEquiv.Opt.h_zero.opt2_eq_spec
+#print axioms HachiEquiv.Opt.h_zero_is_zero.opt2_eq_spec
+-- The base-field range factor the table builders now call (no ArkLib mirror;
+-- specified through `phiF` against `rangeProduct` at the embedded argument).
+#print axioms HachiEquiv.ZeroCheck.range_product_base_spec
 
 end HachiEquiv.Check

@@ -5625,3 +5625,128 @@ down, `lift_commit` no longer builds the 448 MiB vector, and the ledger's first
 time). What I2 leaves is the `lift_message` row itself, a copy at the
 translation ceiling's floor whose headroom is the ring-level pre-sizing on the
 evening list.
+
+## Where the honest prover's minutes go, measured (2026-09-14 evening)
+
+`the_honest_chain_profile` (new, `#[ignore]`d): the acceptance instance at one
+block, `chain_open` replayed piece by piece with a timer around each, then the
+verifier whole. Run on `85e7917` +uncommitted (candidates A–C committed, E in the
+tree), log `logs/runs/honest-chain-profile-20260914.log`, `chain_verify = true`:
+
+| piece | time |
+|---|---|
+| `rlin_stmt` | 0.5 s |
+| `lift_commit` (41 016 ring products) | 62 s |
+| `c_w_table_mle` at `2^26` | 0.8 s |
+| `alpha_public_table` at `2^26` | 12.5 s |
+| `honest_round_messages` (26 rounds, incl. its own two tables) | **1 201 s** |
+| `honest_compute_y` | 4 s |
+| `chain_verify` | 202 s |
+
+So the prover is **the rounds, by twenty to one** over `lift_commit`; the two
+`2^26` tables that were weeks and minutes this morning are 13 s together. That
+settles the queue order the plan left to measurement: I5 (brief 5's range
+factor, 94% of a round by its own count) before I4 (`ring::mul`), whose share
+of the prover is one minute -- I4's weight is in `commit` and in the test's own
+setup checks (`M ζ = y` and the honest lift are five minutes each, both
+200 000-product matrix-vector products). The verifier's 202 s is worth a
+profile of its own before I5 closes: `final_check` builds the α table (12.5 s)
+and evaluates it, `end_piece_check` recomputes `lift_commit` (62 s) and the
+witness evaluation, and the round checks are cheap -- roughly 120 s of it is
+unaccounted by those figures and is probably the verifier-side `alpha_contract`
+(`m_alpha_tilde` per table cell, brief 4 item 4 on the *verifier* path).
+
+**The stray probe is gone.** `hachi/src/main.rs` -- a plain-`Instant` ratio
+probe of the ringswitch bench cases' cost relations, left behind on 2026-09-07
+(`9ae732b`) -- is removed (evening list item 4). `Cargo.toml`'s own comment
+beside `autobins = false` says why a probe must not stay in `src/`: with
+`autobins` on it would be a bench target and a second crate root for charon.
+It was inert under the flag and never part of the extraction or the frozen
+modules; its readings were sizing information for the 09-07 bench cases and are
+recoverable from git history if ever wanted.
+
+**Candidate D2, the ring-level pre-sizing, accepted under the band reading
+rule** (run `20260914T1830+0200-7b74c3a3`, bias 1.7%). The rule, decided the
+same evening and written into `perf-loop` step 5: a callee whose own rows sit in
+the 100 ns–2 µs band is judged on the caller rows it dominates by arithmetic,
+every one of which must read `faster`; its own rows are recorded, not judged.
+Here the items are `Rq::{constant, from_coeffs, copy, add, sub, neg,
+scalar_mul}` -- not `Rq::zero`, which is the harness control's body and must
+stay identical code across the variants, and not `Rq::mul`, whose rows are
+mul-bound -- plus `PolyVec::{add, sub}` and `lift_message`'s outer vector. The
+evidence rows: `vec_add` −12.7%, `vec_sub` −17.4%, `flatten_blocks` −14.2%,
+`lift_message` −10.0%; the recorded ring rows −19% to −28%. Honest reading of
+the size: candidate D's post-mortem hoped for ~3× on `vec_add` and got 13%,
+because the reallocation growth was a seventh of the row, not its bulk --
+`vec_add` still costs 36 ms against 7 ms of arithmetic, and what remains is one
+8 KiB allocation and free per element plus the cache traffic of touching a
+fresh buffer each time. The lever for that is not allocating per element
+(accumulate into a caller-sized buffer), which changes the Lean definition's
+shape and is `opt-inplace-buffers`' third move, for a later candidate. The
+model gained 18 `with_capacity` binds, each definitionally `Vec.new`; the
+campaign is expected to be `simp only [alloc.vec.Vec.with_capacity]` repairs.
+
+**Campaign D2 closed in minutes.** Eighteen `with_capacity` binds entered the
+model and one proof noticed: `lift_message_spec`, whose body gained a checked
+`z_len + rho_len` before the buffer -- one `step` (its overflow goal discharged
+from `hmax` by `step` itself) and a `simp only [alloc.vec.Vec.with_capacity]`.
+Every other spec unified through the definitional equality without a change.
+`make build` 3872 jobs, 208 § 4 lines; 187 tests; `spec-check` 155/155/0. The
+evening list is done except for the commits: the band rule written, D2
+accepted and verified, the plan's forward reference rewritten, the stray probe
+removed, brief 5's re-base in progress.
+
+## I5 opens with a mixed verdict, and the verdict is the finding (2026-09-14, night)
+
+Candidate F, brief 5's S5: `rangeProduct b v = v · ∏ (v − j)(v + j)` written as
+`v · ∏ (v² − j²)`, one squaring then fifteen multiplications by a base-field
+literal difference -- 16 extension multiplications instead of 30, no
+additions; `range_product.opt_eq_spec` unconditional in `b`, `lean/Opt.lean`
+§ "Candidate F", proved in six minutes. Its own row is in the band, so under
+the evening's reading rule it was judged on six caller rows (run
+`20260914T2014+0200-708424de`, bias 2.3%). The four sumcheck rows read
+**−20%** (`honest_compute_g`, `round_poly_zero`, `round_values_zero`,
+`round_value_zero`; the count promised 47% -- the rows also carry the fold and
+`eq̃` work). The two zero-check table rows read **+450%**: `h_zero` 1.05 → 5.75 ms.
+`rejected-mixed`, and the rule's instruction to surface a mixed row paid off:
+the champion's `h_zero` pays ~64 ns per range factor against the standalone
+row's 470 ns because every input it feeds is `Ext4::from_base` of a coefficient
+-- three coordinates zero -- and after inlining the compiler folds the zeros
+through the frozen `(v − s)(v + s)` chain; the new body loses that folding and
+`h_zero` falls to the general cost, `16 384 × 348 ns`. Real, within-run, not a
+layout effect. What it says is algebraic, not compiler-shaped: the table
+builders' inputs are base-field values, `φF` is a ring homomorphism, so
+`rangeProduct b (φF x) = φF (rangeProduct_base b x)` -- sixteen base-field
+multiplications at about a nanosecond each, then one embedding. That is
+candidate G (in flight), after which `h_zero` no longer calls the extension
+range factor and F re-runs on the sumcheck rows alone. Brief 5's new S7′ --
+round 0 of the sumcheck multiplies base-field values through the full quartic
+multiply, half of all base-field multiplications in the prover -- is the same
+observation one level up. The Lean lemma of F stays in `Opt.lean`; the Rust
+swap did not land.
+
+**Candidate G, accepted: the table builders compute the range factor in the
+base field.** `φF` is a ring homomorphism, so `rangeProduct b (φF x) =
+φF (rangeProduct_base b x)`, and the zero test needs no embedding at all
+(`φF` is injective). `lean/Opt.lean` § "Candidate G": `range_product_base.opt`
+over `ZMod q` in candidate F's `x² − j²` shape, the bridge
+`phiF_range_product_base`, `phiF_eq_zero_iff`, and sibling table loops
+`blockLoopBase`/`rowLoopBase` that apply a `ZMod q → F` map to the coefficient
+itself (candidate B's loops apply their map *after* `φF`, so they could not
+express this) -- sixteen lemmas, one Opus prover. Rust: `range_product_base(c:
+Fp) -> Fp` (sixteen base-field multiplications, frozen into genesis, stamp
+owed), one line changed in each of `h_zero` and `h_zero_is_zero`, a semantics
+test on random coefficients, the whole symmetric range and just outside it.
+Run `20260914T2052+0200-04d6ef1a`, bias 2.4%: `h_zero/14` 1.05 ms → 432 µs
+(**−59.4%**), `h_zero_is_zero/14` 1.02 ms → 391 µs (**−62.4%**); the prover
+had predicted −25% to −40% because the champion already benefited from the
+compiler's zero-coordinate folding. Campaign: two inner-loop specs re-proved
+with the per-entry step moved to the `Fp` specs, `range_product_base_spec`
+new, `phiF_eq_zero_iff` moved from `Opt.lean` down to `ZeroCheck.lean`
+(a duplicate would have made the bare name ambiguous), two typechecks.
+Candidate F's re-run on the sumcheck rows alone is **blocked by the stamp
+mechanics**: `run-bench` opens with `check-genesis`, `range_product_base` is
+frozen but cannot be stamped before a commit, and setting the block aside
+fails the gate from the other side ("no frozen counterpart"). A back-to-back
+pair of champions in one module costs a commit round-trip; recorded in
+`perf-loop`.

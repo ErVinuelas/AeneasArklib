@@ -175,10 +175,16 @@ pub fn rho_digit_as_rq(rho: &Vec<QuotientRow>, j: usize) -> Rq {
 /// digits (spec: `liftMessage`, `RingSwitch/Reduction.lean:270`).
 ///
 /// Mirrors `liftMessage`.
+///
+/// Pre-sized to `μ + n·δ` (Stage 6 candidate D2; see [`crate::ring::Rq::copy`]:
+/// the capacity is erased by the extraction and spares only the reallocation
+/// growth of a 448 MiB vector at the pin). Since candidate E the commitment no
+/// longer reads this vector; it stays as the specification's own object.
 pub fn lift_message(w: &LiftedWitness) -> PolyVec {
     let z_len: usize = w.z.len();
     let rho_len: usize = w.rho.len() * params::GADGET_DIGITS;
-    let mut out: Vec<Rq> = Vec::new();
+    let total: usize = z_len + rho_len;
+    let mut out: Vec<Rq> = Vec::with_capacity(total);
     let mut i: usize = 0;
     while i < z_len {
         out.push(w.z.get(i).copy());

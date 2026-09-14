@@ -130,9 +130,12 @@ impl PolyVec {
     ///
     /// Mirrors ArkLib's `Pi` addition on `PolyVec (Rq Φ) k` -- the canonical
     /// instance set `Vectors.lean` adopts rather than defining its own.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2; see [`Rq::copy`]: the capacity is
+    /// erased by the extraction and spares only the reallocation growth).
     pub fn add(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i].add(&rhs.0[i]));
@@ -145,9 +148,12 @@ impl PolyVec {
     /// norm `sub_l2NormSq_le` bounds).
     ///
     /// Mirrors ArkLib's `Pi` subtraction on `PolyVec (Rq Φ) k`.
+    ///
+    /// Pre-sized to `n` (Stage 6 candidate D2; see [`Rq::copy`]: the capacity is
+    /// erased by the extraction and spares only the reallocation growth).
     pub fn sub(&self, rhs: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i].sub(&rhs.0[i]));

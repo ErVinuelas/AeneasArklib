@@ -346,60 +346,68 @@ fn ternary_rq(r: &mut Lcg) -> Rq {
     Rq::from_coeffs(&coeffs)
 }
 
-/// The claimed value, computed the direct way: the committed polynomial has
-/// its `1024` coefficients in block `0` (the low half of the index is `0`), so
-/// `f(xl ++ xh) = Σᵢ fᵢ · Π_{b ∈ bits(i)} xh[b]`, with the bit order of
-/// `quadeval_semantics.rs`'s `eval_direct`. Written out here rather than taken
-/// from `to_quad_eval_statement`'s basis, so the bridge is under test too.
-fn sparse_eval(f: &PolyVec, xh: &PolyVec) -> Rq {
+/// The claimed value, computed the direct way: coefficient `i + 2^nl · j` of the
+/// committed polynomial is entry `j` of block `i` (`quadeval_semantics.rs`'s
+/// `the_bridge_bases_reproduce_the_polynomial_evaluation`: rows indexed by the
+/// low half), so `f(xl ++ xh) = Σᵢ Σⱼ Mᵢⱼ · Π_{b ∈ bits(i)} xl[b] · Π_{b ∈ bits(j)} xh[b]`,
+/// with the bit order of that file's `eval_direct`. Written out here rather than
+/// taken from `to_quad_eval_statement`'s bases, so the bridge is under test too.
+/// At one block the `xl` product is empty and this is the original single-block
+/// evaluation.
+fn dense_eval(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
     let mut acc = Rq::zero();
-    for i in 0..f.len() {
-        let mut term = f.get(i).copy();
-        for b in 0..xh.len() {
+    for (i, f) in blocks.iter().enumerate() {
+        let mut block = Rq::zero();
+        for j in 0..f.len() {
+            let mut term = f.get(j).copy();
+            for b in 0..xh.len() {
+                if (j >> b) & 1 == 1 {
+                    term = term.mul(xh.get(b));
+                }
+            }
+            block = block.add(&term);
+        }
+        for b in 0..xl.len() {
             if (i >> b) & 1 == 1 {
-                term = term.mul(xh.get(b));
+                block = block.mul(xl.get(b));
             }
         }
-        acc = acc.add(&term);
+        acc = acc.add(&block);
     }
     acc
 }
 
-/// **The honest chain verifies.** An evaluation claim that is true, opened by
-/// the honest prover over the honest lifted witness, is accepted by the
-/// composed verifier -- every round check, the final check and the end piece.
-///
-/// The instance is built from the message up, each public value derived the
-/// way its definition says, none of them drawn at random: the message block
-/// `ŝ₀` and its inner decomposition `t̂₀` from `commit::commit`, the outer
-/// commitment `u` with them, the claim `y` by direct evaluation, the carrier
-/// commitment `v` by `honest_compute_v`, the QuadEval response and its stacking
-/// `ζ` by `honest_compute_resp` and `stack`, and the lifted witness
-/// `w = (ζ, ρ)` by `honest_lift_witness` against the `R^lin` statement the
-/// verifier itself assembles. What *is* random is everything the wire draws:
-/// the matrices `A, B, D`, the lift key, the point, the short challenge `c`,
-/// `α`, `τ₀`, `τ₁` and the round challenges.
-///
-/// Two intermediate assertions pin where a failure would be: that `ζ` solves
-/// the assembled `R^lin` system (`M ζ = y` in `R_q`, ArkLib's `relOut ⇒ rlin`
-/// completeness step, which upstream carries `sorryAx`-tainted), and that the
-/// prover's `v` is the one the verifier is handed.
-///
-/// Cost at this shape, estimated from the measured parts: `honest_lift_witness`
-/// is `5 · 40 976` unreduced products (~4 min), the two `alpha_public_table`s
-/// at `2^26` (~2 h each), 26 rounds of `honest_compute_g` over the folded
-/// tables (~45 min), two `lift_commit`s of `41 016` products (~1 min each).
-/// Peak memory is a few `2^26`-entry `Ext4` tables (2 GiB each) plus the
-/// 1.6 GiB matrix.
-#[test]
-#[ignore = "hours: two naive 2^26 alpha_public_tables -- run with cargo test --release -- --ignored --nocapture"]
-#[allow(clippy::too_many_lines)]
-fn the_honest_chain_verifies() {
-    use std::time::Instant;
-    let t0 = Instant::now();
-    let mut r = Lcg::new(0xC0A1_0050);
+/// The number of message blocks the pin-shaped runs use: `HACHI_CHAIN_BLOCKS`
+/// if set (a reduced-blocks end-to-end, `PLAN_STAGE6.md` § "The fourth wall"),
+/// else one block, the shape the acceptance test was written at.
+fn chain_blocks_from_env() -> usize {
+    match std::env::var("HACHI_CHAIN_BLOCKS") {
+        Ok(v) => v.parse::<usize>().expect("HACHI_CHAIN_BLOCKS must be a positive integer"),
+        Err(_) => 1,
+    }
+}
 
-    let blocks = 1usize;
+/// Everything the honest chain needs at the pin, built from the message up:
+/// the instance the acceptance test and the profile share.
+struct PinInstance {
+    pp: PublicParamsD,
+    d_key: PolyMatrix,
+    poly_stmt: PolyEvalStatement,
+    message: Vec<PolyVec>,
+    c: PolyVec,
+    w: LiftedWitness,
+    v: PolyVec,
+    alpha: Ext4,
+    tau0: Vec<Ext4>,
+    tau1: Vec<Ext4>,
+    challenges: Vec<Ext4>,
+}
+
+/// Build the pin-shaped honest instance at `blocks` message blocks; asserts the
+/// two intermediate facts (`M ζ = y`, cube coverage) and prints stage times.
+#[allow(clippy::too_many_lines)]
+fn pin_instance(blocks: usize, t0: &std::time::Instant) -> PinInstance {
+    let mut r = Lcg::new(0xC0A1_0050);
     let message_rows = hachi::params::MESSAGE_ROWS;
     let message_digits = hachi::params::GADGET_DIGITS;
     let inner_rows = hachi::params::INNER_ROWS;
@@ -417,17 +425,18 @@ fn the_honest_chain_verifies() {
     );
     let d_matrix = r.next_poly_matrix(1, cw);
 
-    // the message: one block of `message_rows` coefficients, committed
-    let m0_block: PolyVec = r.next_poly_vec(message_rows);
-    let (u, decomp) = hachi::commit::commit(&inner, &vec![m0_block.copy()]);
-    let message: Vec<PolyVec> = vec![decomp.message(0).copy()];
+    // the message: `blocks` blocks of `message_rows` coefficients, committed
+    let raw: Vec<PolyVec> = (0..blocks).map(|_| r.next_poly_vec(message_rows)).collect();
+    let (u, decomp) = hachi::commit::commit(&inner, &raw);
+    let message: Vec<PolyVec> = (0..blocks).map(|i| decomp.message(i).copy()).collect();
     let inner_decomp: Vec<PolyVec> = decomp.inner_decomps().iter().map(PolyVec::copy).collect();
     let pp = PublicParamsD::new(inner, d_matrix);
+    eprintln!("[{:>9.1?}] committed {blocks} block(s)", t0.elapsed());
 
     // the claim: a true evaluation at a drawn point
     let xl = r.next_poly_vec(XL_VARS);
     let xh = r.next_poly_vec(XH_VARS);
-    let y = sparse_eval(&m0_block, &xh);
+    let y = dense_eval(&raw, &xl, &xh);
     let poly_stmt = PolyEvalStatement::new(u, xl, xh, y);
     let stmt = hachi::quadeval::to_quad_eval_statement(&poly_stmt);
     eprintln!("[{:>9.1?}] statement built", t0.elapsed());
@@ -441,8 +450,10 @@ fn the_honest_chain_verifies() {
 
     // the honest QuadEval side: `v`, the response, its stacking
     let v = hachi::quadeval::honest_compute_v(&pp, &stmt, &message);
+    eprintln!("[{:>9.1?}] honest_compute_v done", t0.elapsed());
     let resp = hachi::quadeval::honest_compute_resp(&stmt, &message, &inner_decomp, &c);
     let zeta = hachi::quadeval::stack(&resp);
+    eprintln!("[{:>9.1?}] honest_compute_resp + stack done", t0.elapsed());
     let rlin = hachi::quadeval::rlin_stmt(
         &pp,
         &stmt,
@@ -483,18 +494,63 @@ fn the_honest_chain_verifies() {
     let d_key = r.next_poly_matrix(1, lift_cols);
     eprintln!("[{:>9.1?}] lifted witness built, lift width {lift_cols}", t0.elapsed());
 
+    PinInstance { pp, d_key, poly_stmt, message, c, w, v, alpha, tau0, tau1, challenges }
+}
+
+
+/// **The honest chain verifies.** An evaluation claim that is true, opened by
+/// the honest prover over the honest lifted witness, is accepted by the
+/// composed verifier -- every round check, the final check and the end piece.
+///
+/// The instance is built from the message up, each public value derived the
+/// way its definition says, none of them drawn at random: the message block
+/// `ŝ₀` and its inner decomposition `t̂₀` from `commit::commit`, the outer
+/// commitment `u` with them, the claim `y` by direct evaluation, the carrier
+/// commitment `v` by `honest_compute_v`, the QuadEval response and its stacking
+/// `ζ` by `honest_compute_resp` and `stack`, and the lifted witness
+/// `w = (ζ, ρ)` by `honest_lift_witness` against the `R^lin` statement the
+/// verifier itself assembles. What *is* random is everything the wire draws:
+/// the matrices `A, B, D`, the lift key, the point, the short challenge `c`,
+/// `α`, `τ₀`, `τ₁` and the round challenges.
+///
+/// Two intermediate assertions pin where a failure would be: that `ζ` solves
+/// the assembled `R^lin` system (`M ζ = y` in `R_q`, ArkLib's `relOut ⇒ rlin`
+/// completeness step, which upstream carries `sorryAx`-tainted), and that the
+/// prover's `v` is the one the verifier is handed.
+///
+/// Cost at this shape, estimated from the measured parts: `honest_lift_witness`
+/// is `5 · 40 976` unreduced products (~4 min), the two `alpha_public_table`s
+/// at `2^26` (~2 h each), 26 rounds of `honest_compute_g` over the folded
+/// tables (~45 min), two `lift_commit`s of `41 016` products (~1 min each).
+/// Peak memory is a few `2^26`-entry `Ext4` tables (2 GiB each) plus the
+/// 1.6 GiB matrix.
+#[test]
+#[ignore = "hours: two naive 2^26 alpha_public_tables -- run with cargo test --release -- --ignored --nocapture"]
+#[allow(clippy::too_many_lines)]
+fn the_honest_chain_verifies() {
+    use std::time::Instant;
+    let t0 = Instant::now();
+    let blocks = chain_blocks_from_env();
+    let message_rows = hachi::params::MESSAGE_ROWS;
+    let message_digits = hachi::params::GADGET_DIGITS;
+    let inner_rows = hachi::params::INNER_ROWS;
+    let inner_digits = hachi::params::GADGET_DIGITS;
+    let z_digits = hachi::params::Z_DIGITS;
+    let m0 = hachi::params::M_ZERO;
+    let inst = pin_instance(blocks, &t0);
+
     // the honest prover
     let (v_open, t, msgs, y_prime) = chain_open(
-        &pp,
-        &d_key,
-        &poly_stmt,
-        &message,
-        &c,
-        &w,
-        alpha,
-        &tau0,
-        &tau1,
-        &challenges,
+        &inst.pp,
+        &inst.d_key,
+        &inst.poly_stmt,
+        &inst.message,
+        &inst.c,
+        &inst.w,
+        inst.alpha,
+        &inst.tau0,
+        &inst.tau1,
+        &inst.challenges,
         CHAIN_GAMMA,
         blocks,
         message_rows,
@@ -503,25 +559,25 @@ fn the_honest_chain_verifies() {
         inner_digits,
         z_digits,
     );
-    assert!(v_open.equals(&v), "the prover's v is the one the verifier is handed");
+    assert!(v_open.equals(&inst.v), "the prover's v is the one the verifier is handed");
     assert_eq!(msgs.len(), m0);
     eprintln!("[{:>9.1?}] chain_open done", t0.elapsed());
 
     // the composed verifier accepts
     let ok = chain_verify(
-        &pp,
-        &d_key,
-        &poly_stmt,
+        &inst.pp,
+        &inst.d_key,
+        &inst.poly_stmt,
         &v_open,
-        &c,
+        &inst.c,
         &t,
-        alpha,
-        &tau0,
-        &tau1,
+        inst.alpha,
+        &inst.tau0,
+        &inst.tau1,
         &msgs,
-        &challenges,
+        &inst.challenges,
         y_prime,
-        &w,
+        &inst.w,
         CHAIN_GAMMA,
         blocks,
         message_rows,
@@ -531,5 +587,82 @@ fn the_honest_chain_verifies() {
         z_digits,
     );
     eprintln!("[{:>9.1?}] chain_verify = {ok}", t0.elapsed());
+    assert!(ok, "the honest chain must verify");
+}
+
+/// **Where the honest prover's minutes go.** The same instance as
+/// [`the_honest_chain_verifies`], with `chain_open`'s composition replayed piece
+/// by piece and each piece timed: the lift commitment, the `2^m₀` witness table,
+/// the `2^m₀` public α table, the 26 rounds, the final claim; then the verifier
+/// whole. It asserts nothing the acceptance test does not (the pieces are
+/// exactly `chain_open`'s calls, in its order) and exists to tell I4
+/// (`lift_commit`'s ring products) from I5 (the rounds' range factor) by
+/// measurement rather than by estimate -- run it with
+/// `cargo test --release -- --ignored --nocapture the_honest_chain_profile`.
+#[test]
+#[ignore = "tens of minutes at the pin: the honest prover replayed piece by piece for timing"]
+#[allow(clippy::too_many_lines)]
+fn the_honest_chain_profile() {
+    use std::time::Instant;
+    let t0 = Instant::now();
+    let blocks = chain_blocks_from_env();
+    let message_rows = hachi::params::MESSAGE_ROWS;
+    let message_digits = hachi::params::GADGET_DIGITS;
+    let inner_rows = hachi::params::INNER_ROWS;
+    let inner_digits = hachi::params::GADGET_DIGITS;
+    let z_digits = hachi::params::Z_DIGITS;
+    let m0 = hachi::params::M_ZERO;
+    let inst = pin_instance(blocks, &t0);
+    let stmt = hachi::quadeval::to_quad_eval_statement(&inst.poly_stmt);
+
+    let t1 = Instant::now();
+    let rlin = hachi::quadeval::rlin_stmt(
+        &inst.pp, &stmt, &inst.v, &inst.c, CHAIN_GAMMA, blocks, message_rows, message_digits,
+        inner_rows, inner_digits, z_digits,
+    );
+    eprintln!("[profile] rlin_stmt (verifier assembles it too): {:.1?}", t1.elapsed());
+
+    let t2 = Instant::now();
+    let t_com: PolyVec = hachi::ringswitch::lift_commit(&inst.d_key, &inst.w);
+    eprintln!("[profile] lift_commit: {:.1?}", t2.elapsed());
+
+    let t3 = Instant::now();
+    let w_tab = hachi::zerocheck::c_w_table_mle(&inst.w, m0);
+    eprintln!("[profile] c_w_table_mle at 2^{m0}: {:.1?} ({} entries)", t3.elapsed(), w_tab.len());
+    drop(w_tab);
+
+    let t4 = Instant::now();
+    let a_tab = hachi::sumcheck::alpha_public_table(&rlin, inst.alpha, &inst.tau1, m0);
+    eprintln!("[profile] alpha_public_table at 2^{m0}: {:.1?} ({} entries)", t4.elapsed(), a_tab.len());
+    drop(a_tab);
+
+    let zc = hachi::sumcheck::NestedZeroCheckStmt::new(
+        rlin,
+        t_com.copy(),
+        inst.alpha,
+        inst.tau0.clone(),
+        inst.tau1.clone(),
+    );
+    let opened = hachi::sumcheck::nested_to_round_statement(zc);
+    let t5 = Instant::now();
+    let msgs = hachi::sumcheck::honest_round_messages(opened, &inst.w, &inst.challenges);
+    eprintln!(
+        "[profile] honest_round_messages ({} rounds, incl. its own two tables): {:.1?}",
+        msgs.len(),
+        t5.elapsed()
+    );
+
+    let t6 = Instant::now();
+    let y_prime = hachi::sumcheck::honest_compute_y(&inst.w, m0, &inst.challenges);
+    eprintln!("[profile] honest_compute_y: {:.1?}", t6.elapsed());
+
+    let t7 = Instant::now();
+    let ok = chain_verify(
+        &inst.pp, &inst.d_key, &inst.poly_stmt, &inst.v, &inst.c, &t_com, inst.alpha, &inst.tau0,
+        &inst.tau1, &msgs, &inst.challenges, y_prime, &inst.w, CHAIN_GAMMA, blocks, message_rows,
+        message_digits, inner_rows, inner_digits, z_digits,
+    );
+    eprintln!("[profile] chain_verify = {ok}: {:.1?}", t7.elapsed());
+    eprintln!("[{:>9.1?}] profile done", t0.elapsed());
     assert!(ok, "the honest chain must verify");
 }

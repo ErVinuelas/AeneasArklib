@@ -172,6 +172,18 @@ it, once per session, and stop with a report if any of it is missing:
      100 ns–2 µs band is **not actionable**, even if the current flat-threshold
      harness prints `faster`, unless that row has gained its own control or the
      harness has gained the documented per-band floor;
+   * **a callee whose own rows are all in that band is judged on its callers
+     (decided by the user 2026-09-14).** Name, in the ledger row, the caller
+     rows the item *dominates by arithmetic* -- `linalg/vec_add/8192` is
+     8192 × `ring::Rq::add` plus 8192 pushes, `ringswitch/lift_message/57344`
+     is 57 344 × `Rq::copy` -- and require every one of those to read `faster`;
+     the item's own in-band rows are recorded in the row but carry no verdict,
+     and a caller row where the item is *not* the dominant cost (a mul-bound
+     `mat_vec_mul` for an `Rq::add` change) is neither evidence nor veto and
+     stays out of the row. Precedent: candidate A's evidence rows were the
+     zerocheck callers of `c_eval_at`. The measured fix -- a per-band floor
+     from a ~1 µs control per binary -- is owed if ring-level work keeps
+     coming; this rule is the cheap bridge until then;
    * accept iff **every** measured row of the target reads `faster` — the
      rows share one lean but their noises are independent, so demanding all
      of them cuts the residual false-accept rate multiplicatively, and a
@@ -331,6 +343,16 @@ divided out of the accept column.
 * **A landed run that forgot the restore step.** `hachi/src` still carrying a
   candidate diff, or the slot left divergent — `make bench-check`
   (`check-candidate`) is the tripwire; run it before writing the commit plan.
+* **A frozen-but-unstamped helper blocks the next bench.** `make run-bench` opens
+  with `check-genesis`, and a helper the *previous* champion froze into genesis
+  has no `@genesis` stamp until the user's content commit -- so the next
+  candidate's `CANDIDATE=1` run in the same session dies before criterion
+  starts (measured 2026-09-14: candidate G's `range_product_base` blocked
+  candidate F's re-run). Setting the block aside does not help: the gate then
+  reports the `hachi/src` item as having no frozen counterpart. The only honest
+  way out is the user's content commit followed by `make bench-stamp`; a
+  back-to-back pair of champions in one module therefore costs one commit
+  round-trip between them. Plan the session for it; never hand-write a stamp.
 * **Benching a slot nobody filled.** `make run-bench CANDIDATE=1` runs
   `check-genesis` and the coverage audit but **not** `check-candidate`, and
   the report's slot witness only says which modules differ from `hachi/src` —

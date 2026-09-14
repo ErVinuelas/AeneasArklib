@@ -134,6 +134,17 @@ theorem ofBase_natCast (k : ℕ) : (Ext.ofBase ((k : ZMod q)) : F) = (k : F) := 
   rw [← phiF_apply]
   exact map_natCast phiF k
 
+/-- `φF` is injective, so it reflects zero: a ring homomorphism out of a
+division ring (`ZMod q` is a field, `Ext.lean:57`'s `Fact (Nat.Prime q)`) into a
+nontrivial semiring has trivial kernel. This is what lets the extracted
+`h_zero_is_zero` test `range_product_base(…).is_zero()` in `Fp`
+(`fp_is_zero_spec`, `lean/Ext.lean:212`) rather than embedding first and calling
+`Ext4::is_zero` -- candidate G's verdict half. Moved here from `lean/Opt.lean`
+so that `range_product_base_spec` below can use it; `Opt.lean` still reaches it
+through `open HachiEquiv.ZeroCheck`. -/
+theorem phiF_eq_zero_iff (y : ZMod q) : phiF y = 0 ↔ y = 0 :=
+  map_eq_zero_iff phiF phiF.injective
+
 /-! ## Loop helpers shared by the whole file
 
 `zerocheck::two_pow` is the crate's own copy of the doubling loop `EvalSplit`
@@ -403,6 +414,89 @@ theorem range_product_spec (v : cpoly.field.Ext4) (hv : Reduced v) :
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.rangeProduct 16 (toExt v) ⦄ := by
   rw [zerocheck.range_product]
   exact range_product_loop_spec v v 1#u64 hv hv (by simp) (by simp) (by simp)
+
+/-- The base-field product, embedded, is the specification's extension range
+factor at the embedded argument: `φF` is a bundled `RingHom`, so the leading
+factor, the product, the two symmetric differences and the natural-number
+literals all commute with it. This is the whole algebraic content of candidate
+G, restated here because `lean/Opt.lean` imports this file and not the other way
+round. -/
+theorem phiF_rangeProduct_prod (b : ℕ) (x : ZMod q) :
+    phiF (x * ∏ j ∈ Finset.Icc 1 (b - 1), ((x - (j : ZMod q)) * (x + (j : ZMod q))))
+      = InnerOuter.rangeProduct b (phiF x) := by
+  rw [InnerOuter.rangeProduct, map_mul, map_prod]
+  refine congrArg (fun t => phiF x * t) (Finset.prod_congr rfl ?_)
+  intro j _
+  rw [map_mul, map_sub, map_add, map_natCast]
+
+/-- The loop of `range_product_base`: ascending `j`, one base-field
+multiplication per step by `c² - j²` (candidate F's contraction of the two
+symmetric factors, computed in `Fp` -- candidate G). `c` is not a component of
+the extracted loop state; it enters only through `hc2v` and the invariant
+`hval`, which is why it is an ordinary parameter here -- and why it needs no
+`Red c`: only `toK c` is ever mentioned.
+
+`j * j` is a *checked* `u64` product, and the guard `j < GADGET_BASE = 16` is
+what discharges it (`j · j ≤ 225`); `Fp::new` then never actually reduces, but
+the model still goes through `fp_new_spec`. -/
+theorem range_product_base_loop_spec (c c2 acc : cpoly.field.Fp) (j : Std.U64)
+    (hc2 : Red c2) (hacc : Red acc) (hj : 1 ≤ j.val) (hjle : j.val ≤ 16)
+    (hc2v : toK c2 = toK c * toK c)
+    (hval : toK acc = toK c *
+      ∏ k ∈ Finset.Ico (1 : ℕ) j.val, (toK c * toK c - ((k * k : ℕ) : ZMod q))) :
+    zerocheck.range_product_base_loop params.GADGET_BASE c2 acc j
+      ⦃ out => Red out ∧ toK out = toK c *
+        ∏ k ∈ Finset.Icc (1 : ℕ) 15, ((toK c - (k : ZMod q)) * (toK c + (k : ZMod q))) ⦄ := by
+  have hgb : (params.GADGET_BASE).val = 16 := by simp [params.GADGET_BASE]
+  rw [zerocheck.range_product_base_loop]
+  apply loop.spec_decr_nat (fun s => 16 - s.2.val)
+    (fun s => 1 ≤ s.2.val ∧ s.2.val ≤ 16 ∧ Red s.1 ∧ toK s.1 = toK c *
+      ∏ k ∈ Finset.Ico (1 : ℕ) s.2.val, (toK c * toK c - ((k * k : ℕ) : ZMod q)))
+  · rintro ⟨a1, j1⟩ ⟨hj1, hj1le, hR1, hv1⟩
+    dsimp only at hj1 hj1le hR1 hv1
+    simp only [zerocheck.range_product_base_loop.body]
+    by_cases hlt : j1 < params.GADGET_BASE
+    · rw [if_pos hlt]
+      have hj1lt : j1.val < 16 := by scalar_tac
+      step as ⟨sq, hsq⟩
+      step with fp_new_spec sq as ⟨f, hRf, hf⟩
+      step with fp_sub_spec c2 f hc2 hRf as ⟨d, hRd, hd⟩
+      step with fp_mul_spec a1 d hR1 hRd as ⟨a2, hR2, ha2⟩
+      step as ⟨j2, hj2⟩
+      have hj2n : j2.val = j1.val + 1 := by scalar_tac
+      have hfv : toK f = ((j1.val * j1.val : ℕ) : ZMod q) := by
+        rw [hf]; exact congrArg (fun t : ℕ => (t : ZMod q)) (by scalar_tac)
+      refine ⟨by scalar_tac, by scalar_tac, hR2, ?_, by scalar_tac⟩
+      rw [ha2, hv1, hd, hc2v, hfv, hj2n, Finset.prod_Ico_succ_top (by omega)]
+      ring
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = 16 := by scalar_tac
+      have hIco : Finset.Ico (1 : ℕ) 16 = Finset.Icc 1 15 := by decide
+      refine ⟨hR1, ?_⟩
+      rw [hv1, heq, hIco]
+      refine congrArg (fun t => toK c * t) (Finset.prod_congr rfl ?_)
+      intro k _
+      rw [Nat.cast_mul]
+      ring
+  · exact ⟨hj, hjle, hacc, hval⟩
+
+/-- **`range_product_base` computes `rangeProduct` at the embedded argument.**
+The range factor of `Constraints.lean:96` with the whole product carried out in
+`ZMod q` and `φF` applied once, which is exactly what licenses the two
+zero-check table builders to call it on a bare `Fp` coefficient (candidate G,
+`HachiEquiv.Opt.range_product_base.opt`). Total for every reduced `c`: the only
+fail points are the checked `j * j`, bounded by the loop guard, and the field
+operations, total under `Red`. -/
+theorem range_product_base_spec (c : cpoly.field.Fp) (hc : Red c) :
+    zerocheck.range_product_base c
+      ⦃ out => Red out ∧ phiF (toK out) = InnerOuter.rangeProduct 16 (phiF (toK c)) ⦄ := by
+  rw [zerocheck.range_product_base]
+  step with fp_mul_spec c c hc hc as ⟨c2, hRc2, hc2⟩
+  apply spec_mono (range_product_base_loop_spec c c2 c 1#u64 hRc2 hc
+    (by simp) (by simp) hc2 (by simp))
+  rintro out ⟨hRout, hout⟩
+  exact ⟨hRout, by rw [hout]; exact phiF_rangeProduct_prod 16 (toK c)⟩
 
 /-- The specification's table, read at the cube point a flat index encodes: the
 `let`s of `wTable` resolved, with `d = N` and `rhoDigitCount q 16 = 8` put in.
@@ -1413,9 +1507,11 @@ theorem toEvals_eq_hZero {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ 
 
 /-- The inner loop of `h_zero`: the row's coefficients with the range factor
 applied to each as it is produced. Same shape as
-`c_w_table_mle_values_loop0_loop0_spec`, one `range_product` further on; the Lean
-side is `HachiEquiv.Opt.blockLoop` at `φ = rangeProduct 16`
-(opt: `HachiEquiv.Opt.h_zero.opt`, `lean/Opt.lean`). -/
+`c_w_table_mle_values_loop0_loop0_spec`, one `range_product_base` further on --
+the factor is computed in `Fp` and embedded once, so the `Ext4::from_base` now
+comes *after* it (candidate G); the Lean side is
+`HachiEquiv.Opt.blockLoopBase` at `g = fun c => phiF (range_product_base.opt 16 c)`
+(opt: `HachiEquiv.Opt.h_zero.opt2`, `lean/Opt.lean`). -/
 theorem h_zero_loop0_loop0_spec {μ n m₀ : ℕ}
     (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
     (values : alloc.vec.Vec cpoly.field.Ext4) (idx l : Std.Usize) (hr : Wf r)
@@ -1448,10 +1544,12 @@ theorem h_zero_loop0_loop0_spec {μ n m₀ : ℕ}
       · rw [if_pos hlt2]
         have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
         step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
-        step with ext_from_base_spec f hRf as ⟨e, hRe, he⟩
-        have hentry : toExt e = wTableFlat m₀ sw x1.val := by
-          rw [he, hf, ← phiF_apply, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
-        step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
+        step with range_product_base_spec f hRf as ⟨f1, hRf1, hf1⟩
+        step with ext_from_base_spec f1 hRf1 as ⟨e, hRe, he⟩
+        have hentry : toExt e =
+            InnerOuter.rangeProduct 16 (wTableFlat m₀ sw x1.val) := by
+          rw [he, ← phiF_apply, hf1, hf, hx1,
+            hg l1.val hllt (by rw [← hx1]; exact hxlt)]
         have hbound : v1.val.length < Usize.max := by omega
         step as ⟨v2, hv2⟩
         step as ⟨l2, hl2⟩
@@ -1464,13 +1562,13 @@ theorem h_zero_loop0_loop0_spec {μ n m₀ : ℕ}
           rw [hv2] at hy
           rcases List.mem_append.mp hy with h | h
           · exact hred1 y h
-          · rw [List.mem_singleton.mp h]; exact hRpe
+          · rw [List.mem_singleton.mp h]; exact hRe
         · intro t ht
           rw [hx2v] at ht
           rcases Nat.lt_or_ge t x1.val with htlt | htge
           · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
           · have hteq : t = v1.val.length := by omega
-            rw [hteq, hv2, getD_append_eq, hpe, hentry, hlen1]
+            rw [hteq, hv2, getD_append_eq, hentry, hlen1]
       · rw [if_neg hlt2, WP.spec_ok]
         dsimp only
         have hge : size.val ≤ x1.val := by scalar_tac
@@ -1485,7 +1583,7 @@ theorem h_zero_loop0_loop0_spec {μ n m₀ : ℕ}
   · exact ⟨hl, hidx, hidxle, hlen, hred, hval⟩
 
 /-- The outer loop of `h_zero`: one `w_table_row` per row; the Lean side is
-`HachiEquiv.Opt.rowLoop` at `φ = rangeProduct 16`. -/
+`HachiEquiv.Opt.rowLoopBase` at `g = fun c => phiF (range_product_base.opt 16 c)`. -/
 theorem h_zero_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
     (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
     (values : alloc.vec.Vec cpoly.field.Ext4) (u idx : Std.Usize)
@@ -1556,9 +1654,11 @@ theorem h_zero_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
   exact ⟨⟨hlen, hred⟩, toEvals_eq_hZero sw o hval⟩
 
 /-- The inner loop of `h_zero_is_zero`: the same traversal with a `Bool` state,
-running branchless to the end -- the Lean side is
-`HachiEquiv.Opt.zeroBlockLoop` (opt: `HachiEquiv.Opt.h_zero_is_zero.opt`,
-`lean/Opt.lean`). -/
+running branchless to the end. The verdict needs no embedding at all: the Rust
+tests `range_product_base(…).is_zero()` in `Fp` and `phiF_eq_zero_iff` reflects
+that to the specification's extension factor (candidate G). The Lean side is
+`HachiEquiv.Opt.zeroBlockLoopBase` (opt:
+`HachiEquiv.Opt.h_zero_is_zero.opt2`, `lean/Opt.lean`). -/
 theorem h_zero_is_zero_loop0_loop0_spec {μ n m₀ : ℕ}
     (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
     (zero : Bool) (idx l : Std.Usize) (hr : Wf r)
@@ -1588,12 +1688,14 @@ theorem h_zero_is_zero_loop0_loop0_spec {μ n m₀ : ℕ}
       · rw [if_pos hlt2]
         have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
         step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
-        step with ext_from_base_spec f hRf as ⟨e, hRe, he⟩
-        have hentry : toExt e = wTableFlat m₀ sw x1.val := by
-          rw [he, hf, ← phiF_apply, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
-        step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
-        step with ext_is_zero_spec pe hRpe as ⟨bz, hbz⟩
-        rw [hpe, hentry] at hbz
+        step with range_product_base_spec f hRf as ⟨f1, hRf1, hf1⟩
+        have hentry : phiF (toK f1) =
+            InnerOuter.rangeProduct 16 (wTableFlat m₀ sw x1.val) := by
+          rw [hf1, hf, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
+        step with fp_is_zero_spec f1 hRf1 as ⟨bz, hbz0⟩
+        have hbz : bz = true ↔
+            InnerOuter.rangeProduct 16 (wTableFlat m₀ sw x1.val) = 0 := by
+          rw [hbz0, ← hentry, phiF_eq_zero_iff]
         by_cases hbzt : bz = true
         · rw [if_pos hbzt]
           simp only [bind_tc_ok]
@@ -1636,7 +1738,7 @@ theorem h_zero_is_zero_loop0_loop0_spec {μ n m₀ : ℕ}
   · exact ⟨hl, hidx, hidxle, hzero⟩
 
 /-- The outer loop of `h_zero_is_zero`: one `w_table_row` per row; the Lean side
-is `HachiEquiv.Opt.zeroRowLoop`. -/
+is `HachiEquiv.Opt.zeroRowLoopBase`. -/
 theorem h_zero_is_zero_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
     (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (zero : Bool)
     (u idx : Std.Usize)

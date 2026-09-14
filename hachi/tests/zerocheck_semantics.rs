@@ -36,7 +36,7 @@ use hachi::ringswitch::RlinStatement;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::ring::Rq;
 use hachi::zerocheck::w_table_row;
-use hachi::zerocheck::{alpha_pow_table, eq_weight_table, m_alpha_table};
+use hachi::zerocheck::{alpha_pow_table, eq_weight_table, m_alpha_table, range_product_base};
 use hachi::zerocheck::{alpha_contract, alpha_defect, alpha_public_evals, alpha_tilde,
                        c_w_table_mle, eq_weight, h_alpha, h_alpha_evals, h_alpha_is_zero,
                        h_zero, h_zero_is_zero, m_alpha_tilde, range_product, w_table,
@@ -284,6 +284,28 @@ fn h_zero_is_zero_agrees_with_h_zero_across_rows() {
     assert!(h_zero_is_zero(&good, m0), "all-zero quotient rows and unit message digits are in range");
     let all_zero_good = h_zero(&good, m0).values().iter().all(|e| e.is_zero());
     assert!(all_zero_good);
+}
+
+// --- the base-field range factor (Stage 6 I5 candidate G) ------------------
+
+/// `range_product_base` embedded is `range_product` at the embedded argument
+/// (`φF` is a ring homomorphism), on random coefficients, on the whole symmetric
+/// range where both vanish, and just outside it where neither does.
+#[test]
+fn range_product_base_embeds_to_range_product() {
+    let mut r = Lcg::new(0x5A17_C010);
+    for _ in 0..16 {
+        let c = Fp::new(r.next_u64() % Q);
+        assert_eq!(Ext4::from_base(range_product_base(c)), range_product(Ext4::from_base(c)));
+    }
+    for v in -(GADGET_BASE as i64 - 1)..(GADGET_BASE as i64) {
+        let c = if v >= 0 { Fp::new(v as u64) } else { Fp::new(Q - ((-v) as u64)) };
+        assert!(range_product_base(c).is_zero(), "P_b vanishes at {v}");
+    }
+    for v in [GADGET_BASE as i64, -(GADGET_BASE as i64)] {
+        let c = if v >= 0 { Fp::new(v as u64) } else { Fp::new(Q - ((-v) as u64)) };
+        assert!(!range_product_base(c).is_zero(), "P_b does not vanish at {v}");
+    }
 }
 
 // --- the hoisted α-side tables (Stage 6 I1 candidate C) --------------------
