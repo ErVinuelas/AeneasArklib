@@ -83,7 +83,11 @@ resolvable and the no-cross-run rule mechanical:
   Two shapes have no landing work by design and are the row's own record:
   rejected candidates and bench-only references (the `slot_sha` fingerprints
   their discarded diff). A loop run that lands no champion ends with a
-  ledger-only commit in its plan.
+  ledger-only commit in its plan. The reader-side half of this rule is
+  `make changes` (`scripts/changes.py`): it blames each accepted row to its
+  commit and shows the diff under `hachi/src/` for the row's modules, and
+  `--strict` fails on a row whose commit carries no such change — the
+  mechanical check that the row rode its work.
 * **Measurement rows name their criterion session.** Every candidate row
   carrying a `rows` array has a `run`, and **you never invent it**: `make
   run-bench` prints it (`run  20260820T1432+0200-721f2a18`) and `JSON=` puts it

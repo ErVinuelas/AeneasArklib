@@ -84,3 +84,30 @@ the slot fingerprint. Two columns are the ones to compare over time:
 Absolute times (`now_ns`, `genesis_ns`) are not comparable across runs or
 machines; only the within-run ratios are. The reference implementation's
 absolute spans live in `paper-impl/` and are compared to nothing by tooling.
+
+## From a row to the change behind it — `make changes`
+
+A ledger row says what a candidate did (`candidate`), which Rust items it
+touched (`item`) and what it bought (`rows`), but it cannot name the commit it
+landed in: the row is written before that commit exists, and the file is
+append-only. The pointer is git's: a row **rides the work it describes**
+(`skill-lab` § "The ledger"), so the commit that introduced the row's line is
+the commit that holds the champion. `make changes` follows that pointer for
+every accepted row and prints the row's description, the commit, and the diff
+under `hachi/src/` for the modules the row names — the part of the commit that
+made the code faster, separated from the regenerated `Generated.lean`, the
+restated specs, the docs and the tests that travel with it.
+
+* `make changes ARGS='--diff'` — the patch itself instead of a diffstat.
+* `make changes ARGS='--lean'` — also the `hachi/lean/Opt.lean` part: the same
+  change stated in Lean, with the proved `opt_eq_spec` lemma that says it
+  computes what the ArkLib definition computes.
+* `make changes ARGS='--all'` — every row: rejected candidates (which land no
+  code; their `slot_sha` fingerprints the discarded diff) and campaign rows
+  (which show the Lean files the proof pass touched).
+* `make changes ARGS='--strict'` — exit non-zero if an accepted row is not yet
+  in history or landed in a commit with no change under its modules. Either
+  means the row did not ride its work and the pointer is broken for it.
+
+`make gains` answers "how much better, row by row"; `make changes` answers
+"by which change". Neither adds anything to what the ledger and git hold.

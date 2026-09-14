@@ -103,6 +103,7 @@ help:
 	@echo '    bench-coverage report which mirrored items are benched, without failing'
 	@echo '    ledger-check   validate logs/ledger.jsonl against the last commit'
 	@echo '    gains          the scoreboard: cumulative vs-genesis per row over the usable runs in logs/runs/'
+	@echo '    changes        from each accepted ledger row to its commit and the diff under hachi/src/'
 	@echo '    clean          drop build output, keeping fetched dependencies'
 	@echo ''
 	@echo '  Variables:'
@@ -313,7 +314,7 @@ extract: check-toolchain | $(STAMPS)
 BENCH_TOOLCHAIN := nightly-2026-06-01
 HARNESS         := $(PKG)/benches/harness.py
 
-.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check gains
+.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check gains changes
 
 # Statistics cannot rescue a corrupted baseline, so the integrity checks run
 # before any measurement and are a hard gate.
@@ -377,6 +378,15 @@ spec-check:
 # logs/runs/, side by side (`ARGS='--ledger'` adds the ledger's increments).
 gains:
 	@python3 scripts/gains.py $(ARGS)
+
+# From a ledger row to the change behind it. A row cannot name its commit (it
+# is written first, and the file is append-only), but a row rides the work it
+# describes, so `git blame` on its line is that pointer; this follows it and
+# shows the diff under hachi/src/ for the row's own modules (`ARGS='--diff'`
+# for the patch, `--lean` to add Opt.lean, `--all` for rejected and campaign
+# rows too, `--strict` to fail on a row that landed without code).
+changes:
+	@python3 scripts/changes.py $(ARGS)
 
 bench-toolchain:
 	@set -euo pipefail; \
