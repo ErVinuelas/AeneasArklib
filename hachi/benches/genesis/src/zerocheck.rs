@@ -652,6 +652,7 @@ fn c_w_table_mle_values(w: &LiftedWitness, m0: usize) -> Vec<Ext4> {
 // Frozen as first translations the day the champion landed (2026-09-14).
 // ---------------------------------------------------------------------------
 
+// @genesis c0f8147 2026-09-14 — zerocheck::alpha_pow_table
 /// The `d`-entry power table `[α^0, …, α^(d−1)]` (the values of `alphaTilde`,
 /// `Constraints.lean:502`, tabulated; opt: `HachiEquiv.Opt.alphaPowTable`,
 /// `lean/Opt.lean`, licensed entrywise by `alphaPowTable_getD`).
@@ -672,6 +673,7 @@ pub fn alpha_pow_table(alpha: Ext4, d: usize) -> Vec<Ext4> {
     out
 }
 
+// @genesis c0f8147 2026-09-14 — zerocheck::eq_weight_table
 /// The `n`-entry table of `m₁`-cube equality weights: entry `i` is
 /// [`eq_weight`]`(τ₁, i)` under the specification's `i < 2^m₁` guard and `0`
 /// above it (the `∏ j : Fin m₁` factor of `alphaPublicEvals`,
@@ -696,6 +698,7 @@ pub fn eq_weight_table(tau1: &Vec<Ext4>, n: usize) -> Vec<Ext4> {
     out
 }
 
+// @genesis c0f8147 2026-09-14 — zerocheck::m_alpha_table
 /// The public constraint matrix at `α`, tabulated: `n` rows of `μ + n·δ`
 /// columns, entry `(i, u)` the value of [`m_alpha_tilde`]`(s, α, i, u)` (spec:
 /// `mAlphaTilde`, `Constraints.lean:517`; opt: `HachiEquiv.Opt.mAlphaTable`,
