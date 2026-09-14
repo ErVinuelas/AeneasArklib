@@ -583,6 +583,7 @@ pub fn below_two_pow(i: usize, m: usize) -> bool {
 // Frozen as first translations the day the champion landed (2026-09-14).
 // ---------------------------------------------------------------------------
 
+// @genesis eed3fcb 2026-09-14 — zerocheck::w_table_row
 /// Row `u` of the committed table `w̃`, as one [`Rq`]: the three branches of
 /// `wTable` (`Constraints.lean:140`) read at the row rather than at the entry
 /// (opt: `HachiEquiv.ZeroCheck.wTableRow`, the pure row function the Stage 6
@@ -613,6 +614,7 @@ pub fn w_table_row(w: &LiftedWitness, u: usize) -> Rq {
     }
 }
 
+// @genesis eed3fcb 2026-09-14 — zerocheck::c_w_table_mle_values
 /// The committed table `w̃` as a plain value vector, row block by row block
 /// (opt: `HachiEquiv.Opt.c_w_table_mle.opt`, `lean/Opt.lean`).
 ///
