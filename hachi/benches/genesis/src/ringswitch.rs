@@ -521,6 +521,7 @@ pub fn honest_lift_witness(s: &RlinStatement, z: &PolyVec) -> LiftedWitness {
 // Frozen as a first translation the day the champion landed (2026-09-14).
 // ---------------------------------------------------------------------------
 
+// @genesis b6f0d69 2026-09-14 — ringswitch::lift_commit_row
 /// One row of the lift commitment, accumulated in place over the two halves of
 /// the specification's concatenation: `∑_{j<μ} D[i][j]·z[j]` then
 /// `∑_{j<n·δ} D[i][μ+j]·digit(ρ, j)` (opt: `HachiEquiv.Opt.liftCommitRow`,
