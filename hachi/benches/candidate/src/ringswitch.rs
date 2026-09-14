@@ -243,46 +243,35 @@ impl RlinStatement {
     }
 }
 
-/// `x^i` in the extension field, by repeated multiplication.
-///
-/// The `x ^ i` of `CPolynomial.eval₂`'s fold
-/// (`CompPoly/Univariate/Basic.lean:251`), recomputed per term exactly as the
-/// fold writes it -- the same deliberate naivety as
-/// [`crate::gadget::base_pow`], and for the same reason: the frozen baseline
-/// must be the specification's shape, so that hoisting the power out of the
-/// loop is a measurable optimization rather than something already spent.
-fn ext_pow(x: cpoly::Ext4, i: usize) -> cpoly::Ext4 {
-    let mut acc: cpoly::Ext4 = cpoly::Ext4::ONE;
-    let mut t: usize = 0;
-    while t < i {
-        acc = acc * x;
-        t += 1;
-    }
-    acc
-}
-
 /// Evaluate a `Zq[X]` polynomial at a point of the extension field (spec:
-/// `cEvalAt`, `RingSwitch/Reduction.lean:444`).
+/// `cEvalAt`, `RingSwitch/Reduction.lean:444`; opt:
+/// `HachiEquiv.Opt.c_eval_at.opt`, `lean/Opt.lean`).
 ///
 /// Mirrors `cEvalAt`.
 ///
-/// `cEvalAt φF a p = p.eval₂ φF a`, and `eval₂` is the *sum* form --
-/// `p.val.zipIdx.foldl (fun acc ⟨a, i⟩ => acc + f a * x ^ i) 0`
-/// (`CompPoly/Univariate/Basic.lean:251`) -- not Horner's method, which CompPoly
-/// offers separately as `eval₂Horner` and this definition does not use. So the
-/// translation is the same sum, with the power recomputed per term.
+/// `cEvalAt φF a p = p.eval₂ φF a`, and `eval₂` is the *sum* form
+/// `∑_k φF (p.coeff k) · a^k` (`CompPoly/Univariate/Basic.lean:251`). The
+/// body is that sum with the power threaded through the loop state -- `pw` is
+/// `a^k` at the top of iteration `k` -- instead of recomputed per term, which
+/// is `2·d` extension multiplications where the frozen baseline paid
+/// `d·(d−1)/2`. The two agree by `c_eval_at.opt_eq_spec` (`lean/Opt.lean`),
+/// proved against `cEvalAt` itself, so the `Mirrors` line above is still the
+/// truth: the algorithm changed in Lean first, and this is its translation.
 ///
 /// This is the crate's first *mixed* evaluation: the coefficients are `Fp` and
 /// the point is `cpoly::Ext4`, so each term is one `Fp`-to-`cpoly::Ext4` embedding, one
-/// extension multiply and one extension add. cpoly's `UnivariatePoly::eval` is
-/// not a drop-in -- its coefficients are `cpoly::Ext4` too, so using it would embed
-/// the whole polynomial first and multiply in the wide field throughout.
+/// extension multiply and one extension add, plus the one multiply that
+/// advances the power. cpoly's `UnivariatePoly::eval` is not a drop-in -- its
+/// coefficients are `cpoly::Ext4` too, so using it would embed the whole
+/// polynomial first and multiply in the wide field throughout.
 pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
     let degree: usize = params::RING_DEGREE;
     let mut acc: cpoly::Ext4 = cpoly::Ext4::ZERO;
+    let mut pw: cpoly::Ext4 = cpoly::Ext4::ONE;
     let mut k: usize = 0;
     while k < degree {
-        acc = acc + cpoly::Ext4::from_base(p.coeff(k)) * ext_pow(alpha, k);
+        acc = acc + cpoly::Ext4::from_base(p.coeff(k)) * pw;
+        pw = pw * alpha;
         k += 1;
     }
     acc
@@ -290,35 +279,29 @@ pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
 
 /// Evaluate the cyclotomic modulus at a point of the extension field (spec:
 /// `cEvalAt φF α Φ.φ`, the `φ(α)` factor of `mAlphaTilde`,
-/// `ZeroCheck/Constraints.lean:519`).
+/// `ZeroCheck/Constraints.lean:519`; opt: `HachiEquiv.Opt.c_eval_at_modulus.opt`,
+/// `lean/Opt.lean`).
 ///
 /// Mirrors `cEvalAt` (at the modulus, which no [`Rq`] can hold).
 ///
 /// `Φ.φ = X^d + 1` at a power-of-two cyclotomic index, so it has `d + 1`
 /// coefficients and does not fit an [`Rq`], whose invariant is exactly `d` of
 /// them -- hence a separate entry point rather than a call to [`c_eval_at`].
-/// The body is `eval₂` over those `d + 1` coefficients, all zero but the first
-/// and the last.
-///
-/// Deliberately naive, and expensively so: `α^d + 1` is ten squarings at
-/// `d = 1024`, while this is the specification's `d + 1`-term sum with a
-/// recomputed power per term. That gap is the point -- it is the largest single
-/// optimization the α-side offers, and it must be *measurable*, so the baseline
-/// pays it. See the target-4 brief § Corrections item 3.
+/// Its `eval₂` sum has exactly two non-zero terms, `1` and `α^d`, so the body
+/// is a running power of `d` multiplications and one addition;
+/// `c_eval_at_modulus.opt_eq_spec` (`lean/Opt.lean`) proves it equal to the
+/// specification's `d + 1`-term sum, which the frozen baseline computed
+/// literally, with a recomputed power per term. Ten squarings would do it
+/// too; that is a different loop shape and a later candidate.
 pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
     let degree: usize = params::RING_DEGREE;
-    let mut acc: cpoly::Ext4 = cpoly::Ext4::ZERO;
+    let mut pw: cpoly::Ext4 = cpoly::Ext4::ONE;
     let mut k: usize = 0;
-    while k <= degree {
-        let coeff: Fp = if k == 0 || k == degree {
-            Fp::ONE
-        } else {
-            Fp::ZERO
-        };
-        acc = acc + cpoly::Ext4::from_base(coeff) * ext_pow(alpha, k);
+    while k < degree {
+        pw = pw * alpha;
         k += 1;
     }
-    acc
+    pw + cpoly::Ext4::ONE
 }
 
 // ---------------------------------------------------------------------------

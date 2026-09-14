@@ -238,6 +238,10 @@ extract, and are still not worth it", "The cpoly dependency" are the record.
 | cross-crate foreign newtype with a *private* field, under `--include` | `@[reducible] def cpoly.field.Fp := Std.U64`, real bodies | the Workstream 0 finding; § 2 of `Check.lean` pins it |
 | cross-crate foreign multi-field struct, under `--include` | a real `structure` with real projections | measured on `Ext4`, which has since left the model — the whitelist follows only what the crate reaches |
 | `--extract-opaque-bodies` | **nothing** — "Mixed declaration groups … are not supported yet" | aeneas fails outright; use the scoped `--include` |
+| `while a && b { … }` counter loop (2026-09-14, `nightly-2026.07.26-3a8586f`) | nested `if` in the loop body with two syntactically identical `ok (done …)` branches; loop state unchanged | measured on `zerocheck::c_w_table_mle_values`; the second conjunct is the Lean `blockLoop`'s `base + l < size` guard |
+| cross-crate free function called from a hachi loop: `cpoly::multilinear::eval_mle_layer(&cur, x)` (2026-09-14) | `let s := alloc.vec.Vec.deref cur` (pure) then the whitelisted `cpoly.multilinear.eval_mle_layer s x`; zero axioms | first non-method `cpoly` item the crate reaches; its spec was already ported (`eval_mle_layer_spec`) |
+| `cur = f(&cur)` reassigning a `Vec`-valued loop variable (2026-09-14) | loop state stays the 2-tuple `(cur, j)`; the old vector is simply dropped | `zerocheck::w_table_mle_eval`'s layer fold |
+| `Vec::with_capacity(n)` in this crate (2026-09-14) | `alloc.vec.Vec.with_capacity`, definitionally `Vec.new` (pure, non-monadic bind) | existing specs' `Vec.new` initial state needs at most `simp only [alloc.vec.Vec.with_capacity]` |
 
 Unprobed (add a measured row on first contact — closures, const generics,
 generic functions, `match` on custom enums, `u128` division, trait objects,

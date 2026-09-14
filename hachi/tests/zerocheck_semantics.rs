@@ -35,6 +35,7 @@ use hachi::params::{BALANCED_SHIFT, GADGET_BASE, GADGET_DIGITS, HALF_BASE, Q, RI
 use hachi::ringswitch::RlinStatement;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::ring::Rq;
+use hachi::zerocheck::w_table_row;
 use hachi::zerocheck::{alpha_contract, alpha_defect, alpha_public_evals, alpha_tilde,
                        c_w_table_mle, eq_weight, h_alpha, h_alpha_evals, h_alpha_is_zero,
                        h_zero, h_zero_is_zero, m_alpha_tilde, range_product, w_table,
@@ -192,6 +193,96 @@ fn w_table_is_zero_above_the_committed_rows() {
     for idx in [first_pad, first_pad + 1, first_pad + 4096] {
         assert!(w_table(&w, idx).is_zero(), "padding at {idx}");
     }
+}
+
+// --- the row helper ---------------------------------------------------------
+
+/// `w_table_row` (opt: `HachiEquiv.Opt.wTableRow`) is the table read one row
+/// at a time: coefficient `l` of row `u` is entry `d·u + l` of `w_table`, on the
+/// message rows, on every digit row, and on the zero padding above them. It is
+/// also the *only* place the row-hoisted builders differ from the entrywise
+/// ones, so this is the test that pins the hoist to the specification's table.
+#[test]
+fn w_table_row_is_the_table_read_by_rows() {
+    let (mu, n) = (2, 2);
+    let w = witness(0x5A17_0009, mu, n);
+    let rows = mu + n * GADGET_DIGITS;
+    for u in 0..(rows + 3) {
+        let r = w_table_row(&w, u);
+        for l in [0, 1, 17, RING_DEGREE / 2, RING_DEGREE - 1] {
+            assert_eq!(
+                Ext4::from_base(r.coeff(l)),
+                w_table(&w, RING_DEGREE * u + l),
+                "row {u}, coefficient {l}"
+            );
+        }
+        if u >= rows {
+            assert!(r.equals(&Rq::zero()), "row {u} is padding");
+        }
+    }
+}
+
+/// The hoisted builders stop at the cube, not at the table: at `m₀ = 11` with
+/// `1 + 2·8 = 17` rows the cube holds exactly two complete rows, so the outer
+/// loop exits early (the second row a digit row) and nothing is truncated.
+#[test]
+fn c_w_table_mle_stops_at_the_cube_not_the_table() {
+    let w = witness(0x5A17_000A, 1, 2);
+    let m0 = 11;
+    let table = c_w_table_mle(&w, m0);
+    assert_eq!(table.len(), 1 << m0);
+    for i in 0..(1usize << m0) {
+        assert_eq!(table.values()[i], w_table(&w, i), "entry {i}");
+    }
+    let h = h_zero(&w, m0);
+    for i in 0..(1usize << m0) {
+        assert_eq!(h.values()[i], range_product_ref(w_table(&w, i)), "H₀ entry {i}");
+    }
+}
+
+/// The one shape where the inner guard's second conjunct ends a block early:
+/// `2^m₀ < d`, so row 0 is cut at `2^m₀` coefficients. This is the `m₀ < 10`
+/// case the Lean lemma covers without a padding loop, and the only place the
+/// two guards of the inner loop disagree.
+#[test]
+fn c_w_table_mle_truncates_a_partial_row_block() {
+    let w = witness(0x5A17_000B, 1, 2);
+    for m0 in [3usize, 9] {
+        let table = c_w_table_mle(&w, m0);
+        assert_eq!(table.len(), 1 << m0);
+        for i in 0..(1usize << m0) {
+            assert_eq!(table.values()[i], w_table(&w, i), "m0 {m0}, entry {i}");
+        }
+        let h = h_zero(&w, m0);
+        assert_eq!(h.len(), 1 << m0);
+        for i in 0..(1usize << m0) {
+            assert_eq!(h.values()[i], range_product_ref(w_table(&w, i)), "m0 {m0}, H₀ {i}");
+        }
+    }
+}
+
+/// The verdict over a cube spanning more than one row, the second a digit row:
+/// `h_zero_is_zero` must agree with the block it decides, and a corrupted
+/// coefficient placed in the *digit* row (index `≥ d`) must flip it. A wrong
+/// row advance or a mishandled digit branch in the verdict loop would pass the
+/// single-`z`-row test above and fail here.
+#[test]
+fn h_zero_is_zero_agrees_with_h_zero_across_rows() {
+    let w = witness(0x5A17_000C, 1, 2);
+    let m0 = 11;
+    let all_zero = h_zero(&w, m0).values().iter().all(|e| e.is_zero());
+    assert_eq!(h_zero_is_zero(&w, m0), all_zero, "the verdict is the block's vanishing");
+    // A random z row is not in range, so the honest reading is `false`; build a
+    // witness that IS in range and corrupt one digit-row coefficient.
+    let z = PolyVec::new(vec![rq_from_u64s(&vec![1u64; RING_DEGREE])]);
+    let mut rows = Vec::new();
+    for _ in 0..2 {
+        rows.push(QuotientRow::new(&vec![Fp::new(0); RING_DEGREE]));
+    }
+    let good = LiftedWitness::new(z, rows);
+    assert!(h_zero_is_zero(&good, m0), "all-zero quotient rows and unit message digits are in range");
+    let all_zero_good = h_zero(&good, m0).values().iter().all(|e| e.is_zero());
+    assert!(all_zero_good);
 }
 
 // --- the tables -------------------------------------------------------------
@@ -582,14 +673,14 @@ fn honest_lift(seed: u64, n: usize, mu: usize) -> (RlinStatement, LiftedWitness)
 ///
 /// `#[ignore]`d for cost, not for doubt: `alpha_contract` walks
 /// `(mu + n*delta) * d` table cells and the specification recomputes `M~_alpha`
-/// inside the inner loop, where each digit column reaches the `O(d^2)`
-/// `c_eval_at_modulus`. That is the specification's own shape, kept so the
-/// hoist stays measurable (see the function's docstring), and it puts this test
-/// at minutes rather than milliseconds. Run it with
+/// inside the inner loop -- a `c_eval_at` per cell, linear since Stage 6
+/// iteration 1 (it was `O(d^2)` in genesis) but still un-hoisted, which is
+/// brief 4's item 4 and keeps this test at seconds-to-minutes rather than
+/// milliseconds. Run it with
 /// `cargo test --release -- --ignored` -- it was run and passed before the
 /// genesis freeze, which is what `op-genesis` requires of it.
 #[test]
-#[ignore = "full-const scale: the specification's un-hoisted M~_alpha makes this minutes"]
+#[ignore = "full-const scale: the specification's un-hoisted M~_alpha (a c_eval_at per table cell) makes this long"]
 fn alpha_defect_vanishes_exactly_on_an_honest_lift() {
     let (s, w) = honest_lift(0x5A17_5001, 1, 1);
     let mut r = Lcg::new(0x5A17_5002);

@@ -434,7 +434,7 @@ run-bench: bench-toolchain
 	@set -euo pipefail; \
 	python3 '$(HARNESS)' check-genesis
 	@set -euo pipefail; \
-	python3 '$(HARNESS)' check-candidate
+	$(if $(filter 1,$(CANDIDATE)),echo '==> candidate slot: filled by the loop -- not checked under CANDIDATE=1; the report fingerprints it',python3 '$(HARNESS)' check-candidate)
 	@set -euo pipefail; \
 	python3 '$(HARNESS)' coverage || true
 	@set -euo pipefail; \

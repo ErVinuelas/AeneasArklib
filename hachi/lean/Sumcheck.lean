@@ -697,19 +697,8 @@ theorem uni_mul_spec (v w : alloc.vec.Vec cpoly.field.Ext4)
 
 /-! ## The pure mathematics the lower-half statements are stated in -/
 
-/-- Even index `2y` into a table twice the size: the `(cs, 0, y)` entry. -/
-def lo {k : ℕ} (y : Fin (2 ^ k)) : Fin (2 ^ (k + 1)) :=
-  ⟨2 * y.val, by have := y.isLt; rw [pow_succ]; omega⟩
-
-/-- Odd index `2y + 1`: the `(cs, 1, y)` entry. -/
-def hi {k : ℕ} (y : Fin (2 ^ k)) : Fin (2 ^ (k + 1)) :=
-  ⟨2 * y.val + 1, by have := y.isLt; rw [pow_succ]; omega⟩
-
-/-- One multilinear fold step: the table's value at `T` in its first free
-coordinate, `(1 - T)·w[2y] + T·w[2y + 1]`. This is what `eval_mle_layer` does
-at `T = a`, and what a round polynomial's node value reads at `T = node`. -/
-def fold {k : ℕ} (w : Fin (2 ^ (k + 1)) → F) (T : F) (y : Fin (2 ^ k)) : F :=
-  (1 - T) * w (lo y) + T * w (hi y)
+/- `lo`, `hi` and `fold` moved to `lean/ZeroCheck.lean` § "The layer fold
+   `w_table_mle_eval` runs"; still in scope here through `open HachiEquiv.ZeroCheck`. -/
 
 /-- The range summand's inner sum at one node, **without** the equality
 kernel's free factor and prefix: `Σ_y eq[y] · P_b(W(T, y))`. Degree `2b − 1`
@@ -726,9 +715,8 @@ value `cEqualityPolynomial k τ` takes at `a`. -/
 def eqProd {k : ℕ} (τ a : Fin k → F) : F :=
   ∏ j : Fin k, (τ j * a j + (1 - τ j) * (1 - a j))
 
-/-- A table as a function of its index. -/
-def tableFn {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) : Fin (2 ^ m) → F :=
-  fun y => (toEvals (m := m) t).get y
+/- `tableFn` moved to `lean/ZeroCheck.lean` § "The layer fold `w_table_mle_eval`
+   runs". -/
 
 /-- The equality kernel is the value of the specification's
 `cEqualityPolynomial`: the bridge between the crate's product and ArkLib's
@@ -1732,10 +1720,7 @@ theorem interpolate_spec {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
   refine CPolynomial.eq_iff_coeff.mpr (fun k => ?_)
   rw [htoUni k, houtraw, haccc k, CPolynomial.coeff_toPoly, hQ]
 
-/-- `tableFn` reads the underlying vector at the index. -/
-theorem tableFn_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ m)) :
-    tableFn (m := m) t y = toExt (t.val.getD y.val cpoly.field.Ext4.ZERO) := by
-  simp [tableFn, toEvals]
+/- `tableFn_apply` moved to `lean/ZeroCheck.lean`, beside `tableFn`. -/
 
 /-- `rangeSumZero` at a represented pair of tables, as a sum over a range. -/
 theorem rangeSumZero_eq_sum_range {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4) (T : F) :
@@ -3398,110 +3383,9 @@ theorem nested_to_round_statement_spec {n μ m₀ m₁ dRows : ℕ} (zc : sumche
   · rw [toExt_ZERO, InnerOuter.nestedToRoundStatement]
   · rw [hta, ha, h1, InnerOuter.nestedToRoundStatement]
 
-/-- The loop of `cpoly::multilinear::eval_mle_layer`: the output holds the `j`
-folded entries produced so far. -/
-theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
-    (x0 one_minus : cpoly.field.Ext4) (half : Std.Usize)
-    (hvred : SliceReduced values) (hvlen : values.val.length = 2 ^ (k + 1))
-    (hx : Reduced x0) (hom : Reduced one_minus) (homv : toExt one_minus = 1 - toExt x0)
-    (hhalf : half.val = 2 ^ k)
-    (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize)
-    (hj : j.val ≤ 2 ^ k) (holen : out.val.length = j.val) (hored : VecReduced out)
-    (hoval : ∀ t : ℕ, t < j.val →
-      toExt (out.val.getD t cpoly.field.Ext4.ZERO)
-        = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
-          + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO)) :
-    cpoly.multilinear.eval_mle_layer_loop values x0 half one_minus out j
-      ⦃ o => o.val.length = 2 ^ k ∧ VecReduced o ∧
-        ∀ t : ℕ, t < 2 ^ k →
-          toExt (o.val.getD t cpoly.field.Ext4.ZERO)
-            = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
-              + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO) ⦄ := by
-  have hmax : 2 ^ (k + 1) ≤ Usize.max := by
-    have := values.property
-    omega
-  rw [cpoly.multilinear.eval_mle_layer_loop]
-  apply loop.spec_decr_nat (fun st => 2 ^ k - st.2.val)
-    (fun st => st.2.val ≤ 2 ^ k ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
-      ∀ t : ℕ, t < st.2.val →
-        toExt (st.1.val.getD t cpoly.field.Ext4.ZERO)
-          = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
-            + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO))
-  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hred1, hval1⟩
-    dsimp only at hj1 hlen1 hred1 hval1
-    simp only [cpoly.multilinear.eval_mle_layer_loop.body]
-    by_cases hlt : j1 < half
-    · rw [if_pos hlt]
-      have hjlt : j1.val < 2 ^ k := by rw [← hhalf]; scalar_tac
-      have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
-      have hlo : 2 * j1.val < values.val.length := by rw [hvlen, hpow]; omega
-      have hhi : 2 * j1.val + 1 < values.val.length := by rw [hvlen, hpow]; omega
-      step as ⟨idx, hidx⟩
-      have hidxv : idx.val = 2 * j1.val := by scalar_tac
-      step as ⟨lo, hlov⟩
-      step as ⟨idx1, hidx1⟩
-      have hidx1v : idx1.val = 2 * j1.val + 1 := by scalar_tac
-      step as ⟨hiv, hhiv⟩
-      simp only [hidxv] at hlov
-      simp only [hidx1v] at hhiv
-      have hRlo : Reduced lo := by
-        rw [hlov]; exact hvred _ (List.getElem_mem (by omega))
-      have hRhi : Reduced hiv := by
-        rw [hhiv]; exact hvred _ (List.getElem_mem (by omega))
-      step with ext_mul_spec one_minus lo hom hRlo as ⟨p1, hRp1, hp1⟩
-      step with ext_mul_spec x0 hiv hx hRhi as ⟨p2, hRp2, hp2⟩
-      step with ext_add_spec p1 p2 hRp1 hRp2 as ⟨sm, hRsm, hsm⟩
-      have hpush : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨j2, hj2⟩
-      have hj2v : j2.val = j1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
-      · rw [hj2v, ho2, List.length_append, hlen1]; simp
-      · intro u hu
-        rw [ho2] at hu
-        rcases List.mem_append.mp hu with h | h
-        · exact hred1 u h
-        · rw [List.mem_singleton.mp h]; exact hRsm
-      · intro t ht
-        rw [hj2v] at ht
-        rcases Nat.lt_or_ge t j1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = o1.val.length := by omega
-          rw [hteq, ho2, getD_append_eq, hsm, hp1, hp2, homv, hlov, hhiv, hlen1,
-            List.getD_eq_getElem _ _ (show 2 * j1.val < values.val.length from by omega),
-            List.getD_eq_getElem _ _ (show 2 * j1.val + 1 < values.val.length from by omega)]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have hjeq : j1.val = 2 ^ k := by rw [← hhalf] at hj1 ⊢; scalar_tac
-      exact ⟨by rw [hlen1, hjeq], hred1, by rw [← hjeq]; exact hval1⟩
-  · exact ⟨hj, holen, hored, hoval⟩
-
-/-- `cpoly::multilinear::eval_mle_layer` folds a table's first coordinate at `x0`:
-the specification's `fold`. -/
-theorem eval_mle_layer_spec {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
-    (x0 : cpoly.field.Ext4) (ht : WfEvals (k + 1) t) (hx : Reduced x0) :
-    cpoly.multilinear.eval_mle_layer (alloc.vec.Vec.deref t) x0
-      ⦃ o => WfEvals k o ∧ ∀ y : Fin (2 ^ k),
-          tableFn (m := k) o y = fold (tableFn (m := k + 1) t) (toExt x0) y ⦄ := by
-  obtain ⟨htlen, htred⟩ := ht
-  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
-  rw [cpoly.multilinear.eval_mle_layer]
-  step as ⟨half, hhalf⟩
-  have hhalfv : half.val = 2 ^ k := by
-    have : (Slice.len (alloc.vec.Vec.deref t)).val = 2 ^ (k + 1) := by
-      simp only [deref_len]
-      scalar_tac
-    have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
-    scalar_tac
-  step with ext_sub_spec cpoly.field.Ext4.ONE x0 hR1 hx as ⟨om, hRom, homv⟩
-  apply spec_mono (eval_mle_layer_loop_spec (k := k) (alloc.vec.Vec.deref t) x0 om half
-    (sliceReduced_deref htred) (by simpa using htlen) hx hRom
-    (by rw [homv, toExt_ONE]) hhalfv (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-    (by simp) (by simp) (by intro u hu; simp at hu) (by intro t' ht'; simp at ht'))
-  rintro o ⟨holen, hored, hoval⟩
-  refine ⟨⟨holen, hored⟩, fun y => ?_⟩
-  rw [tableFn_apply, hoval y.val y.isLt, fold, tableFn_apply, tableFn_apply]
-  simp only [deref_val, lo, hi]
+/- `eval_mle_layer_loop_spec` and `eval_mle_layer_spec` moved to
+   `lean/ZeroCheck.lean` § "The layer fold `w_table_mle_eval` runs": this file
+   imports `ZeroCheck` (through `EndPiece`), and `w_table_mle_eval` now needs them. -/
 
 /-- The zero-round cube point is the Boolean point itself. -/
 theorem hypercubePoint_zero {m : ℕ} (cs : Fin 0 → F) (y : Fin m → Fin 2) :

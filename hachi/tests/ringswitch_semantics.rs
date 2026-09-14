@@ -325,10 +325,11 @@ fn c_eval_at_is_additive_in_the_polynomial() {
     );
 }
 
-/// `cEvalAt φF α Φ.φ` at `Φ.φ = X^d + 1` is `α^d + 1` -- the identity the naive
-/// `d + 1`-term sum computes the long way round, checked against ten squarings.
-/// This is the equality that makes the α-side's largest optimization sound, so
-/// it is pinned before that optimization is attempted.
+/// `cEvalAt φF α Φ.φ` at `Φ.φ = X^d + 1` is `α^d + 1`, checked against ten
+/// squarings. The genesis body computed the specification's `d + 1`-term sum
+/// the long way round; since Stage 6 iteration 1 the body is a running power
+/// plus one (`Opt.c_eval_at_modulus.opt`), and this test is the independent
+/// reference both bodies were pinned against.
 #[test]
 fn c_eval_at_modulus_is_alpha_to_the_d_plus_one() {
     let mut rng = Lcg::new(0x8047_0000_0000_0033);

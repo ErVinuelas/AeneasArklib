@@ -111,9 +111,17 @@ remains is `rlin_stmt` -- the `R^lin` matrix, 2.2 GiB at `mu0 = 57 344` -- and
 Every row that *can* be measured is measured under its own name; what a row
 here would add is the threading, which is statement maps and no arithmetic.
 
-Removal condition: none as a single row. If the chain is ever to be timed
-end-to-end that is Stage 7's job -- an ell = 30 span comparison against
-`logs/paper-impl/`, on a machine given over to it -- not a criterion row."""
+Removal condition (restated 2026-09-11, measured): a row here must *accept*,
+or `&&` and the round loop's early `None` leave `final_check` and the end piece
+untimed; accepting needs a covering cube `(mu + n*delta)*d <= 2^m0`, and the
+honest side sizes its widths from `params` (`honest_z`, `rel_out`), so the
+smallest accepting shape is the pin's `m0 = 26`. The walls at that shape, each
+with its own removal: `alpha_public_table` (2^26 entries x 5 rows x a
+1024-coefficient evaluation, hours; removed by the tensor split of `A~`,
+target-5 brief S6), `rlin_stmt` (2.2 GiB, removed by a lazy entry-at-alpha
+form), `lift_commit` (`ring::mul`'s width). When those land, this row returns
+as the composed verifier at the pin; until then the end-to-end number is
+Stage 7's span comparison against `logs/paper-impl/`."""
 
 "chain::chain_open" = """
 The honest prover: `honest_compute_v` (a `2^23`-order commitment),

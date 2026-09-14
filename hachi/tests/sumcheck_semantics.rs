@@ -637,9 +637,10 @@ fn the_three_equality_pieces_reconstruct_the_kernel() {
 // --- the sumcheck bridge (chain row 7) ------------------------------------
 
 /// `y(α)` by Horner, where the crate's `c_eval_at` is the specification's
-/// *power sum* `Σ aᵢ·αⁱ` with the power recomputed per term (`eval₂` is not
-/// Horner — `CompPoly/Univariate/Basic.lean:251`). Different association, same
-/// value, which is what makes it a reference.
+/// *power sum* `Σ aᵢ·αⁱ` with a running power (`eval₂` is not Horner —
+/// `CompPoly/Univariate/Basic.lean:251`; the power was recomputed per term in
+/// genesis). Different association, same value, which is what makes it a
+/// reference.
 fn horner_ref(alpha: Ext4, p: &hachi::ring::Rq) -> Ext4 {
     let n = p.len();
     let mut acc = Ext4::ZERO;

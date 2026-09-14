@@ -27,24 +27,34 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
-> **Status: the commitment scheme and the first two links of the protocol layer
-> are implemented, tested, extracted, and proved equivalent to the specification —
-> build-enforced, up to perfect correctness of the scheme.**
+> **Status: the commitment scheme and every link of the protocol layer are
+> implemented, tested, extracted, and proved equivalent to the specification —
+> build-enforced, up to perfect correctness of the scheme and the composed
+> chain's honest `open`/`verify` pair.**
 >
-> Eight modules are in place — [`params`](hachi/src/params.rs),
+> Twelve modules are in place — [`params`](hachi/src/params.rs),
 > [`ring`](hachi/src/ring.rs) (the negacyclic ring `R_q = Z_q[X]/(X^N+1)`),
 > [`linalg`](hachi/src/linalg.rs), [`gadget`](hachi/src/gadget.rs) (base-`b` digit
 > decomposition, unsigned and balanced, and the gadget matrix),
 > [`commit`](hachi/src/commit.rs) (the inner-outer Ajtai commitment and its
 > weak-opening verifier), [`evalsplit`](hachi/src/evalsplit.rs) (the multilinear
 > evaluation split), [`ringswitch`](hachi/src/ringswitch.rs) (the quotient digits
-> of the ring switch) and [`quadeval`](hachi/src/quadeval.rs) (the QuadEval fold
-> and its Eq. (20) checks). 105 tests pass, including perfect correctness and
-> every rejection path of the verifier; 21 more are `#[ignore]`d because
+> of the ring switch, the lift, and the honest lift prover),
+> [`quadeval`](hachi/src/quadeval.rs) (the QuadEval fold, its Eq. (20) checks and
+> the `R^lin` adapter), [`zerocheck`](hachi/src/zerocheck.rs) (the `H₀`/`H_α`
+> sides and the mixed evaluation), [`sumcheck`](hachi/src/sumcheck.rs) (the
+> paired sumcheck's round polynomials, checks and loops),
+> [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
+> conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
+> `verify` over the proved links). 183 tests pass, including perfect correctness
+> and every rejection path of the verifier; 27 more are `#[ignore]`d because
 > they cannot complete at the paper's parameters, each naming the wall that
 > ignores it (NOTES.md, `exclusions.toml`). `make extract` produces a model with
 > no axioms and no opaque bodies; every mirrored item is benched or excluded by
-> name, and the 163 frozen baseline items are verified against git.
+> name, and the 284 frozen baseline items are verified against git. The
+> optimization loop has run: `lean/Opt.lean` holds the first two accepted
+> champions' optimized definitions with their proved `opt_eq_spec` lemmas, and
+> `logs/ledger.jsonl` their within-run verdicts (NOTES.md § "Stage 6 opens").
 >
 > `make build` passes, and every layer it checks is proved:
 >
@@ -81,26 +91,66 @@ in structure and in method, and depends on it for the coefficient field.
 > * the QuadEval fold ([`lean/QuadEval.lean`](hachi/lean/QuadEval.lean)) — the
 >   `z`-side gadget at `τ = 5` with its conditional round trip, the carrier entry,
 >   `tensorG1`, and the Eq. (20) box and relation decisions, stated as iffs
->   against the `Prop`s ArkLib states them as.
+>   against the `Prop`s ArkLib states them as;
+> * the QuadEval protocol layer ([`lean/QuadEvalProtocol.lean`](hachi/lean/QuadEvalProtocol.lean))
+>   — the three carriers, the honest prover's `z`/`v`/response, and both output
+>   relations — over the `Ext4` extension field
+>   ([`lean/Ext.lean`](hachi/lean/Ext.lean)), ported from cpoly's own development;
+> * the ring-switch link ([`lean/RingSwitch.lean`](hachi/lean/RingSwitch.lean)) —
+>   the quotient-row presentation change, the quotient digits, the lifted message
+>   and its Ajtai commitment, and both shortness decisions, unconditionally — and
+>   the `R^lin` adapter ([`lean/Rlin.lean`](hachi/lean/Rlin.lean)), whose
+>   `rlin_stmt_spec` is what makes the reshaped `Jᵀ(Gᵀa)` form faithful to a
+>   product that would be 320 GiB if it were ever materialized;
+> * the zero check ([`lean/ZeroCheck.lean`](hachi/lean/ZeroCheck.lean)) and the
+>   paired sumcheck ([`lean/Sumcheck.lean`](hachi/lean/Sumcheck.lean)) — the round
+>   polynomials in both forms, the verifier's two decisions, the honest prover's
+>   messages, and the round loop three ways;
+> * the end piece ([`lean/EndPiece.lean`](hachi/lean/EndPiece.lean)), the honest
+>   lift prover ([`lean/LiftProver.lean`](hachi/lean/LiftProver.lean)) — including
+>   the one carrier this crate does not fold back into `Rq`, a `CPolynomial` of
+>   degree up to `2N − 2` — and the composed chain
+>   ([`lean/Chain.lean`](hachi/lean/Chain.lean)): the verifier's verdict against
+>   `chainVerdict` and the honest prover's four wire messages, both through the
+>   statement thread `chainStart`.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all one hundred and eighty-six proved specs: the three Lean kernel axioms,
-> nothing else. [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not
-> yet proved — holds `LiftProver.lean`, the honest lift prover's five statements;
-> its [README](hachi/lean-wip/README.md) holds the procedure for promoting a file.
+> of all two hundred proved specs (191 headline specs, the eight `opt_eq_spec`
+> lemmas and the two new helper specs of iteration 1): the three Lean kernel axioms,
+> nothing else. `make spec-check` reports 155 mirrored items, 155 stated, 0 owed.
+> [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
+> proved — is **empty**; its [README](hachi/lean-wip/README.md) holds the
+> procedure for promoting a file, which the next translated operation will need.
 > > [`NOTES.md`](NOTES.md) § "The scheme layer is proved, and checked" scores every
 > claim in this repository as verified or not.
 >
-> Every protocol link of `Composition.lean`'s chain is now translated and stated:
-> the bridge, QuadEval, the `R^lin` adapter, the ring-switch lift, zero-check, the
-> sumcheck bridge, the paired sumcheck rounds, the final evaluation and the end
-> piece, plus the composed `chain_open`/`chain_verify` pair over them. What is
-> absent is narrower than code: the honest lift prover is translated and stated
-> but not yet proved, `chain_open` still takes the lifted witness as an input
-> rather than computing it, and there is no executable oracle for the chain at
-> the real width, where `alpha_contract`'s recomputation of `M̃_α` makes a single run
-> infeasible (`NOTES.md` § "The composed chain has no practical oracle").
+> Every protocol link of `Composition.lean`'s chain is translated, stated **and
+> proved**: the bridge, QuadEval, the `R^lin` adapter, the ring-switch lift,
+> zero-check, the sumcheck bridge, the paired sumcheck rounds, the final
+> evaluation, the end piece and the honest lift prover, plus the composed
+> `chain_open`/`chain_verify` pair over them. What is absent is no longer code
+> but reach:
+>
+> * `chain_open` still takes the lifted witness as an **input** rather than
+>   computing it with the now-translated `ringswitch::honest_lift_witness`. That
+>   is the specification's own shape either way (`honestLiftWitnessC` is a
+>   separate definition) and the proofs are stated against it as it is; making
+>   the call is a deliberate decision, deferred to the optimization stage;
+> * **the composed chain has no bench row.** A row has to *accept*, or the round
+>   loop rejects at round 1 and neither the final check nor the end piece is ever
+>   timed; accepting needs a covering cube, and the honest side sizes its widths
+>   from `params`, so the smallest accepting shape is the pin's `m₀ = 26` — hours
+>   per verifier call in the naive `alpha_public_table`. Every operation the
+>   chain threads is measured under its own reduced row instead
+>   (`chain::chain_verify` and `chain::chain_open` are excluded by name, with
+>   that reason and the three walls whose removal brings the row back);
+> * an **acceptance test** — an honest transcript that verifies end to end — is
+>   in `tests/chain_semantics.rs` as `the_honest_chain_verifies`, at one block
+>   and otherwise the pin. It is `#[ignore]`d because it costs hours (two naive
+>   `alpha_public_table`s of `2^26` entries, one on each side) and its first full
+>   run has not reported yet. The plumbing, the rejection paths and the
+>   cross-route identity around it are tested and passing.
 
 ## Usage
 
@@ -197,10 +247,12 @@ hachi/
     Rlin.lean         the `R^lin` adapter and the polynomial-level bridge -- proved
     Sumcheck.lean     the paired sumcheck: round polynomials, checks, loops, final check -- proved
     Chain.lean        the composed chain's honest `open` and `verify` -- proved
+    LiftProver.lean   the honest lift prover, and the one unfolded `CPolynomial` carrier -- proved
+    Opt.lean          the optimization loop's `Foo.opt` variants and their `opt_eq_spec` lemmas -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
+                      -- currently EMPTY: every statement is proved and audited
     README.md         what has to happen before a file moves into lean/
-    LiftProver.lean   the honest lift prover, 5 statements, open
 ```
 
 Each module names the ArkLib file it is a translation of, and each operation the

@@ -5243,8 +5243,9 @@ and `chain_open` stay excluded by name, and the discussion of the day (a
 REDUCED chain row needs an accepting transcript, hence a covering cube,
 `m₀ = 17` at the smallest widths the crate allows, ~20 s per verifier call in
 the naive `alpha_public_table`) is the reason the Stage 5 exit is to be read
-as "pair proved, bench case deferred to Stage 6" — a plan amendment still
-awaiting the user's word, not made.
+as "pair proved, bench case deferred to Stage 6". ⊕ **The user ratified that
+amendment on 2026-09-11**; `PLAN_PROTOCOL_LAYER.md` carries it, and Stage 6
+inherits the row together with the three walls that block it.
 
 ## The lift prover is proved, and Stage 4 closes (2026-09-11)
 
@@ -5311,3 +5312,120 @@ forward-references a § "Stage 5 — what remains" that does not exist in
 an honest transcript that verifies -- is sitting in the working tree as
 `the_honest_chain_verifies` (`#[ignore]`d, hours at `m₀ = 26`), so the pointer
 wants either that section written or the sentence rewritten to name the test.
+
+## Stage 6 opens: iteration 1 lands two champions (2026-09-14)
+
+The first `perf-loop` iteration this repository has run, on the zero-check
+target (`PLAN_STAGE6.md` I1, brief 4). Two candidates, both `opt-algo-swap`,
+both accepted on a within-run `CANDIDATE=1` verdict; the ledger has its first
+rows and Stage 0's ledger exit closes with them.
+
+**What was actually slow was not what the brief said.** Reading the α-side
+bodies before the fan-out: `ringswitch::c_eval_at` computed the specification's
+power sum `∑_k φF(p.coeff k) · α^k` with `ext_pow` recomputing `α^k` from scratch
+per term -- `N(N−1)/2 ≈ 524 000` extension multiplications per call at `N =
+1024`, ~8 ms -- and `c_eval_at_modulus` the same over `N + 1` terms. Every
+`m_alpha_tilde` entry is one such call and every `alpha_public_evals` entry five
+of them, which is why `zerocheck/zc_target_alpha/5` read 42 ms. It also means
+the acceptance test `the_honest_chain_verifies` (previous section) could never
+have finished: `alpha_public_table` at `m₀ = 26` is `2^26 × 5` calls, ~10^14
+multiplications, weeks rather than the "three hours" estimated on 09-11. That
+run's log died with the machine's shutdown the same night, and its verdict was
+never recorded; nothing is lost that could have been kept, because there was
+nothing to keep.
+
+**Candidate A -- the running power** (`lean/Opt.lean` `c_eval_at.opt`,
+`c_eval_at_modulus.opt`; `opt_eq_spec` against `InnerOuter.cEvalAt` through
+`cEvalAt_eq_sum_range`, one Opus prover, green on its first typecheck). The
+loop threads `pw = α^k` through its state: `2N` multiplications, and the
+modulus as a bare running power plus one. Run `20260914T1058+0200-d5a5f55c`,
+usable (worst identical-code control 3.9%), six rows all `faster`:
+`ringswitch/c_eval_at` 8.35 ms → 20.7 µs, `c_eval_at_modulus` 8.36 ms → 18.1 µs,
+`zerocheck/m_alpha_tilde_{matrix,digit}` 8.4 ms → 42 / 25 µs,
+`alpha_public_evals` 16.7 ms → 84 µs, `zc_target_alpha` 41.8 ms → 106 µs
+(−99.5% to −99.8% after recentering).
+
+**Candidate B -- the row-hoisted table and the layer fold** (`Opt.lean`
+`wTableRow`, `blockLoop`/`rowLoop`, `c_w_table_mle.opt`, `h_zero.opt`,
+`h_zero_is_zero.opt`, `w_table_mle_eval.opt`; seventeen lemmas, one Opus prover,
+green on its first typecheck). Brief 4 item 5 -- the digit branch of `w_table`
+rebuilt the whole `rhoDigits` polynomial to read one coefficient, `d = 1024`
+times too much work per digit-row entry -- plus item 1, CompPoly's proved
+`evalMle` fold in place of the Lagrange dot. The inner loop's second guard
+truncates the last block, so the equality with `cWTableMle` holds for every
+`m₀`, `μ`, `n` with no hypothesis the specification lacks (and no padding loop:
+the `m₀ < 10` case falls out). Rust: a new `w_table_row(w, u) -> Rq` helper
+(no `Mirrors` line -- it mirrors this crate's own opt def, not ArkLib -- so the
+coverage gate does not pair it with a row), a private `c_w_table_mle_values`
+with a running flat index `idx` standing for Lean's `base + l` (a checked
+`base + N` would have strengthened `hm0`), and the fold written as hachi's own
+loop over `cpoly::multilinear::eval_mle_layer` because `MultilinearEvals::
+eval_mle` clones its table and `clone` has no model. Run
+`20260914T1134+0200-ae251cad`, usable (6.2%), four rows all `faster`:
+`c_w_table_mle/14` 18.9 ms → 40 µs, `h_zero/14` 27.4 ms → 1.05 ms,
+`h_zero_is_zero/14` 27.5 ms → 1.03 ms, `w_table_mle_eval/14` 23.5 ms → 520 µs.
+What is left in those rows is the range product (`31·2^m₀` multiplications)
+and the fold itself.
+
+**Three things the first iteration taught about the instrument.**
+
+* `make run-bench` ran `check-candidate` unconditionally, so a slot holding a
+  candidate could never be benched -- the loop's one mode had never been
+  exercised. It is now skipped exactly under `CANDIDATE=1` (the report
+  fingerprints the slot and prints its sha, which is the attribution that
+  matters mid-loop); at rest `make bench-check` still demands a null slot.
+* Two of candidate B's runs came back `unusable` (`…1116…` at 30.4% bias,
+  `…1126…` at 89.2%) and both were the laptop's power state: the first on
+  battery (every control 1.7× slower than the morning run), the second with the
+  charger plugged in *during* the first control binary (`commit` 33 → 43 → 62 ms
+  across its three variants, every later control within 2%). The harness caught
+  both, as designed; the rule for the runbook is **mains power, checked with the
+  load average**, before any run. Both runs have a `bench-unusable` ledger row.
+* The opt lemmas cannot be imported by the spec files: `Opt.lean` imports
+  `ZeroCheck.lean` for the representation layer, so the Aeneas loop proofs
+  re-establish the invariants directly and the pure row lemma (`wTableRow`,
+  `wTableFlat_eq_row`) moves down into `ZeroCheck.lean`. The lemma in `Opt.lean`
+  is still the down payment the contract asks for -- the algebra was settled
+  before any Rust existed -- it just is not the object the triple cites.
+
+Extraction after both swaps: deterministic (unchanged on re-run), zero axioms,
+the `c_eval_at` loop state `(acc, k) → (acc, pw, k)`, the modulus loop
+`(acc, k) → (pw, k)`, `ext_pow` gone, and the table builders as nested loops
+with states `(values, u, idx)` / `(values, idx, l)`. `cargo test`: 181 passing
+(two new: the row helper against `w_table` on message rows, digit rows and
+padding; the truncated cube at `m₀ = 11`). The two new helpers are frozen into
+`benches/genesis/src/zerocheck.rs` verbatim and owe their `@genesis` stamps
+after the content commit.
+
+**Owed and open.** Brief 4 items 3 and 4 (the `α^ℓ` power table and the hoisted
+`M̃_α` table) are cross-call hoists: their win shows only in
+`sumcheck::alpha_public_table`, which is excluded by name and has no row. That
+row can now be built -- at `m₀ = 14` a REDUCED case is ~1.5 s per sample after
+candidate A, where before it was ten minutes -- and it is the row-enabling
+step the plan's trap 1 predicts. Until items 3/4 land, `alpha_public_table` at
+the pin is still `2^26 × ~6 000` multiplications, about five hours per table,
+so the acceptance test stays out of reach; after them it is seconds, and the
+test's remaining cost is the sumcheck range factor and `lift_commit`.
+
+**The campaign closed the same day.** One verify-campaign for both champions
+(they land in one spec file). Champion review: both swaps conformant, no Rust
+change, so no re-extraction; its findings became two tests (the partial block
+at `m₀ ∈ {3, 9}`, where `2^m₀ < d` and the inner guard's second conjunct is the
+one that fires; the multi-row verdict with a digit row) and doc repairs. Prover
+A: the four `c_eval_at` specs restated on the `(acc, pw, k)` / `(pw, k)` states,
+headlines verbatim, one typecheck. Prover B: eleven loop specs and two new
+helper specs, headlines verbatim, three typechecks; two statement choices worth
+keeping -- the inner table specs take an *opaque* `base` with a guarded row
+hypothesis (`base + k < 2^m₀ → …`), so `omega` never meets `N * u`, and the
+outer specs carry `idx = min (N * u) (2^m₀)`, which is what survives the
+truncated final block; and the `w_table_mle_eval` loop invariant is "remaining
+work equals the answer" (`mleFold (m₀ − j) (table after j layers) (point from
+j) = target`), which is what makes a table of shrinking arity statable at all.
+Seven declarations (`lo`, `hi`, `fold`, `tableFn`, `tableFn_apply`, the two
+`eval_mle_layer` specs) moved from `Sumcheck.lean` down to `ZeroCheck.lean`
+because the import graph runs the other way; Sumcheck already opened the
+namespace, so its fifty uses did not move. `make build`: 3872 jobs, no errors,
+no `sorry`, **200** § 4 lines (191 headline specs, eight `opt_eq_spec`, the two
+new helpers), every one the three kernel axioms. `make spec-check` 155/155/0.
+Effort, from the running tally: prover wall time 31 min, ~640 k agent tokens,
+zero retries, zero interventions -- K = 1 costs nothing worth relaxing yet.

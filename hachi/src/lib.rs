@@ -5,18 +5,26 @@
 //!
 //! # Status
 //!
-//! The spec-stable bottom layers of the scheme: the ring, the linear algebra
-//! over it, the Ajtai gadget and the inner-outer commitment. The dimensions are
+//! The whole scheme, bottom-up: the ring, the linear algebra over it, the Ajtai
+//! gadget, the inner-outer commitment, and above them every link of the
+//! protocol layer up to the composed chain. The dimensions are
 //! the paper's benchmark set ([NOZ26] Fig. 9, the ℓ = 30 row) and the verifier
 //! bounds are ArkLib's weak-opening mapping for it -- with the
 //! gadget-decomposition caveat recorded in `params.rs`; see NOTES.md
 //! § "Chosen parameters". The protocol layer (the per-link provers and
 //! verifiers -- QuadEval fold, ring switching, zero-check, sumcheck, final
-//! evaluation) is absent as *code*, but no longer as a specification: at the
-//! pinned ArkLib (PR #847) its definitions are stable, its parameters are fixed
-//! by `Hachi/Params.lean`, and `params.rs` carries them (`OMEGA` … `M_ONE`) so
-//! that the translations of the protocol-layer plan Stage 3 are written against
-//! constants whose ArkLib ties are already checked. Two of Fig. 9's values are
+//! evaluation) is **present** as of 2026-09-11, and proved: every link of
+//! `Composition.lean`'s chain is translated, specified against the ArkLib
+//! definition at these parameters, and audited in `lean/Check.lean` § 4. At the
+//! pinned ArkLib (PR #847) those definitions are stable and their parameters
+//! are fixed by `Hachi/Params.lean`, which `params.rs` carries (`OMEGA` …
+//! `M_ONE`) so that every translation is written against constants whose ArkLib
+//! ties are already checked. What the chain still lacks is not code: `chain`'s
+//! honest prover takes the lifted witness as an input rather than calling
+//! `ringswitch::honest_lift_witness` (a deferred decision, see `chain.rs`), and
+//! the composed chain has no bench row, because a row would have to accept and
+//! the smallest accepting shape is the pin (`benches/exclusions.toml`
+//! § `chain::chain_verify`). Two of Fig. 9's values are
 //! deliberately not the spec's -- `τ = 5` not 4, the `z` bound `131072` not
 //! `30583` -- and one, the sparse-challenge weight `c = 16`, has no constant
 //! because the specification sees challenges only through `‖c‖₁ ≤ ω` (see

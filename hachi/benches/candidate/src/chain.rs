@@ -231,14 +231,22 @@ fn copy_point(p: &Vec<Ext4>) -> Vec<Ext4> {
 /// convenience: an honest prover that skipped the maps would have nothing to
 /// compute its messages against.
 ///
-/// **The lifted witness is an input, not an output.** The honest lift prover
-/// builds `w = (z, ρ)` from the QuadEval response by synthetic division
-/// (`honestLiftWitnessC`, `RingSwitch/ComputableWitness.lean:85`), and that
-/// item is not translated in this crate -- a scope gap found while writing
-/// this module and recorded as owed (NOTES.md § "The composed verifier was
-/// not a verifier"). Until it lands, the caller supplies `w`, and the
-/// QuadEval response `(ŵ, t̂, ẑ)` -- which is never sent -- is not produced
-/// here either: `honest_compute_resp` remains its own mirrored item.
+/// **The lifted witness is an input, not an output** -- by decision now, not
+/// by omission. The honest lift prover builds `w = (z, ρ)` from the QuadEval
+/// response by synthetic division (`honestLiftWitnessC`,
+/// `RingSwitch/ComputableWitness.lean:85`); that item **is** translated here
+/// as of 2026-09-11 (`ringswitch::honest_lift_witness`, proved in
+/// `lean/LiftProver.lean`), so the scope gap this paragraph used to record is
+/// closed (NOTES.md § "The composed verifier was not a verifier", and its
+/// successor § "The lift prover is proved, and Stage 4 closes"). What remains
+/// is whether `chain_open` should *call* it rather than take `w`: it is the
+/// specification's own shape either way -- `honestLiftWitnessC` is a separate
+/// definition, not a step inside the prover -- and every spec here is stated
+/// against the current signature, so the change is deliberate and deferred to
+/// the optimization stage, where it matters only for one-function prover
+/// timing. Until then the caller supplies `w`, and the QuadEval response
+/// `(ŵ, t̂, ẑ)` -- which is never sent -- is not produced here either:
+/// `honest_compute_resp` remains its own mirrored item.
 #[allow(clippy::too_many_arguments)]
 pub fn chain_open(
     pp: &PublicParamsD,

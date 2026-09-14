@@ -15,6 +15,7 @@ import Rlin
 import Sumcheck
 import Chain
 import LiftProver
+import Opt
 import ArkLib.Data.Lattices.CyclotomicRing.Core.Modulus
 import ArkLib.Commitments.Functional.Hachi.Params
 
@@ -1255,7 +1256,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- § "Two invented powers of two, removed"); the four table-side statements
 -- carry `μ + n·8 ≤ Usize.max`, which `w_table`'s `rows · digits` product earns
 -- and which is not minimal -- recorded as owed, not forgotten.
-#print axioms HachiEquiv.ZeroCheck.ext_pow_spec
 #print axioms HachiEquiv.ZeroCheck.c_eval_at_spec
 #print axioms HachiEquiv.ZeroCheck.c_eval_at_modulus_spec
 #print axioms HachiEquiv.ZeroCheck.RlinStatement_new_spec
@@ -1380,5 +1380,22 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.LiftProver.c_row_sum_spec
 #print axioms HachiEquiv.LiftProver.c_quotient_spec
 #print axioms HachiEquiv.LiftProver.honest_lift_witness_spec
+
+-- The optimized variants (`lean/Opt.lean`): each `opt_eq_spec` equates a
+-- translatable `Foo.opt` with the ArkLib definition its Rust item mirrors.
+-- Stage 6, iteration 1, candidate A -- the running-power evaluation.
+#print axioms HachiEquiv.Opt.c_eval_at.opt_eq_spec
+#print axioms HachiEquiv.Opt.c_eval_at.opt_eq_spec_toRq
+#print axioms HachiEquiv.Opt.c_eval_at_modulus.opt_eq_spec
+#print axioms HachiEquiv.Opt.c_eval_at_modulus.opt_eq_pow_add_one
+-- Candidate B -- the row-hoisted witness table and the layer-fold evaluation.
+#print axioms HachiEquiv.Opt.c_w_table_mle.opt_eq_spec
+#print axioms HachiEquiv.Opt.h_zero.opt_eq_spec
+#print axioms HachiEquiv.Opt.h_zero_is_zero.opt_eq_spec
+#print axioms HachiEquiv.Opt.w_table_mle_eval.opt_eq_spec
+-- The new helpers the row hoist introduced (no ArkLib mirror; specified against
+-- `ZeroCheck.wTableRow` and `wTableFlat`).
+#print axioms HachiEquiv.ZeroCheck.w_table_row_spec
+#print axioms HachiEquiv.ZeroCheck.c_w_table_mle_values_spec
 
 end HachiEquiv.Check

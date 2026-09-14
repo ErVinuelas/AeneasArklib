@@ -71,11 +71,14 @@ together, `make bench-stamp` derives the stamps from that commit, you commit tho
 separately — never `--amend` the first, since a stamp stores its sha — and only
 then can the birth benchmark run.
 
-> All eight modules (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`,
-> `ringswitch`, `quadeval`) are **already** onboarded and frozen, with 163
-> git-verified stamps. So `op-genesis` is for the next operation, not for catching
-> up — the queue is the protocol-layer plan Stage 3's remaining targets: the
-> ring-switch link, zero-check, sumcheck and the end piece, in that dependency order.
+> All twelve modules (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`,
+> `ringswitch`, `quadeval`, `zerocheck`, `sumcheck`, `endpiece`, `chain`) are
+> **already** onboarded and frozen, with 284 git-verified stamps (two of them the
+> row helpers Stage 6's first champion introduced), and Stage 3's
+> target queue is empty — the last of it, the honest lift prover, was onboarded
+> 2026-09-11. So `op-genesis` is for the next operation only: a new ArkLib
+> definition, or a helper function an accepted champion introduces (which is a
+> first translation like any other and owes its own freeze and bench case).
 
 **`perf-loop` — optimize one operation.** Generates candidates, translates them,
 and measures each against the current champion inside a *single* criterion
@@ -118,15 +121,19 @@ ready to merge: re-extract, review the champion's Rust, re-state the specs, prov
 each `sorry`, then the `hachi/lean/Check.lean` § 4 axiom audit. `main` only ever
 receives a green module.
 
-> The standing debt today is `hachi/lean-wip/LiftProver.lean` — the honest lift
-> prover, five statements open. The audited library covers the extracted scheme
-> up to perfect correctness plus every protocol link — `evalsplit`,
-> balanced-digit, QuadEval and its protocol layer, `Ext4`, ring-switch,
-> zero-check, end-piece, `R^lin`, the paired sumcheck and the composed chain —
-> **one hundred and eighty-six** headline specs on the three kernel axioms. Every
-> file staged there so far went through the promotion procedure in
+> There is **no standing debt today**: `hachi/lean-wip/` is empty, and the
+> audited library covers the extracted scheme up to perfect correctness plus
+> every protocol link — `evalsplit`, balanced-digit, QuadEval and its protocol
+> layer, `Ext4`, ring-switch, zero-check, end-piece, `R^lin`, the paired
+> sumcheck, the composed chain and the honest lift prover — **one hundred and
+> ninety-one** headline specs on the three kernel axioms. Every file staged
+> there went through the promotion procedure in
 > [`hachi/lean-wip/README.md`](hachi/lean-wip/README.md); all but the first two
-> were proved by Aristotle sessions within a day or two of being staged.
+> were proved by Aristotle sessions within a day or two of being staged. The
+> next debt arrives with the optimization stage: a champion whose loop structure
+> changes does not weaken the specs about the old loops, it stops them
+> compiling, and `verify-campaign` is what gets that module green again before
+> it merges.
 
 **`autonomy-harness` — run unattended.** Under `/loop`, each iteration picks the
 next operation by headroom, runs a route end to end, proves the result, and

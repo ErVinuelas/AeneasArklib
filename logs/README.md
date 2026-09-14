@@ -65,3 +65,22 @@ external comparison baseline with their full run conditions. They are outside
 the loop — never read by the accept rule, never compared to a criterion run by
 tooling — and exist so the eventual "our crate vs the paper's prototype"
 comparison has an anchored, attributable other side.
+
+## `runs/` — the harness reports, one JSON per `make run-bench`
+
+Added 2026-09-14, the day the first candidates were benched: every `make
+run-bench … JSON=logs/runs/<run id>.json` report is kept here, named by the run
+id the report prints (`<compact ISO time with offset>-<machine id>`), with
+`-UNUSABLE` appended when the harness refused the run. A ledger row cites a run
+id; this is where the full row set behind it lives, including the controls and
+the slot fingerprint. Two columns are the ones to compare over time:
+
+* `vs_genesis` — each row's champion against the frozen first translation,
+  measured in the **same** criterion session. This is the cumulative gain of
+  every accepted champion on that row, valid at any date, because both sides
+  are re-measured together every run.
+* `cand_vs_now_adj` — one candidate's increment, valid only as that run's claim.
+
+Absolute times (`now_ns`, `genesis_ns`) are not comparable across runs or
+machines; only the within-run ratios are. The reference implementation's
+absolute spans live in `paper-impl/` and are compared to nothing by tooling.

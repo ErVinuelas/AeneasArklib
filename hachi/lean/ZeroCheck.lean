@@ -181,37 +181,6 @@ theorem two_pow_spec (n : Std.Usize) (hn : 2 ^ n.val ≤ Usize.max) :
 Three obligations that belong to the ring-switch module by ArkLib's own file
 split (`RingSwitch/{Rlin,Reduction}.lean`) but were first needed here. -/
 
-/-- The loop of `ext_pow`: the accumulator is `x ^ t` after `t` steps. -/
-theorem ext_pow_loop_spec (x : cpoly.field.Ext4) (i : Std.Usize) (acc : cpoly.field.Ext4)
-    (t : Std.Usize) (hx : Reduced x) (hacc : Reduced acc) (ht : t.val ≤ i.val)
-    (hval : toExt acc = toExt x ^ t.val) :
-    ringswitch.ext_pow_loop x i acc t
-      ⦃ out => Reduced out ∧ toExt out = toExt x ^ i.val ⦄ := by
-  rw [ringswitch.ext_pow_loop]
-  apply loop.spec_decr_nat (fun s => i.val - s.2.val)
-    (fun s => s.2.val ≤ i.val ∧ Reduced s.1 ∧ toExt s.1 = toExt x ^ s.2.val)
-  · rintro ⟨a1, t1⟩ ⟨ht1, hR1, hv1⟩
-    dsimp only at ht1 hR1 hv1
-    simp only [ringswitch.ext_pow_loop.body]
-    by_cases hlt : t1 < i
-    · rw [if_pos hlt]
-      step with ext_mul_spec a1 x hR1 hx as ⟨a2, hR2, hv2⟩
-      step as ⟨t2, ht2⟩
-      refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
-      have ht2n : t2.val = t1.val + 1 := by scalar_tac
-      rw [hv2, hv1, ht2n, pow_succ]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : t1.val = i.val := by scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨ht, hacc, hval⟩
-
-/-- `ext_pow` is the power map of the extension field. -/
-theorem ext_pow_spec (x : cpoly.field.Ext4) (i : Std.Usize) (hx : Reduced x) :
-    ringswitch.ext_pow x i ⦃ out => Reduced out ∧ toExt out = toExt x ^ i.val ⦄ := by
-  rw [ringswitch.ext_pow]
-  exact ext_pow_loop_spec x i cpoly.field.Ext4.ONE 0#usize hx reduced_ONE (by simp) (by simp)
-
 /-- A represented `Rq` has `CPolynomial` degree strictly below `N`, which is what
 licenses reading its evaluation as the `N`-term power sum. -/
 theorem toRq_natDegree_lt (p : ring.Rq) : (toRq p).1.natDegree < N := by
@@ -219,21 +188,25 @@ theorem toRq_natDegree_lt (p : ring.Rq) : (toRq p).1.natDegree < N := by
   rw [← phi_natDegree, CPolynomial.natDegree_toPoly]
   exact h
 
-/-- The loop of `c_eval_at`: the accumulator is the partial power sum. -/
+/-- The loop of `c_eval_at`: the state is `(acc, pw, k)` with `acc` the partial
+power sum and `pw` the *running power* `α ^ k`, advanced by one multiplication
+per step instead of recomputed per term. -/
 theorem c_eval_at_loop_spec (alpha : cpoly.field.Ext4) (p : ring.Rq)
-    (acc : cpoly.field.Ext4) (k : Std.Usize) (ha : Reduced alpha) (hp : Wf p)
-    (hacc : Reduced acc) (hk : k.val ≤ N)
+    (acc : cpoly.field.Ext4) (pw : cpoly.field.Ext4) (k : Std.Usize)
+    (ha : Reduced alpha) (hp : Wf p) (hacc : Reduced acc) (hpw : Reduced pw)
+    (hk : k.val ≤ N) (hpwv : toExt pw = toExt alpha ^ k.val)
     (hval : toExt acc = ∑ l ∈ Finset.range k.val, phiF (coeffK p l) * toExt alpha ^ l) :
-    ringswitch.c_eval_at_loop alpha p params.RING_DEGREE acc k
+    ringswitch.c_eval_at_loop alpha p params.RING_DEGREE acc pw k
       ⦃ out => Reduced out ∧ toExt out =
         ∑ l ∈ Finset.range N, phiF (coeffK p l) * toExt alpha ^ l ⦄ := by
   have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
   rw [ringswitch.c_eval_at_loop]
-  apply loop.spec_decr_nat (fun s => N - s.2.val)
-    (fun s => s.2.val ≤ N ∧ Reduced s.1 ∧ toExt s.1 =
-      ∑ l ∈ Finset.range s.2.val, phiF (coeffK p l) * toExt alpha ^ l)
-  · rintro ⟨a1, k1⟩ ⟨hk1, hR1, hv1⟩
-    dsimp only at hk1 hR1 hv1
+  apply loop.spec_decr_nat (fun s => N - s.2.2.val)
+    (fun s => s.2.2.val ≤ N ∧ Reduced s.1 ∧ Reduced s.2.1 ∧
+      toExt s.2.1 = toExt alpha ^ s.2.2.val ∧
+      toExt s.1 = ∑ l ∈ Finset.range s.2.2.val, phiF (coeffK p l) * toExt alpha ^ l)
+  · rintro ⟨a1, w1, k1⟩ ⟨hk1, hR1, hRw1, hwv1, hv1⟩
+    dsimp only at hk1 hR1 hRw1 hwv1 hv1
     simp only [ringswitch.c_eval_at_loop.body]
     by_cases hlt : k1 < params.RING_DEGREE
     · rw [if_pos hlt]
@@ -241,18 +214,19 @@ theorem c_eval_at_loop_spec (alpha : cpoly.field.Ext4) (p : ring.Rq)
       step with RqBridge.coeff_spec p k1 hp as ⟨f, hRf, hf⟩
       rw [toRq_coeff, if_pos hk1lt] at hf
       step with ext_from_base_spec f hRf as ⟨c, hRc, hc⟩
-      step with ext_pow_spec alpha k1 ha as ⟨pw, hRpw, hpw⟩
-      step with ext_mul_spec c pw hRc hRpw as ⟨e, hRe, he⟩
+      step with ext_mul_spec c w1 hRc hRw1 as ⟨e, hRe, he⟩
       step with ext_add_spec a1 e hR1 hRe as ⟨a2, hR2, ha2⟩
+      step with ext_mul_spec w1 alpha hRw1 ha as ⟨w2, hRw2, hw2⟩
       step as ⟨k2, hk2⟩
       have hk2n : k2.val = k1.val + 1 := by scalar_tac
-      refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
-      rw [ha2, hv1, he, hc, hf, hpw, hk2n, Finset.sum_range_succ, phiF_apply]
+      refine ⟨by scalar_tac, hR2, hRw2, ?_, ?_, by scalar_tac⟩
+      · rw [hw2, hwv1, hk2n, pow_succ]
+      · rw [ha2, hv1, he, hc, hf, hwv1, hk2n, Finset.sum_range_succ, phiF_apply]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : k1.val = N := by scalar_tac
       exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hk, hacc, hval⟩
+  · exact ⟨hk, hacc, hpw, hpwv, hval⟩
 
 /-- `c_eval_at` computes `cEvalAt`: a `Zq[X]` polynomial at a point of the
 extension field (`RingSwitch/Reduction.lean:444`).
@@ -260,14 +234,17 @@ extension field (`RingSwitch/Reduction.lean:444`).
 `cEvalAt φF a p = p.eval₂ φF a`, and `eval₂` is the *power sum*
 `foldl (acc + f a * x ^ i)` (`CompPoly/Univariate/Basic.lean:251`), not Horner
 -- which CompPoly offers separately and this definition does not use. The
-extracted loop is that sum with the power recomputed per term. -/
+extracted body is the translation of `HachiEquiv.Opt.c_eval_at.opt`
+(`lean/Opt.lean`): that same sum with the power carried in the loop state --
+`pw` is `α ^ k` at the top of iteration `k` -- rather than recomputed per term.
+The loop starts at `pw = 1 = α ^ 0`. -/
 theorem c_eval_at_spec (alpha : cpoly.field.Ext4) (p : ring.Rq)
     (ha : Reduced alpha) (hp : Wf p) :
     ringswitch.c_eval_at alpha p
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.cEvalAt phiF (toExt alpha) (toRq p).1 ⦄ := by
   rw [ringswitch.c_eval_at, InnerOuter.cEvalAt_eq_sum_range phiF (toExt alpha) (toRq_natDegree_lt p)]
-  apply spec_mono (c_eval_at_loop_spec alpha p cpoly.field.Ext4.ZERO 0#usize ha hp
-    reduced_ZERO (by simp) (by simp))
+  apply spec_mono (c_eval_at_loop_spec alpha p cpoly.field.Ext4.ZERO cpoly.field.Ext4.ONE
+    0#usize ha hp reduced_ZERO reduced_ONE (by simp) (by simp) (by simp))
   rintro out ⟨hR, hout⟩
   refine ⟨hR, ?_⟩
   rw [hout]
@@ -287,76 +264,77 @@ theorem phi_coeff (l : ℕ) :
       simp [h0]
     · simp [h0, hN]
 
-/-- The loop of `c_eval_at_modulus`: the accumulator is the partial power sum of
-the modulus, which runs to `N` *inclusive*. -/
-theorem c_eval_at_modulus_loop_spec (alpha : cpoly.field.Ext4) (acc : cpoly.field.Ext4)
-    (k : Std.Usize) (ha : Reduced alpha) (hacc : Reduced acc) (hk : k.val ≤ N + 1)
-    (hval : toExt acc = ∑ l ∈ Finset.range k.val, phiF (Φ.φ.coeff l) * toExt alpha ^ l) :
-    ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE acc k
-      ⦃ out => Reduced out ∧ toExt out =
-        ∑ l ∈ Finset.range (N + 1), phiF (Φ.φ.coeff l) * toExt alpha ^ l ⦄ := by
+/-- The modulus evaluation in closed form: `Φ.φ = X^N + 1` has coefficient `1`
+at `0` and at `N` and `0` everywhere else (`phi_coeff`), so the specification's
+`N + 1`-term sum collapses to `α ^ N + 1`.
+
+This is `HachiEquiv.Opt.c_eval_at_modulus.opt_eq_spec` (`lean/Opt.lean`) with
+the loop stripped off; it is re-proved here because `Opt.lean` imports this
+file and so cannot be imported back. -/
+theorem cEvalAt_phi_eq_pow_add_one (a : F) :
+    InnerOuter.cEvalAt phiF a Φ.φ = a ^ N + 1 := by
+  have hdeg : Φ.φ.natDegree < N + 1 := by rw [phi_natDegree]; exact Nat.lt_succ_self _
+  have hN0 : N ≠ 0 := by norm_num [N]
+  have hcN : Φ.φ.coeff N = 1 := by rw [phi_coeff]; simp [hN0]
+  have htail : phiF (Φ.φ.coeff N) * a ^ N = a ^ N := by rw [hcN, map_one, one_mul]
+  have hhead : ∑ l ∈ Finset.range N, phiF (Φ.φ.coeff l) * a ^ l = 1 := by
+    have hmem : (0 : ℕ) ∈ Finset.range N := Finset.mem_range.mpr (by norm_num [N])
+    have hzero : ∀ l ∈ Finset.range N, l ≠ 0 → phiF (Φ.φ.coeff l) * a ^ l = 0 := by
+      intro l hl hl0
+      have hlN : l ≠ N := Nat.ne_of_lt (Finset.mem_range.mp hl)
+      rw [phi_coeff]
+      simp [hl0, hlN]
+    rw [Finset.sum_eq_single_of_mem 0 hmem hzero, phi_coeff]
+    simp
+  rw [InnerOuter.cEvalAt_eq_sum_range phiF a hdeg, Finset.sum_range_succ, hhead, htail]
+  exact add_comm _ _
+
+/-- The loop of `c_eval_at_modulus`: a bare running power over the state
+`(pw, k)`, so the accumulator *is* `α ^ k` and the loop returns `α ^ N`. No
+coefficient branch and no `from_base`: the two non-zero terms of the modulus'
+`eval₂` sum are handled by the caller's single addition. -/
+theorem c_eval_at_modulus_loop_spec (alpha : cpoly.field.Ext4) (pw : cpoly.field.Ext4)
+    (k : Std.Usize) (ha : Reduced alpha) (hpw : Reduced pw) (hk : k.val ≤ N)
+    (hpwv : toExt pw = toExt alpha ^ k.val) :
+    ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE pw k
+      ⦃ out => Reduced out ∧ toExt out = toExt alpha ^ N ⦄ := by
   have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
   rw [ringswitch.c_eval_at_modulus_loop]
-  apply loop.spec_decr_nat (fun s => N + 1 - s.2.val)
-    (fun s => s.2.val ≤ N + 1 ∧ Reduced s.1 ∧ toExt s.1 =
-      ∑ l ∈ Finset.range s.2.val, phiF (Φ.φ.coeff l) * toExt alpha ^ l)
-  · rintro ⟨a1, k1⟩ ⟨hk1, hR1, hv1⟩
+  apply loop.spec_decr_nat (fun s => N - s.2.val)
+    (fun s => s.2.val ≤ N ∧ Reduced s.1 ∧ toExt s.1 = toExt alpha ^ s.2.val)
+  · rintro ⟨w1, k1⟩ ⟨hk1, hR1, hv1⟩
     dsimp only at hk1 hR1 hv1
     simp only [ringswitch.c_eval_at_modulus_loop.body]
-    by_cases hlt : k1 ≤ params.RING_DEGREE
+    by_cases hlt : k1 < params.RING_DEGREE
     · rw [if_pos hlt]
-      have hk1le : k1.val ≤ N := by scalar_tac
-      have hbranch : ∃ co : cpoly.field.Fp, Red co ∧ toK co = Φ.φ.coeff k1.val ∧
-          (if k1 = 0#usize then ok cpoly.field.Fp.ONE
-            else if k1 = params.RING_DEGREE then ok cpoly.field.Fp.ONE
-            else ok cpoly.field.Fp.ZERO) = (ok co : Result cpoly.field.Fp) := by
-        by_cases h0 : k1 = 0#usize
-        · refine ⟨cpoly.field.Fp.ONE, Red_one, ?_, by rw [if_pos h0]⟩
-          have : k1.val = 0 := by rw [h0]; rfl
-          rw [toK_one, phi_coeff, if_pos this]
-        · have h0' : k1.val ≠ 0 := by
-            intro h
-            exact h0 (by scalar_tac)
-          by_cases hN : k1 = params.RING_DEGREE
-          · refine ⟨cpoly.field.Fp.ONE, Red_one, ?_, by rw [if_neg h0, if_pos hN]⟩
-            have : k1.val = N := by rw [hN]; exact hrd
-            rw [toK_one, phi_coeff, if_neg h0', if_pos this]
-          · have hN' : k1.val ≠ N := by
-              intro h
-              exact hN (by scalar_tac)
-            refine ⟨cpoly.field.Fp.ZERO, Red_zero, ?_, by rw [if_neg h0, if_neg hN]⟩
-            rw [toK_zero, phi_coeff, if_neg h0', if_neg hN']
-      obtain ⟨co, hRco, hco, hite⟩ := hbranch
-      rw [hite]
-      simp only [bind_tc_ok]
-      step with ext_from_base_spec co hRco as ⟨c, hRc, hc⟩
-      step with ext_pow_spec alpha k1 ha as ⟨pw, hRpw, hpw⟩
-      step with ext_mul_spec c pw hRc hRpw as ⟨e, hRe, he⟩
-      step with ext_add_spec a1 e hR1 hRe as ⟨a2, hR2, ha2⟩
+      step with ext_mul_spec w1 alpha hR1 ha as ⟨w2, hR2, hw2⟩
       step as ⟨k2, hk2⟩
       have hk2n : k2.val = k1.val + 1 := by scalar_tac
       refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
-      rw [ha2, hv1, he, hc, hco, hpw, hk2n, Finset.sum_range_succ, phiF_apply]
+      rw [hw2, hv1, hk2n, pow_succ]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : k1.val = N + 1 := by scalar_tac
+      have heq : k1.val = N := by scalar_tac
       exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hk, hacc, hval⟩
+  · exact ⟨hk, hpw, hpwv⟩
 
 /-- `c_eval_at_modulus` computes `cEvalAt φF α Φ.φ`, the `φ(α)` factor of
 `mAlphaTilde` (`ZeroCheck/Constraints.lean:519`).
 
 A separate entry point because `Φ.φ = X^d + 1` has `d + 1` coefficients and no
-`Rq` can hold it -- the invariant is exactly `d` of them. -/
+`Rq` can hold it -- the invariant is exactly `d` of them. The extracted body is
+the translation of `HachiEquiv.Opt.c_eval_at_modulus.opt` (`lean/Opt.lean`): a
+running power of `N` multiplications, then one addition of `1`, which
+`cEvalAt_phi_eq_pow_add_one` matches to the specification's `N + 1`-term sum. -/
 theorem c_eval_at_modulus_spec (alpha : cpoly.field.Ext4) (ha : Reduced alpha) :
     ringswitch.c_eval_at_modulus alpha
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ ⦄ := by
-  have hdeg : Φ.φ.natDegree < N + 1 := by rw [phi_natDegree]; omega
-  rw [ringswitch.c_eval_at_modulus,
-    InnerOuter.cEvalAt_eq_sum_range phiF (toExt alpha) hdeg]
-  exact c_eval_at_modulus_loop_spec alpha cpoly.field.Ext4.ZERO 0#usize ha reduced_ZERO
-    (by simp)
-    (by rw [show (0#usize).val = 0 from rfl, Finset.range_zero, Finset.sum_empty, toExt_ZERO])
+  rw [ringswitch.c_eval_at_modulus]
+  step with c_eval_at_modulus_loop_spec alpha cpoly.field.Ext4.ONE 0#usize ha reduced_ONE
+    (by simp) (by simp) as ⟨pw, hRpw, hpwv⟩
+  step with ext_add_spec pw cpoly.field.Ext4.ONE hRpw reduced_ONE as ⟨out, hRout, hout⟩
+  refine ⟨hRout, ?_⟩
+  rw [hout, hpwv, toExt_ONE, cEvalAt_phi_eq_pow_add_one]
 
 /-- The `R^lin` statement's constructor preserves the relation. -/
 theorem RlinStatement_new_spec {n μ : ℕ} (m : linalg.PolyMatrix) (yvec : linalg.PolyVec)
@@ -524,6 +502,78 @@ noncomputable def wTableFlat {μ n : ℕ} (m₀ : ℕ) (sw : InnerOuter.LiftedWi
   if h : t < 2 ^ m₀ then InnerOuter.wTable Φ m₀ phiF 16 sw (finFunctionFinEquiv.symm ⟨t, h⟩)
   else 0
 
+/-! ### The row of the table, computed once
+
+`wTable` reads entry `idx` as row `u = idx / d`, coefficient `ℓ = idx % d`
+(`Constraints.lean:140`), and it is the *same* polynomial for all `d` values of
+`ℓ`. The three table builders below stream the table row block by row block, so
+their statements need the row rather than one entry of it.
+
+These three declarations were proved for the candidate in `lean/Opt.lean`
+§ "Candidate B" and moved here verbatim: `Opt.lean` **imports** this file, so the
+row hoist cannot live there and still be visible to the Aeneas triples. `Opt.lean`
+now refers to them unqualified, through its `open HachiEquiv.ZeroCheck`. -/
+
+/-- Row `u` of the table `w̃` as a polynomial over `ZMod q`, at the crate's
+instantiation (`d = N`, base `16`, `rhoDigitCount q 16 = 8`):
+
+* `u < μ`: the witness entry `z u`;
+* `u - μ < n·8`: digit `(u-μ) % 8` of quotient row `(u-μ) / 8`;
+* otherwise: the zero polynomial, whose every coefficient is `0` -- which is
+  what `wTable`'s third branch returns.
+
+The three branches are `wTable_at_flat_index`'s three branches with the
+coefficient read pulled out. -/
+def wTableRow {μ n : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n) (u : ℕ) :
+    CPolynomial (ZMod q) :=
+  if hz : u < μ then (sw.z ⟨u, hz⟩).1
+  else if hr : u - μ < n * 8 then
+    InnerOuter.rhoDigits Φ 16
+      (sw.ρ ⟨(u - μ) / 8, Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])⟩) ((u - μ) % 8)
+  else 0
+
+/-- **The row hoist is sound**: the `ℕ`-indexed table `wTableFlat` is a
+coefficient of the row polynomial. Every entry of every table builder below
+factors through this equation. -/
+theorem wTableFlat_eq_row {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n)
+    (t : ℕ) (ht : t < 2 ^ m₀) :
+    wTableFlat m₀ sw t = phiF ((wTableRow sw (t / N)).coeff (t % N)) := by
+  rw [wTableFlat, dif_pos ht, wTable_at_flat_index (μ := μ) (n := n) sw ht, wTableRow]
+  by_cases hz : t / N < μ
+  · rw [dif_pos hz, dif_pos hz]
+  · rw [dif_neg hz, dif_neg hz]
+    by_cases hr : t / N - μ < n * 8
+    · rw [dif_pos hr, dif_pos hr]
+    · rw [dif_neg hr, dif_neg hr, CPolynomial.coeff_zero, map_zero]
+
+/-- `wTableFlat`'s defining `dif`, resolved on the cube: the specification's own
+`wTable` at a cube point, as a coefficient of the row polynomial. -/
+theorem wTable_symm_eq_row {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n)
+    (t : ℕ) (ht : t < 2 ^ m₀) :
+    InnerOuter.wTable Φ m₀ phiF 16 sw (finFunctionFinEquiv.symm ⟨t, ht⟩)
+      = phiF ((wTableRow sw (t / N)).coeff (t % N)) := by
+  have h1 : wTableFlat m₀ sw t
+      = InnerOuter.wTable Φ m₀ phiF 16 sw (finFunctionFinEquiv.symm ⟨t, ht⟩) := by
+    rw [wTableFlat, dif_pos ht]
+  rw [← h1, wTableFlat_eq_row sw t ht]
+
+/-- The flat index of coefficient `l` of row `u`, decoded back. `omega` does not
+unfold `N` (an `abbrev` for `1024`), so the division and the modulus are named
+here and handed to the loop proofs as hypotheses. -/
+private theorem block_div_mod {u l : ℕ} (hl : l < N) :
+    (N * u + l) / N = u ∧ (N * u + l) % N = l := by
+  constructor
+  · rw [Nat.add_comm, Nat.add_mul_div_left _ _ (by norm_num : 0 < N),
+      Nat.div_eq_of_lt hl, Nat.zero_add]
+  · rw [Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hl]
+
+/-- The entry the three table builders push at flat index `N * u + l`: coefficient
+`l` of row `u`. -/
+private theorem wTableFlat_at_block {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n)
+    {u l : ℕ} (hl : l < N) (ht : N * u + l < 2 ^ m₀) :
+    wTableFlat m₀ sw (N * u + l) = phiF ((wTableRow sw u).coeff l) := by
+  obtain ⟨hd, hm⟩ := block_div_mod (u := u) hl
+  rw [wTableFlat_eq_row sw _ ht, hd, hm]
 /-- `w_table`, against the `ℕ`-indexed table. -/
 theorem w_table_flat_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
     (sw : InnerOuter.LiftedWitness Φ μ n) (idx : Std.Usize)
@@ -546,51 +596,230 @@ theorem forall_cube_iff_forall_flat {m₀ : ℕ} (P : (Fin m₀ → Fin 2) → P
     have := h (finFunctionFinEquiv x) (finFunctionFinEquiv x).isLt
     rwa [Fin.eta, Equiv.symm_apply_apply] at this
 
-/-- The loop of `c_w_table_mle`: the values already pushed are the table entries
-of their indices. -/
-theorem c_w_table_mle_loop_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
-    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
-    (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
-    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
-    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀) (hi : i.val ≤ 2 ^ m₀)
-    (hlen : values.val.length = i.val) (hred : VecReduced values)
-    (hval : ∀ t < i.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t) :
-    zerocheck.c_w_table_mle_loop w size values i
-      ⦃ o => o.val.length = 2 ^ m₀ ∧ VecReduced o ∧
-        ∀ t < 2 ^ m₀, toExt (o.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t ⦄ := by
-  rw [zerocheck.c_w_table_mle_loop]
-  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.val)
-    (fun s => s.2.val ≤ 2 ^ m₀ ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
-      ∀ t < s.2.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t)
-  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
-    dsimp only at hi1 hlen1 hred1 hval1
-    simp only [zerocheck.c_w_table_mle_loop.body]
-    by_cases hlt : i1 < size
+/-- `w_table_row` computes `wTableRow`, the row of the committed table: the three
+branches of `wTable` (`Constraints.lean:140`) read at the row rather than at the
+entry (opt: `HachiEquiv.Opt.wTableRow`, now `wTableRow` above).
+
+Stated coefficientwise below `N`, which is the only range the three table
+builders read: their inner loop is guarded by `l < RING_DEGREE`.
+
+`hmax` is the arity bound the crate's checked `rows * GADGET_DIGITS` forces, and
+it is the specification's own product -- the same hypothesis `w_table_spec`
+(`:427`) carries, for the same reason. -/
+theorem w_table_row_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (u : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max) :
+    zerocheck.w_table_row w u
+      ⦃ out => Wf out ∧
+        ∀ k < N, (toRq out).1.coeff k = (wTableRow sw u.val).coeff k ⦄ := by
+  obtain ⟨hWz, hWrho, hzeq, hrhoeq⟩ := hw
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hzlen : (alloc.vec.Vec.len w.z).val = μ := by simpa using hWz.1
+  have hrholen : (alloc.vec.Vec.len w.rho).val = n := by simpa using hWrho.1
+  rw [zerocheck.w_table_row]
+  simp only [ringswitch.LiftedWitness.impl.z, ringswitch.LiftedWitness.impl.rho,
+    linalg.PolyVec.len, bind_tc_ok]
+  by_cases hlt : u < alloc.vec.Vec.len w.z
+  · have hz : u.val < μ := by rw [← hzlen]; scalar_tac
+    rw [if_pos hlt]
+    have hrowlt : u.val < w.z.val.length := by rw [hWz.1]; exact hz
+    simp only [linalg.PolyVec.get]
+    step as ⟨r, hr⟩
+    have hWr : Wf r := by rw [hr]; exact hWz.2 _ (List.getElem_mem hrowlt)
+    apply spec_mono (RqBridge.copy_spec r hWr)
+    rintro out ⟨hWout, hout⟩
+    refine ⟨hWout, fun k _ => ?_⟩
+    have hzentry : sw.z ⟨u.val, hz⟩ = toRq r := by
+      rw [← hzeq]
+      show toRq (w.z.val.getD u.val (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r
+      rw [List.getD_eq_getElem _ _ hrowlt, hr]
+    rw [hout, wTableRow, dif_pos hz, hzentry]
+  · have hz : ¬ u.val < μ := by rw [← hzlen]; scalar_tac
+    rw [if_neg hlt]
+    step as ⟨i, hi⟩
+    have hiv : i.val = u.val - μ := by rw [hi, hzlen]
+    have hmul : (alloc.vec.Vec.len w.rho).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+      rw [hrholen, hgd]; omega
+    step as ⟨i1, hi1⟩
+    have hi1v : i1.val = n * 8 := by rw [hi1, hrholen, hgd]
+    by_cases hlt2 : i < i1
+    · have hr8 : u.val - μ < n * 8 := by rw [← hiv, ← hi1v]; scalar_tac
+      rw [if_pos hlt2]
+      have hivlt : i.val < n * 8 := by rw [hiv]; exact hr8
+      have hrlt : i.val / 8 < n := by omega
+      have helt : i.val % 8 < 8 := by omega
+      apply spec_mono (rho_digit_as_rq_raw_spec (n := n) w.rho i hWrho hivlt)
+      rintro out ⟨hWout, hout⟩
+      refine ⟨hWout, fun k hk => ?_⟩
+      have hd := digitRq_coeff_eq_rhoDigits (n := n) w.rho hrlt helt (k := k) hk
+      rw [show i.val / 8 * 8 + i.val % 8 = i.val from by omega] at hd
+      rw [wTableRow, dif_neg hz, dif_pos hr8, ← hrhoeq]
+      simp only [← hiv]
+      rw [hout, hd]
+    · have hr8 : ¬ u.val - μ < n * 8 := by rw [← hiv, ← hi1v]; scalar_tac
+      rw [if_neg hlt2]
+      apply spec_mono RqBridge.zero_spec
+      rintro out ⟨hWout, hout⟩
+      refine ⟨hWout, fun k _ => ?_⟩
+      rw [hout, wTableRow, dif_neg hz, dif_neg hr8, Rq.zero_val]
+
+/-- The values vector, read as ArkLib's `CMlPolynomialEval F m₀`, is the
+specification's committed table. Shared by `c_w_table_mle_spec` and
+`w_table_mle_eval_spec`, which read the *same* value vector. -/
+theorem toEvals_eq_cWTableMle {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n)
+    (o : alloc.vec.Vec cpoly.field.Ext4)
+    (hval : ∀ t < 2 ^ m₀, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+      wTableFlat m₀ sw t) :
+    toEvals (m := m₀) o = InnerOuter.cWTableMle Φ m₀ phiF 16 sw := by
+  rw [toEvals, InnerOuter.cWTableMle]
+  refine congrArg Vector.ofFn (funext fun j => ?_)
+  rw [hval j.val j.isLt, wTableFlat, dif_pos j.isLt, Fin.eta]
+
+/-- The inner loop of `c_w_table_mle_values`: the `N` coefficients of the row `r`,
+pushed for ascending `l`, stopping at the row width or at the table end `size`,
+whichever comes first -- the second guard is what truncates the final block, so
+the traversal emits exactly `2 ^ m₀` entries for every `m₀`, `μ`, `n`.
+
+The running flat index is `idx = base + l`, and `base` is an opaque `ℕ` here:
+that is deliberate, since `omega` cannot see through the product `N * u` but does
+not have to, `hg` carrying the row's entries already indexed by the flat
+position. The Lean side of this loop is `HachiEquiv.Opt.blockLoop`
+(`lean/Opt.lean`). -/
+theorem c_w_table_mle_values_loop0_loop0_spec {μ n m₀ : ℕ}
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
+    (values : alloc.vec.Vec cpoly.field.Ext4) (idx l : Std.Usize) (hr : Wf r)
+    (hg : ∀ k, k < N → base + k < 2 ^ m₀ →
+      phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (base + k))
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀) (hl : l.val ≤ N)
+    (hidx : idx.val = base + l.val) (hidxle : idx.val ≤ 2 ^ m₀)
+    (hlen : values.val.length = idx.val) (hred : VecReduced values)
+    (hval : ∀ t < idx.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) =
+      wTableFlat m₀ sw t) :
+    zerocheck.c_w_table_mle_values_loop0_loop0 size params.RING_DEGREE values idx r l
+      ⦃ (o, x) => x.val = min (base + N) (2 ^ m₀) ∧ o.val.length = x.val ∧
+        VecReduced o ∧ ∀ t < x.val,
+          toExt (o.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  rw [zerocheck.c_w_table_mle_values_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.2.val)
+    (fun s => s.2.2.val ≤ N ∧ s.2.1.val = base + s.2.2.val ∧ s.2.1.val ≤ 2 ^ m₀ ∧
+      s.1.val.length = s.2.1.val ∧ VecReduced s.1 ∧
+      ∀ t < s.2.1.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t)
+  · rintro ⟨v1, x1, l1⟩ ⟨hl1, hx1, hx1le, hlen1, hred1, hval1⟩
+    dsimp only at hl1 hx1 hx1le hlen1 hred1 hval1
+    simp only [zerocheck.c_w_table_mle_values_loop0_loop0.body]
+    by_cases hlt : l1 < params.RING_DEGREE
     · rw [if_pos hlt]
-      have hilt : i1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
-      step with w_table_flat_spec (m₀ := m₀) w sw i1 hw hilt hmax as ⟨e, hRe, he⟩
-      have hbound : v1.val.length < Usize.max := by omega
-      step as ⟨v2, hv2⟩
-      step as ⟨i2, hi2⟩
-      have hi2n : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hi2n, hv2, List.length_append, hlen1]; simp
-      · intro y hy
-        rw [hv2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hred1 y h
-        · rw [List.mem_singleton.mp h]; exact hRe
-      · intro t ht
-        rw [hi2n] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, he, hlen1]
+      have hllt : l1.val < N := by rw [← hrd]; scalar_tac
+      by_cases hlt2 : x1 < size
+      · rw [if_pos hlt2]
+        have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+        step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
+        step with ext_from_base_spec f hRf as ⟨e, hRe, he⟩
+        have hentry : toExt e = wTableFlat m₀ sw x1.val := by
+          rw [he, hf, ← phiF_apply, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
+        have hbound : v1.val.length < Usize.max := by omega
+        step as ⟨v2, hv2⟩
+        step as ⟨l2, hl2⟩
+        step as ⟨x2, hx2⟩
+        have hl2v : l2.val = l1.val + 1 := by scalar_tac
+        have hx2v : x2.val = x1.val + 1 := by scalar_tac
+        refine ⟨by omega, by omega, by omega, ?_, ?_, ?_, by omega⟩
+        · rw [hx2v, hv2, List.length_append, hlen1]; simp
+        · intro y hy
+          rw [hv2] at hy
+          rcases List.mem_append.mp hy with h | h
+          · exact hred1 y h
+          · rw [List.mem_singleton.mp h]; exact hRe
+        · intro t ht
+          rw [hx2v] at ht
+          rcases Nat.lt_or_ge t x1.val with htlt | htge
+          · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+          · have hteq : t = v1.val.length := by omega
+            rw [hteq, hv2, getD_append_eq, hentry, hlen1]
+      · rw [if_neg hlt2, WP.spec_ok]
+        dsimp only
+        have hge : size.val ≤ x1.val := by scalar_tac
+        rw [hsize] at hge
+        rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+        exact ⟨rfl, hlen1, hred1, hval1⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 ^ m₀ := by rw [← hsize] at hi1 ⊢; scalar_tac
-      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
-  · exact ⟨hi, hlen, hred, hval⟩
+      have hlge : N ≤ l1.val := by rw [← hrd]; scalar_tac
+      rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+      exact ⟨rfl, hlen1, hred1, hval1⟩
+  · exact ⟨hl, hidx, hidxle, hlen, hred, hval⟩
+
+/-- The outer loop of `c_w_table_mle_values`: one `w_table_row` per row, its
+coefficient block streamed by the inner loop. `idx = min (N * u) (2 ^ m₀)` is the
+running state's own invariant; the `min` is what survives a truncated final
+block, which is what happens whenever `2 ^ m₀` is not a multiple of `N`. The Lean
+side of this loop is `HachiEquiv.Opt.rowLoop` (`lean/Opt.lean`). -/
+theorem c_w_table_mle_values_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
+    (values : alloc.vec.Vec cpoly.field.Ext4) (u idx : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀)
+    (hidx : idx.val = min (N * u.val) (2 ^ m₀))
+    (hlen : values.val.length = idx.val) (hred : VecReduced values)
+    (hval : ∀ t < idx.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) =
+      wTableFlat m₀ sw t) :
+    zerocheck.c_w_table_mle_values_loop0 w size params.RING_DEGREE values u idx
+      ⦃ o => o.val.length = 2 ^ m₀ ∧ VecReduced o ∧
+        ∀ t < 2 ^ m₀, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+          wTableFlat m₀ sw t ⦄ := by
+  have hN : 0 < N := by norm_num
+  have h1v : (1#usize : Std.Usize).val = 1 := by scalar_tac
+  rw [zerocheck.c_w_table_mle_values_loop0]
+  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.2.val)
+    (fun s => s.2.2.val = min (N * s.2.1.val) (2 ^ m₀) ∧ s.1.val.length = s.2.2.val ∧
+      VecReduced s.1 ∧
+      ∀ t < s.2.2.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) = wTableFlat m₀ sw t)
+  · rintro ⟨v1, u1, x1⟩ ⟨hx1, hlen1, hred1, hval1⟩
+    dsimp only at hx1 hlen1 hred1 hval1
+    simp only [zerocheck.c_w_table_mle_values_loop0.body]
+    by_cases hlt : x1 < size
+    · rw [if_pos hlt]
+      have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+      have hbase : x1.val = N * u1.val := by omega
+      step with w_table_row_spec w sw u1 hw hmax as ⟨r, hWr, hrow⟩
+      have hg : ∀ k, k < N → N * u1.val + k < 2 ^ m₀ →
+          phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (N * u1.val + k) := by
+        intro k hk hklt
+        rw [hrow k hk, wTableFlat_at_block sw hk hklt]
+      step with c_w_table_mle_values_loop0_loop0_spec (m₀ := m₀) sw size r (N * u1.val)
+        v1 x1 0#usize hWr hg hm0 hsize (by simp) (by rw [hbase]; simp) (by omega)
+        hlen1 hred1 hval1 as ⟨v2, x2, hx2, hlen2, hred2, hval2⟩
+      step as ⟨u2, hu2⟩
+      have hu2v : u2.val = u1.val + 1 := by omega
+      refine ⟨?_, hlen2, hred2, hval2, by omega⟩
+      rw [hx2, hu2v, Nat.mul_add, Nat.mul_one]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hge : size.val ≤ x1.val := by scalar_tac
+      rw [hsize] at hge
+      have hxeq : x1.val = 2 ^ m₀ := by omega
+      exact ⟨by rw [hlen1, hxeq], hred1, by rw [← hxeq]; exact hval1⟩
+  · exact ⟨hidx, hlen, hred, hval⟩
+
+/-- `c_w_table_mle_values` builds the `2 ^ m₀` table entries row block by row
+block: the private helper both `c_w_table_mle` and `w_table_mle_eval` call
+(opt: `HachiEquiv.Opt.c_w_table_mle.opt`, `lean/Opt.lean`). -/
+theorem c_w_table_mle_values_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (m0 : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hm0 : 2 ^ m0.val ≤ Usize.max)
+    (hmax : μ + n * 8 ≤ Usize.max) :
+    zerocheck.c_w_table_mle_values w m0
+      ⦃ o => o.val.length = 2 ^ m0.val ∧ VecReduced o ∧
+        ∀ t < 2 ^ m0.val, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+          wTableFlat m0.val sw t ⦄ := by
+  rw [zerocheck.c_w_table_mle_values]
+  step with two_pow_spec m0 hm0 as ⟨size, hsize⟩
+  exact c_w_table_mle_values_loop0_spec (m₀ := m0.val) w sw size
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 size) 0#usize 0#usize hw hmax hm0 hsize
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht; simp at ht)
 
 /-- `c_w_table_mle` computes `cWTableMle`, the committed table in Lagrange form
 (`Constraints.lean:328`).
@@ -604,16 +833,10 @@ theorem c_w_table_mle_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
       ⦃ out => WfEvals m0.val out ∧ toEvals (m := m0.val) out =
         InnerOuter.cWTableMle Φ m0.val phiF 16 sw ⦄ := by
   rw [zerocheck.c_w_table_mle]
-  step with two_pow_spec m0 hm0 as ⟨size, hsize⟩
-  step with c_w_table_mle_loop_spec (m₀ := m0.val) w sw size
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize hw hmax hm0 hsize (by simp) (by simp)
-    (by intro y hy; simp at hy) (by intro t ht; simp at ht) as ⟨o, hlen, hred, hval⟩
+  step with c_w_table_mle_values_spec (μ := μ) (n := n) w sw m0 hw hm0 hmax
+    as ⟨o, hlen, hred, hval⟩
   simp only [cpoly.multilinear.MultilinearEvals.from_values, WP.spec_ok]
-  refine ⟨⟨hlen, hred⟩, ?_⟩
-  rw [toEvals, InnerOuter.cWTableMle]
-  congr 1
-  funext j
-  rw [hval j.val j.isLt, wTableFlat, dif_pos j.isLt, Fin.eta]
+  exact ⟨⟨hlen, hred⟩, toEvals_eq_cWTableMle sw o hval⟩
 
 /-! ### `cpoly`'s own multilinear evaluation
 
@@ -860,15 +1083,280 @@ theorem cpoly_dot_spec {k : ℕ} (u v : Slice cpoly.field.Ext4)
   exact cpoly_dot_loop_spec u v (Slice.len u) cpoly.field.Ext4.ZERO 0#usize hu hv hulen hvlen
     (by simpa using hulen) (by simp) reduced_ZERO (by simp)
 
+/-! ### The layer fold `w_table_mle_eval` runs
+
+`cpoly::multilinear::eval_mle_layer` is CompPoly's `evalMleLayer`, and `m₀` of
+them compose into `CMlPolynomialEval.evalMle`, which CompPoly proves equal to the
+Lagrange dot above (`eval_mle_eq_eval`, `CompPoly/Multilinear/Basic.lean:574`).
+
+The four pure helpers and the two layer specs below were proved in
+`lean/Sumcheck.lean` and are moved here verbatim, because `Sumcheck.lean`
+**imports** this file (through `EndPiece.lean`) and `w_table_mle_eval` now needs
+them. `Sumcheck.lean` keeps its fifty-odd uses through its
+`open HachiEquiv.ZeroCheck`. -/
+
+/-- Even index `2y` into a table twice the size: the `(cs, 0, y)` entry. -/
+def lo {k : ℕ} (y : Fin (2 ^ k)) : Fin (2 ^ (k + 1)) :=
+  ⟨2 * y.val, by have := y.isLt; rw [pow_succ]; omega⟩
+
+/-- Odd index `2y + 1`: the `(cs, 1, y)` entry. -/
+def hi {k : ℕ} (y : Fin (2 ^ k)) : Fin (2 ^ (k + 1)) :=
+  ⟨2 * y.val + 1, by have := y.isLt; rw [pow_succ]; omega⟩
+
+/-- One multilinear fold step: the table's value at `T` in its first free
+coordinate, `(1 - T)·w[2y] + T·w[2y + 1]`. This is what `eval_mle_layer` does
+at `T = a`, and what a round polynomial's node value reads at `T = node`. -/
+def fold {k : ℕ} (w : Fin (2 ^ (k + 1)) → F) (T : F) (y : Fin (2 ^ k)) : F :=
+  (1 - T) * w (lo y) + T * w (hi y)
+
+/-- A table as a function of its index. -/
+def tableFn {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) : Fin (2 ^ m) → F :=
+  fun y => (toEvals (m := m) t).get y
+/-- `tableFn` reads the underlying vector at the index. -/
+theorem tableFn_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ m)) :
+    tableFn (m := m) t y = toExt (t.val.getD y.val cpoly.field.Ext4.ZERO) := by
+  simp [tableFn, toEvals]
+
+/-- The loop of `cpoly::multilinear::eval_mle_layer`: the output holds the `j`
+folded entries produced so far. -/
+theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
+    (x0 one_minus : cpoly.field.Ext4) (half : Std.Usize)
+    (hvred : SliceReduced values) (hvlen : values.val.length = 2 ^ (k + 1))
+    (hx : Reduced x0) (hom : Reduced one_minus) (homv : toExt one_minus = 1 - toExt x0)
+    (hhalf : half.val = 2 ^ k)
+    (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize)
+    (hj : j.val ≤ 2 ^ k) (holen : out.val.length = j.val) (hored : VecReduced out)
+    (hoval : ∀ t : ℕ, t < j.val →
+      toExt (out.val.getD t cpoly.field.Ext4.ZERO)
+        = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+          + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO)) :
+    cpoly.multilinear.eval_mle_layer_loop values x0 half one_minus out j
+      ⦃ o => o.val.length = 2 ^ k ∧ VecReduced o ∧
+        ∀ t : ℕ, t < 2 ^ k →
+          toExt (o.val.getD t cpoly.field.Ext4.ZERO)
+            = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+              + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO) ⦄ := by
+  have hmax : 2 ^ (k + 1) ≤ Usize.max := by
+    have := values.property
+    omega
+  rw [cpoly.multilinear.eval_mle_layer_loop]
+  apply loop.spec_decr_nat (fun st => 2 ^ k - st.2.val)
+    (fun st => st.2.val ≤ 2 ^ k ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t : ℕ, t < st.2.val →
+        toExt (st.1.val.getD t cpoly.field.Ext4.ZERO)
+          = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
+            + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO))
+  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hred1, hval1⟩
+    dsimp only at hj1 hlen1 hred1 hval1
+    simp only [cpoly.multilinear.eval_mle_layer_loop.body]
+    by_cases hlt : j1 < half
+    · rw [if_pos hlt]
+      have hjlt : j1.val < 2 ^ k := by rw [← hhalf]; scalar_tac
+      have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
+      have hlo : 2 * j1.val < values.val.length := by rw [hvlen, hpow]; omega
+      have hhi : 2 * j1.val + 1 < values.val.length := by rw [hvlen, hpow]; omega
+      step as ⟨idx, hidx⟩
+      have hidxv : idx.val = 2 * j1.val := by scalar_tac
+      step as ⟨lo, hlov⟩
+      step as ⟨idx1, hidx1⟩
+      have hidx1v : idx1.val = 2 * j1.val + 1 := by scalar_tac
+      step as ⟨hiv, hhiv⟩
+      simp only [hidxv] at hlov
+      simp only [hidx1v] at hhiv
+      have hRlo : Reduced lo := by
+        rw [hlov]; exact hvred _ (List.getElem_mem (by omega))
+      have hRhi : Reduced hiv := by
+        rw [hhiv]; exact hvred _ (List.getElem_mem (by omega))
+      step with ext_mul_spec one_minus lo hom hRlo as ⟨p1, hRp1, hp1⟩
+      step with ext_mul_spec x0 hiv hx hRhi as ⟨p2, hRp2, hp2⟩
+      step with ext_add_spec p1 p2 hRp1 hRp2 as ⟨sm, hRsm, hsm⟩
+      have hpush : o1.val.length < Usize.max := by omega
+      step as ⟨o2, ho2⟩
+      step as ⟨j2, hj2⟩
+      have hj2v : j2.val = j1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hj2v, ho2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with h | h
+        · exact hred1 u h
+        · rw [List.mem_singleton.mp h]; exact hRsm
+      · intro t ht
+        rw [hj2v] at ht
+        rcases Nat.lt_or_ge t j1.val with htlt | htge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = o1.val.length := by omega
+          rw [hteq, ho2, getD_append_eq, hsm, hp1, hp2, homv, hlov, hhiv, hlen1,
+            List.getD_eq_getElem _ _ (show 2 * j1.val < values.val.length from by omega),
+            List.getD_eq_getElem _ _ (show 2 * j1.val + 1 < values.val.length from by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hjeq : j1.val = 2 ^ k := by rw [← hhalf] at hj1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, hjeq], hred1, by rw [← hjeq]; exact hval1⟩
+  · exact ⟨hj, holen, hored, hoval⟩
+
+/-- `cpoly::multilinear::eval_mle_layer` folds a table's first coordinate at `x0`:
+the specification's `fold`. -/
+theorem eval_mle_layer_spec {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
+    (x0 : cpoly.field.Ext4) (ht : WfEvals (k + 1) t) (hx : Reduced x0) :
+    cpoly.multilinear.eval_mle_layer (alloc.vec.Vec.deref t) x0
+      ⦃ o => WfEvals k o ∧ ∀ y : Fin (2 ^ k),
+          tableFn (m := k) o y = fold (tableFn (m := k + 1) t) (toExt x0) y ⦄ := by
+  obtain ⟨htlen, htred⟩ := ht
+  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
+  rw [cpoly.multilinear.eval_mle_layer]
+  step as ⟨half, hhalf⟩
+  have hhalfv : half.val = 2 ^ k := by
+    have : (Slice.len (alloc.vec.Vec.deref t)).val = 2 ^ (k + 1) := by
+      simp only [deref_len]
+      scalar_tac
+    have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
+    scalar_tac
+  step with ext_sub_spec cpoly.field.Ext4.ONE x0 hR1 hx as ⟨om, hRom, homv⟩
+  apply spec_mono (eval_mle_layer_loop_spec (k := k) (alloc.vec.Vec.deref t) x0 om half
+    (sliceReduced_deref htred) (by simpa using htlen) hx hRom
+    (by rw [homv, toExt_ONE]) hhalfv (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+    (by simp) (by simp) (by intro u hu; simp at hu) (by intro t' ht'; simp at ht'))
+  rintro o ⟨holen, hored, hoval⟩
+  refine ⟨⟨holen, hored⟩, fun y => ?_⟩
+  rw [tableFn_apply, hoval y.val y.isLt, fold, tableFn_apply, tableFn_apply]
+  simp only [deref_val, lo, hi]
+
+
+/-! ### `w_table_mle_eval`: the fold, layer by layer
+
+The loop's state carries a table whose *arity* shrinks by one per iteration, so
+the invariant cannot be an equation between two tables of a fixed width. What it
+carries instead is the remaining work: `mleFold` of the current table against the
+point's remaining coordinates, which never changes and is the answer. -/
+
+/-- The point's coordinate `i`, as a function of a plain `ℕ`: the shape the layer
+loop's invariant can carry, since its counter has no `m₀` bound in its type. -/
+def ptFlat (a : alloc.vec.Vec cpoly.field.Ext4) (i : ℕ) : F :=
+  toExt (a.val.getD i cpoly.field.Ext4.ZERO)
+
+/-- `CMlPolynomialEval.evalMleValues` with the remaining point coordinates given
+as a function of a plain `ℕ`: `mleFold k t p` folds `t`'s `k` variables at
+`p 0, …, p (k-1)`. `mleFold_eq_evalMle` is the single place the `ℕ`-indexed point
+is put back into a `Vector`. -/
+def mleFold : (k : ℕ) → CMlPolynomialEval F k → (ℕ → F) → F
+  | 0, t, _ => t.get ⟨0, by norm_num⟩
+  | k + 1, t, p => mleFold k (CMlPolynomialEval.evalMleLayer t (p 0)) (fun i => p (i + 1))
+
+/-- `mleFold` is CompPoly's `evalMle`: the same layer recursion, with the point
+re-indexed. -/
+theorem mleFold_eq_evalMle : ∀ (k : ℕ) (t : CMlPolynomialEval F k) (p : ℕ → F),
+    mleFold k t p
+      = CMlPolynomialEval.evalMle t (Vector.ofFn (fun i : Fin k => p i.val)) := by
+  intro k
+  induction k with
+  | zero =>
+    intro t p
+    rfl
+  | succ k ih =>
+    intro t p
+    have hhead : (Vector.ofFn (fun i : Fin (k + 1) => p i.val)).head = p 0 := by
+      simp [Vector.head]
+    have htail : (Vector.ofFn (fun i : Fin (k + 1) => p i.val)).tail
+        = Vector.ofFn (fun i : Fin k => p (i.val + 1)) := by
+      apply Vector.ext
+      intro i hib
+      simp
+      rw [Nat.add_comm 1 i]
+    rw [mleFold, ih, CMlPolynomialEval.evalMle_succ, hhead, htail]
+
+/-- Vector equality from its `Fin`-indexed reads, which is the form `tableFn`
+gives. -/
+private theorem vector_eq_of_get {m : ℕ} {u v : Vector F m}
+    (h : ∀ i : Fin m, u.get i = v.get i) : u = v := by
+  apply Vector.ext
+  intro i hib
+  exact h ⟨i, hib⟩
+
+/-- One extracted layer, as one step of `mleFold`: `toEvals` of the layer's
+output is `evalMleLayer` of `toEvals` of its input. This is the bridge between
+`eval_mle_layer_spec`'s `fold` conclusion and CompPoly's own layer. -/
+theorem toEvals_evalMleLayer {k : ℕ} (o t : alloc.vec.Vec cpoly.field.Ext4) (x0 : F)
+    (h : ∀ y : Fin (2 ^ k), tableFn (m := k) o y = fold (tableFn (m := k + 1) t) x0 y) :
+    toEvals (m := k) o = CMlPolynomialEval.evalMleLayer (toEvals (m := k + 1) t) x0 := by
+  refine vector_eq_of_get fun y => ?_
+  rw [CMlPolynomialEval.evalMleLayer_get,
+    show (toEvals (m := k) o).get y = tableFn (m := k) o y from rfl, h y, fold]
+  rfl
+
+/-- The loop of `w_table_mle_eval`: after `j` layers the table has `m₀ - j` free
+variables left, and `mleFold` of what remains is still the whole evaluation. The
+answer travels as the parameter `tgt`, which is what lets the invariant be an
+equation between two closed terms rather than a statement about a table whose
+arity moves. -/
+theorem w_table_mle_eval_loop_spec {m₀ : ℕ} (a : alloc.vec.Vec cpoly.field.Ext4)
+    (vars : Std.Usize) (cur : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) (tgt : F)
+    (ha : WfPoint m₀ a) (hvars : vars.val = m₀) (hj : j.val ≤ m₀)
+    (hcur : WfEvals (m₀ - j.val) cur)
+    (hinv : mleFold (m₀ - j.val) (toEvals (m := m₀ - j.val) cur)
+      (fun i => ptFlat a (j.val + i)) = tgt) :
+    zerocheck.w_table_mle_eval_loop a vars cur j
+      ⦃ o => o.val.length = 1 ∧ VecReduced o ∧
+        toExt (o.val.getD 0 cpoly.field.Ext4.ZERO) = tgt ⦄ := by
+  obtain ⟨halen, hared⟩ := ha
+  rw [zerocheck.w_table_mle_eval_loop]
+  apply loop.spec_decr_nat (fun s => m₀ - s.2.val)
+    (fun s => s.2.val ≤ m₀ ∧ WfEvals (m₀ - s.2.val) s.1 ∧
+      mleFold (m₀ - s.2.val) (toEvals (m := m₀ - s.2.val) s.1)
+        (fun i => ptFlat a (s.2.val + i)) = tgt)
+  · rintro ⟨c1, j1⟩ ⟨hj1, hc1, hinv1⟩
+    dsimp only at hj1 hc1 hinv1
+    simp only [zerocheck.w_table_mle_eval_loop.body]
+    by_cases hlt : j1 < vars
+    · rw [if_pos hlt]
+      have hjlt : j1.val < m₀ := by rw [← hvars]; scalar_tac
+      have halt : j1.val < a.val.length := by rw [halen]; exact hjlt
+      obtain ⟨k, hkeq⟩ : ∃ k, m₀ - j1.val = k + 1 := ⟨m₀ - j1.val - 1, by omega⟩
+      rw [hkeq] at hc1 hinv1
+      step as ⟨e, he⟩
+      have hRe : Reduced e := by rw [he]; exact hared _ (List.getElem_mem halt)
+      have hev : ptFlat a j1.val = toExt e := by
+        rw [ptFlat, List.getD_eq_getElem _ _ halt, he]
+      step with eval_mle_layer_spec (k := k) c1 e hc1 hRe as ⟨c2, hc2, hfold⟩
+      step as ⟨j2, hj2⟩
+      have hj2v : j2.val = j1.val + 1 := by scalar_tac
+      have hkeq2 : m₀ - j2.val = k := by omega
+      refine ⟨by omega, ?_, ?_, by omega⟩
+      · rw [hkeq2]; exact hc2
+      · simp only [mleFold] at hinv1
+        rw [show ptFlat a (j1.val + 0) = toExt e from by rw [Nat.add_zero, hev],
+          ← toEvals_evalMleLayer c2 c1 (toExt e) hfold,
+          show (fun i => ptFlat a (j1.val + (i + 1)))
+            = (fun i => ptFlat a (j2.val + i)) from by
+              funext i
+              rw [show j1.val + (i + 1) = j2.val + i from by omega]] at hinv1
+        rw [hkeq2]
+        exact hinv1
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hjeq : j1.val = m₀ := by rw [← hvars] at hj1 ⊢; scalar_tac
+      rw [hjeq, Nat.sub_self] at hc1 hinv1
+      obtain ⟨hclen, hcred⟩ := hc1
+      refine ⟨by simpa using hclen, hcred, ?_⟩
+      rw [← hinv1]
+      simp only [mleFold]
+      exact (tableFn_apply (m := 0) c1 ⟨0, by norm_num⟩).symm
+  · exact ⟨hj, hcur, hinv⟩
+
 /-- `w_table_mle_eval` computes `wTableMleEval`, the evaluation claim the
 final-evaluation step carries (`Constraints.lean:335`).
 
+The body is the `O(2^m₀)` layer fold, not the `O(m₀·2^m₀)` Lagrange dot the
+specification names (opt: `HachiEquiv.Opt.w_table_mle_eval.opt`, `lean/Opt.lean`);
+`mleFold_eq_evalMle` and CompPoly's `eval_mle_eq_eval` are what carry it back to
+`CMlPolynomialEval.eval`, so the statement does not move.
+
 *Statement modified*: the hypothesis `hmax : μ + n * 8 ≤ Usize.max` was added.
 It is `w_table_spec`'s own bound, and this function inherits it through
-`c_w_table_mle`: `w_table` forms `rows * GADGET_DIGITS` as a checked `usize`,
-so without the bound the extracted code can *fail* and no postcondition holds
-of it. Nothing in `RepLiftedWitness` implies it -- the `Vec` model bounds each
-length on its own, not the arity sum -- and `end_piece_check_spec`, the only
+`c_w_table_mle_values`: `w_table_row` forms `rows * GADGET_DIGITS` as a checked
+`usize`, so without the bound the extracted code can *fail* and no postcondition
+holds of it. Nothing in `RepLiftedWitness` implies it -- the `Vec` model bounds
+each length on its own, not the arity sum -- and `end_piece_check_spec`, the only
 caller, carries the same hypothesis already. -/
 theorem w_table_mle_eval_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
     (sw : InnerOuter.LiftedWitness Φ μ n) (m0 : Std.Usize)
@@ -878,79 +1366,164 @@ theorem w_table_mle_eval_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
     zerocheck.w_table_mle_eval w m0 a
       ⦃ out => Reduced out ∧ toExt out =
         InnerOuter.wTableMleEval Φ m0.val phiF 16 sw (toPoint (m := m0.val) a) ⦄ := by
+  have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
   rw [zerocheck.w_table_mle_eval]
-  step with c_w_table_mle_spec (μ := μ) (n := n) w sw m0 hw hm0 hmax as ⟨table, hWt, htval⟩
-  rw [cpoly.multilinear.MultilinearEvals.eval]
-  step with cpoly_lagrange_basis_spec (m := m0.val) a ha hm0 as ⟨basis, hblen, hbred, hbval⟩
-  apply spec_mono (cpoly_dot_spec (k := 2 ^ m0.val) (alloc.vec.Vec.deref table)
-    (alloc.vec.Vec.deref basis) (sliceReduced_deref hWt.2) (sliceReduced_deref hbred)
-    (by simpa using hWt.1) (by simpa using hblen))
-  rintro out ⟨hR, hout⟩
-  refine ⟨hR, ?_⟩
-  rw [hout, InnerOuter.wTableMleEval, CMlPolynomialEval.eval,
-    Vector.dotProduct_eq_root_dotProduct, dotProduct,
-    ← Fin.sum_univ_eq_sum_range (fun t => toExt ((alloc.vec.Vec.deref table).val.getD t
-      cpoly.field.Ext4.ZERO) * toExt ((alloc.vec.Vec.deref basis).val.getD t
-      cpoly.field.Ext4.ZERO)) (2 ^ m0.val)]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  have htab : toExt (table.val.getD i.val cpoly.field.Ext4.ZERO) =
-      (InnerOuter.cWTableMle Φ m0.val phiF 16 sw).get i := by
-    rw [← htval, toEvals, Vector.get_ofFn]
-  have hbas : toExt (basis.val.getD i.val cpoly.field.Ext4.ZERO) =
-      (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m0.val) a))).get i := by
-    rw [hbval i.val i.isLt, Fin.eta]
-  simp only [deref_val]
-  rw [htab, hbas]
+  step with c_w_table_mle_values_spec (μ := μ) (n := n) w sw m0 hw hm0 hmax
+    as ⟨cur, hclen, hcred, hcval⟩
+  have hWcur : WfEvals m0.val cur := ⟨hclen, hcred⟩
+  have htgt : mleFold m0.val (toEvals (m := m0.val) cur) (fun i => ptFlat a i)
+      = InnerOuter.wTableMleEval Φ m0.val phiF 16 sw (toPoint (m := m0.val) a) := by
+    rw [mleFold_eq_evalMle, toEvals_eq_cWTableMle sw cur hcval,
+      CMlPolynomialEval.eval_mle_eq_eval, InnerOuter.wTableMleEval]
+    rfl
+  step with w_table_mle_eval_loop_spec (m₀ := m0.val) a (alloc.vec.Vec.len a) cur 0#usize
+    (InnerOuter.wTableMleEval Φ m0.val phiF 16 sw (toPoint (m := m0.val) a))
+    ha (by simpa using ha.1) (by simp)
+    (by simp only [h0, Nat.sub_zero]; exact hWcur)
+    (by simp only [h0, Nat.zero_add]; exact htgt)
+    as ⟨o, holen, hored, hoval⟩
+  have hbnd : (0 : ℕ) < o.val.length := by rw [holen]; norm_num
+  have hgd : o.val.getD 0 cpoly.field.Ext4.ZERO = o.val[0] :=
+    List.getD_eq_getElem _ _ hbnd
+  step as ⟨z, hz⟩
+  have hmem : z ∈ o.val := by rw [hz]; exact List.getElem_mem hbnd
+  refine ⟨hored _ hmem, ?_⟩
+  rw [hz, ← hgd]
+  exact hoval
 
-/-- The loop of `h_zero`: the values already pushed are the range factors of the
-table entries of their indices. -/
-theorem h_zero_loop_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
-    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
-    (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
-    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
-    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀) (hi : i.val ≤ 2 ^ m₀)
-    (hlen : values.val.length = i.val) (hred : VecReduced values)
-    (hval : ∀ t < i.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) =
+/-- The values vector, read as ArkLib's `CMlPolynomialEval F m₀`, is the
+specification's `H₀`. -/
+theorem toEvals_eq_hZero {μ n m₀ : ℕ} (sw : InnerOuter.LiftedWitness Φ μ n)
+    (o : alloc.vec.Vec cpoly.field.Ext4)
+    (hval : ∀ t < 2 ^ m₀, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
       InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t)) :
-    zerocheck.h_zero_loop w size values i
+    toEvals (m := m₀) o = InnerOuter.hZero Φ m₀ phiF 16 sw := by
+  rw [toEvals, InnerOuter.hZero]
+  refine congrArg Vector.ofFn (funext fun j => ?_)
+  rw [hval j.val j.isLt, wTableFlat, dif_pos j.isLt, Fin.eta]
+
+/-- The inner loop of `h_zero`: the row's coefficients with the range factor
+applied to each as it is produced. Same shape as
+`c_w_table_mle_values_loop0_loop0_spec`, one `range_product` further on; the Lean
+side is `HachiEquiv.Opt.blockLoop` at `φ = rangeProduct 16`
+(opt: `HachiEquiv.Opt.h_zero.opt`, `lean/Opt.lean`). -/
+theorem h_zero_loop0_loop0_spec {μ n m₀ : ℕ}
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
+    (values : alloc.vec.Vec cpoly.field.Ext4) (idx l : Std.Usize) (hr : Wf r)
+    (hg : ∀ k, k < N → base + k < 2 ^ m₀ →
+      phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (base + k))
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀) (hl : l.val ≤ N)
+    (hidx : idx.val = base + l.val) (hidxle : idx.val ≤ 2 ^ m₀)
+    (hlen : values.val.length = idx.val) (hred : VecReduced values)
+    (hval : ∀ t < idx.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) =
+      InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t)) :
+    zerocheck.h_zero_loop0_loop0 size params.RING_DEGREE values idx r l
+      ⦃ (o, x) => x.val = min (base + N) (2 ^ m₀) ∧ o.val.length = x.val ∧
+        VecReduced o ∧ ∀ t < x.val,
+          toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+            InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  rw [zerocheck.h_zero_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.2.val)
+    (fun s => s.2.2.val ≤ N ∧ s.2.1.val = base + s.2.2.val ∧ s.2.1.val ≤ 2 ^ m₀ ∧
+      s.1.val.length = s.2.1.val ∧ VecReduced s.1 ∧
+      ∀ t < s.2.1.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
+        InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t))
+  · rintro ⟨v1, x1, l1⟩ ⟨hl1, hx1, hx1le, hlen1, hred1, hval1⟩
+    dsimp only at hl1 hx1 hx1le hlen1 hred1 hval1
+    simp only [zerocheck.h_zero_loop0_loop0.body]
+    by_cases hlt : l1 < params.RING_DEGREE
+    · rw [if_pos hlt]
+      have hllt : l1.val < N := by rw [← hrd]; scalar_tac
+      by_cases hlt2 : x1 < size
+      · rw [if_pos hlt2]
+        have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+        step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
+        step with ext_from_base_spec f hRf as ⟨e, hRe, he⟩
+        have hentry : toExt e = wTableFlat m₀ sw x1.val := by
+          rw [he, hf, ← phiF_apply, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
+        step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
+        have hbound : v1.val.length < Usize.max := by omega
+        step as ⟨v2, hv2⟩
+        step as ⟨l2, hl2⟩
+        step as ⟨x2, hx2⟩
+        have hl2v : l2.val = l1.val + 1 := by scalar_tac
+        have hx2v : x2.val = x1.val + 1 := by scalar_tac
+        refine ⟨by omega, by omega, by omega, ?_, ?_, ?_, by omega⟩
+        · rw [hx2v, hv2, List.length_append, hlen1]; simp
+        · intro y hy
+          rw [hv2] at hy
+          rcases List.mem_append.mp hy with h | h
+          · exact hred1 y h
+          · rw [List.mem_singleton.mp h]; exact hRpe
+        · intro t ht
+          rw [hx2v] at ht
+          rcases Nat.lt_or_ge t x1.val with htlt | htge
+          · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+          · have hteq : t = v1.val.length := by omega
+            rw [hteq, hv2, getD_append_eq, hpe, hentry, hlen1]
+      · rw [if_neg hlt2, WP.spec_ok]
+        dsimp only
+        have hge : size.val ≤ x1.val := by scalar_tac
+        rw [hsize] at hge
+        rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+        exact ⟨rfl, hlen1, hred1, hval1⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hlge : N ≤ l1.val := by rw [← hrd]; scalar_tac
+      rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+      exact ⟨rfl, hlen1, hred1, hval1⟩
+  · exact ⟨hl, hidx, hidxle, hlen, hred, hval⟩
+
+/-- The outer loop of `h_zero`: one `w_table_row` per row; the Lean side is
+`HachiEquiv.Opt.rowLoop` at `φ = rangeProduct 16`. -/
+theorem h_zero_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
+    (values : alloc.vec.Vec cpoly.field.Ext4) (u idx : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀)
+    (hidx : idx.val = min (N * u.val) (2 ^ m₀))
+    (hlen : values.val.length = idx.val) (hred : VecReduced values)
+    (hval : ∀ t < idx.val, toExt (values.val.getD t cpoly.field.Ext4.ZERO) =
+      InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t)) :
+    zerocheck.h_zero_loop0 w size params.RING_DEGREE values u idx
       ⦃ o => o.val.length = 2 ^ m₀ ∧ VecReduced o ∧
         ∀ t < 2 ^ m₀, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
           InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) ⦄ := by
-  rw [zerocheck.h_zero_loop]
-  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.val)
-    (fun s => s.2.val ≤ 2 ^ m₀ ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
-      ∀ t < s.2.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
+  have hN : 0 < N := by norm_num
+  have h1v : (1#usize : Std.Usize).val = 1 := by scalar_tac
+  rw [zerocheck.h_zero_loop0]
+  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.2.val)
+    (fun s => s.2.2.val = min (N * s.2.1.val) (2 ^ m₀) ∧ s.1.val.length = s.2.2.val ∧
+      VecReduced s.1 ∧
+      ∀ t < s.2.2.val, toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
         InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t))
-  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
-    dsimp only at hi1 hlen1 hred1 hval1
-    simp only [zerocheck.h_zero_loop.body]
-    by_cases hlt : i1 < size
+  · rintro ⟨v1, u1, x1⟩ ⟨hx1, hlen1, hred1, hval1⟩
+    dsimp only at hx1 hlen1 hred1 hval1
+    simp only [zerocheck.h_zero_loop0.body]
+    by_cases hlt : x1 < size
     · rw [if_pos hlt]
-      have hilt : i1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
-      step with w_table_flat_spec (m₀ := m₀) w sw i1 hw hilt hmax as ⟨e, hRe, he⟩
-      step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
-      have hbound : v1.val.length < Usize.max := by omega
-      step as ⟨v2, hv2⟩
-      step as ⟨i2, hi2⟩
-      have hi2n : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hi2n, hv2, List.length_append, hlen1]; simp
-      · intro y hy
-        rw [hv2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hred1 y h
-        · rw [List.mem_singleton.mp h]; exact hRpe
-      · intro t ht
-        rw [hi2n] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, hpe, he, hlen1]
+      have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+      have hbase : x1.val = N * u1.val := by omega
+      step with w_table_row_spec w sw u1 hw hmax as ⟨r, hWr, hrow⟩
+      have hg : ∀ k, k < N → N * u1.val + k < 2 ^ m₀ →
+          phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (N * u1.val + k) := by
+        intro k hk hklt
+        rw [hrow k hk, wTableFlat_at_block sw hk hklt]
+      step with h_zero_loop0_loop0_spec (m₀ := m₀) sw size r (N * u1.val)
+        v1 x1 0#usize hWr hg hm0 hsize (by simp) (by rw [hbase]; simp) (by omega)
+        hlen1 hred1 hval1 as ⟨v2, x2, hx2, hlen2, hred2, hval2⟩
+      step as ⟨u2, hu2⟩
+      have hu2v : u2.val = u1.val + 1 := by omega
+      refine ⟨?_, hlen2, hred2, hval2, by omega⟩
+      rw [hx2, hu2v, Nat.mul_add, Nat.mul_one]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 2 ^ m₀ := by rw [← hsize] at hi1 ⊢; scalar_tac
-      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
-  · exact ⟨hi, hlen, hred, hval⟩
+      have hge : size.val ≤ x1.val := by scalar_tac
+      rw [hsize] at hge
+      have hxeq : x1.val = 2 ^ m₀ := by omega
+      exact ⟨by rw [hlen1, hxeq], hred1, by rw [← hxeq]; exact hval1⟩
+  · exact ⟨hidx, hlen, hred, hval⟩
 
 /-- `h_zero` computes `hZero`, the range-constraint block
 (`Constraints.lean:204`).
@@ -965,74 +1538,147 @@ theorem h_zero_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
         InnerOuter.hZero Φ m0.val phiF 16 sw ⦄ := by
   rw [zerocheck.h_zero]
   step with two_pow_spec m0 hm0 as ⟨size, hsize⟩
-  step with h_zero_loop_spec (m₀ := m0.val) w sw size
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize hw hmax hm0 hsize (by simp) (by simp)
-    (by intro y hy; simp at hy) (by intro t ht; simp at ht) as ⟨o, hlen, hred, hval⟩
+  step with h_zero_loop0_spec (m₀ := m0.val) w sw size
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 size) 0#usize 0#usize hw hmax hm0 hsize
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht; simp at ht) as ⟨o, hlen, hred, hval⟩
   simp only [cpoly.multilinear.MultilinearEvals.from_values, WP.spec_ok]
-  refine ⟨⟨hlen, hred⟩, ?_⟩
-  rw [toEvals, InnerOuter.hZero]
-  refine congrArg Vector.ofFn (funext fun j => ?_)
-  rw [hval j.val j.isLt, wTableFlat, dif_pos j.isLt, Fin.eta]
+  exact ⟨⟨hlen, hred⟩, toEvals_eq_hZero sw o hval⟩
+
+/-- The inner loop of `h_zero_is_zero`: the same traversal with a `Bool` state,
+running branchless to the end -- the Lean side is
+`HachiEquiv.Opt.zeroBlockLoop` (opt: `HachiEquiv.Opt.h_zero_is_zero.opt`,
+`lean/Opt.lean`). -/
+theorem h_zero_is_zero_loop0_loop0_spec {μ n m₀ : ℕ}
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
+    (zero : Bool) (idx l : Std.Usize) (hr : Wf r)
+    (hg : ∀ k, k < N → base + k < 2 ^ m₀ →
+      phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (base + k))
+    (hsize : size.val = 2 ^ m₀) (hl : l.val ≤ N)
+    (hidx : idx.val = base + l.val) (hidxle : idx.val ≤ 2 ^ m₀)
+    (hzero : zero = true ↔ ∀ t < idx.val,
+      InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) :
+    zerocheck.h_zero_is_zero_loop0_loop0 size params.RING_DEGREE zero idx r l
+      ⦃ (b, x) => x.val = min (base + N) (2 ^ m₀) ∧
+        (b = true ↔ ∀ t < x.val,
+          InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  rw [zerocheck.h_zero_is_zero_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.2.val)
+    (fun s => s.2.2.val ≤ N ∧ s.2.1.val = base + s.2.2.val ∧ s.2.1.val ≤ 2 ^ m₀ ∧
+      (s.1 = true ↔ ∀ t < s.2.1.val,
+        InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0))
+  · rintro ⟨b1, x1, l1⟩ ⟨hl1, hx1, hx1le, hb1⟩
+    dsimp only at hl1 hx1 hx1le hb1
+    simp only [zerocheck.h_zero_is_zero_loop0_loop0.body]
+    by_cases hlt : l1 < params.RING_DEGREE
+    · rw [if_pos hlt]
+      have hllt : l1.val < N := by rw [← hrd]; scalar_tac
+      by_cases hlt2 : x1 < size
+      · rw [if_pos hlt2]
+        have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+        step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
+        step with ext_from_base_spec f hRf as ⟨e, hRe, he⟩
+        have hentry : toExt e = wTableFlat m₀ sw x1.val := by
+          rw [he, hf, ← phiF_apply, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
+        step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
+        step with ext_is_zero_spec pe hRpe as ⟨bz, hbz⟩
+        rw [hpe, hentry] at hbz
+        by_cases hbzt : bz = true
+        · rw [if_pos hbzt]
+          simp only [bind_tc_ok]
+          step as ⟨l2, hl2⟩
+          step as ⟨x2, hx2⟩
+          have hl2v : l2.val = l1.val + 1 := by scalar_tac
+          have hx2v : x2.val = x1.val + 1 := by scalar_tac
+          refine ⟨by omega, by omega, by omega, ?_, by omega⟩
+          rw [hx2v, hb1]
+          constructor
+          · intro h t ht
+            rcases Nat.lt_or_ge t x1.val with htlt | htge
+            · exact h t htlt
+            · have hteq : t = x1.val := by omega
+              rw [hteq]
+              exact hbz.mp hbzt
+          · intro h t ht
+            exact h t (by omega)
+        · rw [if_neg hbzt]
+          simp only [bind_tc_ok]
+          step as ⟨l2, hl2⟩
+          step as ⟨x2, hx2⟩
+          have hl2v : l2.val = l1.val + 1 := by scalar_tac
+          have hx2v : x2.val = x1.val + 1 := by scalar_tac
+          refine ⟨by omega, by omega, by omega, ?_, by omega⟩
+          rw [hx2v]
+          simp only [Bool.false_eq_true, false_iff, not_forall]
+          exact ⟨x1.val, by omega, fun h => hbzt (hbz.mpr h)⟩
+      · rw [if_neg hlt2, WP.spec_ok]
+        dsimp only
+        have hge : size.val ≤ x1.val := by scalar_tac
+        rw [hsize] at hge
+        rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+        exact ⟨rfl, hb1⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hlge : N ≤ l1.val := by rw [← hrd]; scalar_tac
+      rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+      exact ⟨rfl, hb1⟩
+  · exact ⟨hl, hidx, hidxle, hzero⟩
+
+/-- The outer loop of `h_zero_is_zero`: one `w_table_row` per row; the Lean side
+is `HachiEquiv.Opt.zeroRowLoop`. -/
+theorem h_zero_is_zero_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (zero : Bool)
+    (u idx : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀)
+    (hidx : idx.val = min (N * u.val) (2 ^ m₀))
+    (hzero : zero = true ↔ ∀ t < idx.val,
+      InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) :
+    zerocheck.h_zero_is_zero_loop0 w size params.RING_DEGREE zero u idx
+      ⦃ b => (b = true ↔
+        ∀ t < 2 ^ m₀, InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) ⦄ := by
+  have hN : 0 < N := by norm_num
+  have h1v : (1#usize : Std.Usize).val = 1 := by scalar_tac
+  rw [zerocheck.h_zero_is_zero_loop0]
+  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.2.val)
+    (fun s => s.2.2.val = min (N * s.2.1.val) (2 ^ m₀) ∧
+      (s.1 = true ↔ ∀ t < s.2.2.val,
+        InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0))
+  · rintro ⟨b1, u1, x1⟩ ⟨hx1, hb1⟩
+    dsimp only at hx1 hb1
+    simp only [zerocheck.h_zero_is_zero_loop0.body]
+    by_cases hlt : x1 < size
+    · rw [if_pos hlt]
+      have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+      have hbase : x1.val = N * u1.val := by omega
+      step with w_table_row_spec w sw u1 hw hmax as ⟨r, hWr, hrow⟩
+      have hg : ∀ k, k < N → N * u1.val + k < 2 ^ m₀ →
+          phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (N * u1.val + k) := by
+        intro k hk hklt
+        rw [hrow k hk, wTableFlat_at_block sw hk hklt]
+      step with h_zero_is_zero_loop0_loop0_spec (m₀ := m₀) sw size r (N * u1.val)
+        b1 x1 0#usize hWr hg hsize (by simp) (by rw [hbase]; simp) (by omega)
+        hb1 as ⟨b2, x2, hx2, hb2⟩
+      step as ⟨u2, hu2⟩
+      have hu2v : u2.val = u1.val + 1 := by omega
+      refine ⟨?_, hb2, by omega⟩
+      rw [hx2, hu2v, Nat.mul_add, Nat.mul_one]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hge : size.val ≤ x1.val := by scalar_tac
+      rw [hsize] at hge
+      have hxeq : x1.val = 2 ^ m₀ := by omega
+      rw [hb1, hxeq]
+  · exact ⟨hidx, hzero⟩
 
 /-- `h_zero_is_zero` **decides** `hZero = 0`, in the pointwise form of
 `hZero_eq_zero_iff` (`Constraints.lean:219`).
 
 An `↔`, not an implication: a verifier that rejected everything would satisfy
 the accepting direction alone, and the rejection path is the half a broken
-implementation still passes. -/
-theorem h_zero_is_zero_loop_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
-    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (zero : Bool) (i : Std.Usize)
-    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
-    (hsize : size.val = 2 ^ m₀) (hi : i.val ≤ 2 ^ m₀)
-    (hzero : zero = true ↔ ∀ t < i.val, InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) :
-    zerocheck.h_zero_is_zero_loop w size zero i
-      ⦃ b => (b = true ↔
-        ∀ t < 2 ^ m₀, InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0) ⦄ := by
-  rw [zerocheck.h_zero_is_zero_loop]
-  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.val)
-    (fun s => s.2.val ≤ 2 ^ m₀ ∧
-      (s.1 = true ↔ ∀ t < s.2.val, InnerOuter.rangeProduct 16 (wTableFlat m₀ sw t) = 0))
-  · rintro ⟨b1, i1⟩ ⟨hi1, hb1⟩
-    dsimp only at hi1 hb1
-    simp only [zerocheck.h_zero_is_zero_loop.body]
-    by_cases hlt : i1 < size
-    · rw [if_pos hlt]
-      have hilt : i1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
-      step with w_table_flat_spec (m₀ := m₀) w sw i1 hw hilt hmax as ⟨e, hRe, he⟩
-      step with range_product_spec e hRe as ⟨pe, hRpe, hpe⟩
-      step with ext_is_zero_spec pe hRpe as ⟨bz, hbz⟩
-      rw [hpe, he] at hbz
-      by_cases hbzt : bz = true
-      · rw [if_pos hbzt]
-        simp only [bind_tc_ok]
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        refine ⟨by omega, ?_, by scalar_tac⟩
-        rw [hi2n, hb1]
-        constructor
-        · intro h t ht
-          rcases Nat.lt_or_ge t i1.val with htlt | htge
-          · exact h t htlt
-          · have hti : t = i1.val := by omega
-            rw [hti]
-            exact hbz.mp hbzt
-        · intro h t ht
-          exact h t (by omega)
-      · rw [if_neg hbzt]
-        simp only [bind_tc_ok]
-        step as ⟨i2, hi2⟩
-        have hi2n : i2.val = i1.val + 1 := by scalar_tac
-        refine ⟨by omega, ?_, by scalar_tac⟩
-        rw [hi2n]
-        simp only [Bool.false_eq_true, false_iff, not_forall]
-        exact ⟨i1.val, by omega, fun h => hbzt (hbz.mpr h)⟩
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = 2 ^ m₀ := by rw [← hsize] at hi1 ⊢; scalar_tac
-      rw [hb1, heq]
-  · exact ⟨hi, hzero⟩
-
-/-- `h_zero_is_zero` **decides** `hZero = 0`.
+implementation still passes.
 
 Carries the same `μ + n * 8 ≤ Usize.max` as `w_table_spec`, which it calls. -/
 theorem h_zero_is_zero_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
@@ -1043,8 +1689,8 @@ theorem h_zero_is_zero_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
       ⦃ b => (b = true ↔ InnerOuter.hZero Φ m0.val phiF 16 sw = 0) ⦄ := by
   rw [zerocheck.h_zero_is_zero]
   step with two_pow_spec m0 hm0 as ⟨size, hsize⟩
-  apply spec_mono (h_zero_is_zero_loop_spec (m₀ := m0.val) w sw size true 0#usize hw hmax hsize
-    (by simp) (by simp))
+  apply spec_mono (h_zero_is_zero_loop0_spec (m₀ := m0.val) w sw size true 0#usize 0#usize
+    hw hmax hm0 hsize (by simp) (by simp))
   intro b hb
   rw [hb, InnerOuter.hZero_eq_zero_iff,
     forall_cube_iff_forall_flat

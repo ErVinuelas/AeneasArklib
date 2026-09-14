@@ -45,6 +45,7 @@ use alloc::vec::Vec;
 use cpoly::{Ext4, Fp, MultilinearEvals};
 
 use crate::params;
+use crate::ring::Rq;
 use crate::ringswitch::{rho_digit_as_rq, LiftedWitness};
 
 /// `2^n`, by repeated doubling (spec: the `2 ^ m₀` in `CMlPolynomialEval F m₀`).
@@ -151,7 +152,9 @@ pub fn range_product(v: Ext4) -> Ext4 {
 /// specification's own shape (`rhoDigits` is a `CPolynomial.ofFinCoeff d`),
 /// not a translation artefact, and it is deliberately kept: the `d`-factor
 /// hoist is an optimization for `perf-loop`, and freezing an improved body
-/// would zero that gain out of the baseline forever.
+/// would zero that gain out of the baseline forever. That hoist landed in
+/// Stage 6 iteration 1 as [`w_table_row`]; the table builders read rows through
+/// it, and this entrywise reader stays as the specification's own shape.
 pub fn w_table(w: &LiftedWitness, idx: usize) -> Ext4 {
     let degree: usize = params::RING_DEGREE;
     let digits: usize = params::GADGET_DIGITS;
@@ -169,77 +172,165 @@ pub fn w_table(w: &LiftedWitness, idx: usize) -> Ext4 {
     }
 }
 
+/// Row `u` of the committed table `w̃`, as one [`Rq`]: the three branches of
+/// `wTable` (`Constraints.lean:140`) read at the row rather than at the entry
+/// (opt: `HachiEquiv.ZeroCheck.wTableRow`, the pure row function the Stage 6
+/// candidate introduced -- it lives in `lean/ZeroCheck.lean` because
+/// `lean/Opt.lean` imports that file, so the specs cannot cite `Opt`).
+///
+/// This is the `d = 1024`× hoist the [`w_table`] docstring reserves for the
+/// loop: on a digit row, `w_table` rebuilt the whole `rhoDigits` polynomial --
+/// 1024 digit extractions -- per entry, and this helper builds it once per row.
+/// Entry `idx` of the table is coefficient `idx % d` of row `idx / d`
+/// (`ZeroCheck.wTableFlat_eq_row`), which is what the three table builders
+/// below stream. The `z` branch is the one that pays for the helper owning its
+/// result: one `Fp` copy per entry where `w_table` read through a borrow.
+///
+/// No `Mirrors` line: `wTableRow` is this crate's own optimized variant, not an
+/// ArkLib definition, so the coverage gate does not pair it with a row.
+pub fn w_table_row(w: &LiftedWitness, u: usize) -> Rq {
+    let digits: usize = params::GADGET_DIGITS;
+    let mu: usize = w.z().len();
+    let rows: usize = w.rho().len();
+    if u < mu {
+        w.z().get(u).copy()
+    } else if u - mu < rows * digits {
+        let j: usize = u - mu;
+        rho_digit_as_rq(w.rho(), j)
+    } else {
+        Rq::zero()
+    }
+}
+
+/// The committed table `w̃` as a plain value vector, row block by row block
+/// (opt: `HachiEquiv.Opt.c_w_table_mle.opt`, `lean/Opt.lean`).
+///
+/// Outer loop over rows, inner loop over the `d` coefficients of the row; the
+/// inner guard's second conjunct truncates the last block so that exactly
+/// `2^m₀` values are produced for every `m0`, `μ`, `n` -- the same table as the
+/// entrywise construction, with no hypothesis the specification lacks. `idx` is
+/// the running flat index `d·u + l` of the Lean `blockLoop`'s `base + l`,
+/// carried as one counter: a checked `base + d` step would have strengthened
+/// the specs' `2^m₀ ≤ Usize.max` to `2^m₀ + d ≤ Usize.max`. The inner loop
+/// exits only at `idx = d·u + d` or at `idx = size`, so at every outer-loop
+/// entry `idx = min(d·u, size)` and the guard `idx < size` is the Lean
+/// `rowLoop`'s `base < size` -- the fact the outer loop's invariant proves.
+fn c_w_table_mle_values(w: &LiftedWitness, m0: usize) -> Vec<Ext4> {
+    let size: usize = two_pow(m0);
+    let degree: usize = params::RING_DEGREE;
+    let mut values: Vec<Ext4> = Vec::with_capacity(size);
+    let mut u: usize = 0;
+    let mut idx: usize = 0;
+    while idx < size {
+        let r: Rq = w_table_row(w, u);
+        let mut l: usize = 0;
+        while l < degree && idx < size {
+            values.push(Ext4::from_base(r.coeff(l)));
+            l += 1;
+            idx += 1;
+        }
+        u += 1;
+    }
+    values
+}
+
 /// The committed table `w̃` as a multilinear extension in Lagrange form
-/// (spec: `cWTableMle`, `Constraints.lean:328`).
+/// (spec: `cWTableMle`, `Constraints.lean:328`; opt: `HachiEquiv.Opt.optEvals`
+/// over `c_w_table_mle.opt`, `lean/Opt.lean`).
 ///
 /// Mirrors `cWTableMle`.
 ///
 /// `2^m₀` entries: at the pinned `M_ZERO = 26` that is `67 108 864` `Ext4`
-/// values, 2.0 GiB, which is why `m0` is an argument.
+/// values, 2.0 GiB, which is why `m0` is an argument. Built row by row through
+/// [`c_w_table_mle_values`]; `c_w_table_mle.opt_eq_spec` says the entries are
+/// the specification's, so the `Mirrors` line above is still the truth.
 pub fn c_w_table_mle(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
-    let size: usize = two_pow(m0);
-    let mut values: Vec<Ext4> = Vec::new();
-    let mut i: usize = 0;
-    while i < size {
-        values.push(w_table(w, i));
-        i += 1;
-    }
+    let values: Vec<Ext4> = c_w_table_mle_values(w, m0);
     MultilinearEvals::from_values(values)
 }
 
 /// The evaluation claim `mle[w̃](a)` carried into the final-evaluation step
-/// (spec: `wTableMleEval`, `Constraints.lean:335`).
+/// (spec: `wTableMleEval`, `Constraints.lean:335`; opt:
+/// `HachiEquiv.Opt.w_table_mle_eval.opt`, `lean/Opt.lean`).
 ///
 /// Mirrors `wTableMleEval`.
 ///
-/// `CMlPolynomialEval.eval` is cpoly's `MultilinearEvals::eval`, the
-/// `O(m₀·2^m₀)` dot against the Lagrange basis. cpoly also carries the
-/// `O(2^m₀)` `eval_mle` and the proof that the two agree
-/// (`CMlPolynomialEval.eval_mle_eq_eval`, `Multilinear/Basic.lean:574`); this
-/// translation takes the `eval` the specification names, and the swap is
-/// `perf-loop`'s to make.
+/// The specification names `CMlPolynomialEval.eval`, the `O(m₀·2^m₀)` dot
+/// against the Lagrange basis; this body is the `O(2^m₀)` layer fold
+/// `CMlPolynomialEval.evalMle`, which CompPoly proves equal
+/// (`CMlPolynomialEval.eval_mle_eq_eval`, `Multilinear/Basic.lean:574`) and
+/// `w_table_mle_eval.opt_eq_spec` carries to the row-built table. The fold is
+/// written here rather than through `MultilinearEvals::eval_mle`, whose body
+/// `clone`s its table -- an operation the extraction does not model.
+/// `cpoly::multilinear::eval_mle_layer` folds variable `j` of the point.
 pub fn w_table_mle_eval(w: &LiftedWitness, m0: usize, a: &Vec<Ext4>) -> Ext4 {
-    let table: MultilinearEvals = c_w_table_mle(w, m0);
-    table.eval(a)
+    let vars: usize = a.len();
+    let mut cur: Vec<Ext4> = c_w_table_mle_values(w, m0);
+    let mut j: usize = 0;
+    while j < vars {
+        cur = cpoly::multilinear::eval_mle_layer(&cur, a[j]);
+        j += 1;
+    }
+    cur[0]
 }
 
 /// The range-constraint block `H₀` in Boolean-evaluation form
-/// (spec: `hZero`, `Constraints.lean:204`).
+/// (spec: `hZero`, `Constraints.lean:204`; opt: `HachiEquiv.Opt.h_zero.opt`,
+/// `lean/Opt.lean`).
 ///
 /// Mirrors `hZero`.
 ///
 /// Entry `x` is `P_b(w̃(x))`; the vector is the unique multilinear extension of
-/// those `2^m₀` values.
+/// those `2^m₀` values. Streamed row by row, as [`c_w_table_mle_values`] is,
+/// with the range factor applied to each entry as it is produced.
 pub fn h_zero(w: &LiftedWitness, m0: usize) -> MultilinearEvals {
     let size: usize = two_pow(m0);
-    let mut values: Vec<Ext4> = Vec::new();
-    let mut i: usize = 0;
-    while i < size {
-        values.push(range_product(w_table(w, i)));
-        i += 1;
+    let degree: usize = params::RING_DEGREE;
+    let mut values: Vec<Ext4> = Vec::with_capacity(size);
+    let mut u: usize = 0;
+    let mut idx: usize = 0;
+    while idx < size {
+        let r: Rq = w_table_row(w, u);
+        let mut l: usize = 0;
+        while l < degree && idx < size {
+            values.push(range_product(Ext4::from_base(r.coeff(l))));
+            l += 1;
+            idx += 1;
+        }
+        u += 1;
     }
     MultilinearEvals::from_values(values)
 }
 
 /// The zero-check's own verdict: is every entry of `H₀` zero?
 /// (spec: `hZero = 0`, in the pointwise form of `hZero_eq_zero_iff`,
-/// `Constraints.lean:219`).
+/// `Constraints.lean:219`; opt: `HachiEquiv.Opt.h_zero_is_zero.opt`,
+/// `lean/Opt.lean`).
 ///
 /// Mirrors `hZero_eq_zero_iff`.
 ///
 /// Runs branchless to the end rather than returning early, the shape
 /// `ring::Rq::equals` and `commit`'s checks already use: the decision procedure
 /// the equivalence proof mirrors is a fold over all entries, and an early
-/// return would make the extracted model a different recursion.
+/// return would make the extracted model a different recursion. Streamed row
+/// by row like [`h_zero`].
 pub fn h_zero_is_zero(w: &LiftedWitness, m0: usize) -> bool {
     let size: usize = two_pow(m0);
+    let degree: usize = params::RING_DEGREE;
     let mut zero: bool = true;
-    let mut i: usize = 0;
-    while i < size {
-        if !range_product(w_table(w, i)).is_zero() {
-            zero = false;
+    let mut u: usize = 0;
+    let mut idx: usize = 0;
+    while idx < size {
+        let r: Rq = w_table_row(w, u);
+        let mut l: usize = 0;
+        while l < degree && idx < size {
+            if !range_product(Ext4::from_base(r.coeff(l))).is_zero() {
+                zero = false;
+            }
+            l += 1;
+            idx += 1;
         }
-        i += 1;
+        u += 1;
     }
     zero
 }

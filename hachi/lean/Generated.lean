@@ -1116,7 +1116,7 @@ def sumcheck.round_verify_loop
   sumcheck.round_verify_loop_loop msgs challenges m0 stmt 0#usize
 
 /-- [hachi::zerocheck::eq_weight]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 297:4-307:5
+    Source: 'src/zerocheck.rs', lines 388:4-398:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.eq_weight_loop.body
@@ -1147,7 +1147,7 @@ def zerocheck.eq_weight_loop.body
   else ok (done acc)
 
 /-- [hachi::zerocheck::eq_weight]: loop 0:
-    Source: 'src/zerocheck.rs', lines 297:4-307:5
+    Source: 'src/zerocheck.rs', lines 388:4-398:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.eq_weight_loop
@@ -1160,7 +1160,7 @@ def zerocheck.eq_weight_loop
     (acc, q, j)
 
 /-- [hachi::zerocheck::eq_weight]:
-    Source: 'src/zerocheck.rs', lines 292:0-309:1
+    Source: 'src/zerocheck.rs', lines 383:0-400:1
     Visibility: public -/
 def zerocheck.eq_weight
   (tau1 : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
@@ -1170,7 +1170,7 @@ def zerocheck.eq_weight
   zerocheck.eq_weight_loop tau1 vars cpoly.field.Ext4.ONE i 0#usize
 
 /-- [hachi::zerocheck::below_two_pow]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 90:4-93:5
+    Source: 'src/zerocheck.rs', lines 91:4-94:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.below_two_pow_loop.body
@@ -1184,7 +1184,7 @@ def zerocheck.below_two_pow_loop.body
   else ok (done q)
 
 /-- [hachi::zerocheck::below_two_pow]: loop 0:
-    Source: 'src/zerocheck.rs', lines 90:4-93:5
+    Source: 'src/zerocheck.rs', lines 91:4-94:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.below_two_pow_loop
@@ -1194,45 +1194,11 @@ def zerocheck.below_two_pow_loop
     (q, k)
 
 /-- [hachi::zerocheck::below_two_pow]:
-    Source: 'src/zerocheck.rs', lines 87:0-95:1
+    Source: 'src/zerocheck.rs', lines 88:0-96:1
     Visibility: public -/
 def zerocheck.below_two_pow (i : Std.Usize) (m : Std.Usize) : Result Bool := do
   let q ← zerocheck.below_two_pow_loop m i 0#usize
   ok (q = 0#usize)
-
-/-- [hachi::ringswitch::ext_pow]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 257:4-260:5 -/
-@[rust_loop_body]
-def ringswitch.ext_pow_loop.body
-  (x : cpoly.field.Ext4) (i : Std.Usize) (acc : cpoly.field.Ext4)
-  (t : Std.Usize) :
-  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
-  := do
-  if t < i
-  then
-    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul acc x
-    let t1 ← t + 1#usize
-    ok (cont (acc1, t1))
-  else ok (done acc)
-
-/-- [hachi::ringswitch::ext_pow]: loop 0:
-    Source: 'src/ringswitch.rs', lines 257:4-260:5 -/
-@[rust_loop]
-def ringswitch.ext_pow_loop
-  (x : cpoly.field.Ext4) (i : Std.Usize) (acc : cpoly.field.Ext4)
-  (t : Std.Usize) :
-  Result cpoly.field.Ext4
-  := do
-  loop
-    (fun (acc1, t1) => ringswitch.ext_pow_loop.body x i acc1 t1)
-    (acc, t)
-
-/-- [hachi::ringswitch::ext_pow]:
-    Source: 'src/ringswitch.rs', lines 254:0-262:1 -/
-@[reducible]
-def ringswitch.ext_pow
-  (x : cpoly.field.Ext4) (i : Std.Usize) : Result cpoly.field.Ext4 := do
-  ringswitch.ext_pow_loop x i cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::ring::{hachi::ring::Rq}::coeff]:
     Source: 'src/ring.rs', lines 132:4-138:5
@@ -1252,46 +1218,48 @@ def ring.Rq.coeff
 @[global_simps, irreducible] def params.RING_DEGREE : Std.Usize := 1024#usize
 
 /-- [hachi::ringswitch::c_eval_at]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 284:4-287:5
+    Source: 'src/ringswitch.rs', lines 272:4-276:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_eval_at_loop.body
   (alpha : cpoly.field.Ext4) (p : ring.Rq) (degree : Std.Usize)
-  (acc : cpoly.field.Ext4) (k : Std.Usize) :
-  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  (acc : cpoly.field.Ext4) (pw : cpoly.field.Ext4) (k : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × cpoly.field.Ext4 × Std.Usize)
+    cpoly.field.Ext4)
   := do
   if k < degree
   then
     let f ← ring.Rq.coeff p k
     let e ← cpoly.field.Ext4.from_base f
-    let e1 ← ringswitch.ext_pow alpha k
-    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
-    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e2
+    let e1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e pw
+    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e1
+    let pw1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul pw alpha
     let k1 ← k + 1#usize
-    ok (cont (acc1, k1))
+    ok (cont (acc1, pw1, k1))
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_eval_at]: loop 0:
-    Source: 'src/ringswitch.rs', lines 284:4-287:5
+    Source: 'src/ringswitch.rs', lines 272:4-276:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_eval_at_loop
   (alpha : cpoly.field.Ext4) (p : ring.Rq) (degree : Std.Usize)
-  (acc : cpoly.field.Ext4) (k : Std.Usize) :
+  (acc : cpoly.field.Ext4) (pw : cpoly.field.Ext4) (k : Std.Usize) :
   Result cpoly.field.Ext4
   := do
   loop
-    (fun (acc1, k1) => ringswitch.c_eval_at_loop.body alpha p degree acc1 k1)
-    (acc, k)
+    (fun (acc1, pw1, k1) => ringswitch.c_eval_at_loop.body alpha p degree acc1
+      pw1 k1)
+    (acc, pw, k)
 
 /-- [hachi::ringswitch::c_eval_at]:
-    Source: 'src/ringswitch.rs', lines 280:0-289:1
+    Source: 'src/ringswitch.rs', lines 267:0-278:1
     Visibility: public -/
 @[reducible]
 def ringswitch.c_eval_at
   (alpha : cpoly.field.Ext4) (p : ring.Rq) : Result cpoly.field.Ext4 := do
   ringswitch.c_eval_at_loop alpha p params.RING_DEGREE cpoly.field.Ext4.ZERO
-    0#usize
+    cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::yvec]:
     Source: 'src/ringswitch.rs', lines 236:4-238:5
@@ -1314,7 +1282,7 @@ def linalg.PolyVec.len (self : linalg.PolyVec) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::zerocheck::zc_target_alpha]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 395:4-401:5
+    Source: 'src/zerocheck.rs', lines 486:4-492:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.zc_target_alpha_loop.body
@@ -1343,7 +1311,7 @@ def zerocheck.zc_target_alpha_loop.body
   else ok (done sum)
 
 /-- [hachi::zerocheck::zc_target_alpha]: loop 0:
-    Source: 'src/zerocheck.rs', lines 395:4-401:5
+    Source: 'src/zerocheck.rs', lines 486:4-492:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.zc_target_alpha_loop
@@ -1358,7 +1326,7 @@ def zerocheck.zc_target_alpha_loop
     (sum, i)
 
 /-- [hachi::zerocheck::zc_target_alpha]:
-    Source: 'src/zerocheck.rs', lines 391:0-403:1
+    Source: 'src/zerocheck.rs', lines 482:0-494:1
     Visibility: public -/
 def zerocheck.zc_target_alpha
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -1422,7 +1390,7 @@ def sumcheck.nested_to_round_statement
 @[global_simps, irreducible] def params.GADGET_BASE : Std.U64 := 16#u64
 
 /-- [hachi::zerocheck::range_product]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 114:4-120:5
+    Source: 'src/zerocheck.rs', lines 115:4-121:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.range_product_loop.body
@@ -1443,7 +1411,7 @@ def zerocheck.range_product_loop.body
   else ok (done acc)
 
 /-- [hachi::zerocheck::range_product]: loop 0:
-    Source: 'src/zerocheck.rs', lines 114:4-120:5
+    Source: 'src/zerocheck.rs', lines 115:4-121:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.range_product_loop
@@ -1456,7 +1424,7 @@ def zerocheck.range_product_loop
     (acc, j)
 
 /-- [hachi::zerocheck::range_product]:
-    Source: 'src/zerocheck.rs', lines 110:0-122:1
+    Source: 'src/zerocheck.rs', lines 111:0-123:1
     Visibility: public -/
 @[reducible]
 def zerocheck.range_product
@@ -1473,52 +1441,44 @@ def sumcheck.RoundStatement.impl.challenges
   ok self.challenges
 
 /-- [hachi::ringswitch::c_eval_at_modulus]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 312:4-320:5
+    Source: 'src/ringswitch.rs', lines 300:4-303:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_eval_at_modulus_loop.body
-  (alpha : cpoly.field.Ext4) (degree : Std.Usize) (acc : cpoly.field.Ext4)
+  (alpha : cpoly.field.Ext4) (degree : Std.Usize) (pw : cpoly.field.Ext4)
   (k : Std.Usize) :
   Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
   := do
-  if k <= degree
+  if k < degree
   then
-    let coeff ←
-      if k = 0#usize
-      then ok cpoly.field.Fp.ONE
-      else if k = degree
-           then ok cpoly.field.Fp.ONE
-           else ok cpoly.field.Fp.ZERO
-    let e ← cpoly.field.Ext4.from_base coeff
-    let e1 ← ringswitch.ext_pow alpha k
-    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
-    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e2
+    let pw1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul pw alpha
     let k1 ← k + 1#usize
-    ok (cont (acc1, k1))
-  else ok (done acc)
+    ok (cont (pw1, k1))
+  else ok (done pw)
 
 /-- [hachi::ringswitch::c_eval_at_modulus]: loop 0:
-    Source: 'src/ringswitch.rs', lines 312:4-320:5
+    Source: 'src/ringswitch.rs', lines 300:4-303:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_eval_at_modulus_loop
-  (alpha : cpoly.field.Ext4) (degree : Std.Usize) (acc : cpoly.field.Ext4)
+  (alpha : cpoly.field.Ext4) (degree : Std.Usize) (pw : cpoly.field.Ext4)
   (k : Std.Usize) :
   Result cpoly.field.Ext4
   := do
   loop
-    (fun (acc1, k1) => ringswitch.c_eval_at_modulus_loop.body alpha degree acc1
+    (fun (pw1, k1) => ringswitch.c_eval_at_modulus_loop.body alpha degree pw1
       k1)
-    (acc, k)
+    (pw, k)
 
 /-- [hachi::ringswitch::c_eval_at_modulus]:
-    Source: 'src/ringswitch.rs', lines 308:0-322:1
+    Source: 'src/ringswitch.rs', lines 296:0-305:1
     Visibility: public -/
-@[reducible]
 def ringswitch.c_eval_at_modulus
   (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 := do
-  ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE
-    cpoly.field.Ext4.ZERO 0#usize
+  let pw ←
+    ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE
+      cpoly.field.Ext4.ONE 0#usize
+  cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add pw cpoly.field.Ext4.ONE
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::m]:
     Source: 'src/ringswitch.rs', lines 231:4-233:5
@@ -1594,7 +1554,7 @@ def gadget.base_pow (e : Std.Usize) : Result cpoly.field.Fp := do
   gadget.base_pow_loop e b cpoly.field.Fp.ONE 0#usize
 
 /-- [hachi::zerocheck::m_alpha_tilde]:
-    Source: 'src/zerocheck.rs', lines 328:0-341:1
+    Source: 'src/zerocheck.rs', lines 419:0-432:1
     Visibility: public -/
 def zerocheck.m_alpha_tilde
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4) (i : Std.Usize)
@@ -1630,7 +1590,7 @@ def zerocheck.m_alpha_tilde
     else ok cpoly.field.Ext4.ZERO
 
 /-- [hachi::zerocheck::alpha_tilde]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 260:4-263:5
+    Source: 'src/zerocheck.rs', lines 351:4-354:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.alpha_tilde_loop.body
@@ -1646,7 +1606,7 @@ def zerocheck.alpha_tilde_loop.body
   else ok (done acc)
 
 /-- [hachi::zerocheck::alpha_tilde]: loop 0:
-    Source: 'src/zerocheck.rs', lines 260:4-263:5
+    Source: 'src/zerocheck.rs', lines 351:4-354:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.alpha_tilde_loop
@@ -1659,7 +1619,7 @@ def zerocheck.alpha_tilde_loop
     (acc, t)
 
 /-- [hachi::zerocheck::alpha_tilde]:
-    Source: 'src/zerocheck.rs', lines 257:0-265:1
+    Source: 'src/zerocheck.rs', lines 348:0-356:1
     Visibility: public -/
 @[reducible]
 def zerocheck.alpha_tilde
@@ -1667,7 +1627,7 @@ def zerocheck.alpha_tilde
   zerocheck.alpha_tilde_loop alpha l cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::zerocheck::alpha_public_evals]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 367:4-373:5
+    Source: 'src/zerocheck.rs', lines 458:4-464:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.alpha_public_evals_loop.body
@@ -1696,7 +1656,7 @@ def zerocheck.alpha_public_evals_loop.body
   else ok (done sum)
 
 /-- [hachi::zerocheck::alpha_public_evals]: loop 0:
-    Source: 'src/zerocheck.rs', lines 367:4-373:5
+    Source: 'src/zerocheck.rs', lines 458:4-464:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.alpha_public_evals_loop
@@ -1712,7 +1672,7 @@ def zerocheck.alpha_public_evals_loop
     (sum, i)
 
 /-- [hachi::zerocheck::alpha_public_evals]:
-    Source: 'src/zerocheck.rs', lines 362:0-375:1
+    Source: 'src/zerocheck.rs', lines 453:0-466:1
     Visibility: public -/
 def zerocheck.alpha_public_evals
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -3672,36 +3632,27 @@ def ringswitch.LiftedWitness.impl.z
   (self : ringswitch.LiftedWitness) : Result linalg.PolyVec := do
   ok self.z
 
-/-- [hachi::zerocheck::w_table]:
-    Source: 'src/zerocheck.rs', lines 155:0-170:1
+/-- [hachi::zerocheck::w_table_row]:
+    Source: 'src/zerocheck.rs', lines 191:0-203:1
     Visibility: public -/
-def zerocheck.w_table
-  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
-  Result cpoly.field.Ext4
-  := do
+def zerocheck.w_table_row
+  (w : ringswitch.LiftedWitness) (u : Std.Usize) : Result ring.Rq := do
   let pv ← ringswitch.LiftedWitness.impl.z w
   let mu ← linalg.PolyVec.len pv
   let v ← ringswitch.LiftedWitness.impl.rho w
   let rows := alloc.vec.Vec.len v
-  let row ← idx / params.RING_DEGREE
-  let col ← idx % params.RING_DEGREE
-  if row < mu
-  then
-    let r ← linalg.PolyVec.get pv row
-    let f ← ring.Rq.coeff r col
-    cpoly.field.Ext4.from_base f
+  if u < mu
+  then let r ← linalg.PolyVec.get pv u
+       ring.Rq.copy r
   else
-    let i ← row - mu
+    let i ← u - mu
     let i1 ← rows * params.GADGET_DIGITS
     if i < i1
-    then
-      let r ← ringswitch.rho_digit_as_rq v i
-      let f ← ring.Rq.coeff r col
-      cpoly.field.Ext4.from_base f
-    else ok cpoly.field.Ext4.ZERO
+    then ringswitch.rho_digit_as_rq v i
+    else ring.Rq.zero
 
 /-- [hachi::zerocheck::two_pow]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+    Source: 'src/zerocheck.rs', lines 59:4-62:5 -/
 @[rust_loop_body]
 def zerocheck.two_pow_loop.body
   (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
@@ -3715,7 +3666,7 @@ def zerocheck.two_pow_loop.body
   else ok (done size)
 
 /-- [hachi::zerocheck::two_pow]: loop 0:
-    Source: 'src/zerocheck.rs', lines 58:4-61:5 -/
+    Source: 'src/zerocheck.rs', lines 59:4-62:5 -/
 @[rust_loop]
 def zerocheck.two_pow_loop
   (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
@@ -3724,66 +3675,137 @@ def zerocheck.two_pow_loop
     (size, t)
 
 /-- [hachi::zerocheck::two_pow]:
-    Source: 'src/zerocheck.rs', lines 55:0-63:1 -/
+    Source: 'src/zerocheck.rs', lines 56:0-64:1 -/
 @[reducible]
 def zerocheck.two_pow (n : Std.Usize) : Result Std.Usize := do
   zerocheck.two_pow_loop n 1#usize 0#usize
 
-/-- [hachi::zerocheck::c_w_table_mle]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 183:4-186:5
-    Visibility: public -/
+/-- [hachi::zerocheck::c_w_table_mle_values]: loop body 1:
+    Source: 'src/zerocheck.rs', lines 227:8-231:9 -/
 @[rust_loop_body]
-def zerocheck.c_w_table_mle_loop.body
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
+def zerocheck.c_w_table_mle_values_loop0_loop0.body
+  (size : Std.Usize) (degree : Std.Usize) (r : ring.Rq)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize) (l : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize ×
+    Std.Usize) ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize))
   := do
-  if i < size
+  if l < degree
   then
-    let e ← zerocheck.w_table w i
-    let values1 ← alloc.vec.Vec.push values e
-    let i1 ← i + 1#usize
-    ok (cont (values1, i1))
+    if idx < size
+    then
+      let f ← ring.Rq.coeff r l
+      let e ← cpoly.field.Ext4.from_base f
+      let values1 ← alloc.vec.Vec.push values e
+      let l1 ← l + 1#usize
+      let idx1 ← idx + 1#usize
+      ok (cont (values1, idx1, l1))
+    else ok (done (values, idx))
+  else ok (done (values, idx))
+
+/-- [hachi::zerocheck::c_w_table_mle_values]: loop 1:
+    Source: 'src/zerocheck.rs', lines 227:8-231:9 -/
+@[rust_loop]
+def zerocheck.c_w_table_mle_values_loop0_loop0
+  (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize) (r : ring.Rq)
+  (l : Std.Usize) :
+  Result ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+  := do
+  loop
+    (fun (values1, idx1, l1) => zerocheck.c_w_table_mle_values_loop0_loop0.body
+      size degree r values1 idx1 l1)
+    (values, idx, l)
+
+/-- [hachi::zerocheck::c_w_table_mle_values]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 224:4-233:5 -/
+@[rust_loop_body]
+def zerocheck.c_w_table_mle_values_loop0.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize) (idx : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize ×
+    Std.Usize) (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if idx < size
+  then
+    let r ← zerocheck.w_table_row w u
+    let (values1, idx1) ←
+      zerocheck.c_w_table_mle_values_loop0_loop0 size degree values idx r
+        0#usize
+    let u1 ← u + 1#usize
+    ok (cont (values1, u1, idx1))
   else ok (done values)
 
-/-- [hachi::zerocheck::c_w_table_mle]: loop 0:
-    Source: 'src/zerocheck.rs', lines 183:4-186:5
-    Visibility: public -/
+/-- [hachi::zerocheck::c_w_table_mle_values]: loop 0:
+    Source: 'src/zerocheck.rs', lines 224:4-233:5 -/
 @[rust_loop]
-def zerocheck.c_w_table_mle_loop
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+def zerocheck.c_w_table_mle_values_loop0
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize) (idx : Std.Usize) :
   Result (alloc.vec.Vec cpoly.field.Ext4)
   := do
   loop
-    (fun (values1, i1) => zerocheck.c_w_table_mle_loop.body w size values1 i1)
-    (values, i)
+    (fun (values1, u1, idx1) => zerocheck.c_w_table_mle_values_loop0.body w
+      size degree values1 u1 idx1)
+    (values, u, idx)
 
-/-- [hachi::zerocheck::c_w_table_mle]:
-    Source: 'src/zerocheck.rs', lines 179:0-188:1
-    Visibility: public -/
-def zerocheck.c_w_table_mle
+/-- [hachi::zerocheck::c_w_table_mle_values]:
+    Source: 'src/zerocheck.rs', lines 218:0-235:1 -/
+def zerocheck.c_w_table_mle_values
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
-  Result cpoly.multilinear.MultilinearEvals
+  Result (alloc.vec.Vec cpoly.field.Ext4)
   := do
   let size ← zerocheck.two_pow m0
-  let values ←
-    zerocheck.c_w_table_mle_loop w size (alloc.vec.Vec.new cpoly.field.Ext4)
-      0#usize
-  cpoly.multilinear.MultilinearEvals.from_values values
+  let values := alloc.vec.Vec.with_capacity cpoly.field.Ext4 size
+  zerocheck.c_w_table_mle_values_loop0 w size params.RING_DEGREE values 0#usize
+    0#usize
+
+/-- [hachi::zerocheck::w_table_mle_eval]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 270:4-273:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.w_table_mle_eval_loop.body
+  (a : alloc.vec.Vec cpoly.field.Ext4) (vars : Std.Usize)
+  (cur : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if j < vars
+  then
+    let s := alloc.vec.Vec.deref cur
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) a j
+    let cur1 ← cpoly.multilinear.eval_mle_layer s e
+    let j1 ← j + 1#usize
+    ok (cont (cur1, j1))
+  else ok (done cur)
+
+/-- [hachi::zerocheck::w_table_mle_eval]: loop 0:
+    Source: 'src/zerocheck.rs', lines 270:4-273:5
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.w_table_mle_eval_loop
+  (a : alloc.vec.Vec cpoly.field.Ext4) (vars : Std.Usize)
+  (cur : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (cur1, j1) => zerocheck.w_table_mle_eval_loop.body a vars cur1 j1)
+    (cur, j)
 
 /-- [hachi::zerocheck::w_table_mle_eval]:
-    Source: 'src/zerocheck.rs', lines 201:0-204:1
+    Source: 'src/zerocheck.rs', lines 266:0-275:1
     Visibility: public -/
 def zerocheck.w_table_mle_eval
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
   (a : alloc.vec.Vec cpoly.field.Ext4) :
   Result cpoly.field.Ext4
   := do
-  let table ← zerocheck.c_w_table_mle w m0
-  let s := alloc.vec.Vec.deref a
-  cpoly.multilinear.MultilinearEvals.eval table s
+  let vars := alloc.vec.Vec.len a
+  let cur ← zerocheck.c_w_table_mle_values w m0
+  let cur1 ← zerocheck.w_table_mle_eval_loop a vars cur 0#usize
+  alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice cpoly.field.Ext4)
+    cur1 0#usize
 
 /-- [hachi::ringswitch::lift_message]: loop body 0:
     Source: 'src/ringswitch.rs', lines 183:4-186:5
@@ -4471,6 +4493,16 @@ def chain.chain_verify
     if c_final
     then ok c_end
     else ok false
+
+/-- [hachi::zerocheck::c_w_table_mle]:
+    Source: 'src/zerocheck.rs', lines 247:0-250:1
+    Visibility: public -/
+def zerocheck.c_w_table_mle
+  (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
+  Result cpoly.multilinear.MultilinearEvals
+  := do
+  let values ← zerocheck.c_w_table_mle_values w m0
+  cpoly.multilinear.MultilinearEvals.from_values values
 
 /-- [hachi::params::ROUND_NODE_INV_ALPHA]
     Source: 'src/params.rs', lines 601:0-602:50
@@ -5631,7 +5663,7 @@ def quadeval.honest_compute_v
   quadeval.carrier_commit pm pv message
 
 /-- [hachi::chain::chain_open]:
-    Source: 'src/chain.rs', lines 243:0-295:1
+    Source: 'src/chain.rs', lines 251:0-303:1
     Visibility: public -/
 def chain.chain_open
   (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
@@ -8437,7 +8469,7 @@ def ringswitch.LiftedWitness.new
   ok { z, rho }
 
 /-- [hachi::ringswitch::long_mul]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 349:4-352:5 -/
+    Source: 'src/ringswitch.rs', lines 332:4-335:5 -/
 @[rust_loop_body]
 def ringswitch.long_mul_loop0.body
   (width : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
@@ -8452,7 +8484,7 @@ def ringswitch.long_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::ringswitch::long_mul]: loop 0:
-    Source: 'src/ringswitch.rs', lines 349:4-352:5 -/
+    Source: 'src/ringswitch.rs', lines 332:4-335:5 -/
 @[rust_loop]
 def ringswitch.long_mul_loop0
   (width : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
@@ -8463,7 +8495,7 @@ def ringswitch.long_mul_loop0
     (out, k)
 
 /-- [hachi::ringswitch::long_mul]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 357:8-362:9 -/
+    Source: 'src/ringswitch.rs', lines 340:8-345:9 -/
 @[rust_loop_body]
 def ringswitch.long_mul_loop1_loop0.body
   (b : ring.Rq) (n : Std.Usize) (i : Std.Usize) (ai : cpoly.field.Fp)
@@ -8489,7 +8521,7 @@ def ringswitch.long_mul_loop1_loop0.body
   else ok (done out)
 
 /-- [hachi::ringswitch::long_mul]: loop 2:
-    Source: 'src/ringswitch.rs', lines 357:8-362:9 -/
+    Source: 'src/ringswitch.rs', lines 340:8-345:9 -/
 @[rust_loop]
 def ringswitch.long_mul_loop1_loop0
   (b : ring.Rq) (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
@@ -8501,7 +8533,7 @@ def ringswitch.long_mul_loop1_loop0
     (out, j)
 
 /-- [hachi::ringswitch::long_mul]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 354:4-364:5 -/
+    Source: 'src/ringswitch.rs', lines 337:4-347:5 -/
 @[rust_loop_body]
 def ringswitch.long_mul_loop1.body
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize)
@@ -8518,7 +8550,7 @@ def ringswitch.long_mul_loop1.body
   else ok (done out)
 
 /-- [hachi::ringswitch::long_mul]: loop 1:
-    Source: 'src/ringswitch.rs', lines 354:4-364:5 -/
+    Source: 'src/ringswitch.rs', lines 337:4-347:5 -/
 @[rust_loop]
 def ringswitch.long_mul_loop1
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize)
@@ -8530,7 +8562,7 @@ def ringswitch.long_mul_loop1
     (out, i)
 
 /-- [hachi::ringswitch::long_mul]:
-    Source: 'src/ringswitch.rs', lines 344:0-366:1 -/
+    Source: 'src/ringswitch.rs', lines 327:0-349:1 -/
 def ringswitch.long_mul
   (a : ring.Rq) (b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := do
   let i ← 2#usize * params.RING_DEGREE
@@ -8540,7 +8572,7 @@ def ringswitch.long_mul
   ringswitch.long_mul_loop1 a b params.RING_DEGREE out 0#usize
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 385:4-388:5
+    Source: 'src/ringswitch.rs', lines 368:4-371:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop0.body
@@ -8556,7 +8588,7 @@ def ringswitch.c_row_sum_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 0:
-    Source: 'src/ringswitch.rs', lines 385:4-388:5
+    Source: 'src/ringswitch.rs', lines 368:4-371:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop0
@@ -8568,7 +8600,7 @@ def ringswitch.c_row_sum_loop0
     (acc, k)
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 393:8-396:9
+    Source: 'src/ringswitch.rs', lines 376:8-379:9
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop1_loop0.body
@@ -8595,7 +8627,7 @@ def ringswitch.c_row_sum_loop1_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 2:
-    Source: 'src/ringswitch.rs', lines 393:8-396:9
+    Source: 'src/ringswitch.rs', lines 376:8-379:9
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop1_loop0
@@ -8609,7 +8641,7 @@ def ringswitch.c_row_sum_loop1_loop0
     (acc, t)
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 390:4-398:5
+    Source: 'src/ringswitch.rs', lines 373:4-381:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop1.body
@@ -8629,7 +8661,7 @@ def ringswitch.c_row_sum_loop1.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 1:
-    Source: 'src/ringswitch.rs', lines 390:4-398:5
+    Source: 'src/ringswitch.rs', lines 373:4-381:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop1
@@ -8643,7 +8675,7 @@ def ringswitch.c_row_sum_loop1
     (acc, j)
 
 /-- [hachi::ringswitch::c_row_sum]:
-    Source: 'src/ringswitch.rs', lines 378:0-400:1
+    Source: 'src/ringswitch.rs', lines 361:0-383:1
     Visibility: public -/
 def ringswitch.c_row_sum
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
@@ -8659,7 +8691,7 @@ def ringswitch.c_row_sum
   ringswitch.c_row_sum_loop1 z width cols row acc 0#usize
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 427:4-430:5 -/
+    Source: 'src/ringswitch.rs', lines 410:4-413:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop0.body
   (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -8679,7 +8711,7 @@ def ringswitch.div_by_modulus_loop0.body
   else ok (done rem)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 0:
-    Source: 'src/ringswitch.rs', lines 427:4-430:5 -/
+    Source: 'src/ringswitch.rs', lines 410:4-413:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop0
   (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -8691,7 +8723,7 @@ def ringswitch.div_by_modulus_loop0
     (rem, t)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 433:4-436:5 -/
+    Source: 'src/ringswitch.rs', lines 416:4-419:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop1.body
   (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
@@ -8706,7 +8738,7 @@ def ringswitch.div_by_modulus_loop1.body
   else ok (done quot)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 1:
-    Source: 'src/ringswitch.rs', lines 433:4-436:5 -/
+    Source: 'src/ringswitch.rs', lines 416:4-419:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop1
   (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
@@ -8717,7 +8749,7 @@ def ringswitch.div_by_modulus_loop1
     (quot, u)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 438:4-445:5 -/
+    Source: 'src/ringswitch.rs', lines 421:4-428:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop2.body
   (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -8752,7 +8784,7 @@ def ringswitch.div_by_modulus_loop2.body
   else ok (done quot)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 2:
-    Source: 'src/ringswitch.rs', lines 438:4-445:5 -/
+    Source: 'src/ringswitch.rs', lines 421:4-428:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop2
   (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -8765,7 +8797,7 @@ def ringswitch.div_by_modulus_loop2
     (rem, quot, k)
 
 /-- [hachi::ringswitch::div_by_modulus]:
-    Source: 'src/ringswitch.rs', lines 423:0-447:1 -/
+    Source: 'src/ringswitch.rs', lines 406:0-430:1 -/
 def ringswitch.div_by_modulus
   (p : alloc.vec.Vec cpoly.field.Fp) :
   Result (alloc.vec.Vec cpoly.field.Fp)
@@ -8780,7 +8812,7 @@ def ringswitch.div_by_modulus
   ringswitch.div_by_modulus_loop2 params.RING_DEGREE rem quot k
 
 /-- [hachi::ringswitch::c_quotient]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 464:4-467:5
+    Source: 'src/ringswitch.rs', lines 447:4-450:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_quotient_loop.body
@@ -8805,7 +8837,7 @@ def ringswitch.c_quotient_loop.body
   else ok (done defect)
 
 /-- [hachi::ringswitch::c_quotient]: loop 0:
-    Source: 'src/ringswitch.rs', lines 464:4-467:5
+    Source: 'src/ringswitch.rs', lines 447:4-450:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_quotient_loop
@@ -8818,7 +8850,7 @@ def ringswitch.c_quotient_loop
     (defect, k)
 
 /-- [hachi::ringswitch::c_quotient]:
-    Source: 'src/ringswitch.rs', lines 459:0-470:1
+    Source: 'src/ringswitch.rs', lines 442:0-453:1
     Visibility: public -/
 def ringswitch.c_quotient
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
@@ -8833,7 +8865,7 @@ def ringswitch.c_quotient
   ringswitch.QuotientRow.new quot
 
 /-- [hachi::ringswitch::honest_lift_witness]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 488:4-491:5
+    Source: 'src/ringswitch.rs', lines 471:4-474:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.honest_lift_witness_loop.body
@@ -8851,7 +8883,7 @@ def ringswitch.honest_lift_witness_loop.body
   else ok (done rho)
 
 /-- [hachi::ringswitch::honest_lift_witness]: loop 0:
-    Source: 'src/ringswitch.rs', lines 488:4-491:5
+    Source: 'src/ringswitch.rs', lines 471:4-474:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.honest_lift_witness_loop
@@ -8865,7 +8897,7 @@ def ringswitch.honest_lift_witness_loop
     (rho, i)
 
 /-- [hachi::ringswitch::honest_lift_witness]:
-    Source: 'src/ringswitch.rs', lines 484:0-493:1
+    Source: 'src/ringswitch.rs', lines 467:0-476:1
     Visibility: public -/
 def ringswitch.honest_lift_witness
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) :
@@ -8963,94 +8995,201 @@ def sumcheck.round_loop
   let a_tab ← sumcheck.alpha_public_table rs e v1 m0
   sumcheck.round_loop_loop challenges m0 w_tab a_tab stmt 0#usize
 
-/-- [hachi::zerocheck::h_zero]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 217:4-220:5
+/-- [hachi::zerocheck::w_table]:
+    Source: 'src/zerocheck.rs', lines 158:0-173:1
+    Visibility: public -/
+def zerocheck.w_table
+  (w : ringswitch.LiftedWitness) (idx : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  let pv ← ringswitch.LiftedWitness.impl.z w
+  let mu ← linalg.PolyVec.len pv
+  let v ← ringswitch.LiftedWitness.impl.rho w
+  let rows := alloc.vec.Vec.len v
+  let row ← idx / params.RING_DEGREE
+  let col ← idx % params.RING_DEGREE
+  if row < mu
+  then
+    let r ← linalg.PolyVec.get pv row
+    let f ← ring.Rq.coeff r col
+    cpoly.field.Ext4.from_base f
+  else
+    let i ← row - mu
+    let i1 ← rows * params.GADGET_DIGITS
+    if i < i1
+    then
+      let r ← ringswitch.rho_digit_as_rq v i
+      let f ← ring.Rq.coeff r col
+      cpoly.field.Ext4.from_base f
+    else ok cpoly.field.Ext4.ZERO
+
+/-- [hachi::zerocheck::h_zero]: loop body 1:
+    Source: 'src/zerocheck.rs', lines 295:8-299:9
     Visibility: public -/
 @[rust_loop_body]
-def zerocheck.h_zero_loop.body
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
+def zerocheck.h_zero_loop0_loop0.body
+  (size : Std.Usize) (degree : Std.Usize) (r : ring.Rq)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize) (l : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize ×
+    Std.Usize) ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize))
   := do
-  if i < size
+  if l < degree
   then
-    let e ← zerocheck.w_table w i
-    let e1 ← zerocheck.range_product e
-    let values1 ← alloc.vec.Vec.push values e1
-    let i1 ← i + 1#usize
-    ok (cont (values1, i1))
+    if idx < size
+    then
+      let f ← ring.Rq.coeff r l
+      let e ← cpoly.field.Ext4.from_base f
+      let e1 ← zerocheck.range_product e
+      let values1 ← alloc.vec.Vec.push values e1
+      let l1 ← l + 1#usize
+      let idx1 ← idx + 1#usize
+      ok (cont (values1, idx1, l1))
+    else ok (done (values, idx))
+  else ok (done (values, idx))
+
+/-- [hachi::zerocheck::h_zero]: loop 1:
+    Source: 'src/zerocheck.rs', lines 295:8-299:9
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_zero_loop0_loop0
+  (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize) (r : ring.Rq)
+  (l : Std.Usize) :
+  Result ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+  := do
+  loop
+    (fun (values1, idx1, l1) => zerocheck.h_zero_loop0_loop0.body size degree r
+      values1 idx1 l1)
+    (values, idx, l)
+
+/-- [hachi::zerocheck::h_zero]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 292:4-301:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_zero_loop0.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize) (idx : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize ×
+    Std.Usize) (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if idx < size
+  then
+    let r ← zerocheck.w_table_row w u
+    let (values1, idx1) ←
+      zerocheck.h_zero_loop0_loop0 size degree values idx r 0#usize
+    let u1 ← u + 1#usize
+    ok (cont (values1, u1, idx1))
   else ok (done values)
 
 /-- [hachi::zerocheck::h_zero]: loop 0:
-    Source: 'src/zerocheck.rs', lines 217:4-220:5
+    Source: 'src/zerocheck.rs', lines 292:4-301:5
     Visibility: public -/
 @[rust_loop]
-def zerocheck.h_zero_loop
-  (w : ringswitch.LiftedWitness) (size : Std.Usize)
-  (values : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+def zerocheck.h_zero_loop0
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (values : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize) (idx : Std.Usize) :
   Result (alloc.vec.Vec cpoly.field.Ext4)
   := do
   loop
-    (fun (values1, i1) => zerocheck.h_zero_loop.body w size values1 i1)
-    (values, i)
+    (fun (values1, u1, idx1) => zerocheck.h_zero_loop0.body w size degree
+      values1 u1 idx1)
+    (values, u, idx)
 
 /-- [hachi::zerocheck::h_zero]:
-    Source: 'src/zerocheck.rs', lines 213:0-222:1
+    Source: 'src/zerocheck.rs', lines 286:0-303:1
     Visibility: public -/
 def zerocheck.h_zero
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize) :
   Result cpoly.multilinear.MultilinearEvals
   := do
   let size ← zerocheck.two_pow m0
-  let values ←
-    zerocheck.h_zero_loop w size (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-  cpoly.multilinear.MultilinearEvals.from_values values
+  let values := alloc.vec.Vec.with_capacity cpoly.field.Ext4 size
+  let values1 ←
+    zerocheck.h_zero_loop0 w size params.RING_DEGREE values 0#usize 0#usize
+  cpoly.multilinear.MultilinearEvals.from_values values1
 
-/-- [hachi::zerocheck::h_zero_is_zero]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 238:4-243:5
+/-- [hachi::zerocheck::h_zero_is_zero]: loop body 1:
+    Source: 'src/zerocheck.rs', lines 326:8-332:9
     Visibility: public -/
 @[rust_loop_body]
-def zerocheck.h_zero_is_zero_loop.body
-  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
-  (i : Std.Usize) :
-  Result (ControlFlow (Bool × Std.Usize) Bool)
+def zerocheck.h_zero_is_zero_loop0_loop0.body
+  (size : Std.Usize) (degree : Std.Usize) (r : ring.Rq) (zero : Bool)
+  (idx : Std.Usize) (l : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize × Std.Usize) (Bool × Std.Usize))
   := do
-  if i < size
+  if l < degree
   then
-    let e ← zerocheck.w_table w i
-    let e1 ← zerocheck.range_product e
-    let b ← cpoly.field.Ext4.is_zero e1
-    let zero1 ← if b
-                  then ok zero
-                  else ok false
-    let i1 ← i + 1#usize
-    ok (cont (zero1, i1))
+    if idx < size
+    then
+      let f ← ring.Rq.coeff r l
+      let e ← cpoly.field.Ext4.from_base f
+      let e1 ← zerocheck.range_product e
+      let b ← cpoly.field.Ext4.is_zero e1
+      let zero1 ← if b
+                    then ok zero
+                    else ok false
+      let l1 ← l + 1#usize
+      let idx1 ← idx + 1#usize
+      ok (cont (zero1, idx1, l1))
+    else ok (done (zero, idx))
+  else ok (done (zero, idx))
+
+/-- [hachi::zerocheck::h_zero_is_zero]: loop 1:
+    Source: 'src/zerocheck.rs', lines 326:8-332:9
+    Visibility: public -/
+@[rust_loop]
+def zerocheck.h_zero_is_zero_loop0_loop0
+  (size : Std.Usize) (degree : Std.Usize) (zero : Bool) (idx : Std.Usize)
+  (r : ring.Rq) (l : Std.Usize) :
+  Result (Bool × Std.Usize)
+  := do
+  loop
+    (fun (zero1, idx1, l1) => zerocheck.h_zero_is_zero_loop0_loop0.body size
+      degree r zero1 idx1 l1)
+    (zero, idx, l)
+
+/-- [hachi::zerocheck::h_zero_is_zero]: loop body 0:
+    Source: 'src/zerocheck.rs', lines 323:4-334:5
+    Visibility: public -/
+@[rust_loop_body]
+def zerocheck.h_zero_is_zero_loop0.body
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (zero : Bool) (u : Std.Usize) (idx : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize × Std.Usize) Bool)
+  := do
+  if idx < size
+  then
+    let r ← zerocheck.w_table_row w u
+    let (zero1, idx1) ←
+      zerocheck.h_zero_is_zero_loop0_loop0 size degree zero idx r 0#usize
+    let u1 ← u + 1#usize
+    ok (cont (zero1, u1, idx1))
   else ok (done zero)
 
 /-- [hachi::zerocheck::h_zero_is_zero]: loop 0:
-    Source: 'src/zerocheck.rs', lines 238:4-243:5
+    Source: 'src/zerocheck.rs', lines 323:4-334:5
     Visibility: public -/
 @[rust_loop]
-def zerocheck.h_zero_is_zero_loop
-  (w : ringswitch.LiftedWitness) (size : Std.Usize) (zero : Bool)
-  (i : Std.Usize) :
+def zerocheck.h_zero_is_zero_loop0
+  (w : ringswitch.LiftedWitness) (size : Std.Usize) (degree : Std.Usize)
+  (zero : Bool) (u : Std.Usize) (idx : Std.Usize) :
   Result Bool
   := do
   loop
-    (fun (zero1, i1) => zerocheck.h_zero_is_zero_loop.body w size zero1 i1)
-    (zero, i)
+    (fun (zero1, u1, idx1) => zerocheck.h_zero_is_zero_loop0.body w size degree
+      zero1 u1 idx1)
+    (zero, u, idx)
 
 /-- [hachi::zerocheck::h_zero_is_zero]:
-    Source: 'src/zerocheck.rs', lines 234:0-245:1
+    Source: 'src/zerocheck.rs', lines 317:0-336:1
     Visibility: public -/
 def zerocheck.h_zero_is_zero
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool := do
   let size ← zerocheck.two_pow m0
-  zerocheck.h_zero_is_zero_loop w size true 0#usize
+  zerocheck.h_zero_is_zero_loop0 w size params.RING_DEGREE true 0#usize 0#usize
 
 /-- [hachi::zerocheck::alpha_contract]: loop body 1:
-    Source: 'src/zerocheck.rs', lines 446:8-451:9
+    Source: 'src/zerocheck.rs', lines 537:8-542:9
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.alpha_contract_loop0_loop0.body
@@ -9074,7 +9213,7 @@ def zerocheck.alpha_contract_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::zerocheck::alpha_contract]: loop 1:
-    Source: 'src/zerocheck.rs', lines 446:8-451:9
+    Source: 'src/zerocheck.rs', lines 537:8-542:9
     Visibility: public -/
 @[rust_loop]
 def zerocheck.alpha_contract_loop0_loop0
@@ -9089,7 +9228,7 @@ def zerocheck.alpha_contract_loop0_loop0
     (acc, l)
 
 /-- [hachi::zerocheck::alpha_contract]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 444:4-453:5
+    Source: 'src/zerocheck.rs', lines 535:4-544:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.alpha_contract_loop0.body
@@ -9107,7 +9246,7 @@ def zerocheck.alpha_contract_loop0.body
   else ok (done acc)
 
 /-- [hachi::zerocheck::alpha_contract]: loop 0:
-    Source: 'src/zerocheck.rs', lines 444:4-453:5
+    Source: 'src/zerocheck.rs', lines 535:4-544:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.alpha_contract_loop0
@@ -9122,7 +9261,7 @@ def zerocheck.alpha_contract_loop0
     (acc, u)
 
 /-- [hachi::zerocheck::alpha_contract]:
-    Source: 'src/zerocheck.rs', lines 431:0-455:1
+    Source: 'src/zerocheck.rs', lines 522:0-546:1
     Visibility: public -/
 def zerocheck.alpha_contract
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -9138,7 +9277,7 @@ def zerocheck.alpha_contract
     cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::zerocheck::alpha_defect]:
-    Source: 'src/zerocheck.rs', lines 466:0-473:1
+    Source: 'src/zerocheck.rs', lines 557:0-564:1
     Visibility: public -/
 def zerocheck.alpha_defect
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -9152,7 +9291,7 @@ def zerocheck.alpha_defect
   cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub e e1
 
 /-- [hachi::zerocheck::h_alpha_evals]:
-    Source: 'src/zerocheck.rs', lines 501:0-513:1
+    Source: 'src/zerocheck.rs', lines 592:0-604:1
     Visibility: public -/
 def zerocheck.h_alpha_evals
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -9166,7 +9305,7 @@ def zerocheck.h_alpha_evals
   else ok cpoly.field.Ext4.ZERO
 
 /-- [hachi::zerocheck::h_alpha]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 531:4-534:5
+    Source: 'src/zerocheck.rs', lines 622:4-625:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.h_alpha_loop.body
@@ -9185,7 +9324,7 @@ def zerocheck.h_alpha_loop.body
   else ok (done values)
 
 /-- [hachi::zerocheck::h_alpha]: loop 0:
-    Source: 'src/zerocheck.rs', lines 531:4-534:5
+    Source: 'src/zerocheck.rs', lines 622:4-625:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.h_alpha_loop
@@ -9200,7 +9339,7 @@ def zerocheck.h_alpha_loop
     (values, i)
 
 /-- [hachi::zerocheck::h_alpha]:
-    Source: 'src/zerocheck.rs', lines 522:0-536:1
+    Source: 'src/zerocheck.rs', lines 613:0-627:1
     Visibility: public -/
 def zerocheck.h_alpha
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -9214,7 +9353,7 @@ def zerocheck.h_alpha
   cpoly.multilinear.MultilinearEvals.from_values values
 
 /-- [hachi::zerocheck::h_alpha_is_zero]: loop body 0:
-    Source: 'src/zerocheck.rs', lines 553:4-558:5
+    Source: 'src/zerocheck.rs', lines 644:4-649:5
     Visibility: public -/
 @[rust_loop_body]
 def zerocheck.h_alpha_is_zero_loop.body
@@ -9235,7 +9374,7 @@ def zerocheck.h_alpha_is_zero_loop.body
   else ok (done zero)
 
 /-- [hachi::zerocheck::h_alpha_is_zero]: loop 0:
-    Source: 'src/zerocheck.rs', lines 553:4-558:5
+    Source: 'src/zerocheck.rs', lines 644:4-649:5
     Visibility: public -/
 @[rust_loop]
 def zerocheck.h_alpha_is_zero_loop
@@ -9250,7 +9389,7 @@ def zerocheck.h_alpha_is_zero_loop
     (zero, i)
 
 /-- [hachi::zerocheck::h_alpha_is_zero]:
-    Source: 'src/zerocheck.rs', lines 544:0-560:1
+    Source: 'src/zerocheck.rs', lines 635:0-651:1
     Visibility: public -/
 def zerocheck.h_alpha_is_zero
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)

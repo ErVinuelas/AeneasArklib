@@ -45,6 +45,7 @@ use alloc::vec::Vec;
 use cpoly::{Ext4, Fp, MultilinearEvals};
 
 use crate::params;
+use crate::ring::Rq;
 use crate::ringswitch::{rho_digit_as_rq, LiftedWitness};
 
 // @genesis 32d75fa 2026-09-08 — zerocheck::two_pow
@@ -575,4 +576,71 @@ pub fn below_two_pow(i: usize, m: usize) -> bool {
         k += 1;
     }
     q == 0
+}
+
+// ---------------------------------------------------------------------------
+// Stage 6, iteration 1 -- the row-hoisted table builders' helpers (candidate B).
+// Frozen as first translations the day the champion landed (2026-09-14).
+// ---------------------------------------------------------------------------
+
+/// Row `u` of the committed table `w̃`, as one [`Rq`]: the three branches of
+/// `wTable` (`Constraints.lean:140`) read at the row rather than at the entry
+/// (opt: `HachiEquiv.ZeroCheck.wTableRow`, the pure row function the Stage 6
+/// candidate introduced -- it lives in `lean/ZeroCheck.lean` because
+/// `lean/Opt.lean` imports that file, so the specs cannot cite `Opt`).
+///
+/// This is the `d = 1024`× hoist the [`w_table`] docstring reserves for the
+/// loop: on a digit row, `w_table` rebuilt the whole `rhoDigits` polynomial --
+/// 1024 digit extractions -- per entry, and this helper builds it once per row.
+/// Entry `idx` of the table is coefficient `idx % d` of row `idx / d`
+/// (`ZeroCheck.wTableFlat_eq_row`), which is what the three table builders
+/// below stream. The `z` branch is the one that pays for the helper owning its
+/// result: one `Fp` copy per entry where `w_table` read through a borrow.
+///
+/// No `Mirrors` line: `wTableRow` is this crate's own optimized variant, not an
+/// ArkLib definition, so the coverage gate does not pair it with a row.
+pub fn w_table_row(w: &LiftedWitness, u: usize) -> Rq {
+    let digits: usize = params::GADGET_DIGITS;
+    let mu: usize = w.z().len();
+    let rows: usize = w.rho().len();
+    if u < mu {
+        w.z().get(u).copy()
+    } else if u - mu < rows * digits {
+        let j: usize = u - mu;
+        rho_digit_as_rq(w.rho(), j)
+    } else {
+        Rq::zero()
+    }
+}
+
+/// The committed table `w̃` as a plain value vector, row block by row block
+/// (opt: `HachiEquiv.Opt.c_w_table_mle.opt`, `lean/Opt.lean`).
+///
+/// Outer loop over rows, inner loop over the `d` coefficients of the row; the
+/// inner guard's second conjunct truncates the last block so that exactly
+/// `2^m₀` values are produced for every `m0`, `μ`, `n` -- the same table as the
+/// entrywise construction, with no hypothesis the specification lacks. `idx` is
+/// the running flat index `d·u + l` of the Lean `blockLoop`'s `base + l`,
+/// carried as one counter: a checked `base + d` step would have strengthened
+/// the specs' `2^m₀ ≤ Usize.max` to `2^m₀ + d ≤ Usize.max`. The inner loop
+/// exits only at `idx = d·u + d` or at `idx = size`, so at every outer-loop
+/// entry `idx = min(d·u, size)` and the guard `idx < size` is the Lean
+/// `rowLoop`'s `base < size` -- the fact the outer loop's invariant proves.
+fn c_w_table_mle_values(w: &LiftedWitness, m0: usize) -> Vec<Ext4> {
+    let size: usize = two_pow(m0);
+    let degree: usize = params::RING_DEGREE;
+    let mut values: Vec<Ext4> = Vec::with_capacity(size);
+    let mut u: usize = 0;
+    let mut idx: usize = 0;
+    while idx < size {
+        let r: Rq = w_table_row(w, u);
+        let mut l: usize = 0;
+        while l < degree && idx < size {
+            values.push(Ext4::from_base(r.coeff(l)));
+            l += 1;
+            idx += 1;
+        }
+        u += 1;
+    }
+    values
 }

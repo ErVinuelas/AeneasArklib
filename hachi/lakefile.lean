@@ -62,4 +62,4 @@ lean_lib «HachiEquiv» where
   srcDir := "lean"
   roots := #[`Generated, `Field, `Ext, `Ring, `RqBridge, `Scheme, `EvalSplit, `Balanced,
              `QuadEval, `QuadEvalProtocol, `RingSwitch, `ZeroCheck, `EndPiece, `Rlin, `Sumcheck,
-             `Chain, `LiftProver, `Check]
+             `Chain, `LiftProver, `Opt, `Check]
