@@ -750,6 +750,7 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
 // Frozen as a first translation the day the champion landed (2026-09-14).
 // ---------------------------------------------------------------------------
 
+// @genesis a6f18c4 2026-09-14 — zerocheck::range_product_base
 /// The range factor computed in the base field: `P_b(c)` over `Fp`, for the
 /// callers whose argument is an `Ext4::from_base` (spec: `rangeProduct` at an
 /// embedded argument, through `HachiEquiv.Opt.phiF_range_product_base`; opt:
