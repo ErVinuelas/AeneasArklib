@@ -2110,6 +2110,546 @@ theorem alpha_public_evals_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinState
     · rw [dif_pos h2, dif_pos h2, lagrangeBasis_get_eq_cube_prod]
     · rw [dif_neg h2, dif_neg h2]
   · rw [dif_neg htn, apTerm, dif_neg htn]
+
+/-! ### The three hoisted tables of candidate C
+
+`sumcheck::alpha_public_table`'s accepted champion (`hachi/src/sumcheck.rs:433`)
+builds three tables once and reads them per cube entry: the `d`-entry power
+table `α^ℓ`, the `n` equality weights, and the `n × (μ + n·δ)` public matrix at
+`α` with `φ(α)` and the digit weights `b^e` computed once. The specs below are
+what `alpha_public_table_spec` (`lean/Sumcheck.lean`) composes; the pure algebra
+is `HachiEquiv.Opt`'s `alphaPowTable`, `eqWeightTable` and `mAlphaTable`
+(opt: `lean/Opt.lean` § "Candidate C", licensed entrywise by
+`alphaPowTable_getD`, `eqWeightTable_getD` and `mAlphaTable_getD_eq`), and these
+statements are the entrywise shapes those lemmas license.
+
+`Opt.lean` imports this file, so nothing here may refer to it; the loop
+invariants are small enough to re-establish directly, and the one pure fact the
+traversal genuinely needs -- `mAlphaTilde_eq_zero_of_ge`, the absent columns --
+lives here now. -/
+
+/-- Outside the stored columns the specification's matrix is zero -- read
+straight off `mAlphaTilde` (`Constraints.lean:517`) at `δ = 8`.
+
+This is what lets `m_alpha_table` store `μ + n·δ` columns and
+`alpha_public_table`'s `u < cols` guard drop the rest: past the guard the
+summand is not merely unstored, it is the specification's own `0`. Moved here
+from `lean/Opt.lean` so that the spec layer can use it without importing the
+candidate layer. -/
+theorem mAlphaTilde_eq_zero_of_ge {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (i : Fin n) {u : ℕ} (hu : μ + n * 8 ≤ u) :
+    InnerOuter.mAlphaTilde Φ phiF 16 rs α i u = 0 := by
+  rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_neg (by omega), if_neg (by omega)]
+
+/-- `PolyMatrix::cols` is **total**: an empty matrix reports `0` columns rather
+than failing, so the width is only pinned once there is a row.
+
+`poly_matrix_cols_spec` needs `0 < rows` because it reads row `0`. Both table
+builders below reach `cols` before they know `n > 0` -- at `n = 0` the row loop
+never runs and the width never matters -- so they need this shape instead. The
+`c.val ≤ cols` half is what discharges the checked `mu + rows * δ` at `n = 0`. -/
+theorem poly_matrix_cols_le_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
+    (ha : WfMat rows cols a) :
+    linalg.PolyMatrix.cols a ⦃ c => c.val ≤ cols ∧ (0 < rows → c.val = cols) ⦄ := by
+  have hlen : a.val.length = rows := ha.1
+  rw [linalg.PolyMatrix.cols]
+  by_cases hz : alloc.vec.Vec.len a = 0#usize
+  · rw [if_pos hz, WP.spec_ok]
+    have hrows : rows = 0 := by rw [← hlen]; scalar_tac
+    exact ⟨by simp, by rw [hrows]; intro h; exact absurd h (by omega)⟩
+  · rw [if_neg hz]
+    have h0lt : 0 < a.val.length := by scalar_tac
+    have hrows : 0 < rows := by rw [← hlen]; exact h0lt
+    step as ⟨pv, hpv⟩
+    have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0lt)
+    simp only [linalg.PolyVec.len, WP.spec_ok]
+    have hc : (alloc.vec.Vec.len pv).val = cols := by simpa using hWpv.1
+    exact ⟨by rw [hc], fun _ => hc⟩
+
+/-- The loop of `alpha_pow_table`: state `(out, pw, l)`, with `out` holding
+`α^0 … α^(l−1)` and `pw` the running power `α^l`. One multiplication per entry,
+where `alpha_tilde` pays `ℓ` per call. -/
+theorem alpha_pow_table_loop_spec (alpha : cpoly.field.Ext4) (d : Std.Usize)
+    (out : alloc.vec.Vec cpoly.field.Ext4) (pw : cpoly.field.Ext4) (l : Std.Usize)
+    (ha : Reduced alpha) (hl : l.val ≤ d.val) (hlen : out.val.length = l.val)
+    (hred : VecReduced out) (hRpw : Reduced pw) (hpw : toExt pw = toExt alpha ^ l.val)
+    (hval : ∀ t < l.val, toExt (out.val.getD t cpoly.field.Ext4.ZERO) = toExt alpha ^ t) :
+    zerocheck.alpha_pow_table_loop alpha d out pw l
+      ⦃ o => o.val.length = d.val ∧ VecReduced o ∧
+        ∀ t < d.val, toExt (o.val.getD t cpoly.field.Ext4.ZERO) = toExt alpha ^ t ⦄ := by
+  have hdmax : d.val ≤ Usize.max := by scalar_tac
+  rw [zerocheck.alpha_pow_table_loop]
+  apply loop.spec_decr_nat (fun st => d.val - st.2.2.val)
+    (fun st => st.2.2.val ≤ d.val ∧ st.1.val.length = st.2.2.val ∧ VecReduced st.1 ∧
+      Reduced st.2.1 ∧ toExt st.2.1 = toExt alpha ^ st.2.2.val ∧
+      ∀ t < st.2.2.val, toExt (st.1.val.getD t cpoly.field.Ext4.ZERO) = toExt alpha ^ t)
+  · rintro ⟨v1, p1, l1⟩ ⟨hl1, hlen1, hred1, hRp1, hp1, hval1⟩
+    dsimp only at hl1 hlen1 hred1 hRp1 hp1 hval1
+    simp only [zerocheck.alpha_pow_table_loop.body]
+    by_cases hlt : l1 < d
+    · rw [if_pos hlt]
+      have hllt : l1.val < d.val := by scalar_tac
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step with ext_mul_spec p1 alpha hRp1 ha as ⟨p2, hRp2, hp2⟩
+      step as ⟨l2, hl2⟩
+      have hl2v : l2.val = l1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, hRp2, ?_, ?_, by omega⟩
+      · rw [hl2v, hv2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [hv2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hred1 y h
+        · rw [List.mem_singleton.mp h]; exact hRp1
+      · rw [hp2, hp1, hl2v, pow_succ]
+      · intro t ht
+        rw [hl2v] at ht
+        rcases Nat.lt_or_ge t l1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, hp1, hlen1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : l1.val = d.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
+  · exact ⟨hl, hlen, hred, hRpw, hpw, hval⟩
+
+/-- `alpha_pow_table` tabulates `alphaTilde α ℓ = α ^ ℓ` (`Constraints.lean:502`)
+for `ℓ < d`, at one multiplication per entry.
+
+**No side condition.** A `Vec` of length `d` already fits -- the type carries
+`≤ Usize.max` -- and the only fallible arithmetic is the counter's `l + 1` under
+the guard `l < d`, so nothing here forms a value the caller has to bound. -/
+theorem alpha_pow_table_spec (alpha : cpoly.field.Ext4) (d : Std.Usize)
+    (ha : Reduced alpha) :
+    zerocheck.alpha_pow_table alpha d
+      ⦃ out => out.val.length = d.val ∧ VecReduced out ∧
+        ∀ l < d.val, toExt (out.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l ⦄ := by
+  rw [zerocheck.alpha_pow_table]
+  exact alpha_pow_table_loop_spec alpha d
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 d) cpoly.field.Ext4.ONE 0#usize ha
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy) reduced_ONE (by simp)
+    (by intro t ht; simp at ht)
+
+/-- The weight of row `i` in the `m₁`-cube: the `∏ j : Fin m₁` factor of
+`alphaPublicEvals` (`Constraints.lean:845-847`) inside the specification's own
+`i < 2 ^ m₁` guard, and `0` outside it.
+
+The guard is carried, not assumed: at the pinned `n = 5 ≤ 8 = 2 ^ 3` it never
+fires, and a parameter move that broke `n ≤ 2 ^ m₁` must not silently change
+what the table holds. -/
+noncomputable def eqWeightVal {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4) (i : ℕ) : F :=
+  if h : i < 2 ^ m₁ then
+    (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m₁) tau1))).get ⟨i, h⟩
+  else 0
+
+/-- `apTerm` factored through the weight table: for a row index in range the
+summand is the stored weight times the stored matrix entry, the guard having
+been absorbed into `eqWeightVal`. -/
+theorem apTerm_eq_mul {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (alpha : F)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (u : ℕ) {t : ℕ} (ht : t < n) :
+    apTerm (m₁ := m₁) rs alpha tau1 u t
+      = eqWeightVal (m₁ := m₁) tau1 t *
+        InnerOuter.mAlphaTilde Φ phiF 16 rs alpha ⟨t, ht⟩ u := by
+  rw [apTerm, dif_pos ht, eqWeightVal]
+  by_cases h : t < 2 ^ m₁
+  · rw [dif_pos h, dif_pos h]
+  · rw [dif_neg h, dif_neg h, zero_mul]
+
+/-- `alphaPublicEvals` at a flat cube index, as the power times the row sum the
+table traversal computes -- the entrywise identity the hoisted form needs, and
+the tail of `alpha_public_evals_spec`'s own proof factored out. -/
+theorem alphaPublicEvals_eq_pow_mul_sum {n μ m₀ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : F)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (idx : ℕ) (hidx : idx < 2 ^ m₀) :
+    InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs alpha (toPoint (m := m₁) tau1)
+        (finFunctionFinEquiv.symm ⟨idx, hidx⟩)
+      = alpha ^ (idx % N) *
+        ∑ t ∈ Finset.range n, apTerm (m₁ := m₁) rs alpha tau1 (idx / N) t := by
+  rw [InnerOuter.alphaPublicEvals]
+  simp only [Equiv.apply_symm_apply, phi_natDegree, InnerOuter.alphaTilde]
+  congr 1
+  rw [sum_fin_eq_sum_range_dite]
+  refine Finset.sum_congr rfl fun t _ => ?_
+  by_cases htn : t < n
+  · rw [dif_pos htn, apTerm, dif_pos htn]
+    by_cases h2 : t < 2 ^ m₁
+    · rw [dif_pos h2, dif_pos h2, lagrangeBasis_get_eq_cube_prod]
+    · rw [dif_neg h2, dif_neg h2]
+  · rw [dif_neg htn, apTerm, dif_neg htn]
+
+/-- The loop of `eq_weight_table`: one entry per row, the specification's cube
+guard decided by `below_two_pow` so that no power of two is formed. -/
+theorem eq_weight_table_loop_spec {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4)
+    (n vars : Std.Usize) (out : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
+    (htau : WfPoint m₁ tau1) (hvars : vars.val = m₁) (hi : i.val ≤ n.val)
+    (hlen : out.val.length = i.val) (hred : VecReduced out)
+    (hval : ∀ t < i.val, toExt (out.val.getD t cpoly.field.Ext4.ZERO) =
+      eqWeightVal (m₁ := m₁) tau1 t) :
+    zerocheck.eq_weight_table_loop tau1 n vars out i
+      ⦃ o => o.val.length = n.val ∧ VecReduced o ∧
+        ∀ t < n.val, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+          eqWeightVal (m₁ := m₁) tau1 t ⦄ := by
+  have hnmax : n.val ≤ Usize.max := by scalar_tac
+  rw [zerocheck.eq_weight_table_loop]
+  apply loop.spec_decr_nat (fun st => n.val - st.2.val)
+    (fun st => st.2.val ≤ n.val ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t < st.2.val, toExt (st.1.val.getD t cpoly.field.Ext4.ZERO) =
+        eqWeightVal (m₁ := m₁) tau1 t)
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
+    dsimp only at hi1 hlen1 hred1 hval1
+    simp only [zerocheck.eq_weight_table_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hilt : i1.val < n.val := by scalar_tac
+      have hbound : v1.val.length < Usize.max := by omega
+      have hpush : ∀ (e : cpoly.field.Ext4), Reduced e →
+          toExt e = eqWeightVal (m₁ := m₁) tau1 i1.val →
+          alloc.vec.Vec.push v1 e
+            ⦃ r => r.val.length = i1.val + 1 ∧ VecReduced r ∧
+              ∀ t < i1.val + 1, toExt (r.val.getD t cpoly.field.Ext4.ZERO) =
+                eqWeightVal (m₁ := m₁) tau1 t ⦄ := by
+        intro e hRe hev
+        step as ⟨v2, hv2⟩
+        refine ⟨?_, ?_, ?_⟩
+        · rw [hv2, List.length_append, hlen1]; simp
+        · intro y hy
+          rw [hv2] at hy
+          rcases List.mem_append.mp hy with h | h
+          · exact hred1 y h
+          · rw [List.mem_singleton.mp h]; exact hRe
+        · intro t ht
+          rcases Nat.lt_or_ge t i1.val with htlt | htge
+          · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+          · have hteq : t = v1.val.length := by omega
+            rw [hteq, hv2, getD_append_eq, hev, hlen1]
+      step with below_two_pow_spec i1 vars as ⟨b, hb⟩
+      rw [hvars] at hb
+      have hrow : (if b = true then
+            (do let e ← zerocheck.eq_weight tau1 i1
+                alloc.vec.Vec.push v1 e)
+          else alloc.vec.Vec.push v1 cpoly.field.Ext4.ZERO)
+            ⦃ r => r.val.length = i1.val + 1 ∧ VecReduced r ∧
+              ∀ t < i1.val + 1, toExt (r.val.getD t cpoly.field.Ext4.ZERO) =
+                eqWeightVal (m₁ := m₁) tau1 t ⦄ := by
+        by_cases hbt : b = true
+        · have hcube : i1.val < 2 ^ m₁ := hb.mp hbt
+          rw [if_pos hbt]
+          step with eq_weight_spec (m₁ := m₁) tau1 i1 htau hcube as ⟨e, hRe, he⟩
+          exact hpush e hRe (by rw [he, eqWeightVal, dif_pos hcube])
+        · have hcube : ¬ i1.val < 2 ^ m₁ := fun h => hbt (hb.mpr h)
+          rw [if_neg hbt]
+          exact hpush cpoly.field.Ext4.ZERO reduced_ZERO
+            (by rw [toExt_ZERO, eqWeightVal, dif_neg hcube])
+      step with hrow as ⟨v2, hlen2, hred2, hval2⟩
+      step as ⟨i2, hi2⟩
+      have hi2v : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, hred2, ?_, by omega⟩
+      · rw [hi2v]; exact hlen2
+      · rw [hi2v]; exact hval2
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
+  · exact ⟨hi, hlen, hred, hval⟩
+
+/-- `eq_weight_table` tabulates the `m₁`-cube equality weight of each of the `n`
+rows, under the specification's own `i < 2 ^ m₁` guard.
+
+**Unconditional**, for `eq_weight_spec`'s and `below_two_pow_spec`'s reasons: the
+bits are read by a running quotient and the guard is decided by halving, so no
+power of two is ever formed. -/
+theorem eq_weight_table_spec {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4)
+    (n : Std.Usize) (ht : WfPoint m₁ tau1) :
+    zerocheck.eq_weight_table tau1 n
+      ⦃ out => out.val.length = n.val ∧ VecReduced out ∧
+        ∀ i < n.val, toExt (out.val.getD i cpoly.field.Ext4.ZERO) =
+          eqWeightVal (m₁ := m₁) tau1 i ⦄ := by
+  rw [zerocheck.eq_weight_table]
+  exact eq_weight_table_loop_spec tau1 n (alloc.vec.Vec.len tau1)
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 n) 0#usize ht (by simpa using ht.1)
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht'; simp at ht')
+
+/-- Row `i` of a table of tables, read the way the `getD` layer reads every
+other extracted container. -/
+def tableRow (mt : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4)) (i : ℕ) :
+    alloc.vec.Vec cpoly.field.Ext4 :=
+  mt.val.getD i (alloc.vec.Vec.new cpoly.field.Ext4)
+
+/-- The inner loop of `m_alpha_table`: one row of `μ + n·δ` columns, in
+`mAlphaTilde`'s three cases.
+
+`φ(α)` and the digit weights `b^e` arrive as arguments -- the champion computes
+them once for the whole table -- so `hphi` and `hbp` say what they are; the
+entry value is then `mAlphaTilde`'s by its own definition, exactly as
+`m_alpha_tilde_spec` computes it per call. The loop guard `u < cols` already
+gives the specification's `u < μ + n·δ`, so only the digit-block test `(u −
+μ)/δ = i` is decided here. -/
+theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (mu cols : Std.Usize) (phi_alpha : cpoly.field.Ext4)
+    (bp : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
+    (row : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha) (hi : i.val < n)
+    (hmu : mu.val = μ) (hcols : cols.val = μ + n * 8)
+    (hRphi : Reduced phi_alpha)
+    (hphi : toExt phi_alpha = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ)
+    (hbplen : bp.val.length = 8) (hbpred : VecReduced bp)
+    (hbp : ∀ e < 8, toExt (bp.val.getD e cpoly.field.Ext4.ZERO) = phiF ((16 : ZMod q) ^ e))
+    (hu : u.val ≤ cols.val) (hlen : row.val.length = u.val) (hred : VecReduced row)
+    (hval : ∀ t < u.val, toExt (row.val.getD t cpoly.field.Ext4.ZERO) =
+      InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t) :
+    zerocheck.m_alpha_table_loop0_loop0 s alpha params.GADGET_DIGITS mu cols phi_alpha bp
+      i row u
+      ⦃ o => o.val.length = μ + n * 8 ∧ VecReduced o ∧
+        ∀ t < μ + n * 8, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+          InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t ⦄ := by
+  obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hcmax : cols.val ≤ Usize.max := by scalar_tac
+  have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
+  rw [zerocheck.m_alpha_table_loop0_loop0]
+  apply loop.spec_decr_nat (fun st => cols.val - st.2.val)
+    (fun st => st.2.val ≤ cols.val ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t < st.2.val, toExt (st.1.val.getD t cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t)
+  · rintro ⟨v1, u1⟩ ⟨hu1, hlen1, hred1, hval1⟩
+    dsimp only at hu1 hlen1 hred1 hval1
+    simp only [zerocheck.m_alpha_table_loop0_loop0.body]
+    by_cases hlt : u1 < cols
+    · rw [if_pos hlt]
+      have hult : u1.val < cols.val := by scalar_tac
+      have hultc : u1.val < μ + n * 8 := by rw [← hcols]; exact hult
+      have hbound : v1.val.length < Usize.max := by omega
+      have hpush : ∀ (e : cpoly.field.Ext4) (v2 : alloc.vec.Vec cpoly.field.Ext4),
+          Reduced e →
+          toExt e = InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val →
+          v2.val = v1.val ++ [e] →
+          v2.val.length = u1.val + 1 ∧ VecReduced v2 ∧
+            ∀ t < u1.val + 1, toExt (v2.val.getD t cpoly.field.Ext4.ZERO) =
+              InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t := by
+        intro e v2 hRe hev hv2
+        refine ⟨?_, ?_, ?_⟩
+        · rw [hv2, List.length_append, hlen1]; simp
+        · intro y hy
+          rw [hv2] at hy
+          rcases List.mem_append.mp hy with h | h
+          · exact hred1 y h
+          · rw [List.mem_singleton.mp h]; exact hRe
+        · intro t ht
+          rcases Nat.lt_or_ge t u1.val with htlt | htge
+          · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+          · have hteq : t = v1.val.length := by omega
+            rw [hteq, hv2, getD_append_eq, hev, hlen1]
+      have htail : ∀ (e : cpoly.field.Ext4), Reduced e →
+          toExt e = InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val →
+          ∀ (v2 : alloc.vec.Vec cpoly.field.Ext4), v2.val = v1.val ++ [e] →
+          ∀ (u2 : Std.Usize), u2.val = u1.val + 1 →
+            u2.val ≤ cols.val ∧ v2.val.length = u2.val ∧ VecReduced v2 ∧
+              (∀ t < u2.val, toExt (v2.val.getD t cpoly.field.Ext4.ZERO) =
+                InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t) ∧
+              cols.val - u2.val < cols.val - u1.val := by
+        intro e hRe hev v2 hv2 u2 hu2v
+        obtain ⟨h1, h2, h3⟩ := hpush e v2 hRe hev hv2
+        exact ⟨by omega, by rw [hu2v]; exact h1, h2, by rw [hu2v]; exact h3, by omega⟩
+      by_cases hltmu : u1 < mu
+      · rw [if_pos hltmu]
+        have humu : u1.val < μ := by rw [← hmu]; scalar_tac
+        simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.row, bind_tc_ok]
+        step as ⟨pv, hpv⟩
+        have hWpv : WfVec μ pv := by rw [hpv]; exact hWm.2 _ (List.getElem_mem hrowlt)
+        have hulen : u1.val < pv.val.length := by rw [hWpv.1]; exact humu
+        simp only [linalg.PolyVec.get]
+        step as ⟨r, hr⟩
+        have hWr : Wf r := by rw [hr]; exact hWpv.2 _ (List.getElem_mem hulen)
+        step with c_eval_at_spec alpha r ha hWr as ⟨e, hRe, he⟩
+        have hentry : rs.M ⟨i.val, hi⟩ ⟨u1.val, humu⟩ = toRq r := by
+          rw [← hmeq, toMat_apply]
+          show toVec (k := μ) (s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq))
+            ((⟨u1.val, humu⟩ : Fin μ)) = toRq r
+          rw [toVec]
+          show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD u1.val
+            (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r
+          rw [List.getD_eq_getElem _ _ hrowlt, ← hpv, List.getD_eq_getElem _ _ hulen, hr]
+        have hev : toExt e =
+            InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
+          rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_pos humu, he, hentry]
+        step as ⟨v2, hv2⟩
+        step as ⟨u2, hu2⟩
+        exact htail e hRe hev v2 hv2 u2 (by scalar_tac)
+      · rw [if_neg hltmu]
+        have humu : ¬ u1.val < μ := by rw [← hmu]; scalar_tac
+        step as ⟨j1, hj1⟩
+        have hj1v : j1.val = u1.val - μ := by rw [hj1, hmu]
+        step as ⟨j2, hj2⟩
+        have hj2v : j2.val = (u1.val - μ) / 8 := by rw [hj2, hgd, hj1v]
+        by_cases heq : j2 = i
+        · rw [if_pos heq]
+          have hdiv : (u1.val - μ) / 8 = i.val := by rw [← hj2v, heq]
+          step as ⟨e, he⟩
+          have hev : e.val = (u1.val - μ) % 8 := by rw [he, hgd, hj1v]
+          have helt : e.val < 8 := by rw [hev]; omega
+          have hbplt : e.val < bp.val.length := by rw [hbplen]; exact helt
+          step with ext_sub_spec cpoly.field.Ext4.ZERO phi_alpha reduced_ZERO hRphi
+            as ⟨e1, hRe1, he1⟩
+          step as ⟨e2, he2⟩
+          have he2' : e2 = bp.val.getD e.val cpoly.field.Ext4.ZERO := by
+            rw [List.getD_eq_getElem _ _ hbplt, he2]
+          have hRe2 : Reduced e2 := by
+            rw [he2]; exact hbpred _ (List.getElem_mem hbplt)
+          have he2v : toExt e2 = phiF ((16 : ZMod q) ^ e.val) := by
+            rw [he2']; exact hbp e.val helt
+          step with ext_mul_spec e1 e2 hRe1 hRe2 as ⟨e3, hRe3, he3⟩
+          have hentryv : toExt e3 =
+              InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
+            rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_neg humu,
+              if_pos ⟨hultc, hdiv⟩, he3, he1, he2v, toExt_ZERO, hphi, zero_sub, hev]
+            simp only [Nat.cast_ofNat]
+          step as ⟨v2, hv2⟩
+          step as ⟨u2, hu2⟩
+          exact htail e3 hRe3 hentryv v2 hv2 u2 (by scalar_tac)
+        · rw [if_neg heq]
+          have hdiv : ¬ ((u1.val - μ) / 8 = i.val) := by
+            intro h
+            exact heq (by scalar_tac)
+          have hentryv : toExt cpoly.field.Ext4.ZERO =
+              InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
+            rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_neg humu,
+              if_neg (by rintro ⟨-, h⟩; exact hdiv h), toExt_ZERO]
+          step as ⟨v2, hv2⟩
+          step as ⟨u2, hu2⟩
+          exact htail cpoly.field.Ext4.ZERO reduced_ZERO hentryv v2 hv2 u2 (by scalar_tac)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : u1.val = cols.val := by scalar_tac
+      rw [hcols] at heq
+      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
+  · exact ⟨hu, hlen, hred, hval⟩
+
+/-- The outer loop of `m_alpha_table`: one row per constraint row.
+
+`hmu` and `hcols` are guarded by `0 < n` because at `n = 0` the extracted
+`PolyMatrix::cols` reports `0` rather than `μ` (there is no row to measure) and
+the row loop never runs -- the degenerate case the headline has to survive,
+since `alpha_public_table_spec` assumes nothing about `n`. -/
+theorem m_alpha_table_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (mu rows cols : Std.Usize) (phi_alpha : cpoly.field.Ext4)
+    (bp : alloc.vec.Vec cpoly.field.Ext4)
+    (out : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4)) (i : Std.Usize)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
+    (hrows : rows.val = n) (hmu : 0 < n → mu.val = μ)
+    (hcols : 0 < n → cols.val = μ + n * 8) (hRphi : Reduced phi_alpha)
+    (hphi : toExt phi_alpha = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ)
+    (hbplen : bp.val.length = 8) (hbpred : VecReduced bp)
+    (hbp : ∀ e < 8, toExt (bp.val.getD e cpoly.field.Ext4.ZERO) = phiF ((16 : ZMod q) ^ e))
+    (hi : i.val ≤ n) (hlen : out.val.length = i.val)
+    (hval : ∀ (t : ℕ) (ht : t < n), t < i.val →
+      (tableRow out t).val.length = μ + n * 8 ∧ VecReduced (tableRow out t) ∧
+      ∀ c < μ + n * 8, toExt ((tableRow out t).val.getD c cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c) :
+    zerocheck.m_alpha_table_loop0 s alpha params.GADGET_DIGITS mu rows cols phi_alpha bp
+      out i
+      ⦃ o => o.val.length = n ∧ ∀ (t : ℕ) (ht : t < n),
+        (tableRow o t).val.length = μ + n * 8 ∧ VecReduced (tableRow o t) ∧
+        ∀ c < μ + n * 8, toExt ((tableRow o t).val.getD c cpoly.field.Ext4.ZERO) =
+          InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c ⦄ := by
+  have hnmax : n ≤ Usize.max := by rw [← hrows]; scalar_tac
+  rw [zerocheck.m_alpha_table_loop0]
+  apply loop.spec_decr_nat (fun st => n - st.2.val)
+    (fun st => st.2.val ≤ n ∧ st.1.val.length = st.2.val ∧
+      ∀ (t : ℕ) (ht : t < n), t < st.2.val →
+        (tableRow st.1 t).val.length = μ + n * 8 ∧ VecReduced (tableRow st.1 t) ∧
+        ∀ c < μ + n * 8, toExt ((tableRow st.1 t).val.getD c cpoly.field.Ext4.ZERO) =
+          InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c)
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hval1⟩
+    dsimp only at hi1 hlen1 hval1
+    simp only [zerocheck.m_alpha_table_loop0.body]
+    by_cases hlt : i1 < rows
+    · rw [if_pos hlt]
+      have hilt : i1.val < n := by rw [← hrows]; scalar_tac
+      have hnpos : 0 < n := by omega
+      step with m_alpha_table_loop0_loop0_spec (n := n) (μ := μ) s rs alpha mu cols
+        phi_alpha bp i1 (alloc.vec.Vec.with_capacity cpoly.field.Ext4 cols) 0#usize
+        hs ha hilt (hmu hnpos) (hcols hnpos) hRphi hphi
+        hbplen hbpred hbp (by simp) (by simp [alloc.vec.Vec.with_capacity])
+        (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+        (by intro t ht; simp at ht) as ⟨r1, hrlen, hrred, hrval⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨i2, hi2⟩
+      have hi2v : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, by omega⟩
+      · rw [hi2v, hv2, List.length_append, hlen1]; simp
+      · intro t ht htlt
+        rw [hi2v] at htlt
+        rcases Nat.lt_or_ge t i1.val with hlt' | hge'
+        · have hrow : tableRow v2 t = tableRow v1 t := by
+            rw [tableRow, tableRow, hv2, getD_append_lt _ _ _ (by omega)]
+          rw [hrow]
+          exact hval1 t ht hlt'
+        · have hteq : t = i1.val := by omega
+          have hrow : tableRow v2 t = r1 := by
+            rw [tableRow, hv2, hteq, ← hlen1, getD_append_eq]
+          have hfin : (⟨t, ht⟩ : Fin n) = ⟨i1.val, hilt⟩ := Fin.ext hteq
+          rw [hrow, hfin]
+          exact ⟨hrlen, hrred, hrval⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n := by rw [← hrows] at hi1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, heq], fun t ht => hval1 t ht (by rw [heq]; exact ht)⟩
+  · exact ⟨hi, hlen, hval⟩
+
+/-- `m_alpha_table` tabulates `mAlphaTilde` (`Constraints.lean:517`): `n` rows of
+`μ + n·δ` columns, with `φ(α)` evaluated once for the whole table and the digit
+weights `b^e` read from an `δ`-entry power table instead of recomputed per
+column.
+
+`hmax` is `m_alpha_tilde_spec`'s own arity bound, and the same checked
+`mu + rows·δ` forces it here. Columns `u ≥ μ + n·δ` are not stored:
+`mAlphaTilde_eq_zero_of_ge` says the specification is `0` there, which is what
+lets `alpha_public_table`'s `u < cols` guard drop them. -/
+theorem m_alpha_table_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
+    (hmax : μ + n * 8 ≤ Usize.max) :
+    zerocheck.m_alpha_table s alpha
+      ⦃ out => out.val.length = n ∧ ∀ (i : ℕ) (hi : i < n),
+        (tableRow out i).val.length = μ + n * 8 ∧ VecReduced (tableRow out i) ∧
+        ∀ u < μ + n * 8, toExt ((tableRow out i).val.getD u cpoly.field.Ext4.ZERO) =
+          InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i, hi⟩ u ⦄ := by
+  have hWm : WfMat n μ s.m := hs.1
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
+  rw [zerocheck.m_alpha_table]
+  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
+  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+    rw [hrows, hgd]; omega
+  step as ⟨j1, hj1⟩
+  have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
+  have haddbound : mu.val + j1.val ≤ Usize.max := by rw [hj1v]; omega
+  step as ⟨cols, hcols⟩
+  have hcolsv : 0 < n → cols.val = μ + n * 8 := by
+    intro hn; rw [hcols, hmu hn, hj1v]
+  step with c_eval_at_modulus_spec alpha ha as ⟨phi_alpha, hRphi, hphi⟩
+  step with HachiEquiv.Scheme.base_pow_spec 1#usize as ⟨f, hRf, hf⟩
+  have hf' : toK f = (16 : ZMod q) := by rw [hf]; simp
+  step with ext_from_base_spec f hRf as ⟨base, hRbase, hbase⟩
+  step with alpha_pow_table_spec base params.GADGET_DIGITS hRbase as ⟨bp, hbplen, hbpred, hbpv⟩
+  rw [hgd] at hbplen hbpv
+  have hbp : ∀ e < 8, toExt (bp.val.getD e cpoly.field.Ext4.ZERO)
+      = phiF ((16 : ZMod q) ^ e) := by
+    intro e he
+    rw [hbpv e he, hbase, hf', ← phiF_apply, ← map_pow]
+  exact m_alpha_table_loop0_spec (n := n) (μ := μ) s rs alpha mu (alloc.vec.Vec.len s.m)
+    cols phi_alpha bp (alloc.vec.Vec.with_capacity (alloc.vec.Vec cpoly.field.Ext4)
+    (alloc.vec.Vec.len s.m)) 0#usize hs ha hrows hmu hcolsv hRphi hphi hbplen hbpred hbp
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro t ht htlt; simp at htlt)
 /-- Term `t` of the public initial target, as a function of a plain `ℕ`. -/
 noncomputable def zcTerm {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (alpha : F)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4) (t : ℕ) : F :=

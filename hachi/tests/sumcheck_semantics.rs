@@ -42,8 +42,9 @@ mod support;
 use cpoly::{Ext4, Fp};
 use hachi::params::{GADGET_BASE, Q, ROUND_NODES, ROUND_NODE_INV};
 use hachi::linalg::PolyVec;
-use hachi::params::{ROUND_NODES_ALPHA, ROUND_NODE_INV_ALPHA};
+use hachi::params::{GADGET_DIGITS, RING_DEGREE, ROUND_NODES_ALPHA, ROUND_NODE_INV_ALPHA};
 use hachi::ringswitch::RlinStatement;
+use hachi::zerocheck::alpha_public_evals;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::sumcheck::{alpha_public_table, eq_free_factor, eq_prefix, eq_suffix_table,
                       honest_round_messages, nested_to_round_statement, round_loop,
@@ -515,6 +516,48 @@ fn round_out_extends_the_challenges_and_moves_both_targets() {
 /// and must reject. The two claim values are computed with the independent
 /// references above, so the equality halves are not checked against the crate's
 /// own arithmetic; only `Ã`'s table is taken from the crate, because
+/// `alpha_public_table` is `zerocheck::alpha_public_evals` tabulated over the
+/// flat cube index -- the entrywise oracle for Stage 6 candidate C's three
+/// hoisted tables, which no other test provides (`final_check`'s test below
+/// feeds the crate's own table into both sides of its comparison).
+///
+/// `m₀` is sized so that `2^m₀ / d > μ + n·δ`: that is the only regime in which
+/// the body's `u < cols` guard ever fails, and it is the regime the pin is in
+/// (`2^26 / 1024 = 65 536 > 57 384`). `m₁ = 1` with `n = 3` also puts row 2
+/// above the `i < 2^m₁` cube, so `eq_weight_table`'s zero branch is inside the
+/// composition too. The table is built once; the reference is called only at
+/// the sampled indices, so the test is cheap.
+#[test]
+fn alpha_public_table_is_alpha_public_evals_tabulated() {
+    let m0 = 15usize; // d = 1024, so u ranges over 0..32
+    let (n, mu) = (3usize, 2usize);
+    let cols = mu + n * GADGET_DIGITS; // 26 < 32: unstored columns exist
+    let mut r = Lcg::new(0x5A17_C005);
+    let mut probe = Lcg::new(0x5A17_C006);
+    let s = RlinStatement::new(probe.next_poly_matrix(n, mu), probe.next_poly_vec(n), 15);
+    let alpha = ext4(&mut r);
+    let tau1: Vec<Ext4> = (0..1).map(|_| ext4(&mut r)).collect();
+
+    let t = alpha_public_table(&s, alpha, &tau1, m0);
+    assert_eq!(t.len(), 1usize << m0);
+
+    let d = RING_DEGREE;
+    let probes = [
+        0usize, 1, d - 1,            // u = 0, the matrix branch
+        d, d + 513,                  // u = 1, still the matrix branch
+        2 * d, 2 * d + 7,            // u = 2, row 0's digit block, e = 0
+        10 * d, 10 * d + 1,          // u = 10, row 1's digit block
+        cols * d - 1,                // u = 25, the last stored column
+        cols * d, cols * d + 7,      // u = 26, the FIRST unstored column
+        (1usize << m0) - 1,          // u = 31, deep in the padding
+    ];
+    for idx in probes {
+        assert_eq!(t[idx], alpha_public_evals(&s, alpha, &tau1, idx), "idx {idx}");
+    }
+    assert!(!t[2 * d].is_zero(), "the digit branch must not be vacuously zero");
+    assert!(t[cols * d].is_zero(), "the unstored columns must vanish");
+}
+
 /// `alphaPublicEvals` is target 4's item and has its own oracle.
 #[test]
 fn final_check_needs_all_three_conjuncts() {

@@ -2450,12 +2450,206 @@ theorem round_poly_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.Ext
     hpt x]
   rw [hpval]
 
-/-! ## The public α table -/
+/-! ## The public α table
+
+`sumcheck::alpha_public_table`'s accepted champion (`hachi/src/sumcheck.rs:433`)
+no longer calls `zerocheck::alpha_public_evals` per cube entry. It builds the
+three tables `zerocheck::alpha_pow_table`, `zerocheck::eq_weight_table` and
+`zerocheck::m_alpha_table` once -- whose specs are in `lean/ZeroCheck.lean` --
+and reads them, so entry `idx` is `pw[idx % d] · Σ_i eqw[i] · mt[i][idx / d]`.
+The headline statement below is unchanged from the frozen form; only the route
+to it is new (opt: `HachiEquiv.Opt.alpha_public_table.opt`, `lean/Opt.lean`,
+licensed by `alpha_public_table.opt_eq_spec`). -/
+
+/-- The inner loop of `alpha_public_table`: the accumulator is the partial row
+sum `Σ_{i' < i} eq̃(τ₁, i') · M̃_α(i', u)`.
+
+The guard `u < cols` is the translation of a `getD … 0` off the end of a stored
+row, and the statement carries **no** case split for it: past the stored columns
+`mAlphaTilde` is itself `0` (`mAlphaTilde_eq_zero_of_ge`), so the skipped
+summand and the computed summand agree, and the invariant is the same sum on
+both sides of the guard. `hcols` is guarded by `0 < n` because at `n = 0` the
+extracted `PolyMatrix::cols` reports `0` rather than `μ` and this loop never
+runs. -/
+theorem alpha_public_table_loop0_loop0_spec {n μ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows cols : Std.Usize)
+    (eqw : alloc.vec.Vec cpoly.field.Ext4)
+    (mt : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4)) (u : Std.Usize)
+    (sum : cpoly.field.Ext4) (i : Std.Usize)
+    (hrows : rows.val = n) (hcols : 0 < n → cols.val = μ + n * 8)
+    (heqwlen : eqw.val.length = n) (heqwred : VecReduced eqw)
+    (heqwval : ∀ t < n, toExt (eqw.val.getD t cpoly.field.Ext4.ZERO) =
+      eqWeightVal (m₁ := m₁) tau1 t)
+    (hmtlen : mt.val.length = n)
+    (hmtval : ∀ (t : ℕ) (ht : t < n),
+      (tableRow mt t).val.length = μ + n * 8 ∧ VecReduced (tableRow mt t) ∧
+      ∀ c < μ + n * 8, toExt ((tableRow mt t).val.getD c cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c)
+    (hi : i.val ≤ n) (hRsum : Reduced sum)
+    (hval : toExt sum = ∑ t ∈ Finset.range i.val,
+      apTerm (m₁ := m₁) rs (toExt alpha) tau1 u.val t) :
+    sumcheck.alpha_public_table_loop0_loop0 rows cols eqw mt u sum i
+      ⦃ out => Reduced out ∧ toExt out = ∑ t ∈ Finset.range n,
+        apTerm (m₁ := m₁) rs (toExt alpha) tau1 u.val t ⦄ := by
+  rw [sumcheck.alpha_public_table_loop0_loop0]
+  apply loop.spec_decr_nat (fun st => n - st.2.val)
+    (fun st => st.2.val ≤ n ∧ Reduced st.1 ∧ toExt st.1 =
+      ∑ t ∈ Finset.range st.2.val, apTerm (m₁ := m₁) rs (toExt alpha) tau1 u.val t)
+  · rintro ⟨s1, i1⟩ ⟨hi1, hR1, hv1⟩
+    dsimp only at hi1 hR1 hv1
+    simp only [sumcheck.alpha_public_table_loop0_loop0.body]
+    by_cases hlt : i1 < rows
+    · rw [if_pos hlt]
+      have hilt : i1.val < n := by rw [← hrows]; scalar_tac
+      obtain ⟨hrlen, hrred, hrval⟩ := hmtval i1.val hilt
+      have hiwlen : i1.val < eqw.val.length := by rw [heqwlen]; exact hilt
+      have himlen : i1.val < mt.val.length := by rw [hmtlen]; exact hilt
+      by_cases hltc : u < cols
+      · rw [if_pos hltc]
+        have hult : u.val < μ + n * 8 := by rw [← hcols (by omega)]; scalar_tac
+        have hrowlen : u.val < (tableRow mt i1.val).val.length := by rw [hrlen]; exact hult
+        step as ⟨e, he⟩
+        have he' : e = eqw.val.getD i1.val cpoly.field.Ext4.ZERO := by
+          rw [List.getD_eq_getElem _ _ hiwlen, he]
+        have hRe : Reduced e := by
+          rw [he]; exact heqwred _ (List.getElem_mem hiwlen)
+        have hev : toExt e = eqWeightVal (m₁ := m₁) tau1 i1.val := by
+          rw [he']; exact heqwval i1.val hilt
+        step as ⟨v, hv⟩
+        have hvrow : v.val = (tableRow mt i1.val).val := by
+          rw [hv, tableRow, List.getD_eq_getElem _ _ himlen]
+        have hulen : u.val < v.val.length := by rw [hvrow]; exact hrowlen
+        step as ⟨e1, he1⟩
+        have he1' : e1 = (tableRow mt i1.val).val.getD u.val cpoly.field.Ext4.ZERO := by
+          rw [List.getD_eq_getElem _ _ hrowlen, he1, getElem_of_list_eq hvrow]
+        have hRe1 : Reduced e1 := by
+          rw [he1', List.getD_eq_getElem _ _ hrowlen]
+          exact hrred _ (List.getElem_mem hrowlen)
+        have he1v : toExt e1 =
+            InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i1.val, hilt⟩ u.val := by
+          rw [he1']; exact hrval u.val hult
+        step with ext_mul_spec e e1 hRe hRe1 as ⟨e2, hRe2, he2⟩
+        step with ext_add_spec s1 e2 hR1 hRe2 as ⟨s2, hR2, hs2⟩
+        step as ⟨i2, hi2⟩
+        have hi2v : i2.val = i1.val + 1 := by scalar_tac
+        refine ⟨by omega, hR2, ?_, by omega⟩
+        rw [hs2, hv1, he2, hev, he1v, hi2v, Finset.sum_range_succ,
+          apTerm_eq_mul rs (toExt alpha) tau1 u.val hilt]
+      · rw [if_neg hltc]
+        simp only [bind_tc_ok]
+        have huge : μ + n * 8 ≤ u.val := by rw [← hcols (by omega)]; scalar_tac
+        step as ⟨i2, hi2⟩
+        have hi2v : i2.val = i1.val + 1 := by scalar_tac
+        refine ⟨by omega, hR1, ?_, by omega⟩
+        rw [hv1, hi2v, Finset.sum_range_succ,
+          apTerm_eq_mul rs (toExt alpha) tau1 u.val hilt,
+          mAlphaTilde_eq_zero_of_ge rs (toExt alpha) ⟨i1.val, hilt⟩ huge, MulZeroClass.mul_zero, add_zero]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n := by rw [← hrows] at hi1 ⊢; scalar_tac
+      exact ⟨hR1, by rw [hv1, heq]⟩
+  · exact ⟨hi, hRsum, hval⟩
+
+/-- The outer loop of `alpha_public_table`: one cube entry per step, the power
+read from the table and the row sum computed by the inner loop. -/
+theorem alpha_public_table_loop0_spec {n μ m₀ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows cols sz : Std.Usize)
+    (pw eqw : alloc.vec.Vec cpoly.field.Ext4)
+    (mt : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4))
+    (out : alloc.vec.Vec cpoly.field.Ext4) (idx : Std.Usize)
+    (hrows : rows.val = n) (hcols : 0 < n → cols.val = μ + n * 8)
+    (hsz : sz.val = 2 ^ m₀)
+    (hpwlen : pw.val.length = N) (hpwred : VecReduced pw)
+    (hpwval : ∀ l < N, toExt (pw.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l)
+    (heqwlen : eqw.val.length = n) (heqwred : VecReduced eqw)
+    (heqwval : ∀ t < n, toExt (eqw.val.getD t cpoly.field.Ext4.ZERO) =
+      eqWeightVal (m₁ := m₁) tau1 t)
+    (hmtlen : mt.val.length = n)
+    (hmtval : ∀ (t : ℕ) (ht : t < n),
+      (tableRow mt t).val.length = μ + n * 8 ∧ VecReduced (tableRow mt t) ∧
+      ∀ c < μ + n * 8, toExt ((tableRow mt t).val.getD c cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c)
+    (hidx : idx.val ≤ 2 ^ m₀) (hlen : out.val.length = idx.val) (hred : VecReduced out)
+    (hval : ∀ t : Fin (2 ^ m₀), t.val < idx.val →
+      toExt (out.val.getD t.val cpoly.field.Ext4.ZERO) =
+        InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
+          (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm t)) :
+    sumcheck.alpha_public_table_loop0 params.RING_DEGREE rows cols sz pw eqw mt out idx
+      ⦃ o => o.val.length = 2 ^ m₀ ∧ VecReduced o ∧
+        ∀ t : Fin (2 ^ m₀), toExt (o.val.getD t.val cpoly.field.Ext4.ZERO) =
+          InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
+            (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm t) ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  have hm0 : 2 ^ m₀ ≤ Usize.max := by rw [← hsz]; scalar_tac
+  rw [sumcheck.alpha_public_table_loop0]
+  apply loop.spec_decr_nat (fun st => 2 ^ m₀ - st.2.val)
+    (fun st => st.2.val ≤ 2 ^ m₀ ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t : Fin (2 ^ m₀), t.val < st.2.val →
+        toExt (st.1.val.getD t.val cpoly.field.Ext4.ZERO) =
+          InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
+            (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm t))
+  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
+    dsimp only at hi1 hlen1 hred1 hval1
+    simp only [sumcheck.alpha_public_table_loop0.body]
+    by_cases hlt : i1 < sz
+    · rw [if_pos hlt]
+      have hilt : i1.val < 2 ^ m₀ := by rw [← hsz]; scalar_tac
+      step as ⟨u, hu⟩
+      have huv : u.val = i1.val / N := by rw [hu, hrd]
+      step as ⟨l, hl⟩
+      have hlv : l.val = i1.val % N := by rw [hl, hrd]
+      step with alpha_public_table_loop0_loop0_spec (n := n) (μ := μ) (m₁ := m₁) rs alpha
+        tau1 rows cols eqw mt u cpoly.field.Ext4.ZERO 0#usize hrows hcols heqwlen
+        heqwred heqwval hmtlen hmtval (by simp) reduced_ZERO (by simp)
+        as ⟨sum, hRsum, hsum⟩
+      have hllen : l.val < pw.val.length := by
+        rw [hpwlen, hlv]; exact Nat.mod_lt _ (by norm_num)
+      step as ⟨e, he⟩
+      have he' : e = pw.val.getD l.val cpoly.field.Ext4.ZERO := by
+        rw [List.getD_eq_getElem _ _ hllen, he]
+      have hRe : Reduced e := by rw [he]; exact hpwred _ (List.getElem_mem hllen)
+      have hev : toExt e = toExt alpha ^ (i1.val % N) := by
+        rw [he', hpwval l.val (by rw [hlv]; exact Nat.mod_lt _ (by norm_num)), hlv]
+      step with ext_mul_spec e sum hRe hRsum as ⟨e1, hRe1, he1⟩
+      have hentry : toExt e1 =
+          InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
+            (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm ⟨i1.val, hilt⟩) := by
+        rw [he1, hev, hsum, huv,
+          alphaPublicEvals_eq_pow_mul_sum rs (toExt alpha) tau1 i1.val hilt]
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨i2, hi2⟩
+      have hi2n : i2.val = i1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hi2n, hv2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [hv2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hred1 y h
+        · rw [List.mem_singleton.mp h]; exact hRe1
+      · intro t ht'
+        rw [hi2n] at ht'
+        rcases Nat.lt_or_ge t.val i1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t.val = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, hentry]
+          congr 2
+          refine Fin.ext ?_
+          show i1.val = t.val
+          omega
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hieq : i1.val = 2 ^ m₀ := by rw [← hsz] at hi1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, hieq], hred1, fun t => hval1 t (by rw [hieq]; exact t.isLt)⟩
+  · exact ⟨hidx, hlen, hred, hval⟩
 
 /-- `alpha_public_table` tabulates `alphaPublicEvals` over the `m₀`-cube, entry
 `idx` at the point `finFunctionFinEquiv.symm idx` (spec: `alphaPublicEvals` as a
 hypercube table). `2 ^ m₀ ≤ Usize.max` is `cube_size`'s; `hmax` is
-`alpha_public_evals_spec`'s. -/
+`m_alpha_table_spec`'s -- the champion reaches `mAlphaTilde` through the table
+rather than per entry, and the checked `mu + rows · δ` is formed in both. -/
 theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (tau1 : alloc.vec.Vec cpoly.field.Ext4) (m0 : Std.Usize)
@@ -2466,53 +2660,42 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
         Vector.ofFn fun idx : Fin (2 ^ m0.val) =>
           InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16 rs (toExt alpha)
             (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm idx) ⦄ := by
+  have hWm : WfMat n μ s.m := hs.1
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   rw [sumcheck.alpha_public_table]
+  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
+  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+    rw [hrows, hgd]; omega
+  step as ⟨j1, hj1⟩
+  have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
+  have haddbound : mu.val + j1.val ≤ Usize.max := by rw [hj1v]; omega
+  step as ⟨cols, hcols⟩
+  have hcolsv : 0 < n → cols.val = μ + n * 8 := by
+    intro hn; rw [hcols, hmu hn, hj1v]
   step with cube_size_spec m0 hm0 as ⟨sz, hsz⟩
-  rw [sumcheck.alpha_public_table_loop]
-  apply loop.spec_decr_nat (fun st => 2 ^ m0.val - st.2.val)
-    (fun st => st.2.val ≤ 2 ^ m0.val ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
-      ∀ t : Fin (2 ^ m0.val), t.val < st.2.val →
-        toExt (st.1.val.getD t.val cpoly.field.Ext4.ZERO) =
-          InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16 rs (toExt alpha)
-            (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm t))
-  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
-    dsimp only at hi1 hlen1 hred1 hval1
-    simp only [sumcheck.alpha_public_table_loop.body]
-    by_cases hlt : i1 < sz
-    · rw [if_pos hlt]
-      have hilt : i1.val < 2 ^ m0.val := by rw [← hsz]; scalar_tac
-      step with alpha_public_evals_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁)
-        s rs alpha tau1 i1 hs ha ht hilt hmax as ⟨e, hRe, he⟩
-      have hbound : v1.val.length < Usize.max := by omega
-      step as ⟨v2, hv2⟩
-      step as ⟨i2, hi2⟩
-      have hi2n : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hi2n, hv2, List.length_append, hlen1]; simp
-      · intro u hu
-        rw [hv2] at hu
-        rcases List.mem_append.mp hu with h | h
-        · exact hred1 u h
-        · rw [List.mem_singleton.mp h]; exact hRe
-      · intro t ht'
-        rw [hi2n] at ht'
-        rcases Nat.lt_or_ge t.val i1.val with htlt | htge
-        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t.val = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, he]
-          congr 2
-          refine Fin.ext ?_
-          show i1.val = t.val
-          omega
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have hieq : i1.val = 2 ^ m0.val := by rw [← hsz] at hi1 ⊢; scalar_tac
-      refine ⟨⟨by rw [hlen1, hieq], hred1⟩, ?_⟩
-      rw [toEvals]
-      congr 1
-      funext t
-      exact hval1 t (by rw [hieq]; exact t.isLt)
-  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht'; simp at ht'⟩
+  step with HachiEquiv.ZeroCheck.alpha_pow_table_spec alpha params.RING_DEGREE ha
+    as ⟨pw, hpwlen, hpwred, hpwval⟩
+  rw [hrd] at hpwlen hpwval
+  step with eq_weight_table_spec (m₁ := m₁) tau1 (alloc.vec.Vec.len s.m) ht
+    as ⟨eqw, heqwlen, heqwred, heqwval⟩
+  rw [hrows] at heqwlen heqwval
+  step with m_alpha_table_spec (n := n) (μ := μ) s rs alpha hs ha hmax
+    as ⟨mt, hmtlen, hmtval⟩
+  step with alpha_public_table_loop0_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁) rs
+    alpha tau1 (alloc.vec.Vec.len s.m) cols sz pw eqw mt
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 sz) 0#usize hrows hcolsv hsz hpwlen
+    hpwred hpwval heqwlen heqwred heqwval hmtlen hmtval (by simp)
+    (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht'; simp at ht') as ⟨o, holen, hored, hoval⟩
+  refine ⟨⟨holen, hored⟩, ?_⟩
+  rw [toEvals]
+  congr 1
+  funext t
+  exact hoval t
 
 /-! ## Generic tools for the honest round message -/
 

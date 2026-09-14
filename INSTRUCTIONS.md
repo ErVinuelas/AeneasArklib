@@ -73,8 +73,8 @@ then can the birth benchmark run.
 
 > All twelve modules (`params`, `ring`, `linalg`, `gadget`, `commit`, `evalsplit`,
 > `ringswitch`, `quadeval`, `zerocheck`, `sumcheck`, `endpiece`, `chain`) are
-> **already** onboarded and frozen, with 284 git-verified stamps (two of them the
-> row helpers Stage 6's first champion introduced), and Stage 3's
+> **already** onboarded and frozen, with 287 git-verified stamps (five of them the
+> helpers Stage 6's first iteration introduced), and Stage 3's
 > target queue is empty — the last of it, the honest lift prover, was onboarded
 > 2026-09-11. So `op-genesis` is for the next operation only: a new ArkLib
 > definition, or a helper function an accepted champion introduces (which is a

@@ -490,6 +490,353 @@ theorem w_table_mle_eval.opt_eq_spec (m₀ : ℕ) (sw : InnerOuter.LiftedWitness
   rw [w_table_mle_eval.opt, CMlPolynomialEval.eval_mle_eq_eval, optEvals_eq_spec,
     InnerOuter.wTableMleEval]
 
-/-! ## § 4 audit lines -/
+/-! # Candidate C -- `sumcheck::alpha_public_table`
+
+Strategy `opt-algo-swap`, "precomputed tables" (brief `target-4-zero-check.md`
+§ Strategy candidates, items 3 and 4).
+
+The frozen translation (`hachi/src/sumcheck.rs:436`) calls
+`zerocheck::alpha_public_evals` (`hachi/src/zerocheck.rs:466`) once per flat cube
+index. That call re-derives, for **every** one of the `2 ^ m₀` entries, data that
+depends only on `u = idx / d` and `ℓ = idx % d`:
+
+* `alpha_tilde(α, ℓ)` (`zerocheck.rs:350`) -- up to `d - 1 = 1023` multiplications;
+* `eq_weight(τ₁, i)` (`zerocheck.rs:383`) -- `m₁` multiplications, `n` times;
+* `m_alpha_tilde(s, α, i, u)` (`zerocheck.rs:426`) -- one `c_eval_at` (`2N`
+  multiplications with candidate A, `N(N-1)/2` without) or one
+  `c_eval_at_modulus` plus a `base_pow(e)`, `n` times.
+
+All of it is a function of `(i, u)` and `ℓ` alone. This candidate builds the
+three tables once and reduces each entry to `n` multiplications, `n` additions
+and a handful of lookups. -/
+
+/-! ## 0. The push-fold shape
+
+Every table below is one `List.foldl` over `List.range k` that appends a single
+element per step -- the Lean image of `let mut out = Vec::with_capacity(k); let
+mut j = 0; while j < k { out.push(…); j += 1 }`. These two lemmas are the whole
+reasoning interface: length and entrywise value. -/
+
+/-- A push-fold over `List.range k` is `List.map` over it. -/
+theorem foldl_push_eq_map {β : Type*} (f : ℕ → β) (k : ℕ) :
+    (List.range k).foldl (fun acc j => acc ++ [f j]) ([] : List β) = (List.range k).map f := by
+  induction k with
+  | zero => simp
+  | succ t ih =>
+      rw [List.range_succ, List.foldl_append, ih]
+      simp
+
+/-- The length of a push-fold table. -/
+theorem foldl_push_length {β : Type*} (f : ℕ → β) (k : ℕ) :
+    ((List.range k).foldl (fun acc j => acc ++ [f j]) ([] : List β)).length = k := by
+  rw [foldl_push_eq_map]; simp
+
+/-- Entry `j` of a push-fold table, for `j` in range. -/
+theorem foldl_push_getD {β : Type*} (f : ℕ → β) (k : ℕ) (d : β) {j : ℕ} (hj : j < k) :
+    ((List.range k).foldl (fun acc t => acc ++ [f t]) ([] : List β)).getD j d = f j := by
+  rw [foldl_push_eq_map, List.getD_eq_getElem _ _ (by simpa using hj)]
+  simp
+
+/-- Out-of-range reads are the default -- this is what lets the `u ≥ μ + n·δ`
+columns of `mAlphaTable` be *absent* rather than stored as zeros. -/
+theorem getD_of_length_le {β : Type*} (l : List β) (d : β) {j : ℕ} (h : l.length ≤ j) :
+    l.getD j d = d := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none h]
+  rfl
+
+/-- A `List.range` fold that accumulates a sum is `Finset.sum` -- the invariant
+of every `acc = acc + …` counter loop in `hachi/src`. -/
+theorem foldl_add_range_eq_sum (g : ℕ → F) (k : ℕ) :
+    (List.range k).foldl (fun s i => s + g i) (0 : F) = ∑ i ∈ Finset.range k, g i := by
+  have key : ∀ (t : ℕ) (a : F),
+      (List.range t).foldl (fun s i => s + g i) a = a + ∑ i ∈ Finset.range t, g i := by
+    intro t
+    induction t with
+    | zero => intro a; simp
+    | succ t ih =>
+        intro a
+        rw [List.range_succ, List.foldl_append, ih, Finset.sum_range_succ]
+        simp [add_assoc]
+  rw [key, zero_add]
+
+/-! ## 1. The power table `α^ℓ`
+
+State `(acc, pw)`, initial `([], 1)`; step `ℓ` pushes `pw` and advances it by one
+factor of `α`. `d` multiplications for the whole table, against the
+`Σ_{ℓ<d} ℓ = d(d−1)/2 ≈ 524 000` the per-entry `alpha_tilde` costs at `d = N`. -/
+
+/-- `[α^0, …, α^(d-1)]`, one multiplication per entry. -/
+def alphaPowTable (α : F) (d : ℕ) : List F :=
+  ((List.range d).foldl (fun s _ => (s.1 ++ [s.2], s.2 * α)) (([] : List F), (1 : F))).1
+
+/-- The loop invariant: after `k` steps the list holds `α^0 … α^(k-1)` and the
+running power is `α^k`. -/
+theorem alphaPowLoop_eq (α : F) (d : ℕ) :
+    (List.range d).foldl (fun s _ => (s.1 ++ [s.2], s.2 * α)) (([] : List F), (1 : F))
+      = ((List.range d).map (fun l => α ^ l), α ^ d) := by
+  induction d with
+  | zero => simp
+  | succ t ih =>
+      rw [List.range_succ, List.foldl_append, ih]
+      simp [pow_succ]
+
+theorem alphaPowTable_length (α : F) (d : ℕ) : (alphaPowTable α d).length = d := by
+  rw [alphaPowTable, alphaPowLoop_eq]; simp
+
+/-- Entry `ℓ` of the power table is `α ^ ℓ` -- the specification's `alphaTilde`
+(`ZeroCheck/Constraints.lean:502`). -/
+theorem alphaPowTable_getD (α : F) {d ℓ : ℕ} (h : ℓ < d) :
+    (alphaPowTable α d).getD ℓ 0 = α ^ ℓ := by
+  rw [alphaPowTable, alphaPowLoop_eq, List.getD_eq_getElem _ _ (by simpa using h)]
+  simp
+
+/-! ## 2. The equality-weight table `eq̃(τ₁, i)`
+
+`n` entries, entry `i` the `∏ j : Fin m₁` factor of `alphaPublicEvals`
+(`Constraints.lean:845-847`) when `i < 2^m₁` and `0` otherwise. The bits of `i`
+are read by a **running quotient**, exactly as `zerocheck::eq_weight`
+(`zerocheck.rs:383`) does, so no power of two is ever formed and the statement
+needs no `2 ^ m₁ ≤ Usize.max`. The cube guard is decided the same way, mirroring
+`zerocheck::below_two_pow`. -/
+
+/-- `i < 2 ^ m`, decided by halving `i` `m` times -- the specification's cube
+guard without materializing the cube size. -/
+def belowTwoPow (i m : ℕ) : Bool :=
+  decide ((List.range m).foldl (fun qq _ => qq / 2) i = 0)
+
+theorem halveLoop_eq (i m : ℕ) : (List.range m).foldl (fun qq _ => qq / 2) i = i / 2 ^ m := by
+  induction m with
+  | zero => simp
+  | succ t ih =>
+      rw [List.range_succ, List.foldl_append, ih]
+      simp [Nat.div_div_eq_div_mul, pow_succ]
+
+theorem belowTwoPow_eq_true_iff (i m : ℕ) : belowTwoPow i m = true ↔ i < 2 ^ m := by
+  have hp : 0 < 2 ^ m := by positivity
+  rw [belowTwoPow, decide_eq_true_eq, halveLoop_eq]
+  constructor
+  · intro hd
+    by_contra hc
+    rw [Nat.not_lt] at hc
+    have := Nat.div_pos hc hp
+    omega
+  · intro hlt
+    exact Nat.div_eq_of_lt hlt
+
+/-- The running-quotient bit product: state `(q, acc)`, initial `(i, 1)`; step
+`j` multiplies by `f j` or `1 - f j` according to the low bit of `q`, then
+halves `q`. -/
+def bitProd (f : ℕ → F) (m i : ℕ) : F :=
+  ((List.range m).foldl
+    (fun s j => (s.1 / 2, s.2 * (if s.1 % 2 = 1 then f j else 1 - f j))) (i, (1 : F))).2
+
+theorem bitProdLoop_eq (f : ℕ → F) (m i : ℕ) :
+    (List.range m).foldl
+        (fun s j => (s.1 / 2, s.2 * (if s.1 % 2 = 1 then f j else 1 - f j))) (i, (1 : F))
+      = (i / 2 ^ m,
+          ∏ s ∈ Finset.range m, (if i / 2 ^ s % 2 = 1 then f s else 1 - f s)) := by
+  induction m with
+  | zero => simp
+  | succ t ih =>
+      rw [List.range_succ, List.foldl_append, ih]
+      simp [Finset.prod_range_succ, Nat.div_div_eq_div_mul, pow_succ]
+
+theorem bitProd_eq_prod (f : ℕ → F) (m i : ℕ) :
+    bitProd f m i = ∏ s ∈ Finset.range m, (if Nat.testBit i s then f s else 1 - f s) := by
+  rw [bitProd, bitProdLoop_eq]
+  show (∏ s ∈ Finset.range m, (if i / 2 ^ s % 2 = 1 then f s else 1 - f s)) = _
+  refine Finset.prod_congr rfl fun s _ => ?_
+  rw [Nat.testBit_eq_decide_div_mod_eq]
+  simp
+
+/-- `τ₁` read as a total function on `ℕ` -- the Rust side indexes a `Vec`, so the
+out-of-range branch is never taken. -/
+def tauAt {m₁ : ℕ} (τ₁ : Fin m₁ → F) (j : ℕ) : F :=
+  if h : j < m₁ then τ₁ ⟨j, h⟩ else 0
+
+/-- The `n`-entry table of `m₁`-cube equality weights, built once. -/
+def eqWeightTable {m₁ : ℕ} (τ₁ : Fin m₁ → F) (n : ℕ) : List F :=
+  (List.range n).foldl
+    (fun acc i => acc ++ [if belowTwoPow i m₁ then bitProd (tauAt τ₁) m₁ i else 0]) []
+
+theorem eqWeightTable_length {m₁ : ℕ} (τ₁ : Fin m₁ → F) (n : ℕ) :
+    (eqWeightTable τ₁ n).length = n :=
+  foldl_push_length _ n
+
+/-- Entry `i` of the weight table is the specification's `∏ j : Fin m₁` factor
+under its own `i < 2 ^ m₁` guard (`Constraints.lean:845-847`). -/
+theorem eqWeightTable_getD {m₁ : ℕ} (τ₁ : Fin m₁ → F) {n i : ℕ} (hi : i < n) :
+    (eqWeightTable τ₁ n).getD i 0
+      = if h : i < 2 ^ m₁ then
+          (∏ j : Fin m₁, if (finFunctionFinEquiv.symm ⟨i, h⟩) j = 1 then τ₁ j else 1 - τ₁ j)
+        else 0 := by
+  rw [eqWeightTable, foldl_push_getD _ n _ hi]
+  by_cases hb : i < 2 ^ m₁
+  · rw [if_pos ((belowTwoPow_eq_true_iff i m₁).mpr hb), dif_pos hb, bitProd_eq_prod,
+      ← Fin.prod_univ_eq_prod_range
+        (fun s => if Nat.testBit i s then tauAt τ₁ s else 1 - tauAt τ₁ s) m₁]
+    refine Finset.prod_congr rfl fun j _ => ?_
+    have hfj : tauAt τ₁ (j : ℕ) = τ₁ j := by
+      rw [tauAt, dif_pos j.isLt, Fin.eta]
+    rw [hfj]
+    exact (if_congr (cube_coord_eq_one_iff i hb j) rfl rfl).symm
+  · rw [if_neg (fun hc => hb ((belowTwoPow_eq_true_iff i m₁).mp hc)), dif_neg hb]
+
+/-! ## 3. The public matrix table `M̃_α(i, u)`
+
+`n` rows of `μ + n·δ` columns at `δ = 8`, computed once. Two things are hoisted
+out of the `2^m₀`-entry traversal:
+
+* `φ(α) = cEvalAt φF α Φ.φ` -- one `c_eval_at_modulus` for the whole call
+  instead of one per digit column per entry;
+* the `δ`-entry base-power table `b^e`, which is `alphaPowTable` at
+  `φF (b : ZMod q)`, replacing the `Σ_{e<8} e = 28` multiplications
+  `gadget::base_pow` costs per row per entry.
+
+Columns `u ≥ μ + n·δ` are **not stored**: `mAlphaTilde` is `0` there
+(`mAlphaTilde_eq_zero_of_ge`) and a `getD` past the end of the row returns `0`
+already. -/
+
+/-- The `δ`-entry table `[φF b^0, …, φF b^(δ-1)]`, at this crate's base `b = 16`. -/
+noncomputable def basePowTable (d : ℕ) : List F :=
+  alphaPowTable (phiF ((16 : ℕ) : ZMod q)) d
+
+theorem basePowTable_getD {d e : ℕ} (h : e < d) :
+    (basePowTable d).getD e 0 = phiF (((16 : ℕ) : ZMod q) ^ e) := by
+  rw [basePowTable, alphaPowTable_getD _ h, map_pow]
+
+/-- One entry of the matrix table, in the specification's three cases, with
+`φ(α)` and the base-power table supplied by the caller. -/
+noncomputable def mAlphaEntry {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α φα : F) (bp : List F) (i u : ℕ) : F :=
+  if hu : u < μ then
+    (if hi : i < n then InnerOuter.cEvalAt phiF α (rs.M ⟨i, hi⟩ ⟨u, hu⟩).1 else 0)
+  else if u < μ + n * 8 ∧ (u - μ) / 8 = i then
+    -φα * bp.getD ((u - μ) % 8) 0
+  else 0
+
+/-- Row `i` of the matrix table: `μ + n·δ` entries. -/
+noncomputable def mAlphaRow {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α φα : F) (bp : List F) (i : ℕ) : List F :=
+  (List.range (μ + n * 8)).foldl (fun acc u => acc ++ [mAlphaEntry rs α φα bp i u]) []
+
+/-- The whole `n × (μ + n·δ)` public matrix table, with `φ(α)` and `b^e` built
+once before the row loop. -/
+noncomputable def mAlphaTable {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F) :
+    List (List F) :=
+  let φα : F := InnerOuter.cEvalAt phiF α Φ.φ
+  let bp : List F := basePowTable 8
+  (List.range n).foldl (fun acc i => acc ++ [mAlphaRow rs α φα bp i]) []
+
+/- Outside the stored columns the specification's matrix is zero; that fact is
+   `HachiEquiv.ZeroCheck.mAlphaTilde_eq_zero_of_ge` (`lean/ZeroCheck.lean`).
+   It moved there because the spec layer needs it and cannot import this file
+   (`Opt.lean` imports `ZeroCheck`, not the other way round); it is used just
+   below by `mAlphaTable_getD_eq` and resolves through `open
+   HachiEquiv.ZeroCheck`. -/
+
+/-- One entry of the table is the specification's `mAlphaTilde`. -/
+theorem mAlphaEntry_eq {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F)
+    {i : ℕ} (hi : i < n) (u : ℕ) :
+    mAlphaEntry rs α (InnerOuter.cEvalAt phiF α Φ.φ) (basePowTable 8) i u
+      = InnerOuter.mAlphaTilde Φ phiF 16 rs α ⟨i, hi⟩ u := by
+  rw [mAlphaEntry, InnerOuter.mAlphaTilde, rhoDigitCount_eq]
+  by_cases hu : u < μ
+  · rw [dif_pos hu, dif_pos hu, dif_pos hi]
+  · rw [dif_neg hu, dif_neg hu]
+    by_cases hd : u < μ + n * 8 ∧ (u - μ) / 8 = i
+    · rw [if_pos hd, if_pos hd, basePowTable_getD (Nat.mod_lt _ (by norm_num))]
+    · rw [if_neg hd, if_neg hd]
+
+theorem mAlphaRow_length {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α φα : F) (bp : List F) (i : ℕ) : (mAlphaRow rs α φα bp i).length = μ + n * 8 :=
+  foldl_push_length _ _
+
+theorem mAlphaTable_length {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F) :
+    (mAlphaTable rs α).length = n :=
+  foldl_push_length _ n
+
+/-- The row of the table, for a row index in range. -/
+theorem mAlphaTable_getD_row {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F)
+    {i : ℕ} (hi : i < n) :
+    (mAlphaTable rs α).getD i []
+      = mAlphaRow rs α (InnerOuter.cEvalAt phiF α Φ.φ) (basePowTable 8) i :=
+  foldl_push_getD _ n _ hi
+
+/-- **Stored columns.** Entry `(i, u)` of the table is `mAlphaTilde`. -/
+theorem mAlphaTable_getD {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F)
+    {i u : ℕ} (hi : i < n) (hu : u < μ + n * 8) :
+    ((mAlphaTable rs α).getD i []).getD u 0
+      = InnerOuter.mAlphaTilde Φ phiF 16 rs α ⟨i, hi⟩ u := by
+  rw [mAlphaTable_getD_row rs α hi, mAlphaRow, foldl_push_getD _ _ _ hu, mAlphaEntry_eq rs α hi]
+
+/-- **Absent columns.** A read past the end of a row is `0`, which is what
+`mAlphaTilde` is there -- so the table may be `μ + n·δ` wide and nothing else
+has to know. -/
+theorem mAlphaTable_getD_eq {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F)
+    {i : ℕ} (hi : i < n) (u : ℕ) :
+    ((mAlphaTable rs α).getD i []).getD u 0
+      = InnerOuter.mAlphaTilde Φ phiF 16 rs α ⟨i, hi⟩ u := by
+  by_cases hu : u < μ + n * 8
+  · exact mAlphaTable_getD rs α hi hu
+  · rw [mAlphaTable_getD_row rs α hi,
+      getD_of_length_le _ _ (by rw [mAlphaRow_length]; omega),
+      mAlphaTilde_eq_zero_of_ge rs α ⟨i, hi⟩ (by omega)]
+
+/-! ## 4. The table itself
+
+Three table builds, then one `2^m₀`-step traversal whose body is `n`
+multiplications, `n` additions and four lookups. -/
+
+/-- The inner row sum `∑_{i<n} eq̃(τ₁,i) · M̃_α(i,u)`, as an `acc = acc + …`
+counter loop. Column `u ≥ μ + n·δ` reads `0` out of the short rows. -/
+def apRowSum (eqw : List F) (mt : List (List F)) (n u : ℕ) : F :=
+  (List.range n).foldl (fun s i => s + eqw.getD i 0 * (mt.getD i []).getD u 0) 0
+
+/-- **The candidate.** `alpha_public_table` with the three tables hoisted out of
+the cube traversal. -/
+noncomputable def alpha_public_table.opt {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ) : List F :=
+  let pw : List F := alphaPowTable α N
+  let eqw : List F := eqWeightTable τ₁ n
+  let mt : List (List F) := mAlphaTable rs α
+  (List.range (2 ^ m₀)).foldl
+    (fun acc idx => acc ++ [pw.getD (idx % N) 0 * apRowSum eqw mt n (idx / N)]) []
+
+theorem alpha_public_table.opt_length {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ) :
+    (alpha_public_table.opt rs α τ₁ m₀).length = 2 ^ m₀ :=
+  foldl_push_length _ _
+
+/-- **The candidate's lemma.** Entry `idx` of the hoisted table is
+`alphaPublicEvals` at the cube point `finFunctionFinEquiv.symm idx`
+(`ZeroCheck/Constraints.lean:840`) -- the entrywise shape
+`alpha_public_table_spec` consumes (`lean/Sumcheck.lean:2459`).
+
+Unconditional in `m₀`, `n`, `μ` and `m₁`: the `i < 2^m₁` guard is carried, not
+assumed, and the absent columns are handled by `mAlphaTable_getD_eq`. -/
+theorem alpha_public_table.opt_eq_spec {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ) (idx : ℕ) (h : idx < 2 ^ m₀) :
+    (alpha_public_table.opt rs α τ₁ m₀).getD idx 0
+      = InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs α τ₁
+          (finFunctionFinEquiv.symm ⟨idx, h⟩) := by
+  have hN : 0 < N := by norm_num
+  have hlhs : (alpha_public_table.opt rs α τ₁ m₀).getD idx 0
+      = α ^ (idx % N) * ∑ t ∈ Finset.range n,
+          (eqWeightTable τ₁ n).getD t 0 *
+            ((mAlphaTable rs α).getD t []).getD (idx / N) 0 := by
+    rw [alpha_public_table.opt]
+    rw [foldl_push_getD _ _ _ h, alphaPowTable_getD α (Nat.mod_lt _ hN), apRowSum,
+      foldl_add_range_eq_sum]
+  rw [hlhs, InnerOuter.alphaPublicEvals]
+  simp only [Equiv.apply_symm_apply, RqBridge.phi_natDegree, InnerOuter.alphaTilde]
+  congr 1
+  rw [sum_fin_eq_sum_range_dite]
+  refine Finset.sum_congr rfl fun t ht => ?_
+  have htn : t < n := Finset.mem_range.mp ht
+  rw [dif_pos htn, eqWeightTable_getD τ₁ htn, mAlphaTable_getD_eq rs α htn]
+  by_cases hb : t < 2 ^ m₁
+  · rw [dif_pos hb, dif_pos hb]
+  · rw [dif_neg hb, dif_neg hb, zero_mul]
 
 end HachiEquiv.Opt

@@ -46,13 +46,13 @@ in structure and in method, and depends on it for the coefficient field.
 > paired sumcheck's round polynomials, checks and loops),
 > [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
 > conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
-> `verify` over the proved links). 183 tests pass, including perfect correctness
+> `verify` over the proved links). 187 tests pass, including perfect correctness
 > and every rejection path of the verifier; 27 more are `#[ignore]`d because
 > they cannot complete at the paper's parameters, each naming the wall that
 > ignores it (NOTES.md, `exclusions.toml`). `make extract` produces a model with
 > no axioms and no opaque bodies; every mirrored item is benched or excluded by
-> name, and the 284 frozen baseline items are verified against git. The
-> optimization loop has run: `lean/Opt.lean` holds the first two accepted
+> name, and the 287 frozen baseline items are verified against git. The
+> optimization loop has run: `lean/Opt.lean` holds the first three accepted
 > champions' optimized definitions with their proved `opt_eq_spec` lemmas, and
 > `logs/ledger.jsonl` their within-run verdicts (NOTES.md § "Stage 6 opens").
 >
@@ -116,8 +116,8 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all two hundred proved specs (191 headline specs, the eight `opt_eq_spec`
-> lemmas and the two new helper specs of iteration 1): the three Lean kernel axioms,
+> of all two hundred and five proved specs (191 headline specs, the ten
+> `opt_eq_spec`/length lemmas and the five helper specs of iteration 1): the three Lean kernel axioms,
 > nothing else. `make spec-check` reports 155 mirrored items, 155 stated, 0 owed.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is **empty**; its [README](hachi/lean-wip/README.md) holds the

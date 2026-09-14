@@ -5429,3 +5429,89 @@ no `sorry`, **200** § 4 lines (191 headline specs, eight `opt_eq_spec`, the two
 new helpers), every one the three kernel axioms. `make spec-check` 155/155/0.
 Effort, from the running tally: prover wall time 31 min, ~640 k agent tokens,
 zero retries, zero interventions -- K = 1 costs nothing worth relaxing yet.
+
+**The first full run on a committed champion** (`20260914T1238+0200-c27977bb`,
+source `2af5297`, usable at 3.9%, `logs/runs/`). Twelve of 87 rows read
+`faster` against genesis: the ten rows the two champions touched, at the same
+−96% to −99.8% the candidate runs promised; `endpiece/end_piece_check/14` at
+**−48%**, which nobody optimized -- it calls `w_table_mle_eval` and inherited
+the fold; and `quadeval/vec_in_sb/256` at −5.5%, identical code sitting on the
+threshold. Three untouched rows read `slower` by 5–9%: `w_table_z_row` (below
+100 ns, the no-verdict band), `rho_digit_as_rq/5` (3.3 µs, its edge) and
+`lift_short_check/57344` (+5.4% on 30 ms of identical code) -- the flat floor's
+known false positives (§ "The certified null-slot sweep"), recorded here so
+nobody reads them as regressions. `make gains` now prints this column beside
+the candidate runs' increments.
+
+**The row that items 3 and 4 needed** (`sumcheck/alpha_public_table`, 2026-09-14
+afternoon). Excluded by name until today because at any cube its per-entry cost
+was `n` quadratic `c_eval_at` calls; with candidate A landed, a REDUCED case
+exists. Its size is a lesson worth the sentence: the first attempt at `2^12`
+entries with the real `n = 5` measured 0.47 s per champion iteration and never
+finished one genesis iteration -- the frozen baseline still has the quadratic
+`c_eval_at`, `7.5 ms` a call, and the harness re-measures genesis every run --
+so the row is sized from the **genesis** side: `2^7` entries, `n = 2`, one
+column, `1.87 s` per genesis iteration, `~100 s` added to every full run (now the
+heaviest row; `lift_message` was `~26 s`). Audited by three adversarial lenses
+before any number was believed (`rust-bench` § 4): ablating the body to an empty
+`Vec` drops the row from 9.7 ms to 0.96 ns; sizes `2^7 → 2^8 → 2^9` scale
+1.99× and 2.03×; the operation count (`128 · 4105 + Σ idx = 533 568` Ext4
+multiplications) puts the champion at 1.1–2.0× the two anchors' floors and
+genesis at 0.9× its own; every input is `black_box`ed and removing the box from
+`α` changes nothing, so nothing is folding. Two doc defects fixed (a projected
+"150 s" written as if measured; a corpus tag `α` shared with `M[1][0]`) and
+two proportions recorded on the case for whoever reads a verdict off it: the
+two `c_eval_at` calls are ~98% of the champion's multiplications and
+`alpha_tilde` ~1.5%, so item 3 alone would sit under the floor; and with every
+entry in row `u = 0` the per-`u` repeat factor is `128` where the pin's is
+`1024`, so an item-4 hoist reads ~8× smaller here than at `m₀ = 26`. Recorded
+run `20260914T1353+0200-f8559634`: genesis 1.87 s, champion 9.51 ms, −99.5%,
+which is candidate A's gain seen from one level up. One more thing the audit
+turned up, about two *pre-existing* rows: `zerocheck/m_alpha_tilde_matrix/2`
+reads 1.94× `ringswitch/c_eval_at/1024` in the same run although its body is
+one `c_eval_at` plus `O(1)` -- the absolute-time artefact class § "The
+certified null-slot sweep" already names, and one more reason no claim here
+rests on an absolute time.
+
+**Candidate C -- the α-side tables, accepted** (`opt-algo-swap`, brief 4 items 3
+and 4; `lean/Opt.lean` § "Candidate C", fourteen lemmas, one Opus prover, green
+on its first typecheck). `alpha_public_table` built each of its `2^m₀` entries
+from scratch: `alpha_tilde(idx % d)` (up to `d` multiplications), `n` equality
+weights, `n` calls of `m_alpha_tilde` -- each a `c_eval_at` over `d`
+coefficients -- although every one of those depends only on `ℓ = idx % d`, on
+`i`, or on `(i, u = idx / d)`. Now three tables are built once (`α^ℓ` for
+`ℓ < d`; the `n` weights; the `n × (μ + n·δ)` matrix `M̃_α`, with `φ(α)` and the
+`b^e` powers computed once) and an entry is `pw[ℓ] · Σ_i eqw[i] · mt[i][u]`:
+`n` multiplications where the frozen form paid `~n·2d + d/2`. The equality with
+`alphaPublicEvals` is unconditional in `m₀`, `n`, `μ`, `m₁`; unstored columns
+read as `0`, which `mAlphaTilde` is there. Rust: three new `pub` helpers in
+`zerocheck.rs` (`alpha_pow_table`, `eq_weight_table`, `m_alpha_table` -- rows of
+rows, as `PolyMatrix` is; no `Mirrors` line, since a table of an ArkLib
+function's values is not an ArkLib definition), the `sumcheck::alpha_public_table`
+body rewritten with the same signature, three semantics tests, the helpers
+frozen verbatim into genesis (stamps owed). Extraction deterministic, zero
+axioms; a nested `Vec<Vec<Ext4>>` extracts as two ordinary loops. Single-row
+target, so two independent `CANDIDATE=1` runs: `20260914T1401+0200-108de948`
+and `20260914T1409+0200-108de948`, both usable (6.3%, 6.8%), both `faster` --
+9.51 ms → 87.5 µs and 9.48 ms → 87.6 µs, **−99.1% / −99.0%** recentered. Read
+with the row's own caveat: at `2^7` the per-`u` repeat factor is 128 where the
+pin's is 1024, so this understates the hoist ~8×. At the pin the α table goes
+from about five hours per build to seconds; the acceptance test's remaining
+cost is the sumcheck range factor and `lift_commit`.
+
+**Campaign C closed the same afternoon.** Review: bodies conformant, no Rust
+change; its one substantive finding was that the rewritten `alpha_public_table`
+had no oracle test at all -- `final_check`'s test fed the crate's own table into
+both sides of its comparison -- and that the one branch the candidate adds (the
+unstored columns `u ≥ μ + n·δ`) never executed below a `2^15` cube, which is
+also the only regime the pin is in (`2^26 / 1024 = 65 536 > 57 384`). Now
+`alpha_public_table_is_alpha_public_evals_tabulated` probes both. Prover: the
+headline `alpha_public_table_spec` byte-identical, six loop specs, three helper
+specs, five typechecks, no heartbeat overrides. One trap for the record: at
+`n = 0` the extracted `PolyMatrix::cols` reports `0`, not `μ`, so the loop specs
+guard `mu.val = μ` by `0 < n` (the row loop derives it from its own guard) and
+the headline keeps the frozen statement's silence about `n`. `make build` 3872
+jobs green, **205** § 4 lines, all three kernel axioms; `make spec-check`
+155/155/0; 187 tests. Three champions, three campaigns, one day; iteration 1's
+zero-check target is done and `alpha_public_table` at the pin is seconds, not
+hours -- the acceptance test is runnable for the first time.

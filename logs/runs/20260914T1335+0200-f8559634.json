@@ -1,0 +1,128 @@
+{
+  "run": "20260914T1335+0200-f8559634",
+  "source": {
+    "sha": "2af5297",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "sumcheck/alpha_public_table/7",
+      "now_ns": 11542755.822464412,
+      "genesis_ns": 1882768024.3333333,
+      "vs_genesis": -0.9938692628761041,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/commit/8192",
+      "now_ns": 32524245.23809524,
+      "genesis_ns": 33194954.666666668,
+      "vs_genesis": -0.020205161757456305,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/endpiece/8192",
+      "now_ns": 31920851.61111111,
+      "genesis_ns": 32206669.38888889,
+      "vs_genesis": -0.00887449038354736,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/evalsplit/8192",
+      "now_ns": 31812243.5,
+      "genesis_ns": 31995043.333333332,
+      "vs_genesis": -0.005713379770387312,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/gadget/8192",
+      "now_ns": 32603857.333333332,
+      "genesis_ns": 32866482.166666668,
+      "vs_genesis": -0.007990658446546223,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/linalg/8192",
+      "now_ns": 32937607.333333332,
+      "genesis_ns": 33076054.0,
+      "vs_genesis": -0.004185706876239466,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/quadeval/8192",
+      "now_ns": 33210640.0,
+      "genesis_ns": 33543118.833333332,
+      "vs_genesis": -0.009911983288892406,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/ring/8192",
+      "now_ns": 32880986.666666668,
+      "genesis_ns": 33124347.0,
+      "vs_genesis": -0.007346871874435203,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/ringswitch/8192",
+      "now_ns": 33059924.095238093,
+      "genesis_ns": 33037801.722222224,
+      "vs_genesis": 0.00066960789951679,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/sumcheck/8192",
+      "now_ns": 33828639.05555556,
+      "genesis_ns": 33684416.0,
+      "vs_genesis": 0.004281595844071029,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/zerocheck/8192",
+      "now_ns": 32567218.5,
+      "genesis_ns": 32175633.88888889,
+      "vs_genesis": 0.012170222114764082,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.020205161757456305,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": null,
+  "candidate_slot": null
+}

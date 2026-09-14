@@ -411,25 +411,55 @@ pub fn round_poly_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
 
 /// The public table `Ã` in Boolean-evaluation form: `alphaPublicEvals` at every
 /// cube index (spec: `cMultilinearExtension m₀ (alphaPublicEvals …)`,
-/// `ZeroCheck/Constraints.lean:871`).
+/// `ZeroCheck/Constraints.lean:871`; opt: `HachiEquiv.Opt.alpha_public_table.opt`,
+/// `lean/Opt.lean`).
 ///
 /// Mirrors `alphaPublicEvals` as a hypercube table.
 ///
-/// `2^m₀` entries, each one `alphaPublicEvals` call, which is the whole reason
-/// the linear side's benchmark rows are REDUCED: at the pinned `m₀ = 26` this
-/// table is `6.7·10⁷` extension elements. The tensor split that avoids
-/// building it is strategy S6 of the target-5 brief and is `perf-loop`'s.
+/// `2^m₀` entries: at the pinned `m₀ = 26` this table is `6.7·10⁷` extension
+/// elements, which is why the linear side's rows are REDUCED. The body hoists
+/// out of the traversal everything an entry shares with its neighbours: the
+/// `d`-entry power table `α^ℓ` (`zerocheck::alpha_pow_table`), the `n`
+/// equality weights (`zerocheck::eq_weight_table`) and the `n × (μ + n·δ)`
+/// matrix `M̃_α(i, u)` (`zerocheck::m_alpha_table`), each built once. Entry
+/// `idx` is then `pw[idx % d] · Σ_i eqw[i] · mt[i][idx / d]`, `n`
+/// multiplications where the frozen entrywise form paid `n` polynomial
+/// evaluations and a power loop per entry; `alpha_public_table.opt_eq_spec`
+/// says the entries are the specification's, so the `Mirrors` line above is
+/// still the truth. The guard `u < cols` is the translation of the Lean
+/// `getD … 0` off the end of a stored row: `mAlphaTilde` is zero there, so where
+/// the Lean `apRowSum` adds `eqw[i] · 0` this loop adds nothing and `sum` stays
+/// `Ext4::ZERO` -- the same value, one regrouping. `cols` here must be the width
+/// `zerocheck::m_alpha_table` actually built, or the index would be out of
+/// range and not merely wrong. The tensor split that avoids building the table
+/// at all is strategy S6 of the target-5 brief and is still `perf-loop`'s.
 pub fn alpha_public_table(
     s: &crate::ringswitch::RlinStatement,
     alpha: Ext4,
     tau1: &Vec<Ext4>,
     m0: usize,
 ) -> Vec<Ext4> {
+    let degree: usize = params::RING_DEGREE;
+    let rows: usize = s.m().rows();
+    let cols: usize = s.m().cols() + rows * params::GADGET_DIGITS;
     let sz: usize = cube_size(m0);
-    let mut out: Vec<Ext4> = Vec::new();
+    let pw: Vec<Ext4> = crate::zerocheck::alpha_pow_table(alpha, degree);
+    let eqw: Vec<Ext4> = crate::zerocheck::eq_weight_table(tau1, rows);
+    let mt: Vec<Vec<Ext4>> = crate::zerocheck::m_alpha_table(s, alpha);
+    let mut out: Vec<Ext4> = Vec::with_capacity(sz);
     let mut idx: usize = 0;
     while idx < sz {
-        out.push(crate::zerocheck::alpha_public_evals(s, alpha, tau1, idx));
+        let u: usize = idx / degree;
+        let l: usize = idx % degree;
+        let mut sum: Ext4 = Ext4::ZERO;
+        let mut i: usize = 0;
+        while i < rows {
+            if u < cols {
+                sum = sum + eqw[i] * mt[i][u];
+            }
+            i += 1;
+        }
+        out.push(pw[l] * sum);
         idx += 1;
     }
     out

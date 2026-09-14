@@ -646,3 +646,98 @@ fn c_w_table_mle_values(w: &LiftedWitness, m0: usize) -> Vec<Ext4> {
     }
     values
 }
+
+// ---------------------------------------------------------------------------
+// Stage 6, iteration 1 -- the hoisted alpha-side tables (candidate C).
+// Frozen as first translations the day the champion landed (2026-09-14).
+// ---------------------------------------------------------------------------
+
+/// The `d`-entry power table `[α^0, …, α^(d−1)]` (the values of `alphaTilde`,
+/// `Constraints.lean:502`, tabulated; opt: `HachiEquiv.Opt.alphaPowTable`,
+/// `lean/Opt.lean`, licensed entrywise by `alphaPowTable_getD`).
+///
+/// One multiplication per entry -- a running power -- where [`alpha_tilde`]
+/// pays `ℓ` per call; the table exists so that a cube traversal reads `α^ℓ`
+/// instead of recomputing it `2^m₀` times. No `Mirrors` line: the table is
+/// this crate's own optimized variant, not an ArkLib definition.
+pub fn alpha_pow_table(alpha: Ext4, d: usize) -> Vec<Ext4> {
+    let mut out: Vec<Ext4> = Vec::with_capacity(d);
+    let mut pw: Ext4 = Ext4::ONE;
+    let mut l: usize = 0;
+    while l < d {
+        out.push(pw);
+        pw = pw * alpha;
+        l += 1;
+    }
+    out
+}
+
+/// The `n`-entry table of `m₁`-cube equality weights: entry `i` is
+/// [`eq_weight`]`(τ₁, i)` under the specification's `i < 2^m₁` guard and `0`
+/// above it (the `∏ j : Fin m₁` factor of `alphaPublicEvals`,
+/// `Constraints.lean:845-847`; opt: `HachiEquiv.Opt.eqWeightTable`,
+/// `lean/Opt.lean`, licensed by `eqWeightTable_getD`).
+///
+/// The guard is decided by [`below_two_pow`], as [`alpha_public_evals`] decides
+/// it, so no power of two is formed. No `Mirrors` line, for the reason
+/// [`alpha_pow_table`] gives.
+pub fn eq_weight_table(tau1: &Vec<Ext4>, n: usize) -> Vec<Ext4> {
+    let vars: usize = tau1.len();
+    let mut out: Vec<Ext4> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        if below_two_pow(i, vars) {
+            out.push(eq_weight(tau1, i));
+        } else {
+            out.push(Ext4::ZERO);
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The public constraint matrix at `α`, tabulated: `n` rows of `μ + n·δ`
+/// columns, entry `(i, u)` the value of [`m_alpha_tilde`]`(s, α, i, u)` (spec:
+/// `mAlphaTilde`, `Constraints.lean:517`; opt: `HachiEquiv.Opt.mAlphaTable`,
+/// `lean/Opt.lean`, licensed by `mAlphaTable_getD`).
+///
+/// `φ(α)` is evaluated once for the whole table rather than once per digit
+/// column, and `b^e` is read from a `δ`-entry power table rather than
+/// recomputed by [`crate::gadget::base_pow`]. Columns `u ≥ μ + n·δ` are not
+/// stored: `mAlphaTilde` is `0` there (`mAlphaTilde_eq_zero_of_ge`, which
+/// together with `mAlphaTable_getD_eq` is what `alpha_public_table.opt_eq_spec`
+/// reads), and a caller reads them as `Ext4::ZERO`. Every row is exactly
+/// `μ + n·δ` wide: a caller that guards its own column index against a
+/// *separately computed* `μ + n·δ` -- as [`crate::sumcheck::alpha_public_table`]
+/// does -- depends on that width for panic-freedom and not only for the value.
+/// Rows of rows, as `linalg::PolyMatrix` is, and as the Lean `List (List F)` it
+/// translates. No `Mirrors` line, for the reason [`alpha_pow_table`] gives.
+pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<Vec<Ext4>> {
+    let digits: usize = params::GADGET_DIGITS;
+    let mu: usize = s.m().cols();
+    let rows: usize = s.m().rows();
+    let cols: usize = mu + rows * digits;
+    let phi_alpha: Ext4 = crate::ringswitch::c_eval_at_modulus(alpha);
+    let base: Ext4 = Ext4::from_base(crate::gadget::base_pow(1));
+    let bp: Vec<Ext4> = alpha_pow_table(base, digits);
+    let mut out: Vec<Vec<Ext4>> = Vec::with_capacity(rows);
+    let mut i: usize = 0;
+    while i < rows {
+        let mut row: Vec<Ext4> = Vec::with_capacity(cols);
+        let mut u: usize = 0;
+        while u < cols {
+            if u < mu {
+                row.push(crate::ringswitch::c_eval_at(alpha, s.m().row(i).get(u)));
+            } else if (u - mu) / digits == i {
+                let e: usize = (u - mu) % digits;
+                row.push((Ext4::ZERO - phi_alpha) * bp[e]);
+            } else {
+                row.push(Ext4::ZERO);
+            }
+            u += 1;
+        }
+        out.push(row);
+        i += 1;
+    }
+    out
+}

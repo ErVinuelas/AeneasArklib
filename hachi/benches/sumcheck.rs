@@ -43,6 +43,40 @@ const HALF: usize = 1024;
 /// table it builds is exactly the `eq̃` table the round rows consume.
 const SUFFIX_VARS: usize = 10;
 
+/// The cube the `alpha_public_table` row runs at: **REDUCED** from the pinned
+/// `M_ZERO = 26` to `7`, i.e. `128` entries, all in table row `0` (the matrix
+/// branch of `m_alpha_tilde`). The size is set by the **genesis** variant, not
+/// by the champion: the frozen `alpha_public_evals` reaches the frozen
+/// quadratic `c_eval_at` (`~7 ms` per call, `AP_ROWS` calls per entry), and the
+/// harness re-measures genesis in every run, so `128 · 2 · 7 ms ≈ 1.9 s` per
+/// genesis iteration is the budget. The abandoned `2^12` trial, at the real
+/// `RLIN_ROWS = 5` and two columns, measured 0.47 s per champion iteration and
+/// its genesis variant -- projected at ~90 s per iteration, never completed --
+/// had to be killed. What the row exists to measure is the per-entry
+/// recomputation the brief's items 3 and 4 hoist (`α^ℓ` by `alpha_tilde`,
+/// `M̃_α(i, u)` by `m_alpha_tilde`), and both happen on every entry here. Two
+/// proportions to read a verdict with: the two `c_eval_at` calls per entry are
+/// ~98% of the champion's multiplications and `alpha_tilde` ~1.5%, so item 4 is
+/// what this row can see and item 3 alone would sit under the 5% floor; and
+/// because every entry has `u = idx / d = 0`, the per-`u` repeat factor here is
+/// the cube size `128` where the pin's is `d = 1024`, so an item-4 hoist reads
+/// **8× smaller** here than at `m₀ = 26` -- conservative, and a ledger row
+/// citing this figure should say so. The digit branch and the zero padding are
+/// not reached at one row; the digit branch's per-entry cost is
+/// `zerocheck/m_alpha_tilde_digit`'s row.
+const AP_M0: usize = 7;
+
+/// The `R^lin` row count the `alpha_public_table` row's statement carries:
+/// **REDUCED** from `RLIN_ROWS = 5` to `2`, for the genesis budget above (the
+/// per-entry cost is linear in it); `benches/zerocheck.rs`'s
+/// `alpha_public_evals` row makes the same reduction.
+const AP_ROWS: usize = 2;
+
+/// The `R^lin` column count the statement carries: **REDUCED** from
+/// `μ₀ = 57 344` to `1` (the real `M` is `5 × 57 344` `Rq`, 2.2 GiB). One
+/// column is all a one-row cube reads.
+const AP_COLS: usize = 1;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -381,6 +415,82 @@ macro_rules! define_cases {
                 )
             }
 
+            /// An `R^lin` statement with `rows` real rows and `cols` columns of
+            /// drawn ring elements, for the one row here that reads `M`. Each
+            /// entry gets its own corpus tag, so no two matrix entries are
+            /// equal and the `c_eval_at` inside `m_alpha_tilde` sees a fresh
+            /// polynomial per call.
+            fn rlin_statement(seed: u64, rows: usize, cols: usize) -> RlinStatement {
+                let degree = hc::params::RING_DEGREE;
+                let mut m = Vec::with_capacity(rows);
+                let mut i = 0usize;
+                while i < rows {
+                    let mut row = Vec::with_capacity(cols);
+                    let mut j = 0usize;
+                    while j < cols {
+                        row.push(Rq::from_coeffs(&support::corpus(
+                            seed.wrapping_add((i * cols + j) as u64),
+                            degree,
+                        )));
+                        j += 1;
+                    }
+                    m.push(PolyVec::new(row));
+                    i += 1;
+                }
+                let mut y = Vec::with_capacity(rows);
+                let mut k = 0usize;
+                while k < rows {
+                    y.push(Rq::from_coeffs(&support::corpus(
+                        seed.wrapping_add(1000 + k as u64),
+                        degree,
+                    )));
+                    k += 1;
+                }
+                RlinStatement::new(
+                    hc::linalg::PolyMatrix::new(m),
+                    PolyVec::new(y),
+                    hc::params::CHAIN_GAMMA,
+                )
+            }
+
+            /// The public table `Ã` over a REDUCED cube ([`crate::AP_M0`]),
+            /// with [`crate::AP_ROWS`] statement rows and [`crate::AP_COLS`]
+            /// matrix columns. Every entry is one `alpha_public_evals`: `n`
+            /// rows of `eq_weight · m_alpha_tilde` and one `alpha_tilde(idx % d)`,
+            /// all recomputed per entry -- which is exactly the cost the
+            /// `sumcheck/alpha_public_table` row is here to expose, and the
+            /// reason it was excluded until `c_eval_at` became linear
+            /// (`NOTES.md` § "Stage 6 opens"). The statement, `α` and `τ₁` are
+            /// built once, outside the timed region; the body allocates and
+            /// returns the `2^m₀` table, which is the operation's real cost.
+            ///
+            /// Read its `vs genesis` as an ordinary trivial-baseline distance,
+            /// not through this file's header caveat: the round-message rows'
+            /// genesis is the *dense form by decision*, but a hypercube table
+            /// is dense in the specification itself, and genesis's
+            /// `alpha_public_table` is the literal first translation (stamp
+            /// `2152e10`). The `~160×` between the two variants is the frozen
+            /// quadratic `c_eval_at` one layer down, nothing about this row.
+            /// Corpus tags: the statement's entries take `seed + k`, so `α` and
+            /// `τ₁` sit in a different hundreds block to keep every tag distinct.
+            pub fn alpha_public_table(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let s = rlin_statement(0x5A17_7021, crate::AP_ROWS, crate::AP_COLS);
+                let alpha = ext_table(0x5A17_7121, 1)[0];
+                let tau1 = ext_table(0x5A17_7221, hc::params::M_ONE);
+                support::run(
+                    m,
+                    || {
+                        hc::sumcheck::alpha_public_table(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(&tau1),
+                            black_box(m0),
+                        )
+                    },
+                    d_vec,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control, the same body as every other
@@ -430,6 +540,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_check", round_check, [hachi::params::M_ZERO]);
     // @covers sumcheck::round_out
     bench_case!(c, "sumcheck/round_out", round_out, [hachi::params::M_ZERO]);
+    // @covers sumcheck::alpha_public_table
+    bench_case!(c, "sumcheck/alpha_public_table", alpha_public_table, [AP_M0]);
 }
 
 criterion_group! {

@@ -36,6 +36,7 @@ use hachi::ringswitch::RlinStatement;
 use hachi::ringswitch::{LiftedWitness, QuotientRow};
 use hachi::ring::Rq;
 use hachi::zerocheck::w_table_row;
+use hachi::zerocheck::{alpha_pow_table, eq_weight_table, m_alpha_table};
 use hachi::zerocheck::{alpha_contract, alpha_defect, alpha_public_evals, alpha_tilde,
                        c_w_table_mle, eq_weight, h_alpha, h_alpha_evals, h_alpha_is_zero,
                        h_zero, h_zero_is_zero, m_alpha_tilde, range_product, w_table,
@@ -283,6 +284,61 @@ fn h_zero_is_zero_agrees_with_h_zero_across_rows() {
     assert!(h_zero_is_zero(&good, m0), "all-zero quotient rows and unit message digits are in range");
     let all_zero_good = h_zero(&good, m0).values().iter().all(|e| e.is_zero());
     assert!(all_zero_good);
+}
+
+// --- the hoisted α-side tables (Stage 6 I1 candidate C) --------------------
+
+/// `alpha_pow_table` is `alpha_tilde` tabulated, at every index below `d`.
+#[test]
+fn alpha_pow_table_is_alpha_tilde_tabulated() {
+    let mut r = Lcg::new(0x5A17_C001);
+    let alpha = ext4(&mut r);
+    let t = alpha_pow_table(alpha, RING_DEGREE);
+    assert_eq!(t.len(), RING_DEGREE);
+    for l in [0usize, 1, 2, 17, 511, RING_DEGREE - 1] {
+        assert_eq!(t[l], alpha_tilde(alpha, l), "index {l}");
+    }
+}
+
+/// `eq_weight_table` is `eq_weight` under the `i < 2^m₁` guard and zero above:
+/// at `m₁ = 2` rows `4..` are padding.
+#[test]
+fn eq_weight_table_is_eq_weight_with_the_guard() {
+    let mut r = Lcg::new(0x5A17_C002);
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let n = 6;
+    let t = eq_weight_table(&tau1, n);
+    assert_eq!(t.len(), n);
+    for i in 0..n {
+        if i < 4 {
+            assert_eq!(t[i], eq_weight(&tau1, i), "row {i}");
+        } else {
+            assert!(t[i].is_zero(), "row {i} is above the cube");
+        }
+    }
+}
+
+/// `m_alpha_table` is `m_alpha_tilde` tabulated over the stored columns, all
+/// three branches (matrix, this row's digit block, another row's digit block),
+/// and callers read the unstored columns as zero, which `m_alpha_tilde` is there.
+#[test]
+fn m_alpha_table_is_m_alpha_tilde_tabulated() {
+    let mut r = Lcg::new(0x5A17_C003);
+    let (n, mu) = (3usize, 2usize);
+    let s = statement(0x5A17_C004, n, mu);
+    let alpha = ext4(&mut r);
+    let t = m_alpha_table(&s, alpha);
+    let cols = mu + n * GADGET_DIGITS;
+    assert_eq!(t.len(), n);
+    for i in 0..n {
+        assert_eq!(t[i].len(), cols, "row {i} width");
+        for u in 0..cols {
+            assert_eq!(t[i][u], m_alpha_tilde(&s, alpha, i, u), "entry ({i}, {u})");
+        }
+        for u in [cols, cols + 1, cols + 1024] {
+            assert!(m_alpha_tilde(&s, alpha, i, u).is_zero(), "unstored ({i}, {u}) is zero");
+        }
+    }
 }
 
 // --- the tables -------------------------------------------------------------

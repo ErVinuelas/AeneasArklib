@@ -210,6 +210,19 @@ Then, non-negotiably:
     candidate that adds an `m == n` fast path would have that path taken on
     every iteration and the general path the totality argument covers would go
     unmeasured. Add the short-input size before believing such a candidate.
+* **The genesis variant sets the ceiling on a REDUCED size, not the champion.**
+  Every run re-measures the frozen first translation of the *whole call chain*
+  at the case's size, so a row added after a champion made some callee 400×
+  faster is still paying the frozen callee on the genesis side. Measured
+  2026-09-14 on `sumcheck/alpha_public_table`: at `2^12` entries with the
+  real `RLIN_ROWS = 5` and two columns the champion measured 0.47 s per
+  iteration, and the genesis variant -- still on the quadratic `c_eval_at`,
+  ~7.5 ms per call, five to one call per entry -- was projected at ~90 s per
+  iteration (it never finished one), 50 samples of it, so the run had to be
+  killed. Write the projection down as a projection: the first version of
+  this note said "150 s" from memory. Size a new row from the genesis cost
+  (`hachi/benches/genesis/src/` is what it runs; count *its* operations), and
+  say in the size constant's doc which side set the budget.
 * **Sizes are the scheme's parameters, and say so.** The existing cases take
   their sizes from `hachi::params` — `RING_DEGREE`, `GADGET_DIGITS`,
   `MESSAGE_ROWS`, `INNER_ROWS`, `OUTER_ROWS`, `BLOCKS` — because this crate is

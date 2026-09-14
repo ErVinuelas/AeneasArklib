@@ -1397,5 +1397,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- `ZeroCheck.wTableRow` and `wTableFlat`).
 #print axioms HachiEquiv.ZeroCheck.w_table_row_spec
 #print axioms HachiEquiv.ZeroCheck.c_w_table_mle_values_spec
+-- Candidate C -- the α-side tables hoisted out of `alpha_public_table`.
+#print axioms HachiEquiv.Opt.alpha_public_table.opt_eq_spec
+#print axioms HachiEquiv.Opt.alpha_public_table.opt_length
+-- The three α-side tables candidate C introduced (no ArkLib mirror; specified
+-- against `alphaTilde`, the `eqWeightVal` weights and `mAlphaTilde`).
+#print axioms HachiEquiv.ZeroCheck.alpha_pow_table_spec
+#print axioms HachiEquiv.ZeroCheck.eq_weight_table_spec
+#print axioms HachiEquiv.ZeroCheck.m_alpha_table_spec
 
 end HachiEquiv.Check

@@ -230,20 +230,20 @@ region."""
 Two `Ext4` coefficients: `(1 - t)` and `t + t - 1`. O(1) by inspection, the
 `ring::len`/`ring::coeff` class of the header."""
 
-"sumcheck::alpha_public_table" = """
-`2^m0` entries, each one `zerocheck::alpha_public_evals`. At the pinned
-`M_ZERO = 26` that is `67 108 864` calls, and `alpha_public_evals` is itself
-`n` rows of `m_alpha_tilde` -- so this is `alpha_contract`'s wall one level up,
-infeasible even REDUCED. The tensor split of `A~` that avoids materializing it
-is strategy S6 of the target-5 brief.
-
-Removal condition: that tensor split landing (a `perf-loop` accept), not a
-faster `ring::mul` -- this wall is `2^m0`, not multiplication."""
-
 "sumcheck::final_check" = """
-Builds `alpha_public_table` and evaluates its multilinear extension, so it
-inherits that item's `2^m0` wall verbatim; the two `Ext4` comparisons and the
-`range_product` beside it are free by comparison. Same removal condition."""
+Builds `alpha_public_table` and evaluates its multilinear extension, so at the
+pinned `M_ZERO = 26` it inherits that table's `2^m0` wall (`67 108 864`
+entries); the two `Ext4` comparisons and the `range_product` beside it are
+free by comparison. The table itself has a REDUCED row since 2026-09-14
+(`sumcheck/alpha_public_table` at `2^7` -- sized by its *genesis* variant, whose
+frozen quadratic `c_eval_at` is re-measured every run; feasible at all only once
+the champion's `c_eval_at` became linear); this composed check does not, because
+nothing is left to measure once the table has a row: what `final_check` adds is
+one `MultilinearEvals::eval`, one `eq_tilde`, two `Ext4` comparisons and a `u64`
+compare, all free beside the `2^m0` table it builds.
+
+Removal condition: the tensor split of `A~` (target-5 brief S6) landing as a
+`perf-loop` accept, not a faster `ring::mul` -- this wall is `2^m0`."""
 
 "sumcheck::honest_compute_y" = """
 `zerocheck::w_table_mle_eval` at the sumcheck point, and nothing else -- the

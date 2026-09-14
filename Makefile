@@ -102,6 +102,7 @@ help:
 	@echo '    bench-stamp    re-derive the @genesis stamps after freezing a function'
 	@echo '    bench-coverage report which mirrored items are benched, without failing'
 	@echo '    ledger-check   validate logs/ledger.jsonl against the last commit'
+	@echo '    gains          the scoreboard: cumulative vs-genesis per row over the usable runs in logs/runs/'
 	@echo '    clean          drop build output, keeping fetched dependencies'
 	@echo ''
 	@echo '  Variables:'
@@ -312,7 +313,7 @@ extract: check-toolchain | $(STAMPS)
 BENCH_TOOLCHAIN := nightly-2026-06-01
 HARNESS         := $(PKG)/benches/harness.py
 
-.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check
+.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check gains
 
 # Statistics cannot rescue a corrupted baseline, so the integrity checks run
 # before any measurement and are a hard gate.
@@ -371,6 +372,11 @@ ledger-check:
 # counting `Generated.lean` or `Check.lean` § 2b makes the check vacuous.
 spec-check:
 	@python3 scripts/spec_coverage.py
+
+# The scoreboard: each row's cumulative `vs genesis` per usable run under
+# logs/runs/, side by side (`ARGS='--ledger'` adds the ledger's increments).
+gains:
+	@python3 scripts/gains.py $(ARGS)
 
 bench-toolchain:
 	@set -euo pipefail; \
