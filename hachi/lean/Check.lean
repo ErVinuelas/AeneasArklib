@@ -697,7 +697,7 @@ example (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at_modulus alpha
 
 -- The honest lift prover (`RingSwitch/ComputableWitness.lean`), the chain's last
--- untranslated item. Two shape facts: the unreduced row sum is a `Vec Fp` of
+-- item to be translated (2026-09-11). Two shape facts: the unreduced row sum is a `Vec Fp` of
 -- `2N - 1` words -- a `CPolynomial (ZMod q)` in the `Raw` array reading, the
 -- first carrier in this crate for a product that is *not* folded back into
 -- `Rq` -- and the division by the modulus returns the `N`-word quotient that
@@ -1365,8 +1365,8 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Chain.chain_verify_spec
 #print axioms HachiEquiv.Chain.chain_open_spec
 
--- The honest lift prover (`lean/LiftProver.lean`), the chain's last untranslated
--- item and Stage 4's last proof debt: the unreduced row sum against
+-- The honest lift prover (`lean/LiftProver.lean`), the chain's last item to be
+-- translated and Stage 4's last proof debt, paid 2026-09-11: the unreduced row sum against
 -- `InnerOuter.cRowSum`, its division by the modulus against
 -- `InnerOuter.cQuotient`, the headline `honestLiftWitnessC` through
 -- `RepLiftedWitness`, and the two private helpers underneath -- the product in
@@ -1405,5 +1405,10 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZeroCheck.alpha_pow_table_spec
 #print axioms HachiEquiv.ZeroCheck.eq_weight_table_spec
 #print axioms HachiEquiv.ZeroCheck.m_alpha_table_spec
+-- Candidate E -- the lift commitment without the materialized concatenation (W3).
+#print axioms HachiEquiv.Opt.lift_commit.opt_eq_spec
+#print axioms HachiEquiv.Opt.lift_commit.opt_eq_spec_hachi
+-- The fused row of the lift commitment (no ArkLib mirror; one row of `hachiLiftCom`).
+#print axioms HachiEquiv.RingSwitch.lift_commit_row_spec
 
 end HachiEquiv.Check

@@ -192,16 +192,65 @@ pub fn lift_message(w: &LiftedWitness) -> PolyVec {
     PolyVec::new(out)
 }
 
+/// One row of the lift commitment, accumulated in place over the two halves of
+/// the specification's concatenation: `∑_{j<μ} D[i][j]·z[j]` then
+/// `∑_{j<n·δ} D[i][μ+j]·digit(ρ, j)` (opt: `HachiEquiv.Opt.liftCommitRow`,
+/// `lean/Opt.lean`; the two loops are `lift_commit.rowZLoop` and
+/// `lift_commit.rowDigLoop` there).
+///
+/// This is the fusion of [`lift_message`] into [`lift_commit`]: the message
+/// vector `z ‖ digits(ρ)` -- 57 384 ring elements, 448 MiB at the pin -- is
+/// never materialized, each digit polynomial is built once per output row for
+/// the column that reads it, and the operation count is exactly `mat_vec_mul`'s
+/// (`μ + n·δ` products and adds per row). The digit polynomials are rebuilt per
+/// output row, which is no change at the pin's `dRows = 1` and a `dRows`-fold
+/// recomputation above it. No `Mirrors` line: the row is this crate's own
+/// optimized variant, not an ArkLib definition.
+fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
+    let row: &PolyVec = d_key.row(i);
+    let z_len: usize = w.z().len();
+    let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
+    let mut acc: Rq = Rq::zero();
+    let mut j: usize = 0;
+    while j < z_len {
+        let term: Rq = row.get(j).mul(w.z().get(j));
+        acc = acc.add(&term);
+        j += 1;
+    }
+    let mut k: usize = 0;
+    while k < rho_len {
+        let digit: Rq = rho_digit_as_rq(w.rho(), k);
+        let term: Rq = row.get(z_len + k).mul(&digit);
+        acc = acc.add(&term);
+        k += 1;
+    }
+    acc
+}
+
 /// The concrete Ajtai lift commitment `D *ᵥ (z ‖ digits(ρ))` (spec:
-/// `hachiLiftCom`, `RingSwitch/Reduction.lean:277`).
+/// `hachiLiftCom`, `RingSwitch/Reduction.lean:277`; opt:
+/// `HachiEquiv.Opt.lift_commit.opt`, `lean/Opt.lean`).
 ///
 /// Mirrors `hachiLiftCom`.
 ///
 /// `d_key` is the caller-supplied lift key, distinct from QuadEval's
 /// `PublicParamsD::d_matrix` and expected to have `D_ROWS × LIFT_COLS` shape.
+/// Each output row is [`lift_commit_row`], so the specification's `liftMessage`
+/// concatenation is never built (Stage 6 iteration 2, candidate E -- a removal
+/// of the plan's memory wall W3, ≈ 1.3 GiB → ≈ 896 MiB peak at the pin, not a
+/// speedup; `lift_commit.opt_eq_spec` says the result is `hachiLiftCom`'s, so
+/// the `Mirrors` line above is still the truth). [`lift_message`] stays as the
+/// specification's own vector for the callers that want it materialized.
 pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
-    let message: PolyVec = lift_message(w);
-    d_key.mat_vec_mul(&message)
+    let rows: usize = d_key.rows();
+    let mut out: Vec<Rq> = Vec::with_capacity(rows);
+    let mut i: usize = 0;
+    while i < rows {
+        let r: Rq = lift_commit_row(d_key, w, i);
+        out.push(r);
+        i += 1;
+    }
+    PolyVec::new(out)
 }
 
 /// Statement of Hachi's unstructured linear relation `R^lin` (spec:

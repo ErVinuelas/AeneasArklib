@@ -189,6 +189,24 @@ it, once per session, and stop with a report if any of it is missing:
      numbers — it may deserve a size-split champion, which is a target
      decision, not a bench verdict;
    * anything else → `rejected-noise` / `rejected-slower` per the worst row.
+   * **Wall removals are the one exception, decided by the user 2026-09-14.**
+     A candidate whose purpose is to remove a *memory* wall (the plan's W1–W3:
+     the materialized `lift_message` concatenation, the dense `R^lin` matrix,
+     the `2^m₀` α table) is not expected to read `faster` — criterion measures
+     time, and a copy that stops existing barely moves a mul-bound row. Such a
+     candidate is accepted when (i) its ledger row is declared
+     `"kind": null, "verdict": "accepted-wall"` and names the wall, (ii) the
+     within-run bench on its rows reads **no `slower`** (the time guard stays;
+     `faster` or `noise` both pass), (iii) the proof obligation is paid exactly
+     as for a speedup, and (iv) the row records the memory gain as **arithmetic
+     from the code** (bytes before → bytes after at the pin, and if a
+     measurement was taken, `/usr/bin/time -v`'s maximum resident set on the
+     relevant semantics test, labelled as such). The memory figure is a record,
+     not a gate: time is what this loop optimizes, memory is what lets it run
+     on this machine at all (the reference peaked at 12.7 GiB at ℓ = 30 on the
+     same 30 GiB laptop, `logs/paper-impl/README.md`). `make gains` shows such a
+     row near zero, which is the truth, and the `accepted-wall` verdict is what
+     keeps a wall removal from ever being read as a speed claim.
 6. **Tournament.** Multiple accepted candidates for one target: rank by
    `cand_vs_now` at the largest measured size, then confirm the winner with
    one fresh `CANDIDATE=1` run against the champion. Never chain deltas
@@ -283,9 +301,9 @@ what it says about the harness").
  "notes": "champion/ring-mul branch carries the swap; Ring.lean mul_loop*_spec broken by it"}
 ```
 
-`verdict` ∈ accepted · rejected-slower · rejected-noise · rejected-mixed ·
-tests-failed · lemma-failed · not-translatable · no-strategy-applies ·
-contract-violation · bench-unusable. `target` is the ArkLib definition as the
+`verdict` ∈ accepted · accepted-wall · rejected-slower · rejected-noise ·
+rejected-mixed · tests-failed · lemma-failed · not-translatable ·
+no-strategy-applies · contract-violation · bench-unusable. `target` is the ArkLib definition as the
 brief names it (`arklib-analyze` reads it from the pinned copy; do not spell an
 ArkLib name from memory) and `item` is the Rust item the numbers are about.
 `pins.repo` is `HEAD` (short) with `dirty` true when the skills/infra under

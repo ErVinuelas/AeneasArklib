@@ -98,6 +98,14 @@ strategies yields nothing.
 - *It may ask*: a candidate that is only equivalent under an input condition the
   ArkLib definition does not impose needs your sign-off. It is never accepted as
   an ordinary candidate.
+- *Memory walls are the one non-time acceptance* (your decision, 2026-09-14): a
+  candidate that removes one of the plan's memory walls (the materialized
+  `lift_message` copy, the dense `R^lin` matrix, the `2^m₀` α table) lands as
+  `accepted-wall` when no row reads `slower`, its proof is paid like any
+  champion's, and its ledger row records the memory gain as arithmetic (and a
+  measured peak RSS where one was taken). It is never called a speedup: time is
+  what the loop optimizes, memory is what lets the end-to-end run fit this
+  machine.
 - *Proof debt*: every accepted champion goes to `verify-campaign` before the next
   target is taken up.
 

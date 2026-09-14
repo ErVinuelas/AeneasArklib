@@ -348,6 +348,281 @@ theorem lift_message_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
       simp only [toVec]
       exact hidx
 
+/-! ## The fused lift commitment
+
+`lift_commit` no longer materializes the lifted message: each output row is
+accumulated in place, first over the `μ` columns of `z` and then over the `n·δ`
+digit columns, so the 57 384-entry concatenation `z ‖ digits(ρ)` never exists
+(Stage 6 iteration 1, candidate E -- a memory-wall removal, not a speedup). The
+pure algebra is `HachiEquiv.Opt.lift_commit.opt_eq_spec`, but `lean/Opt.lean`
+sits *above* this file in the import graph (`Opt` imports `ZeroCheck` imports
+`RingSwitch`), so the column split is re-established here.
+
+`hachiLiftCom_com_split` is that split, and it keeps the digit width at
+`InnerOuter.rhoDigitCount q 16` -- never the crate's literal `8` -- in the type
+of the `Fin` index: stating it at the literal width makes the unifier re-run
+`rhoDigitCount q 16 = 8` per subproblem (see `lean/Opt.lean` § 3). The two
+partial sums enter as `ℕ`-indexed families `fz`/`fd`, which is both what a
+`usize` counter loop produces and what turns the `Finset.range` sums of the loop
+invariants into `Fin`-indexed ones without rewriting under a binder's type.
+`rhoDigitCount_eq` bridges the one remaining literal, exactly as
+`lift_message_spec` does. -/
+
+/-- Row `i` of the concrete Ajtai lift commitment, split at the column cut:
+`∑_{j<μ} D i j · z j` followed by `∑_{j<n·δ} D i (μ+j) · digit j`.
+
+The *column* analogue of ArkLib's row-direction `matVecMul_append_rows`: `dot`
+is a `Fin (μ + n·δ)` sum by `dot_eq_sum`, `Fin.sum_univ_add` splits it at the
+cut, and `Fin.append_left`/`Fin.append_right` collapse the two halves of
+`liftMessage`. Unconditional in `dRows`, `μ`, `n` and in the witness. -/
+theorem hachiLiftCom_com_split {dRows μ n : ℕ}
+    (D : ArkLib.Lattices.PolyMatrix (Rq Φ) dRows
+      (μ + n * InnerOuter.rhoDigitCount q 16))
+    (sw : InnerOuter.LiftedWitness Φ μ n) (i : Fin dRows) (fz fd : ℕ → Rq Φ)
+    (hfz : ∀ j : Fin μ, fz j.val
+      = D i (Fin.castAdd (n * InnerOuter.rhoDigitCount q 16) j) * sw.z j)
+    (hfd : ∀ j : Fin (n * InnerOuter.rhoDigitCount q 16), fd j.val
+      = D i (Fin.natAdd μ j) * InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j) :
+    (InnerOuter.hachiLiftCom Φ 15 16 D).com sw i
+      = (∑ t ∈ Finset.range μ, fz t)
+        + ∑ t ∈ Finset.range (n * InnerOuter.rhoDigitCount q 16), fd t := by
+  rw [← Fin.sum_univ_eq_sum_range fz μ,
+    ← Fin.sum_univ_eq_sum_range fd (n * InnerOuter.rhoDigitCount q 16),
+    Finset.sum_congr rfl (fun j _ => hfz j), Finset.sum_congr rfl (fun j _ => hfd j)]
+  show ArkLib.Lattices.dot (D i) (InnerOuter.liftMessage Φ 16 sw) = _
+  rw [ArkLib.Lattices.dot_eq_sum, InnerOuter.liftMessage, Fin.sum_univ_add]
+  simp only [Fin.append_left, Fin.append_right]
+
+/-- The `z` half of a fused row: the accumulator is the partial sum
+`∑_{t<j} row[t] · z[t]`.
+
+The row is read at its own flat column `t < μ ≤ μ + n·8`, so the single
+`WfVec (μ + n * 8) row` that `WfMat` hands out covers every read; `z_len` is the
+`μ` the Rust reads off `w.z`. -/
+theorem lift_commit_row_loop0_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (row : linalg.PolyVec) (z_len : Std.Usize) (acc : ring.Rq) (j : Std.Usize)
+    (hrow : WfVec (μ + n * 8) row) (hz : WfVec μ w.z) (hzlen : z_len.val = μ)
+    (hj : j.val ≤ μ) (hacc : Wf acc)
+    (hval : toRq acc = ∑ t ∈ Finset.range j.val,
+      toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))) :
+    ringswitch.lift_commit_row_loop0 w row z_len acc j
+      ⦃ o => Wf o ∧ toRq o = ∑ t ∈ Finset.range μ,
+        toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [ringswitch.lift_commit_row_loop0]
+  apply loop.spec_decr_nat (fun s => z_len.val - s.2.val)
+    (fun s => s.2.val ≤ μ ∧ Wf s.1 ∧
+      toRq s.1 = ∑ t ∈ Finset.range s.2.val,
+        toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
+  · rintro ⟨a1, j1⟩ ⟨hj1, hacc1, hval1⟩
+    dsimp only at hj1 hacc1 hval1
+    simp only [ringswitch.lift_commit_row_loop0.body]
+    by_cases hlt : j1 < z_len
+    · rw [if_pos hlt]
+      have hjmu : j1.val < μ := by rw [← hzlen]; scalar_tac
+      have hjrow : j1.val < row.val.length := by rw [hrow.1]; omega
+      have hjz : j1.val < w.z.val.length := by rw [hz.1]; exact hjmu
+      simp only [linalg.PolyVec.get, ringswitch.LiftedWitness.impl.z, bind_tc_ok]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hjrow)
+      step as ⟨r1, hr1⟩
+      have hWr1 : Wf r1 := by rw [hr1]; exact hz.2 _ (List.getElem_mem hjz)
+      step with RqBridge.mul_spec r r1 hWr hWr1 as ⟨tm, hWtm, htm⟩
+      step with RqBridge.add_spec a1 tm hacc1 hWtm as ⟨a2, hWa2, ha2⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, hWa2, ?_, ?_⟩
+      · rw [ha2, hval1, htm, hj2, Finset.sum_range_succ,
+          List.getD_eq_getElem _ _ hjrow, List.getD_eq_getElem _ _ hjz, hr, hr1]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = μ := by rw [← hzlen] at hj1 ⊢; scalar_tac
+      exact ⟨hacc1, by rw [hval1, heq]⟩
+  · exact ⟨hj, hacc, hval⟩
+
+/-- The digit half of a fused row: the value the `z` loop left behind, plus the
+partial sum `∑_{t<k} row[μ+t] · digit t`.
+
+`pre` is that initial value, and it is *arbitrary* -- which is what makes this a
+statement about accumulating in place rather than about adding two totals.
+`hmax` is what makes the checked `z_len + k` total: the column index reaches
+`μ + n·8 - 1`, and the row it indexes is exactly that wide. -/
+theorem lift_commit_row_loop1_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (row : linalg.PolyVec) (z_len rho_len : Std.Usize) (acc : ring.Rq)
+    (k : Std.Usize) (pre : Rq Φ)
+    (hrow : WfVec (μ + n * 8) row) (hrho : WfRho n w.rho)
+    (hzlen : z_len.val = μ) (hrlen : rho_len.val = n * 8)
+    (hmax : μ + n * 8 ≤ Usize.max) (hk : k.val ≤ n * 8) (hacc : Wf acc)
+    (hval : toRq acc = pre + ∑ t ∈ Finset.range k.val,
+      toRq (row.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+        * digitRq w.rho t) :
+    ringswitch.lift_commit_row_loop1 w row z_len rho_len acc k
+      ⦃ o => Wf o ∧ toRq o = pre + ∑ t ∈ Finset.range (n * 8),
+        toRq (row.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+          * digitRq w.rho t ⦄ := by
+  rw [ringswitch.lift_commit_row_loop1]
+  apply loop.spec_decr_nat (fun s => rho_len.val - s.2.val)
+    (fun s => s.2.val ≤ n * 8 ∧ Wf s.1 ∧
+      toRq s.1 = pre + ∑ t ∈ Finset.range s.2.val,
+        toRq (row.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+          * digitRq w.rho t)
+  · rintro ⟨a1, k1⟩ ⟨hk1, hacc1, hval1⟩
+    dsimp only at hk1 hacc1 hval1
+    simp only [ringswitch.lift_commit_row_loop1.body]
+    by_cases hlt : k1 < rho_len
+    · rw [if_pos hlt]
+      have hklt : k1.val < n * 8 := by rw [← hrlen]; scalar_tac
+      have hidxb : z_len.val + k1.val ≤ Usize.max := by omega
+      simp only [ringswitch.LiftedWitness.impl.rho, bind_tc_ok]
+      step with rho_digit_as_rq_raw_spec w.rho k1 hrho hklt as ⟨digit, hWd, hd⟩
+      step as ⟨idx, hidx⟩
+      have hidx' : idx.val = μ + k1.val := by rw [hidx, hzlen]
+      have hrowlt : idx.val < row.val.length := by rw [hrow.1, hidx']; omega
+      simp only [linalg.PolyVec.get]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hrowlt)
+      have hget : toRq (row.val.getD (μ + k1.val) (alloc.vec.Vec.new cpoly.field.Fp))
+          = toRq r := by
+        rw [hr, ← hidx', List.getD_eq_getElem _ _ hrowlt]
+      step with RqBridge.mul_spec r digit hWr hWd as ⟨tm, hWtm, htm⟩
+      step with RqBridge.add_spec a1 tm hacc1 hWtm as ⟨a2, hWa2, ha2⟩
+      step as ⟨k2, hk2⟩
+      refine ⟨by scalar_tac, hWa2, ?_, ?_⟩
+      · rw [ha2, hval1, htm, hk2, Finset.sum_range_succ, hget, hd, add_assoc]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = n * 8 := by rw [← hrlen] at hk1 ⊢; scalar_tac
+      exact ⟨hacc1, by rw [hval1, heq]⟩
+  · exact ⟨hk, hacc, hval⟩
+
+/-- One row of `lift_commit` is one row of the concrete Ajtai lift commitment.
+
+The two loops above accumulate into one `Rq`, and `hachiLiftCom_com_split` is
+where that single value is recognized as `(D *ᵥ (z ‖ digits(ρ)))ᵢ` -- no
+concatenation is built on either side of the equation. -/
+theorem lift_commit_row_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
+    (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
+    (i : Std.Usize) (hD : WfMat dRows (μ + n * 8) dKey)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hi : i.val < dRows) :
+    ringswitch.lift_commit_row dKey w i
+      ⦃ r => Wf r ∧ toRq r = (InnerOuter.hachiLiftCom Φ 15 16
+        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⟨i.val, hi⟩ ⦄ := by
+  obtain ⟨hWz, hWrho, hzeq, hrhoeq⟩ := hw
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hrholen : (alloc.vec.Vec.len w.rho).val = n := by simpa using hWrho.1
+  have hzlen : (alloc.vec.Vec.len w.z).val = μ := by simpa using hWz.1
+  have hilt : i.val < dKey.val.length := by rw [hD.1]; exact hi
+  rw [ringswitch.lift_commit_row]
+  simp only [linalg.PolyMatrix.row]
+  step as ⟨row, hrowEq⟩
+  have hWrow : WfVec (μ + n * 8) row := by
+    rw [hrowEq]; exact hD.2 _ (List.getElem_mem hilt)
+  have hrow' : row = dKey.val.getD i.val (alloc.vec.Vec.new ring.Rq) := by
+    rw [List.getD_eq_getElem _ _ hilt, hrowEq]
+  simp only [ringswitch.LiftedWitness.impl.z, ringswitch.LiftedWitness.impl.rho,
+    linalg.PolyVec.len, bind_tc_ok]
+  step as ⟨rl, hrl⟩
+  rw [hgd, hrholen] at hrl
+  · step with RqBridge.zero_spec as ⟨acc, hWacc, hacc⟩
+    step with lift_commit_row_loop0_spec (μ := μ) (n := n) w row
+      (alloc.vec.Vec.len w.z) acc 0#usize hWrow hWz hzlen (by simp) hWacc
+      (by simp [hacc]) as ⟨acc1, hWacc1, hacc1v⟩
+    apply spec_mono (lift_commit_row_loop1_spec (μ := μ) (n := n) w row
+      (alloc.vec.Vec.len w.z) rl acc1 0#usize
+      (∑ t ∈ Finset.range μ,
+        toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
+      hWrow hWrho hzlen hrl hmax (by simp) hWacc1 (by simpa using hacc1v))
+    rintro out ⟨hWout, hout⟩
+    refine ⟨hWout, ?_⟩
+    have hfz : ∀ j : Fin μ,
+        toRq (row.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+        = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+            (Fin.castAdd (n * InnerOuter.rhoDigitCount q 16) j) * sw.z j := by
+      intro j
+      rw [← hzeq, hrow']
+      rfl
+    have hfd : ∀ j : Fin (n * InnerOuter.rhoDigitCount q 16),
+        toRq (row.val.getD (μ + j.val) (alloc.vec.Vec.new cpoly.field.Fp))
+          * digitRq w.rho j.val
+        = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+            (Fin.natAdd μ j) * InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j := by
+      intro j
+      have h2 : InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j = digitRq w.rho j.val := by
+        rw [← hrhoeq]
+        exact rhoDigitAsRq_eq_digitRq (n := n) w.rho j.val j.isLt
+      rw [h2, hrow']
+      rfl
+    have hsplit := hachiLiftCom_com_split (dRows := dRows) (μ := μ) (n := n)
+      (toMat (rows := dRows) (cols := μ + n * 8) dKey) sw ⟨i.val, hi⟩
+      (fun t => toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
+      (fun t => toRq (row.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+        * digitRq w.rho t) hfz hfd
+    rw [rhoDigitCount_eq] at hsplit
+    rw [hout, hsplit]
+
+/-- The loop of `lift_commit`: entry `t` already written is row `t` of the
+concrete Ajtai lift commitment, and the length is the counter. -/
+theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
+    (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
+    (rows : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (hD : WfMat dRows (μ + n * 8) dKey) (hw : RepLiftedWitness w sw)
+    (hmax : μ + n * 8 ≤ Usize.max) (hrows : rows.val = dRows) (hi : i.val ≤ dRows)
+    (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
+    (hval : ∀ t : Fin dRows, t.val < i.val →
+      toRq (out.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
+        = (InnerOuter.hachiLiftCom Φ 15 16
+            (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw t) :
+    ringswitch.lift_commit_loop dKey w rows out i
+      ⦃ o => o.val.length = dRows ∧ (∀ y ∈ o.val, Wf y) ∧
+        ∀ t : Fin dRows, toRq (o.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
+          = (InnerOuter.hachiLiftCom Φ 15 16
+              (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw t ⦄ := by
+  rw [ringswitch.lift_commit_loop]
+  apply loop.spec_decr_nat (fun s => rows.val - s.2.val)
+    (fun s => s.2.val ≤ dRows ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ t : Fin dRows, t.val < s.2.val →
+        toRq (s.1.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
+          = (InnerOuter.hachiLiftCom Φ 15 16
+              (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw t)
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [ringswitch.lift_commit_loop.body]
+    by_cases hlt : i1 < rows
+    · rw [if_pos hlt]
+      have hilt : i1.val < dRows := by rw [← hrows]; scalar_tac
+      step with lift_commit_row_spec dKey w sw i1 hD hw hmax hilt as ⟨r, hWr, hr⟩
+      have hbound : o1.val.length < Usize.max := by scalar_tac
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro t ht
+        rw [hi2] at ht
+        rcases Nat.lt_or_ge t.val i1.val with htlt | htge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t.val = o1.val.length := by omega
+          have hteq2 : t = (⟨i1.val, hilt⟩ : Fin dRows) :=
+            Fin.ext (show t.val = i1.val by omega)
+          rw [hteq, ho2, getD_append_eq, hr, hteq2]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = dRows := by rw [← hrows] at hi1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, fun t => hval1 t (by rw [heq]; exact t.isLt)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
 /-- `lift_commit` is the concrete Ajtai commitment map at `(bound,bDig) =
 (15,16)`. -/
 theorem lift_commit_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
@@ -359,12 +634,16 @@ theorem lift_commit_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
         (InnerOuter.hachiLiftCom Φ 15 16
           (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⦄ := by
   rw [ringswitch.lift_commit]
-  step with lift_message_spec w sw hw hmax as ⟨msg, hWmsg, hmsg⟩
-  apply spec_mono (mat_vec_mul_spec (rows := dRows) (cols := μ + n * 8) dKey msg hD hWmsg)
-  rintro out ⟨hWout, hout⟩
-  refine ⟨hWout, ?_⟩
-  rw [hout, hmsg]
-  rfl
+  simp only [linalg.PolyMatrix.rows, linalg.PolyVec.new, alloc.vec.Vec.with_capacity,
+    bind_tc_ok, bind_ok_id]
+  apply spec_mono (lift_commit_loop_spec (dRows := dRows) (μ := μ) (n := n) dKey w sw
+    (alloc.vec.Vec.len dKey) (alloc.vec.Vec.new ring.Rq) 0#usize hD hw hmax
+    (by simp [hD.1]) (by simp) (by simp) (by intro y hy; simp at hy)
+    (by intro t ht; simp at ht))
+  rintro out ⟨hlen, hwf, hvals⟩
+  refine ⟨⟨hlen, hwf⟩, ?_⟩
+  funext t
+  exact hvals t
 
 /-! ## The shortness decision
 

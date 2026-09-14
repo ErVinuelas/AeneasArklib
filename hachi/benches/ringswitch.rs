@@ -153,7 +153,7 @@ const LIFT_MESSAGE_RHO_ROWS: usize = hachi::params::RLIN_ROWS;
 
 /// `lift_commit`'s `z` width: **REDUCED**, from `RLIN_COLS = 57 344`.
 ///
-/// W1. `lift_commit` is `lift_message` followed by `D *ᵥ ·` at
+/// W1. `lift_commit` performs `μ + n·δ = 57 384` schoolbook `ring::mul`s against a `D_ROWS × LIFT_COLS = 1 × 57 384` key (since I2 fused: no `lift_message` in its path) at
 /// `D_ROWS × LIFT_COLS = 1 × 57 384`, i.e. `57 384` schoolbook `ring::mul`s of
 /// `RING_DEGREE² = 2^20` field operations each -- minutes per criterion
 /// iteration. Removal condition: a sub-quadratic `ring::mul` champion, which is

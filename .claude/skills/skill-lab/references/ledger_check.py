@@ -64,7 +64,7 @@ MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswi
            "quadeval", "endpiece", "zerocheck", "sumcheck", "chain"}
 
 CANDIDATE_VERDICTS = {
-    "accepted", "rejected-slower", "rejected-noise", "rejected-mixed",
+    "accepted", "accepted-wall", "rejected-slower", "rejected-noise", "rejected-mixed",
     "tests-failed", "lemma-failed", "not-translatable", "no-strategy-applies",
     "contract-violation", "bench-unusable", "reference",
 }

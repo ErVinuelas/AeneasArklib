@@ -370,10 +370,14 @@ fn lift_message_appends_all_quotient_digits_after_z() {
 fn lift_commit_is_the_matrix_product_of_lift_message() {
     let mut rng = Lcg::new(0x8047_0000_0000_0013);
     let z = rng.next_poly_vec(2);
-    let rho_source = rng.next_rq();
-    let witness = LiftedWitness::new(z, vec![quotient_row(&rho_source)]);
-    let width = 2 + GADGET_DIGITS;
-    let d_key = rng.next_poly_matrix(1, width);
+    let rho_a = rng.next_rq();
+    let rho_b = rng.next_rq();
+    let witness = LiftedWitness::new(z, vec![quotient_row(&rho_a), quotient_row(&rho_b)]);
+    let width = 2 + 2 * GADGET_DIGITS;
+    // dRows = 2: the fused body (Stage 6 I2) recomputes the digit polynomials
+    // per output row, and at dRows = 1 a row helper that ignored `i` would
+    // still pass; n = 2 puts `rho_digit_as_rq`'s row selection at a nonzero row.
+    let d_key = rng.next_poly_matrix(2, width);
     let message = lift_message(&witness);
     let expected = d_key.mat_vec_mul(&message);
     assert!(lift_commit(&d_key, &witness).equals(&expected));

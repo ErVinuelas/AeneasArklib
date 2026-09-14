@@ -1,0 +1,18 @@
+# the_honest_chain_verifies — started 2026-09-14T14:57:15+02:00 on c0f8147, AC=1, 16 cores
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 0.71s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+test the_honest_chain_verifies ... [    51.2s] statement built
+[    68.2s] R^lin statement assembled: 5 x 40976
+[   375.4s] M zeta = y holds
+[   692.9s] lifted witness built, lift width 41016
+[  2010.2s] chain_open done
+[  2201.9s] chain_verify = true
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 2202.22s
+
+# exit 0 at 2026-09-14T15:33:58+02:00

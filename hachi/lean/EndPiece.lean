@@ -1,27 +1,13 @@
 /-
-Target 6's end piece: **statements only**.
+Target 6's end piece, **proved and promoted** (2026-09-09, Aristotle session
+`2266ab16`, together with `ZeroCheck.lean`).
 
-Four obligations, none proved here. Split out of `ZeroCheck.lean` rather than
-bundled with it: the convention in `lean/` is one file per `hachi/src` module
-(`Field`, `Ring`, `RqBridge`, `Scheme`, `EvalSplit`, `Balanced`, `QuadEval`,
-`RingSwitch`), and bundling would also force the two targets to be promoted
-together, which they should not be -- target 4's obligations are independent of
-target 6's.
-
-The cost of the split is a second `LEAN_PATH` hop: this file imports
-`ZeroCheck.lean`, which imports `Ext.lean`, and `lake build` produces no
-`.olean` for anything under `lean-wip/`. The chain is
-
-```sh
-cd hachi
-lake env lean -o /tmp/wiplean/Ext.olean       lean-wip/Ext.lean
-LEAN_PATH="$(lake env printenv LEAN_PATH):/tmp/wiplean" \
-  lake env lean -o /tmp/wiplean/ZeroCheck.olean lean-wip/ZeroCheck.lean
-LEAN_PATH="$(lake env printenv LEAN_PATH):/tmp/wiplean" \
-  lake env lean lean-wip/EndPiece.lean
-```
-
-and the promotion order it forces is `Ext` -> `ZeroCheck` -> `EndPiece`.
+Four headline specs. Split out of `ZeroCheck.lean` rather than bundled with
+it: the convention in `lean/` is one file per `hachi/src` module, and bundling
+would have forced the two targets to be promoted together, which they were not
+obliged to be -- target 4's obligations are independent of target 6's. While
+both were staged the split cost a second `LEAN_PATH` hop (`Ext` -> `ZeroCheck`
+-> `EndPiece`), recorded in `lean-wip/README.md`; promoted, it costs nothing.
 
 `end_piece_check` is where the two walls of the whole scheme meet in one
 function -- conjunct A is `lift_commit`'s `LIFT_COLS` ring products, conjunct C

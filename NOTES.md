@@ -5515,3 +5515,113 @@ jobs green, **205** § 4 lines, all three kernel axioms; `make spec-check`
 155/155/0; 187 tests. Three champions, three campaigns, one day; iteration 1's
 zero-check target is done and `alpha_public_table` at the pin is seconds, not
 hours -- the acceptance test is runnable for the first time.
+
+## Decision: memory walls are a valid reason on their own (2026-09-14)
+
+Found while scoping I2: fusing `lift_message` into `lift_commit` removes a
+448 MiB copy, but that copy is < 1% of `lift_commit`'s row and the
+`lift_message` row does not change when a caller stops calling it, so the accept
+rule -- every target row `faster` -- would reject the plan's own W3 item, and
+W1/W2 have the same shape. Three options were weighed: a calibrated peak-memory
+metric (a new instrument for two or three changes, poor return, and the paper's
+comparison is time anyway -- its README records peak RSS only as a run
+condition, 12.7 GiB at ℓ = 30 on this same laptop); leaving the walls to Stage 7;
+or a separate acceptance category. **The user chose the category**, with the
+time guard kept and the memory figure recorded but not gated: `perf-loop`'s
+`accepted-wall` clause (no row `slower`, proof paid as usual, bytes-before →
+bytes-after at the pin written into the row, peak RSS if measured, the wall
+named). `make gains` will show such rows near zero, which is the truth. Time
+stays the primary, strict criterion; memory is recorded because the end-to-end
+comparison has to run in 30 GiB. Written into the skill, the ledger validator's
+verdict enum, `INSTRUCTIONS.md` and `PLAN_STAGE6.md`; I2 stays queued after I3
+under the clause.
+
+## The honest chain verifies at the pin (2026-09-14)
+
+`the_honest_chain_verifies` -- Stage 5's acceptance property, an honest
+transcript at `m₀ = 26`, one block, the real digit counts -- ran to completion
+for the first time and **passed**: `chain_verify = true` at 2 202 s (36.7 min),
+on `c0f8147` with all three iteration-1 champions, on mains, 5.9 GiB resident
+at the widest point observed, log in `logs/runs/honest-chain-20260914.log`.
+The stage lines: statement 51 s, `R^lin` assembled 68 s (`5 × 40 976`),
+`M ζ = y` 375 s, lifted witness 693 s (lift width 41 016), `chain_open`
+2 010 s, `chain_verify` 2 202 s. So the honest prover is ~22 min and the
+composed verifier ~3 min; the α table that made this test impossible three
+days ago (weeks, by the arithmetic in § "Stage 6 opens") is now inside the
+noise of those figures. What remains in the 22 minutes is what the plan
+already names: the 26 sumcheck rounds' range factor (brief 5, I5) and
+`lift_commit`'s 41 016 schoolbook ring products (I4). This is the by-value
+completeness check of the composed extracted scheme that the per-link proofs
+do not provide; it is `#[ignore]`d for cost and belongs in the runbook after
+any change to the protocol layer, run from `logs/runs/`.
+
+**Candidate D, rejected, and what it says about the harness.** The allocation
+family's first candidate pre-sized the *outer* vectors (`PolyVec::add`/`sub`'s
+`Vec<Rq>`, `lift_message`'s, and `Rq::copy`'s `Vec<Fp>`), a proof-free change
+since `with_capacity` is erased by the extraction. Run
+`20260914T1534+0200-356088c0`: `lift_message` −10.9% `faster` (57 344 pre-sized
+copies), `vec_add`/`vec_sub` −1.7%/−1.2% `noise` -- so `rejected-noise`, nothing
+landed. The lesson is where the 4× overhead of `vec_add` over `ring/add`
+actually lives: not in growing an 8192-pointer vector, but in `Rq::add`
+allocating a fresh 1024-word `Vec` by `Vec::new` + `push` -- ten reallocations,
+about twice the data copied -- once per element. The fix is the ring-level
+pre-sizing, and there the loop's own rule bites: `ring/add/1024` is 1.1 µs, inside
+the 100 ns–2 µs band the certified sweep found false verdicts in, so a candidate
+on `Rq::add` cannot be judged on its own row, and the accept rule does not count
+its callers' rows. That is the standing harness gap (§ "The certified null-slot
+sweep") now blocking a concrete, probably ~3× win on two 40 ms rows; closing it --
+a per-band floor from a second, ~1 µs-scale control per binary -- is the next
+instrument change worth its cost.
+
+## I2 opens: the lift commitment without its concatenation (2026-09-14)
+
+Candidate E, `opt-inplace-buffers`, the plan's wall W3: `lift_commit` was
+`d_key.mat_vec_mul(&lift_message(w))`, and `lift_message` materializes
+`z ‖ digits(ρ)` -- 57 384 ring elements, 448 MiB at the pin, 57 344 `Rq::copy`
+calls -- for `mat_vec_mul` to read once. Now each output row is accumulated in
+place, the `μ` columns of `z` first and the `n·δ` digit columns after, with each
+digit polynomial built for the column that reads it (`lift_commit_row`, a new
+private helper, frozen; `lean/Opt.lean` § "Candidate E": `lift_commit.opt`,
+`opt_eq_spec` unconditional and symbolic in the digit base -- the literal width
+`μ + n * 8` makes `whnf` re-run `rhoDigitCount q 16 = 8` and time out, so the
+lemma bridges at the triple as the specs do; the column analogue of ArkLib's
+`matVecMul_append_rows`). Operation count unchanged; peak inside `lift_commit`
+≈ 1.3 GiB → ≈ 896 MiB at the pin (the arithmetic is in the ledger row); one
+caveat recorded, the digit polynomials are rebuilt per output row, nothing at
+`dRows = 1`. **The first `accepted-wall` row**: run `20260914T1629+0200-f5298aa2`,
+`lift_commit/4` +0.5% and `lift_message/57344` +0.9% against the champion, both
+`noise`, neither `slower`, bias 2.1% -- the time guard the clause keeps; the
+speedup column is honestly nothing, and `make gains` will say so. A merge slip
+worth one line: appending a candidate file that carries its own
+`end HachiEquiv.Opt` gives "Invalid `end`: There is no current scope to end";
+strip it before the build, not after.
+
+Champion review of E: the Rust accepted as written -- operand order exact against
+the Lean folds, every checked index covered by the existing `WfMat` and
+`hmax` hypotheses, no new precondition -- with a widened oracle test (`dRows = 2`,
+`n = 2`, so a row helper that ignored `i` cannot pass) and doc fixes. One
+recommendation declined, on the record: hoisting `w.z()` / `w.rho()` out of the
+two loop bodies (they are accessor calls, so Aeneas keeps a bind per iteration
+where `lift_message`'s field reads hoist) would give the three ringswitch
+row-accumulators one shape, but it changes the extracted loop signatures for no
+machine-code difference, and the prover was already working against the
+current model. Recorded as a shape preference for the next time
+`lift_commit_row` is touched, not as debt. One behavioural note worth keeping:
+the old `dot` truncated to `min(row, message)` and returned a wrong value on a
+key narrower than `μ + n·δ`; the fused body fails there. Inside the spec's
+`WfMat` hypothesis the two agree, so the headline statement is unchanged.
+
+**Campaign E closed the same evening.** Three typechecks: the pure column split
+re-established in `RingSwitch.lean` as `hachiLiftCom_com_split`, kept symbolic in
+`rhoDigitCount q 16` inside the `Fin` index type with `fz`/`fd` abstractions
+that turn the loops' `Finset.range` sums into `Fin` sums without rewriting under
+a binder -- the shape Opt.lean's own note asked for -- then two row-loop specs
+(the digit loop takes the `z` sum as an arbitrary `pre`, which is what makes it a
+statement about in-place accumulation), the row spec, the outer loop, and the
+headline byte-identical. `make build` 3872 jobs, **208** § 4 lines, three kernel
+axioms each; `make spec-check` 155/155/0; 187 tests. **I2 is closed**: W3 is
+down, `lift_commit` no longer builds the 448 MiB vector, and the ledger's first
+`accepted-wall` row has its campaign row beside it (13 min of prover wall
+time). What I2 leaves is the `lift_message` row itself, a copy at the
+translation ceiling's floor whose headroom is the ring-level pre-sizing on the
+evening list.

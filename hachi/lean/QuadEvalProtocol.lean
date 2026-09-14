@@ -1,33 +1,23 @@
 /-
-Target 2's QuadEval **protocol layer**: statements only.
+Target 2's QuadEval **protocol layer**, **proved and promoted** (2026-09-09,
+Aristotle session `982bd0af`, eleven obligations to zero, no headline
+signature changed).
 
-Eleven obligations, none proved here. They are the debt `make spec-check`
-found on 2026-09-08: the QuadEval fold's arithmetic was proved and promoted
-(`lean/QuadEval.lean`, Aristotle session `14b9bf77`), but eleven of the
-module's items -- its three carriers, the honest prover's three functions, the
-two gadget-level helpers and the two output relations -- carry `Mirrors` lines
-and had no `_spec` anywhere. `coverage` asked "is it measured" and answered
-yes; nothing asked "is it stated". This file is the answer to the second
-question for `quadeval`.
+Eleven headline specs, the debt `make spec-check` found on 2026-09-08: the
+QuadEval fold's arithmetic was proved and promoted first (`lean/QuadEval.lean`,
+Aristotle session `14b9bf77`), but eleven of the module's items -- its three
+carriers, the honest prover's three functions, the two gadget-level helpers and
+the two output relations -- carried `Mirrors` lines and had no `_spec` anywhere.
+`coverage` asked "is it measured" and answered yes; nothing asked "is it
+stated". This file is the answer to the second question for `quadeval`.
 
-# What this file rests on, and why it is staged rather than promoted
+# What this file rests on
 
-It imports the promoted `QuadEval.lean`, which is legal here (a wip file may
-import a promoted file -- `lean-wip/README.md` § "Working here") and which is
-what supplies the whole representation kit: `toVec`/`WfVec`, `toMat`/`WfMat`,
-`toParams`/`WfParams`, `toOpening`, `toRq`/`Wf`, and the two digit maps `ddBal`
-(full width, base 16, 8 digits) and `bddZ` (bounded, base 16, `τ = 5`,
-`zBound = 131072`). Nothing new is needed at the ring level; what is new is the
-four representations below.
-
-Because it imports only promoted files, this one needs **no `LEAN_PATH`
-detour**:
-
-```sh
-cd hachi
-lake build
-lake env lean lean-wip/QuadEvalProtocol.lean
-```
+It imports the promoted `QuadEval.lean`, which supplies the whole representation
+kit: `toVec`/`WfVec`, `toMat`/`WfMat`, `toParams`/`WfParams`, `toOpening`,
+`toRq`/`Wf`, and the two digit maps `ddBal` (full width, base 16, 8 digits) and
+`bddZ` (bounded, base 16, `τ = 5`, `zBound = 131072`). Nothing new is needed at
+the ring level; what is new is the four representations below.
 
 # The four conventions this file follows
 

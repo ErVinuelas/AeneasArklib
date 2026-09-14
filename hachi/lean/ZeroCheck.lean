@@ -1,12 +1,21 @@
 /-
-Target 4's zero-check link: **statements only**.
+Target 4's zero-check link, **proved and promoted** (2026-09-09, Aristotle
+session `2266ab16`, thirteen obligations to zero together with `EndPiece.lean`).
 
-Twenty obligations, none proved here. Target 6's end piece is a separate file,
-`EndPiece.lean`, which imports this one -- one file per module, as `lean/` has. They sit on `lean-wip/Ext.lean`'s
-extension-field layer, which is why this file is staged rather than promoted:
-`Ext.lean` still carries the eight ported `Ext4` arithmetic specs, and a wip
-file importing another wip file needs the `LEAN_PATH` detour of
-`lean-wip/README.md` § "Working here".
+Twenty-five headline specs cover the sixteen `zerocheck` items and the three
+`ringswitch` items the α side introduced (`c_eval_at`, `c_eval_at_modulus`,
+`RlinStatement`); `Check.lean` § 4 prints their axioms. The file was staged in
+`lean-wip/` on `lean-wip/Ext.lean`'s extension-field layer and promoted with it;
+that history is in `lean-wip/README.md`. Since Stage 6 iteration 1 (2026-09-14)
+it also carries the specs of the optimized bodies: the running-power `c_eval_at`
+(`(acc, pw, k)` loops), the row-hoisted table builders (`w_table_row`,
+`c_w_table_mle_values`, the nested `h_zero` / `h_zero_is_zero` loops, the layer
+fold of `w_table_mle_eval`) and the hoisted α-side tables (`alpha_pow_table`,
+`eq_weight_table`, `m_alpha_table`), each stated against the same ArkLib
+definition as before; the pure algebra those bodies rest on is in
+`lean/Opt.lean`, which imports this file -- so the loop proofs here re-establish
+their invariants directly and the pure row lemma (`wTableRow`,
+`wTableFlat_eq_row`) lives here.
 
 # The two conventions this file follows, both deliberate
 
