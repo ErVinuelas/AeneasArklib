@@ -1221,12 +1221,17 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- `ext4Params.d` and `ext4Params.toExtensionParams.d` are definitionally equal
 -- and syntactically distinct, which every tactic notices and the kernel does
 -- not. Exact: no model-artefact hypothesis anywhere in this file.
+--
+-- `ext_add_assign_spec` and `ext_mul_assign_spec` stood here until the `eq̃`
+-- kernel stopped going through `cpoly::multilinear::eq_tilde`: `+=` and `*=` on
+-- `Ext4` were reached only from inside `lagrange_basis` and `dot`, so the two
+-- impls left `Generated.lean` with them and a `#print axioms` line naming a
+-- declaration that no longer exists would not compile. `Ext.lean` § "Scope: the
+-- operations hachi's model contains" is where that ledger is kept.
 #print axioms HachiEquiv.Ext.fp_is_zero_spec
 #print axioms HachiEquiv.Ext.ext_add_spec
 #print axioms HachiEquiv.Ext.ext_sub_spec
 #print axioms HachiEquiv.Ext.ext_mul_spec
-#print axioms HachiEquiv.Ext.ext_add_assign_spec
-#print axioms HachiEquiv.Ext.ext_mul_assign_spec
 #print axioms HachiEquiv.Ext.ext_from_base_spec
 #print axioms HachiEquiv.Ext.ext_is_zero_spec
 

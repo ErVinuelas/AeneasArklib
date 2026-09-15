@@ -4747,63 +4747,24 @@ theorem toEvals_get {m : ℕ} (tab : cpoly.multilinear.MultilinearEvals) (t : Fi
     (toEvals (m := m) tab).get t = toExt (tab.val.getD t.val cpoly.field.Ext4.ZERO) :=
   Vector.get_ofFn _ t
 
-/-- The multilinear extension of a cube table, at an arbitrary point, written as
-the flat-index sum the extracted dot product forms. -/
-theorem cMultilinearExtension_eval_flat {m : ℕ} (evals : (Fin m → Fin 2) → F) (a : Fin m → F) :
-    (InnerOuter.cMultilinearExtension m evals).eval a =
-      ∑ t : Fin (2 ^ m), evals (finFunctionFinEquiv.symm t) *
-        ∏ j : Fin m, (if (finFunctionFinEquiv.symm t) j = 1 then a j else 1 - a j) := by
-  rw [InnerOuter.cMultilinearExtension_eval, InnerOuter.eval_MLE_eq_sum]
-  exact (Equiv.sum_comp finFunctionFinEquiv.symm
-    (fun x : Fin m → Fin 2 => evals x * ∏ j : Fin m, if x j = 1 then a j else 1 - a j)).symm
-
-/-- `eq̃(p, q) = Σ_y eq̃(p, y) · eq̃(q, y)`: the kernel as a cube sum, which is
-what `eq_tilde` computes (a Lagrange basis dotted against a Lagrange basis). -/
-theorem eqProd_eq_flat_sum {m : ℕ} (p q : Fin m → F) :
-    eqProd p q =
-      ∑ t : Fin (2 ^ m),
-        (∏ j : Fin m, if (finFunctionFinEquiv.symm t) j = 1 then p j else 1 - p j) *
-          (∏ j : Fin m, if (finFunctionFinEquiv.symm t) j = 1 then q j else 1 - q j) := by
-  rw [← cEqualityPolynomial_eval_eq_eqProd p q, InnerOuter.cEqualityPolynomial,
-    cMultilinearExtension_eval_flat]
-
-/-- `cpoly::multilinear::eq_tilde` computes the equality kernel at the two
-represented points. -/
-theorem eq_tilde_spec {m : ℕ} (w x : alloc.vec.Vec cpoly.field.Ext4)
-    (hw : WfPoint m w) (hx : WfPoint m x) (hm : 2 ^ m ≤ Usize.max) :
-    cpoly.multilinear.eq_tilde (alloc.vec.Vec.deref w) (alloc.vec.Vec.deref x)
-      ⦃ out => Reduced out ∧
-        toExt out = eqProd (toPoint (m := m) w) (toPoint (m := m) x) ⦄ := by
-  rw [cpoly.multilinear.eq_tilde]
-  step with cpoly_lagrange_basis_spec (m := m) w hw hm as ⟨bw, hbwlen, hbwred, hbwval⟩
-  rw [cpoly.multilinear.MultilinearEvals.eval]
-  step with cpoly_lagrange_basis_spec (m := m) x hx hm as ⟨bx, hbxlen, hbxred, hbxval⟩
-  apply spec_mono (cpoly_dot_spec (k := 2 ^ m) (alloc.vec.Vec.deref bw)
-    (alloc.vec.Vec.deref bx) (sliceReduced_deref hbwred) (sliceReduced_deref hbxred)
-    (by simpa using hbwlen) (by simpa using hbxlen))
-  rintro out ⟨hR, hout⟩
-  refine ⟨hR, ?_⟩
-  rw [hout, eqProd_eq_flat_sum,
-    ← Fin.sum_univ_eq_sum_range (fun t =>
-      toExt ((alloc.vec.Vec.deref bw).val.getD t cpoly.field.Ext4.ZERO) *
-        toExt ((alloc.vec.Vec.deref bx).val.getD t cpoly.field.Ext4.ZERO)) (2 ^ m)]
-  refine Finset.sum_congr rfl fun t _ => ?_
-  simp only [deref_val]
-  rw [hbwval t.val t.isLt, hbxval t.val t.isLt,
-    lagrangeBasis_get_eq_cube_prod w t.val t.isLt,
-    lagrangeBasis_get_eq_cube_prod x t.val t.isLt]
-
 set_option maxHeartbeats 1000000 in
 /-- `final_check` decides `finalCheck` (`FinalEval.lean:99`) at round `m₀`: the
 three conjuncts, the third the `u64` bound compare. `m₀` is read off `tau0`;
-`2 ^ m₀ ≤ Usize.max` is `cube_size`'s and cpoly's `table_len` shift's; `hmax`
+`2 ^ m₀ ≤ Usize.max` is `cube_size`'s and `alpha_public_mle_eval`'s; `hmax`
 is `alpha_public_evals_spec`'s. The first check in the chain that can reject.
 
-The statement is unchanged; only the route to `Ã(a)` is. The linear claim's
-factor now arrives from one `alpha_public_mle_eval_spec` step -- the tensor
-split, two small tables and two folds -- where it used to be assembled from
-`alpha_public_table_spec`, `cpoly_lagrange_basis_spec` and `cpoly_dot_spec` over
-the whole `2 ^ m₀` cube (candidate J). -/
+The statement is unchanged; only the two routes into it are. The linear claim's
+factor arrives from one `alpha_public_mle_eval_spec` step -- the tensor split,
+two small tables and two folds -- where it used to be assembled from
+`alpha_public_table_spec` and the specs of cpoly's `lagrange_basis` and `dot`
+over the whole `2 ^ m₀` cube (candidate J). And the kernel factor `eq̃(τ₀, a)`
+now comes from hachi's own `eq_prefix` at `i = m₀`, the `m₀`-factor closed form,
+rather than from `cpoly::multilinear::eq_tilde`'s pair of `2 ^ m₀` Lagrange
+bases and their dot product (candidate K) -- which is why none of those cpoly
+functions is in the model any more, and why their specs are gone rather than
+parked. `eq_prefix_spec` states the kernel over the bound prefix `τ₀|<i`; at
+`i = m₀` the prefix is all of `τ₀`, which is the `Fin.castLE le_rfl` step
+below. -/
 theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStatement)
     (y_prime : cpoly.field.Ext4) (bound : Std.U64)
     (ss : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ m₀ m₁ m₀)
@@ -4823,7 +4784,11 @@ theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStat
   set m0 : Std.Usize := alloc.vec.Vec.len stmt.zc.tau0 with hm0def
   clear_value m0
   subst hm0v
-  step with eq_tilde_spec stmt.zc.tau0 stmt.challenges hWtau0 hWc hm0 as ⟨eqall, hReqall, heqall⟩
+  step with eq_prefix_spec (m₀ := m0.val) (i := m0.val) stmt.zc.tau0 stmt.challenges
+    hWtau0 hWc le_rfl as ⟨eqall, hReqall, heqall⟩
+  rw [show (fun k : Fin m0.val =>
+      toPoint (m := m0.val) stmt.zc.tau0 (Fin.castLE le_rfl k))
+      = toPoint (m := m0.val) stmt.zc.tau0 from rfl] at heqall
   step with alpha_public_mle_eval_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁)
     stmt.zc.rlin ss.zc.rlin stmt.zc.alpha stmt.zc.tau1 stmt.challenges hr hRalpha hWtau1
     hWc hm0 hmax as ⟨amle, hRamle, hamle⟩

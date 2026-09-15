@@ -6033,3 +6033,43 @@ and the dot. Five positional loop specs for the new item, two of them proved by
 into `Sumcheck.lean`, the house pattern; `Opt.lean`'s `opt_eq_spec` now reuses
 them. 26 minutes, two typecheck iterations, no retries, no intervention. Build
 green at 240 § 4 lines, `spec-check` 155/155/0. Ledger row 20.
+
+## Candidate K: the equality factor in closed form (2026-09-15, afternoon)
+
+The other half of § "A correction to the verifier profile". One line in
+`final_check`: hachi's own `eq_prefix` over the whole of `τ₀` -- `m₀` factors
+`τ_k·a_k + (1 − τ_k)(1 − a_k)` -- in place of cpoly's `eq_tilde`, which is
+`lagrange_basis(w).eval(x)` and so builds two `2^m₀` bases and a dot for a
+value that is a product of `m₀` terms. No new item, no new Lean: the algebra is
+the `eqProd` characterization both `eq_prefix_spec` and `eq_tilde_spec` already
+concluded, and a test pins the closed form against cpoly's form and the test
+file's reference. Approved by the user as its own candidate, after J, so that
+each strategy keeps its own number.
+
+**Accepted on two runs against champion J**: −87.9% (bias 4.6%) and −87.8%
+(bias 5.8%); the row went from 807 µs to 98 µs. J and K together take
+`final_check` from the two `2^m₀` walls it had -- at the pin two 2 GiB tables
+and two 2 GiB bases, 99 s -- to two small folds and `m₀` factors, milliseconds
+and about 2 MiB. The verifier's 190 s becomes about 90 s projected; what is left
+is `end_piece_check` recomputing the lift commitment, which is the multiplier's
+(I4). Ledger row 21.
+
+**What the extraction did.** With `eq_tilde` gone, the crate no longer reaches
+cpoly's `lagrange_basis`, `dot`, `MultilinearEvals::eval`, `table_len`, nor the
+`AddAssign`/`MulAssign` impls on `Ext4` those used, and all of them left the
+model -- "the model contains what the crate reaches". Their Aeneas specs
+(`eq_tilde_spec`, `cpoly_lagrange_basis_spec`, `cpoly_dot_spec`, the assign
+specs) cannot be stated any more and go with them; a spec about code the crate
+does not contain is not proof debt, it is a statement about nothing. The
+campaign records which declarations left.
+
+**Campaign K closed (2026-09-15, ~15:45).** `final_check_spec` carried verbatim;
+its first step now `eq_prefix_spec` at `i = m₀`, where `Fin.castLE le_rfl`
+collapses by `rfl`. Nine specs deleted with the code they specified --
+`eq_tilde_spec`, the `lagrange_basis` and `dot` loop specs, `table_len`, the two
+`Ext4` assign specs -- and two pure helpers that served only the first; hachi's
+own `evalsplit::lagrange_basis` and `linalg::dot` specs, and the pure
+`lagrangeBasis` lemmas still in use, stay. Ten minutes, no retries. Build green
+at 238 § 4 lines, `spec-check` 155/155/0. Ledger row 22. With J and K the
+verifier side of I5 is closed; the prover half of S4, the α table carried as
+two factors through the rounds under the wall rule, is what remains of brief 5.

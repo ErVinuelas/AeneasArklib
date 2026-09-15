@@ -262,12 +262,14 @@ fn cube_size(vars: usize) -> usize {
 ///
 /// Mirrors `cEqualityPolynomial` at its bound prefix.
 ///
-/// This is cpoly's `eq_tilde` (`multilinear.rs:248`) on a *prefix* of `tau0`,
-/// and it is written out here rather than reused because reuse would need
-/// `&tau0[..i]`: this crate's extracted model contains no subslice operation
-/// anywhere, and introducing one for a three-line product is an extraction risk
-/// for no gain. [`final_check`], which needs the kernel over *all* of `τ₀`,
-/// calls cpoly's function directly.
+/// This is the `i`-factor closed form of the kernel on a *prefix* of `tau0`,
+/// written out here rather than through cpoly: cpoly's `eq_tilde`
+/// (`multilinear.rs:248`) is `lagrange_basis(w).eval(x)` -- two `2^i` tables
+/// and a dot, not a product of `i` factors -- and reusing it would also need
+/// `&tau0[..i]`, a subslice this crate's extracted model contains nowhere.
+/// [`final_check`] needs the kernel over *all* of `τ₀` and calls this at
+/// `i = m₀` (Stage 6 candidate K; before it, it called cpoly's function and
+/// paid the two `2^m₀` tables).
 pub fn eq_prefix(tau0: &Vec<Ext4>, challenges: &Vec<Ext4>) -> Ext4 {
     let i: usize = challenges.len();
     let mut acc: Ext4 = Ext4::ONE;
@@ -942,9 +944,9 @@ pub fn honest_compute_y(
 ///
 /// Three conjuncts in the specification's order: the range claim
 /// `eq̃(τ₀, a)·P_b(y′) = target₀`, the linear claim `y′·Ã(a) = target_α`, and
-/// the bound-sanity fact `bound ≤ rlin.bound`. The first factor uses cpoly's
-/// `eq_tilde` over the whole of `τ₀` -- the point where [`eq_prefix`]'s prefix
-/// form is not needed, since at `i = m₀` the prefix *is* the whole vector.
+/// the bound-sanity fact `bound ≤ rlin.bound`. The first factor is
+/// [`eq_prefix`] over the whole of `τ₀`: at `i = m₀` the prefix *is* the whole
+/// vector, and the prefix form is the closed form.
 ///
 /// This is the first check in the chain that can actually reject: every earlier
 /// link's verifier is a pass-through.
@@ -953,11 +955,16 @@ pub fn honest_compute_y(
 /// tensor-split evaluation, two small tables and two folds -- and not by
 /// building the `2^m₀` table and taking its Lagrange dot (opt:
 /// `HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec`, `lean/Opt.lean`
-/// § "Candidate J"). At the pin that is the difference between 99 s and
-/// milliseconds, and between a 2 GiB table plus a 2 GiB basis and 2 MiB.
+/// § "Candidate J"). The range claim's `eq̃(τ₀, a)` is [`eq_prefix`] over the
+/// whole of `τ₀` -- the `m₀`-factor closed form -- and not cpoly's
+/// `eq_tilde`, which is `lagrange_basis(τ₀).eval(a)`: two `2^m₀` bases and a
+/// dot (candidate K; `eq_prefix_spec` at `i = m₀` concludes the `eqProd` the
+/// old `eq_tilde` spec did, and `eq_tilde` itself has left this crate's model
+/// with its callers). At the pin the two together are the difference
+/// between 99 s and milliseconds, and between four 2 GiB tables and 2 MiB.
 pub fn final_check(stmt: &RoundStatement, y_prime: Ext4, bound: u64) -> bool {
     let zc: &NestedZeroCheckStmt = stmt.zc();
-    let eq_all: Ext4 = cpoly::multilinear::eq_tilde(zc.tau0(), stmt.challenges());
+    let eq_all: Ext4 = eq_prefix(zc.tau0(), stmt.challenges());
     let a_mle: Ext4 = alpha_public_mle_eval(zc.rlin(), zc.alpha(), zc.tau1(), stmt.challenges());
     eq_all * crate::zerocheck::range_product(y_prime) == stmt.target_zero()
         && y_prime * a_mle == stmt.target_alpha()

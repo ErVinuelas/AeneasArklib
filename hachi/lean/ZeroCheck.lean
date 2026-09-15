@@ -1119,18 +1119,28 @@ theorem c_w_table_mle_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
   simp only [cpoly.multilinear.MultilinearEvals.from_values, WP.spec_ok]
   exact ⟨⟨hlen, hred⟩, toEvals_eq_cWTableMle sw o hval⟩
 
-/-! ### `cpoly`'s own multilinear evaluation
+/-! ### The Lagrange basis at a represented point
 
-`w_table_mle_eval` is this crate's only caller of `cpoly::multilinear`'s
-`MultilinearEvals::eval`, which is `dot(table, lagrange_basis(point))` --
-exactly CompPoly's `CMlPolynomialEval.eval`, a dot product of the table against
-the Lagrange basis of the point (`Multilinear/Basic.lean:524`). The five
-helpers below are the extracted side of that pair; they are stated on `Slice`s,
-which is how both functions take their arguments. -/
+One pure lemma, used by the `h_alpha` constraint block: entry `t` of CompPoly's
+`CMlPolynomialEval.lagrangeBasis` at a represented point, as the bit product the
+specification's own constraint rows build.
+
+This section used to also carry the extracted side of `cpoly::multilinear`'s
+`MultilinearEvals::eval` -- `table_len`, the two `lagrange_basis` loops,
+`lagrange_basis` itself, the `dot` loop and `dot`, five triples on `Slice`s.
+`final_check` was the last caller in the crate, through
+`cpoly::multilinear::eq_tilde`, and once it was rerouted through hachi's own
+`eq_prefix` none of those six functions is reachable any more, so none of them is
+in `Generated.lean` and their specs are deleted rather than parked. Nothing above
+lost a claim: the multilinear evaluation this crate performs is the `evalMleLayer`
+fold below, which CompPoly proves equal to the Lagrange dot
+(`eval_mle_eq_eval`, `CompPoly/Multilinear/Basic.lean:574`). See NOTES.md
+§ "The model contains what the crate reaches". -/
 
 /-- Entry `t` of `CMlPolynomialEval.lagrangeBasis` at a represented point, as
-the bit product both extracted loops build (`Constraints.lean:845-847`; the bit
-product does **not** cancel against `finFunctionFinEquiv`). -/
+the bit product the specification's constraint rows build
+(`Constraints.lean:845-847`; the bit product does **not** cancel against
+`finFunctionFinEquiv`). -/
 theorem lagrangeBasis_get_toPoint {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field.Ext4)
     (t : Fin (2 ^ m₁)) :
     (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m₁) tau1))).get t
@@ -1143,226 +1153,6 @@ theorem lagrangeBasis_get_toPoint {m₁ : ℕ} (tau1 : alloc.vec.Vec cpoly.field
   refine Finset.prod_congr rfl (fun s _ => ?_)
   simp only [BitVec.getLsb_eq_getElem, Fin.getElem_fin, BitVec.getElem_ofFin, Vector.get_ofFn,
     toPoint]
-
-/-- `cpoly::multilinear::table_len` is `2 ^ vars`: the shift cannot wrap,
-because the table it sizes fits a `usize` by hypothesis. -/
-theorem cpoly_table_len_spec {m : ℕ} (vars : Std.Usize) (hvars : vars.val = m)
-    (hm : 2 ^ m ≤ Usize.max) :
-    cpoly.multilinear.table_len vars ⦃ out => out.val = 2 ^ m ⦄ := by
-  have hnb : Usize.numBits = System.Platform.numBits := by
-    simp only [Usize.numBits, UScalarTy.Usize_numBits_eq]
-  have hsize : Usize.size = 2 ^ Usize.numBits := Usize.size_def
-  have hmax : Usize.max = 2 ^ Usize.numBits - 1 := Usize.max_def
-  have hlt : 2 ^ m < 2 ^ Usize.numBits := by
-    have hpos : 0 < (2 : ℕ) ^ Usize.numBits := Nat.two_pow_pos _
-    omega
-  have hbits : vars.val < System.Platform.numBits := by
-    rw [hvars, ← hnb]
-    by_contra hcon
-    exact absurd (Nat.pow_le_pow_right (by norm_num) (by omega) :
-      (2 : ℕ) ^ Usize.numBits ≤ 2 ^ m) (by omega)
-  rw [cpoly.multilinear.table_len]
-  apply spec_mono (Std.Usize.ShiftLeft_spec 1#usize vars hbits)
-  rintro out ⟨hout, -⟩
-  have hone : (1#usize : Std.Usize).val = 1 := by scalar_tac
-  rw [hout, hvars, hsize, Nat.shiftLeft_eq, hone, one_mul, Nat.mod_eq_of_lt hlt]
-
-/-- The inner loop of `cpoly::multilinear::lagrange_basis`: the accumulator is
-the running bit product of the index, and `mq` the running quotient. -/
-theorem cpoly_lagrange_basis_inner_loop_spec {m : ℕ} (point : Slice cpoly.field.Ext4)
-    (i vars : Std.Usize) (acc : cpoly.field.Ext4) (mq j : Std.Usize)
-    (hlen : point.val.length = m) (hred : SliceReduced point) (hvars : vars.val = m)
-    (hj : j.val ≤ m) (hacc : Reduced acc) (hq : mq.val = i.val / 2 ^ j.val)
-    (hval : toExt acc = ∏ s ∈ Finset.range j.val,
-      (if Nat.testBit i.val s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-        else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO))) :
-    cpoly.multilinear.lagrange_basis_loop0_loop0 point vars acc mq j
-      ⦃ out => Reduced out ∧ toExt out = ∏ s ∈ Finset.range m,
-        (if Nat.testBit i.val s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-          else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO)) ⦄ := by
-  rw [cpoly.multilinear.lagrange_basis_loop0_loop0]
-  apply loop.spec_decr_nat (fun st => m - st.2.2.val)
-    (fun st => st.2.2.val ≤ m ∧ st.2.1.val = i.val / 2 ^ st.2.2.val ∧ Reduced st.1 ∧
-      toExt st.1 = ∏ s ∈ Finset.range st.2.2.val,
-        (if Nat.testBit i.val s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-          else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO)))
-  · rintro ⟨a1, q1, j1⟩ ⟨hj1, hq1, hR1, hv1⟩
-    dsimp only at hj1 hq1 hR1 hv1
-    simp only [cpoly.multilinear.lagrange_basis_loop0_loop0.body]
-    by_cases hlt : j1 < vars
-    · rw [if_pos hlt]
-      have hjlt : j1.val < m := by rw [← hvars]; scalar_tac
-      have hidx : j1.val < point.val.length := by rw [hlen]; exact hjlt
-      have hRget : Reduced point.val[j1.val] := hred _ (List.getElem_mem hidx)
-      have hgetD : point.val.getD j1.val cpoly.field.Ext4.ZERO = point.val[j1.val] :=
-        List.getD_eq_getElem _ _ hidx
-      step as ⟨bit, hbit⟩
-      have hbitv : bit.val = i.val / 2 ^ j1.val % 2 := by rw [hbit, hq1]
-      by_cases hb : bit = 1#usize
-      · have hbitone : Nat.testBit i.val j1.val = true := by
-          rw [Nat.testBit_eq_decide_div_mod_eq, decide_eq_true_eq, ← hbitv]
-          scalar_tac
-        rw [if_pos hb]
-        step as ⟨e, he⟩
-        step with ext_mul_assign_spec a1 e hR1 (by rw [he]; exact hRget) as ⟨a2, hR2, ha2⟩
-        step as ⟨q2, hq2⟩
-        step as ⟨j2, hj2⟩
-        have hj2v : j2.val = j1.val + 1 := by scalar_tac
-        refine ⟨by omega, ?_, hR2, ?_, by omega⟩
-        · rw [hq2, hq1, hj2v, pow_succ, Nat.div_div_eq_div_mul]
-        · rw [ha2, hv1, hj2v, Finset.prod_range_succ, he, if_pos hbitone, hgetD]
-      · have hbitzero : Nat.testBit i.val j1.val = false := by
-          rw [Nat.testBit_eq_decide_div_mod_eq, decide_eq_false_iff_not, ← hbitv]
-          intro h
-          exact hb (by scalar_tac)
-        rw [if_neg hb]
-        step as ⟨e, he⟩
-        step with ext_sub_spec cpoly.field.Ext4.ONE e reduced_ONE (by rw [he]; exact hRget)
-          as ⟨fac, hRfac, hfac⟩
-        step with ext_mul_assign_spec a1 fac hR1 hRfac as ⟨a2, hR2, ha2⟩
-        step as ⟨q2, hq2⟩
-        step as ⟨j2, hj2⟩
-        have hj2v : j2.val = j1.val + 1 := by scalar_tac
-        refine ⟨by omega, ?_, hR2, ?_, by omega⟩
-        · rw [hq2, hq1, hj2v, pow_succ, Nat.div_div_eq_div_mul]
-        · rw [ha2, hv1, hj2v, Finset.prod_range_succ, hfac, he, if_neg (by simp [hbitzero]),
-            hgetD, toExt_ONE]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : j1.val = m := by rw [← hvars] at hj1 ⊢; scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hj, hq, hacc, hval⟩
-
-/-- The outer loop of `cpoly::multilinear::lagrange_basis`: entry `t` already
-pushed is the bit product of `t`. -/
-theorem cpoly_lagrange_basis_outer_loop_spec {m : ℕ} (point : Slice cpoly.field.Ext4)
-    (vars sz : Std.Usize) (basis : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
-    (hlen : point.val.length = m) (hred : SliceReduced point) (hvars : vars.val = m)
-    (hm : 2 ^ m ≤ Usize.max) (hsz : sz.val = 2 ^ m) (hi : i.val ≤ 2 ^ m)
-    (hblen : basis.val.length = i.val) (hbred : VecReduced basis)
-    (hbval : ∀ t < i.val, toExt (basis.val.getD t cpoly.field.Ext4.ZERO) =
-      ∏ s ∈ Finset.range m,
-        (if Nat.testBit t s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-          else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO))) :
-    cpoly.multilinear.lagrange_basis_loop0 point vars sz basis i
-      ⦃ out => out.val.length = 2 ^ m ∧ VecReduced out ∧
-        ∀ t < 2 ^ m, toExt (out.val.getD t cpoly.field.Ext4.ZERO) =
-          ∏ s ∈ Finset.range m,
-            (if Nat.testBit t s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-              else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO)) ⦄ := by
-  rw [cpoly.multilinear.lagrange_basis_loop0]
-  apply loop.spec_decr_nat (fun st => 2 ^ m - st.2.val)
-    (fun st => st.2.val ≤ 2 ^ m ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
-      ∀ t < st.2.val, toExt (st.1.val.getD t cpoly.field.Ext4.ZERO) =
-        ∏ s ∈ Finset.range m,
-          (if Nat.testBit t s then toExt (point.val.getD s cpoly.field.Ext4.ZERO)
-            else 1 - toExt (point.val.getD s cpoly.field.Ext4.ZERO)))
-  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
-    dsimp only at hi1 hlen1 hred1 hval1
-    simp only [cpoly.multilinear.lagrange_basis_loop0.body]
-    by_cases hlt : i1 < sz
-    · rw [if_pos hlt]
-      have hilt : i1.val < 2 ^ m := by rw [← hsz]; scalar_tac
-      step with cpoly_lagrange_basis_inner_loop_spec (m := m) point i1 vars
-        cpoly.field.Ext4.ONE i1 0#usize hlen hred hvars (by simp) reduced_ONE (by simp)
-        (by simp) as ⟨acc, hRacc, hacc⟩
-      have hbound : v1.val.length < Usize.max := by omega
-      step as ⟨v2, hv2⟩
-      step as ⟨i2, hi2⟩
-      have hi2n : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hi2n, hv2, List.length_append, hlen1]; simp
-      · intro y hy
-        rw [hv2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hred1 y h
-        · rw [List.mem_singleton.mp h]; exact hRacc
-      · intro t ht
-        rw [hi2n] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, hacc, hlen1]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = 2 ^ m := by rw [← hsz] at hi1 ⊢; scalar_tac
-      exact ⟨by rw [hlen1, heq], hred1, by rw [← heq]; exact hval1⟩
-  · exact ⟨hi, hblen, hbred, hbval⟩
-
-/-- `cpoly::multilinear::lagrange_basis` computes CompPoly's own
-`CMlPolynomialEval.lagrangeBasis` at the represented point. -/
-theorem cpoly_lagrange_basis_spec {m : ℕ} (a : alloc.vec.Vec cpoly.field.Ext4)
-    (ha : WfPoint m a) (hm : 2 ^ m ≤ Usize.max) :
-    cpoly.multilinear.lagrange_basis (alloc.vec.Vec.deref a)
-      ⦃ out => out.val.length = 2 ^ m ∧ VecReduced out ∧
-        ∀ t, ∀ h : t < 2 ^ m, toExt (out.val.getD t cpoly.field.Ext4.ZERO) =
-          (CMlPolynomialEval.lagrangeBasis (Vector.ofFn (toPoint (m := m) a))).get ⟨t, h⟩ ⦄ := by
-  obtain ⟨hlen, hred⟩ := ha
-  rw [cpoly.multilinear.lagrange_basis]
-  step with cpoly_table_len_spec (m := m) (Slice.len (alloc.vec.Vec.deref a))
-    (by simpa using hlen) hm as ⟨sz, hsz⟩
-  step with cpoly_lagrange_basis_outer_loop_spec (m := m) (alloc.vec.Vec.deref a)
-    (Slice.len (alloc.vec.Vec.deref a)) sz (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-    (by simpa using hlen) (sliceReduced_deref hred) (by simpa using hlen) hm hsz (by simp)
-    (by simp) (by intro y hy; simp at hy) (by intro t ht; simp at ht)
-    as ⟨out, holen, hored, hoval⟩
-  refine ⟨holen, hored, fun t h => ?_⟩
-  rw [hoval t h, lagrangeBasis_get_toPoint a ⟨t, h⟩]
-  simp only [deref_val]
-
-/-- The loop of `cpoly::multilinear::dot`: the accumulator is the partial inner
-product. -/
-theorem cpoly_dot_loop_spec {k : ℕ} (u v : Slice cpoly.field.Ext4) (nn : Std.Usize)
-    (acc : cpoly.field.Ext4) (i : Std.Usize)
-    (hu : SliceReduced u) (hv : SliceReduced v)
-    (hulen : u.val.length = k) (hvlen : v.val.length = k) (hn : nn.val = k)
-    (hi : i.val ≤ k) (hacc : Reduced acc)
-    (hval : toExt acc = ∑ t ∈ Finset.range i.val,
-      toExt (u.val.getD t cpoly.field.Ext4.ZERO) * toExt (v.val.getD t cpoly.field.Ext4.ZERO)) :
-    cpoly.multilinear.dot_loop u v nn acc i
-      ⦃ out => Reduced out ∧ toExt out = ∑ t ∈ Finset.range k,
-        toExt (u.val.getD t cpoly.field.Ext4.ZERO) *
-          toExt (v.val.getD t cpoly.field.Ext4.ZERO) ⦄ := by
-  rw [cpoly.multilinear.dot_loop]
-  apply loop.spec_decr_nat (fun st => k - st.2.val)
-    (fun st => st.2.val ≤ k ∧ Reduced st.1 ∧ toExt st.1 = ∑ t ∈ Finset.range st.2.val,
-      toExt (u.val.getD t cpoly.field.Ext4.ZERO) * toExt (v.val.getD t cpoly.field.Ext4.ZERO))
-  · rintro ⟨a1, i1⟩ ⟨hi1, hR1, hv1⟩
-    dsimp only at hi1 hR1 hv1
-    simp only [cpoly.multilinear.dot_loop.body]
-    by_cases hlt : i1 < nn
-    · rw [if_pos hlt]
-      have hilt : i1.val < k := by rw [← hn]; scalar_tac
-      have hult : i1.val < u.val.length := by rw [hulen]; exact hilt
-      have hvlt : i1.val < v.val.length := by rw [hvlen]; exact hilt
-      step as ⟨x, hx⟩
-      step as ⟨y, hy⟩
-      have hRx : Reduced x := by rw [hx]; exact hu _ (List.getElem_mem hult)
-      have hRy : Reduced y := by rw [hy]; exact hv _ (List.getElem_mem hvlt)
-      step with ext_mul_spec x y hRx hRy as ⟨p, hRp, hp⟩
-      step with ext_add_assign_spec a1 p hR1 hRp as ⟨a2, hR2, ha2⟩
-      step as ⟨i2, hi2⟩
-      have hi2v : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, hR2, ?_, by omega⟩
-      rw [ha2, hv1, hp, hx, hy, hi2v, Finset.sum_range_succ,
-        List.getD_eq_getElem _ _ hult, List.getD_eq_getElem _ _ hvlt]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = k := by rw [← hn] at hi1 ⊢; scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
-  · exact ⟨hi, hacc, hval⟩
-
-/-- `cpoly::multilinear::dot` is the inner product of the two slices. -/
-theorem cpoly_dot_spec {k : ℕ} (u v : Slice cpoly.field.Ext4)
-    (hu : SliceReduced u) (hv : SliceReduced v)
-    (hulen : u.val.length = k) (hvlen : v.val.length = k) :
-    cpoly.multilinear.dot u v
-      ⦃ out => Reduced out ∧ toExt out = ∑ t ∈ Finset.range k,
-        toExt (u.val.getD t cpoly.field.Ext4.ZERO) *
-          toExt (v.val.getD t cpoly.field.Ext4.ZERO) ⦄ := by
-  rw [cpoly.multilinear.dot]
-  exact cpoly_dot_loop_spec u v (Slice.len u) cpoly.field.Ext4.ZERO 0#usize hu hv hulen hvlen
-    (by simpa using hulen) (by simp) reduced_ZERO (by simp)
 
 /-! ### The layer fold `w_table_mle_eval` runs
 

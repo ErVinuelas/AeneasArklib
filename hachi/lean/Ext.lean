@@ -68,7 +68,8 @@ abbrev F := Hachi.Ext4
 /-! ## Scope: the operations hachi's model contains
 
 cpoly's development also specifies `Ext4::new`, `clone`, `default`, `eq`,
-`from_fp`, `from_u64`, `smul`, `sub_assign`, `neg` and the `GEN` constant.
+`from_fp`, `from_u64`, `smul`, `add_assign`, `sub_assign`, `mul_assign`, `neg`
+and the `GEN` constant.
 **None of those are in hachi's `Generated.lean`**, and that is not a whitelist
 gap: `--include 'cpoly::_'` decides which foreign items *may* be translated,
 while what lands is what the local crate reaches -- and `--lib` extraction does
@@ -77,8 +78,13 @@ dropped rather than stubbed, because a statement about a name that does not
 exist is the `autoImplicit` trap in another costume, and this file sets
 `autoImplicit false` so that such a statement fails loudly instead. What
 remains is exactly what `zerocheck.rs` and `ringswitch.rs` compute with:
-`from_base`, `is_zero`, `add`, `sub`, `mul`, the two assign forms, `ZERO`,
-`ONE` and `W`. See NOTES.md § "The model contains what the crate reaches". -/
+`from_base`, `is_zero`, `add`, `sub`, `mul`, `ZERO`, `ONE` and `W`. The two
+assign forms were here until `final_check` stopped calling
+`cpoly::multilinear::eq_tilde`: the `+=`/`*=` operators were reached only from
+inside `lagrange_basis` and `dot`, so the champion that routed the kernel
+through hachi's own `eq_prefix` took all three out of the model at once, and
+`ext_add_assign_spec` and `ext_mul_assign_spec` went with them. See NOTES.md
+§ "The model contains what the crate reaches". -/
 
 /-! ## Compatibility with `HachiEquiv.Field` -/
 
@@ -362,22 +368,6 @@ theorem ext_mul_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) 
       coeff_monomialMod_val 4, coeff_monomialMod_val 5, coeff_monomialMod_val 6] <;>
     norm_num <;>
     ring
-
-/-- `impl AddAssign for Ext4`. -/
-@[step]
-theorem ext_add_assign_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) :
-    cpoly.field.Ext4.Insts.CoreOpsArithAddAssignExt4.add_assign a b
-      ⦃ c => Reduced c ∧ toExt c = toExt a + toExt b ⦄ := by
-  rw [cpoly.field.Ext4.Insts.CoreOpsArithAddAssignExt4.add_assign]
-  exact ext_add_spec a b ha hb
-
-/-- `impl MulAssign for Ext4`. -/
-@[step]
-theorem ext_mul_assign_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) :
-    cpoly.field.Ext4.Insts.CoreOpsArithMulAssignExt4.mul_assign a b
-      ⦃ c => Reduced c ∧ toExt c = toExt a * toExt b ⦄ := by
-  rw [cpoly.field.Ext4.Insts.CoreOpsArithMulAssignExt4.mul_assign]
-  exact ext_mul_spec a b ha hb
 
 /-! ### Extension construction and comparison -/
 

@@ -1000,3 +1000,18 @@ fn final_check_with_the_split_agrees_with_the_tabulated_check() {
     assert!(!final_check(&build(t0, ta + Ext4::ONE), y_prime, 15));
     assert!(!final_check(&build(t0, ta), y_prime, 16));
 }
+
+/// `eq_prefix` over the whole of `τ₀` is cpoly's `eq_tilde` (candidate K
+/// replaces the latter by the former in `final_check`): the `m₀`-factor closed
+/// form against the Lagrange-basis form, and against this file's own reference.
+#[test]
+fn eq_prefix_over_the_whole_point_is_eq_tilde() {
+    for m0 in [0usize, 1, 3, 11] {
+        let mut r = Lcg::new(0x5A17_C020 ^ m0 as u64);
+        let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+        let a: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+        let closed = eq_prefix(&tau0, &a);
+        assert_eq!(closed, cpoly::multilinear::eq_tilde(&tau0, &a), "m0 = {m0}");
+        assert_eq!(closed, eq_tilde_ref(&tau0, &a), "m0 = {m0}");
+    }
+}
