@@ -1011,6 +1011,7 @@ pub fn honest_compute_g_base(
     RoundMsg { g_zero, g_alpha }
 }
 
+// @genesis 3ead906 2026-09-15 — sumcheck::alpha_public_mle_eval
 /// The multilinear extension of the public table `Ã` at a point, **without the
 /// table** (opt: `HachiEquiv.Opt.alpha_public_mle_eval.opt`, `lean/Opt.lean`
 /// § "Candidate J"; lemma `alpha_public_mle_eval.opt_eq_spec` against
