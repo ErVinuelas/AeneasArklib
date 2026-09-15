@@ -656,13 +656,40 @@ fn the_honest_chain_profile() {
     let y_prime = hachi::sumcheck::honest_compute_y(&inst.w, m0, &inst.challenges);
     eprintln!("[profile] honest_compute_y: {:.1?}", t6.elapsed());
 
+    // the verifier, replayed piece by piece in `chain_verify`'s order: the
+    // `R^lin` assembly, the 26 round checks, the final check (which rebuilds the
+    // α table and evaluates it), the end piece (which recomputes `lift_commit`
+    // and the witness evaluation); then `chain_verify` whole as the control.
     let t7 = Instant::now();
+    let rlin_v = hachi::quadeval::rlin_stmt(
+        &inst.pp, &stmt, &inst.v, &inst.c, CHAIN_GAMMA, blocks, message_rows, message_digits,
+        inner_rows, inner_digits, z_digits,
+    );
+    let zc_v = hachi::sumcheck::NestedZeroCheckStmt::new(
+        rlin_v, t_com.copy(), inst.alpha, inst.tau0.clone(), inst.tau1.clone(),
+    );
+    let opened_v = hachi::sumcheck::nested_to_round_statement(zc_v);
+    eprintln!("[profile] verifier: rlin_stmt + statement thread: {:.1?}", t7.elapsed());
+    let t8 = Instant::now();
+    let after = hachi::sumcheck::round_verify_loop(opened_v, &msgs, &inst.challenges);
+    eprintln!("[profile] verifier: round_verify_loop ({} rounds): {:.1?}", msgs.len(), t8.elapsed());
+    let final_stmt = after.expect("the honest rounds must all check");
+    let t9 = Instant::now();
+    let c_final = hachi::sumcheck::final_check(&final_stmt, y_prime, CHAIN_GAMMA);
+    eprintln!("[profile] verifier: final_check = {c_final}: {:.1?}", t9.elapsed());
+    let t10 = Instant::now();
+    let weval = hachi::endpiece::WEvalStatement::new(t_com.copy(), inst.challenges.clone(), y_prime);
+    let c_end = hachi::endpiece::end_piece_check(&inst.d_key, &weval, &inst.w);
+    eprintln!("[profile] verifier: end_piece_check = {c_end}: {:.1?}", t10.elapsed());
+    assert!(c_final && c_end, "the two closing checks must accept");
+
+    let t11 = Instant::now();
     let ok = chain_verify(
         &inst.pp, &inst.d_key, &inst.poly_stmt, &inst.v, &inst.c, &t_com, inst.alpha, &inst.tau0,
         &inst.tau1, &msgs, &inst.challenges, y_prime, &inst.w, CHAIN_GAMMA, blocks, message_rows,
         message_digits, inner_rows, inner_digits, z_digits,
     );
-    eprintln!("[profile] chain_verify = {ok}: {:.1?}", t7.elapsed());
+    eprintln!("[profile] chain_verify (whole, as the control) = {ok}: {:.1?}", t11.elapsed());
     eprintln!("[{:>9.1?}] profile done", t0.elapsed());
     assert!(ok, "the honest chain must verify");
 }

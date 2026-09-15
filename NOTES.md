@@ -5750,3 +5750,76 @@ frozen but cannot be stamped before a commit, and setting the block aside
 fails the gate from the other side ("no frozen counterpart"). A back-to-back
 pair of champions in one module costs a commit round-trip; recorded in
 `perf-loop`.
+
+**Candidate F, accepted on its second run** (`20260914T2321+0200-3ad39fb4`,
+bias 4.0%): with the table builders moved off the extension-field range factor
+by candidate G, F's evidence rows are the four sumcheck rows it dominates --
+`honest_compute_g` −18.7%, `round_poly_zero` −19.0%, `round_value_zero` −19.3%,
+`round_values_zero` −19.2% -- and `h_zero`/`h_zero_is_zero`, kept in the run as
+controls, read noise as they should now that they call `range_product_base`.
+The count promised 47% on the range factor; the rows carry the fold and `eq̃`
+work too, so about 19% of a round, which at the pin is about 19% of the
+prover's 1 201 s. The pair F+G is I5's first step: the same identity applied
+twice, once in each field, judged on the rows each actually moves. What the
+mixed verdict cost was one extra bench run and one candidate; what it bought
+was G, worth 60% on two rows, and the observation behind brief 5's S7′.
+
+**Brief 6 re-based (2026-09-14, night)** -- the last brief at the old pin. 187
+citations re-resolved, three deleted ArkLib declarations replaced by their
+successors, the τ-impossibility argument retired (PR #847 deleted the `hqz`
+hypothesis and pins τ = 5), two erroneous claims fixed (`Ext4` equality is the
+derived `PartialEq`; the cube is 2.0 GiB, not 4.29 GB). Cost model at the pin:
+`end_piece_check` ≈ 85–92 s, **96% of it conjunct A** -- the 57 384 `ring::mul`s
+of the recomputed `lift_commit` -- which validates against the row to 0.5%
+and against the profile's `lift_commit` to 5%. Two things it settles for the
+queue: **the recomputation cannot be taken away** -- conjunct A *is*
+`K.com w == stmt.t`, the binding content of the closing link (`EndPiece/
+Reduction.lean:146`, `FinalEval.lean:163`), so target 6's lever is I4's
+`ring::mul` and nothing local; and the verifier's ~120 s unaccounted in the
+prover profile is **not** the per-cell `m_alpha_tilde` I guessed (candidate C
+hoisted it; the whole `alpha_public_table` is *measured* at 12.5 s) but most
+likely **`final_check`'s `MultilinearEvals::eval`** -- still the Lagrange-dot
+form over the `2^26` α table, `1.8·10⁹` Ext4 multiplications and a 2 GiB basis,
+the same shape candidate B deleted from the witness side. Its removal is the
+one-line `eval → evalMle` swap under `eval_mle_eq_eval`; the overnight verifier
+profile will say whether the count is right. Also noted, read-only: three
+stale statements in `hachi/benches/endpiece.rs` (pre-B/E wording, "not yet
+measured" on a measured row) and that file's local "W1/W2" naming collides
+with the plan's W1–W4 -- a doc pass for tomorrow.
+
+## The overnight runs (2026-09-14 → 15)
+
+**Run 1, the profile with the verifier split, completed** (log
+`logs/runs/overnight-20260914.log`, on `42f6dea` + candidate F in the tree,
+`chain_verify = true`):
+
+| piece | time |
+|---|---|
+| `lift_commit` | 57 s |
+| `c_w_table_mle` / `alpha_public_table` at `2^26` | 0.8 s / 12.6 s |
+| `honest_round_messages` (26 rounds) | **920 s** (1 201 s before F: −23%) |
+| `honest_compute_y` | 3.9 s |
+| verifier: `R^lin` + statement thread | 0.35 s |
+| verifier: `round_verify_loop` (26 checks) | 66 µs |
+| verifier: **`final_check`** | **99 s** |
+| verifier: `end_piece_check` | 62 s |
+| `chain_verify` whole (control) | 190 s |
+
+Brief 6's count was right: the verifier's unaccounted minutes are
+`final_check`, and inside it the only work of that size is `MultilinearEvals::
+eval` -- the Lagrange dot over the `2^26` α table, `1.8·10⁹` Ext4
+multiplications and a 2 GiB basis (the α table itself is 12.6 s). That is
+**candidate H**: the `eval → evalMle` swap candidate B made on the witness
+side, one line, `eval_mle_eq_eval`; it needs a REDUCED `sumcheck/final_check`
+row first. `end_piece_check`'s 62 s is the recomputed `lift_commit`, the check
+itself (brief 6), I4's lever. The prover after F is 920 s of rounds against
+57 s of `lift_commit`: I5 remains the queue's head (S7′ next).
+
+**Run 2, the 128-block end-to-end, was killed by the system for memory** before
+its first stage line: the machine had ~15 GiB free (a Lean server, a Rust
+analyzer and a browser hold the rest), and the 128-block instance -- 1 GiB of
+message, 8 GiB of digit decomposition, the inner decompositions, the `R^lin`
+statement and the tables -- wanted more. So W4 bites at 128 blocks already on
+this machine as it was configured overnight. Options for the Stage 7 fallback:
+64 blocks (≈4 GiB of decomposition), or the same run with the editor's Lean
+server and the browser closed. A decision for the user, not taken here.

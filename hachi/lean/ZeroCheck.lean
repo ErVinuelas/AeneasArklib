@@ -368,37 +368,50 @@ theorem RlinStatement_new_spec {n μ : ℕ} (m : linalg.PolyMatrix) (yvec : lina
 
 /-! ## `zerocheck`: the `H₀` side -/
 
-/-- `range_product` computes `rangeProduct`, the vanishing polynomial of the
-symmetric range `{−(b−1), …, b−1}` (`Constraints.lean:96`). -/
-theorem range_product_loop_spec (v : cpoly.field.Ext4) (acc : cpoly.field.Ext4)
-    (j : Std.U64) (hv : Reduced v) (hacc : Reduced acc) (hj : 1 ≤ j.val) (hjle : j.val ≤ 16)
+/-- The loop of `range_product`: ascending `j`, one extension multiplication
+per step by `v² - j²` (candidate F's contraction of the two symmetric factors,
+`(v - j)(v + j) = v² - j²`). `v` is not a component of the extracted loop
+state -- only the square `v2` is, which is why `v` is an ordinary parameter here
+and enters only through `hv2v` and the invariant `hval`, and why it needs no
+`Reduced v`: only `toExt v` is ever mentioned (the sibling
+`range_product_base_loop_spec` drops `Red c` for the same reason).
+
+`j * j` is a *checked* `u64` product, and the guard `j < GADGET_BASE = 16` is
+what discharges it (`j · j ≤ 225`); `Fp::new` then never actually reduces, but
+the model still goes through `fp_new_spec`. The exit branch is the whole
+algebraic content: `Finset.Ico 1 16 = Finset.Icc 1 15` plus the pairwise
+identity, which is `ring` after `Nat.cast_mul`. -/
+theorem range_product_loop_spec (v v2 acc : cpoly.field.Ext4)
+    (j : Std.U64) (hv2 : Reduced v2) (hacc : Reduced acc)
+    (hj : 1 ≤ j.val) (hjle : j.val ≤ 16) (hv2v : toExt v2 = toExt v * toExt v)
     (hval : toExt acc = toExt v *
-      ∏ k ∈ Finset.Ico (1 : ℕ) j.val, ((toExt v - (k : F)) * (toExt v + (k : F)))) :
-    zerocheck.range_product_loop v params.GADGET_BASE acc j
+      ∏ k ∈ Finset.Ico (1 : ℕ) j.val, (toExt v * toExt v - ((k * k : ℕ) : F))) :
+    zerocheck.range_product_loop params.GADGET_BASE v2 acc j
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.rangeProduct 16 (toExt v) ⦄ := by
   have hgb : (params.GADGET_BASE).val = 16 := by simp [params.GADGET_BASE]
   rw [zerocheck.range_product_loop]
   apply loop.spec_decr_nat (fun s => 16 - s.2.val)
     (fun s => 1 ≤ s.2.val ∧ s.2.val ≤ 16 ∧ Reduced s.1 ∧ toExt s.1 = toExt v *
-      ∏ k ∈ Finset.Ico (1 : ℕ) s.2.val, ((toExt v - (k : F)) * (toExt v + (k : F))))
+      ∏ k ∈ Finset.Ico (1 : ℕ) s.2.val, (toExt v * toExt v - ((k * k : ℕ) : F)))
   · rintro ⟨a1, j1⟩ ⟨hj1, hj1le, hR1, hv1⟩
     dsimp only at hj1 hj1le hR1 hv1
     simp only [zerocheck.range_product_loop.body]
     by_cases hlt : j1 < params.GADGET_BASE
     · rw [if_pos hlt]
       have hj1lt : j1.val < 16 := by scalar_tac
-      step as ⟨f, hRf, hf⟩
+      step as ⟨sq, hsq⟩
+      step with fp_new_spec sq as ⟨f, hRf, hf⟩
       step with ext_from_base_spec f hRf as ⟨sc, hRsc, hsc⟩
-      step with ext_sub_spec v sc hv hRsc as ⟨lo, hRlo, hlo⟩
-      step with ext_add_spec v sc hv hRsc as ⟨hi, hRhi, hhi⟩
-      step with ext_mul_spec a1 lo hR1 hRlo as ⟨e, hRe, he⟩
-      step with ext_mul_spec e hi hRe hRhi as ⟨a2, hR2, ha2⟩
+      step with ext_sub_spec v2 sc hv2 hRsc as ⟨d, hRd, hd⟩
+      step with ext_mul_spec a1 d hR1 hRd as ⟨a2, hR2, ha2⟩
       step as ⟨j2, hj2⟩
-      have hscv : toExt sc = ((j1.val : ℕ) : F) := by rw [hsc, hf, ofBase_natCast]
       have hj2n : j2.val = j1.val + 1 := by scalar_tac
+      have hfv : toK f = ((j1.val * j1.val : ℕ) : ZMod q) := by
+        rw [hf]; exact congrArg (fun t : ℕ => (t : ZMod q)) (by scalar_tac)
+      have hscv : toExt sc = ((j1.val * j1.val : ℕ) : F) := by
+        rw [hsc, hfv, ofBase_natCast]
       refine ⟨by scalar_tac, by scalar_tac, hR2, ?_, by scalar_tac⟩
-      rw [ha2, he, hv1, hlo, hhi, hscv, hj2n,
-        Finset.prod_Ico_succ_top (by omega)]
+      rw [ha2, hv1, hd, hv2v, hscv, hj2n, Finset.prod_Ico_succ_top hj1]
       ring
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -406,6 +419,10 @@ theorem range_product_loop_spec (v : cpoly.field.Ext4) (acc : cpoly.field.Ext4)
       have hIco : Finset.Ico (1 : ℕ) 16 = Finset.Icc 1 (16 - 1) := by decide
       refine ⟨hR1, ?_⟩
       rw [hv1, heq, InnerOuter.rangeProduct, hIco]
+      refine congrArg (fun t => toExt v * t) (Finset.prod_congr rfl ?_)
+      intro k _
+      rw [Nat.cast_mul]
+      ring
   · exact ⟨hj, hjle, hacc, hval⟩
 
 /-- `range_product` computes `rangeProduct` at the crate's gadget base. -/
@@ -413,7 +430,8 @@ theorem range_product_spec (v : cpoly.field.Ext4) (hv : Reduced v) :
     zerocheck.range_product v
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.rangeProduct 16 (toExt v) ⦄ := by
   rw [zerocheck.range_product]
-  exact range_product_loop_spec v v 1#u64 hv hv (by simp) (by simp) (by simp)
+  step with ext_mul_spec v v hv hv as ⟨v2, hRv2, hv2v⟩
+  exact range_product_loop_spec v v2 v 1#u64 hRv2 hv (by simp) (by simp) hv2v (by simp)
 
 /-- The base-field product, embedded, is the specification's extension range
 factor at the embedded argument: `φF` is a bundled `RingHom`, so the leading

@@ -96,7 +96,8 @@ pub fn below_two_pow(i: usize, m: usize) -> bool {
 }
 
 /// Hachi Eq. (23)'s per-entry range factor `P_b(v) = v·∏_{j=1}^{b-1} (v−j)(v+j)`
-/// (spec: `rangeProduct`, `Constraints.lean:96`).
+/// (spec: `rangeProduct`, `Constraints.lean:96`; opt:
+/// `HachiEquiv.Opt.range_product.opt`, `lean/Opt.lean`).
 ///
 /// Mirrors `rangeProduct`.
 ///
@@ -104,19 +105,31 @@ pub fn below_two_pow(i: usize, m: usize) -> bool {
 /// `P_b(v) = 0` says exactly that `v` is the image of an integer in that range
 /// (`rangeProduct_eq_zero_iff`, `Constraints.lean:102`).
 ///
+/// The body folds each factor pair by `(v − j)(v + j) = v² − j²`: the square is
+/// computed once and each factor is one multiplication by `v² − j²`, the `j²` a
+/// base-field literal -- sixteen extension multiplications and no additions
+/// where the frozen form paid thirty and fifteen (Stage 6 I5, candidate F;
+/// `range_product.opt_eq_spec` says the value is `rangeProduct`'s). This is
+/// ~90% of a sumcheck round's multiplications, which is why the identity is
+/// worth a champion; the zero-check table builders take the same identity in
+/// the base field through [`range_product_base`]. `j * j` is a `u64` product
+/// below `256`, its checked-multiplication side condition immediate from
+/// `j < b = 16`.
+///
 /// The loop runs `1 ≤ j < b` rather than `1 ≤ j ≤ b − 1`: the two index sets
 /// are the same `Finset.Icc 1 (b - 1)`, but `b − 1` is never formed, so the
 /// extracted model carries no subtraction to discharge (`lib.rs`
 /// § "Style notes"; the same reason `params::GAMMA` is a literal).
 pub fn range_product(v: Ext4) -> Ext4 {
     let base: u64 = params::GADGET_BASE;
+    let v2: Ext4 = v * v;
     let mut acc: Ext4 = v;
     let mut j: u64 = 1;
     while j < base {
-        let scalar: Ext4 = Ext4::from_base(Fp::new(j));
-        let lo: Ext4 = v - scalar;
-        let hi: Ext4 = v + scalar;
-        acc = acc * lo * hi;
+        let sq: u64 = j * j;
+        let scalar: Ext4 = Ext4::from_base(Fp::new(sq));
+        let d: Ext4 = v2 - scalar;
+        acc = acc * d;
         j += 1;
     }
     acc

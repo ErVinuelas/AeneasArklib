@@ -1,0 +1,36 @@
+# overnight 2026-09-14/15 — started 2026-09-14T23:40:22+02:00 on 42f6dea +uncommitted (F landed), AC=1
+# run 1: the_honest_chain_profile at 1 block, prover + verifier pieces
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+test the_honest_chain_profile ... [    12.0s] committed 1 block(s)
+[    47.9s] statement built
+[    49.4s] honest_compute_v done
+[    63.2s] honest_compute_resp + stack done
+[    64.6s] R^lin statement assembled: 5 x 40976
+[   357.7s] M zeta = y holds
+[   659.5s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 389.2ms
+[profile] lift_commit: 57.4s
+[profile] c_w_table_mle at 2^26: 812.3ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 12.6s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 919.6s
+[profile] honest_compute_y: 3.9s
+[profile] verifier: rlin_stmt + statement thread: 345.1ms
+[profile] verifier: round_verify_loop (26 rounds): 65.8µs
+[profile] verifier: final_check = true: 99.0s
+[profile] verifier: end_piece_check = true: 61.6s
+[profile] chain_verify (whole, as the control) = true: 189.7s
+[  2033.8s] profile done
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2034.11s
+
+# run 1 exit 0 at 2026-09-15T00:14:16+02:00
+# run 2: the_honest_chain_verifies at HACHI_CHAIN_BLOCKS=128 (Stage 7 route 1, agreed with the user)
+    Finished `release` profile [optimized] target(s) in 0.04s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+test the_honest_chain_verifies ... 
