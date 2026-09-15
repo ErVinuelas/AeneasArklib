@@ -3108,6 +3108,741 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
   funext t
   exact hoval t
 
+/-! ### `alpha_public_mle_eval`: the tensor split of `Ã` (candidate J)
+
+`final_check` no longer builds the `2 ^ m₀` table and dots it against a
+`2 ^ m₀`-entry Lagrange basis. `alphaPublicEvals` (`Constraints.lean:840`) reads
+the flat cube index `idx = finFunctionFinEquiv x` only through `idx % d` and
+`idx / d`, with `d = Φ.φ.natDegree = N = 2 ^ 10` at the pin, and
+`finFunctionFinEquiv` is little-endian: the table is therefore a tensor product
+of a function of the low `k = min m₀ 10` coordinates and a function of the high
+`m₀ − k`, and a tensor product's multilinear extension is the product of the two
+extensions. Two tables of `2 ^ 10` and `2 ^ (m₀ − 10)` entries and two layer
+folds replace the `2 ^ m₀` table and the `2 ^ m₀` dot (opt:
+`HachiEquiv.Opt.alpha_public_mle_eval.opt`, `lean/Opt.lean` § "Candidate J").
+
+The pure algebra of the split lives here rather than in `lean/Opt.lean`, because
+the spec layer below needs it and `Opt.lean` **imports** this file;
+`alpha_public_mle_eval.opt_eq_spec` is stated there against these definitions,
+exactly as `mAlphaTilde_eq_zero_of_ge` was moved into `lean/ZeroCheck.lean`. -/
+
+/-! #### 1. Splitting the cube at coordinate `k`
+
+`Fin m₀ → Fin 2` is the low block `Fin k → Fin 2` followed by the high block
+`Fin (m₀ − k) → Fin 2`. The equivalence is written with an explicit `dif` on
+`j < k` rather than through `Fin.append`, so that the two projection lemmas
+below are `dif_pos` / `dif_neg` and no `Fin.cast` survives into the statements
+the campaign reads. -/
+
+/-- Coordinate `k + j` of the big cube: the `j`-th high coordinate. -/
+def highIdx {m₀ k : ℕ} (hk : k ≤ m₀) (j : Fin (m₀ - k)) : Fin m₀ :=
+  ⟨k + (j : ℕ), by have := j.isLt; omega⟩
+
+@[simp] theorem highIdx_val {m₀ k : ℕ} (hk : k ≤ m₀) (j : Fin (m₀ - k)) :
+    ((highIdx hk j : Fin m₀) : ℕ) = k + (j : ℕ) := rfl
+
+/-- The cube point assembled from a low and a high block: coordinate `j` is read
+from the low block when `j < k` and from the high block otherwise. -/
+def cubeJoin {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2) (xh : Fin (m₀ - k) → Fin 2) :
+    Fin m₀ → Fin 2 := fun j =>
+  if h : (j : ℕ) < k then xl ⟨(j : ℕ), h⟩
+  else xh ⟨(j : ℕ) - k, by have := j.isLt; omega⟩
+
+/-- The low coordinates of an assembled cube point. -/
+@[simp] theorem cubeJoin_low {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) (j : Fin k) :
+    cubeJoin hk xl xh (Fin.castLE hk j) = xl j := by
+  rw [cubeJoin, dif_pos (show ((Fin.castLE hk j : Fin m₀) : ℕ) < k from j.isLt)]
+  exact congrArg xl (Fin.ext rfl)
+
+/-- The high coordinates of an assembled cube point. -/
+@[simp] theorem cubeJoin_high {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) (j : Fin (m₀ - k)) :
+    cubeJoin hk xl xh (highIdx hk j) = xh j := by
+  have hnot : ¬ ((highIdx hk j : Fin m₀) : ℕ) < k := by
+    show ¬ k + (j : ℕ) < k
+    omega
+  rw [cubeJoin, dif_neg hnot]
+  refine congrArg xh (Fin.ext ?_)
+  show k + (j : ℕ) - k = (j : ℕ)
+  omega
+
+/-- The low/high decomposition of the Boolean cube at coordinate `k`. -/
+def cubeSplit {m₀ k : ℕ} (hk : k ≤ m₀) :
+    ((Fin k → Fin 2) × (Fin (m₀ - k) → Fin 2)) ≃ (Fin m₀ → Fin 2) where
+  toFun p := cubeJoin hk p.1 p.2
+  invFun x := (fun j => x (Fin.castLE hk j), fun j => x (highIdx hk j))
+  left_inv := by
+    intro p
+    refine Prod.ext ?_ ?_ <;> funext j
+    · exact cubeJoin_low hk p.1 p.2 j
+    · exact cubeJoin_high hk p.1 p.2 j
+  right_inv := by
+    intro x
+    funext j
+    show cubeJoin hk (fun j => x (Fin.castLE hk j)) (fun j => x (highIdx hk j)) j = x j
+    rw [cubeJoin]
+    by_cases h : (j : ℕ) < k
+    · rw [dif_pos h]
+      exact congrArg x (Fin.ext rfl)
+    · rw [dif_neg h]
+      refine congrArg x (Fin.ext ?_)
+      show k + ((j : ℕ) - k) = (j : ℕ)
+      omega
+
+@[simp] theorem cubeSplit_apply {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) :
+    cubeSplit hk (xl, xh) = cubeJoin hk xl xh := rfl
+
+/-- The low coordinates of a split cube point. -/
+theorem cubeSplit_low {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) (j : Fin k) :
+    cubeSplit hk (xl, xh) (Fin.castLE hk j) = xl j := cubeJoin_low hk xl xh j
+
+/-- The high coordinates of a split cube point. -/
+theorem cubeSplit_high {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) (j : Fin (m₀ - k)) :
+    cubeSplit hk (xl, xh) (highIdx hk j) = xh j := cubeJoin_high hk xl xh j
+
+/-! #### 2. Sums and products over the split index
+
+The `Fin m₀` index set is `Fin k ⊕ Fin (m₀ − k)` in the two shapes the proof
+needs. Both are `Fin.sum_univ_add` / `Fin.prod_univ_add` transported along
+`k + (m₀ − k) = m₀`. -/
+
+theorem split_sum {M : Type*} [AddCommMonoid M] {m₀ k : ℕ} (hk : k ≤ m₀) (f : Fin m₀ → M) :
+    ∑ i : Fin m₀, f i
+      = (∑ j : Fin k, f (Fin.castLE hk j)) + ∑ j : Fin (m₀ - k), f (highIdx hk j) := by
+  have h0 : k + (m₀ - k) = m₀ := by omega
+  have e1 : ∑ i : Fin m₀, f i = ∑ i : Fin (k + (m₀ - k)), f (Fin.cast h0 i) :=
+    (Fintype.sum_equiv (finCongr h0) (fun i => f (Fin.cast h0 i)) f (fun _ => rfl)).symm
+  have hlow : ∀ i : Fin k, f (Fin.cast h0 (Fin.castAdd (m₀ - k) i)) = f (Fin.castLE hk i) :=
+    fun i => congrArg f (Fin.ext rfl)
+  have hhigh : ∀ i : Fin (m₀ - k), f (Fin.cast h0 (Fin.natAdd k i)) = f (highIdx hk i) :=
+    fun i => congrArg f (Fin.ext rfl)
+  rw [e1, Fin.sum_univ_add, Finset.sum_congr rfl (fun i _ => hlow i),
+    Finset.sum_congr rfl (fun i _ => hhigh i)]
+
+theorem split_prod {M : Type*} [CommMonoid M] {m₀ k : ℕ} (hk : k ≤ m₀) (f : Fin m₀ → M) :
+    ∏ i : Fin m₀, f i
+      = (∏ j : Fin k, f (Fin.castLE hk j)) * ∏ j : Fin (m₀ - k), f (highIdx hk j) := by
+  have h0 : k + (m₀ - k) = m₀ := by omega
+  have e1 : ∏ i : Fin m₀, f i = ∏ i : Fin (k + (m₀ - k)), f (Fin.cast h0 i) :=
+    (Fintype.prod_equiv (finCongr h0) (fun i => f (Fin.cast h0 i)) f (fun _ => rfl)).symm
+  have hlow : ∀ i : Fin k, f (Fin.cast h0 (Fin.castAdd (m₀ - k) i)) = f (Fin.castLE hk i) :=
+    fun i => congrArg f (Fin.ext rfl)
+  have hhigh : ∀ i : Fin (m₀ - k), f (Fin.cast h0 (Fin.natAdd k i)) = f (highIdx hk i) :=
+    fun i => congrArg f (Fin.ext rfl)
+  rw [e1, Fin.prod_univ_add, Finset.prod_congr rfl (fun i _ => hlow i),
+    Finset.prod_congr rfl (fun i _ => hhigh i)]
+
+/-- **The flat index of a split cube point.** `finFunctionFinEquiv` is
+little-endian, so the low block contributes the low `k` bits and the high block
+is scaled by `2 ^ k`. -/
+theorem ffe_cubeSplit_val {m₀ k : ℕ} (hk : k ≤ m₀) (xl : Fin k → Fin 2)
+    (xh : Fin (m₀ - k) → Fin 2) :
+    ((finFunctionFinEquiv (cubeSplit hk (xl, xh)) : Fin (2 ^ m₀)) : ℕ)
+      = ((finFunctionFinEquiv xl : Fin (2 ^ k)) : ℕ)
+        + 2 ^ k * ((finFunctionFinEquiv xh : Fin (2 ^ (m₀ - k))) : ℕ) := by
+  rw [finFunctionFinEquiv_apply, finFunctionFinEquiv_apply, finFunctionFinEquiv_apply,
+    split_sum hk (fun i : Fin m₀ => ((cubeSplit hk (xl, xh) i : Fin 2) : ℕ) * 2 ^ (i : ℕ)),
+    Finset.mul_sum]
+  congr 1
+  · refine Finset.sum_congr rfl fun j _ => ?_
+    rw [cubeSplit_low]
+    rfl
+  · refine Finset.sum_congr rfl fun j _ => ?_
+    rw [cubeSplit_high, highIdx_val, pow_add]
+    ring
+
+/-! #### 3. The two halves of the point
+
+`a_low` is `a` restricted to the first `k` coordinates, `a_high` to the rest --
+the point the two folds consume, in the order the folds run (least significant
+variable first, so the low block is folded first). -/
+
+/-- The first `k` coordinates of the sumcheck point. -/
+def splitLowPoint {m₀ k : ℕ} (hk : k ≤ m₀) (a : Fin m₀ → F) : Fin k → F :=
+  fun j => a (Fin.castLE hk j)
+
+/-- The last `m₀ − k` coordinates of the sumcheck point. -/
+def splitHighPoint {m₀ k : ℕ} (hk : k ≤ m₀) (a : Fin m₀ → F) : Fin (m₀ - k) → F :=
+  fun j => a (highIdx hk j)
+
+/-! #### 4. The tensor-split lemma for multilinear extensions
+
+Entirely generic: a Boolean table that factorizes along the cube split has a
+multilinear extension that factorizes along the point split. Both sides go to
+the `eq̃`-weighted cube sum (`eval_MLE_eq_sum`, `Constraints.lean:942`), the
+cube is re-indexed by `cubeSplit`, and the Lagrange weight splits by
+`split_prod`. -/
+
+theorem mle_tensor_split {m₀ k : ℕ} (hk : k ≤ m₀) (L : Fin (2 ^ k) → F)
+    (H : Fin (2 ^ (m₀ - k)) → F) (G : (Fin m₀ → Fin 2) → F) (a : Fin m₀ → F)
+    (hG : ∀ (xl : Fin k → Fin 2) (xh : Fin (m₀ - k) → Fin 2),
+        G (cubeSplit hk (xl, xh))
+          = L (finFunctionFinEquiv xl) * H (finFunctionFinEquiv xh)) :
+    MvPolynomial.eval (splitLowPoint hk a) (MvPolynomial.MLE' L)
+        * MvPolynomial.eval (splitHighPoint hk a) (MvPolynomial.MLE' H)
+      = MvPolynomial.eval a (MvPolynomial.MLE G) := by
+  rw [MvPolynomial.MLE', MvPolynomial.MLE', InnerOuter.eval_MLE_eq_sum,
+    InnerOuter.eval_MLE_eq_sum, InnerOuter.eval_MLE_eq_sum, Finset.sum_mul_sum,
+    ← (cubeSplit hk).sum_comp (fun x => G x * ∏ i : Fin m₀, if x i = 1 then a i else 1 - a i),
+    ← Finset.sum_product']
+  refine Finset.sum_congr rfl fun p _ => ?_
+  obtain ⟨xl, xh⟩ := p
+  rw [hG xl xh, split_prod hk (fun i : Fin m₀ =>
+    if cubeSplit hk (xl, xh) i = 1 then a i else 1 - a i)]
+  simp only [cubeSplit_low, cubeSplit_high, Function.comp_apply, splitLowPoint, splitHighPoint]
+  ring
+
+/-! #### 5. The two tables
+
+`alphaLowTable` is the power table `α^ℓ` -- the specification's `alphaTilde`
+(`Constraints.lean:502`), read as a `Fin (2 ^ k)`-indexed function so that the
+campaign's fold specs, which consume `tableFn`-shaped functions, apply to it
+directly. It is candidate C's `alphaPowTable` in `Fin`-function form, and
+`HachiEquiv.Opt.alphaLowTable_eq_alphaPowTable` (`lean/Opt.lean`) is the bridge
+to the list the Rust builds.
+
+`alphaHighTable` is `alphaPublicEvals`'s inner sum, verbatim, at `idx / d := u`. -/
+
+/-- The low factor: `α^ℓ` for `ℓ < 2 ^ k`. -/
+def alphaLowTable (α : F) (k : ℕ) : Fin (2 ^ k) → F := fun l => α ^ (l : ℕ)
+/-- The high factor: `∑ᵢ eq̃(τ₁,i) · M̃_α(i,u)` for `u < 2 ^ j`. The body is
+`alphaPublicEvals`'s inner sum (`ZeroCheck/Constraints.lean:845-848`) with
+`idx / d` replaced by `u`, copied verbatim including the `i < 2 ^ m₁` guard. -/
+noncomputable def alphaHighTable {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (j : ℕ) : Fin (2 ^ j) → F := fun u =>
+  ∑ i : Fin n,
+    (if hi : (i : ℕ) < 2 ^ m₁ then
+      (∏ t : Fin m₁,
+        if (finFunctionFinEquiv.symm ⟨(i : ℕ), hi⟩) t = 1 then τ₁ t else 1 - τ₁ t) *
+          InnerOuter.mAlphaTilde Φ phiF 16 rs α i ((u : ℕ))
+    else 0)
+
+/-! #### 6. The split point
+
+`k = min m₀ 10`: the low block is the `d = 2 ^ 10` coefficient coordinates, or
+the whole cube when `m₀ < 10`. At the pin `m₀ = 26`, so `k = 10` and the high
+block is `16` coordinates. -/
+
+/-- `min m₀ 10 ≤ m₀`, the only side condition the split carries. -/
+theorem alphaSplit_le (m₀ : ℕ) : min m₀ 10 ≤ m₀ := min_le_left _ _
+/-! #### 7. `d = 2 ^ 10` at the pin, and the index split it licenses
+
+`Φ.φ.natDegree = N = 1024` is `phi_natDegree` (`lean/RqBridge.lean:96`), which
+is how `lean/Opt.lean` states everything at the pin's `Φ`
+(`alpha_public_table.opt_eq_spec` uses the same rewrite). `N = 2 ^ 10` is
+arithmetic. -/
+
+theorem N_eq_two_pow : N = 2 ^ 10 := by norm_num
+
+theorem phi_natDegree_eq_two_pow : Φ.φ.natDegree = 2 ^ 10 := by
+  rw [phi_natDegree, N_eq_two_pow]
+
+/-- The arithmetic of a little-endian two-block index, with no dependent types
+in sight: the low block is recovered by `% d` and the high one by `/ d`, either
+because the block boundary *is* `d` (`2 ^ k = d`, the pin's regime) or because
+there is no high block at all (`hi = 0`, the `m₀ < 10` regime). -/
+theorem split_mod_div_gen {K d : ℕ} (lo hi : ℕ) (hlo : lo < 2 ^ K) (hd : 2 ^ K ≤ d)
+    (hcase : 2 ^ K = d ∨ hi = 0) :
+    (lo + 2 ^ K * hi) % d = lo ∧ (lo + 2 ^ K * hi) / d = hi := by
+  have hlod : lo < d := lt_of_lt_of_le hlo hd
+  rcases hcase with hKd | hhi
+  · subst hKd
+    refine ⟨?_, ?_⟩
+    · rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlo]
+    · rw [Nat.add_mul_div_left _ _ ((by positivity : 0 < 2 ^ K)),
+        Nat.div_eq_of_lt hlo, zero_add]
+  · subst hhi
+    rw [Nat.mul_zero, Nat.add_zero]
+    exact ⟨Nat.mod_eq_of_lt hlod, Nat.div_eq_of_lt hlod⟩
+
+/-- The two index readings at `k = min m₀ 10` and `d = 2 ^ 10`. Both regimes are
+discharged: `m₀ ≥ 10` makes `2 ^ k = d` (the pin's case, `m₀ = 26`), and
+`m₀ < 10` makes the high block a single point. -/
+theorem split_mod_div {m₀ : ℕ} (xl : Fin (2 ^ min m₀ 10))
+    (xh : Fin (2 ^ (m₀ - min m₀ 10))) :
+    ((xl : ℕ) + 2 ^ min m₀ 10 * (xh : ℕ)) % 2 ^ 10 = (xl : ℕ)
+      ∧ ((xl : ℕ) + 2 ^ min m₀ 10 * (xh : ℕ)) / 2 ^ 10 = (xh : ℕ) := by
+  have hd : 2 ^ min m₀ 10 ≤ 2 ^ 10 :=
+    Nat.pow_le_pow_right (by norm_num) (min_le_right _ _)
+  refine split_mod_div_gen (xl : ℕ) (xh : ℕ) xl.isLt hd ?_
+  rcases Nat.lt_or_ge m₀ 10 with hm | hm
+  · right
+    have h2 : (xh : ℕ) < 2 ^ (m₀ - min m₀ 10) := xh.isLt
+    have h3 : 2 ^ (m₀ - min m₀ 10) = 1 := by
+      rw [show m₀ - min m₀ 10 = 0 from by omega]
+      norm_num
+    omega
+  · left
+    rw [min_eq_right hm]
+
+/-! #### 8. The two spellings of a tabulated extension
+
+`cMultilinearExtension` of a flat table and `MLE'` of it are the same
+polynomial; the tensor split is written in the second spelling and the
+specification in the first. -/
+
+/-- `cMultilinearExtension` of a flat table is `MLE'` of it -- the one step
+between the fold specs' spelling and § 4's. -/
+theorem cMLE_flat_eq_MLE' {j : ℕ} (T : Fin (2 ^ j) → F) (z : Fin j → F) :
+    (InnerOuter.cMultilinearExtension j (T ∘ finFunctionFinEquiv)).eval z
+      = MvPolynomial.eval z (MvPolynomial.MLE' T) := by
+  rw [InnerOuter.cMultilinearExtension_eval, MvPolynomial.MLE']
+
+/-- **The split, against the specification.** The two-fold product is the
+specification's multilinear extension of `alphaPublicEvals` at the point -- the
+exact value `final_check` needs, and the right-hand side
+`alpha_public_table_spec` plus a Lagrange dot used to reach.
+
+Unconditional in `m₀`, `n`, `μ` and `m₁`: the `i < 2 ^ m₁` guard is carried by
+`alphaHighTable` verbatim and the `m₀ < 10` regime is discharged in
+`split_mod_div`. `HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec` is this
+lemma at the candidate's own definition. -/
+theorem alphaSplit_eval_eq {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ) (α : F)
+    (τ₁ : Fin m₁ → F) (m₀ : ℕ) (a : Fin m₀ → F) :
+    MvPolynomial.eval (splitLowPoint (alphaSplit_le m₀) a)
+        (MvPolynomial.MLE' (alphaLowTable α (min m₀ 10)))
+      * MvPolynomial.eval (splitHighPoint (alphaSplit_le m₀) a)
+        (MvPolynomial.MLE' (alphaHighTable rs α τ₁ (m₀ - min m₀ 10)))
+      = (InnerOuter.cMultilinearExtension m₀
+          (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs α τ₁)).eval a := by
+  rw [InnerOuter.cMultilinearExtension_eval]
+  refine mle_tensor_split (alphaSplit_le m₀) _ _ _ a ?_
+  intro xl xh
+  obtain ⟨hmod, hdiv⟩ := split_mod_div (m₀ := m₀) (finFunctionFinEquiv xl) (finFunctionFinEquiv xh)
+  rw [InnerOuter.alphaPublicEvals]
+  simp only [phi_natDegree_eq_two_pow, InnerOuter.alphaTilde]
+  rw [ffe_cubeSplit_val (alphaSplit_le m₀) xl xh, hmod, hdiv]
+  rfl
+
+/-! #### 9. The two bridges the extracted loops need
+
+The fold specs below conclude in `mleFold`, which `mleFold_eq_evalMle` and
+CompPoly's `eval_mle_eq_eval` carry to `CMlPolynomialEval.eval`; the tensor split
+above is phrased in `MvPolynomial.eval … (MLE' …)`. `eval_toEvals_eq_MLE'` is the
+one step between them. `alphaHighTable_eq_apTerm_sum` is the other bridge: the
+high table's entries as the row sum `alpha_public_table_loop0_loop0_spec` already
+concludes. -/
+
+/-- Strictly monotone powers of two, in the form the doubling loop's guards want
+and with no lemma-name risk: `Nat.pow_le_pow_right` and arithmetic. -/
+private theorem two_pow_lt_two_pow {i j : ℕ} (h : i < j) : (2 : ℕ) ^ i < 2 ^ j := by
+  have h1 : (2 : ℕ) ^ (i + 1) ≤ 2 ^ j := Nat.pow_le_pow_right (by norm_num) (by omega)
+  rw [pow_succ] at h1
+  have h2 : 0 < (2 : ℕ) ^ i := by positivity
+  omega
+
+/-- An extracted table folded over a whole point, in the `MLE'` spelling:
+CompPoly's dot-product evaluator at a table whose entries are `T` is
+`MvPolynomial.eval` of `T`'s multilinear extension. -/
+theorem eval_toEvals_eq_MLE' {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
+    (T : Fin (2 ^ k) → F) (hT : ∀ y : Fin (2 ^ k), tableFn (m := k) t y = T y)
+    (z : Fin k → F) :
+    CMlPolynomialEval.eval (toEvals (m := k) t) (Vector.ofFn z)
+      = MvPolynomial.eval z (MvPolynomial.MLE' T) := by
+  have hv : toEvals (m := k) t
+      = Vector.ofFn (fun i : Fin (2 ^ k) =>
+          (T ∘ finFunctionFinEquiv) (finFunctionFinEquiv.symm i)) := by
+    rw [toEvals]
+    refine congrArg Vector.ofFn (funext fun i => ?_)
+    show toExt (t.val.getD i.val cpoly.field.Ext4.ZERO)
+      = T (finFunctionFinEquiv (finFunctionFinEquiv.symm i))
+    rw [Equiv.apply_symm_apply, ← tableFn_apply]
+    exact hT i
+  rw [hv, CMlPolynomialEval.eval_eq_MvPolynomial_MLE, MvPolynomial.MLE']
+
+/-- The high factor's entries are the row sum the extracted column loop
+accumulates: `alphaHighTable` is `alphaPublicEvals`'s inner sum written with the
+cube product, `apTerm` is the same summand written with cpoly's Lagrange basis,
+and `lagrangeBasis_get_eq_cube_prod` is the one step between them. -/
+theorem alphaHighTable_eq_apTerm_sum {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (alpha : F) (tau1 : alloc.vec.Vec cpoly.field.Ext4) (j : ℕ) (u : Fin (2 ^ j)) :
+    alphaHighTable rs alpha (toPoint (m := m₁) tau1) j u
+      = ∑ t ∈ Finset.range n, apTerm (m₁ := m₁) rs alpha tau1 (u : ℕ) t := by
+  rw [alphaHighTable, sum_fin_eq_sum_range_dite]
+  refine Finset.sum_congr rfl fun t ht => ?_
+  have htn : t < n := Finset.mem_range.mp ht
+  rw [dif_pos htn, apTerm, dif_pos htn]
+  by_cases hb : t < 2 ^ m₁
+  · rw [dif_pos hb, dif_pos hb, lagrangeBasis_get_eq_cube_prod]
+  · rw [dif_neg hb, dif_neg hb]
+
+/-! #### 10. The extracted item, loop by loop -/
+
+/-- Loop 0 of `alpha_public_mle_eval`: the `k`/`sz` doubling that computes
+`k = min m₀ (log₂ d)` and `sz = 2 ^ k` without ever forming a power.
+
+`d = N = 2 ^ 10` at the pin, so the loop stops either because the whole cube is
+"low" (`k = m₀`, the `m₀ < 10` regime) or because `sz` has reached `d`
+(`k = 10`). `sz` never overflows: it doubles only while `sz < d`, so it stays
+`≤ d`, and `d` is a `usize` literal. -/
+theorem alpha_public_mle_eval_loop0_spec (m0 k sz : Std.Usize)
+    (hk : k.val ≤ min m0.val 10) (hsz : sz.val = 2 ^ k.val) :
+    sumcheck.alpha_public_mle_eval_loop0 params.RING_DEGREE m0 k sz
+      ⦃ (k', sz') => k'.val = min m0.val 10 ∧ sz'.val = 2 ^ k'.val ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  have hNmax : N ≤ Usize.max := by
+    have hb : (params.RING_DEGREE).val ≤ Usize.max := by
+      simp only [params.RING_DEGREE]; scalar_tac
+    omega
+  have hN : N = 2 ^ 10 := N_eq_two_pow
+  rw [sumcheck.alpha_public_mle_eval_loop0]
+  apply loop.spec_decr_nat (fun st => min m0.val 10 - st.1.val)
+    (fun st => st.1.val ≤ min m0.val 10 ∧ st.2.val = 2 ^ st.1.val)
+  · rintro ⟨k1, s1⟩ ⟨hk1, hs1⟩
+    dsimp only at hk1 hs1
+    simp only [sumcheck.alpha_public_mle_eval_loop0.body]
+    by_cases hlt : k1 < m0
+    · rw [if_pos hlt]
+      have hklt : k1.val < m0.val := by scalar_tac
+      by_cases hlt2 : s1 < params.RING_DEGREE
+      · rw [if_pos hlt2]
+        have hsltN : s1.val < N := by rw [← hrd]; scalar_tac
+        have hk10 : k1.val < 10 := by
+          rcases Nat.lt_or_ge k1.val 10 with h | h
+          · exact h
+          · exact absurd hsltN (by
+              have h1 : (2 : ℕ) ^ 10 ≤ 2 ^ k1.val := Nat.pow_le_pow_right (by norm_num) h
+              omega)
+        have hdouble : s1.val * 2 = 2 ^ (k1.val + 1) := by rw [pow_succ, hs1]
+        have hle : s1.val * 2 ≤ N := by
+          rw [hdouble, hN]
+          exact Nat.pow_le_pow_right (by norm_num) (by omega)
+        have hbound : s1.val * 2 ≤ Usize.max := le_trans hle hNmax
+        step as ⟨s2, hs2⟩
+        have hs2v : s2.val = 2 ^ (k1.val + 1) := by rw [← hdouble]; scalar_tac
+        step as ⟨k2, hk2⟩
+        have hk2v : k2.val = k1.val + 1 := by scalar_tac
+        refine ⟨by omega, ?_, by omega⟩
+        rw [hs2v, hk2v]
+      · rw [if_neg hlt2, WP.spec_ok]
+        dsimp only
+        have hsgeN : N ≤ s1.val := by rw [← hrd]; scalar_tac
+        have h10 : 10 ≤ k1.val := by
+          rcases Nat.lt_or_ge k1.val 10 with h | h
+          · exact absurd hsgeN (by
+              have h1 : (2 : ℕ) ^ k1.val < 2 ^ 10 := two_pow_lt_two_pow h
+              omega)
+          · exact h
+        exact ⟨by omega, hs1⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hge : m0.val ≤ k1.val := by scalar_tac
+      exact ⟨by omega, hs1⟩
+  · exact ⟨hk, hsz⟩
+
+/-- Loop 1 of `alpha_public_mle_eval`: the low table folded over the point's
+first `k` coordinates, one `eval_mle_layer` per coordinate.
+
+Same shape as `w_table_mle_eval_loop_spec` (`lean/ZeroCheck.lean`) -- the answer
+travels as the parameter `tgt`, so the invariant is an equation between two
+closed terms rather than a statement about a table whose arity moves -- with one
+difference: `a` is the **whole** sumcheck point and only its first `k`
+coordinates are consumed, so the hypothesis is `k ≤ a.val.length` rather than an
+equality. -/
+theorem alpha_public_mle_eval_loop1_spec {k : ℕ} (a : alloc.vec.Vec cpoly.field.Ext4)
+    (kk : Std.Usize) (cur : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) (tgt : F)
+    (hared : VecReduced a) (halen : k ≤ a.val.length) (hkk : kk.val = k) (hj : j.val ≤ k)
+    (hcur : WfEvals (k - j.val) cur)
+    (hinv : mleFold (k - j.val) (toEvals (m := k - j.val) cur)
+      (fun i => ptFlat a (j.val + i)) = tgt) :
+    sumcheck.alpha_public_mle_eval_loop1 a kk cur j
+      ⦃ o => o.val.length = 1 ∧ VecReduced o ∧
+        toExt (o.val.getD 0 cpoly.field.Ext4.ZERO) = tgt ⦄ := by
+  rw [sumcheck.alpha_public_mle_eval_loop1]
+  apply loop.spec_decr_nat (fun s => k - s.2.val)
+    (fun s => s.2.val ≤ k ∧ WfEvals (k - s.2.val) s.1 ∧
+      mleFold (k - s.2.val) (toEvals (m := k - s.2.val) s.1)
+        (fun i => ptFlat a (s.2.val + i)) = tgt)
+  · rintro ⟨c1, j1⟩ ⟨hj1, hc1, hinv1⟩
+    dsimp only at hj1 hc1 hinv1
+    simp only [sumcheck.alpha_public_mle_eval_loop1.body]
+    by_cases hlt : j1 < kk
+    · rw [if_pos hlt]
+      have hjlt : j1.val < k := by rw [← hkk]; scalar_tac
+      have halt : j1.val < a.val.length := by omega
+      obtain ⟨k', hkeq⟩ : ∃ k', k - j1.val = k' + 1 := ⟨k - j1.val - 1, by omega⟩
+      rw [hkeq] at hc1 hinv1
+      step as ⟨e, he⟩
+      have hRe : Reduced e := by rw [he]; exact hared _ (List.getElem_mem halt)
+      have hev : ptFlat a j1.val = toExt e := by
+        rw [ptFlat, List.getD_eq_getElem _ _ halt, he]
+      step with eval_mle_layer_spec (k := k') c1 e hc1 hRe as ⟨c2, hc2, hfold⟩
+      step as ⟨j2, hj2⟩
+      have hj2v : j2.val = j1.val + 1 := by scalar_tac
+      have hkeq2 : k - j2.val = k' := by omega
+      refine ⟨by omega, ?_, ?_, by omega⟩
+      · rw [hkeq2]; exact hc2
+      · simp only [mleFold] at hinv1
+        rw [show ptFlat a (j1.val + 0) = toExt e from by rw [Nat.add_zero, hev],
+          ← toEvals_evalMleLayer c2 c1 (toExt e) hfold,
+          show (fun i => ptFlat a (j1.val + (i + 1)))
+            = (fun i => ptFlat a (j2.val + i)) from by
+              funext i
+              rw [show j1.val + (i + 1) = j2.val + i from by omega]] at hinv1
+        rw [hkeq2]
+        exact hinv1
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hjeq : j1.val = k := by rw [← hkk] at hj1 ⊢; scalar_tac
+      rw [hjeq, Nat.sub_self] at hc1 hinv1
+      obtain ⟨hclen, hcred⟩ := hc1
+      refine ⟨by simpa using hclen, hcred, ?_⟩
+      rw [← hinv1]
+      simp only [mleFold]
+      exact (tableFn_apply (m := 0) c1 ⟨0, by norm_num⟩).symm
+  · exact ⟨hj, hcur, hinv⟩
+
+/-- The inner loop of loop 2: the partial row sum `Σ_{i' < i} eq̃(τ₁, i') ·
+M̃_α(i', u)`, the same column contraction `alpha_public_table` runs.
+
+The extracted body is *identical* to `alpha_public_table_loop0_loop0`'s -- same
+guard, same arguments, same order -- so the statement and the proof are that
+loop's, transported across the two names. -/
+theorem alpha_public_mle_eval_loop2_loop0_spec {n μ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows cols : Std.Usize)
+    (eqw : alloc.vec.Vec cpoly.field.Ext4)
+    (mt : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4)) (u : Std.Usize)
+    (sum : cpoly.field.Ext4) (i : Std.Usize)
+    (hrows : rows.val = n) (hcols : 0 < n → cols.val = μ + n * 8)
+    (heqwlen : eqw.val.length = n) (heqwred : VecReduced eqw)
+    (heqwval : ∀ t < n, toExt (eqw.val.getD t cpoly.field.Ext4.ZERO) =
+      eqWeightVal (m₁ := m₁) tau1 t)
+    (hmtlen : mt.val.length = n)
+    (hmtval : ∀ (t : ℕ) (ht : t < n),
+      (tableRow mt t).val.length = μ + n * 8 ∧ VecReduced (tableRow mt t) ∧
+      ∀ c < μ + n * 8, toExt ((tableRow mt t).val.getD c cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c)
+    (hi : i.val ≤ n) (hRsum : Reduced sum)
+    (hval : toExt sum = ∑ t ∈ Finset.range i.val,
+      apTerm (m₁ := m₁) rs (toExt alpha) tau1 u.val t) :
+    sumcheck.alpha_public_mle_eval_loop2_loop0 rows cols eqw mt u sum i
+      ⦃ out => Reduced out ∧ toExt out = ∑ t ∈ Finset.range n,
+        apTerm (m₁ := m₁) rs (toExt alpha) tau1 u.val t ⦄ := by
+  have hsame : sumcheck.alpha_public_mle_eval_loop2_loop0 rows cols eqw mt u sum i
+      = sumcheck.alpha_public_table_loop0_loop0 rows cols eqw mt u sum i := rfl
+  rw [hsame]
+  exact alpha_public_table_loop0_loop0_spec (m₁ := m₁) rs alpha tau1 rows cols eqw mt u sum i
+    hrows hcols heqwlen heqwred heqwval hmtlen hmtval hi hRsum hval
+
+/-- Loop 2 of `alpha_public_mle_eval`: one column of the high table per step,
+each the row sum the inner loop computes. `2 ^ j` columns, not `2 ^ m₀` cube
+entries, and no power table is read -- the `α^ℓ` factor belongs to the low half
+of the split. -/
+theorem alpha_public_mle_eval_loop2_spec {n μ j m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (tau1 : alloc.vec.Vec cpoly.field.Ext4) (rows cols hsz : Std.Usize)
+    (eqw : alloc.vec.Vec cpoly.field.Ext4)
+    (mt : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4))
+    (out : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize)
+    (hrows : rows.val = n) (hcols : 0 < n → cols.val = μ + n * 8)
+    (hhsz : hsz.val = 2 ^ j)
+    (heqwlen : eqw.val.length = n) (heqwred : VecReduced eqw)
+    (heqwval : ∀ t < n, toExt (eqw.val.getD t cpoly.field.Ext4.ZERO) =
+      eqWeightVal (m₁ := m₁) tau1 t)
+    (hmtlen : mt.val.length = n)
+    (hmtval : ∀ (t : ℕ) (ht : t < n),
+      (tableRow mt t).val.length = μ + n * 8 ∧ VecReduced (tableRow mt t) ∧
+      ∀ c < μ + n * 8, toExt ((tableRow mt t).val.getD c cpoly.field.Ext4.ZERO) =
+        InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c)
+    (hu : u.val ≤ 2 ^ j) (hlen : out.val.length = u.val) (hred : VecReduced out)
+    (hval : ∀ t < u.val, toExt (out.val.getD t cpoly.field.Ext4.ZERO) =
+      ∑ t' ∈ Finset.range n, apTerm (m₁ := m₁) rs (toExt alpha) tau1 t t') :
+    sumcheck.alpha_public_mle_eval_loop2 rows cols hsz eqw mt out u
+      ⦃ o => o.val.length = 2 ^ j ∧ VecReduced o ∧
+        ∀ t < 2 ^ j, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
+          ∑ t' ∈ Finset.range n, apTerm (m₁ := m₁) rs (toExt alpha) tau1 t t' ⦄ := by
+  have hjmax : 2 ^ j ≤ Usize.max := by rw [← hhsz]; scalar_tac
+  rw [sumcheck.alpha_public_mle_eval_loop2]
+  apply loop.spec_decr_nat (fun st => 2 ^ j - st.2.val)
+    (fun st => st.2.val ≤ 2 ^ j ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
+      ∀ t < st.2.val, toExt (st.1.val.getD t cpoly.field.Ext4.ZERO) =
+        ∑ t' ∈ Finset.range n, apTerm (m₁ := m₁) rs (toExt alpha) tau1 t t')
+  · rintro ⟨v1, u1⟩ ⟨hu1, hlen1, hred1, hval1⟩
+    dsimp only at hu1 hlen1 hred1 hval1
+    simp only [sumcheck.alpha_public_mle_eval_loop2.body]
+    by_cases hlt : u1 < hsz
+    · rw [if_pos hlt]
+      have hult : u1.val < 2 ^ j := by rw [← hhsz]; scalar_tac
+      step with alpha_public_mle_eval_loop2_loop0_spec (n := n) (μ := μ) (m₁ := m₁) rs alpha
+        tau1 rows cols eqw mt u1 cpoly.field.Ext4.ZERO 0#usize hrows hcols heqwlen
+        heqwred heqwval hmtlen hmtval (by simp) reduced_ZERO (by simp)
+        as ⟨sum, hRsum, hsum⟩
+      have hbound : v1.val.length < Usize.max := by omega
+      step as ⟨v2, hv2⟩
+      step as ⟨u2, hu2⟩
+      have hu2n : u2.val = u1.val + 1 := by scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hu2n, hv2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [hv2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hred1 y h
+        · rw [List.mem_singleton.mp h]; exact hRsum
+      · intro t ht'
+        rw [hu2n] at ht'
+        rcases Nat.lt_or_ge t u1.val with htlt | htge
+        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
+        · have hteq : t = v1.val.length := by omega
+          rw [hteq, hv2, getD_append_eq, hsum, hlen1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hueq : u1.val = 2 ^ j := by rw [← hhsz] at hu1 ⊢; scalar_tac
+      exact ⟨by rw [hlen1, hueq], hred1, by rw [← hueq]; exact hval1⟩
+  · exact ⟨hu, hlen, hred, hval⟩
+
+/-- Loop 3 of `alpha_public_mle_eval`: the high table folded over the point's
+last `m₀ − k` coordinates. The extracted body is identical to loop 1's, so the
+statement and the proof are that loop's, transported across the two names -- the
+only difference is where the counter starts. -/
+theorem alpha_public_mle_eval_loop3_spec {m₀ : ℕ} (a : alloc.vec.Vec cpoly.field.Ext4)
+    (mm : Std.Usize) (cur : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) (tgt : F)
+    (hared : VecReduced a) (halen : m₀ ≤ a.val.length) (hmm : mm.val = m₀) (hj : j.val ≤ m₀)
+    (hcur : WfEvals (m₀ - j.val) cur)
+    (hinv : mleFold (m₀ - j.val) (toEvals (m := m₀ - j.val) cur)
+      (fun i => ptFlat a (j.val + i)) = tgt) :
+    sumcheck.alpha_public_mle_eval_loop3 a mm cur j
+      ⦃ o => o.val.length = 1 ∧ VecReduced o ∧
+        toExt (o.val.getD 0 cpoly.field.Ext4.ZERO) = tgt ⦄ := by
+  have hsame : sumcheck.alpha_public_mle_eval_loop3 a mm cur j
+      = sumcheck.alpha_public_mle_eval_loop1 a mm cur j := rfl
+  rw [hsame]
+  exact alpha_public_mle_eval_loop1_spec (k := m₀) a mm cur j tgt hared halen hmm hj hcur hinv
+
+/-- `alpha_public_mle_eval` evaluates the multilinear extension of the public
+table `Ã` at the sumcheck point -- the same value `alpha_public_table` followed
+by cpoly's Lagrange dot produces, computed from two tables of `2 ^ min m₀ 10`
+and `2 ^ (m₀ − min m₀ 10)` entries instead of `2 ^ m₀` of them (opt:
+`HachiEquiv.Opt.alpha_public_mle_eval.opt`, licensed by
+`alpha_public_mle_eval.opt_eq_spec`, which is `alphaSplit_eval_eq` above).
+
+Hypotheses are `alpha_public_table_spec`'s, and for the same reasons.
+`2 ^ m₀ ≤ Usize.max` is `cube_size`'s: the high block's size is formed by
+doubling, and `2 ^ (m₀ − k) ≤ 2 ^ m₀` is what bounds it. `hmax` is
+`m_alpha_table_spec`'s -- the checked `mu + rows · δ` is formed here too.
+`WfPoint m₀ a` is what pins `m₀`, which the extracted code reads off `a.len()`
+rather than taking as an argument; the reducedness half is what the two folds
+need of the point's coordinates. -/
+theorem alpha_public_mle_eval_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinStatement)
+    (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
+    (tau1 a : alloc.vec.Vec cpoly.field.Ext4)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha) (ht : WfPoint m₁ tau1)
+    (hpt : WfPoint m₀ a) (hm0 : 2 ^ m₀ ≤ Usize.max) (hmax : μ + n * 8 ≤ Usize.max) :
+    sumcheck.alpha_public_mle_eval s alpha tau1 a
+      ⦃ out => Reduced out ∧ toExt out =
+        (InnerOuter.cMultilinearExtension m₀
+          (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
+            (toPoint (m := m₁) tau1))).eval (toPoint (m := m₀) a) ⦄ := by
+  have hWm : WfMat n μ s.m := hs.1
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
+  have halen : a.val.length = m₀ := hpt.1
+  have hared : VecReduced a := hpt.2
+  have hm0v : (alloc.vec.Vec.len a).val = m₀ := by simpa using halen
+  have hklem : min m₀ 10 ≤ m₀ := alphaSplit_le m₀
+  have h0 : (0#usize : Std.Usize).val = 0 := by simp
+  -- the two factors the tensor split names
+  set tlow : F := MvPolynomial.eval (splitLowPoint (alphaSplit_le m₀) (toPoint (m := m₀) a))
+    (MvPolynomial.MLE' (alphaLowTable (toExt alpha) (min m₀ 10))) with htlowdef
+  set thigh : F := MvPolynomial.eval (splitHighPoint (alphaSplit_le m₀) (toPoint (m := m₀) a))
+    (MvPolynomial.MLE' (alphaHighTable rs (toExt alpha) (toPoint (m := m₁) tau1)
+      (m₀ - min m₀ 10))) with hthighdef
+  rw [sumcheck.alpha_public_mle_eval]
+  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
+  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+    rw [hrows, hgd]; omega
+  step as ⟨j1, hj1⟩
+  have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
+  have haddbound : mu.val + j1.val ≤ Usize.max := by rw [hj1v]; omega
+  step as ⟨cols, hcols⟩
+  have hcolsv : 0 < n → cols.val = μ + n * 8 := by
+    intro hn; rw [hcols, hmu hn, hj1v]
+  step with alpha_public_mle_eval_loop0_spec (alloc.vec.Vec.len a) 0#usize 1#usize
+    (by simp) (by simp) as ⟨kv, szv, hkv, hszv⟩
+  rw [hm0v] at hkv
+  rw [hkv] at hszv
+  step with HachiEquiv.ZeroCheck.alpha_pow_table_spec alpha szv ha
+    as ⟨low, hlowlen, hlowred, hlowval⟩
+  rw [hszv] at hlowlen hlowval
+  have hWlow : WfEvals (min m₀ 10) low := ⟨hlowlen, hlowred⟩
+  have hlowtab : ∀ y : Fin (2 ^ min m₀ 10), tableFn (m := min m₀ 10) low y
+      = alphaLowTable (toExt alpha) (min m₀ 10) y := by
+    intro y
+    rw [tableFn_apply, alphaLowTable]
+    exact hlowval y.val y.isLt
+  have htlow : mleFold (min m₀ 10) (toEvals (m := min m₀ 10) low)
+      (fun i => ptFlat a i) = tlow := by
+    rw [mleFold_eq_evalMle, CMlPolynomialEval.eval_mle_eq_eval, htlowdef]
+    rw [show (Vector.ofFn (fun i : Fin (min m₀ 10) => ptFlat a i.val))
+        = Vector.ofFn (splitLowPoint (alphaSplit_le m₀) (toPoint (m := m₀) a)) from
+      congrArg Vector.ofFn (funext fun i => by
+        simp only [ptFlat, splitLowPoint, toPoint]
+        rfl)]
+    exact eval_toEvals_eq_MLE' low _ hlowtab _
+  step with alpha_public_mle_eval_loop1_spec (k := min m₀ 10) a kv low 0#usize tlow
+    hared (by omega) hkv (by simp)
+    (by simp only [h0, Nat.sub_zero]; exact hWlow)
+    (by simp only [h0, Nat.zero_add]; exact htlow)
+    as ⟨low1, hlow1len, hlow1red, hlow1val⟩
+  have hsub : (alloc.vec.Vec.len a).val - kv.val ≤ Usize.max := by scalar_tac
+  step as ⟨i2, hi2⟩
+  have hi2v : i2.val = m₀ - min m₀ 10 := by rw [hi2, hm0v, hkv]
+  step with cube_size_spec i2 (by
+    rw [hi2v]
+    exact le_trans (Nat.pow_le_pow_right (by norm_num) (by omega)) hm0) as ⟨hsz, hhsz⟩
+  rw [hi2v] at hhsz
+  step with eq_weight_table_spec (m₁ := m₁) tau1 (alloc.vec.Vec.len s.m) ht
+    as ⟨eqw, heqwlen, heqwred, heqwval⟩
+  rw [hrows] at heqwlen heqwval
+  step with m_alpha_table_spec (n := n) (μ := μ) s rs alpha hs ha hmax
+    as ⟨mt, hmtlen, hmtval⟩
+  step with alpha_public_mle_eval_loop2_spec (n := n) (μ := μ) (j := m₀ - min m₀ 10)
+    (m₁ := m₁) rs alpha tau1 (alloc.vec.Vec.len s.m) cols hsz eqw mt
+    (alloc.vec.Vec.with_capacity cpoly.field.Ext4 hsz) 0#usize hrows hcolsv hhsz
+    heqwlen heqwred heqwval hmtlen hmtval (by simp)
+    (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht'; simp at ht') as ⟨high1, hhlen, hhred, hhval⟩
+  have hWhigh : WfEvals (m₀ - min m₀ 10) high1 := ⟨hhlen, hhred⟩
+  have hhightab : ∀ y : Fin (2 ^ (m₀ - min m₀ 10)),
+      tableFn (m := m₀ - min m₀ 10) high1 y
+        = alphaHighTable rs (toExt alpha) (toPoint (m := m₁) tau1) (m₀ - min m₀ 10) y := by
+    intro y
+    rw [tableFn_apply, alphaHighTable_eq_apTerm_sum]
+    exact hhval y.val y.isLt
+  have hthigh : mleFold (m₀ - min m₀ 10) (toEvals (m := m₀ - min m₀ 10) high1)
+      (fun i => ptFlat a (min m₀ 10 + i)) = thigh := by
+    rw [mleFold_eq_evalMle, CMlPolynomialEval.eval_mle_eq_eval, hthighdef]
+    rw [show (Vector.ofFn (fun i : Fin (m₀ - min m₀ 10) => ptFlat a (min m₀ 10 + i.val)))
+        = Vector.ofFn (splitHighPoint (alphaSplit_le m₀) (toPoint (m := m₀) a)) from
+      congrArg Vector.ofFn (funext fun i => by
+        simp only [ptFlat, splitHighPoint, toPoint]
+        rfl)]
+    exact eval_toEvals_eq_MLE' high1 _ hhightab _
+  step with alpha_public_mle_eval_loop3_spec (m₀ := m₀) a (alloc.vec.Vec.len a) high1 kv thigh
+    hared (by omega) hm0v (by omega) (by rw [hkv]; exact hWhigh)
+    (by rw [hkv]; exact hthigh) as ⟨high2, hh2len, hh2red, hh2val⟩
+  have hlb : (0 : ℕ) < low1.val.length := by rw [hlow1len]; norm_num
+  have hhb : (0 : ℕ) < high2.val.length := by rw [hh2len]; norm_num
+  step as ⟨e, he⟩
+  have hRe : Reduced e := by rw [he]; exact hlow1red _ (List.getElem_mem hlb)
+  have hev : toExt e = tlow := by
+    rw [he, ← List.getD_eq_getElem _ _ hlb]; exact hlow1val
+  step as ⟨e1, he1⟩
+  have hRe1 : Reduced e1 := by rw [he1]; exact hh2red _ (List.getElem_mem hhb)
+  have he1v : toExt e1 = thigh := by
+    rw [he1, ← List.getD_eq_getElem _ _ hhb]; exact hh2val
+  apply spec_mono (ext_mul_spec e e1 hRe hRe1)
+  rintro out ⟨hR, hout⟩
+  refine ⟨hR, ?_⟩
+  rw [hout, hev, he1v, htlowdef, hthighdef,
+    alphaSplit_eval_eq rs (toExt alpha) (toPoint (m := m₁) tau1) m₀ (toPoint (m := m₀) a)]
+
 /-! ## Generic tools for the honest round message -/
 
 /-- A coefficient vector of length `≤ d + 1` denotes a polynomial of degree `≤ d`. -/
@@ -4062,7 +4797,13 @@ set_option maxHeartbeats 1000000 in
 /-- `final_check` decides `finalCheck` (`FinalEval.lean:99`) at round `m₀`: the
 three conjuncts, the third the `u64` bound compare. `m₀` is read off `tau0`;
 `2 ^ m₀ ≤ Usize.max` is `cube_size`'s and cpoly's `table_len` shift's; `hmax`
-is `alpha_public_evals_spec`'s. The first check in the chain that can reject. -/
+is `alpha_public_evals_spec`'s. The first check in the chain that can reject.
+
+The statement is unchanged; only the route to `Ã(a)` is. The linear claim's
+factor now arrives from one `alpha_public_mle_eval_spec` step -- the tensor
+split, two small tables and two folds -- where it used to be assembled from
+`alpha_public_table_spec`, `cpoly_lagrange_basis_spec` and `cpoly_dot_spec` over
+the whole `2 ^ m₀` cube (candidate J). -/
 theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStatement)
     (y_prime : cpoly.field.Ext4) (bound : Std.U64)
     (ss : InnerOuter.NestedRoundStatement Φ (PolyVec (Rq Φ) dRows) F n μ m₀ m₁ m₀)
@@ -4078,20 +4819,14 @@ theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStat
     sumcheck.NestedZeroCheckStmt.impl.rlin, sumcheck.NestedZeroCheckStmt.impl.alpha,
     sumcheck.NestedZeroCheckStmt.impl.tau1, sumcheck.RoundStatement.impl.target_zero,
     sumcheck.RoundStatement.impl.target_alpha, ringswitch.RlinStatement.impl.bound,
-    cpoly.multilinear.MultilinearEvals.from_values, bind_tc_ok]
+    bind_tc_ok]
   set m0 : Std.Usize := alloc.vec.Vec.len stmt.zc.tau0 with hm0def
   clear_value m0
   subst hm0v
   step with eq_tilde_spec stmt.zc.tau0 stmt.challenges hWtau0 hWc hm0 as ⟨eqall, hReqall, heqall⟩
-  step with alpha_public_table_spec (n := n) (μ := μ) (m₁ := m₁) stmt.zc.rlin ss.zc.rlin
-    stmt.zc.alpha stmt.zc.tau1 m0 hr hRalpha hWtau1 hm0 hmax
-    as ⟨table, hWtab, htabval⟩
-  rw [cpoly.multilinear.MultilinearEvals.eval]
-  step with cpoly_lagrange_basis_spec stmt.challenges hWc hm0 as ⟨basis, hblen, hbred, hbval⟩
-  step with cpoly_dot_spec (k := 2 ^ m0.val)
-    (alloc.vec.Vec.deref table) (alloc.vec.Vec.deref basis)
-    (sliceReduced_deref hWtab.2) (sliceReduced_deref hbred)
-    (by simpa using hWtab.1) (by simpa using hblen) as ⟨amle, hRamle, hamle⟩
+  step with alpha_public_mle_eval_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁)
+    stmt.zc.rlin ss.zc.rlin stmt.zc.alpha stmt.zc.tau1 stmt.challenges hr hRalpha hWtau1
+    hWc hm0 hmax as ⟨amle, hRamle, hamle⟩
   step with range_product_spec y_prime hy as ⟨rp, hRrp, hrp⟩
   step with ext_mul_spec eqall rp hReqall hRrp as ⟨prod0, hRprod0, hprod0⟩
   have hAval : toExt prod0 =
@@ -4102,21 +4837,7 @@ theorem final_check_spec {n μ m₀ m₁ dRows : ℕ} (stmt : sumcheck.RoundStat
       (InnerOuter.cMultilinearExtension m0.val
         (InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
           ss.zc.rlin ss.zc.α ss.zc.τα)).eval ss.challenges := by
-    have htabget : ∀ t : Fin (2 ^ m0.val),
-        toExt (table.val.getD t.val cpoly.field.Ext4.ZERO) =
-          InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16
-            ss.zc.rlin ss.zc.α ss.zc.τα (finFunctionFinEquiv.symm t) := by
-      intro t
-      rw [← toEvals_get table t, htabval, Vector.get_ofFn, hva, htau1]
-    rw [hamle, cMultilinearExtension_eval_flat,
-      ← Fin.sum_univ_eq_sum_range (fun t =>
-        toExt ((alloc.vec.Vec.deref table).val.getD t cpoly.field.Ext4.ZERO) *
-          toExt ((alloc.vec.Vec.deref basis).val.getD t cpoly.field.Ext4.ZERO))
-        (2 ^ m0.val)]
-    refine Finset.sum_congr rfl fun t _ => ?_
-    simp only [deref_val]
-    rw [htabget t, hbval t.val t.isLt,
-      lagrangeBasis_get_eq_cube_prod stmt.challenges t.val t.isLt, hc]
+    rw [hamle, hva, htau1, hc]
   have hbnd : decide (bound ≤ stmt.zc.rlin.bound) =
       decide (bound.val ≤ ss.zc.rlin.bound) := by
     refine decide_eq_decide.mpr ?_

@@ -5967,3 +5967,69 @@ second, 2 typecheck iterations, 1 retry. `make build` green, 235 § 4 lines,
 `(0#usize).val` is `0` by `rfl`, so the round-0 specs need no `Fin`-arity
 transport; and `fold (φF ∘ tableFnFp t) T y` unfolds to its two-coefficient
 form by `rfl`. Ledger rows 17 (candidate) and 18 (campaign).
+
+## A correction to the verifier profile: `final_check` has two `2^m₀` walls, not one (2026-09-15)
+
+§ "The overnight runs" attributed `final_check`'s 99 s to the α table and its
+Lagrange dot. Candidate J's prover agent, reading `Generated.lean`, found the
+second half: cpoly's `eq_tilde(w, x)` is `lagrange_basis(w).eval(x)`
+(`cpoly/src/multilinear.rs:248`), and `eval` builds a second Lagrange basis, so
+the `eq̃(τ₀, a)` factor of the range claim costs two `2^m₀` bases and a dot of
+its own -- another 2 GiB and `≈ 2·10⁹` multiplications at the pin. Brief 5 had
+recorded S3 ("the closed-form `eq̃`") as *paid in Rust* on the strength of the
+name; it was not, and the brief is corrected. So S4's verifier half (candidate
+J) removes the α half of the 99 s, and the other half is one line away:
+hachi's own `eq_prefix` over the whole of `τ₀` is the `m₀`-factor closed form
+and `eq_prefix_spec` already concludes the `eqProd` that `eq_tilde_spec`
+does. That swap is proposed as candidate K, on the same `sumcheck/final_check`
+row, after J's verdict -- kept separate so that each strategy's number is its
+own.
+
+## Candidate J: the tensor split of `Ã`, verifier half (2026-09-15, afternoon)
+
+Brief 5's S4, the last of its three levers. `alphaPublicEvals` at the flat
+index `idx` is `α^{idx % d} · Σᵢ eq̃(τ₁, i)·M̃_α(i, idx / d)`, and the flat index
+is little-endian in the cube coordinates, so with `d = 2^10` the table is a
+tensor product of a function of the low ten coordinates and a function of the
+high `m₀ − 10`, and its multilinear extension at a point is the product of two
+small extensions. `sumcheck::alpha_public_mle_eval` computes exactly that: a
+`2^k`-entry table of powers of `α` folded over `a[0..k]`, a `2^{m₀−k}`-entry
+table of row-contracted matrix values folded over `a[k..]`, `k = min(m₀, 10)`,
+one product. `final_check` calls it in place of building the `2^m₀` table and
+taking cpoly's Lagrange dot. Lean: `mle_tensor_split` (the MLE of a
+tensor-product table factorizes; cube split by an explicit equivalence, the
+little-endian index split from `finFunctionFinEquiv_apply`) and
+`alpha_public_mle_eval.opt_eq_spec`, unconditional in `m₀` -- below `d` the
+whole cube is the low factor and the high table is one entry. Prover agent, one
+iteration, fourteen lemmas clean.
+
+**The row.** `sumcheck/final_check/11`, the smallest cube at which both factors
+are non-trivial. `final_check` returns a `bool`, so its digest is a void oracle
+(`|_| true` would digest identically); the row therefore carries its oracle in
+`check()`, which in every variant's own crate demands acceptance of the honest
+statement and rejection of each conjunct moved on its own, and the honest
+targets are computed the pre-J way (tabulated `Ã`, cpoly `eval`) so that for
+the candidate they are an independent computation of the value the split must
+reproduce. The statement is honest so that all three conjuncts run; a random
+one would stop at the first `&&`.
+
+**Accepted on two runs**: −31.2% (bias 8.5%, the browser holding two cores)
+and −32.1% (bias 3.5%). The absolute row times differed by 1.9× between the
+runs (1.68 ms vs 3.14 ms for the champion) because the CPU sat at 2.0 GHz
+under the browser's load in the first and 3.3 GHz in the second -- a live
+example of why an absolute time is not comparable across runs and the
+within-run ratio is. Not the projected −94%, and the reason is the finding
+recorded in § "A correction to the verifier profile": the equality factor is
+the other half of the row and of the pin's 99 s, and it is candidate K. New
+item frozen into genesis with its own row `sumcheck/alpha_public_mle_eval/26`
+at the real cube on a REDUCED statement; stamp owed. Ledger row 19.
+
+**Campaign J closed (2026-09-15, ~14:20).** `final_check_spec` carried verbatim
+(byte-diffed), its proof now stepping through the new
+`alpha_public_mle_eval_spec` instead of the tabulated table, the Lagrange basis
+and the dot. Five positional loop specs for the new item, two of them proved by
+`rfl` transport because the extracted loops are byte-identical to
+`alpha_public_table`'s. The pure tensor-split lemmas moved down from `Opt.lean`
+into `Sumcheck.lean`, the house pattern; `Opt.lean`'s `opt_eq_spec` now reuses
+them. 26 minutes, two typecheck iterations, no retries, no intervention. Build
+green at 240 § 4 lines, `spec-check` 155/155/0. Ledger row 20.

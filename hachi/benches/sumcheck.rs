@@ -27,6 +27,12 @@
 //! `m₀ = 11`, so that its round 0 has exactly the `2^10` shape of the per-round
 //! rows and its table has `2^11` real witness coefficients. It is the row a
 //! change confined to one round is measured on.
+//!
+//! The verifier's `final_check` runs at the same `m₀ = 11`, where the tensor
+//! split of `Ã` first has both of its factors; its bool result makes `check()`
+//! the oracle (see the case). `sumcheck/alpha_public_mle_eval` runs at the
+//! **real** `m₀ = 26` on a REDUCED statement: the split is what makes the
+//! pin's cube affordable, and the row is there to say what it costs.
 
 mod support;
 
@@ -115,6 +121,14 @@ const HRM_Z_COLS: usize = 24;
 /// digit rows start at `u = μ = 24`); see [`HRM_Z_COLS`].
 const HRM_RHO_ROWS: usize = 1;
 
+/// The cube the `final_check` row runs at: **REDUCED** from `M_ZERO = 26` to
+/// `11`, the smallest cube at which the tensor split of `Ã` has two
+/// non-trivial factors (`d = RING_DEGREE = 2^10` low coordinates, one high).
+/// Below `d` the whole cube is the low factor and the high table is one entry,
+/// which is a different shape from the pin's. The genesis budget is the same
+/// `2 048` frozen quadratic evaluations as [`HRM_M0`]'s, ~15 s per iteration.
+const FC_M0: usize = 11;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -156,7 +170,7 @@ macro_rules! define_cases {
             /// `R^lin` statement is `1 × 1` rather than the `2.2 GiB` real one
             /// (`benches/zerocheck.rs` § the statement builder). Sizing a
             /// carried field up would measure the corpus, not the item.
-            fn round_stmt(seed: u64, m0: usize, drawn: usize) -> RoundStatement {
+            fn nested_stmt(seed: u64, m0: usize) -> hc::sumcheck::NestedZeroCheckStmt {
                 let degree = hc::params::RING_DEGREE;
                 let one = |k: u64| Rq::from_coeffs(&support::corpus(seed.wrapping_add(k), degree));
                 let rlin = RlinStatement::new(
@@ -164,15 +178,41 @@ macro_rules! define_cases {
                     PolyVec::new(vec![one(2)]),
                     hc::params::CHAIN_GAMMA,
                 );
-                let zc = hc::sumcheck::NestedZeroCheckStmt::new(
+                hc::sumcheck::NestedZeroCheckStmt::new(
                     rlin,
                     PolyVec::new(vec![one(3)]),
                     ext_table(seed.wrapping_add(4), 1)[0],
                     ext_table(seed.wrapping_add(5), m0),
                     ext_table(seed.wrapping_add(6), hc::params::M_ONE),
-                );
+                )
+            }
+
+            fn round_stmt(seed: u64, m0: usize, drawn: usize) -> RoundStatement {
+                let zc = nested_stmt(seed, m0);
                 let t = ext_table(seed.wrapping_add(7), 2);
                 RoundStatement::new(zc, ext_table(seed.wrapping_add(8), drawn), t[0], t[1])
+            }
+
+            /// A round-`m₀` statement whose two targets are the **honest** final
+            /// claims for the drawn `y′`, moved by `(dz, da)`: at `(0, 0)` the
+            /// statement is one `final_check` accepts, and any other offset is
+            /// one it must reject. The linear target is computed the way the
+            /// crate did before candidate J -- the tabulated `Ã` and cpoly's
+            /// Lagrange `eval` -- so for the `candidate` variant this is an
+            /// independent computation of the value its tensor-split
+            /// evaluation must reproduce. Built in every variant's own crate,
+            /// outside every timed region (the genesis variant pays its frozen
+            /// quadratic `c_eval_at` here once, ~15 s at `m₀ = 11`).
+            fn final_stmt(seed: u64, m0: usize, dz: Ext4, da: Ext4) -> (RoundStatement, Ext4) {
+                let zc = nested_stmt(seed, m0);
+                let challenges = ext_table(seed.wrapping_add(8), m0);
+                let y_prime = ext_table(seed.wrapping_add(9), 1)[0];
+                let eq_all = cpoly::multilinear::eq_tilde(zc.tau0(), &challenges);
+                let table = hc::sumcheck::alpha_public_table(zc.rlin(), zc.alpha(), zc.tau1(), m0);
+                let a_mle = cpoly::MultilinearEvals::from_values(table).eval(&challenges);
+                let t0 = eq_all * hc::zerocheck::range_product(y_prime) + dz;
+                let ta = y_prime * a_mle + da;
+                (RoundStatement::new(zc, challenges, t0, ta), y_prime)
             }
 
             /// A round message, built from coefficients rather than from
@@ -300,6 +340,18 @@ macro_rules! define_cases {
                 assert_eq!(hc::sumcheck::round_node(0), Ext4::ZERO);
                 assert_eq!(hc::sumcheck::round_node(1), Ext4::from_base(Fp::new(1)));
                 assert_eq!(hc::params::ROUND_NODES as u64, 2 * hc::params::GADGET_BASE + 1);
+                // `final_check` returns a `bool`, so its digest cannot tell a
+                // correct body from `|_| true`; this is the oracle instead, in
+                // every variant's own crate: the honest statement is accepted
+                // and each conjunct moved on its own is rejected.
+                let bound = hc::params::CHAIN_GAMMA;
+                let (honest, y) = final_stmt(0x5A17_7001, crate::FC_M0, Ext4::ZERO, Ext4::ZERO);
+                assert!(hc::sumcheck::final_check(&honest, y, bound), "the honest final claim must pass");
+                let (moved_z, y1) = final_stmt(0x5A17_7001, crate::FC_M0, Ext4::ONE, Ext4::ZERO);
+                assert!(!hc::sumcheck::final_check(&moved_z, y1, bound), "a moved range target must fail");
+                let (moved_a, y2) = final_stmt(0x5A17_7001, crate::FC_M0, Ext4::ZERO, Ext4::ONE);
+                assert!(!hc::sumcheck::final_check(&moved_a, y2, bound), "a moved linear target must fail");
+                assert!(!hc::sumcheck::final_check(&honest, y, bound + 1), "a bound above rlin.bound must fail");
             }
 
             // -- cases ------------------------------------------------------
@@ -615,6 +667,66 @@ macro_rules! define_cases {
                 )
             }
 
+            /// **The final check** at a REDUCED cube ([`crate::FC_M0`]): the
+            /// whole-`τ₀` `eq̃`, the range factor, `Ã`'s multilinear extension
+            /// at the sumcheck point, and the three comparisons. This is the
+            /// row for a change to how `Ã(a)` is evaluated -- the tensor split
+            /// (brief 5's S4, candidate J) against the tabulated form -- and
+            /// `m₀ = 11` is the smallest cube where the split has two
+            /// non-trivial factors (`d = 2^10` low coordinates and one high).
+            /// The statement is honest (`final_stmt` at offset `(0, 0)`), so
+            /// the body runs all three conjuncts to the end; `&&` would stop at
+            /// the first false one on a random statement and time nothing.
+            ///
+            /// **The digest is a `bool`, and the void-oracle caveat applies**
+            /// (`lean-opt` § "No new value-level preconditions without a
+            /// gate"): `|_| true` digests identically to the real body. The
+            /// oracle is `check()` above, which runs in every variant's own
+            /// crate and demands acceptance of the honest statement and
+            /// rejection of each moved conjunct; the `tests/` suite compares
+            /// the new evaluation against the tabulated one directly. Genesis
+            /// here builds the frozen `Ã` table with the frozen quadratic
+            /// `c_eval_at`, ~15 s per iteration at this cube (the same 2 048
+            /// entries as `sumcheck/honest_round_messages`); read its
+            /// `vs genesis` accordingly -- it is not a final-check figure.
+            pub fn final_check(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let (st, y) = final_stmt(0x5A17_7023, m0, Ext4::ZERO, Ext4::ZERO);
+                let bound = hc::params::CHAIN_GAMMA;
+                support::run(
+                    m,
+                    || hc::sumcheck::final_check(black_box(&st), black_box(y), black_box(bound)),
+                    d_bool,
+                )
+            }
+
+            /// `Ã`'s multilinear extension at a point by the tensor split, at
+            /// the **real** `m₀ = 26` and a REDUCED statement ([`crate::AP_ROWS`]
+            /// rows, [`crate::AP_COLS`] columns): a `2^10`-entry low table, a
+            /// `2^16`-entry high table, two folds and one product. The row
+            /// exists to put a number on the verifier's dominant step at the
+            /// pin's cube -- the tabulated form it replaces is `2^26` entries
+            /// and cannot run here at all. New item: its genesis is its own
+            /// first translation, so `vs genesis` reads 0 by construction and
+            /// the absolute time is the information.
+            pub fn alpha_public_mle_eval(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let s = rlin_statement(0x5A17_7024, crate::AP_ROWS, crate::AP_COLS);
+                let alpha = ext_table(0x5A17_7124, 1)[0];
+                let tau1 = ext_table(0x5A17_7224, hc::params::M_ONE);
+                let a = ext_table(0x5A17_7324, m0);
+                support::run(
+                    m,
+                    || {
+                        hc::sumcheck::alpha_public_mle_eval(
+                            black_box(&s),
+                            black_box(alpha),
+                            black_box(&tau1),
+                            black_box(&a),
+                        )
+                    },
+                    d_ext4,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control, the same body as every other
@@ -668,6 +780,10 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/alpha_public_table", alpha_public_table, [AP_M0]);
     // @covers sumcheck::honest_round_messages
     bench_case!(c, "sumcheck/honest_round_messages", honest_round_messages, [HRM_M0]);
+    // @covers sumcheck::final_check
+    bench_case!(c, "sumcheck/final_check", final_check, [FC_M0]);
+    // @covers sumcheck::alpha_public_mle_eval
+    bench_case!(c, "sumcheck/alpha_public_mle_eval", alpha_public_mle_eval, [hachi::params::M_ZERO]);
 }
 
 criterion_group! {

@@ -947,3 +947,56 @@ fn honest_round_messages_with_round_zero_peeled_is_the_unpeeled_loop() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// The tensor-split evaluation of Ã (candidate J)
+// ---------------------------------------------------------------------------
+
+/// `alpha_public_mle_eval` is the multilinear extension of the tabulated `Ã`
+/// at the point, computed by the independent Lagrange reference on the
+/// crate's table -- at cubes below `d` (one factor), at `d` exactly, and above
+/// it, including a cube wide enough (`m₀ = 15`, `2^5 = 32 > cols = 18`) that the
+/// unstored zero columns of `M̃_α` are part of the high factor.
+#[test]
+fn alpha_public_mle_eval_is_the_table_mle_at_the_point() {
+    let (n, mu) = (2usize, 2usize);
+    let mut probe = Lcg::new(0x5A17_C010);
+    let s = RlinStatement::new(probe.next_poly_matrix(n, mu), probe.next_poly_vec(n), 15);
+    for m0 in [0usize, 3, 9, 10, 11, 13, 15] {
+        let mut r = Lcg::new(0x5A17_C011 ^ m0 as u64);
+        let alpha = ext4(&mut r);
+        let tau1: Vec<Ext4> = (0..1).map(|_| ext4(&mut r)).collect();
+        let a: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+        let table = alpha_public_table(&s, alpha, &tau1, m0);
+        let expected = mle_ref(&table, &a);
+        let got = hachi::sumcheck::alpha_public_mle_eval(&s, alpha, &tau1, &a);
+        assert_eq!(got, expected, "m0 = {m0}");
+    }
+}
+
+/// The final check with the split evaluation agrees with the final check
+/// written against the tabulated `Ã`, on an honest statement and on each moved
+/// conjunct -- the crate's `final_check` against this file's own composition of
+/// the references.
+#[test]
+fn final_check_with_the_split_agrees_with_the_tabulated_check() {
+    let mut r = Lcg::new(0x5A17_C012);
+    let m0 = 11usize;
+    let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let tau1: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let alpha = ext4(&mut r);
+    let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+    let y_prime = ext4(&mut r);
+    let mut probe = Lcg::new(7);
+    let rlin_probe = RlinStatement::new(probe.next_poly_matrix(2, 2), probe.next_poly_vec(2), 15);
+    let table = alpha_public_table(&rlin_probe, alpha, &tau1, m0);
+    let t0 = eq_tilde_ref(&tau0, &challenges) * range_product_ref(GADGET_BASE, y_prime);
+    let ta = y_prime * mle_ref(&table, &challenges);
+    let build = |tz: Ext4, tal: Ext4| {
+        round_stmt(7, tau0.clone(), tau1.clone(), alpha, challenges.clone(), tz, tal)
+    };
+    assert!(final_check(&build(t0, ta), y_prime, 15));
+    assert!(!final_check(&build(t0 + Ext4::ONE, ta), y_prime, 15));
+    assert!(!final_check(&build(t0, ta + Ext4::ONE), y_prime, 15));
+    assert!(!final_check(&build(t0, ta), y_prime, 16));
+}

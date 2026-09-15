@@ -1449,6 +1449,19 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.evalMleLayerBase_eq
 #print axioms HachiEquiv.Opt.linSumAlphaBase_eq
 #print axioms HachiEquiv.Opt.roundValuesZeroBase_eq_all
+-- Candidate J -- the tensor split of Ã: the MLE of a tensor-product table is the
+-- product of the two small MLEs (brief 5's S4, verifier half). The pure algebra
+-- lives in `lean/Sumcheck.lean`, which `Opt.lean` imports, so the tensor-split
+-- lemma and the split-against-the-specification lemma print under `Sumcheck`.
+#print axioms HachiEquiv.Sumcheck.mle_tensor_split
+#print axioms HachiEquiv.Sumcheck.alphaSplit_eval_eq
+#print axioms HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec
+#print axioms HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec'
+-- Candidate J (campaign) -- the extracted tensor-split evaluation, proved against
+-- the same `cMultilinearExtension m₀ (alphaPublicEvals …)` the table path was
+-- proved against; `final_check_spec` above is the headline that consumes it and
+-- its statement did not move.
+#print axioms HachiEquiv.Sumcheck.alpha_public_mle_eval_spec
 -- Candidate I (campaign) -- the extracted round-0 path, proved against the same
 -- ArkLib definitions the extension-field path is proved against.  The mixed
 -- multiply and the base-field committed table first (`Ext`, `ZeroCheck`), then

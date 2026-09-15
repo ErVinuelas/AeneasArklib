@@ -103,9 +103,12 @@ specification's verifiers run (`roundCheck` per round, `finalCheck`,
 `endPieceCheck`). Two walls, and it is worth saying which are *not* here: no
 `paper_rel_out` (Eq. (20) is the relation `relOut`, never evaluated by a
 verifier) and no `2^m0` witness table (the prover's, in `chain_open`). What
-remains is `rlin_stmt` -- the `R^lin` matrix, 2.2 GiB at `mu0 = 57 344` -- and
-`final_check`'s `alpha_public_table`, `2^m0` extension elements at
-`M_ZERO = 26`. Infeasible as a criterion row; runnable as a test, which is what
+remains is `rlin_stmt` -- the `R^lin` matrix, 2.2 GiB at `mu0 = 57 344` -- and,
+until 2026-09-15, `final_check`'s two `2^m0` tables (the tabulated `A~` and
+cpoly's `eq_tilde`, which builds a Lagrange basis). Candidate J removed the
+first (the tensor split, `alpha_public_mle_eval`); candidate K removes the
+second (`eq_prefix` over the whole of `tau0`). Infeasible as a criterion row
+while `rlin_stmt` stands; runnable as a test, which is what
 `tests/chain_semantics.rs` does at a toy cube.
 
 Every row that *can* be measured is measured under its own name; what a row
@@ -116,10 +119,10 @@ or `&&` and the round loop's early `None` leave `final_check` and the end piece
 untimed; accepting needs a covering cube `(mu + n*delta)*d <= 2^m0`, and the
 honest side sizes its widths from `params` (`honest_z`, `rel_out`), so the
 smallest accepting shape is the pin's `m0 = 26`. The walls at that shape, each
-with its own removal: `alpha_public_table` (2^26 entries x 5 rows x a
-1024-coefficient evaluation, hours; removed by the tensor split of `A~`,
-target-5 brief S6), `rlin_stmt` (2.2 GiB, removed by a lazy entry-at-alpha
-form), `lift_commit` (`ring::mul`'s width). When those land, this row returns
+with its own removal: ~~`alpha_public_table`~~ (removed 2026-09-15 by the
+tensor split of `A~`, target-5 brief S4, candidate J; `eq_tilde`'s basis by
+candidate K), `rlin_stmt` (2.2 GiB, removed by a lazy entry-at-alpha form),
+`lift_commit` (`ring::mul`'s width, the 62 s end piece). When those land, this row returns
 as the composed verifier at the pin; until then the end-to-end number is
 Stage 7's span comparison against `logs/paper-impl/`."""
 
@@ -230,21 +233,6 @@ region."""
 "sumcheck::eq_free_factor" = """
 Two `Ext4` coefficients: `(1 - t)` and `t + t - 1`. O(1) by inspection, the
 `ring::len`/`ring::coeff` class of the header."""
-
-"sumcheck::final_check" = """
-Builds `alpha_public_table` and evaluates its multilinear extension, so at the
-pinned `M_ZERO = 26` it inherits that table's `2^m0` wall (`67 108 864`
-entries); the two `Ext4` comparisons and the `range_product` beside it are
-free by comparison. The table itself has a REDUCED row since 2026-09-14
-(`sumcheck/alpha_public_table` at `2^7` -- sized by its *genesis* variant, whose
-frozen quadratic `c_eval_at` is re-measured every run; feasible at all only once
-the champion's `c_eval_at` became linear); this composed check does not, because
-nothing is left to measure once the table has a row: what `final_check` adds is
-one `MultilinearEvals::eval`, one `eq_tilde`, two `Ext4` comparisons and a `u64`
-compare, all free beside the `2^m0` table it builds.
-
-Removal condition: the tensor split of `A~` (target-5 brief S6) landing as a
-`perf-loop` accept, not a faster `ring::mul` -- this wall is `2^m0`."""
 
 "sumcheck::honest_compute_y" = """
 `zerocheck::w_table_mle_eval` at the sumcheck point, and nothing else -- the

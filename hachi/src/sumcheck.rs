@@ -607,6 +607,80 @@ pub fn alpha_public_table(
     out
 }
 
+/// The multilinear extension of the public table `Ã` at a point, **without the
+/// table** (opt: `HachiEquiv.Opt.alpha_public_mle_eval.opt`, `lean/Opt.lean`
+/// § "Candidate J"; lemma `alpha_public_mle_eval.opt_eq_spec` against
+/// `(cMultilinearExtension m₀ (alphaPublicEvals …)).eval`).
+///
+/// `alphaPublicEvals` at the flat index `idx` is `α^{idx % d} · Σᵢ eq̃(τ₁, i)·
+/// M̃_α(i, idx / d)` (`Constraints.lean:840`), and the flat index is
+/// little-endian in the cube coordinates, so with `d = 2^10` the table is a
+/// tensor product of a function of the low `10` coordinates and a function of
+/// the high `m₀ − 10`. The multilinear extension of a tensor product is the
+/// product of the two extensions: `mle[Ã](a) = mle[α^ℓ](a_low) · mle[S](a_high)`
+/// with `S(u) = Σᵢ eq̃(τ₁, i)·M̃_α(i, u)`. So this evaluates a `2^k`-entry table
+/// and a `2^{m₀−k}`-entry one, `k = min(m₀, 10)`, each by cpoly's layer fold,
+/// and multiplies -- `2^10 + 2^16` entries at the pin against the `2^26` of
+/// [`alpha_public_table`] (brief 5's S4, the verifier half; wall W1's other
+/// half is the prover's table). `k` is `min(m₀, log₂ d)` computed by doubling,
+/// for the reason [`cube_size`] doubles: below `d` the whole cube is "low" and
+/// every entry has `u = 0`.
+///
+/// `a` is the full sumcheck point, `m₀ = a.len()`; coordinate `j` is folded by
+/// `eval_mle_layer` at layer `j`, the orientation `lagrange_basis` fixes
+/// (`multilinear.rs:163`). The three tables are candidate C's
+/// ([`crate::zerocheck::alpha_pow_table`], [`crate::zerocheck::eq_weight_table`],
+/// [`crate::zerocheck::m_alpha_table`]) and the `u < cols` guard is
+/// [`alpha_public_table`]'s: `M̃_α` is zero on the unstored columns. No
+/// `Mirrors` line: this is the crate's own variant of the specification's
+/// evaluation.
+pub fn alpha_public_mle_eval(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    tau1: &Vec<Ext4>,
+    a: &Vec<Ext4>,
+) -> Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let m0: usize = a.len();
+    let rows: usize = s.m().rows();
+    let cols: usize = s.m().cols() + rows * params::GADGET_DIGITS;
+    let mut k: usize = 0;
+    let mut sz: usize = 1;
+    while k < m0 && sz < degree {
+        sz *= 2;
+        k += 1;
+    }
+    let mut low: Vec<Ext4> = crate::zerocheck::alpha_pow_table(alpha, sz);
+    let mut j: usize = 0;
+    while j < k {
+        low = cpoly::multilinear::eval_mle_layer(&low, a[j]);
+        j += 1;
+    }
+    let hsz: usize = cube_size(m0 - k);
+    let eqw: Vec<Ext4> = crate::zerocheck::eq_weight_table(tau1, rows);
+    let mt: Vec<Vec<Ext4>> = crate::zerocheck::m_alpha_table(s, alpha);
+    let mut high: Vec<Ext4> = Vec::with_capacity(hsz);
+    let mut u: usize = 0;
+    while u < hsz {
+        let mut sum: Ext4 = Ext4::ZERO;
+        let mut i: usize = 0;
+        while i < rows {
+            if u < cols {
+                sum = sum + eqw[i] * mt[i][u];
+            }
+            i += 1;
+        }
+        high.push(sum);
+        u += 1;
+    }
+    let mut j2: usize = k;
+    while j2 < m0 {
+        high = cpoly::multilinear::eval_mle_layer(&high, a[j2]);
+        j2 += 1;
+    }
+    low[0] * high[0]
+}
+
 /// The zero-check statement the paired sumcheck starts from (spec:
 /// `NestedZeroCheckStatement`, `ZeroCheck/Constraints.lean:1407`).
 ///
@@ -874,12 +948,17 @@ pub fn honest_compute_y(
 ///
 /// This is the first check in the chain that can actually reject: every earlier
 /// link's verifier is a pass-through.
+///
+/// The linear claim's `Ã(a)` is computed by [`alpha_public_mle_eval`] -- the
+/// tensor-split evaluation, two small tables and two folds -- and not by
+/// building the `2^m₀` table and taking its Lagrange dot (opt:
+/// `HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec`, `lean/Opt.lean`
+/// § "Candidate J"). At the pin that is the difference between 99 s and
+/// milliseconds, and between a 2 GiB table plus a 2 GiB basis and 2 MiB.
 pub fn final_check(stmt: &RoundStatement, y_prime: Ext4, bound: u64) -> bool {
     let zc: &NestedZeroCheckStmt = stmt.zc();
-    let m0: usize = zc.tau0().len();
     let eq_all: Ext4 = cpoly::multilinear::eq_tilde(zc.tau0(), stmt.challenges());
-    let table: Vec<Ext4> = alpha_public_table(zc.rlin(), zc.alpha(), zc.tau1(), m0);
-    let a_mle: Ext4 = cpoly::MultilinearEvals::from_values(table).eval(stmt.challenges());
+    let a_mle: Ext4 = alpha_public_mle_eval(zc.rlin(), zc.alpha(), zc.tau1(), stmt.challenges());
     eq_all * crate::zerocheck::range_product(y_prime) == stmt.target_zero()
         && y_prime * a_mle == stmt.target_alpha()
         && bound <= zc.rlin().bound()

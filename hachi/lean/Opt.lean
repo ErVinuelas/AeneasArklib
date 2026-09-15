@@ -1864,4 +1864,136 @@ theorem roundValuesZeroBase_eq_all {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
         = rangeSumZero (phiF ∘ wf) eq ((t.val : ℕ) : F) :=
   ⟨roundValuesZeroBase_length wf eq, fun t => roundValuesZeroBase_eq wf eq t.val t.isLt⟩
 
+/-! # Candidate J -- the tensor split of the public table Ã, verifier half (brief 5's S4) -/
+/-!
+-- (merged into Opt.lean 2026-09-15; the pure tensor-split lemmas moved down into Sumcheck.lean by the campaign)
+
+# Candidate J -- `sumcheck::final_check`'s `mle[Ã](a)` (brief 5's S4, verifier half)
+
+Strategy `opt-algo-swap`, "different algorithm": the tensor split of the public
+table `Ã`.
+
+`final_check` (`hachi/src/sumcheck.rs:877`) evaluates the multilinear extension
+of `alphaPublicEvals` at the sumcheck point by **building the whole `2 ^ m₀`
+table** (`alpha_public_table`) and taking cpoly's Lagrange dot against a
+`2 ^ m₀`-entry basis. At the pin (`m₀ = 26`) that is 12.6 s of table plus
+~86 s of dot with a 2 GiB basis, i.e. the 99 s `final_check`
+(`NOTES.md` § "The overnight runs").
+
+But `alphaPublicEvals` (`ZeroCheck/Constraints.lean:840`) reads the flat index
+`idx = finFunctionFinEquiv x` only through `idx % d` and `idx / d`, with
+`d = Φ.φ.natDegree = N = 1024 = 2 ^ 10` at the pin
+(`phi_natDegree`, `lean/RqBridge.lean:96`). `finFunctionFinEquiv` is
+little-endian (`finFunctionFinEquiv_apply`), so `idx % 2 ^ 10` is the number of
+the **low** 10 bits of the cube point and `idx / 2 ^ 10` the number of the high
+`m₀ − 10`. Hence `Ã` is a tensor product `L(x_low) · H(x_high)` and its
+multilinear extension factorizes:
+
+  `mle[Ã](a) = mle[L](a_low) · mle[H](a_high)`
+
+with `L` the `2 ^ 10 = 1024`-entry power table `α^ℓ` (candidate C's
+`alphaPowTable`) and `H` the `2 ^ 16 = 65 536`-entry row-contraction table
+`∑ᵢ eq̃(τ₁,i)·M̃_α(i,u)` (candidate C's `eqWeightTable` / `mAlphaTable`). Two
+folds of `2 ^ 10 + 2 ^ 16` entries replace a `2 ^ 26` table and a `2 ^ 26`
+Lagrange dot.
+
+This section is the candidate's own definition and the two bridges to candidate
+C's list builders. The pure algebra of the split -- the cube decomposition, the
+tensor-split lemma, the two tables and `alphaSplit_eval_eq` -- lives in
+`lean/Sumcheck.lean` § "`alpha_public_mle_eval`: the tensor split of `Ã`",
+because the spec layer there needs it and this file **imports** it. The loops
+that build the two tables and the two folds are candidate C's and
+`eval_mle_layer`'s respectively; the `Reduced`/`toExt` triple is the campaign's.
+-/
+
+/-! ## 1. The two tables against candidate C's list builders -/
+
+/-- The low factor is candidate C's `alphaPowTable` read at its natural index --
+so the Rust builds it with `alpha_pow_table(alpha, 1 << k)` and nothing new. -/
+theorem alphaLowTable_eq_alphaPowTable (α : F) (k : ℕ) (l : Fin (2 ^ k)) :
+    alphaLowTable α k l = (alphaPowTable α (2 ^ k)).getD (l : ℕ) 0 :=
+  (alphaPowTable_getD α l.isLt).symm
+
+/-- The high factor is candidate C's row sum over the two hoisted tables
+(`eqWeightTable`, `mAlphaTable`) -- so the Rust builds it with
+`apRowSum eqw mt n u` per column and nothing new. -/
+theorem alphaHighTable_eq_apRowSum {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (j : ℕ) (u : Fin (2 ^ j)) :
+    alphaHighTable rs α τ₁ j u
+      = apRowSum (eqWeightTable τ₁ n) (mAlphaTable rs α) n (u : ℕ) := by
+  rw [alphaHighTable, apRowSum, foldl_add_range_eq_sum, sum_fin_eq_sum_range_dite]
+  refine Finset.sum_congr rfl fun t ht => ?_
+  have htn : t < n := Finset.mem_range.mp ht
+  rw [dif_pos htn, eqWeightTable_getD τ₁ htn, mAlphaTable_getD_eq rs α htn]
+  by_cases hb : t < 2 ^ m₁
+  · rw [dif_pos hb, dif_pos hb]
+  · rw [dif_neg hb, dif_neg hb, zero_mul]
+
+/-! ## 2. The candidate
+
+`k = min m₀ 10`: the low block is the `d = 2 ^ 10` coefficient coordinates, or
+the whole cube when `m₀ < 10`. At the pin `m₀ = 26`, so `k = 10` and the high
+block is `16` coordinates. -/
+
+/-- **The candidate.** `mle[Ã]` at the sumcheck point, as the product of a
+`2 ^ 10`-entry fold and a `2 ^ (m₀ − 10)`-entry fold, with no `2 ^ m₀` table
+and no `2 ^ m₀` Lagrange dot anywhere. -/
+noncomputable def alpha_public_mle_eval.opt {n μ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ)
+    (a : Fin m₀ → F) : F :=
+  MvPolynomial.eval (splitLowPoint (alphaSplit_le m₀) a)
+      (MvPolynomial.MLE' (alphaLowTable α (min m₀ 10)))
+    * MvPolynomial.eval (splitHighPoint (alphaSplit_le m₀) a)
+      (MvPolynomial.MLE' (alphaHighTable rs α τ₁ (m₀ - min m₀ 10)))
+
+/-! ## 3. The candidate's lemma -/
+
+/-- **The candidate's lemma.** The two-fold product is the specification's
+multilinear extension of `alphaPublicEvals` at the point -- the exact value
+`alpha_public_mle_eval_spec` (`lean/Sumcheck.lean`) concludes with, which is the
+value `final_check` used to reach through `alpha_public_table` and a Lagrange
+dot. The argument is `HachiEquiv.Sumcheck.alphaSplit_eval_eq`, stated there over
+the same two factors; this is it at the candidate's own definition.
+
+Unconditional in `m₀`, `n`, `μ` and `m₁`: the `i < 2 ^ m₁` guard is carried by
+`alphaHighTable` verbatim and the `m₀ < 10` regime is discharged in
+`split_mod_div`. -/
+theorem alpha_public_mle_eval.opt_eq_spec {n μ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ)
+    (a : Fin m₀ → F) :
+    alpha_public_mle_eval.opt rs α τ₁ m₀ a
+      = (InnerOuter.cMultilinearExtension m₀
+          (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs α τ₁)).eval a := by
+  rw [alpha_public_mle_eval.opt]
+  exact alphaSplit_eval_eq rs α τ₁ m₀ a
+
+/-! ## 4. The shape the campaign's fold specs deliver
+
+`fold_natTable_eq_mle` / `fold_tableFn_eq_mle` (`lean/Sumcheck.lean:3328`,
+`:3380`) phrase one fold step as
+`fold (tableFn t) x … = (cMultilinearExtension (M+1) evals).eval (hypercubePoint
+(M+1) (i+1) (Fin.snoc cs x) z)`, i.e. the iterated fold of a table over a point
+lands on `cMultilinearExtension`, not on `MvPolynomial.eval … (MLE' …)`. This
+corollary restates the candidate in exactly that spelling, so each factor
+splices onto one instance of those lemmas: the low fold at
+`evals := alphaLowTable α k ∘ finFunctionFinEquiv` over `M + 1 = k` variables,
+the high fold at `evals := alphaHighTable rs α τ₁ (m₀ − k) ∘ finFunctionFinEquiv`
+over `M + 1 = m₀ − k`. -/
+
+/-- **The corollary the campaign splices.** Both factors in the fold specs'
+own spelling. -/
+theorem alpha_public_mle_eval.opt_eq_spec' {n μ m₁ : ℕ}
+    (rs : InnerOuter.RlinStatement Φ n μ) (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ)
+    (a : Fin m₀ → F) :
+    (InnerOuter.cMultilinearExtension (min m₀ 10)
+          (alphaLowTable α (min m₀ 10) ∘ finFunctionFinEquiv)).eval
+        (splitLowPoint (alphaSplit_le m₀) a)
+      * (InnerOuter.cMultilinearExtension (m₀ - min m₀ 10)
+          (alphaHighTable rs α τ₁ (m₀ - min m₀ 10) ∘ finFunctionFinEquiv)).eval
+        (splitHighPoint (alphaSplit_le m₀) a)
+      = (InnerOuter.cMultilinearExtension m₀
+          (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs α τ₁)).eval a := by
+  rw [cMLE_flat_eq_MLE', cMLE_flat_eq_MLE', ← alpha_public_mle_eval.opt_eq_spec rs α τ₁ m₀ a,
+    alpha_public_mle_eval.opt]
+
 end HachiEquiv.Opt
