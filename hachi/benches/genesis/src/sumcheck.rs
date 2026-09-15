@@ -1086,6 +1086,7 @@ pub fn alpha_public_mle_eval(
     low[0] * high[0]
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::alpha_split_low
 /// The low factor of `Ã`: the `2^k` powers of `α`, `k = min(m₀, log₂ d)` by
 /// doubling, as [`alpha_public_mle_eval`] builds it (opt:
 /// `HachiEquiv.Opt.alphaLowTable`, `lean/Sumcheck.lean`).
@@ -1100,6 +1101,7 @@ pub fn alpha_split_low(alpha: Ext4, m0: usize) -> Vec<Ext4> {
     crate::zerocheck::alpha_pow_table(alpha, sz)
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::alpha_split_high
 /// The high factor of `Ã`: entry `u < 2^{m₀−k}` is `Σᵢ eq̃(τ₁, i)·M̃_α(i, u)`,
 /// zero on the unstored columns, as [`alpha_public_mle_eval`] builds it (opt:
 /// `HachiEquiv.Opt.alphaHighTable`, `lean/Sumcheck.lean`).
@@ -1138,6 +1140,7 @@ pub fn alpha_split_high(
     high
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::alpha_split_fold
 /// One round's fold of the two factors: the fold acts on `low` while it has
 /// more than one entry and on `high` afterwards (opt:
 /// `HachiEquiv.Opt.fold_tensorTable_low` / `fold_tensorTable_scalar`,
@@ -1153,6 +1156,7 @@ pub fn alpha_split_fold(low: Vec<Ext4>, high: Vec<Ext4>, a: Ext4) -> (Vec<Ext4>,
     }
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_value_alpha_split
 /// [`round_value_alpha`] with `Ã` read through its two factors: entry `j` is
 /// `low[j % low.len()] · high[j / low.len()]` (opt:
 /// `HachiEquiv.Opt.linSumAlpha_tensor`, `lean/Opt.lean` § "Candidate L").
@@ -1178,6 +1182,7 @@ pub fn round_value_alpha_split(
     acc
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_values_alpha_split
 /// [`round_values_alpha`] on the two factors.
 pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
@@ -1190,6 +1195,7 @@ pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>
     out
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_poly_alpha_split
 /// [`round_poly_alpha`] on the two factors.
 pub fn round_poly_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
     let values: Vec<Ext4> = round_values_alpha_split(w, low, high);
@@ -1197,6 +1203,7 @@ pub fn round_poly_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) 
     interpolate(&values, &weights)
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_value_alpha_base_split
 /// [`round_value_alpha_base`] (round 0, base-field witness table) with `Ã`
 /// read through its two factors.
 pub fn round_value_alpha_base_split(
@@ -1223,6 +1230,7 @@ pub fn round_value_alpha_base_split(
     acc
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_values_alpha_base_split
 /// [`round_values_alpha_base`] on the two factors.
 pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
@@ -1235,6 +1243,7 @@ pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ex
     out
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::round_poly_alpha_base_split
 /// [`round_poly_alpha_base`] on the two factors.
 pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
     let values: Vec<Ext4> = round_values_alpha_base_split(w, low, high);
@@ -1242,6 +1251,7 @@ pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4
     interpolate(&values, &weights)
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::honest_compute_g_split
 /// [`honest_compute_g`] with `Ã` carried as its two factors: the zero side is
 /// the one above, the linear side is [`round_poly_alpha_split`].
 pub fn honest_compute_g_split(
@@ -1262,6 +1272,7 @@ pub fn honest_compute_g_split(
     RoundMsg { g_zero, g_alpha }
 }
 
+// @genesis 58ee74c 2026-09-15 — sumcheck::honest_compute_g_base_split
 /// [`honest_compute_g_base`] with `Ã` carried as its two factors.
 pub fn honest_compute_g_base_split(
     stmt: &RoundStatement,
