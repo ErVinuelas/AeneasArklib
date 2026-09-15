@@ -865,6 +865,7 @@ pub fn round_verify_loop(
     Some(current)
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_value_zero_base
 /// One node's worth of the range summand at round 0, the table in the base
 /// field: `Σ_y P_b((1 − T)·w[2y] + T·w[2y+1]) · eq[y]` with the fold and `P_b`
 /// in `Fp` (opt: `HachiEquiv.Opt.rangeSumZeroBase`, its loop
@@ -889,6 +890,7 @@ pub fn round_value_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>, node: Fp) -> Ext4 {
     acc
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_values_zero_base
 /// The range summand's value at every node, round 0, base-field table
 /// (opt: `HachiEquiv.Opt.roundValuesZeroBase`; lemma `roundValuesZeroBase_eq`).
 ///
@@ -906,6 +908,7 @@ pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_poly_zero_base
 /// The range summand as a polynomial at round 0: [`round_values_zero_base`]
 /// interpolated with the same weights [`round_poly_zero`] uses.
 pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
@@ -914,6 +917,7 @@ pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
     interpolate(&values, &weights)
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_value_alpha_base
 /// One node's worth of the linear summand at round 0: the `w̃` fold in the base
 /// field scaling the `Ã` fold in the extension
 /// (opt: `HachiEquiv.Opt.linSumAlphaBase`; lemma `linSumAlphaBase_eq`).
@@ -937,6 +941,7 @@ pub fn round_value_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>, node: Fp) -> Ext4 
     acc
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_values_alpha_base
 /// The linear summand's value at its three nodes, round 0, base-field table:
 /// [`round_values_alpha`] with the node as `Fp::new(t)`.
 pub fn round_values_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
@@ -950,6 +955,7 @@ pub fn round_values_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::round_poly_alpha_base
 /// The linear summand as a polynomial at round 0: [`round_values_alpha_base`]
 /// interpolated with [`round_node_weights_alpha`].
 pub fn round_poly_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
@@ -958,6 +964,7 @@ pub fn round_poly_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
     interpolate(&values, &weights)
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::eval_mle_layer_base
 /// The one mixed layer fold: a base-field table folded at an extension-field
 /// challenge, `out[j] = w[2j]·(1 − x₀) + w[2j+1]·x₀`
 /// (opt: `HachiEquiv.Opt.evalMleLayerBase`; lemma `evalMleLayerBase_eq` against
@@ -981,6 +988,7 @@ pub fn eval_mle_layer_base(values: &Vec<Fp>, x0: Ext4) -> Vec<Ext4> {
     out
 }
 
+// @genesis 48e01ec 2026-09-15 — sumcheck::honest_compute_g_base
 /// [`honest_compute_g`] at round `0`, the `w̃` table in the base field: the same
 /// two factors applied to [`round_poly_zero_base`], and [`round_poly_alpha_base`]
 /// for the linear component. `i = 0` is fixed, because round 0 is the only round

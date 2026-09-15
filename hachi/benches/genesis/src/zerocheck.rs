@@ -781,6 +781,7 @@ pub fn range_product_base(c: Fp) -> Fp {
     acc
 }
 
+// @genesis 48e01ec 2026-09-15 — zerocheck::c_w_table_fp
 /// The committed table `w̃` as a plain **base-field** value vector: the same
 /// row-block traversal as [`c_w_table_mle_values`] with the embedding left
 /// out (opt: `HachiEquiv.Opt.c_w_table_mle.opt` entrywise under `φF`,
