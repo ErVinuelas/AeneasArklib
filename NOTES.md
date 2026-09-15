@@ -6073,3 +6073,57 @@ own `evalsplit::lagrange_basis` and `linalg::dot` specs, and the pure
 at 238 § 4 lines, `spec-check` 155/155/0. Ledger row 22. With J and K the
 verifier side of I5 is closed; the prover half of S4, the α table carried as
 two factors through the rounds under the wall rule, is what remains of brief 5.
+
+## Candidate L: the α table carried as two factors -- wall W1 down (2026-09-15, late afternoon)
+
+The prover half of brief 5's S4, and the last of that brief's three levers. The
+public table `Ã` at round 0 is the tensor product `L(idx % 2^10) · H(idx / 2^10)`
+that candidate J evaluated; the fold of the least-significant coordinate
+commutes with that structure -- it acts on `L` while `L` has more than one
+entry, and on `H` once `L` is a scalar -- so the prover carries `(low, high)`
+through every round and reads `Ã[j]` as `low[j % L] · high[j / L]`. Eleven new
+items (`alpha_split_low`/`_high`, `alpha_split_fold`, the `_split` round pieces
+on both the extension and the base-field witness table, `honest_compute_g_split`
+and its round-0 sibling); `honest_round_messages` never builds `Ã`;
+`round_loop`, the fused reference reduction, is left on the flat table on
+purpose so the tests keep an independent oracle. Lean: eleven lemmas, chief
+among them `fold_tensorTable_low`/`_scalar` and `linSumAlpha_tensor`, delivered
+in `Opt.lean` § L and moved down into `Sumcheck.lean` by the campaign staging
+(only `honest_round_messages.opt_eq_spec` stays in `Opt.lean`); the tensor
+index is written high-exponent-first so the fold lemmas carry no casts.
+
+**Accepted under the wall rule** on run `20260915T1615+0200-3277d79f`: the
+`sumcheck/honest_round_messages/11` row read +0.4% raw, −0.07% recentered,
+`noise` at a 1.7% control -- the predicted one extra multiplication per α read
+is about 1% of a round and sits inside the control. No row slower. The memory
+gain, recorded as arithmetic: `2^26 · 32 B = 2 GiB` → `(2^10 + 2^16) · 32 B =
+2.03 MiB`, 1008×, and the per-round fold work on `Ã` shrinks from `≈ 2^{m₀+1}`
+steps to `2·(2^10 + 2^{m₀−10})`. Tests: the two factors tensor to
+`alpha_public_table` at five cubes; every split piece equals its flat original
+through eleven rounds including the crossover from `low` to `high`; the peeled
+prover equals the unpeeled loop. Ledger row 23. **Brief 5's list is now
+exhausted** except its sub-5% items (S5b, S5c, S11).
+
+**The first campaign under the new process.** From here the campaign proofs go
+to Aristotle, run by the user: the restated `honest_round_messages_spec` keeps
+its statement verbatim, its body becomes `sorry`, and its previous proof stays
+verbatim in a comment beneath it with a note on what moved in the model (the
+loop state, the `hav` invariant), so that the remote prover adapts a route
+rather than rediscovering one; each new `_split` stub names its flat twin.
+The working tree carries those sorries until the session returns, and nothing
+is committed in that state.
+
+**Campaign L closed by Aristotle (2026-09-15, evening).** The first campaign
+under the new division of labour: a local agent staged the statements -- the
+headline `honest_round_messages_spec` verbatim with `sorry` and its previous
+proof kept in a comment beneath a re-route note, nineteen new `_split` stubs
+each naming its flat twin, and the pure tensor lemmas moved down from
+`Opt.lean` -- and Aristotle session `aba005e6` took the twenty obligations to
+zero (submitted 17:41, complete by the user's evening check after three
+in-progress checks). Integrated by `/aristotle-check` after Lean validation;
+here the full build then confirmed it: 3872 jobs green, **263** § 4 lines all
+at the three kernel axioms, no `sorry` under `lean/`, `spec-check` 155/155/0,
+and none of the 141 pre-existing theorem statements in `Sumcheck.lean` moved.
+Four small specs had been proved locally beforehand by `rfl` transport where
+the extracted loops were byte-identical to `alpha_public_mle_eval`'s. Ledger
+row 24. **I5 is closed**: brief 5's three levers (F, I, J+K+L) have all landed.

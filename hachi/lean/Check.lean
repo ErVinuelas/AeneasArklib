@@ -1462,6 +1462,23 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.alphaSplit_eval_eq
 #print axioms HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec
 #print axioms HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec'
+-- Candidate L -- the α table carried as two factors: the fold commutes with the
+-- tensor structure, and the split read is the flat read (brief 5's S4, prover half).
+-- The pure algebra was moved down into `lean/Sumcheck.lean` by the campaign (the
+-- spec layer there consumes it and `Opt.lean` imports that file), so the tensor
+-- table, the two fold-commutation lemmas, the round-0 identification, the split
+-- read and the whole-run iteration print under `Sumcheck`; only the candidate's
+-- own contract stays under `Opt`.
+#print axioms HachiEquiv.Sumcheck.tensorTable_apply
+#print axioms HachiEquiv.Sumcheck.tensorTable_eq_of_split
+#print axioms HachiEquiv.Sumcheck.fold_tensorTable_low
+#print axioms HachiEquiv.Sumcheck.fold_tensorTable_scalar
+#print axioms HachiEquiv.Sumcheck.alphaPublicEvals_eq_tensorTable
+#print axioms HachiEquiv.Sumcheck.linSumAlpha_tensor
+#print axioms HachiEquiv.Sumcheck.fold_tensorTable_read
+#print axioms HachiEquiv.Sumcheck.fold_tensorTable_read_scalar
+#print axioms HachiEquiv.Sumcheck.foldIter_tensorTable
+#print axioms HachiEquiv.Opt.honest_round_messages.opt_eq_spec
 -- Candidate J (campaign) -- the extracted tensor-split evaluation, proved against
 -- the same `cMultilinearExtension m₀ (alphaPublicEvals …)` the table path was
 -- proved against; `final_check_spec` above is the headline that consumes it and
@@ -1483,5 +1500,27 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_spec
 #print axioms HachiEquiv.Sumcheck.eval_mle_layer_base_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_base_spec
+-- Candidate L (campaign, Aristotle) -- the extracted prover items that carry the
+-- α table as its two tensor factors, proved against the same ArkLib definitions
+-- the flat-table path was proved against: the two table builders, the per-round
+-- fold of the pair, the six round-polynomial items off the split read, and the
+-- two round messages.  `honest_round_messages_spec` above is the headline that
+-- consumes them and its statement did not move.  These print `sorryAx` until the
+-- remote prover returns, which is why the tree carrying them is not committed.
+#print axioms HachiEquiv.Sumcheck.tensorRead_eq_tensorTable
+#print axioms HachiEquiv.Sumcheck.tensorRead_eq_reidx
+#print axioms HachiEquiv.Sumcheck.linSumAlphaSplit_eq_sum_range
+#print axioms HachiEquiv.Sumcheck.linSumAlphaSplitFp_eq_sum_range
+#print axioms HachiEquiv.Sumcheck.alpha_split_low_spec
+#print axioms HachiEquiv.Sumcheck.alpha_split_high_spec
+#print axioms HachiEquiv.Sumcheck.alpha_split_fold_spec
+#print axioms HachiEquiv.Sumcheck.round_value_alpha_split_spec
+#print axioms HachiEquiv.Sumcheck.round_values_alpha_split_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_spec
+#print axioms HachiEquiv.Sumcheck.round_value_alpha_base_split_spec
+#print axioms HachiEquiv.Sumcheck.round_values_alpha_base_split_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_spec
+#print axioms HachiEquiv.Sumcheck.honest_compute_g_split_spec
+#print axioms HachiEquiv.Sumcheck.honest_compute_g_base_split_spec
 
 end HachiEquiv.Check

@@ -1996,4 +1996,96 @@ theorem alpha_public_mle_eval.opt_eq_spec' {n μ m₁ : ℕ}
   rw [cMLE_flat_eq_MLE', cMLE_flat_eq_MLE', ← alpha_public_mle_eval.opt_eq_spec rs α τ₁ m₀ a,
     alpha_public_mle_eval.opt]
 
+/-! # Candidate L -- the α table carried as two factors through the rounds (brief 5's S4, prover half; wall W1) -/
+/-!
+# Candidate L -- the tensor split of the α table, prover half (brief 5's S4)
+
+Strategy `opt-algo-swap`, "different algorithm", judged under `accepted-wall`
+(wall W1).
+
+`honest_round_messages` (`hachi/src/sumcheck.rs:1075`) builds the whole `2 ^ m₀`
+public table `a_tab` with `alpha_public_table` and folds it once per round with
+`eval_mle_layer` (`:1095`, `:1103`). At the pin (`m₀ = 26`) that vector is
+`2 ^ 26 · 32 B = 2 GiB` -- wall W1.
+
+Candidate J already showed that the round-0 table is a **tensor product**: at the
+flat cube index `idx`, `alphaPublicEvals` (`ZeroCheck/Constraints.lean:840`)
+reads only `idx % d` and `idx / d` with `d = Φ.φ.natDegree = 2 ^ 10`
+(`phi_natDegree_eq_two_pow`), and `finFunctionFinEquiv` is little-endian, so
+`Ã(idx) = L(idx % 2 ^ k) · H(idx / 2 ^ k)` with `k = min m₀ 10`,
+`L = alphaLowTable α k` and `H = alphaHighTable rs α τ₁ (m₀ − k)`.
+
+The prover's half of the same observation is that the *layer fold* commutes with
+the tensor structure. Folding the least significant coordinate touches only the
+low factor while the low factor still has more than one entry, and only the high
+factor once it has one:
+
+* `fold (L ⊗ H) a = (fold L) ⊗ H`   while `|L| = 2 ^ (k+1) > 1`;
+* `fold (L ⊗ H) a = L ⊗ (fold H a)` when `|L| = 2 ^ 0 = 1`.
+
+So the prover carries `(low, high)` instead of `a_tab` and reads
+`a_tab[j] = low[j % low.len()] * high[j / low.len()]`. The Rust it translates to:
+
+```
+// tensor read:  a_tab[j] = low[j % L] * high[j / L],   L = low.len() = 2^k (k may be 0)
+round_value_alpha_split(w, low, high, node): half = w.len()/2; one_minus = 1 − node;
+   for y < half: w_folded = one_minus*w[2y] + node*w[2y+1];
+                 lo_a = low[(2y) % L] * high[(2y) / L];  hi_a = low[(2y+1) % L] * high[(2y+1) / L];
+                 a_folded = one_minus*lo_a + node*hi_a;  acc = acc + w_folded * a_folded
+alpha_split_fold(low, high, a) -> (low', high'):  if 1 < low.len() { (eval_mle_layer(low, a), high) }
+                                                  else { (low, eval_mle_layer(high, a)) }
+```
+
+`2 ^ m₀ · 32 B = 2 GiB` becomes `(2 ^ 10 + 2 ^ 16) · 32 B = 2.06 MiB`, and the
+read is written as the *product of the two entries and then folded* -- never as
+`(fold low) * high` -- so `round_value_alpha_split` is literally
+`round_value_alpha` on the tensor table and `linSumAlpha_tensor` (now in
+`lean/Sumcheck.lean`) is the
+only thing the round-value spec needs.
+
+The pure tensor-split algebra of the *verifier* half (`cubeSplit`,
+`mle_tensor_split`, `alphaLowTable`, `alphaHighTable`, `alphaSplit_eval_eq`,
+`split_mod_div`, `phi_natDegree_eq_two_pow`) lives in `lean/Sumcheck.lean` and is
+reused verbatim here.
+
+**And so does this candidate's own algebra now.** `tensorTable`, the two
+fold-commutation lemmas, `alphaPublicEvals_eq_tensorTable`, `linSumAlpha_tensor`,
+the two split reads, `reidx` / `foldIter` and `foldIter_tensorTable` were moved
+verbatim **down into `lean/Sumcheck.lean`** § "The α table as two factors
+(candidate L …)" by the verification campaign: `Opt.lean` imports `Sumcheck`, so
+the spec layer that consumes them cannot import them from here. Campaign J did
+the same with `mle_tensor_split`. What stays below is the candidate's contract --
+`honest_round_messages.opt_eq_spec` -- stated over those names, which are in
+scope through `open HachiEquiv.Sumcheck` above; `Check.lean` § 4 prints the moved
+lemmas under `HachiEquiv.Sumcheck`.
+-/
+
+
+
+/-! ## 7. The candidate's lemma
+
+The three facts the translated prover needs, in one statement: the round-0 table
+is the tensor table, and each round's fold keeps it one -- in the low factor
+while the low factor has more than one entry, in the high factor afterwards. -/
+
+/-- **Candidate L's `opt_eq_spec`.** The `(low, high)` pair the champion carries
+represents the `2 ^ m₀` public table at round `0` and stays a representation of
+it under every layer fold. -/
+theorem honest_round_messages.opt_eq_spec {n μ m₁ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (α : F) (τ₁ : Fin m₁ → F) (m₀ : ℕ) (a : F) :
+    (∀ (x : Fin m₀ → Fin 2) (idx : Fin (2 ^ ((m₀ - min m₀ 10) + min m₀ 10))),
+        (idx : ℕ) = ((finFunctionFinEquiv x : Fin (2 ^ m₀)) : ℕ) →
+        InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs α τ₁ x
+          = tensorTable (alphaLowTable α (min m₀ 10))
+              (alphaHighTable rs α τ₁ (m₀ - min m₀ 10)) idx)
+      ∧ (∀ (j k : ℕ) (L : Fin (2 ^ (k + 1)) → F) (H : Fin (2 ^ j) → F),
+          fold (tensorTable (j := j) (k := k + 1) L H) a
+            = tensorTable (j := j) (k := k) (fold L a) H)
+      ∧ (∀ (j : ℕ) (L : Fin (2 ^ 0) → F) (H : Fin (2 ^ (j + 1)) → F),
+          fold (tensorTable (j := j + 1) (k := 0) L H) a
+            = tensorTable (j := j) (k := 0) L (fold H a)) :=
+  ⟨fun x idx hidx => alphaPublicEvals_eq_tensorTable rs α τ₁ m₀ x idx hidx,
+    fun _ _ L H => fold_tensorTable_low L H a,
+    fun _ L H => fold_tensorTable_scalar L H a⟩
+
 end HachiEquiv.Opt

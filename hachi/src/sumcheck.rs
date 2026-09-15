@@ -683,6 +683,178 @@ pub fn alpha_public_mle_eval(
     low[0] * high[0]
 }
 
+// ---------------------------------------------------------------------------
+// The α table as two factors (candidate L, brief 5's S4, prover half; wall W1)
+// ---------------------------------------------------------------------------
+//
+// The public table `Ã` at round 0 is the tensor product `L(idx % 2^k) ·
+// H(idx / 2^k)` of a `2^k`-entry table of powers of `α` and a `2^{m₀−k}`-entry
+// table of row-contracted matrix values, `k = min(m₀, 10)` (the split
+// `alpha_public_mle_eval` evaluates). Folding the least-significant coordinate
+// commutes with that structure: while `L` has more than one entry the fold
+// acts on `L`, and once `L` is a single entry it acts on `H`. So the prover can
+// carry `(low, high)` through every round and read `Ã[j]` as
+// `low[j % low.len()] · high[j / low.len()]` -- one multiplication per read --
+// instead of holding the `2^{m₀−i}`-entry table: `2^10 + 2^16` entries, about
+// 2 MiB at the pin, where the flat table is 2 GiB. The items below are the
+// α-side round pieces on the two factors; the zero side is untouched.
+
+/// The low factor of `Ã`: the `2^k` powers of `α`, `k = min(m₀, log₂ d)` by
+/// doubling, as [`alpha_public_mle_eval`] builds it (opt:
+/// `HachiEquiv.Opt.alphaLowTable`, `lean/Sumcheck.lean`).
+pub fn alpha_split_low(alpha: Ext4, m0: usize) -> Vec<Ext4> {
+    let degree: usize = params::RING_DEGREE;
+    let mut k: usize = 0;
+    let mut sz: usize = 1;
+    while k < m0 && sz < degree {
+        sz *= 2;
+        k += 1;
+    }
+    crate::zerocheck::alpha_pow_table(alpha, sz)
+}
+
+/// The high factor of `Ã`: entry `u < 2^{m₀−k}` is `Σᵢ eq̃(τ₁, i)·M̃_α(i, u)`,
+/// zero on the unstored columns, as [`alpha_public_mle_eval`] builds it (opt:
+/// `HachiEquiv.Opt.alphaHighTable`, `lean/Sumcheck.lean`).
+pub fn alpha_split_high(
+    s: &crate::ringswitch::RlinStatement,
+    alpha: Ext4,
+    tau1: &Vec<Ext4>,
+    m0: usize,
+) -> Vec<Ext4> {
+    let degree: usize = params::RING_DEGREE;
+    let rows: usize = s.m().rows();
+    let cols: usize = s.m().cols() + rows * params::GADGET_DIGITS;
+    let mut k: usize = 0;
+    let mut sz: usize = 1;
+    while k < m0 && sz < degree {
+        sz *= 2;
+        k += 1;
+    }
+    let hsz: usize = cube_size(m0 - k);
+    let eqw: Vec<Ext4> = crate::zerocheck::eq_weight_table(tau1, rows);
+    let mt: Vec<Vec<Ext4>> = crate::zerocheck::m_alpha_table(s, alpha);
+    let mut high: Vec<Ext4> = Vec::with_capacity(hsz);
+    let mut u: usize = 0;
+    while u < hsz {
+        let mut sum: Ext4 = Ext4::ZERO;
+        let mut i: usize = 0;
+        while i < rows {
+            if u < cols {
+                sum = sum + eqw[i] * mt[i][u];
+            }
+            i += 1;
+        }
+        high.push(sum);
+        u += 1;
+    }
+    high
+}
+
+/// One round's fold of the two factors: the fold acts on `low` while it has
+/// more than one entry and on `high` afterwards (opt:
+/// `HachiEquiv.Opt.fold_tensorTable_low` / `fold_tensorTable_scalar`,
+/// `lean/Opt.lean` § "Candidate L"). Takes the two tables by value and returns
+/// the pair, so that the untouched factor moves rather than being copied.
+pub fn alpha_split_fold(low: Vec<Ext4>, high: Vec<Ext4>, a: Ext4) -> (Vec<Ext4>, Vec<Ext4>) {
+    if 1 < low.len() {
+        let low1: Vec<Ext4> = cpoly::multilinear::eval_mle_layer(&low, a);
+        (low1, high)
+    } else {
+        let high1: Vec<Ext4> = cpoly::multilinear::eval_mle_layer(&high, a);
+        (low, high1)
+    }
+}
+
+/// [`round_value_alpha`] with `Ã` read through its two factors: entry `j` is
+/// `low[j % low.len()] · high[j / low.len()]` (opt:
+/// `HachiEquiv.Opt.linSumAlpha_tensor`, `lean/Opt.lean` § "Candidate L").
+pub fn round_value_alpha_split(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+    node: Ext4,
+) -> Ext4 {
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let one_minus: Ext4 = Ext4::ONE - node;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let w_folded: Ext4 = one_minus * w[2 * y] + node * w[2 * y + 1];
+        let lo_a: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let hi_a: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let a_folded: Ext4 = one_minus * lo_a + node * hi_a;
+        acc = acc + w_folded * a_folded;
+        y += 1;
+    }
+    acc
+}
+
+/// [`round_values_alpha`] on the two factors.
+pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_alpha_split(w, low, high, round_node(t)));
+        t += 1;
+    }
+    out
+}
+
+/// [`round_poly_alpha`] on the two factors.
+pub fn round_poly_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_alpha_split(w, low, high);
+    let weights: Vec<Fp> = round_node_weights_alpha();
+    interpolate(&values, &weights)
+}
+
+/// [`round_value_alpha_base`] (round 0, base-field witness table) with `Ã`
+/// read through its two factors.
+pub fn round_value_alpha_base_split(
+    w: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+    node: Fp,
+) -> Ext4 {
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let one_minus: Fp = Fp::ONE - node;
+    let node_ext: Ext4 = Ext4::from_base(node);
+    let one_minus_ext: Ext4 = Ext4::ONE - node_ext;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let w_folded: Fp = one_minus * w[2 * y] + node * w[2 * y + 1];
+        let lo_a: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let hi_a: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let a_folded: Ext4 = one_minus_ext * lo_a + node_ext * hi_a;
+        acc = acc + w_folded * a_folded;
+        y += 1;
+    }
+    acc
+}
+
+/// [`round_values_alpha_base`] on the two factors.
+pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_alpha_base_split(w, low, high, Fp::new(t as u64)));
+        t += 1;
+    }
+    out
+}
+
+/// [`round_poly_alpha_base`] on the two factors.
+pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_alpha_base_split(w, low, high);
+    let weights: Vec<Fp> = round_node_weights_alpha();
+    interpolate(&values, &weights)
+}
+
 /// The zero-check statement the paired sumcheck starts from (spec:
 /// `NestedZeroCheckStatement`, `ZeroCheck/Constraints.lean:1407`).
 ///
@@ -884,6 +1056,44 @@ pub fn honest_compute_g_base(
     RoundMsg { g_zero, g_alpha }
 }
 
+/// [`honest_compute_g`] with `Ã` carried as its two factors: the zero side is
+/// the one above, the linear side is [`round_poly_alpha_split`].
+pub fn honest_compute_g_split(
+    stmt: &RoundStatement,
+    w_tab: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+    i: usize,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, i);
+    let inner: UnivariatePoly = round_poly_zero(w_tab, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[i]);
+    let with_free: UnivariatePoly = &inner * &free;
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha_split(w_tab, low, high);
+    RoundMsg { g_zero, g_alpha }
+}
+
+/// [`honest_compute_g_base`] with `Ã` carried as its two factors.
+pub fn honest_compute_g_base_split(
+    stmt: &RoundStatement,
+    w_fp: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, 0);
+    let inner: UnivariatePoly = round_poly_zero_base(w_fp, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[0]);
+    let with_free: UnivariatePoly = &inner * &free;
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha_base_split(w_fp, low, high);
+    RoundMsg { g_zero, g_alpha }
+}
+
 /// The round check: both round polynomials sum to the current targets over
 /// `{0, 1}` (spec: `roundCheck`, `Sumcheck/Rounds.lean:100`).
 ///
@@ -1072,13 +1282,20 @@ pub fn nested_to_round_statement(zc: NestedZeroCheckStmt) -> RoundStatement {
 /// [`eval_mle_layer_base`] produces the extension table the loop from round 1
 /// on consumes exactly as before. The `0 < m₀` guard is the peel's totality:
 /// at `m₀ = 0` there is no round and the result is the empty list either way.
+///
+/// The public table `Ã` is never built: it is carried as its two tensor
+/// factors `(low, high)` ([`alpha_split_low`], [`alpha_split_high`]), folded
+/// by [`alpha_split_fold`] and read by the `_split` round pieces (opt:
+/// `lean/Opt.lean` § "Candidate L"; wall W1: `2^10 + 2^16` entries in place
+/// of `2^{m₀}`).
 pub fn honest_round_messages(
     stmt: RoundStatement,
     w: &crate::ringswitch::LiftedWitness,
     challenges: &Vec<Ext4>,
 ) -> Vec<RoundMsg> {
     let m0: usize = stmt.zc().tau0().len();
-    let mut a_tab: Vec<Ext4> = alpha_public_table(
+    let mut low: Vec<Ext4> = alpha_split_low(stmt.zc().alpha(), m0);
+    let mut high: Vec<Ext4> = alpha_split_high(
         stmt.zc().rlin(),
         stmt.zc().alpha(),
         stmt.zc().tau1(),
@@ -1088,19 +1305,23 @@ pub fn honest_round_messages(
     let mut out: Vec<RoundMsg> = Vec::new();
     if 0 < m0 {
         let w_fp: Vec<Fp> = crate::zerocheck::c_w_table_fp(w, m0);
-        let g0: RoundMsg = honest_compute_g_base(&current, &w_fp, &a_tab);
+        let g0: RoundMsg = honest_compute_g_base_split(&current, &w_fp, &low, &high);
         let a0: Ext4 = challenges[0];
         current = round_out(current, &g0, a0);
         let mut w_tab: Vec<Ext4> = eval_mle_layer_base(&w_fp, a0);
-        a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a0);
+        let folded0: (Vec<Ext4>, Vec<Ext4>) = alpha_split_fold(low, high, a0);
+        low = folded0.0;
+        high = folded0.1;
         out.push(g0);
         let mut i: usize = 1;
         while i < m0 {
-            let g: RoundMsg = honest_compute_g(&current, &w_tab, &a_tab, i);
+            let g: RoundMsg = honest_compute_g_split(&current, &w_tab, &low, &high, i);
             let a: Ext4 = challenges[i];
             current = round_out(current, &g, a);
             w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
-            a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
+            let folded: (Vec<Ext4>, Vec<Ext4>) = alpha_split_fold(low, high, a);
+            low = folded.0;
+            high = folded.1;
             out.push(g);
             i += 1;
         }

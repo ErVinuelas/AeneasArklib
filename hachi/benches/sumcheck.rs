@@ -503,6 +503,35 @@ macro_rules! define_cases {
                 )
             }
 
+            /// [`honest_compute_g`]'s row with `Ã` read through its two factors
+            /// (candidate L): same cube, same round, `low` of `HALF` entries
+            /// and `high` of two, the shape round 0 of an `m₀ = 11` run has.
+            /// The α side is ~1.4% of the round, so this row cannot resolve
+            /// the split's one extra multiplication per read; it exists to put
+            /// a number beside `sumcheck/honest_compute_g` and to keep the
+            /// item the prover now calls under measurement. New item: its
+            /// genesis is its first translation.
+            pub fn honest_compute_g_split(m: Mode<'_, '_>, half: usize) -> u64 {
+                let vars = half.trailing_zeros() as usize + 1;
+                let st = round_stmt(0x5A17_7025, vars, 0);
+                let w = ext_table(0x5A17_7125, 2 * half);
+                let low = ext_table(0x5A17_7225, half);
+                let high = ext_table(0x5A17_7325, 2);
+                support::run(
+                    m,
+                    || {
+                        hc::sumcheck::honest_compute_g_split(
+                            black_box(&st),
+                            black_box(&w),
+                            black_box(&low),
+                            black_box(&high),
+                            black_box(0),
+                        )
+                    },
+                    d_poly_pair,
+                )
+            }
+
             fn d_poly_pair(g: &RoundMsg) -> u64 {
                 support::mix(d_poly(g.g_zero()), d_poly(g.g_alpha()))
             }
@@ -772,6 +801,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/eq_suffix_table", eq_suffix_table, [SUFFIX_VARS]);
     // @covers sumcheck::honest_compute_g
     bench_case!(c, "sumcheck/honest_compute_g", honest_compute_g, [HALF]);
+    // @covers sumcheck::honest_compute_g_split
+    bench_case!(c, "sumcheck/honest_compute_g_split", honest_compute_g_split, [HALF]);
     // @covers sumcheck::round_check
     bench_case!(c, "sumcheck/round_check", round_check, [hachi::params::M_ZERO]);
     // @covers sumcheck::round_out

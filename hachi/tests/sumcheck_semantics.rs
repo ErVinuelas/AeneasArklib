@@ -1015,3 +1015,71 @@ fn eq_prefix_over_the_whole_point_is_eq_tilde() {
         assert_eq!(closed, eq_tilde_ref(&tau0, &a), "m0 = {m0}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// The α table carried as two factors (candidate L)
+// ---------------------------------------------------------------------------
+
+/// The flat table the two factors stand for: entry `j` is `low[j % L] · high[j / L]`.
+fn tensor_flat(low: &[Ext4], high: &[Ext4]) -> Vec<Ext4> {
+    let l = low.len();
+    (0..l * high.len()).map(|j| low[j % l] * high[j / l]).collect()
+}
+
+/// The two factors of `Ã` are `Ã` itself: `alpha_split_low ⊗ alpha_split_high`
+/// is `alpha_public_table` entrywise, below, at and above the ring degree.
+#[test]
+fn alpha_split_factors_tensor_to_the_public_table() {
+    let (n, mu) = (2usize, 2usize);
+    let mut probe = Lcg::new(0x5A17_C030);
+    let s = RlinStatement::new(probe.next_poly_matrix(n, mu), probe.next_poly_vec(n), 15);
+    for m0 in [0usize, 3, 10, 11, 15] {
+        let mut r = Lcg::new(0x5A17_C031 ^ m0 as u64);
+        let alpha = ext4(&mut r);
+        let tau1: Vec<Ext4> = (0..1).map(|_| ext4(&mut r)).collect();
+        let low = hachi::sumcheck::alpha_split_low(alpha, m0);
+        let high = hachi::sumcheck::alpha_split_high(&s, alpha, &tau1, m0);
+        assert_eq!(low.len(), 1usize << m0.min(10), "m0 = {m0}");
+        assert_eq!(low.len() * high.len(), 1usize << m0, "m0 = {m0}");
+        assert_eq!(tensor_flat(&low, &high), alpha_public_table(&s, alpha, &tau1, m0), "m0 = {m0}");
+    }
+}
+
+/// Every split round piece equals its flat original on the tensor table, and
+/// the split fold is the flat fold: checked through eleven rounds from a
+/// `2^11` cube, so that the fold crosses from the low factor to the high one.
+#[test]
+fn split_round_pieces_agree_with_the_flat_table_through_the_rounds() {
+    use hachi::sumcheck::{alpha_split_fold, round_poly_alpha, round_poly_alpha_base,
+                          round_poly_alpha_base_split, round_poly_alpha_split,
+                          round_value_alpha, round_value_alpha_split, round_values_alpha,
+                          round_values_alpha_split};
+    let m0 = 11usize;
+    let mut r = Lcg::new(0x5A17_C032);
+    let mut low: Vec<Ext4> = (0..1usize << 10).map(|_| ext4(&mut r)).collect();
+    let mut high: Vec<Ext4> = (0..2).map(|_| ext4(&mut r)).collect();
+    let mut flat = tensor_flat(&low, &high);
+    // round 0: the base-field witness table
+    let w_fp: Vec<Fp> = (0..1usize << m0).map(|_| r.next_fp()).collect();
+    assert_eq!(round_poly_alpha_base_split(&w_fp, &low, &high), round_poly_alpha_base(&w_fp, &flat));
+    let mut w: Vec<Ext4> = w_fp.iter().map(|&c| Ext4::from_base(c)).collect();
+    for round in 0..m0 {
+        assert_eq!(flat.len(), w.len(), "round {round}");
+        for t in 0..ROUND_NODES_ALPHA {
+            assert_eq!(round_value_alpha_split(&w, &low, &high, round_node(t)),
+                       round_value_alpha(&w, &flat, round_node(t)), "round {round}, node {t}");
+        }
+        assert_eq!(round_values_alpha_split(&w, &low, &high), round_values_alpha(&w, &flat));
+        assert_eq!(round_poly_alpha_split(&w, &low, &high), round_poly_alpha(&w, &flat));
+        let a = ext4(&mut r);
+        let (l1, h1) = alpha_split_fold(low, high, a);
+        low = l1;
+        high = h1;
+        flat = cpoly::multilinear::eval_mle_layer(&flat, a);
+        w = cpoly::multilinear::eval_mle_layer(&w, a);
+        assert_eq!(tensor_flat(&low, &high), flat, "after fold {round}");
+        if round < 9 { assert_eq!(high.len(), 2, "the high factor waits, round {round}"); }
+    }
+    assert_eq!(low.len(), 1);
+    assert_eq!(high.len(), 1);
+}
