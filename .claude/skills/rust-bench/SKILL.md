@@ -336,7 +336,13 @@ verdict; neither is "this could theoretically be optimized away".
   When you compute the floor for a gadget case, read `GADGET_BASE` out of
   `hachi/src/params.rs` rather than from memory — it is **16** at the [NOZ26]
   Fig. 9 parameters (it was `2` before that adoption, and this line said so for
-  longer than it was true). Sixteen is still a power of two, so `rest / b` in
+  longer than it was true), and read `RING_DEGREE` the same way -- it is
+  **1024** at the pin, and a REDUCED-row budget computed with the old `64`
+  mis-sized the `sumcheck/honest_round_messages` row's genesis cost by 3.6×
+  (projected 4 s, measured 14.8 s per iteration, 2026-09-15: every cube entry
+  `idx` reaches `m_alpha_tilde` at `u = idx / d`, so at `d = 1024` a `2^11`
+  cube has only `u ∈ {0, 1}` and no zero padding at all). Sixteen is still a
+  power of two, so `rest / b` in
   `digit_at` compiles to a shift and you count shifts rather than divisions; but
   the digit *count* moved with the base — `GADGET_DIGITS` is 8, not 32 — so any
   floor derived from the old pair is off by 4x.

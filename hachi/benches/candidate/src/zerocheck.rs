@@ -277,6 +277,37 @@ fn c_w_table_mle_values(w: &LiftedWitness, m0: usize) -> Vec<Ext4> {
     values
 }
 
+/// The committed table `w̃` as a plain **base-field** value vector: the same
+/// row-block traversal as [`c_w_table_mle_values`] with the embedding left
+/// out (opt: `HachiEquiv.Opt.c_w_table_mle.opt` entrywise under `φF`,
+/// `lean/Opt.lean` § "Candidate I").
+///
+/// Every entry of `w̃` is `φF` of a witness coefficient
+/// (`Constraints.lean:146,148`), so at round 0 of the sumcheck -- before any
+/// extension-field challenge has touched the table -- the table *is* this
+/// vector, and [`crate::sumcheck::honest_round_messages`] computes its first
+/// round on it in the base field. One `u64` per entry against four: `2^m₀`
+/// words, 512 MiB at the pinned `M_ZERO = 26` where the embedded table is
+/// 2.0 GiB.
+pub fn c_w_table_fp(w: &LiftedWitness, m0: usize) -> Vec<Fp> {
+    let size: usize = two_pow(m0);
+    let degree: usize = params::RING_DEGREE;
+    let mut values: Vec<Fp> = Vec::with_capacity(size);
+    let mut u: usize = 0;
+    let mut idx: usize = 0;
+    while idx < size {
+        let r: Rq = w_table_row(w, u);
+        let mut l: usize = 0;
+        while l < degree && idx < size {
+            values.push(r.coeff(l));
+            l += 1;
+            idx += 1;
+        }
+        u += 1;
+    }
+    values
+}
+
 /// The committed table `w̃` as a multilinear extension in Lagrange form
 /// (spec: `cWTableMle`, `Constraints.lean:328`; opt: `HachiEquiv.Opt.optEvals`
 /// over `c_w_table_mle.opt`, `lean/Opt.lean`).

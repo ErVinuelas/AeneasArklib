@@ -22,6 +22,11 @@
 //! nodes, then interpolation — while fitting a criterion iteration. The node
 //! count is **not** reduced: it is `ROUND_NODES = 2b + 1 = 33`, and reducing it
 //! would change which polynomial the interpolant is.
+//!
+//! One row runs the *whole* honest prover: `sumcheck/honest_round_messages` at
+//! `m₀ = 11`, so that its round 0 has exactly the `2^10` shape of the per-round
+//! rows and its table has `2^11` real witness coefficients. It is the row a
+//! change confined to one round is measured on.
 
 mod support;
 
@@ -77,6 +82,39 @@ const AP_ROWS: usize = 2;
 /// column is all a one-row cube reads.
 const AP_COLS: usize = 1;
 
+/// The cube the `honest_round_messages` row runs at: **REDUCED** from the
+/// pinned `M_ZERO = 26` to `11`, so that round 0 folds `2^10 = HALF` pairs --
+/// the same shape as the per-round rows above -- and the item runs its `11`
+/// rounds over a `2048`-entry `w̃` table. The row exists to measure the
+/// *whole* honest prover, which is the item a round-0 rewrite changes: the
+/// per-round rows cannot see a change that only touches the first round. Its
+/// genesis budget is set by the frozen `alpha_public_table` inside it, not by
+/// the cube: every table entry has `u = idx / d` with `d = RING_DEGREE = 1024`,
+/// so the `2048` entries split into `u = 0` (the matrix branch, one frozen
+/// quadratic `c_eval_at` over `d` terms) and `u = 1` (the first digit branch,
+/// one frozen quadratic `c_eval_at_modulus` over `d + 1` terms), about `7 ms`
+/// each -- **measured 14.8 s per genesis iteration** (run
+/// `20260915T1008+0200-7cd34c7b`), about 13 minutes for the row's three
+/// variants. `m₀ = 10` would halve that (all `u = 0`) but lose the `HALF`
+/// shape; `m₀ = 12` would double it. An earlier version of this comment
+/// projected `4 s` from `d = 64`, which is not this crate's ring degree.
+const HRM_M0: usize = 11;
+
+/// The witness the `honest_round_messages` row commits: **REDUCED** from
+/// `μ₀ = 57 344` message polynomials to `24`, plus [`HRM_RHO_ROWS`] quotient
+/// row. With `d = RING_DEGREE = 1024` the `2^11` cube covers only table rows
+/// `u = 0, 1` -- the first two message polynomials -- so every entry is a real
+/// witness coefficient and none is zero padding, but `z[2..]` and the quotient
+/// row are never read at this cube (the adversarial review of 2026-09-15
+/// measured the table build at ~0.03 ms of the row either way). The witness is
+/// kept at a shape that would also feed the digit branch at a wider cube; it is
+/// not what the row measures.
+const HRM_Z_COLS: usize = 24;
+
+/// The quotient-row count of that witness: `1`. Not reached at `m₀ = 11` (the
+/// digit rows start at `u = μ = 24`); see [`HRM_Z_COLS`].
+const HRM_RHO_ROWS: usize = 1;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -96,6 +134,8 @@ macro_rules! define_cases {
             type RlinStatement = hc::ringswitch::RlinStatement;
             type RoundStatement = hc::sumcheck::RoundStatement;
             type RoundMsg = hc::sumcheck::RoundMsg;
+            type QuotientRow = hc::ringswitch::QuotientRow;
+            type LiftedWitness = hc::ringswitch::LiftedWitness;
 
             // -- corpus -----------------------------------------------------
 
@@ -146,6 +186,34 @@ macro_rules! define_cases {
                         hc::params::ROUND_NODES_ALPHA,
                     )),
                 )
+            }
+
+            /// The committed witness of the `honest_round_messages` row:
+            /// [`crate::HRM_Z_COLS`] message polynomials and
+            /// [`crate::HRM_RHO_ROWS`] quotient rows from the shared corpus,
+            /// one tag per polynomial (`benches/zerocheck.rs`'s `witness`
+            /// builds the same shape at its own sizes).
+            fn witness(seed: u64, z_cols: usize, rho_rows: usize) -> LiftedWitness {
+                let degree = hc::params::RING_DEGREE;
+                let mut z = Vec::with_capacity(z_cols);
+                let mut i = 0usize;
+                while i < z_cols {
+                    z.push(Rq::from_coeffs(&support::corpus(
+                        seed.wrapping_add(i as u64),
+                        degree,
+                    )));
+                    i += 1;
+                }
+                let mut rho = Vec::with_capacity(rho_rows);
+                let mut r = 0usize;
+                while r < rho_rows {
+                    rho.push(QuotientRow::new(&support::corpus(
+                        seed.wrapping_add(0x1000 + r as u64),
+                        degree,
+                    )));
+                    r += 1;
+                }
+                LiftedWitness::new(PolyVec::new(z), rho)
             }
 
             // -- digests (outside every timed region) -----------------------
@@ -387,6 +455,16 @@ macro_rules! define_cases {
                 support::mix(d_poly(g.g_zero()), d_poly(g.g_alpha()))
             }
 
+            fn d_msgs(v: &Vec<RoundMsg>) -> u64 {
+                let mut acc = support::mix_len(0, v.len());
+                let mut i = 0usize;
+                while i < v.len() {
+                    acc = support::mix(acc, d_poly_pair(&v[i]));
+                    i += 1;
+                }
+                acc
+            }
+
             /// The verifier's round check: four polynomial evaluations against
             /// the two targets. Real constants -- there is nothing to reduce.
             pub fn round_check(m: Mode<'_, '_>, m0: usize) -> u64 {
@@ -491,6 +569,52 @@ macro_rules! define_cases {
                 )
             }
 
+            /// **The whole honest prover**: `c_w_table_mle` and
+            /// `alpha_public_table` over a REDUCED cube ([`crate::HRM_M0`]),
+            /// then `m₀` rounds of `honest_compute_g`, `round_out` and the two
+            /// `eval_mle_layer` folds. This is the item a change to *one* round
+            /// lands in, and the per-round rows above cannot see such a change
+            /// -- `honest_compute_g` is measured at a generic round, and round
+            /// 0 is the only round whose `w̃` table is base-field. Round 0 folds
+            /// `2^{m₀-1} = HALF` pairs, so its cost is `sumcheck/honest_compute_g`'s
+            /// row, and the eleven rounds together are about twice it (rounds
+            /// `1..` are `2^{m₀-1} − 1` of the `2^{m₀} − 1` fold pairs: 50%
+            /// here and 50% at the pin, so the reduction does not distort the
+            /// round-0 share). The hoisted `alpha_public_table` inside is
+            /// ~0.5% of the row at one statement row and column, and the
+            /// per-round interpolation ~7%, which the pin would not show --
+            /// slightly conservative for a fold-level change. Reconciled
+            /// against the per-round rows to 0.1% on 2026-09-15 (run
+            /// `20260915T1008+0200-7cd34c7b`: 29.5 ms). Its `vs genesis` is
+            /// **not** a sumcheck figure: 99.8% of it is the frozen quadratic
+            /// `c_eval_at`/`c_eval_at_modulus` one layer down, which has its own
+            /// rows; the round loop itself is within noise of genesis.
+            ///
+            /// The statement is consumed (`round_out` takes it by value), so
+            /// `run_batched` builds a fresh one per iteration in setup, outside
+            /// the timed region; the witness and the challenges are shared
+            /// borrows built once. The statement carries one `R^lin` row and
+            /// one column, which is what keeps the **genesis** variant at about
+            /// `15 s` per iteration (the `HRM_M0` doc has the arithmetic).
+            /// Corpus tags: the statement's entries take `seed + k`, the
+            /// witness a separate hundreds block, the challenges a third.
+            pub fn honest_round_messages(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let w = witness(0x5A17_7022, crate::HRM_Z_COLS, crate::HRM_RHO_ROWS);
+                let challenges = ext_table(0x5A17_7222, m0);
+                support::run_batched(
+                    m,
+                    || round_stmt(0x5A17_7122, m0, 0),
+                    |st| {
+                        hc::sumcheck::honest_round_messages(
+                            st,
+                            black_box(&w),
+                            black_box(&challenges),
+                        )
+                    },
+                    d_msgs,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control, the same body as every other
@@ -542,6 +666,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_out", round_out, [hachi::params::M_ZERO]);
     // @covers sumcheck::alpha_public_table
     bench_case!(c, "sumcheck/alpha_public_table", alpha_public_table, [AP_M0]);
+    // @covers sumcheck::honest_round_messages
+    bench_case!(c, "sumcheck/honest_round_messages", honest_round_messages, [HRM_M0]);
 }
 
 criterion_group! {

@@ -5823,3 +5823,147 @@ statement and the tables -- wanted more. So W4 bites at 128 blocks already on
 this machine as it was configured overnight. Options for the Stage 7 fallback:
 64 blocks (≈4 GiB of decomposition), or the same run with the editor's Lean
 server and the browser closed. A decision for the user, not taken here.
+
+## The honest chain verifies at 64 blocks (2026-09-15, Stage 7 route 1)
+
+The user chose 64 blocks over 128 (64 is enough for the scaling point; 128
+buys nothing the arithmetic does not give). Log
+`logs/runs/honest-chain-64blocks-20260915.log`, on `858fe3d` with `hachi/src`
+at HEAD, AC power, the machine otherwise idle.
+
+**Run 1 failed after 24.7 minutes, and the failure was the test's.**
+`pin_instance` built the QuadEval challenge `c` as a single ternary ring
+element, while `honest_z` folds message block `i` against `c.get(i)`: at 64
+blocks the second block indexed past the end (`linalg.rs:92`, "the len is 1
+but the index is 1"). The `HACHI_CHAIN_BLOCKS` parameterisation of 09-14 had
+sized everything by `blocks` except that vector; the 1-block acceptance test
+could never see it, and the 128-block attempt died of memory before reaching
+it. The other instance builder in the same file already drew
+`c: r.next_poly_vec(s.blocks)`. Fixed by sizing `c` by `blocks`; nothing in
+the crate changed.
+
+**Run 2 passed: `chain_verify = true` in 4 180 s (69.7 min).** The phase
+times, against the 1-block acceptance run of 09-14 (2 202 s, pre-F):
+
+| phase | 64 blocks | 1 block | scaling |
+|---|---|---|---|
+| `commit::commit` | 760 s | 12 s | ×63 -- linear in blocks (`ring::mul` bound) |
+| statement (`dense_eval`, the test's own oracle) | 505 s | 36 s | ×14 |
+| `honest_compute_v` | 99 s | 3 s | ×33 |
+| `honest_compute_resp` + `stack` (`honest_z`) | 850 s | -- | the brief-2 wall, now measured |
+| `R^lin` assembled | 1 s, `5 × 41 984` | `5 × 40 976` | 48 columns per block |
+| `M ζ = y` check | 300 s | 307 s | flat |
+| `honest_lift_witness` | 310 s, width 42 024 | 318 s | flat |
+| `chain_open` | 1 154 s | 1 317 s (920 s of rounds after F) | flat -- the cube is `m₀ = 26` either way |
+| `chain_verify` | 200 s | 192 s | flat |
+
+Resident memory read at 46 min (the `M ζ = y` phase): 12.2 GiB; the peak was
+not sampled and is at least that. Two readings:
+
+* **W4 is now a number, not a projection.** Every block-scaled phase above is
+  `ring::mul`-bound schoolbook work (`commit`, `honest_z`, `honest_compute_v`),
+  and together they are 1 710 s of the 4 180 -- already more than the whole
+  prover. At the pin's 1 024 blocks the same phases extrapolate to ~7.6 h
+  (commit 3.4 h, `honest_z` 3.8 h) on top of the 64 GiB decomposition; so the
+  end-to-end at the pin is I4's (`ring::mul`) and W2's (lazy `R^lin`) problem
+  before it is a memory problem, and the reduced-blocks route remains the way
+  to a measured end-to-end on this machine.
+* **Against the reference implementation** (`logs/paper-impl/README.md`), this
+  instance is the `ℓ = 26` shape (`2^6` blocks of `2^10` rows, `d = 1024`):
+  reference wall 94 s, ours 4 180 s (×44). Piecewise: commit 6.5 s vs 760 s
+  (×117, NTT vs schoolbook -- the `ring/mul` gap the brief predicted); prove
+  84.5 s vs ~2 300 s (`honest_z` + lift + `chain_open`); verify 28 ms vs 200 s
+  -- ours recomputes `lift_commit` and evaluates the `2^26` α table
+  (candidates H and the I4 lever), and our sumcheck runs at the pin's `m₀ = 26`
+  where the reference's shrinks with `ℓ`. Stage 7's span comparison is the
+  formal version of this paragraph; this is its first data point.
+
+## Candidate I: round 0 of the sumcheck in the base field (2026-09-15)
+
+Brief 5's S7′, ranked second after the range factor. At round 0 every entry of
+`w̃` is `φF` of a witness coefficient, the 33 nodes are embedded integers and the
+range factor's constants are embedded integers, so the zero side of the first
+round message -- `Σ_y eq[y] · P_b((1 − T)·w[2y] + T·w[2y+1])` -- is base-field
+arithmetic performed through the quartic multiply, 19 `Fp` multiplications
+where one would do. Only `eq[y]` (a function of the challenge `τ₀`) is a genuine
+extension element, and `Fp × Ext4` is four `Fp` multiplications. From round 1
+on the challenge is a genuine `Ext4` and nothing changes.
+
+**The candidate** (`lean/Opt.lean` § "Candidate I", eleven lemmas, prover agent,
+one iteration): `foldBase`, `rangeSumZeroBase`, `roundValuesZeroBase`,
+`evalMleLayerBase`, `linSumAlphaBase`, each proved equal to the extension-field
+expression the existing hachi spec concludes (`rangeSumZero`, `fold`,
+`linSumAlpha`) on the embedded table at the embedded node. Two operand orders
+are fixed by the definitions and kept verbatim in the Rust, because they select
+`impl Mul<Ext4> for Fp`: `p * eq[y]` and `lo * one_minus + hi * x0`. The Rust:
+`zerocheck::c_w_table_fp` (the row-blocked table as `Vec<Fp>`), the
+`round_{value,values,poly}_{zero,alpha}_base` sextet, `eval_mle_layer_base`
+(the one mixed fold), `honest_compute_g_base`, and `honest_round_messages` with
+round 0 peeled behind `0 < m₀`. `Opt.lean` now imports `Sumcheck`.
+
+**The row had to be built first.** The per-round rows measure a generic round
+and cannot see a change confined to round 0, and `honest_round_messages` was
+excluded by name ("infeasible even REDUCED"). It is not: at `m₀ = 11` round 0
+folds exactly `HALF = 1024` pairs, the same shape as the per-round rows, and
+the champion runs in 29.5 ms. What is expensive is the **genesis** variant,
+14.8 s per iteration -- and not for the reason first written down. With
+`RING_DEGREE = 1024` the 2 048 cube entries have `u = idx / d ∈ {0, 1}`, so
+1 024 of them take the frozen quadratic `c_eval_at` and 1 024 the frozen
+quadratic `c_eval_at_modulus`, ~7 ms each; the first projection of "~4 s from
+576 non-padding entries" had used `d = 64`. The adversarial review of the row
+(three lenses, read-only during the run) reconciled the champion's 29.5 ms
+against the per-round rows to 0.1%, confirmed setup and digest outside the timed
+region, and refuted three of the row's comments -- the `d = 64` arithmetic, a
+witness-sizing claim (only rows `u = 0, 1` are read; the quotient row is never
+reached), and a stale "the α table is a third of the row" (it is 0.5% since
+candidate C). All three are corrected in the file. Its `vs genesis` (−99.8%) is
+**not** a sumcheck figure: it is the frozen quadratic evaluation one layer down.
+
+**Accepted on two independent runs** (single-row target):
+
+| run | now | candidate | recentered | bias |
+|---|---|---|---|---|
+| `20260915T1008+0200-7cd34c7b` | 29.5 ms | 17.5 ms | **−40.7%** | 3.3% |
+| `20260915T1029+0200-7cd34c7b` | 29.6 ms | 17.5 ms | **−41.0%** | 5.5% |
+
+Round 0 is half of the fold work at any `m₀` (`2^{m₀−1}` of `2^{m₀} − 1`
+pairs), so the reduction does not distort its share, and the reading transfers
+to the pin: `honest_round_messages` 920 s → ≈ 550 s projected. Realized round-0
+gain ≈ 8× against a ~17× count ratio (726 vs 12 540 `Fp` multiplications per
+cube point on the post-F champion): `range_product_base` is a serial dependent
+chain of 15 multiply-and-reduce steps, latency-bound where the quartic path was
+throughput-bound. The layer-0 table is now 512 MiB instead of 2 GiB at the pin,
+a side effect recorded as arithmetic, not a wall claim.
+
+Extraction: deterministic, zero axioms, `Mul<Ext4> for Fp` arrives as a real
+body (`cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul`, four `Fp.mul`s), one
+new `(out, j)` loop shape. The nine new items are frozen into genesis; their
+stamps are owed after the content commit. Ledger row 17. Campaign: the headline
+`honest_round_messages_spec` verbatim with round 0 peeled in the proof, plus
+specs for the nine new items and the mixed multiply.
+
+**A procedural note.** Candidate G's unstamped helper blocked candidate F's
+re-run on 09-14 because G had already landed in `hachi/src`. Here the candidate
+stayed in the slot with `hachi/src` at HEAD during both runs -- the ordinary
+restore step -- and `check-genesis`, whose live set is read from `hachi/src`,
+had nothing to complain about. New helpers block the *next* candidate only once
+their champion has landed unstamped; the standing rule is unchanged, the
+sequencing is what avoids it.
+
+**Campaign closed the same day (2026-09-15, ~11:50).** Headline
+`honest_round_messages_spec` carried verbatim (statement byte-diffed), proof
+restated with round 0 peeled and the loop state re-indexed to
+`(a_tab, current, out, w_tab, i)`; `fold_tableFn_eq_mle` and `round_node_spec`
+carried verbatim with rerouted proofs. New: `fp_ext_mul_spec` for the mixed
+multiply (with a `Check.lean` § 2 pin of its four-`Fp.mul` body), the `Vec<Fp>`
+table carrier `WfEvalsFp`/`tableFnFp`, `c_w_table_fp_spec`, the eight `_base`
+specs (five of them loop specs), `eval_mle_layer_base_table_spec`,
+`initial_w_table_fp`, `honest_compute_g_base_spec` (its twin at `i = 0`, one
+free hypothesis fewer). No statement weakened, nothing moved out of `Opt.lean`.
+Effort: two prover agents (the first stopped by accident ten minutes in; its
+Ext/ZeroCheck additions compiled as written), 31 minutes end to end for the
+second, 2 typecheck iterations, 1 retry. `make build` green, 235 § 4 lines,
+`spec-check` 155/155/0, `lean-wip/` empty. Two API facts the prover recorded:
+`(0#usize).val` is `0` by `rfl`, so the round-0 specs need no `Fin`-arity
+transport; and `fold (φF ∘ tableFnFp t) T y` unfolds to its two-coefficient
+form by `rfl`. Ledger rows 17 (candidate) and 18 (campaign).

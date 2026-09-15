@@ -851,3 +851,99 @@ fn round_verify_loop_rejects_a_spliced_message_at_its_own_round() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Round 0 in the base field (candidate I)
+// ---------------------------------------------------------------------------
+
+fn embed(w: &[Fp]) -> Vec<Ext4> {
+    w.iter().map(|&c| Ext4::from_base(c)).collect()
+}
+
+/// Every base-field round-0 item computes what its extension-field original
+/// computes on the embedded table at the embedded node -- the Rust side of
+/// `rangeSumZeroBase_eq`, `roundValuesZeroBase_eq`, `linSumAlphaBase_eq` and
+/// `evalMleLayerBase_eq`. Checked with `assert_eq!`, so a base-field path that
+/// dropped a reduction, mis-ordered a fold, or scaled by the wrong operand
+/// would surface as an inequality and not as a plausible number.
+#[test]
+fn round_zero_base_field_items_agree_with_the_extension_items() {
+    use hachi::sumcheck::{eval_mle_layer_base, round_poly_alpha, round_poly_alpha_base,
+                          round_poly_zero_base, round_value_alpha, round_value_alpha_base,
+                          round_value_zero_base, round_values_alpha, round_values_alpha_base,
+                          round_values_zero_base};
+    let mut r = Lcg::new(0x5A17_6100);
+    let half = 8usize;
+    let w_fp: Vec<Fp> = (0..2 * half).map(|_| r.next_fp()).collect();
+    let w = embed(&w_fp);
+    let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+    let a_tab: Vec<Ext4> = (0..2 * half).map(|_| ext4(&mut r)).collect();
+
+    for t in 0..ROUND_NODES {
+        let node = Fp::new(t as u64);
+        assert_eq!(round_node(t), Ext4::from_base(node), "the node is the embedded integer {t}");
+        assert_eq!(round_value_zero_base(&w_fp, &eq, node), round_value_zero(&w, &eq, round_node(t)),
+                   "zero side, node {t}");
+    }
+    for t in 0..ROUND_NODES_ALPHA {
+        let node = Fp::new(t as u64);
+        assert_eq!(round_value_alpha_base(&w_fp, &a_tab, node),
+                   round_value_alpha(&w, &a_tab, round_node(t)), "alpha side, node {t}");
+    }
+    assert_eq!(round_values_zero_base(&w_fp, &eq), round_values_zero(&w, &eq));
+    assert_eq!(round_values_alpha_base(&w_fp, &a_tab), round_values_alpha(&w, &a_tab));
+    assert_eq!(round_poly_zero_base(&w_fp, &eq), round_poly_zero(&w, &eq));
+    assert_eq!(round_poly_alpha_base(&w_fp, &a_tab), round_poly_alpha(&w, &a_tab));
+
+    let x0 = ext4(&mut r);
+    assert_eq!(eval_mle_layer_base(&w_fp, x0), cpoly::multilinear::eval_mle_layer(&w, x0),
+               "the mixed layer fold is the extension fold of the embedded table");
+}
+
+/// The base-field table is the embedded table, entry for entry, at a cube that
+/// crosses a row boundary and reaches the digit rows and the zero padding.
+#[test]
+fn c_w_table_fp_is_the_committed_table_before_embedding() {
+    let w = toy_witness(0x5EED_0100);
+    for m0 in [0usize, 3, 6, 7, 10] {
+        let fp = hachi::zerocheck::c_w_table_fp(&w, m0);
+        let ext = hachi::zerocheck::c_w_table_mle(&w, m0).into_values();
+        assert_eq!(fp.len(), 1usize << m0, "m0 = {m0}");
+        assert_eq!(embed(&fp), ext, "m0 = {m0}");
+    }
+}
+
+/// The peeled prover is the unpeeled one: `honest_round_messages` with round 0
+/// in the base field produces, message for message, what the extension-field
+/// loop produced -- written out here as that loop, so the comparison does not
+/// go through the crate's own round-0 items.
+#[test]
+fn honest_round_messages_with_round_zero_peeled_is_the_unpeeled_loop() {
+    let seed = 0x5EED_0101u64;
+    for m0 in [1usize, 2, 4] {
+        let w = toy_witness(seed + m0 as u64);
+        let mut r = Lcg::new(seed ^ 0xC5 ^ m0 as u64);
+        let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
+        let opening = honest_opening(seed, &w, m0);
+
+        let mut w_tab = hachi::zerocheck::c_w_table_mle(&w, m0).into_values();
+        let mut a_tab = alpha_public_table(opening.zc().rlin(), opening.zc().alpha(),
+                                           opening.zc().tau1(), m0);
+        let mut current = honest_opening(seed, &w, m0);
+        let mut expected = Vec::new();
+        for (i, &a) in challenges.iter().enumerate() {
+            let g = honest_compute_g(&current, &w_tab, &a_tab, i);
+            current = round_out(current, &g, a);
+            w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
+            a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
+            expected.push(g);
+        }
+
+        let got = honest_round_messages(opening, &w, &challenges);
+        assert_eq!(got.len(), expected.len(), "m0 = {m0}");
+        for (i, (g, e)) in got.iter().zip(expected.iter()).enumerate() {
+            assert_eq!(g.g_zero(), e.g_zero(), "m0 = {m0}, round {i}, zero side");
+            assert_eq!(g.g_alpha(), e.g_alpha(), "m0 = {m0}, round {i}, alpha side");
+        }
+    }
+}

@@ -518,6 +518,22 @@ example (a b : cpoly.field.Ext4) :
             Result.ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }) := by
   simp [cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add]
 
+-- `impl Mul<Ext4> for Fp` -- the **mixed** product, and the second impl in the
+-- model whose mangled name ends `MulExt4Ext4.mul`. Two things separate it from
+-- `Ext4`'s own: the namespace (`cpoly.field.Fp.Insts` against
+-- `cpoly.field.Ext4.Insts`), and the body -- four `Fp` multiplies, one per
+-- coefficient, against the quartic multiply's nineteen. That count is what
+-- candidate I's round 0 is costed against, and `Ext.fp_ext_mul_spec` is stated
+-- about the name asserted here.
+example (a : cpoly.field.Fp) (b : cpoly.field.Ext4) :
+    cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul a b
+      = (do let f ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul a b.c0
+            let f1 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul a b.c1
+            let f2 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul a b.c2
+            let f3 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul a b.c3
+            Result.ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }) := by
+  simp [cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul]
+
 -- `W` is the extension modulus's constant, `Y^4 - W`, and it arrives as a value
 -- rather than a parameter -- which is what makes the multiplication below a
 -- closed-form 19 `Fp` multiplies.
@@ -1421,5 +1437,33 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- The base-field range factor the table builders now call (no ArkLib mirror;
 -- specified through `phiF` against `rangeProduct` at the embedded argument).
 #print axioms HachiEquiv.ZeroCheck.range_product_base_spec
+-- Candidate I -- round 0 of the sumcheck in the base field (brief 5's S7').
+#print axioms HachiEquiv.Opt.phiF_foldBase
+#print axioms HachiEquiv.Opt.rangeSumZeroBase.loop_eq
+#print axioms HachiEquiv.Opt.rangeSumZeroBase_eq_loop
+#print axioms HachiEquiv.Opt.rangeSumZeroBase_eq
+#print axioms HachiEquiv.Opt.roundValuesZeroBase_length
+#print axioms HachiEquiv.Opt.roundValuesZeroBase_getD
+#print axioms HachiEquiv.Opt.phiF_natCast_node
+#print axioms HachiEquiv.Opt.roundValuesZeroBase_eq
+#print axioms HachiEquiv.Opt.evalMleLayerBase_eq
+#print axioms HachiEquiv.Opt.linSumAlphaBase_eq
+#print axioms HachiEquiv.Opt.roundValuesZeroBase_eq_all
+-- Candidate I (campaign) -- the extracted round-0 path, proved against the same
+-- ArkLib definitions the extension-field path is proved against.  The mixed
+-- multiply and the base-field committed table first (`Ext`, `ZeroCheck`), then
+-- the six round-message items, the one mixed layer fold and the round-0 message
+-- (`Sumcheck`); `honest_round_messages_spec` above is the headline that consumes
+-- them and its statement did not move.
+#print axioms HachiEquiv.Ext.fp_ext_mul_spec
+#print axioms HachiEquiv.ZeroCheck.c_w_table_fp_spec
+#print axioms HachiEquiv.Sumcheck.round_value_zero_base_spec
+#print axioms HachiEquiv.Sumcheck.round_values_zero_base_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_base_spec
+#print axioms HachiEquiv.Sumcheck.round_value_alpha_base_spec
+#print axioms HachiEquiv.Sumcheck.round_values_alpha_base_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_spec
+#print axioms HachiEquiv.Sumcheck.eval_mle_layer_base_spec
+#print axioms HachiEquiv.Sumcheck.honest_compute_g_base_spec
 
 end HachiEquiv.Check

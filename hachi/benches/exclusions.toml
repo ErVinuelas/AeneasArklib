@@ -126,8 +126,9 @@ Stage 7's span comparison against `logs/paper-impl/`."""
 "chain::chain_open" = """
 The honest prover: `honest_compute_v` (a `2^23`-order commitment),
 `lift_commit`, `honest_round_messages` (the `2^m0` witness table folded through
-`M_ZERO = 26` rounds of `honest_compute_g`) and `honest_compute_y`. Each is
-excluded under its own name for its own reason; this composes them and adds
+`M_ZERO = 26` rounds of `honest_compute_g`; benched REDUCED at `m0 = 11` under
+its own name) and `honest_compute_y`. Each is excluded under its own name for
+its own reason or benched REDUCED; this composes them at the pin and adds
 nothing timeable. Same removal condition as `chain_verify`."""
 
 "quadeval::rlin_cw" = """
@@ -263,13 +264,6 @@ measured or already excluded individually.
 Removal condition: the same tensor split as `alpha_public_table`, plus a
 REDUCED-shape decision about what a whole-protocol row would even mean -- a
 27-round loop at a toy cube measures the loop overhead, not the protocol."""
-
-"sumcheck::honest_round_messages" = """
-The prover's half of `round_loop`, and the same accounting: `m0` rounds of
-`honest_compute_g` over the folded `2^m0` tables, starting from `c_w_table_mle`
-and `alpha_public_table`. Both walls of `round_loop`, minus its `round_check`;
-infeasible even REDUCED for the reason given there, and the sum of rows that
-are measured individually. Same removal condition as `round_loop`."""
 
 "sumcheck::round_verify_loop" = """
 The verifier's half of `round_loop`: `m0` iterations of `round_check` then

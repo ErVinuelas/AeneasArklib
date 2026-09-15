@@ -864,3 +864,141 @@ pub fn round_verify_loop(
     }
     Some(current)
 }
+
+/// One node's worth of the range summand at round 0, the table in the base
+/// field: `Σ_y P_b((1 − T)·w[2y] + T·w[2y+1]) · eq[y]` with the fold and `P_b`
+/// in `Fp` (opt: `HachiEquiv.Opt.rangeSumZeroBase`, its loop
+/// `rangeSumZeroBase.loop`; lemma `rangeSumZeroBase_eq` against `rangeSumZero`).
+///
+/// [`round_value_zero`] on the embedded table at the embedded node, computed
+/// with `2 + 16` base-field multiplications per cube point plus the one scaling
+/// by `eq[y]` (four), against `2 + 16 + 1` extension ones (`19` each).
+pub fn round_value_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>, node: Fp) -> Ext4 {
+    let half: usize = eq.len();
+    let one_minus: Fp = Fp::ONE - node;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let folded: Fp = one_minus * lo + node * hi;
+        let p: Fp = crate::zerocheck::range_product_base(folded);
+        acc = acc + p * eq[y];
+        y += 1;
+    }
+    acc
+}
+
+/// The range summand's value at every node, round 0, base-field table
+/// (opt: `HachiEquiv.Opt.roundValuesZeroBase`; lemma `roundValuesZeroBase_eq`).
+///
+/// [`round_values_zero`] with the node passed as the base-field element
+/// `Fp::new(t)` that [`round_node`] embeds: `phiF_natCast_node` says the two
+/// agree.
+pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_zero_base(w, eq, Fp::new(t as u64)));
+        t += 1;
+    }
+    out
+}
+
+/// The range summand as a polynomial at round 0: [`round_values_zero_base`]
+/// interpolated with the same weights [`round_poly_zero`] uses.
+pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_zero_base(w, eq);
+    let weights: Vec<Fp> = round_node_weights();
+    interpolate(&values, &weights)
+}
+
+/// One node's worth of the linear summand at round 0: the `w̃` fold in the base
+/// field scaling the `Ã` fold in the extension
+/// (opt: `HachiEquiv.Opt.linSumAlphaBase`; lemma `linSumAlphaBase_eq`).
+///
+/// [`round_value_alpha`] on the embedded table at the embedded node. `Ã`
+/// carries `α` and `τ₁`, so its fold stays in `Ext4`; the product is one
+/// `Fp × Ext4` scaling.
+pub fn round_value_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>, node: Fp) -> Ext4 {
+    let half: usize = w.len() / 2;
+    let one_minus: Fp = Fp::ONE - node;
+    let node_ext: Ext4 = Ext4::from_base(node);
+    let one_minus_ext: Ext4 = Ext4::ONE - node_ext;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let w_folded: Fp = one_minus * w[2 * y] + node * w[2 * y + 1];
+        let a_folded: Ext4 = one_minus_ext * a_tab[2 * y] + node_ext * a_tab[2 * y + 1];
+        acc = acc + w_folded * a_folded;
+        y += 1;
+    }
+    acc
+}
+
+/// The linear summand's value at its three nodes, round 0, base-field table:
+/// [`round_values_alpha`] with the node as `Fp::new(t)`.
+pub fn round_values_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_alpha_base(w, a_tab, Fp::new(t as u64)));
+        t += 1;
+    }
+    out
+}
+
+/// The linear summand as a polynomial at round 0: [`round_values_alpha_base`]
+/// interpolated with [`round_node_weights_alpha`].
+pub fn round_poly_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_alpha_base(w, a_tab);
+    let weights: Vec<Fp> = round_node_weights_alpha();
+    interpolate(&values, &weights)
+}
+
+/// The one mixed layer fold: a base-field table folded at an extension-field
+/// challenge, `out[j] = w[2j]·(1 − x₀) + w[2j+1]·x₀`
+/// (opt: `HachiEquiv.Opt.evalMleLayerBase`; lemma `evalMleLayerBase_eq` against
+/// `fold`, the conclusion `eval_mle_layer_spec` delivers).
+///
+/// `cpoly::multilinear::eval_mle_layer` on the embedded table: two `Fp × Ext4`
+/// scalings (eight `Fp` multiplications) per output entry against two
+/// extension multiplications (thirty-eight). Its output is round 1's `w̃`
+/// table, an ordinary `Vec<Ext4>` from here on.
+pub fn eval_mle_layer_base(values: &Vec<Fp>, x0: Ext4) -> Vec<Ext4> {
+    let half: usize = values.len() / 2;
+    let one_minus: Ext4 = Ext4::ONE - x0;
+    let mut out: Vec<Ext4> = Vec::with_capacity(half);
+    let mut j: usize = 0;
+    while j < half {
+        let lo: Fp = values[2 * j];
+        let hi: Fp = values[2 * j + 1];
+        out.push(lo * one_minus + hi * x0);
+        j += 1;
+    }
+    out
+}
+
+/// [`honest_compute_g`] at round `0`, the `w̃` table in the base field: the same
+/// two factors applied to [`round_poly_zero_base`], and [`round_poly_alpha_base`]
+/// for the linear component. `i = 0` is fixed, because round 0 is the only round
+/// whose table is base-field; the prefix kernel is the empty product and is
+/// still computed by [`eq_prefix`] so that this body is the one above with the
+/// index substituted and nothing else.
+pub fn honest_compute_g_base(
+    stmt: &RoundStatement,
+    w_fp: &Vec<Fp>,
+    a_tab: &Vec<Ext4>,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, 0);
+    let inner: UnivariatePoly = round_poly_zero_base(w_fp, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[0]);
+    let with_free: UnivariatePoly = &inner * &free;
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha_base(w_fp, a_tab);
+    RoundMsg { g_zero, g_alpha }
+}

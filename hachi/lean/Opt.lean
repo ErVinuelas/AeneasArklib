@@ -25,6 +25,7 @@ the power through the loop state instead: `2N` multiplications for `c_eval_at`,
 `N` for the modulus.
 -/
 import ZeroCheck
+import Sumcheck
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -37,7 +38,7 @@ open hachi
 namespace HachiEquiv.Opt
 
 open HachiEquiv.Field HachiEquiv.Ring HachiEquiv.RqBridge HachiEquiv.Scheme
-open HachiEquiv.RingSwitch HachiEquiv.Ext HachiEquiv.ZeroCheck
+open HachiEquiv.RingSwitch HachiEquiv.Ext HachiEquiv.ZeroCheck HachiEquiv.Sumcheck
 
 /-! ## 1. `cEvalAt` with a running power
 
@@ -1615,5 +1616,252 @@ theorem h_zero_is_zero.opt2_eq_spec {μ n : ℕ} (m₀ : ℕ)
   · intro h t ht
     rw [range_product_base_eq_zero_iff, ← wTable_symm_eq_row sw t ht]
     exact h t ht
+
+/-! # Candidate I -- round 0 of the sumcheck in the base field (brief 5's S7')
+
+Strategy `opt-word-arith`. At round 0 every entry of the folded table `w~` is
+`φF` of a `ZMod q` coefficient (`ZeroCheck/Constraints.lean:146,148`;
+`Ext4::from_base` at `hachi/src/zerocheck.rs`), every interpolation node is an
+embedded integer (`round_node i = Ext4::from_base (Fp::new i)`) and
+`rangeProduct`'s constants are embedded integers too. So the round-0 zero side
+`Σ_y eq[y] · P_b((1 − T)·w[2y] + T·w[2y+1])` performs base-field arithmetic
+through the full quartic multiply: 19 `Fp` multiplications where 1 would do,
+18 of them multiplying zeros. Only `eq[y]` is a genuine extension element (`τ₀`
+is a challenge), and `Fp × Ext4` is four `Fp` multiplications
+(`impl Mul<Ext4> for Fp`, `cpoly/src/field.rs:332`).
+
+What follows is the pure algebra that licenses the base-field path: the fold,
+the range factor (candidate G's `range_product_base.opt`), the 33 node values,
+the first layer fold and the α side, each stated in `ZMod q` / mixed form and
+each proved equal to the extension-field expression the existing hachi spec
+already concludes. From round 1 on the challenge is a genuine `Ext4` and
+nothing here applies. The peeled `honest_round_messages` loop and the
+`honestComputeG` bridge are the campaign's, not the candidate's.
+
+Op counts as delivered (per cube point, round 0, zero side): frozen `1 089`
+`Ext4` = `20 691` `Fp` multiplications; here `2 + 16` `Fp` per node plus the
+`Fp × Ext4` scaling, `726` `Fp` -- S5 and S7' stacked, since the range factor
+is candidate G's 16-multiply form. Rounds `1..` unchanged. -/
+
+/-! ## 1. The fold, in the base field
+
+`foldBase` mirrors `fold` (`lean/ZeroCheck.lean:1230`) with `F` replaced by
+`ZMod q`, **monomorphically** and in the same operand order -- `(1 − T)·w[2y] +
+T·w[2y+1]`, the orientation `evalMleStep` fixes
+(`CompPoly/Multilinear/Basic.lean:467`). `lo`/`hi` are shared: they are
+index arithmetic and carry no field. -/
+
+/-- One multilinear fold step performed entirely in `ZMod q`: the table's value
+at the base-field node `T` in its first free coordinate. Two `Fp`
+multiplications per entry against `fold`'s two `Ext4::mul`s. -/
+def foldBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (T : ZMod q) (y : Fin (2 ^ k)) : ZMod q :=
+  (1 - T) * wf (lo y) + T * wf (hi y)
+
+/-- **The fold bridge.** `φF` is a bundled `RingHom` (`phiF`,
+`lean/ZeroCheck.lean:88`), so the base-field fold embeds to the extension fold
+at the embedded node. This is the whole content of "the fold is base-field
+arithmetic at round 0". -/
+theorem phiF_foldBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (T : ZMod q)
+    (y : Fin (2 ^ k)) :
+    phiF (foldBase wf T y) = fold (phiF ∘ wf) (phiF T) y := by
+  rw [foldBase, fold, map_add, map_mul, map_mul, map_sub, map_one]
+  rfl
+
+/-! ## 2. The range summand at one node
+
+The value `round_value_zero` returns, with the range factor computed in
+`ZMod q` (candidate G's `range_product_base.opt`, one squaring plus fifteen
+base-field multiplications) and **one** `Fp × Ext4` scaling by `eq y` per cube
+point: `1056 + 33·4 = 1188` `Fp` multiplications per point against the frozen
+path's `1089` `Ext4` multiplications = `20 691` `Fp` ones.
+
+Two shapes are given. `rangeSumZeroBase` is the `∑ y : Fin (2 ^ k)` form, so
+that it sits beside `rangeSumZero` (`lean/Sumcheck.lean:706`) and the bridge
+lemma is one `Finset.sum_congr`. `rangeSumZeroBase.loop` is the counter loop
+with explicit state `acc : F` that `lean-to-rust` lands on a
+`while y < half { … }`, and it fixes the two orders the Rust must keep: the
+product is `p * eq[y]` (`Fp` on the left, i.e. `Mul<Ext4> for Fp`), and the
+accumulation is `acc + …`. -/
+
+/-- **The candidate, round 0's zero side at one node.** `eq y` is the only
+extension element in sight. -/
+def rangeSumZeroBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (eq : Fin (2 ^ k) → F)
+    (T : ZMod q) : F :=
+  ∑ y : Fin (2 ^ k), phiF (range_product_base.opt 16 (foldBase wf T y)) * eq y
+
+/-- The counter loop the Rust `round_value_zero_base` is: ascending `y`, state
+`acc : F`, step `acc + φF (P_b (fold)) * eq[y]` -- product order `p * eq[y]`
+(`Fp × Ext4`), accumulator on the left of the `+`. Both tables are read at
+natural indices, which is the shape the extracted loop's invariant is about
+(cf. `rangeSumZero_eq_sum_range`, `lean/Sumcheck.lean:1726`). -/
+def rangeSumZeroBase.loop (wn : ℕ → ZMod q) (eqn : ℕ → F) (T : ZMod q) (half : ℕ) : F :=
+  (List.range half).foldl
+    (fun acc y =>
+      acc + phiF (range_product_base.opt 16 ((1 - T) * wn (2 * y) + T * wn (2 * y + 1)))
+        * eqn y)
+    0
+
+/-- The loop invariant: after `half` steps the accumulator is the partial sum. -/
+theorem rangeSumZeroBase.loop_eq (wn : ℕ → ZMod q) (eqn : ℕ → F) (T : ZMod q) (half : ℕ) :
+    rangeSumZeroBase.loop wn eqn T half
+      = ∑ y ∈ Finset.range half,
+          phiF (range_product_base.opt 16 ((1 - T) * wn (2 * y) + T * wn (2 * y + 1)))
+            * eqn y := by
+  induction half with
+  | zero => simp [rangeSumZeroBase.loop]
+  | succ n ih =>
+      unfold rangeSumZeroBase.loop at ih ⊢
+      rw [List.range_succ, List.foldl_append, ih]
+      simp [Finset.sum_range_succ]
+
+/-- The counter loop computes the `Fin`-indexed sum, for any pair of
+natural-index readers agreeing with the two tables. -/
+theorem rangeSumZeroBase_eq_loop {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) (T : ZMod q) (wn : ℕ → ZMod q) (eqn : ℕ → F)
+    (hw : ∀ y : Fin (2 ^ (k + 1)), wn y.val = wf y)
+    (he : ∀ y : Fin (2 ^ k), eqn y.val = eq y) :
+    rangeSumZeroBase.loop wn eqn T (2 ^ k) = rangeSumZeroBase wf eq T := by
+  rw [rangeSumZeroBase.loop_eq, rangeSumZeroBase,
+    ← Fin.sum_univ_eq_sum_range (fun y : ℕ =>
+      phiF (range_product_base.opt 16 ((1 - T) * wn (2 * y) + T * wn (2 * y + 1)))
+        * eqn y) (2 ^ k)]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [he y, foldBase, ← hw (lo y), ← hw (hi y)]
+  rfl
+
+/-- **The candidate's lemma.** The base-field node value is the extension-field
+node value the existing `round_value_zero_spec` concludes
+(`lean/Sumcheck.lean:1765`, conclusion
+`toExt out = rangeSumZero (tableFn w) (tableFn eq) (toExt node)`), at
+`tableFn w = φF ∘ wf` and `toExt node = φF T`. Two steps: the range-factor
+bridge `phiF_range_product_base` (candidate G) and the fold bridge above; the
+`mul_comm` is the product-order difference between the Rust's
+`p * eq[y]` (`Fp × Ext4`) and `rangeSumZero`'s `eq y * rangeProduct …`. -/
+theorem rangeSumZeroBase_eq {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) (T : ZMod q) :
+    rangeSumZeroBase wf eq T = rangeSumZero (phiF ∘ wf) eq (phiF T) := by
+  rw [rangeSumZeroBase, rangeSumZero]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [phiF_range_product_base, phiF_foldBase, mul_comm]
+
+/-! ## 3. The `33` node values
+
+`round_values_zero` (`hachi/src/sumcheck.rs:219`) walks `t < ROUND_NODES = 33`
+and pushes `round_value_zero(w, eq, round_node t)`. In the base-field path the
+node is `Fp::new(t)`, i.e. `(t : ZMod q)`, and the value `round_node t`
+represents is `(t : F)` -- which is exactly the node `round_values_zero_spec`
+(`lean/Sumcheck.lean:1830`) states its conclusion at. -/
+
+/-- One `push` per node, ascending `t`, `acc ++ [·]`: the shape the extracted
+`round_values_zero` loop already has. -/
+def roundValuesZeroBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) : List F :=
+  (List.range 33).foldl (fun acc t => acc ++ [rangeSumZeroBase wf eq ((t : ℕ) : ZMod q)]) []
+
+/- The push-fold reasoning interface -- `foldl_push_eq_map`,
+`foldl_push_length`, `foldl_push_getD` -- is candidate C's, already in
+`lean/Opt.lean` § 0 and generic in the element type, so nothing is re-proved
+here. -/
+
+theorem roundValuesZeroBase_length {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) : (roundValuesZeroBase wf eq).length = 33 :=
+  foldl_push_length _ 33
+
+/-- Entry `t`, still in base-field form. -/
+theorem roundValuesZeroBase_getD {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) (t : ℕ) (ht : t < 33) :
+    (roundValuesZeroBase wf eq).getD t 0 = rangeSumZeroBase wf eq ((t : ℕ) : ZMod q) :=
+  foldl_push_getD _ 33 0 ht
+
+/-- The node the base-field path uses is the node the specification uses:
+`φF (t : ZMod q) = (t : F)`. `Fp::new(t)` embeds through `Ext4::from_base`, and
+`phiF_apply` / `ofBase_natCast` (`lean/ZeroCheck.lean:129`, `:133`) say that
+composite is the natural-number cast. -/
+theorem phiF_natCast_node (t : ℕ) : phiF ((t : ℕ) : ZMod q) = ((t : ℕ) : F) := by
+  rw [phiF_apply, ofBase_natCast]
+
+/-- **The candidate's lemma.** Entry `t` of the base-field node-value list is
+the `t`-th node value of `rangeSumZero` -- the statement shape
+`round_values_zero_spec`'s conclusion consumes
+(`lean/Sumcheck.lean:1830`: `… = rangeSumZero (tableFn w) (tableFn eq) (t.val : F)`). -/
+theorem roundValuesZeroBase_eq {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) (t : ℕ) (ht : t < 33) :
+    (roundValuesZeroBase wf eq).getD t 0
+      = rangeSumZero (phiF ∘ wf) eq ((t : ℕ) : F) := by
+  rw [roundValuesZeroBase_getD wf eq t ht, rangeSumZeroBase_eq, phiF_natCast_node]
+
+/-! ## 4. The first layer fold, out of the base field
+
+Round 0's challenge `a` **is** a genuine extension element, so the table it
+produces is an `Ext4` table and rounds 1.. proceed through the existing specs
+unchanged. What this def captures is the one mixed layer: the input entries are
+base-field, so each output entry is two `Fp × Ext4` scalings (8 `Fp`
+multiplications) instead of two `Ext4::mul`s (38).
+
+**The operand order fixed here**, and the Rust must keep it:
+`lo * one_minus + hi * x0` -- the `Fp` factor on the **left** of each product,
+which is what selects `impl Mul<Ext4> for Fp` (`cpoly/src/field.rs:332`). In
+Lean that is `phiF (wf (lo y)) * (1 - a) + phiF (wf (hi y)) * a`; the
+`mul_comm`s to `fold`'s `(1 - a) * … + a * …` are inside the lemma below and
+nowhere in the code. -/
+
+/-- **The candidate.** `eval_mle_layer_base(values : &Vec<Fp>, x0 : Ext4) ->
+Vec<Ext4>`: fold the least-significant variable of a base-field table at an
+extension challenge. -/
+def evalMleLayerBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (a : F) : Fin (2 ^ k) → F :=
+  fun y => phiF (wf (lo y)) * (1 - a) + phiF (wf (hi y)) * a
+
+/-- **The candidate's lemma.** The mixed layer fold is the specification's
+`fold` on the embedded table -- the conclusion `eval_mle_layer_spec`
+(`lean/ZeroCheck.lean:1321`) already delivers, so round 1's table satisfies the
+same hypothesis `honest_compute_g_spec` consumes. -/
+theorem evalMleLayerBase_eq {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (a : F) :
+    evalMleLayerBase wf a = fold (phiF ∘ wf) a := by
+  funext y
+  rw [evalMleLayerBase, fold, mul_comm (phiF (wf (lo y))), mul_comm (phiF (wf (hi y)))]
+  rfl
+
+/-! ## 5. The α side at round 0
+
+`round_poly_alpha` (`hachi/src/sumcheck.rs`, spec `round_poly_alpha_spec`,
+`lean/Sumcheck.lean:2426`) folds **both** tables at the node and multiplies. At
+round 0 the `w̃` fold is base-field and the `Ã` fold is not (`Ã` carries `α`
+and `τ₁`), so the product is again one `Fp × Ext4` scaling: the `Fp` fold of
+`w` scaling the `Ext4` fold of `a`. Three `Fp` multiplications per node and
+point (two for `foldBase`, four for the scaling) replace five `Ext4` ones.
+
+Order fixed the same way: the `Fp` factor on the left. -/
+
+/-- **The candidate.** Round 0's linear summand at one node, with the `w̃` fold
+in `ZMod q`. -/
+def linSumAlphaBase {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q) (a : Fin (2 ^ (k + 1)) → F)
+    (T : ZMod q) : F :=
+  ∑ y : Fin (2 ^ k), phiF (foldBase wf T y) * fold a (phiF T) y
+
+/-- **The candidate's lemma.** The mixed α summand is `linSumAlpha`
+(`lean/Sumcheck.lean:710`) on the embedded table at the embedded node -- what
+`round_poly_alpha_spec` concludes. -/
+theorem linSumAlphaBase_eq {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (a : Fin (2 ^ (k + 1)) → F) (T : ZMod q) :
+    linSumAlphaBase wf a T = linSumAlpha (phiF ∘ wf) a (phiF T) := by
+  rw [linSumAlphaBase, linSumAlpha]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  rw [phiF_foldBase]
+
+/-! ## 6. Stated for the record: the two sides at round 0 together
+
+Nothing below uses these; they are the statements that say candidate I is a
+*placement* change and not a different computation, in the exact form the
+campaign will splice into `honest_round_messages_spec`
+(`lean/Sumcheck.lean:3856`) when it peels round 0. -/
+
+/-- At round 0 the whole zero side -- node values and all -- agrees with the
+extension path entrywise. -/
+theorem roundValuesZeroBase_eq_all {k : ℕ} (wf : Fin (2 ^ (k + 1)) → ZMod q)
+    (eq : Fin (2 ^ k) → F) :
+    (roundValuesZeroBase wf eq).length = 33 ∧
+      ∀ t : Fin 33, (roundValuesZeroBase wf eq).getD t.val 0
+        = rangeSumZero (phiF ∘ wf) eq ((t.val : ℕ) : F) :=
+  ⟨roundValuesZeroBase_length wf eq, fun t => roundValuesZeroBase_eq wf eq t.val t.isLt⟩
 
 end HachiEquiv.Opt

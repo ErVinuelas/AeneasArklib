@@ -105,6 +105,14 @@ def toEvals {m : ℕ} (t : cpoly.multilinear.MultilinearEvals) : CMlPolynomialEv
 def WfEvals (m : ℕ) (t : cpoly.multilinear.MultilinearEvals) : Prop :=
   t.val.length = 2 ^ m ∧ VecReduced t
 
+/-- Well-formedness of a **base-field** Lagrange-form table: `2 ^ m` reduced
+words. The `Fp` counterpart of `WfEvals`, and the invariant round 0 of the
+sumcheck carries (candidate I): before the first challenge the whole table is
+`φF` of witness coefficients, so it is held as a `Vec<Fp>` and folded in
+`ZMod q`. -/
+def WfEvalsFp (m : ℕ) (t : alloc.vec.Vec cpoly.field.Fp) : Prop :=
+  t.val.length = 2 ^ m ∧ ∀ a ∈ t.val, Red a
+
 /-- Relation between the extracted `R^lin` statement and ArkLib's. The bound is
 a `u64` against the specification's `ℕ`, as `params::CHAIN_GAMMA` is. -/
 def RepRlin {n μ : ℕ} (s : ringswitch.RlinStatement)
@@ -942,6 +950,158 @@ theorem c_w_table_mle_values_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
     (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
     (by intro t ht; simp at ht)
 
+/-! ### The same table, in the base field
+
+`c_w_table_fp` is `c_w_table_mle_values` with `Ext4::from_base` left out: the
+identical row-blocked traversal pushing the bare coefficient `r.coeff(l) : Fp`.
+That is sound because *every* entry of `w~` is `phiF` of a coefficient
+(`Constraints.lean:146,148`), so the embedding step carries no information --
+and dropping it is what lets round 0 of the sumcheck run in `ZMod q`
+(candidate I, `lean/Opt.lean` section "Candidate I"). One `u64` per entry
+instead of four.
+
+The three specs below mirror `c_w_table_mle_values`' three exactly, with
+`toExt (values.getD t _) = wTableFlat ...` replaced by
+`phiF (coeffK values t) = wTableFlat ...` and `VecReduced` by `Red` on every
+word: the only step that disappears is `ext_from_base_spec`, whose conclusion
+`toExt e = Ext.ofBase (toK f)` was the sole use of the embedding. -/
+
+/-- The inner loop of `c_w_table_fp`: the `N` coefficients of the row `r`, pushed
+for ascending `l`, stopping at the row width or at the table end `size`. Same
+`base + l` flat index, same truncating second guard, same opaque `base`, as
+`c_w_table_mle_values_loop0_loop0_spec`. -/
+theorem c_w_table_fp_loop0_loop0_spec {μ n m₀ : ℕ}
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize) (r : ring.Rq) (base : ℕ)
+    (values : alloc.vec.Vec cpoly.field.Fp) (idx l : Std.Usize) (hr : Wf r)
+    (hg : ∀ k, k < N → base + k < 2 ^ m₀ →
+      phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (base + k))
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀) (hl : l.val ≤ N)
+    (hidx : idx.val = base + l.val) (hidxle : idx.val ≤ 2 ^ m₀)
+    (hlen : values.val.length = idx.val) (hred : ∀ a ∈ values.val, Red a)
+    (hval : ∀ t < idx.val, phiF (coeffK values t) = wTableFlat m₀ sw t) :
+    zerocheck.c_w_table_fp_loop0_loop0 size params.RING_DEGREE values idx r l
+      ⦃ (o, x) => x.val = min (base + N) (2 ^ m₀) ∧ o.val.length = x.val ∧
+        (∀ a ∈ o.val, Red a) ∧ ∀ t < x.val,
+          phiF (coeffK o t) = wTableFlat m₀ sw t ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  rw [zerocheck.c_w_table_fp_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.2.val)
+    (fun s => s.2.2.val ≤ N ∧ s.2.1.val = base + s.2.2.val ∧ s.2.1.val ≤ 2 ^ m₀ ∧
+      s.1.val.length = s.2.1.val ∧ (∀ a ∈ s.1.val, Red a) ∧
+      ∀ t < s.2.1.val, phiF (coeffK s.1 t) = wTableFlat m₀ sw t)
+  · rintro ⟨v1, x1, l1⟩ ⟨hl1, hx1, hx1le, hlen1, hred1, hval1⟩
+    dsimp only at hl1 hx1 hx1le hlen1 hred1 hval1
+    simp only [zerocheck.c_w_table_fp_loop0_loop0.body]
+    by_cases hlt : l1 < params.RING_DEGREE
+    · rw [if_pos hlt]
+      have hllt : l1.val < N := by rw [← hrd]; scalar_tac
+      by_cases hlt2 : x1 < size
+      · rw [if_pos hlt2]
+        have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+        step with RqBridge.coeff_spec r l1 hr as ⟨f, hRf, hf⟩
+        have hentry : phiF (toK f) = wTableFlat m₀ sw x1.val := by
+          rw [hf, hx1, hg l1.val hllt (by rw [← hx1]; exact hxlt)]
+        have hbound : v1.val.length < Usize.max := by omega
+        step as ⟨v2, hv2⟩
+        step as ⟨l2, hl2⟩
+        step as ⟨x2, hx2⟩
+        have hl2v : l2.val = l1.val + 1 := by scalar_tac
+        have hx2v : x2.val = x1.val + 1 := by scalar_tac
+        refine ⟨by omega, by omega, by omega, ?_, ?_, ?_, by omega⟩
+        · rw [hx2v, hv2, List.length_append, hlen1]; simp
+        · intro y hy
+          rw [hv2] at hy
+          rcases List.mem_append.mp hy with h | h
+          · exact hred1 y h
+          · rw [List.mem_singleton.mp h]; exact hRf
+        · intro t ht
+          rw [hx2v] at ht
+          rcases Nat.lt_or_ge t x1.val with htlt | htge
+          · rw [coeffK_append_lt hv2 (by omega)]; exact hval1 t htlt
+          · have hteq : t = v1.val.length := by omega
+            rw [hteq, coeffK_append_eq hv2, hlen1]; exact hentry
+      · rw [if_neg hlt2, WP.spec_ok]
+        dsimp only
+        have hge : size.val ≤ x1.val := by scalar_tac
+        rw [hsize] at hge
+        rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+        exact ⟨rfl, hlen1, hred1, hval1⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hlge : N ≤ l1.val := by rw [← hrd]; scalar_tac
+      rw [show min (base + N) (2 ^ m₀) = x1.val from by omega]
+      exact ⟨rfl, hlen1, hred1, hval1⟩
+  · exact ⟨hl, hidx, hidxle, hlen, hred, hval⟩
+
+/-- The outer loop of `c_w_table_fp`: one `w_table_row` per row, its coefficient
+block streamed by the inner loop; `idx = min (N * u) (2 ^ m₀)` as in
+`c_w_table_mle_values_loop0_spec`. -/
+theorem c_w_table_fp_loop0_spec {μ n m₀ : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (size : Std.Usize)
+    (values : alloc.vec.Vec cpoly.field.Fp) (u idx : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hm0 : 2 ^ m₀ ≤ Usize.max) (hsize : size.val = 2 ^ m₀)
+    (hidx : idx.val = min (N * u.val) (2 ^ m₀))
+    (hlen : values.val.length = idx.val) (hred : ∀ a ∈ values.val, Red a)
+    (hval : ∀ t < idx.val, phiF (coeffK values t) = wTableFlat m₀ sw t) :
+    zerocheck.c_w_table_fp_loop0 w size params.RING_DEGREE values u idx
+      ⦃ o => o.val.length = 2 ^ m₀ ∧ (∀ a ∈ o.val, Red a) ∧
+        ∀ t < 2 ^ m₀, phiF (coeffK o t) = wTableFlat m₀ sw t ⦄ := by
+  have hN : 0 < N := by norm_num
+  have h1v : (1#usize : Std.Usize).val = 1 := by scalar_tac
+  rw [zerocheck.c_w_table_fp_loop0]
+  apply loop.spec_decr_nat (fun s => 2 ^ m₀ - s.2.2.val)
+    (fun s => s.2.2.val = min (N * s.2.1.val) (2 ^ m₀) ∧ s.1.val.length = s.2.2.val ∧
+      (∀ a ∈ s.1.val, Red a) ∧
+      ∀ t < s.2.2.val, phiF (coeffK s.1 t) = wTableFlat m₀ sw t)
+  · rintro ⟨v1, u1, x1⟩ ⟨hx1, hlen1, hred1, hval1⟩
+    dsimp only at hx1 hlen1 hred1 hval1
+    simp only [zerocheck.c_w_table_fp_loop0.body]
+    by_cases hlt : x1 < size
+    · rw [if_pos hlt]
+      have hxlt : x1.val < 2 ^ m₀ := by rw [← hsize]; scalar_tac
+      have hbase : x1.val = N * u1.val := by omega
+      step with w_table_row_spec w sw u1 hw hmax as ⟨r, hWr, hrow⟩
+      have hg : ∀ k, k < N → N * u1.val + k < 2 ^ m₀ →
+          phiF ((toRq r).1.coeff k) = wTableFlat m₀ sw (N * u1.val + k) := by
+        intro k hk hklt
+        rw [hrow k hk, wTableFlat_at_block sw hk hklt]
+      step with c_w_table_fp_loop0_loop0_spec (m₀ := m₀) sw size r (N * u1.val)
+        v1 x1 0#usize hWr hg hm0 hsize (by simp) (by rw [hbase]; simp) (by omega)
+        hlen1 hred1 hval1 as ⟨v2, x2, hx2, hlen2, hred2, hval2⟩
+      step as ⟨u2, hu2⟩
+      have hu2v : u2.val = u1.val + 1 := by omega
+      refine ⟨?_, hlen2, hred2, hval2, by omega⟩
+      rw [hx2, hu2v, Nat.mul_add, Nat.mul_one]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hge : size.val ≤ x1.val := by scalar_tac
+      rw [hsize] at hge
+      have hxeq : x1.val = 2 ^ m₀ := by omega
+      exact ⟨by rw [hlen1, hxeq], hred1, by rw [← hxeq]; exact hval1⟩
+  · exact ⟨hidx, hlen, hred, hval⟩
+
+/-- **`c_w_table_fp` builds the committed table as `2 ^ m₀` base-field words.**
+`c_w_table_mle_values` without the embedding: entry `t` is the coefficient whose
+image under `phiF` is `wTableFlat m₀ sw t`, which is the same table
+`c_w_table_mle_values_spec` delivers, read one layer lower. Carries
+`c_w_table_mle_values_spec`'s two bounds unchanged -- `two_pow`'s checked
+doubling and `w_table`'s `μ + n * 8`. -/
+theorem c_w_table_fp_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (sw : InnerOuter.LiftedWitness Φ μ n) (m0 : Std.Usize)
+    (hw : RepLiftedWitness w sw) (hm0 : 2 ^ m0.val ≤ Usize.max)
+    (hmax : μ + n * 8 ≤ Usize.max) :
+    zerocheck.c_w_table_fp w m0
+      ⦃ o => o.val.length = 2 ^ m0.val ∧ (∀ a ∈ o.val, Red a) ∧
+        ∀ t < 2 ^ m0.val, phiF (coeffK o t) = wTableFlat m0.val sw t ⦄ := by
+  rw [zerocheck.c_w_table_fp]
+  step with two_pow_spec m0 hm0 as ⟨size, hsize⟩
+  exact c_w_table_fp_loop0_spec (m₀ := m0.val) w sw size
+    (alloc.vec.Vec.with_capacity cpoly.field.Fp size) 0#usize 0#usize hw hmax hm0 hsize
+    (by simp) (by simp [alloc.vec.Vec.with_capacity])
+    (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
+    (by intro t ht; simp at ht)
+
 /-- `c_w_table_mle` computes `cWTableMle`, the committed table in Lagrange form
 (`Constraints.lean:328`).
 
@@ -1237,6 +1397,18 @@ def tableFn {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) : Fin (2 ^ m) → F :
 theorem tableFn_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ m)) :
     tableFn (m := m) t y = toExt (t.val.getD y.val cpoly.field.Ext4.ZERO) := by
   simp [tableFn, toEvals]
+
+/-- A **base-field** table as a function of its index: the `Fp` counterpart of
+`tableFn`, read through `coeffK` so that a short vector reads as `0` past its
+end exactly as `tableFn` does. Composed with `phiF` it is the table the
+extension-field specs talk about, which is how every `_base` spec of
+`lean/Sumcheck.lean` states its conclusion. -/
+def tableFnFp {m : ℕ} (t : alloc.vec.Vec cpoly.field.Fp) : Fin (2 ^ m) → ZMod q :=
+  fun y => coeffK t y.val
+
+/-- `tableFnFp` reads the underlying vector at the index. -/
+theorem tableFnFp_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Fp) (y : Fin (2 ^ m)) :
+    tableFnFp (m := m) t y = toK (t.val.getD y.val cpoly.field.Fp.ZERO) := rfl
 
 /-- The loop of `cpoly::multilinear::eval_mle_layer`: the output holds the `j`
 folded entries produced so far. -/

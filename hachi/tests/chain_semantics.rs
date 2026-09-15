@@ -441,8 +441,10 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant) -> PinInstance {
     let stmt = hachi::quadeval::to_quad_eval_statement(&poly_stmt);
     eprintln!("[{:>9.1?}] statement built", t0.elapsed());
 
-    // the wire's challenges
-    let c = PolyVec::new(vec![ternary_rq(&mut r)]);
+    // the wire's challenges: one short ring element per block (`honest_z`
+    // folds block `i` against `c.get(i)`; the 64-block run of 2026-09-15 found
+    // this vector sized for one block)
+    let c = PolyVec::new((0..blocks).map(|_| ternary_rq(&mut r)).collect());
     let alpha = ext4(&mut r);
     let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
     let tau1: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();

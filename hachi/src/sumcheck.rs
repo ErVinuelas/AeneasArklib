@@ -409,6 +409,148 @@ pub fn round_poly_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
     interpolate(&values, &weights)
 }
 
+// ---------------------------------------------------------------------------
+// Round 0 in the base field (candidate I, `lean/Opt.lean` § "Candidate I")
+// ---------------------------------------------------------------------------
+//
+// At round 0 every entry of the `w̃` table is `φF` of a witness coefficient
+// (`Constraints.lean:146,148`), every interpolation node is an embedded integer
+// ([`round_node`]) and the range factor's constants are embedded integers too.
+// So the zero side of the first round message is base-field arithmetic
+// performed through the quartic multiply -- 19 `Fp` multiplications where one
+// would do, 18 of them multiplying zeros -- and only the equality table `eq̃`
+// (a function of the challenge `τ₀`) is a genuine extension element. The items
+// below are the round-0 path with that arithmetic done in `Fp`: the fold and
+// the range factor in the base field, one `Fp × Ext4` scaling per cube point
+// (`impl Mul<Ext4> for Fp`, four `Fp` multiplications), and the one mixed layer
+// fold that turns the base-field table into round 1's extension table. From
+// round 1 on the challenge is a genuine `Ext4` and the items above apply
+// unchanged.
+//
+// Each item is hachi's own variant of the item it shadows and mirrors nothing
+// new: `HachiEquiv.Opt.rangeSumZeroBase_eq`, `roundValuesZeroBase_eq`,
+// `evalMleLayerBase_eq` and `linSumAlphaBase_eq` say that each one computes,
+// under `φF`, exactly what the extension-field item computes on the embedded
+// table at the embedded node. Operand orders are the lemmas': the `Fp` factor
+// on the **left** of every mixed product, which is what selects
+// `Mul<Ext4> for Fp`.
+
+/// One node's worth of the range summand at round 0, the table in the base
+/// field: `Σ_y P_b((1 − T)·w[2y] + T·w[2y+1]) · eq[y]` with the fold and `P_b`
+/// in `Fp` (opt: `HachiEquiv.Opt.rangeSumZeroBase`, its loop
+/// `rangeSumZeroBase.loop`; lemma `rangeSumZeroBase_eq` against `rangeSumZero`).
+///
+/// [`round_value_zero`] on the embedded table at the embedded node, computed
+/// with `2 + 16` base-field multiplications per cube point plus the one scaling
+/// by `eq[y]` (four), against `2 + 16 + 1` extension ones (`19` each).
+pub fn round_value_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>, node: Fp) -> Ext4 {
+    let half: usize = eq.len();
+    let one_minus: Fp = Fp::ONE - node;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let folded: Fp = one_minus * lo + node * hi;
+        let p: Fp = crate::zerocheck::range_product_base(folded);
+        acc = acc + p * eq[y];
+        y += 1;
+    }
+    acc
+}
+
+/// The range summand's value at every node, round 0, base-field table
+/// (opt: `HachiEquiv.Opt.roundValuesZeroBase`; lemma `roundValuesZeroBase_eq`).
+///
+/// [`round_values_zero`] with the node passed as the base-field element
+/// `Fp::new(t)` that [`round_node`] embeds: `phiF_natCast_node` says the two
+/// agree.
+pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_zero_base(w, eq, Fp::new(t as u64)));
+        t += 1;
+    }
+    out
+}
+
+/// The range summand as a polynomial at round 0: [`round_values_zero_base`]
+/// interpolated with the same weights [`round_poly_zero`] uses.
+pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_zero_base(w, eq);
+    let weights: Vec<Fp> = round_node_weights();
+    interpolate(&values, &weights)
+}
+
+/// One node's worth of the linear summand at round 0: the `w̃` fold in the base
+/// field scaling the `Ã` fold in the extension
+/// (opt: `HachiEquiv.Opt.linSumAlphaBase`; lemma `linSumAlphaBase_eq`).
+///
+/// [`round_value_alpha`] on the embedded table at the embedded node. `Ã`
+/// carries `α` and `τ₁`, so its fold stays in `Ext4`; the product is one
+/// `Fp × Ext4` scaling.
+pub fn round_value_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>, node: Fp) -> Ext4 {
+    let half: usize = w.len() / 2;
+    let one_minus: Fp = Fp::ONE - node;
+    let node_ext: Ext4 = Ext4::from_base(node);
+    let one_minus_ext: Ext4 = Ext4::ONE - node_ext;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let w_folded: Fp = one_minus * w[2 * y] + node * w[2 * y + 1];
+        let a_folded: Ext4 = one_minus_ext * a_tab[2 * y] + node_ext * a_tab[2 * y + 1];
+        acc = acc + w_folded * a_folded;
+        y += 1;
+    }
+    acc
+}
+
+/// The linear summand's value at its three nodes, round 0, base-field table:
+/// [`round_values_alpha`] with the node as `Fp::new(t)`.
+pub fn round_values_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
+    let nodes: usize = params::ROUND_NODES_ALPHA;
+    let mut out: Vec<Ext4> = Vec::new();
+    let mut t: usize = 0;
+    while t < nodes {
+        out.push(round_value_alpha_base(w, a_tab, Fp::new(t as u64)));
+        t += 1;
+    }
+    out
+}
+
+/// The linear summand as a polynomial at round 0: [`round_values_alpha_base`]
+/// interpolated with [`round_node_weights_alpha`].
+pub fn round_poly_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
+    let values: Vec<Ext4> = round_values_alpha_base(w, a_tab);
+    let weights: Vec<Fp> = round_node_weights_alpha();
+    interpolate(&values, &weights)
+}
+
+/// The one mixed layer fold: a base-field table folded at an extension-field
+/// challenge, `out[j] = w[2j]·(1 − x₀) + w[2j+1]·x₀`
+/// (opt: `HachiEquiv.Opt.evalMleLayerBase`; lemma `evalMleLayerBase_eq` against
+/// `fold`, the conclusion `eval_mle_layer_spec` delivers).
+///
+/// `cpoly::multilinear::eval_mle_layer` on the embedded table: two `Fp × Ext4`
+/// scalings (eight `Fp` multiplications) per output entry against two
+/// extension multiplications (thirty-eight). Its output is round 1's `w̃`
+/// table, an ordinary `Vec<Ext4>` from here on.
+pub fn eval_mle_layer_base(values: &Vec<Fp>, x0: Ext4) -> Vec<Ext4> {
+    let half: usize = values.len() / 2;
+    let one_minus: Ext4 = Ext4::ONE - x0;
+    let mut out: Vec<Ext4> = Vec::with_capacity(half);
+    let mut j: usize = 0;
+    while j < half {
+        let lo: Fp = values[2 * j];
+        let hi: Fp = values[2 * j + 1];
+        out.push(lo * one_minus + hi * x0);
+        j += 1;
+    }
+    out
+}
+
 /// The public table `Ã` in Boolean-evaluation form: `alphaPublicEvals` at every
 /// cube index (spec: `cMultilinearExtension m₀ (alphaPublicEvals …)`,
 /// `ZeroCheck/Constraints.lean:871`; opt: `HachiEquiv.Opt.alpha_public_table.opt`,
@@ -644,6 +786,28 @@ pub fn honest_compute_g(
     RoundMsg { g_zero, g_alpha }
 }
 
+/// [`honest_compute_g`] at round `0`, the `w̃` table in the base field: the same
+/// two factors applied to [`round_poly_zero_base`], and [`round_poly_alpha_base`]
+/// for the linear component. `i = 0` is fixed, because round 0 is the only round
+/// whose table is base-field; the prefix kernel is the empty product and is
+/// still computed by [`eq_prefix`] so that this body is the one above with the
+/// index substituted and nothing else.
+pub fn honest_compute_g_base(
+    stmt: &RoundStatement,
+    w_fp: &Vec<Fp>,
+    a_tab: &Vec<Ext4>,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, 0);
+    let inner: UnivariatePoly = round_poly_zero_base(w_fp, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[0]);
+    let with_free: UnivariatePoly = &inner * &free;
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha_base(w_fp, a_tab);
+    RoundMsg { g_zero, g_alpha }
+}
+
 /// The round check: both round polynomials sum to the current targets over
 /// `{0, 1}` (spec: `roundCheck`, `Sumcheck/Rounds.lean:100`).
 ///
@@ -815,13 +979,19 @@ pub fn nested_to_round_statement(zc: NestedZeroCheckStmt) -> RoundStatement {
 /// `challenges` must hold at least `m₀` entries; the specification's
 /// `roundsSpec F b count` types that, and here it travels as a `_spec`
 /// hypothesis.
+///
+/// Round 0 is peeled (opt: `lean/Opt.lean` § "Candidate I"): the `w̃` table is
+/// built in the base field by [`crate::zerocheck::c_w_table_fp`], the first
+/// message comes from [`honest_compute_g_base`], and the first fold
+/// [`eval_mle_layer_base`] produces the extension table the loop from round 1
+/// on consumes exactly as before. The `0 < m₀` guard is the peel's totality:
+/// at `m₀ = 0` there is no round and the result is the empty list either way.
 pub fn honest_round_messages(
     stmt: RoundStatement,
     w: &crate::ringswitch::LiftedWitness,
     challenges: &Vec<Ext4>,
 ) -> Vec<RoundMsg> {
     let m0: usize = stmt.zc().tau0().len();
-    let mut w_tab: Vec<Ext4> = crate::zerocheck::c_w_table_mle(w, m0).into_values();
     let mut a_tab: Vec<Ext4> = alpha_public_table(
         stmt.zc().rlin(),
         stmt.zc().alpha(),
@@ -830,15 +1000,24 @@ pub fn honest_round_messages(
     );
     let mut current: RoundStatement = stmt;
     let mut out: Vec<RoundMsg> = Vec::new();
-    let mut i: usize = 0;
-    while i < m0 {
-        let g: RoundMsg = honest_compute_g(&current, &w_tab, &a_tab, i);
-        let a: Ext4 = challenges[i];
-        current = round_out(current, &g, a);
-        w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
-        a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
-        out.push(g);
-        i += 1;
+    if 0 < m0 {
+        let w_fp: Vec<Fp> = crate::zerocheck::c_w_table_fp(w, m0);
+        let g0: RoundMsg = honest_compute_g_base(&current, &w_fp, &a_tab);
+        let a0: Ext4 = challenges[0];
+        current = round_out(current, &g0, a0);
+        let mut w_tab: Vec<Ext4> = eval_mle_layer_base(&w_fp, a0);
+        a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a0);
+        out.push(g0);
+        let mut i: usize = 1;
+        while i < m0 {
+            let g: RoundMsg = honest_compute_g(&current, &w_tab, &a_tab, i);
+            let a: Ext4 = challenges[i];
+            current = round_out(current, &g, a);
+            w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
+            a_tab = cpoly::multilinear::eval_mle_layer(&a_tab, a);
+            out.push(g);
+            i += 1;
+        }
     }
     out
 }

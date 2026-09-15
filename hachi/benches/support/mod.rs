@@ -381,10 +381,11 @@ where
 /// region (verified in criterion 0.7's `Bencher::iter_batched`), which is the
 /// only correct way to measure an operation that needs a fresh owned value per
 /// iteration -- timing the clone that produces it would measure the clone.
-/// **No case in this crate uses it yet**: every `hachi` operation borrows its
-/// operands (`&self`, `&Rq`, `&PolyVec`), so nothing here needs a fresh input.
-/// It is kept because the first `self`-consuming operation to be added would
-/// otherwise be measured wrong in a way that reads as a speedup.
+/// Its users are the operations that take a value they consume:
+/// `sumcheck/round_out` and `sumcheck/honest_round_messages`, both of which
+/// move a `RoundStatement` (every other `hachi` operation borrows its operands,
+/// `&self`, `&Rq`, `&PolyVec`). Note the asymmetry with [`run`]: here the
+/// *output's* drop is outside the timed region too.
 pub fn run_batched<I, R, S, F, D>(m: Mode<'_, '_>, mut setup: S, mut body: F, digest: D) -> u64
 where
     S: FnMut() -> I,

@@ -393,6 +393,40 @@ theorem ext_from_base_spec (a : cpoly.field.Fp) (ha : Red a) :
   simp only [coeff_toExt', Ext.coeff_ofBase]
   rcases fin_four_eq i with rfl | rfl | rfl | rfl <;> simp [extCoeff]
 
+/-- Coefficient `i` of `ofBase c * x` is `c * coeff x i`: `ofBase` **is** the
+algebra map, so the product is the scalar action and `Ext.coeff_smul` applies.
+This is the whole content of the mixed multiply below. -/
+theorem coeff_ofBase_mul (c : K) (x : F) (i : Fin Hachi.ext4Params.toExtensionParams.d) :
+    Ext.coeff (Ext.ofBase c * x) i = c * Ext.coeff x i := by
+  rw [show (Ext.ofBase c : F) = algebraMap K F c from rfl, ← Algebra.smul_def, Ext.coeff_smul]
+
+/-- `impl Mul<Ext4> for Fp` -- the **mixed** product, `Fp` on the left.  Four base
+multiplications, one per coefficient, where the quartic multiply would do nineteen;
+on the specification side that is `ofBase c * x`, i.e. `c • x`.
+
+Only the extension operand needs `Reduced`; the base operand needs `Red`, and the
+pairing is fixed by the impl's argument order, which is also what selects this impl
+over `Ext4`'s own -- two declarations whose mangled names differ only in their
+namespace. `Check.lean` § 2 pins this one's body, four `Fp` multiplies against the
+quartic multiply's nineteen. -/
+@[step]
+theorem fp_ext_mul_spec (a : cpoly.field.Fp) (b : cpoly.field.Ext4)
+    (ha : Red a) (hb : Reduced b) :
+    cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul a b
+      ⦃ c => Reduced c ∧ toExt c = Ext.ofBase (toK a) * toExt b ⦄ := by
+  obtain ⟨b0, b1, b2, b3⟩ := hb
+  rw [cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul]
+  step as ⟨u0, r0, e0⟩
+  step as ⟨u1, r1, e1⟩
+  step as ⟨u2, r2, e2⟩
+  step as ⟨u3, r3, e3⟩
+  refine ⟨⟨r0, r1, r2, r3⟩, ?_⟩
+  apply Ext.ext; intro i
+  rw [coeff_ofBase_mul]
+  simp only [coeff_toExt']
+  rcases fin_four_eq i with rfl | rfl | rfl | rfl <;>
+    simp only [extCoeff, e0, e1, e2, e3]
+
 /-- `Ext4::is_zero` decides whether the represented element is `0`.  Reducedness
 is needed in both directions: without it a word congruent to `0` but not equal to
 it would make the test unsound. -/

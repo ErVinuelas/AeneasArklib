@@ -352,6 +352,12 @@ divided out of the accept column.
   reports the `hachi/src` item as having no frozen counterpart. The only honest
   way out is the user's content commit followed by `make bench-stamp`; a
   back-to-back pair of champions in one module therefore costs one commit
+  round-trip. What does **not** trip it: a candidate whose new helpers live only
+  in the slot while `hachi/src` sits at HEAD for the run (the ordinary restore
+  step) -- `check-genesis` reads its live set from `hachi/src`, so candidate I's
+  nine new items (2026-09-15) benched twice with no commit in between. Land the
+  champion (src + genesis) only *after* its runs, and the blocker is deferred
+  to the next champion in the same module, where the commit is owed anyway
   round-trip between them. Plan the session for it; never hand-write a stamp.
 * **Benching a slot nobody filled.** `make run-bench CANDIDATE=1` runs
   `check-genesis` and the coverage audit but **not** `check-candidate`, and
