@@ -1,0 +1,56 @@
+{
+  "run": "20260916T2120+0200-15ffa185",
+  "source": {
+    "sha": "90120fe",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "ring/mul/1024",
+      "now_ns": 256723.17287037036,
+      "genesis_ns": 1439871.328742559,
+      "vs_genesis": -0.8217040872016204,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/ring/8192",
+      "now_ns": 33199766.5,
+      "genesis_ns": 33189870.666666668,
+      "vs_genesis": 0.00029815823727420243,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    },
+    {
+      "case": "_control/ringswitch/8192",
+      "now_ns": 33211784.444444444,
+      "genesis_ns": 33489883.277777776,
+      "vs_genesis": -0.008303965440150239,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.008303965440150239,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": null,
+  "candidate_slot": null
+}

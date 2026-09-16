@@ -1,10 +1,16 @@
 //! Wall-clock time for the ring operations.
 //!
-//! `mul` is the case that matters: it is the schoolbook `O(N²)` negacyclic
-//! convolution, `N = 64`, and it is where every operation above it spends its
-//! time -- a matrix-vector product is `rows · cols` of these. It is also the
-//! operation an NTT would replace, so this reading is the baseline any such
-//! optimization has to beat *and* carry an equivalence proof for.
+//! `mul` is the case that matters: it is where every operation above it spends
+//! its time -- a matrix-vector product is `rows · cols` of these.
+//!
+//! It is also the row that has moved the most. The frozen genesis translation
+//! is the schoolbook `O(N²)` negacyclic convolution; the champion is an
+//! auxiliary-prime negacyclic number-theoretic transform with CRT
+//! reconstruction (`src/ntt.rs`), carrying its own equivalence proof against
+//! the same `Ring.mul_spec`. So the `vs genesis` column on this row is a
+//! schoolbook-against-transform comparison, re-measured on this machine in
+//! every run, and the `genesis` variant is the only place the quadratic
+//! convolution still runs.
 //!
 //! # Sizes
 //!

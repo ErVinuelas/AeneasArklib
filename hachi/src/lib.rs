@@ -24,7 +24,15 @@
 //! `ringswitch::honest_lift_witness` (a deferred decision, see `chain.rs`), and
 //! the composed chain has no bench row, because a row would have to accept and
 //! the smallest accepting shape is the pin (`benches/exclusions.toml`
-//! § `chain::chain_verify`). Two of Fig. 9's values are
+//! § `chain::chain_verify`).
+//!
+//! `ring::Rq::mul` is no longer the schoolbook convolution: it is an
+//! auxiliary-prime negacyclic number-theoretic transform with CRT
+//! reconstruction ([`ntt`]), proved against the same `Ring.mul_spec` and
+//! `RqBridge.mul_spec` the schoolbook loop was proved against. NOTES.md § "The
+//! NTT is possible after all -- in three other fields" says why a transform in
+//! the coefficient field is impossible at these parameters and what replaces
+//! it; `logs/ntt-execution.md` is the execution record. Two of Fig. 9's values are
 //! deliberately not the spec's -- `τ = 5` not 4, the `z` bound `131072` not
 //! `30583` -- and one, the sparse-challenge weight `c = 16`, has no constant
 //! because the specification sees challenges only through `‖c‖₁ ≤ ω` (see
@@ -39,6 +47,12 @@
 //! * [`params`] -- the parameters, and where each one comes from.
 //! * [`ring`] -- `R_q = Z_q[X] / (X^N + 1)`, the negacyclic ring
 //!   (`Data/Lattices/CyclotomicRing/Rq.lean`).
+//! * [`ntt`] -- the auxiliary-prime negacyclic transform that computes
+//!   [`ring`]'s product. The one module here that mirrors no ArkLib
+//!   definition: it is an *implementation* of `ring::Rq::mul`, and what it owes
+//!   is that it computes the same integer convolution the schoolbook loop did.
+//!   It owes that to `Ring.mul_spec`, whose statement did not move when the
+//!   implementation did.
 //! * [`linalg`] -- vectors and matrices over `R_q`
 //!   (`Data/Lattices/Vectors.lean`).
 //! * [`gadget`] -- base-`b` digit decomposition and the gadget matrix `G`
@@ -59,10 +73,10 @@
 //!   `H₀` (`Commitments/Functional/Hachi/ZeroCheck/Constraints.lean`); the
 //!   first module whose carrier is the extension field `Ext4`.
 //!
-//! The layering is strict and bottom-up: `linalg` uses `ring`, `gadget` uses
-//! both, `commit` uses all three, `evalsplit` uses `ring` and `linalg`, and
-//! `ringswitch` uses `ring` and `gadget`, and `quadeval` uses everything below
-//! it. Nothing reaches back up.
+//! The layering is strict and bottom-up: `ntt` uses only `params`, `ring` uses
+//! `ntt`, `linalg` uses `ring`, `gadget` uses both, `commit` uses all three,
+//! `evalsplit` uses `ring` and `linalg`, and `ringswitch` uses `ring` and
+//! `gadget`, and `quadeval` uses everything below it. Nothing reaches back up.
 //!
 //! The coefficient field is *not* in this crate. `Fp` (the Hachi prime
 //! `2^32 - 99`) and its quartic extension `Ext4` come from the `cpoly` crate of
@@ -122,6 +136,8 @@
 extern crate alloc;
 
 pub mod params;
+
+pub mod ntt;
 
 pub mod ring;
 

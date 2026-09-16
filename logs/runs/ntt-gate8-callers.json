@@ -1,0 +1,65 @@
+{
+  "run": "20260916T2125+0200-bef61acb",
+  "source": {
+    "sha": "90120fe",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "linalg/dot/16",
+      "now_ns": 5524256.233333333,
+      "genesis_ns": 22958139.777777776,
+      "vs_genesis": -0.7593770102105349,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster"
+    },
+    {
+      "case": "linalg/mat_vec_mul/16",
+      "now_ns": 5523199.433333334,
+      "genesis_ns": 23037265.22222222,
+      "vs_genesis": -0.7602493447006227,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster"
+    },
+    {
+      "case": "linalg/scalar_vec_mul/16",
+      "now_ns": 5360694.166666667,
+      "genesis_ns": 22934701.88888889,
+      "vs_genesis": -0.7662627492331283,
+      "vs_genesis_sig": true,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/linalg/8192",
+      "now_ns": 33249270.0,
+      "genesis_ns": 33099243.166666668,
+      "vs_genesis": 0.004532636368085297,
+      "vs_genesis_sig": false,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.004532636368085297,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": null,
+  "candidate_slot": null
+}

@@ -57,6 +57,14 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # something that happens by dropping a file in -- the same reason
 # `hachi/Cargo.toml` sets `autobenches = false`.
 #
+# `ntt` carries no bench binary either, and for a different reason than `params`:
+# every one of its items exists only to compute `ring::Rq::mul`, which already
+# has a row. A `ntt/dif_stage` row would time a stage that no caller can reach
+# on its own, and `coverage` has nothing to hold it to because it mirrors no
+# ArkLib definition -- an implementation of `Rq`'s product is not a translation
+# of a specification. It is in this tuple because it is frozen into genesis and
+# copied into the candidate slot like every other module.
+#
 # `params` carries no bench binary: its items are `const`s the compiler folds,
 # so there is nothing to time. It is still listed, because it is frozen into
 # genesis and copied into the candidate slot like every other module, and
@@ -69,8 +77,8 @@ EXCLUSIONS = BENCHES / "exclusions.toml"
 # excused by name. Every *other* module here owns a `[[bench]]` target, which
 # `covered_paths` now enforces from the other end (one `_control` per file, and
 # every row in the file under it).
-MODULES = ("params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
-           "quadeval", "endpiece", "zerocheck", "sumcheck", "chain")
+MODULES = ("params", "ntt", "ring", "linalg", "gadget", "commit", "evalsplit",
+           "ringswitch", "quadeval", "endpiece", "zerocheck", "sumcheck", "chain")
 
 # Items whose text is worth freezing and annotating. `impl` headers and
 # associated `type`s are structure, not code that runs.

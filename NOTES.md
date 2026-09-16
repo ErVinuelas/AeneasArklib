@@ -1372,6 +1372,67 @@ the parameters, and the next person to read "an NTT would replace this" deserves
 to meet it in the same file as the parameter choices. A candidate proposing a
 transform has to name its root of unity, and no such root exists below order 4.
 
+## The NTT is possible after all -- in three other fields
+
+**Superseding the section above, 2026-09-16.** Everything it says is true and
+none of it is retracted: `v₂(q − 1) = 2`, `v₂(q⁴ − 1) = 4`, there is no
+power-of-two root of unity above order 4 anywhere near this modulus, and `q` is
+still not ours to change. What the section got wrong is the conclusion it drew
+from that -- "the complexity-class win on the hot path is **not** a transform"
+-- because it only ever considered transforms *in the coefficient field*.
+
+The product does not have to be computed in `Z_q`. Coefficient `k` of the
+product of two `Rq` elements is, before any reduction, an **integer**: a sum of
+at most `N` products of representatives below `q`, so at most `N·(q−1)² < 2^74`.
+An integer convolution can be computed in any ring large enough to determine it,
+and the CRT makes "large enough" a choice of primes rather than a property of
+`q`. So the transform runs at three auxiliary primes
+
+```text
+p1 = 469762049   = 7 · 2^26 + 1
+p2 = 998244353   = 7 · 17 · 2^23 + 1
+p3 = 1004535809  = 479 · 2^21 + 1
+```
+
+each of which *does* have a root of exact order `2N = 2048`, and Garner
+reconstruction recovers the integer coefficient exactly, because
+`p1·p2·p3 ≈ 2^88.6` dwarfs the bound. Only then is anything reduced mod `q`.
+`hachi/src/ntt.rs` is that construction and `hachi/lean/Aux*.lean` is its
+equivalence proof; `logs/ntt-execution.md` is the full execution record,
+including what was measured and what was tried and rejected.
+
+Three things are worth keeping from the attempt, because each contradicts
+something a reader would reasonably assume:
+
+1. **The textbook route is slower than the schoolbook loop it replaces.** A
+   *cyclic* transform of length `2N` with zero padding -- the obvious way to get
+   an ordinary convolution out of a cyclic transform, and the one the plan
+   specified -- measured **0.79×** the schoolbook product. It does 2.2× the
+   transform work of the negacyclic form, on buffers twice the size. What clears
+   the gate is the negacyclic transform at length `N`, reached by the twist
+   `X ↦ ψ·Y`, which costs two extra proof obligations and half the arithmetic.
+2. **The signed coefficient is handled by an offset, not by a sign test.** The
+   negacyclic coefficient `posSum − negSum` is signed, and the CRT reconstructs
+   a residue class. Adding `BOUND = N·q²` before reconstruction makes it a
+   natural number in `[0, 2·BOUND]`, and `2·BOUND < P` keeps the reconstruction
+   exact. `BOUND` is `N·q²` rather than the tighter `N·(q−1)²` for two proof
+   reasons: it is the ceiling `Ring.lean`'s `posSum_le`/`negSum_le` *already*
+   prove, so no sharper bound was needed; and `q ∣ N·q²`, so the offset is
+   invisible mod `q` and `Rq::mul` needs no correction term at all.
+3. **Doing less arithmetic made it slower, twice.** A runtime `t % len` in the
+   stage index was 70 % of a stage's cost (a hardware division); removing it was
+   free. But the natural butterfly -- writing both outputs in one iteration,
+   which does strictly fewer multiplications and half the loads -- measured
+   **17 % slower** than two sequential half-block loops, because the split form
+   writes its output buffer in one increasing stream. The code therefore
+   computes one twiddle product twice on purpose, and `ntt.rs` says so where a
+   reader would otherwise "fix" it.
+
+The exclusions whose removal condition was "until a sub-quadratic `ring::mul`
+lands" (`benches/exclusions.toml`) now have their condition met on the
+arithmetic as well as on the note above. They are **not** removed here: turning
+one into a row is the un-ignore ceremony that file assigns its own slot.
+
 ---
 
 ## `RqBridge.lean` is promoted: proved now also means checked
@@ -7319,3 +7380,81 @@ the **first** "no `slower`" relaxation granted to a candidate whose deliverable
 keyed to deliverables that are not.
 
 This unblocks T1a1, T1a2 and T1a3, all three of which are structure-conditional.
+
+## Integrating the verified NTT: what had to be checked, and what came free (2026-09-17)
+
+Merged `ntt/experiment/verified-ntt-mul` at `45987ea` into the main line on the
+user's instruction ("incorporate it in here if you consider it will make a
+speedup"). It does, and it merged **conflict-free**.
+
+### The judgement: yes, but the row is not the protocol
+
+Comparable through the shared genesis baseline -- both runs measured genesis
+in-run, 1 496 µs against 1 433 µs, 4% apart, so the ratio is sound:
+
+| case | mine vs genesis | NTT vs genesis | NTT over mine |
+|---|---|---|---|
+| `ring/mul/1024` | −55.0% | **−82.5%** | **~2.6×** |
+| `linalg/mat_vec_mul/16` | −54.7% | −75.1% | ~1.8× |
+| `linalg/dot/16` | −55.3% | −75.5% | ~1.8× |
+
+**But the protocol effect is far smaller than the row**, and saying so is the
+point. The commit changes `ring.rs` and adds `ntt.rs`; it does **not** touch
+`ringswitch.rs`. So `long_mul` is unchanged and the lifted-witness phase —
+**27.7% of protocol** — gets nothing, and the rounds (44.6%) are `Ext4`-bound
+and get nothing either. What is `Rq::mul`-bound is `lift_commit` (5.6%), setup
+(4.1%) and the end-piece/verify path (~6–8%): call it **~11% of protocol** at
+2.6×. The big prize is a *follow-on* — the same `ntt.rs` machinery applied to
+`long_mul`, the unreduced `2N−1`-wide product, which is the 27.7% phase.
+
+Card C ("Ceiling, not a candidate: multi-prime NTT … the proof is months") is
+**wrong and should be struck**. It is done, it is proved, and it is not the
+five-prime scheme the card priced.
+
+### What it does, and why `Z_q` was never an option
+
+`q − 1 = 2² · 1 073 741 799`, so `v₂(q−1) = 2`: the largest power-of-two root of
+unity in `Z_q` has order 4, and `v₂(q⁴−1) = 4` so `cpoly`'s quartic extension
+does not rescue it. A radix-2 negacyclic transform of length `N` needs
+`2N | q−1`. So there is no NTT in `Z_q` at all, and `q` is not ours to change.
+
+Instead the negacyclic product is computed as the **integer** polynomial product
+it already is, in three auxiliary NTT-friendly primes, with the exact integer
+coefficients recovered by CRT and reduced mod `q` once at the end. The sign
+problem — `v_k = posSum − negSum` is signed, and CRT reconstructs a residue
+class — is handled by an offset: `W_k = posSum + N·q² − negSum` lies in
+`[0, 2·N·q²]`, a natural number, so nothing branches on a coefficient's sign.
+It reuses **candidate Q's own bound lemmas**, `posSum_le` and `negSum_le`.
+
+### The four things I checked before trusting the merge
+
+1. **`mul_spec`'s statement is byte-identical** to the pre-merge one, so nothing
+   downstream of `Ring.lean` moves. Their commit message claimed this; verified
+   by diffing the statement at `1eb6a57` against the merged file.
+2. **Zero direct `cpoly` body unfolds** across all seven new proof files — no
+   `rw [cpoly.field.Fp.Insts.CoreOpsArith*.{add,sub,mul,neg}]` anywhere. That is
+   what made them survive my cpoly bump: the bump changed those *bodies* and
+   re-proved the specs, but left every spec *statement* alone, and the NTT
+   proofs go through the statements.
+3. **`45987ea` is sorry-free in all seven files**, so the uncommitted
+   refinements left in that clone (AuxTransform 74 lines, Ring 22) are polish,
+   not gap-fillers. They were **not** taken: uncommitted work in someone else's
+   checkout that I cannot verify.
+4. **The `d7e26bb` cpoly pin survived** in all three manifests.
+
+### What came free, and one genuine surprise
+
+`make extract` reported **`unchanged`** on the first run. The auto-merged
+`Generated.lean` was already byte-identical to the true extraction of the merged
+Rust against the new cpoly — because their NTT regeneration and my cpoly-bump
+regeneration touched **disjoint regions** of the artifact (`src/ntt.rs` and
+`src/ring.rs` sections against the `cpoly::field` section, whose `Source:` lines
+carry the rev). A derived artifact merging correctly is luck worth noting rather
+than relying on; the re-extraction is what confirmed it, and it would have
+regenerated silently had it been wrong.
+
+Gates on the merged tree: `make build` green (no errors, no `sorry`), **306**
+audit lines on the three standard axioms only, **0** axioms in `Generated.lean`,
+extraction deterministic, 199 tests pass, **genesis intact at 352 frozen items**
+(up from 312 — `ntt.rs`'s items arrived stamped). `harness.py`'s `MODULES` is now
+**13**, `ntt` added, which every future slot copy must respect.
