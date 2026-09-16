@@ -6428,3 +6428,59 @@ make the row misleading.
 multiplication out of the model, a `583cfaff → d7e26bb` bump has to re-port
 `Ext4::mul` and `eval_mle_layer` and nothing else of substance. It stays
 deferred to the cleanup tier, but it is no longer gated on P.
+
+## The chain, measured again: 1.74× end to end -- and one phase that is not what I said it was (2026-09-16)
+
+First end-to-end reading since 2026-09-14. Same shape (1 block), same machine,
+`85e7917` → `3ed053e`, so a direct before/after across nine accepted candidates
+(F/G, I, J, K, L, M, N, Q, P). Logs: `logs/runs/honest-chain-profile-20260914.log`
+and `…-20260916.log`.
+
+**2 179.0 s → 1 249.5 s = 1.74×.**
+
+| phase | 09-14 | 09-16 | factor |
+|---|---|---|---|
+| commit 1 block | 12.5 s | 5.6 s | 2.23× |
+| statement built | 38.4 s | 4.7 s | **8.2×** |
+| `honest_compute_v` | 1.6 s | 0.7 s | 2.3× |
+| `honest_compute_resp` + stack | 14.6 s | 6.6 s | 2.2× |
+| `M·ζ = y` | 296.8 s | 144.4 s | 2.06× |
+| lifted witness | 300.7 s | 345.3 s | **0.87×** |
+| `lift_commit` | 61.9 s | 30.3 s | 2.04× |
+| rounds (26) | 1 201.3 s | 599.0 s | 2.01× |
+| `chain_verify` | 202.3 s | 46.1 s | 4.39× |
+
+**Candidate Q is confirmed exactly where it was supposed to be.** commit 2.23×,
+`M·ζ=y` 2.06×, `lift_commit` 2.04× -- all at the 2.25× the `ring/mul` row
+measured. So those phases really are `ring::mul`-dominated, which is what makes
+the un-ignore ceremony's arithmetic trustworthy rather than hopeful. The rounds
+halved against candidate I's ≈550 s projection, and the verifier's new
+sub-breakdown shows where I5 landed: `final_check` 99 s → **8.7 s**,
+`round_verify_loop` (26 rounds) → **69.6 µs**, leaving `end_piece_check` (34.6 s)
+as three quarters of a 46 s verifier.
+
+**A correction to my own arithmetic, which the run caught.** The ≈1.42×-from-Q
+estimate I wrote before this run counted the lifted-witness phase (300 s) among
+the `ring::mul`-bound work. It is not: `honest_lift_witness` goes through
+`ringswitch::long_mul`, the *unreduced* `2N−1`-wide product, which is a separate
+function Q never touched. That phase did not improve, and `long_mul` is now the
+largest unoptimised thing in the run -- **345 s, 28% of the total**.
+
+`long_mul` is therefore the next candidate, and the case for it does not rest on
+any disputed number, only on reading it: it is the pre-Q schoolbook shape,
+`ai * b.coeff(j)` reducing once per product and `out[s] + term` reducing again.
+Q's proof transfers with the negacyclic fold *removed* rather than added -- a
+linear convolution, one accumulator, no sign split -- and the `u128` ceiling is
+the same `1024 · (q−1)² < 2^74`.
+
+**An unresolved caveat, recorded rather than smoothed over.** Three phases that
+no candidate touched all came back 10–13% *slower*: lifted witness
+(300.7 → 345.3 s), `alpha_public_table` (12.5 → 14.3 s), `honest_compute_y`
+(4.1 → 4.5 s). One common direction across three unrelated phases suggests one
+cause -- code layout under fat LTO, or machine state -- rather than three
+regressions. But it is not explained, and **this profile has no control**, unlike
+the criterion harness. A repeat run was started and then abandoned on the user's
+instruction in favour of moving on, so the question stands open: **the 1.74×
+should not be trusted to better than ~10%, and neither should any single phase
+figure this profile has produced since 09-14.** Owed: either a controlled repeat,
+or a per-phase control in the profile itself.

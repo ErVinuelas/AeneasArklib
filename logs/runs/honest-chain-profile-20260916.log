@@ -1,0 +1,113 @@
+# the_honest_chain_profile — started 2026-09-16T10:37:16+02:00 on 3ed053e clean, 1 block
+# baseline for comparison: honest-chain-profile-20260914.log (85e7917, 2179.0s total)
+# since that baseline: candidates F/G, I, J, K, L (I5), M, N (I8), Q (I4), P (surface)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 3.16s
+     Running unittests src/lib.rs (target/release/deps/hachi-edbcbf30d2fbd750)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+[     5.6s] committed 1 block(s)
+[    10.3s] statement built
+[    11.0s] honest_compute_v done
+[    17.6s] honest_compute_resp + stack done
+[    19.0s] R^lin statement assembled: 5 x 40976
+test the_honest_chain_profile has been running for over 60 seconds
+[   163.4s] M zeta = y holds
+[   508.7s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 421.6ms
+[profile] lift_commit: 30.3s
+[profile] c_w_table_mle at 2^26: 822.8ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 14.3s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 599.0s
+[profile] honest_compute_y: 4.5s
+[profile] verifier: rlin_stmt + statement thread: 374.2ms
+[profile] verifier: round_verify_loop (26 rounds): 69.6µs
+[profile] verifier: final_check = true: 8.7s
+[profile] verifier: end_piece_check = true: 34.6s
+[profile] chain_verify (whole, as the control) = true: 46.1s
+[  1249.5s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 1249.77s
+
+     Running tests/commit_semantics.rs (target/release/deps/commit_semantics-f280a6891387c3d2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.00s
+
+     Running tests/endpiece_semantics.rs (target/release/deps/endpiece_semantics-912fa015c367ad32)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+     Running tests/evalsplit_semantics.rs (target/release/deps/evalsplit_semantics-f8b4f0a43f3c3d28)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests/gadget_semantics.rs (target/release/deps/gadget_semantics-562235c2927f17c0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+     Running tests/linalg_semantics.rs (target/release/deps/linalg_semantics-bebfe08a0e1d64f5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests/params_semantics.rs (target/release/deps/params_semantics-532dce5983f2166c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s
+
+     Running tests/quadeval_semantics.rs (target/release/deps/quadeval_semantics-9edce736ad0bcc7b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+
+     Running tests/ring_semantics.rs (target/release/deps/ring_semantics-9a5bfe0ed2574556)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+     Running tests/ringswitch_semantics.rs (target/release/deps/ringswitch_semantics-616f11078b2731f9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.00s
+
+     Running tests/sumcheck_semantics.rs (target/release/deps/sumcheck_semantics-d07222bce6e05499)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s
+
+     Running tests/zerocheck_semantics.rs (target/release/deps/zerocheck_semantics-8720f77da591c096)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s
+
+   Doc-tests hachi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+# exit 0 at 2026-09-16T10:58:09+02:00
