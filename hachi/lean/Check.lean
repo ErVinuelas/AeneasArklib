@@ -419,10 +419,27 @@ example : cpoly.field.Fp = Std.U64 := rfl
 -- Target 5's round message multiplies univariate polynomials (`&p * &q` and
 -- `&p * scalar` in `sumcheck::honest_compute_g`), and cpoly implements those
 -- **by reference**. Aeneas mangles a by-reference operator impl's `Self` into a
--- synthetic `Shared<n><T>`, so those two impls arrive as
+-- synthetic `Shared<n><T>`, so those two impls arrived as
 --
 --     Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul
 --     Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul
+--
+-- **Candidate P (2026-09-16) removed the second.** `&p * &q` is now
+-- `sumcheck::poly_mul`, this crate's own item, so cpoly's polynomial multiply
+-- is no longer reachable and its pin below is deleted rather than kept pointing
+-- at a name the model does not define. This is the § "The model contains what
+-- the crate *reaches*" hazard arriving as a *build failure* instead of silent
+-- rot, which is the outcome the pin was written for -- the ascription stopped
+-- typechecking the moment the item left the model.
+--
+-- What remains needs saying, because the hazard is not gone, only smaller. With
+-- one `Shared<n>` impl left there is nothing for the index to swap *with*, so
+-- the pin below no longer distinguishes two impls; it asserts that `Shared0` is
+-- still the scalar multiply and not something a later extraction attached that
+-- index to. Candidate P also added `UnivariatePoly`'s `Index` impl to the model,
+-- and that one needs no pin: it is an impl on the type, not by reference, so it
+-- carries no `Shared<n>` mangling at all
+-- (`cpoly.univariate.UnivariatePoly.Insts.CoreOpsIndexIndexUsizeExt4.index`).
 --
 -- and every statement about a `RoundMsg` is about those names. A *name* is not
 -- a body: the mangling is an Aeneas artefact and the index is positional, so a
@@ -439,20 +456,11 @@ example : cpoly.univariate.UnivariatePoly → cpoly.field.Ext4 →
     Result cpoly.univariate.UnivariatePoly :=
   Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul
 
--- Polynomial multiply: two polynomials in, one out. The `Shared0` inside
--- `Shared1`'s name is the *argument*'s mangling, which is why the two indices
--- are not interchangeable.
-example : cpoly.univariate.UnivariatePoly → cpoly.univariate.UnivariatePoly →
-    Result cpoly.univariate.UnivariatePoly :=
-  Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul
-
--- The two ascriptions above cannot distinguish the impls from each other by
--- type alone -- a swap of `Shared0`/`Shared1` would change both signatures, so
--- in fact they can, and that is the point: the scalar impl's second argument is
--- an `Ext4` and the polynomial impl's is a `UnivariatePoly`, so neither
--- ascription accepts the other's constant. A body pin (that each delegates to
--- its own loop) is owed and would be strictly stronger; it needs `Result`'s
--- `ok`/`do` notation, which this file does not open.
+-- (The polynomial-multiply pin that stood here until 2026-09-16 is gone with the
+-- impl it pinned; see the note above. A body pin -- that the surviving impl
+-- delegates to its own loop -- is owed and would be strictly stronger than an
+-- ascription; it needs `Result`'s `ok`/`do` notation, which this file does not
+-- open.)
 
 -- The modulus travelled across the crate boundary as a value, not a symbol.
 example : cpoly.field.P = 4294967197#u64 := by simp [cpoly.field.P]
@@ -1498,6 +1506,14 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- proved against; `final_check_spec` above is the headline that consumes it and
 -- its statement did not move.
 #print axioms HachiEquiv.Sumcheck.alpha_public_mle_eval_spec
+-- Candidate P (Stage 6, route R2 `accepted-surface`): `sumcheck::poly_mul`, the
+-- univariate schoolbook moved out of cpoly and into this crate so that a `cpoly`
+-- pin bump cannot break a proof about code this repository does not own. The
+-- three specs are the ported ones retargeted by item name -- the body is cpoly's
+-- body, so the loops and their invariants did not move.
+#print axioms HachiEquiv.Sumcheck.poly_mul_inner_loop_spec
+#print axioms HachiEquiv.Sumcheck.poly_mul_outer_loop_spec
+#print axioms HachiEquiv.Sumcheck.poly_mul_spec
 -- Candidate I (campaign) -- the extracted round-0 path, proved against the same
 -- ArkLib definitions the extension-field path is proved against.  The mixed
 -- multiply and the base-field committed table first (`Ext`, `ZeroCheck`), then

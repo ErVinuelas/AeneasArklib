@@ -219,6 +219,28 @@ it, once per session, and stop with a report if any of it is missing:
      same 30 GiB laptop, `logs/paper-impl/README.md`). `make gains` shows such a
      row near zero, which is the truth, and the `accepted-wall` verdict is what
      keeps a wall removal from ever being read as a speed claim.
+   * **Source-surface changes are the second exception, added 2026-09-16 with
+     the user's agreement.** A candidate whose purpose is to change *which
+     source the proofs are about* -- moving an operation out of a pinned
+     dependency and into this crate, so a dependency bump can no longer break a
+     proof -- is not expected to read `faster` either: the operation counts are
+     typically unchanged, because the body is the same body. Such a candidate is
+     accepted when (i) its ledger row is declared
+     `"kind": null, "verdict": "accepted-surface"` and names what left and what
+     entered the reachable extracted model, (ii) the within-run bench on the
+     caller rows reads **no `slower`** (the time guard stays, exactly as for a
+     wall), (iii) the proof obligation is paid in full -- for this shape that
+     usually means *retargeting* existing specs, and the row should say whether
+     any statement moved, and (iv) the row records the surface change as
+     **arithmetic from the model**: which items the extraction gained and lost,
+     counted. The precedent is candidate P (`sumcheck::poly_mul`), which took
+     cpoly's generic `UnivariatePoly × UnivariatePoly` -- five defs, two loops --
+     out of the model and added two identity wrappers. `make gains` shows such a
+     row near zero, which is the truth; the verdict is what keeps a surface
+     change from ever being read as a speed claim. Do **not** reach for this
+     verdict for a candidate that merely happens to be noise -- that is
+     `rejected-noise`. The test is whether the *deliverable* is the model change.
+
 6. **Tournament.** Multiple accepted candidates for one target: rank by
    `cand_vs_now` at the largest measured size, then confirm the winner with
    one fresh `CANDIDATE=1` run against the champion. Never chain deltas
@@ -313,8 +335,8 @@ what it says about the harness").
  "notes": "champion/ring-mul branch carries the swap; Ring.lean mul_loop*_spec broken by it"}
 ```
 
-`verdict` ∈ accepted · accepted-wall · rejected-slower · rejected-noise ·
-rejected-mixed · tests-failed · lemma-failed · not-translatable ·
+`verdict` ∈ accepted · accepted-wall · accepted-surface · rejected-slower ·
+rejected-noise · rejected-mixed · tests-failed · lemma-failed · not-translatable ·
 no-strategy-applies · contract-violation · bench-unusable. `target` is the ArkLib definition as the
 brief names it (`arklib-analyze` reads it from the pinned copy; do not spell an
 ArkLib name from memory) and `item` is the Rust item the numbers are about.

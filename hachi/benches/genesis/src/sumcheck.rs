@@ -427,6 +427,59 @@ pub fn alpha_public_table(
     out
 }
 
+/// The product of two univariate polynomials over `Ext4` (spec:
+/// `CPolynomial.Raw.mul`, `CompPoly/Univariate/Raw/Ops.lean`).
+///
+/// Mirrors `CPolynomial.Raw.mul` -- schoolbook, trimmed once at the end.
+///
+/// This is cpoly's `impl Mul<&UnivariatePoly> for &UnivariatePoly`, written
+/// here instead of called there, and the reason is the **proof surface** rather
+/// than speed: the counts are identical. hachi reaches that `Mul` from exactly
+/// four places, all of them `&inner * &free` in the `honest_compute_g` family,
+/// where `free` is [`eq_free_factor`]'s two coefficients -- so the generic
+/// schoolbook is already overkill, and any upstream change to it (upstream has
+/// since put Karatsuba and `u128` leaves behind that operator) would force a
+/// re-port of a proof for a product this crate never asks for. Writing it here
+/// takes cpoly's generic multiplication out of the reachable extracted model,
+/// which is what lets the `cpoly` pin move without breaking a proof about code
+/// this repository does not own.
+///
+/// The body is cpoly's, verbatim to the extent hachi can be: the accumulator is
+/// `vec![Ext4::ZERO; np + nq - 1]` (the *repeat* form, which the extraction
+/// models with no loop of its own, so the two loops keep the loop indices the
+/// ported specs are written against), the empty cases return early, and the
+/// read-modify-write is spelled out rather than `+=` for the reason cpoly gives.
+/// The one unavoidable difference: `UnivariatePoly`'s field is private, so the
+/// result is built with [`UnivariatePoly::from_coeffs`] where cpoly names the
+/// constructor -- the identity wrapper either way.
+///
+/// **Not** written `k`-outer like `Rq::mul`'s candidate Q. At the aspect ratio
+/// this is actually called at (`np = 33`, `nq = 2`) a `k`-outer form with a full
+/// inner pass would cost `34 · 33 = 1122` iterations against this scatter's `66`.
+///
+/// `np + nq` is a checked `usize` addition, so the spec carries
+/// `np + nq ≤ usize::MAX` exactly as cpoly's did.
+pub fn poly_mul(a: &UnivariatePoly, b: &UnivariatePoly) -> UnivariatePoly {
+    let np: usize = a.len();
+    let nq: usize = b.len();
+    if np == 0 || nq == 0 {
+        return UnivariatePoly::zero();
+    }
+    let mut out: Vec<Ext4> = alloc::vec![Ext4::ZERO; np + nq - 1];
+    let mut i: usize = 0;
+    while i < np {
+        let mut j: usize = 0;
+        while j < nq {
+            let prod: Ext4 = a[i] * b[j];
+            let k: usize = i + j;
+            out[k] = out[k] + prod;
+            j += 1;
+        }
+        i += 1;
+    }
+    UnivariatePoly::from_coeffs(out).trim()
+}
+
 // @genesis 2152e10 2026-09-09 — sumcheck::NestedZeroCheckStmt
 /// The zero-check statement the paired sumcheck starts from (spec:
 /// `NestedZeroCheckStatement`, `ZeroCheck/Constraints.lean:1407`).

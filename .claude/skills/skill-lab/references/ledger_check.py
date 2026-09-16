@@ -63,10 +63,18 @@ POSITIONAL_RE = re.compile(
 MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
            "quadeval", "endpiece", "zerocheck", "sumcheck", "chain"}
 
+# `accepted-surface` added 2026-09-16 (first row: candidate P, `sumcheck::poly_mul`).
+# Like `accepted-wall` it is not a speed claim: the candidate is landed because it
+# changes *which source the proofs are about* -- typically moving an operation out of
+# a pinned dependency and into this crate, so a dependency bump can no longer break a
+# proof -- and its operation counts are usually unchanged, because the body is the
+# same body. The time guard still applies (no row `slower`), and the row is expected
+# to carry a `surface` object recording what the extracted model gained and lost.
+# See `perf-loop` § "The procedure, per iteration", step 5.
 CANDIDATE_VERDICTS = {
-    "accepted", "accepted-wall", "rejected-slower", "rejected-noise", "rejected-mixed",
-    "tests-failed", "lemma-failed", "not-translatable", "no-strategy-applies",
-    "contract-violation", "bench-unusable", "reference",
+    "accepted", "accepted-wall", "accepted-surface", "rejected-slower", "rejected-noise",
+    "rejected-mixed", "tests-failed", "lemma-failed", "not-translatable",
+    "no-strategy-applies", "contract-violation", "bench-unusable", "reference",
 }
 REQUIRED = {
     None: ["ts", "target", "op", "strategy", "candidate", "verdict", "pins"],

@@ -462,19 +462,19 @@ theorem convol_succ (p q : alloc.vec.Vec cpoly.field.Ext4) (m k : ℕ) :
   simp [convol, Finset.sum_range_succ]
 
 /-- The inner convolution loop: `r[i+j] += p[i] * q[j]` for `j ∈ [j₀, nq)`. -/
-theorem uni_mul_inner_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (nq i : Std.Usize)
+theorem poly_mul_inner_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (nq i : Std.Usize)
     (hp : VecReduced p) (hq : VecReduced q) (hnq : nq.val = q.val.length)
     (hip : i.val < p.val.length) :
     ∀ (r : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
       VecReduced r → j.val ≤ nq.val → i.val + nq.val ≤ r.val.length →
-      Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0_loop0
+      sumcheck.poly_mul_loop0_loop0
           p q nq r i j
         ⦃ z => VecReduced z ∧ z.val.length = r.val.length ∧
           ∀ k, (toRaw z).coeff k = (toRaw r).coeff k +
             (if i.val + j.val ≤ k ∧ k < i.val + nq.val
               then (toRaw p).coeff i.val * (toRaw q).coeff (k - i.val) else 0) ⦄ := by
   intro r j hr hj hbound
-  rw [Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0_loop0]
+  rw [sumcheck.poly_mul_loop0_loop0]
   apply loop.spec_decr_nat (fun s => nq.val - s.2.val)
     (fun s => VecReduced s.1 ∧ s.2.val ≤ nq.val ∧ j.val ≤ s.2.val ∧
       s.1.val.length = r.val.length ∧
@@ -488,7 +488,8 @@ theorem uni_mul_inner_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (nq i : S
         (∀ k, (toRaw r1).coeff k = (toRaw r).coeff k +
           (if i.val + j.val ≤ k ∧ k < i.val + j1.val
             then (toRaw p).coeff i.val * (toRaw q).coeff (k - i.val) else 0)) := hinv
-    simp only [Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0_loop0.body]
+    simp only [sumcheck.poly_mul_loop0_loop0.body,
+      cpoly.univariate.UnivariatePoly.Insts.CoreOpsIndexIndexUsizeExt4.index]
     by_cases hlt : j1 < nq
     · rw [if_pos hlt]
       have hjb : j1.val < q.val.length := by scalar_tac
@@ -551,18 +552,18 @@ theorem uni_mul_inner_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (nq i : S
     simp [hfalse]
 
 /-- The outer convolution loop accumulates `convol p q np`. -/
-theorem uni_mul_outer_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (np nq : Std.Usize)
+theorem poly_mul_outer_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (np nq : Std.Usize)
     (hp : VecReduced p) (hq : VecReduced q)
     (hnp : np.val = p.val.length) (hnq : nq.val = q.val.length) :
     ∀ (r : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize),
       VecReduced r → i.val ≤ np.val → np.val + nq.val ≤ r.val.length + 1 →
       (∀ k, (toRaw r).coeff k = convol p q i.val k) →
-      Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0
+      sumcheck.poly_mul_loop0
           p q np nq r i
         ⦃ z => VecReduced z ∧ z.val.length = r.val.length ∧
           ∀ k, (toRaw z).coeff k = convol p q np.val k ⦄ := by
   intro r i hr hi hbound hcoeff
-  rw [Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0]
+  rw [sumcheck.poly_mul_loop0]
   apply loop.spec_decr_nat (fun s => np.val - s.2.val)
     (fun s => VecReduced s.1 ∧ s.2.val ≤ np.val ∧ s.1.val.length = r.val.length ∧
       ∀ k, (toRaw s.1).coeff k = convol p q s.2.val k)
@@ -570,13 +571,13 @@ theorem uni_mul_outer_loop_spec (p q : alloc.vec.Vec cpoly.field.Ext4) (np nq : 
     obtain ⟨hr1, hi1, hlen1, hcoeff1⟩ : VecReduced r1 ∧ i1.val ≤ np.val ∧
         r1.val.length = r.val.length ∧
         (∀ k, (toRaw r1).coeff k = convol p q i1.val k) := hinv
-    simp only [Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0.body]
+    simp only [sumcheck.poly_mul_loop0.body]
     by_cases hlt : i1 < np
     · rw [if_pos hlt]
       have h1 : i1.val < np.val := by scalar_tac
       have hip : i1.val < p.val.length := by omega
       have hib : i1.val + nq.val ≤ r1.val.length := by omega
-      apply spec_bind (uni_mul_inner_loop_spec p q nq i1 hp hq hnq hip
+      apply spec_bind (poly_mul_inner_loop_spec p q nq i1 hp hq hnq hip
         r1 0#usize hr1 (by scalar_tac) hib)
       rintro r2 ⟨hr2, hlen2, hcoeff2⟩
       step as ⟨i2, hi2⟩
@@ -622,22 +623,43 @@ theorem convol_eq_sum_range (p q : alloc.vec.Vec cpoly.field.Ext4) (k : ℕ) :
       rw [toRaw_coeff_of_ge p (by omega), MulZeroClass.zero_mul]
   rw [hL, hR]
 
-/-- `impl Mul<&UnivariatePoly> for &UnivariatePoly` ↔ `CPolynomial.Raw.mul`
-(schoolbook, trimmed once at the end).
+/-- `UnivariatePoly::len` is `ok (Vec.len ·)`; no `@[step]` lemma is registered
+for it, so `poly_mul_spec` needs it spelled out (as `Ring.lean` does for
+`Fp::to_u64`). Candidate P reaches it because hachi cannot touch
+`UnivariatePoly`'s private field, where cpoly's own body used it directly. -/
+private theorem uni_len_id (p : cpoly.univariate.UnivariatePoly) :
+    cpoly.univariate.UnivariatePoly.len p ⦃ x => x = alloc.vec.Vec.len p ⦄ := by
+  rw [cpoly.univariate.UnivariatePoly.len, WP.spec_ok]
+
+/-- `sumcheck::poly_mul` ↔ `CPolynomial.Raw.mul` (schoolbook, trimmed once at
+the end).
+
+Candidate P moved this multiplication into hachi. The three specs below were
+written against cpoly's `impl Mul<&UnivariatePoly> for &UnivariatePoly` and are
+retargeted here by item name alone -- the body is that body, so the two loops and
+their invariants did not move. What did move is *whose* code they are about: with
+cpoly's generic multiplication out of the reachable model, a `cpoly` pin bump can
+no longer break them.
 
 `hlen` is necessary, not convenient: the accumulator is sized by a *checked*
 `np + nq`, which fails above `Usize.max` before `n ← i - 1` can bring it
 back — cpoly's header records that the triple is false without it. -/
-theorem uni_mul_spec (v w : alloc.vec.Vec cpoly.field.Ext4)
+theorem poly_mul_spec (v w : alloc.vec.Vec cpoly.field.Ext4)
     (hv : VecReduced v) (hw : VecReduced w)
     (hlen : v.val.length + w.val.length ≤ Std.Usize.max) :
-    Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul v w
+    sumcheck.poly_mul v w
       ⦃ z => VecReduced z ∧ toRaw z = CPolynomial.Raw.mul (toRaw v) (toRaw w) ∧
         z.val.length ≤ v.val.length + w.val.length ⦄ := by
   have hnewred : VecReduced (alloc.vec.Vec.new cpoly.field.Ext4) := by intro u hu; simp at hu
   have hnewraw : toRaw (alloc.vec.Vec.new cpoly.field.Ext4) = (0 : CPolynomial.Raw F) := by
     simp [toRaw]
-  rw [Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul]
+  rw [sumcheck.poly_mul]
+  -- `UnivariatePoly::len` is `ok (Vec.len ·)`; stepping past the two calls and
+  -- rewriting back restores the shape cpoly's body had, where the lengths were
+  -- pure. Everything below is the ported proof, unchanged.
+  step with uni_len_id v as ⟨np, hnp⟩
+  step with uni_len_id w as ⟨nq, hnq⟩
+  rw [hnp, hnq]
   by_cases hp0 : alloc.vec.Vec.len v = 0#usize
   · rw [if_pos hp0, cpoly.univariate.UnivariatePoly.zero]
     simp only [spec_ok]
@@ -676,7 +698,7 @@ theorem uni_mul_spec (v w : alloc.vec.Vec cpoly.field.Ext4)
         rcases Nat.lt_or_ge k r.val.length with h | h
         · rw [toRaw_coeff_of_lt r h]; simp [hr]
         · exact toRaw_coeff_of_ge r h
-      apply spec_bind (uni_mul_outer_loop_spec v w (alloc.vec.Vec.len v) (alloc.vec.Vec.len w)
+      apply spec_bind (poly_mul_outer_loop_spec v w (alloc.vec.Vec.len v) (alloc.vec.Vec.len w)
         hv hw (by simp) (by simp) r 0#usize hrred (by simp) (by scalar_tac)
         (by intro k; rw [hrcoeff k, show (0#usize).val = 0 from by scalar_tac, convol_zero]))
       rintro r1 ⟨hr1red, hr1len, hr1coeff⟩
@@ -4328,7 +4350,7 @@ theorem honest_compute_g_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.RoundSt
   step as ⟨e, he⟩
   have hRe : Reduced e := he ▸ h0red _ (List.getElem_mem (by omega))
   step with eq_free_factor_spec e hRe as ⟨free, hfreelen, hfreered, hfreeval⟩
-  step with uni_mul_spec inner free hinred hfreered
+  step with poly_mul_spec inner free hinred hfreered
     (by rw [hinlen, hfreelen]; have := usize_max_ge; omega) as ⟨wf, hwfred, hwfraw, hwflen⟩
   step with uni_smul_spec pref wf hRpref hwfred as ⟨gz, hgzred, hgzraw⟩
   step with round_poly_alpha_spec (k := M + 1 - i.val - 1) w_tab a_tab hw' ha'
@@ -4513,7 +4535,7 @@ theorem honest_compute_g_base_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.Ro
   step as ⟨e, he⟩
   have hRe : Reduced e := he ▸ h0red _ (List.getElem_mem (by omega))
   step with eq_free_factor_spec e hRe as ⟨free, hfreelen, hfreered, hfreeval⟩
-  step with uni_mul_spec inner free hinred hfreered
+  step with poly_mul_spec inner free hinred hfreered
     (by rw [hinlen, hfreelen]; have := usize_max_ge; omega) as ⟨wf, hwfred, hwfraw, hwflen⟩
   step with uni_smul_spec pref wf hRpref hwfred as ⟨gz, hgzred, hgzraw⟩
   step with round_poly_alpha_base_spec (k := M) w_fp a_tab hw ha
@@ -6688,7 +6710,7 @@ theorem honest_compute_g_split_spec {n μ M m₁ dRows j k : ℕ} (stmt : sumche
   step as ⟨e, he⟩
   have hRe : Reduced e := he ▸ h0red _ (List.getElem_mem (by omega))
   step with eq_free_factor_spec e hRe as ⟨free, hfreelen, hfreered, hfreeval⟩
-  step with uni_mul_spec inner free hinred hfreered
+  step with poly_mul_spec inner free hinred hfreered
     (by rw [hinlen, hfreelen]; have := usize_max_ge; omega) as ⟨wf, hwfred, hwfraw, hwflen⟩
   step with uni_smul_spec pref wf hRpref hwfred as ⟨gz, hgzred, hgzraw⟩
   step with round_poly_alpha_split_spec hjk' w_tab low high hw' hlow hhigh
@@ -6885,7 +6907,7 @@ theorem honest_compute_g_base_split_spec {n μ M m₁ dRows j k : ℕ}
   step as ⟨e, he⟩
   have hRe : Reduced e := he ▸ h0red _ (List.getElem_mem (by omega))
   step with eq_free_factor_spec e hRe as ⟨free, hfreelen, hfreered, hfreeval⟩
-  step with uni_mul_spec inner free hinred hfreered
+  step with poly_mul_spec inner free hinred hfreered
     (by rw [hinlen, hfreelen]; have := usize_max_ge; omega) as ⟨wf, hwfred, hwfraw, hwflen⟩
   step with uni_smul_spec pref wf hRpref hwfred as ⟨gz, hgzred, hgzraw⟩
   step with round_poly_alpha_base_split_spec hjk' w_fp low high hw hlow hhigh

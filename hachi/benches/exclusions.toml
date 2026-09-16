@@ -251,6 +251,28 @@ region."""
 Two `Ext4` coefficients: `(1 - t)` and `t + t - 1`. O(1) by inspection, the
 `ring::len`/`ring::coeff` class of the header."""
 
+"sumcheck::poly_mul" = """
+The univariate schoolbook product, moved into hachi by candidate P so that
+cpoly's generic `Mul for &UnivariatePoly` leaves the reachable extracted model.
+Excluded for two reasons at once, and the second is the real one:
+
+At the only aspect ratio the scheme calls it at -- `np = 33` (a round
+polynomial) against `nq = 2` (`eq_free_factor`) -- it is `66` `Ext4`
+multiply-adds, which lands inside the certified 100 ns-2 us band where this
+harness returns no verdict (NOTES.md "The certified null-slot sweep"). It is
+measured one level up by `sumcheck/honest_compute_g` and
+`sumcheck/honest_compute_g_split`, which call it four times between them.
+
+It *could* be given a row at an artificial square size, and that is exactly
+what would make the row misleading: it would time an aspect ratio the scheme
+never uses and invite a `vs genesis` reading of a shape no caller produces.
+The `honest_compute_y` precedent below, plus the band rule in `perf-loop`
+("a callee whose own rows are all in that band is judged on its callers").
+
+Candidate P was landed on that caller evidence -- no row slower -- and not on a
+speed claim: the operation counts are identical to cpoly's, because the body
+is cpoly's."""
+
 "sumcheck::honest_compute_y" = """
 `zerocheck::w_table_mle_eval` at the sumcheck point, and nothing else -- the
 specification's `honestComputeY` is literally that call
