@@ -86,6 +86,16 @@ pub fn split_equiv_inv(k: usize) -> (usize, usize) {
 /// `Usize` arithmetic (see `lib.rs` § "Style notes"); the callers' concrete
 /// `n` is at most `ML_VARS_LOW + ML_VARS_HIGH`, so the checked multiplication
 /// is far from overflow.
+// Dead since Stage 6 candidates M and N: the doubling builds of the two bases
+// index nothing and form no power, so nothing in this module calls either
+// helper any more. They stay rather than go, and the `allow` is the cheap half
+// of that decision: both are frozen in the genesis corpus, both carry proved
+// specs that `lean/Check.lean` § 4 audits (`two_pow_spec`, `test_bit_spec`), and
+// charon translates every local item whether or not the crate reaches it -- so
+// the model and those specs are still exactly about this code. Deleting proved
+// specs is the larger and less reversible move; `zerocheck::two_pow` is a
+// separate function and still has callers.
+#[allow(dead_code)]
 fn two_pow(n: usize) -> usize {
     let mut size: usize = 1;
     let mut t: usize = 0;
@@ -101,6 +111,7 @@ fn two_pow(n: usize) -> usize {
 /// By repeated division, like [`crate::gadget::digit_at`]: `j` halvings, then
 /// the parity of what is left. Little-endian -- bit `0` is the least
 /// significant.
+#[allow(dead_code)]
 fn test_bit(i: usize, j: usize) -> bool {
     let mut rest: usize = i;
     let mut t: usize = 0;
@@ -172,28 +183,36 @@ pub fn monomial_basis(w: &PolyVec) -> PolyVec {
 /// Mirrors `CMlPolynomialEval.lagrangeBasis` (a CompPoly definition; the
 /// ArkLib split consumes it through `lagrangeBasis_get`).
 ///
-/// Entry `i` is `∏_{j < n} (if bit j of i then w[j] else 1 - w[j])`, with the
-/// same exactly-`n`-factors shape as [`monomial_basis`].
+/// Entry `i` is `∏_{j < n} (if bit j of i then w[j] else 1 - w[j])`.
+///
+/// Built one variable at a time, like [`monomial_basis`] (Stage 6 candidate N;
+/// opt: `HachiEquiv.Opt.lagrange_basis.opt`, `lean/Opt.lean`), and specialized
+/// to the ring carrier: both children of an entry `p` are `p·(1−wⱼ)` and
+/// `p·wⱼ`, and the first is spelled `p − p·wⱼ`, so the level costs **one**
+/// ring multiplication and one ring subtraction per entry rather than two
+/// multiplications. `Rq::sub` is `N` coefficient subtractions against
+/// `Rq::mul`'s `N²` coefficient products, so at `N = 1024` the subtraction is
+/// free at this ratio. The frozen baseline recomputed each entry from all `n`
+/// variables -- `2^n · n` ring products, `10240` at `ML_VARS_LOW = 10`; this
+/// pays `2^n - 1`, which is `1023`, and the upstream two-multiplication form
+/// would have paid `2046`.
 pub fn lagrange_basis(w: &PolyVec) -> PolyVec {
     let n: usize = w.len();
-    let size: usize = two_pow(n);
     let mut out: Vec<Rq> = Vec::new();
-    let mut i: usize = 0;
-    while i < size {
-        let mut acc: Rq = Rq::one();
-        let mut j: usize = 0;
-        while j < n {
-            let factor: Rq = if test_bit(i, j) {
-                w.get(j).copy()
-            } else {
-                let one: Rq = Rq::one();
-                one.sub(w.get(j))
-            };
-            acc = acc.mul(&factor);
-            j += 1;
+    out.push(Rq::one());
+    let mut j: usize = 0;
+    while j < n {
+        let half: usize = out.len();
+        let x: &Rq = w.get(j);
+        let mut i: usize = 0;
+        while i < half {
+            let px: Rq = out[i].mul(x);
+            let p0: Rq = out[i].sub(&px);
+            out[i] = p0;
+            out.push(px);
+            i += 1;
         }
-        out.push(acc);
-        i += 1;
+        j += 1;
     }
     PolyVec::new(out)
 }

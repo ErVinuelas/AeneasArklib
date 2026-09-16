@@ -3405,7 +3405,7 @@ def ring.Rq.one : Result ring.Rq := do
   ring.Rq.constant cpoly.field.Fp.ONE
 
 /-- [hachi::evalsplit::monomial_basis]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 158:8-162:9
+    Source: 'src/evalsplit.rs', lines 169:8-173:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.monomial_basis_loop0_loop0.body
@@ -3425,7 +3425,7 @@ def evalsplit.monomial_basis_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::monomial_basis]: loop 1:
-    Source: 'src/evalsplit.rs', lines 158:8-162:9
+    Source: 'src/evalsplit.rs', lines 169:8-173:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.monomial_basis_loop0_loop0
@@ -3439,7 +3439,7 @@ def evalsplit.monomial_basis_loop0_loop0
     (out, i)
 
 /-- [hachi::evalsplit::monomial_basis]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 154:4-164:5
+    Source: 'src/evalsplit.rs', lines 165:4-175:5
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.monomial_basis_loop0.body
@@ -3458,7 +3458,7 @@ def evalsplit.monomial_basis_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::monomial_basis]: loop 0:
-    Source: 'src/evalsplit.rs', lines 154:4-164:5
+    Source: 'src/evalsplit.rs', lines 165:4-175:5
     Visibility: public -/
 @[rust_loop]
 def evalsplit.monomial_basis_loop0
@@ -3471,7 +3471,7 @@ def evalsplit.monomial_basis_loop0
     (out, j)
 
 /-- [hachi::evalsplit::monomial_basis]:
-    Source: 'src/evalsplit.rs', lines 149:0-166:1
+    Source: 'src/evalsplit.rs', lines 160:0-177:1
     Visibility: public -/
 def evalsplit.monomial_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← linalg.PolyVec.len w
@@ -7272,7 +7272,7 @@ def evalsplit.split_equiv_inv
   ok (x, y)
 
 /-- [hachi::evalsplit::two_pow]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 92:4-95:5 -/
+    Source: 'src/evalsplit.rs', lines 102:4-105:5 -/
 @[rust_loop_body]
 def evalsplit.two_pow_loop.body
   (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
@@ -7286,7 +7286,7 @@ def evalsplit.two_pow_loop.body
   else ok (done size)
 
 /-- [hachi::evalsplit::two_pow]: loop 0:
-    Source: 'src/evalsplit.rs', lines 92:4-95:5 -/
+    Source: 'src/evalsplit.rs', lines 102:4-105:5 -/
 @[rust_loop]
 def evalsplit.two_pow_loop
   (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
@@ -7295,13 +7295,13 @@ def evalsplit.two_pow_loop
     (size, t)
 
 /-- [hachi::evalsplit::two_pow]:
-    Source: 'src/evalsplit.rs', lines 89:0-97:1 -/
+    Source: 'src/evalsplit.rs', lines 99:0-107:1 -/
 @[reducible]
 def evalsplit.two_pow (n : Std.Usize) : Result Std.Usize := do
   evalsplit.two_pow_loop n 1#usize 0#usize
 
 /-- [hachi::evalsplit::test_bit]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 107:4-110:5 -/
+    Source: 'src/evalsplit.rs', lines 118:4-121:5 -/
 @[rust_loop_body]
 def evalsplit.test_bit_loop.body
   (j : Std.Usize) (rest : Std.Usize) (t : Std.Usize) :
@@ -7315,7 +7315,7 @@ def evalsplit.test_bit_loop.body
   else ok (done rest)
 
 /-- [hachi::evalsplit::test_bit]: loop 0:
-    Source: 'src/evalsplit.rs', lines 107:4-110:5 -/
+    Source: 'src/evalsplit.rs', lines 118:4-121:5 -/
 @[rust_loop]
 def evalsplit.test_bit_loop
   (j : Std.Usize) (rest : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
@@ -7324,20 +7324,20 @@ def evalsplit.test_bit_loop
     (rest, t)
 
 /-- [hachi::evalsplit::test_bit]:
-    Source: 'src/evalsplit.rs', lines 104:0-112:1 -/
+    Source: 'src/evalsplit.rs', lines 115:0-123:1 -/
 def evalsplit.test_bit (i : Std.Usize) (j : Std.Usize) : Result Bool := do
   let rest ← evalsplit.test_bit_loop j i 0#usize
   let i1 ← rest % 2#usize
   ok (i1 = 1#usize)
 
 /-- [hachi::evalsplit::MlPoly]
-    Source: 'src/evalsplit.rs', lines 121:0-121:27
+    Source: 'src/evalsplit.rs', lines 132:0-132:27
     Visibility: public -/
 @[reducible]
 def evalsplit.MlPoly := alloc.vec.Vec ring.Rq
 
 /-- [hachi::evalsplit::MlEvals]
-    Source: 'src/evalsplit.rs', lines 130:0-130:28
+    Source: 'src/evalsplit.rs', lines 141:0-141:28
     Visibility: public -/
 @[reducible]
 def evalsplit.MlEvals := alloc.vec.Vec ring.Rq
@@ -7389,101 +7389,101 @@ def ring.Rq.sub (self : ring.Rq) (rhs : ring.Rq) : Result ring.Rq := do
   ok out1
 
 /-- [hachi::evalsplit::lagrange_basis]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 185:8-194:9
+    Source: 'src/evalsplit.rs', lines 208:8-214:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.lagrange_basis_loop0_loop0.body
-  (acc : ring.Rq) (w : linalg.PolyVec) (n : Std.Usize) (i : Std.Usize)
-  (acc1 : ring.Rq) (j : Std.Usize) :
-  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
-  := do
-  if j < n
-  then
-    let b ← evalsplit.test_bit i j
-    let factor ←
-      if b
-      then do
-           let r ← linalg.PolyVec.get w j
-           ring.Rq.copy r
-      else do
-           let r ← linalg.PolyVec.get w j
-           ring.Rq.sub acc r
-    let acc2 ← ring.Rq.mul acc1 factor
-    let j1 ← j + 1#usize
-    ok (cont (acc2, j1))
-  else ok (done acc1)
-
-/-- [hachi::evalsplit::lagrange_basis]: loop 1:
-    Source: 'src/evalsplit.rs', lines 185:8-194:9
-    Visibility: public -/
-@[rust_loop]
-def evalsplit.lagrange_basis_loop0_loop0
-  (acc : ring.Rq) (w : linalg.PolyVec) (n : Std.Usize) (i : Std.Usize)
-  (acc1 : ring.Rq) (j : Std.Usize) :
-  Result ring.Rq
-  := do
-  loop
-    (fun (acc2, j1) => evalsplit.lagrange_basis_loop0_loop0.body acc w n i acc2
-      j1)
-    (acc1, j)
-
-/-- [hachi::evalsplit::lagrange_basis]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 182:4-197:5
-    Visibility: public -/
-@[rust_loop_body]
-def evalsplit.lagrange_basis_loop0.body
-  (w : linalg.PolyVec) (n : Std.Usize) (size : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  (half : Std.Usize) (x : ring.Rq) (out : alloc.vec.Vec ring.Rq)
+  (i : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
     ring.Rq))
   := do
-  if i < size
+  if i < half
   then
-    let acc ← ring.Rq.one
-    let acc1 ← evalsplit.lagrange_basis_loop0_loop0 acc w n i acc 0#usize
-    let out1 ← alloc.vec.Vec.push out acc1
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) out i
+    let px ← ring.Rq.mul r x
+    let p0 ← ring.Rq.sub r px
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice ring.Rq)
+        out i
+    let out1 := index_mut_back p0
+    let out2 ← alloc.vec.Vec.push out1 px
     let i1 ← i + 1#usize
-    ok (cont (out1, i1))
+    ok (cont (out2, i1))
   else ok (done out)
 
-/-- [hachi::evalsplit::lagrange_basis]: loop 0:
-    Source: 'src/evalsplit.rs', lines 182:4-197:5
+/-- [hachi::evalsplit::lagrange_basis]: loop 1:
+    Source: 'src/evalsplit.rs', lines 208:8-214:9
     Visibility: public -/
 @[rust_loop]
-def evalsplit.lagrange_basis_loop0
-  (w : linalg.PolyVec) (n : Std.Usize) (size : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+def evalsplit.lagrange_basis_loop0_loop0
+  (out : alloc.vec.Vec ring.Rq) (half : Std.Usize) (x : ring.Rq)
+  (i : Std.Usize) :
   Result (alloc.vec.Vec ring.Rq)
   := do
   loop
-    (fun (out1, i1) => evalsplit.lagrange_basis_loop0.body w n size out1 i1)
+    (fun (out1, i1) => evalsplit.lagrange_basis_loop0_loop0.body half x out1
+      i1)
     (out, i)
 
+/-- [hachi::evalsplit::lagrange_basis]: loop body 0:
+    Source: 'src/evalsplit.rs', lines 204:4-216:5
+    Visibility: public -/
+@[rust_loop_body]
+def evalsplit.lagrange_basis_loop0.body
+  (w : linalg.PolyVec) (n : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if j < n
+  then
+    let half := alloc.vec.Vec.len out
+    let x ← linalg.PolyVec.get w j
+    let out1 ← evalsplit.lagrange_basis_loop0_loop0 out half x 0#usize
+    let j1 ← j + 1#usize
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [hachi::evalsplit::lagrange_basis]: loop 0:
+    Source: 'src/evalsplit.rs', lines 204:4-216:5
+    Visibility: public -/
+@[rust_loop]
+def evalsplit.lagrange_basis_loop0
+  (w : linalg.PolyVec) (n : Std.Usize) (out : alloc.vec.Vec ring.Rq)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, j1) => evalsplit.lagrange_basis_loop0.body w n out1 j1)
+    (out, j)
+
 /-- [hachi::evalsplit::lagrange_basis]:
-    Source: 'src/evalsplit.rs', lines 177:0-199:1
+    Source: 'src/evalsplit.rs', lines 199:0-218:1
     Visibility: public -/
 def evalsplit.lagrange_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← linalg.PolyVec.len w
-  let size ← evalsplit.two_pow n
-  let out ←
-    evalsplit.lagrange_basis_loop0 w n size (alloc.vec.Vec.new ring.Rq) 0#usize
-  linalg.PolyVec.new out
+  let r ← ring.Rq.one
+  let out ← alloc.vec.Vec.push (alloc.vec.Vec.new ring.Rq) r
+  let out1 ← evalsplit.lagrange_basis_loop0 w n out 0#usize
+  linalg.PolyVec.new out1
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::new]:
-    Source: 'src/evalsplit.rs', lines 204:4-206:5
+    Source: 'src/evalsplit.rs', lines 223:4-225:5
     Visibility: public -/
 def evalsplit.MlPoly.new
   (coeffs : alloc.vec.Vec ring.Rq) : Result evalsplit.MlPoly := do
   ok coeffs
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::len]:
-    Source: 'src/evalsplit.rs', lines 209:4-211:5
+    Source: 'src/evalsplit.rs', lines 228:4-230:5
     Visibility: public -/
 def evalsplit.MlPoly.len (self : evalsplit.MlPoly) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::get]:
-    Source: 'src/evalsplit.rs', lines 214:4-216:5
+    Source: 'src/evalsplit.rs', lines 233:4-235:5
     Visibility: public -/
 def evalsplit.MlPoly.get
   (self : evalsplit.MlPoly) (k : Std.Usize) : Result ring.Rq := do
@@ -7495,7 +7495,7 @@ def evalsplit.MlPoly.get
 @[global_simps, irreducible] def params.ML_HIGH_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 235:12-239:13
+    Source: 'src/evalsplit.rs', lines 254:12-258:13
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlPoly.to_matrix_loop0_loop0.body
@@ -7517,7 +7517,7 @@ def evalsplit.MlPoly.to_matrix_loop0_loop0.body
   else ok (done (self, row))
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop 1:
-    Source: 'src/evalsplit.rs', lines 235:12-239:13
+    Source: 'src/evalsplit.rs', lines 254:12-258:13
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlPoly.to_matrix_loop0_loop0
@@ -7531,7 +7531,7 @@ def evalsplit.MlPoly.to_matrix_loop0_loop0
     (self, row, j)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 232:8-242:9
+    Source: 'src/evalsplit.rs', lines 251:8-261:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlPoly.to_matrix_loop0.body
@@ -7552,7 +7552,7 @@ def evalsplit.MlPoly.to_matrix_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop 0:
-    Source: 'src/evalsplit.rs', lines 232:8-242:9
+    Source: 'src/evalsplit.rs', lines 251:8-261:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlPoly.to_matrix_loop0
@@ -7566,7 +7566,7 @@ def evalsplit.MlPoly.to_matrix_loop0
     (self, out, i)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]:
-    Source: 'src/evalsplit.rs', lines 227:4-244:5
+    Source: 'src/evalsplit.rs', lines 246:4-263:5
     Visibility: public -/
 def evalsplit.MlPoly.to_matrix
   (self : evalsplit.MlPoly) : Result linalg.PolyMatrix := do
@@ -7586,7 +7586,7 @@ def linalg.PolyMatrix.split_form
   linalg.PolyVec.dot u mv
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::eval_split]:
-    Source: 'src/evalsplit.rs', lines 256:4-261:5
+    Source: 'src/evalsplit.rs', lines 275:4-280:5
     Visibility: public -/
 def evalsplit.MlPoly.eval_split
   (self : evalsplit.MlPoly) (xl : linalg.PolyVec) (xh : linalg.PolyVec) :
@@ -7604,7 +7604,7 @@ def evalsplit.MlPoly.eval_split
 def params.ML_POLY_LEN : Std.Usize := 1048576#usize
 
 /-- [hachi::evalsplit::to_polynomial]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 278:4-284:5
+    Source: 'src/evalsplit.rs', lines 297:4-303:5
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.to_polynomial_loop.body
@@ -7625,7 +7625,7 @@ def evalsplit.to_polynomial_loop.body
   else ok (done out)
 
 /-- [hachi::evalsplit::to_polynomial]: loop 0:
-    Source: 'src/evalsplit.rs', lines 278:4-284:5
+    Source: 'src/evalsplit.rs', lines 297:4-303:5
     Visibility: public -/
 @[rust_loop]
 def evalsplit.to_polynomial_loop
@@ -7638,7 +7638,7 @@ def evalsplit.to_polynomial_loop
     (out, k)
 
 /-- [hachi::evalsplit::to_polynomial]:
-    Source: 'src/evalsplit.rs', lines 274:0-286:1
+    Source: 'src/evalsplit.rs', lines 293:0-305:1
     Visibility: public -/
 def evalsplit.to_polynomial
   (m : linalg.PolyMatrix) : Result evalsplit.MlPoly := do
@@ -7648,27 +7648,27 @@ def evalsplit.to_polynomial
   ok out
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::new]:
-    Source: 'src/evalsplit.rs', lines 291:4-293:5
+    Source: 'src/evalsplit.rs', lines 310:4-312:5
     Visibility: public -/
 def evalsplit.MlEvals.new
   (values : alloc.vec.Vec ring.Rq) : Result evalsplit.MlEvals := do
   ok values
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::len]:
-    Source: 'src/evalsplit.rs', lines 296:4-298:5
+    Source: 'src/evalsplit.rs', lines 315:4-317:5
     Visibility: public -/
 def evalsplit.MlEvals.len (self : evalsplit.MlEvals) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::get]:
-    Source: 'src/evalsplit.rs', lines 301:4-303:5
+    Source: 'src/evalsplit.rs', lines 320:4-322:5
     Visibility: public -/
 def evalsplit.MlEvals.get
   (self : evalsplit.MlEvals) (k : Std.Usize) : Result ring.Rq := do
   alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) self k
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 320:12-324:13
+    Source: 'src/evalsplit.rs', lines 339:12-343:13
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlEvals.to_matrix_eval_loop0_loop0.body
@@ -7690,7 +7690,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0_loop0.body
   else ok (done (self, row))
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop 1:
-    Source: 'src/evalsplit.rs', lines 320:12-324:13
+    Source: 'src/evalsplit.rs', lines 339:12-343:13
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlEvals.to_matrix_eval_loop0_loop0
@@ -7704,7 +7704,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0_loop0
     (self, row, j)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 317:8-327:9
+    Source: 'src/evalsplit.rs', lines 336:8-346:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlEvals.to_matrix_eval_loop0.body
@@ -7725,7 +7725,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop 0:
-    Source: 'src/evalsplit.rs', lines 317:8-327:9
+    Source: 'src/evalsplit.rs', lines 336:8-346:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlEvals.to_matrix_eval_loop0
@@ -7739,7 +7739,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0
     (self, out, i)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]:
-    Source: 'src/evalsplit.rs', lines 312:4-329:5
+    Source: 'src/evalsplit.rs', lines 331:4-348:5
     Visibility: public -/
 def evalsplit.MlEvals.to_matrix_eval
   (self : evalsplit.MlEvals) : Result linalg.PolyMatrix := do
@@ -7749,7 +7749,7 @@ def evalsplit.MlEvals.to_matrix_eval
   linalg.PolyMatrix.new out
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::eval_split_eval]:
-    Source: 'src/evalsplit.rs', lines 339:4-344:5
+    Source: 'src/evalsplit.rs', lines 358:4-363:5
     Visibility: public -/
 def evalsplit.MlEvals.eval_split_eval
   (self : evalsplit.MlEvals) (xl : linalg.PolyVec) (xh : linalg.PolyVec) :

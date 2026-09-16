@@ -163,6 +163,41 @@ fn lagrange_basis_matches_the_kernel_formula() {
     assert!(lb.get(3).equals(&w0.mul(&w1)), "entry 3: {}", show(lb.get(3)));
 }
 
+/// Candidate N's oracle: the ring-specialized doubling build agrees, entry by
+/// entry, with the `n`-factor form the frozen baseline computed.
+///
+/// The oracle multiplies `n` factors per index and spells `1 - wⱼ` with a
+/// subtraction from `Rq::one()`, which is what the implementation no longer
+/// does: it now derives the clear-bit child as `p - p·wⱼ`. So this pins the
+/// specialization `p·(1-x) = p - p·x` at the ring, not just the level offsets.
+/// Four variables, for the reason given on the monomial oracle.
+#[test]
+fn lagrange_basis_agrees_with_the_n_factor_oracle() {
+    let mut lcg = Lcg::new(0xE5_08);
+    let n: usize = 4;
+    let pt: Vec<Rq> = (0..n).map(|_| lcg.next_rq()).collect();
+    let w = PolyVec::new(pt.iter().map(Rq::copy).collect());
+
+    let lb = lagrange_basis(&w);
+    assert_eq!(lb.len(), 1usize << n);
+    for i in 0..(1usize << n) {
+        let mut acc = Rq::one();
+        for (j, wj) in pt.iter().enumerate() {
+            let factor = if bit(i, j) {
+                wj.copy()
+            } else {
+                Rq::one().sub(wj)
+            };
+            acc = acc.mul(&factor);
+        }
+        assert!(
+            lb.get(i).equals(&acc),
+            "entry {i} disagrees with the n-factor oracle: {}",
+            show(lb.get(i))
+        );
+    }
+}
+
 /// Partition of unity: the Lagrange kernel sums to 1 over the hypercube at any
 /// point -- a property of the definition the entry-by-entry test cannot state.
 /// At the full variable count (`nl + nh = 20`, a 2^20-element basis).

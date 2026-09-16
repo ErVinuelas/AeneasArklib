@@ -1535,5 +1535,14 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.monomial_basis.opt_length
 #print axioms HachiEquiv.EvalSplit.monomial_basis_inner_loop_spec
 #print axioms HachiEquiv.EvalSplit.monomial_basis_outer_loop_spec
+-- Candidate N (Stage 6, `evalsplit::lagrange_basis`) -- the same build over a
+-- `CommRing`, with the clear-bit child taken as `p - p*x` so a level costs one
+-- ring multiplication and one subtraction per entry. `lagrange_basis_spec` is
+-- audited above and its statement did not move either.
+#print axioms HachiEquiv.Opt.lagrange_basis.opt_eq_spec
+#print axioms HachiEquiv.Opt.lagrange_basis.optLoop_getD
+#print axioms HachiEquiv.Opt.lagrange_basis.optLoop_length
+#print axioms HachiEquiv.EvalSplit.lagrange_basis_inner_loop_spec
+#print axioms HachiEquiv.EvalSplit.lagrange_basis_outer_loop_spec
 
 end HachiEquiv.Check

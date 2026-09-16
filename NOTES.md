@@ -6127,3 +6127,182 @@ and none of the 141 pre-existing theorem statements in `Sumcheck.lean` moved.
 Four small specs had been proved locally beforehand by `rfl` transport where
 the extracted loops were byte-identical to `alpha_public_mle_eval`'s. Ledger
 row 24. **I5 is closed**: brief 5's three levers (F, I, J+K+L) have all landed.
+
+## The AeneasCompPoly optimization brief, checked item by item (2026-09-15, night)
+
+An external brief (`AENEASCOMPOLY_OPTIMIZATION_AGENT_BRIEF.md`, written against
+`ErVinuelas/AeneasArklib` and `tobias-rothmann/AeneasCompPoly`) proposed adopting
+upstream cpoly's recent optimization work. It was checked against the tree
+rather than taken on trust, and the check changed the queue. What it got right,
+what it got wrong, and what it cost:
+
+**Already paid.** Its §7 (replace `lagrange_basis(w).eval(x)` with the direct
+equality kernel) is candidate K. Its §2 running powers are candidate A --
+including `c_eval_at_modulus` (`ringswitch.rs:351`), which the brief believed
+still recomputed a power per term and which has been a running-power loop since
+iteration 1.
+
+**Its headline item is our own sub-5% tail.** The brief's §5 -- the affine fold
+`(1-x)·lo + x·hi = lo + x·(hi-lo)` -- is brief 5's **S5b**
+(`briefs/target-5-sumcheck.md:1054`, `:1133`), already priced there at
+1 104 → 1 071 `Ext4` mults (3.0%), and **5.4%** after S5 landed as F/G. That is
+at the harness's 5% floor. Counting multiplications inside
+`round_value_alpha_split` alone reads −29%, which is how the brief's estimate
+and a first reading here both went wrong; the target's work is 94% range
+product, so the weighted figure is brief 5's and brief 5's stands. Two further
+corrections in the same item: the brief's per-pair count (5 → 3) omits the two
+tensor products candidate L introduced, so the live count is 7 → 5; and brief 5
+records what the brief misses, that the saving needs the **loop interchange**
+(point-outer, node-inner) to share `hi − lo` across the 33 nodes, which is
+separately the fix for the 56–63 s DRAM residual and is worth more than the
+multiplication it saves.
+
+**Its §8 proof-migration warning is real, and it implies an ordering the brief
+does not draw.** cpoly's generic `UnivariatePoly × UnivariatePoly` schoolbook
+*is* in the reachable extracted model
+(`Shared1UnivariatePoly.Insts.CoreOpsArithMulShared0UnivariatePolyUnivariatePoly.mul_loop0_loop0`,
+`lean/Generated.lean`), reached from `sumcheck.rs`'s `&inner * &free` -- where
+`free` is the degree-1 equality factor and has two coefficients. So bumping the
+pin to upstream's Karatsuba + `u128` implementation would force re-porting a
+proof for a product this crate never needs. The brief's own *alternative* --
+spell that degree-1 multiply in hachi -- is therefore a **prerequisite** of any
+bump, not a follow-up: it shrinks the bump's proof surface to `Ext4::mul` and
+`eval_mle_layer`. Decided with the user: defer the bump until after it.
+
+**Its §2 squaring ladder is sub-noise here** (1 024 → 10 `Ext4` mults on a call
+already hoisted out of the `ℓ` loop, and `zerocheck.rs:698` names the per-cell
+`m_alpha_tilde` table as the real win) and needs no upstream `square`: `pw * pw`
+does it. Cleanup tier. Its RISC-V inline-assembly path: agreed, not adopted --
+the same line § "no `unsafe`" already draws.
+
+**Its §3/§4 is the one genuinely new item, and it is worth more than the brief
+claims.** That became iteration 8.
+
+## Stage 6 iteration 8: the `Rq`-valued bases built one variable at a time (candidates M and N, 2026-09-15 night → 09-16)
+
+`evalsplit::monomial_basis` and `::lagrange_basis` read their specifications
+literally: entry `i` of the `2^n` result was a product of exactly `n` factors,
+one per variable, with `Rq::one()` (resp. `1 - wⱼ`) multiplied in wherever bit
+`j` of `i` was clear. `2^n · n` schoolbook degree-1024 ring products per call;
+`10 240` each at `ML_VARS_LOW = ML_VARS_HIGH = 10`.
+
+No brief proposed the doubling build for them -- checked across all seven files
+in `briefs/`. What makes it cheap is that the shape was already in this crate
+at `Ext4`: `sumcheck::eq_suffix_table` (`sumcheck.rs:302`) is the same
+level-by-level construction with its spec proved, so neither the Rust shape nor
+the proof route was a new risk.
+
+* **Candidate M, `monomial_basis`.** Bit `j` of every index below `2^j` is
+  clear and bit `j` of `2^j + r` is set, so the table for the prefix `w₀…wⱼ` is
+  the table for `w₀…wⱼ₋₁` followed by that same table scaled by `wⱼ`. One
+  multiplication per entry ever written, no index arithmetic, no `1`-factors:
+  `2^n − 1 = 1 023`. Accepted on run `20260915T2341+0200-2fc68e72`:
+  `monomial_basis/4` 91.5 ms → 21.5 ms (**−77.3%**), `/6` 549 ms → 90.2 ms
+  (**−84.1%**), both recentered, both `faster`, A/B bias 4.3%.
+* **Candidate N, `lagrange_basis`.** Both children of an entry `p` are
+  `p·(1−wⱼ)` and `p·wⱼ`, and the first is spelled `p − p·wⱼ`, so a level costs
+  one ring multiplication and one ring *subtraction* per entry instead of two
+  multiplications: `2^n − 1 = 1 023`, where upstream's own two-multiplication
+  form would pay `2 046`. `Rq::sub` is `N` coefficient subtractions against
+  `Rq::mul`'s `N²` products, so at `N = 1024` the subtraction is free at this
+  ratio. Accepted on run
+  `20260916T0010+0200-d0bcebeb`: `lagrange_basis/4` 91.6 ms → 21.5 ms
+  (**−76.4%**), `/6` 550 ms → 90.4 ms (**−83.5%**), both recentered, both
+  `faster`, A/B bias 4.4%. The level rewrites the low half in place through
+  `Vec.index_mut` and appends the high half, so the inner loop's invariant has
+  three parts rather than two -- the entries already rewritten, the entries
+  still holding the level's input, and the multiples appended above.
+
+Both measured deltas land within 0.2% of what the operation count predicts, and
+on N's run `now ≈ genesis` on both rows (91.6/550 against 91.7/550), which is
+the check that M -- which touched only `monomial_basis` -- did not leak into N's
+attribution. That mattered here because `git commit` was denied for the whole
+session, so N could not be benched against a *committed* M: `hachi/src` was
+restored from a saved copy of the M champion instead of with
+`git restore hachi/src`, which would have destroyed it. Both ledger rows carry
+`pins.dirty: true` and say so.
+
+**Why the rows could carry a verdict at all.** `evalsplit/{monomial,lagrange}_basis`
+have rows at n = 4 and n = 6 and are **not** excluded, and at ~91 ms and ~549 ms
+they sit far outside the certified 100 ns–2 µs unresolved band. Each measured
+delta landed within 1% of what the operation count predicts (−76.6% / −83.6%),
+which is the check that rules out a hidden allocation regression: the win is
+the arithmetic and nothing else.
+
+**What this does to I4's case.** § "The exclusion arithmetic, stated honestly"
+prices `quadeval::to_quad_eval_statement` at two `monomial_basis` calls =
+`2 · 1024 · 10 = 20 480` ring products ≈ 29 s, and gives its removal condition
+as "until a sub-quadratic `ring::mul` lands", conceding that Karatsuba's 2–4×
+would only reach ~8 s. Candidate M alone takes it to `2 046` products ≈ **2.9 s**
+without touching `ring::mul`, and the two compose. That is one of I4's stated
+justifications, answered more cheaply than I4 could answer it. I4 keeps the
+other two (the 21 mul-bound rows and the un-ignore ceremony) and keeps its
+place in the queue -- but the brief's remaining advice for it is now on the
+record: **benchmark the `u128` delayed-reduction schoolbook before assuming
+Karatsuba wins**. The bound checks out, `1024·(q−1)² < 2^74`, with ample `u128`
+room.
+
+**`two_pow` and `test_bit` in `evalsplit` are now dead, and stay.** Both bases
+stopped calling them, and `zerocheck::two_pow` is a separate function with
+callers. They keep `#[allow(dead_code)]` rather than being deleted: both are
+frozen in the genesis corpus, both carry proved specs that § 4 audits, and --
+probed, not assumed -- charon translates every *local* item whether or not the
+crate reaches it, so the model and those specs are still exactly about this
+code. (The reachability caveat in `aeneas-extract` applies to *foreign* items
+under `--include`, and this is the measurement that pins the difference.)
+Deleting proved specs is the larger and less reversible move, and it is not
+forced.
+
+**Proofs are local, not Aristotle's.** Both `opt_eq_spec`s are hand-written,
+stated over a bare `CommSemiring` (M) and `CommRing` (N) against
+`CMlPolynomial.monomialBasis` / `CMlPolynomialEval.lagrangeBasis` themselves,
+and both campaigns restate their loop specs with the headline statements
+byte-identical. One structural note worth keeping: the campaign **cannot** route
+through the contract, because `Opt.lean` imports `EvalSplit.lean`. So the
+identity is proved twice, independently -- once over an abstract ring in
+`Opt.lean`, once over the extracted loops in `EvalSplit.lean` -- and § 4 audits
+both. That is the safe direction for this dependency, and the alternative
+(moving the pure layer down into `EvalSplit.lean`, as candidate L's lemmas were
+moved down into `Sumcheck.lean`) stays available if a third caller ever wants it.
+
+## I4's desk-work prerequisite is cleared: the iterative Karatsuba shape extracts (2026-09-16)
+
+`PLAN_STAGE6.md` § I4 made an `aeneas-extract` ceiling probe the gate on the
+whole track, for a real reason: Decision 6's "~20×" assumed recursion to a small
+base, Aeneas's supported subset is loops rather than recursion, and nobody had
+measured whether an **iterative, bottom-up** convolution split extracts at all.
+It does, and the answer is better than the gate needed.
+
+A scratch crate (`probe-i4/`, one construct family per function plus a
+`use_all` so charon cannot drop anything) carried: a `&mut Vec<u64>`
+out-parameter written through `IndexMut`; offset index arithmetic in place of
+subslices; several live scratch buffers at once; a guarded subtraction under a
+counter loop; and, separately, a `u128` two-accumulator delayed-reduction
+negacyclic convolution. charon and aeneas both exit 0, `Probe.lean` has **zero**
+axioms and zero `Shared` prefixes, every loop carries a positional
+`@[rust_loop]` name, and **every loop state is a 2-tuple** except the `u128`
+one, whose inner state is `(pos, neg, i)` -- the two accumulators, expected.
+
+The shape of `karatsuba_1level` is the finding. It extracts as a straight-line
+chain -- `zeros`, `conv_at`, `zeros`, `conv_at`, `add_halves`, `add_halves`,
+`zeros`, `conv_at`, `zeros` -- followed by a **single** recombination loop. So
+the proof is one spec per helper, proved once each, and a `step` chain at the
+top; the plan's worry that a restructure would "not weaken the proof, it would
+stop it compiling" is still true of `Ring.lean`'s three `mul_loop*` specs, but
+the replacement is cheaper to write than those were.
+
+Two caveats to carry rather than lose:
+
+* The probe used `u64` with `wrapping_mul`/`wrapping_add` as an `Fp` stand-in.
+  It answers the loop-and-buffer-shape question, which was the open one; it says
+  nothing `Fp`-specific, and with real `Fp` operations the bodies become
+  monadic, which changes nothing structurally since the model already is.
+* It says nothing about whether the split *pays*. One level is 4/3, two 16/9,
+  three 64/27 ≈ 2.4×, against three sequential loop nests of overhead per level.
+  That is what the benchmark decides.
+
+**So the candidate slot is unblocked for I4, and the first candidate to bench is
+the `u128` dense convolution, not Karatsuba** -- the AeneasCompPoly brief's one
+piece of advice about I4 that survived checking, and its bound checks out
+(`1024·(q−1)² < 2^74`, ample `u128` room). If the simpler candidate lands most
+of the factor, the Karatsuba proof cost is never spent.
