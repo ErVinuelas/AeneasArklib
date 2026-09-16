@@ -592,6 +592,7 @@ pub const ROUND_NODES_ALPHA: usize = 3;
 pub const ROUND_NODE_INV_ALPHA: [u64; ROUND_NODES_ALPHA] =
     [2_147_483_599, 4_294_967_196, 2_147_483_599];
 
+// @genesis 369dcae 2026-09-16 — params::RANGE_Q_COEFFS
 /// The 16 coefficients of `Q(x) = ∏_{j=1}^{b−1} (x − j²)`, least significant
 /// first, reduced mod [`Q`] (Stage 6 candidate T2a).
 ///
