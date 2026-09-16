@@ -1,0 +1,38 @@
+# the_honest_chain_profile — POST-NTT-MERGE, on f8d9fce clean, 1 block
+# pairs with -postBump.log (3a30fd2, 477.2s, control 547.4->554.7ms).
+# The NTT touches ring::mul only -- NOT ringswitch::long_mul -- so the
+#   lifted-witness phase (27.7%) and the Ext4-bound rounds (44.6%) should be
+#   unmoved, and lift_commit / setup / end-piece should carry the gain.
+# started 2026-09-17T00:17:10+02:00 at load 0.48 1.10 1.54
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running tests/chain_semantics.rs (hachi/target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 551.2ms
+[     3.6s] committed 1 block(s)
+[     6.1s] statement built
+[     6.5s] honest_compute_v done
+[    10.2s] honest_compute_resp + stack done
+[    11.6s] R^lin statement assembled: 5 x 40976
+[    11.6s] M zeta = y SKIPPED (not protocol work)
+test the_honest_chain_profile has been running for over 60 seconds
+[   143.6s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 386.7ms
+[profile] lift_commit: 11.8s
+[profile] c_w_table_mle at 2^26: 823.9ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 8.4s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 212.0s
+[profile] honest_compute_y: 2.6s
+[profile] verifier: rlin_stmt + statement thread: 326.4ms
+[profile] verifier: round_verify_loop (26 rounds): 59.0µs
+[profile] verifier: final_check = true: 4.7s
+[profile] verifier: end_piece_check = true: 14.3s
+[profile] chain_verify (whole) = true: 20.9s
+[profile] control (frozen genesis PolyVec::zeros x50): 607.4ms
+[profile] control spread within run: +10.2%  (recenter cross-run deltas by the level)
+[   421.3s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 421.60s
+
+# exit 0 at 2026-09-17T00:24:12+02:00

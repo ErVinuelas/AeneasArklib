@@ -459,11 +459,27 @@ pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     }
     let mut j: usize = 0;
     while j < cols {
-        let prod: Vec<Fp> = long_mul(row.get(j), z.get(j));
-        let mut t: usize = 0;
-        while t < width {
-            acc[t] = acc[t] + prod[t];
-            t += 1;
+        // Skip the zero entries (Stage 6 candidate T1a1). `M` is block
+        // structured -- `quadeval::rlin_stmt` builds c1 as `[D | 0 | 0]`, c2 as
+        // `[0 | B | 0]`, c3 as `[Gᵀb | 0 | 0]` -- and at the pin
+        // (`cw + ct + cz = 8192 + 8192 + 40 960`) that makes rows c1, c2 and c3
+        // **86% literal `Rq::zero()`**. Without this test each of those entries
+        // costs a full `long_mul`, a `2N − 1`-wide accumulation *and* a
+        // `2N − 1` allocation, all to add zero.
+        //
+        // `Rq::is_zero` is `O(N)` against `long_mul`'s `O(N log N)`-per-prime
+        // transform work, so the test costs a small fraction of what it saves
+        // and is worth paying even when it fails. On the specification side the
+        // skipped term is `0 · z_j = 0`, which is why this does not move
+        // `c_row_sum_spec`'s statement.
+        let mij: &Rq = row.get(j);
+        if !mij.is_zero() {
+            let prod: Vec<Fp> = long_mul(mij, z.get(j));
+            let mut t: usize = 0;
+            while t < width {
+                acc[t] = acc[t] + prod[t];
+                t += 1;
+            }
         }
         j += 1;
     }

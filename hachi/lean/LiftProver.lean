@@ -827,6 +827,24 @@ theorem c_row_sum_col_loop_spec {μ : ℕ} (z row : linalg.PolyVec) (width cols 
       simp only [linalg.PolyVec.get]
       step as ⟨r, hr⟩
       have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hjr)
+      -- Candidate T1a1: the column is skipped when `M_ij = 0`. `rlin_stmt`
+      -- builds `M` block structured, so at the pin rows c1-c3 are 86% literal
+      -- `Rq::zero()`, and each of those entries would otherwise buy a full
+      -- `long_mul` and a `2N − 1`-wide accumulation in order to add nothing.
+      step with RqBridge.is_zero_spec r hWr as ⟨bz, hbz⟩
+      by_cases hzero : bz = true
+      · -- Skipped. The term is `0 · z_j = 0`, so the partial sum is unchanged
+        -- and the invariant advances by `Finset.sum_range_succ` alone. This is
+        -- the whole proof obligation the candidate adds.
+        rw [if_pos hzero]
+        step as ⟨j2, hj2⟩
+        refine ⟨by scalar_tac, hl1, hr1, ?_, by scalar_tac⟩
+        intro s
+        have hz0 : toRq r = 0 := hbz.1 hzero
+        rw [hc1 s, hj2, Finset.sum_range_succ,
+          List.getD_eq_getElem _ _ hjr, ← hr, hz0]
+        simp
+      rw [if_neg hzero]
       step as ⟨r1, hr1'⟩
       have hWr1 : Wf r1 := by rw [hr1']; exact hz.2 _ (List.getElem_mem hjz)
       step with long_mul_spec r r1 hWr hWr1 as ⟨prod, hWprod, hprod⟩

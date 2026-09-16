@@ -7458,3 +7458,115 @@ audit lines on the three standard axioms only, **0** axioms in `Generated.lean`,
 extraction deterministic, 199 tests pass, **genesis intact at 352 frozen items**
 (up from 312 — `ntt.rs`'s items arrived stamped). `harness.py`'s `MODULES` is now
 **13**, `ntt` added, which every future slot copy must respect.
+
+## The post-NTT profile: the scope claim, confirmed to the decimal (2026-09-17)
+
+`f8d9fce`, 1 block, **421.3 s** against the post-bump run's 477.2 s
+(`logs/runs/honest-chain-profile-20260917-postNTT.log`).
+
+The interesting result is not the total. It is that the prediction about *which
+phases would move* was exactly right, which is the strongest confirmation of a
+scope claim this session has produced:
+
+| phase | post-bump | post-NTT | Δ | `Rq::mul`-bound? |
+|---|---|---|---|---|
+| **lifted witness** | 132.0 | **132.0** | **0.0%** | no — `long_mul` |
+| rounds (26) | 212.8 | 212.0 | −0.4% | no — `Ext4` |
+| `alpha_public_table` | 8.4 | 8.4 | 0% | no — `Ext4` |
+| `final_check` | 4.7 | 4.7 | 0% | no |
+| `lift_commit` | 26.5 | **11.8** | **−55.5%** | yes |
+| `end_piece_check` | 29.6 | **14.3** | **−51.7%** | yes |
+| `chain_verify` | 37.4 | 20.9 | −44.1% | yes |
+| setup (commit → R^lin) | 19.5 | 11.6 | −40.5% | yes |
+
+The lifted-witness phase is **identical to the decimal across two runs on
+different code**, and the four `Rq::mul`-bound phases roughly halved. Nothing
+in this table needed recentering to be legible, which is itself unusual here.
+
+Control 551.2 → 607.4 ms, spread **+10.2%** within the run (the post-bump run's
+was +1.3%), and the level is +5.1% against post-bump. Recentered, protocol is
+~400.9 s: **−16.0%**, against the ~11% I predicted from the phase shares. The
+prediction was low because I had priced only `lift_commit`, setup and the
+end-piece path, and `chain_verify`'s non-overlapping remainder moved too.
+
+Cumulative against the 1 882.2 s genesis baseline: **4.47× raw / 4.70×
+recentered**, read as ~4.5–4.7× with the usual caveat that the recentered
+figure compounds hand corrections across runs.
+
+### The new shares, and what they say about what is left
+
+| post-NTT protocol share (recentered) | s | % |
+|---|---|---|
+| **rounds (26)** | 201.7 | **50.3%** |
+| **lifted witness** | 125.6 | **31.3%** |
+| `chain_verify` | 19.9 | 5.0 |
+| `end_piece_check` | 13.6 | 3.4 |
+| `lift_commit` | 11.2 | 2.8 |
+| setup | 11.0 | 2.8 |
+| `alpha_public_table` | 8.0 | 2.0 |
+| `final_check` | 4.5 | 1.1 |
+| `honest_compute_y` | 2.5 | 0.6 |
+
+Two phases are now **81.6%** of protocol, and everything else together is under
+a fifth. The lifted-witness share *grew* from 27.7% to 31.3% precisely because
+the NTT did not touch it — which is the argument for T16, the same transform
+applied to `long_mul`, now worth ~19% of protocol rather than the ~16.6% it was
+worth an hour ago.
+
+## Candidate T1a1: 7× on the lift rows, by not doing the work at all (2026-09-17)
+
+`c_row_sum` walks a row of `M` and calls `long_mul` on every entry. `M` is
+block structured — `rlin_stmt` builds c1 as `[D | 0 | 0]`, c2 as `[0 | B | 0]`,
+c3 as `[Gᵀb | 0 | 0]` — so at the pin
+(`cw + ct + cz = 8192 + 8192 + 40 960 = 57 344`) rows c1–c3 are **86% literal
+`Rq::zero()`**, and each of those entries was buying a full `long_mul`, a
+`2N − 1`-wide accumulation *and* a `2N − 1` allocation, to add nothing.
+
+The candidate is `if !mij.is_zero()`. `Rq::is_zero` is `O(N)`, so the test costs
+a small fraction of what it saves and is worth paying even when it fails.
+
+Measured `20260917T0055+0200`, bias **2.1%**, every control noise:
+
+| row | now | candidate | Δ |
+|---|---|---|---|
+| `ringswitch/c_row_sum_blocks/28` | 17.7 ms | **2.55 ms** | **−85.6%** |
+| `ringswitch/c_quotient_blocks/28` | 17.8 ms | **2.55 ms** | **−85.7%** |
+| `ringswitch/honest_lift_witness_blocks/28` | 17.7 ms | **2.51 ms** | **−85.8%** |
+
+About **7×**, which is exactly what 86% zeros predicts — and the one magnitude
+prediction I got right today, against T13 (9% predicted, 4% measured) and T16
+(19%, then 7%, measured 4.4%).
+
+### What the row does *not* say
+
+**The rows model c1 only.** The real `M` has five rows, and only three of them
+are sparse: c4 `[Gᵀc | 0 | −Jᵀ(Gᵀa)]` and c5 `[0 | cᵀ⊗G | −(A·J)]` are ~14%
+zeros, not 86%. Averaged over the five, ~57% of entries are skipped. So the
+protocol estimate is **~57% of the lifted-witness phase — 31.3% of protocol, so
+~18%** — and not the row's 86%. It stays an estimate until a profile measures
+it; quoting −85.7% as a protocol number would repeat exactly the mistake I made
+twice tonight on T16.
+
+### It was only measurable because the instrument was fixed first
+
+Against the old dense four-column lift rows this candidate has *nothing to
+skip*: it would have paid the `is_zero` test for no benefit and read as a small
+loss, and the accept rule would have rejected a 7×. The block-shaped rows
+(user decision, `1eb6a57`) are what made the measurement exist. That is the
+clearest vindication this session of fixing an instrument before trusting a
+verdict — and the card had warned about it in one line ("otherwise the row
+measures a dense toy") that took a while to take seriously.
+
+### The proof was the one line the design promised
+
+`RqBridge.is_zero_spec` already states `is_zero r ⦃ b => b = true ↔ toRq r = 0 ⦄`
+— directly in the bridge's own vocabulary — so the skipped branch is
+`toRq r = 0`, the term is `0 · z_j = 0`, and `Finset.sum_range_succ` advances
+the invariant. `c_row_sum_spec`'s statement does not move. I had started by
+making `RqBridge.toRq_eq_zero_iff` public for this and did not need to: the
+right lemma already existed, one namespace over, stated in exactly the form the
+proof wanted.
+
+`make build` green, 306 audit lines on the three standard axioms only, 0 axioms
+in `Generated.lean`, extraction deterministic, 199 tests, genesis intact at 352,
+slot null across 13 modules, coverage 0 unaccounted.
