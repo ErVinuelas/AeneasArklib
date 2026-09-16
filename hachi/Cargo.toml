@@ -104,7 +104,7 @@ bench = false
 # guarantee silently. Bumping this rev is therefore a deliberate act with a
 # re-baseline attached, not a `cargo update`.
 [dependencies]
-cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "d7e26bb42feb80a1d96f904d3c14f85786751513" }
 
 # `cargo build --lib` -- all that `charon cargo --preset=aeneas -- --lib` asks
 # for -- does not build dev-dependencies, so nothing here reaches

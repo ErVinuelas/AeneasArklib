@@ -385,7 +385,7 @@ what it says about the harness").
  "extraction": "clean",
  "pins": {"repo": "abc1234", "dirty": false,
           "arklib": "e92dc315f453db88dd7351c88e889caf0e6bf269",
-          "cpoly": "583cfaff0617180764ffd849d867331af206fc5e",
+          "cpoly": "d7e26bb42feb80a1d96f904d3c14f85786751513",
           "aeneas": "nightly-2026.07.26-3a8586f",
           "bench_toolchain": "nightly-2026-06-01"},
  "notes": "champion/ring-mul branch carries the swap; Ring.lean mul_loop*_spec broken by it"}

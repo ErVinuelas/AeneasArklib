@@ -1383,19 +1383,25 @@ theorem tableFnFp_apply {m : ℕ} (t : alloc.vec.Vec cpoly.field.Fp) (y : Fin (2
     tableFnFp (m := m) t y = toK (t.val.getD y.val cpoly.field.Fp.ZERO) := rfl
 
 /-- The loop of `cpoly::multilinear::eval_mle_layer`: the output holds the `j`
-folded entries produced so far. -/
+folded entries produced so far.
+
+The 2026-09-16 cpoly bump made the fold **affine** -- `lo + x0·(hi − lo)`, one
+multiplication rather than two -- and dropped the `one_minus` parameter this
+spec used to take with it. The *statement* is otherwise unchanged: the
+invariant and postcondition still speak of `(1 − x0)·lo + x0·hi`, which is the
+form the specification's `fold` uses, and `ring` bridges the two inside the
+step. (This is brief 5's S5b, implemented upstream rather than by us.) -/
 theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
-    (x0 one_minus : cpoly.field.Ext4) (half : Std.Usize)
+    (x0 : cpoly.field.Ext4) (half : Std.Usize)
     (hvred : SliceReduced values) (hvlen : values.val.length = 2 ^ (k + 1))
-    (hx : Reduced x0) (hom : Reduced one_minus) (homv : toExt one_minus = 1 - toExt x0)
-    (hhalf : half.val = 2 ^ k)
+    (hx : Reduced x0) (hhalf : half.val = 2 ^ k)
     (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize)
     (hj : j.val ≤ 2 ^ k) (holen : out.val.length = j.val) (hored : VecReduced out)
     (hoval : ∀ t : ℕ, t < j.val →
       toExt (out.val.getD t cpoly.field.Ext4.ZERO)
         = (1 - toExt x0) * toExt (values.val.getD (2 * t) cpoly.field.Ext4.ZERO)
           + toExt x0 * toExt (values.val.getD (2 * t + 1) cpoly.field.Ext4.ZERO)) :
-    cpoly.multilinear.eval_mle_layer_loop values x0 half one_minus out j
+    cpoly.multilinear.eval_mle_layer_loop values x0 half out j
       ⦃ o => o.val.length = 2 ^ k ∧ VecReduced o ∧
         ∀ t : ℕ, t < 2 ^ k →
           toExt (o.val.getD t cpoly.field.Ext4.ZERO)
@@ -1432,9 +1438,13 @@ theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
         rw [hlov]; exact hvred _ (List.getElem_mem (by omega))
       have hRhi : Reduced hiv := by
         rw [hhiv]; exact hvred _ (List.getElem_mem (by omega))
-      step with ext_mul_spec one_minus lo hom hRlo as ⟨p1, hRp1, hp1⟩
-      step with ext_mul_spec x0 hiv hx hRhi as ⟨p2, hRp2, hp2⟩
-      step with ext_add_spec p1 p2 hRp1 hRp2 as ⟨sm, hRsm, hsm⟩
+      -- the affine fold, new with the 2026-09-16 cpoly bump: `lo + x0·(hi − lo)`
+      -- where this used to be `(1 − x0)·lo + x0·hi`. One multiplication instead
+      -- of two, and `ring` is what closes the gap to the invariant below, which
+      -- is still stated in the two-multiplication form the specification uses.
+      step with ext_sub_spec hiv lo hRhi hRlo as ⟨d, hRd, hd⟩
+      step with ext_mul_spec x0 d hx hRd as ⟨p2, hRp2, hp2⟩
+      step with ext_add_spec lo p2 hRlo hRp2 as ⟨sm, hRsm, hsm⟩
       have hpush : o1.val.length < Usize.max := by omega
       step as ⟨o2, ho2⟩
       step as ⟨j2, hj2⟩
@@ -1451,9 +1461,10 @@ theorem eval_mle_layer_loop_spec {k : ℕ} (values : Slice cpoly.field.Ext4)
         rcases Nat.lt_or_ge t j1.val with htlt | htge
         · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
         · have hteq : t = o1.val.length := by omega
-          rw [hteq, ho2, getD_append_eq, hsm, hp1, hp2, homv, hlov, hhiv, hlen1,
+          rw [hteq, ho2, getD_append_eq, hsm, hp2, hd, hlov, hhiv, hlen1,
             List.getD_eq_getElem _ _ (show 2 * j1.val < values.val.length from by omega),
             List.getD_eq_getElem _ _ (show 2 * j1.val + 1 < values.val.length from by omega)]
+          ring
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have hjeq : j1.val = 2 ^ k := by rw [← hhalf] at hj1 ⊢; scalar_tac
@@ -1468,7 +1479,6 @@ theorem eval_mle_layer_spec {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
       ⦃ o => WfEvals k o ∧ ∀ y : Fin (2 ^ k),
           tableFn (m := k) o y = fold (tableFn (m := k + 1) t) (toExt x0) y ⦄ := by
   obtain ⟨htlen, htred⟩ := ht
-  have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
   rw [cpoly.multilinear.eval_mle_layer]
   step as ⟨half, hhalf⟩
   have hhalfv : half.val = 2 ^ k := by
@@ -1477,10 +1487,9 @@ theorem eval_mle_layer_spec {k : ℕ} (t : alloc.vec.Vec cpoly.field.Ext4)
       scalar_tac
     have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
     scalar_tac
-  step with ext_sub_spec cpoly.field.Ext4.ONE x0 hR1 hx as ⟨om, hRom, homv⟩
-  apply spec_mono (eval_mle_layer_loop_spec (k := k) (alloc.vec.Vec.deref t) x0 om half
-    (sliceReduced_deref htred) (by simpa using htlen) hx hRom
-    (by rw [homv, toExt_ONE]) hhalfv (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+  apply spec_mono (eval_mle_layer_loop_spec (k := k) (alloc.vec.Vec.deref t) x0 half
+    (sliceReduced_deref htred) (by simpa using htlen) hx hhalfv
+    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
     (by simp) (by simp) (by intro u hu; simp at hu) (by intro t' ht'; simp at ht'))
   rintro o ⟨holen, hored, hoval⟩
   refine ⟨⟨holen, hored⟩, fun y => ?_⟩

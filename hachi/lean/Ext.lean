@@ -78,7 +78,13 @@ dropped rather than stubbed, because a statement about a name that does not
 exist is the `autoImplicit` trap in another costume, and this file sets
 `autoImplicit false` so that such a statement fails loudly instead. What
 remains is exactly what `zerocheck.rs` and `ringswitch.rs` compute with:
-`from_base`, `is_zero`, `add`, `sub`, `mul`, `ZERO`, `ONE` and `W`. The two
+`from_base`, `is_zero`, `add`, `sub`, `mul`, `ZERO` and `ONE`. **`W` left the
+model in the 2026-09-16 cpoly bump**: the new `Ext4::mul` folds the `Y^4 = 2`
+wrap into `add_double_product` rather than multiplying by a `W` constant, and
+the only remaining reader of `W` upstream is `mul_by_w`, which this crate does
+not reach. `cpoly_W_val`, `red_W` and `toK_W` went with it, and so did
+`Check.lean` § 2's `cpoly.field.W = params.EXT_W` pin -- the `2` is now asserted
+by `add_double_product_spec` instead. The two
 assign forms were here until `final_check` stopped calling
 `cpoly::multilinear::eq_tilde`: the `+=`/`*=` operators were reached only from
 inside `lagrange_basis` and `dot`, so the champion that routed the kernel
@@ -88,20 +94,11 @@ through hachi's own `eq_prefix` took all three out of the model at once, and
 
 /-! ## Compatibility with `HachiEquiv.Field` -/
 
-theorem cpoly_W_val : (cpoly.field.W).val = 2 := by simp only [cpoly.field.W]; decide
-
 theorem red_Fp_ZERO : Red cpoly.field.Fp.ZERO := by
   unfold Red; rw [cpoly_Fp_ZERO_val]; decide
 
 theorem red_Fp_ONE : Red cpoly.field.Fp.ONE := by
   unfold Red; rw [cpoly_Fp_ONE_val]; decide
-
-/-- The extension constant `W = 2` is reduced, so `Fp`'s `Mul` spec applies to
-`W * _`. -/
-theorem red_W : Red cpoly.field.W := by unfold Red; rw [cpoly_W_val]; decide
-
-/-- ... and denotes the `W` of `Hachi.ext4Params`. -/
-@[simp] theorem toK_W : toK cpoly.field.W = 2 := by simp only [toK, cpoly_W_val]; norm_num
 
 def extCoeff (a : cpoly.field.Ext4) : ℕ → K
   | 0 => toK a.c0
@@ -308,61 +305,87 @@ theorem ext_sub_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) 
 
 /-- `impl Mul for Ext4`.
 
-The Rust code forms the seven schoolbook coefficients `t0 .. t6` and folds the
-high half back with a factor of `W = 2` (`Y^4 = 2`); the reference `Ext.mul`
-sums the two-branch kernel over all `(i, j) : Fin 4 × Fin 4`.  Expanding both
-double sums with `sum_univ_four'` turns the identity into commutative-ring
-algebra in the eight coefficients, which `ring` closes. -/
+**Rewritten by the 2026-09-16 cpoly bump, statement unchanged.** The old body
+formed the seven schoolbook coefficients `t0 .. t6`, reducing after every base
+multiplication, and folded the high half back by multiplying by `W = 2`. The new
+body accumulates the sixteen products into four unreduced two-word `(low, high)`
+pairs -- using `add_double_product` exactly where the old one multiplied by `W`,
+which is why `cpoly.field.W` is no longer in the model at all -- and calls
+`reduce_wide` four times, once per output coefficient.
+
+So the proof splits cleanly in two. The **body** half is the sixteen accumulator
+steps and the four reductions, and it lives on `wideK`: `ec0 .. ec3` say what
+each finished accumulator denotes, with the `2`s coming from
+`add_double_product_spec`. The `≤ 7` contract of `reduce_wide_spec` is
+discharged from the carry bounds the accumulator steps thread along -- four
+`add_product`s contribute at most `1` each and the `add_double_product`s at most
+`2`, so the worst high word here is `6`.
+
+The **specification** half is untouched from the pre-bump proof: `Ext.coeff_mul`
+sums the two-branch kernel over all `(i, j) : Fin 4 × Fin 4`, `sum_univ_four'`
+expands both double sums, and `coeff_monomialMod_val` supplies the reduction
+table -- which already carries the spec-side `2` as a numeral, so it never
+needed `toK_W`. `ring` closes the eight-coefficient algebra. -/
 @[step]
 theorem ext_mul_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) :
     cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul a b
       ⦃ c => Reduced c ∧ toExt c = toExt a * toExt b ⦄ := by
   obtain ⟨a0, a1, a2, a3⟩ := ha
   obtain ⟨b0, b1, b2, b3⟩ := hb
-  have hW : Red cpoly.field.W := red_W
   rw [cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul]
-  step as ⟨t0, rt0, et0⟩
-  step as ⟨m01, rm01, em01⟩
-  step as ⟨m10, rm10, em10⟩
-  step as ⟨t1, rt1, et1⟩
-  step as ⟨m02, rm02, em02⟩
-  step as ⟨m11, rm11, em11⟩
-  step as ⟨s2, rs2, es2⟩
-  step as ⟨m20, rm20, em20⟩
-  step as ⟨t2, rt2, et2⟩
-  step as ⟨m03, rm03, em03⟩
-  step as ⟨m12, rm12, em12⟩
-  step as ⟨s3a, rs3a, es3a⟩
-  step as ⟨m21, rm21, em21⟩
-  step as ⟨s3b, rs3b, es3b⟩
-  step as ⟨m30, rm30, em30⟩
-  step as ⟨t3, rt3, et3⟩
-  step as ⟨m13, rm13, em13⟩
-  step as ⟨m22, rm22, em22⟩
-  step as ⟨s4, rs4, es4⟩
-  step as ⟨m31, rm31, em31⟩
-  step as ⟨t4, rt4, et4⟩
-  step as ⟨m23, rm23, em23⟩
-  step as ⟨m32, rm32, em32⟩
-  step as ⟨t5, rt5, et5⟩
-  step as ⟨t6, rt6, et6⟩
-  step as ⟨w4, rw4, ew4⟩
-  step as ⟨c0, rc0, ec0⟩
-  step as ⟨w5, rw5, ew5⟩
-  step as ⟨c1, rc1, ec1⟩
-  step as ⟨w6, rw6, ew6⟩
-  step as ⟨c2, rc2, ec2⟩
-  refine ⟨⟨rc0, rc1, rc2, rt3⟩, ?_⟩
+  step as ⟨c0, hc0bound, hc0⟩
+  step as ⟨c1, hc1bound, hc1⟩
+  step as ⟨c2, hc2bound, hc2⟩
+  step as ⟨c3, hc3bound, hc3⟩
+  step as ⟨c01, hc01bound, hc01⟩
+  step as ⟨c11, hc11bound, hc11⟩
+  step as ⟨c21, hc21bound, hc21⟩
+  step as ⟨c31, hc31bound, hc31⟩
+  step as ⟨c02, hc02bound, hc02⟩
+  step as ⟨c12, hc12bound, hc12⟩
+  step as ⟨c22, hc22bound, hc22⟩
+  step as ⟨c32, hc32bound, hc32⟩
+  step as ⟨c03, hc03bound, hc03⟩
+  step as ⟨c13, hc13bound, hc13⟩
+  step as ⟨c23, hc23bound, hc23⟩
+  step as ⟨c33, hc33bound, hc33⟩
+  change (do
+    let f ← cpoly.field.reduce_wide c03.1 c03.2
+    let f1 ← cpoly.field.reduce_wide c13.1 c13.2
+    let f2 ← cpoly.field.reduce_wide c23.1 c23.2
+    let f3 ← cpoly.field.reduce_wide c33.1 c33.2
+    ok ({ c0 := f, c1 := f1, c2 := f2, c3 := f3 } : cpoly.field.Ext4)) ⦃ c =>
+      Reduced c ∧ toExt c = toExt a * toExt b ⦄
+  step as ⟨f0, rf0, ef0⟩
+  step as ⟨f1, rf1, ef1⟩
+  step as ⟨f2, rf2, ef2⟩
+  step as ⟨f3, rf3, ef3⟩
+  have ec0 : wideK c03 = toK a.c0 * toK b.c0 +
+      2 * toK a.c1 * toK b.c3 + 2 * toK a.c2 * toK b.c2 + 2 * toK a.c3 * toK b.c1 := by
+    rw [hc03, hc02, hc01, hc0]
+    simp only [wideK]
+    norm_num
+  have ec1 : wideK c13 = toK a.c0 * toK b.c1 + toK a.c1 * toK b.c0 +
+      2 * toK a.c2 * toK b.c3 + 2 * toK a.c3 * toK b.c2 := by
+    rw [hc13, hc12, hc11, hc1]
+    simp only [wideK]
+    norm_num
+  have ec2 : wideK c23 = toK a.c0 * toK b.c2 + toK a.c1 * toK b.c1 +
+      toK a.c2 * toK b.c0 + 2 * toK a.c3 * toK b.c3 := by
+    rw [hc23, hc22, hc21, hc2]
+    simp only [wideK]
+    norm_num
+  have ec3 : wideK c33 = toK a.c0 * toK b.c3 + toK a.c1 * toK b.c2 +
+      toK a.c2 * toK b.c1 + toK a.c3 * toK b.c0 := by
+    rw [hc33, hc32, hc31, hc3]
+    simp only [wideK]
+    norm_num
+  refine ⟨⟨rf0, rf1, rf2, rf3⟩, ?_⟩
   apply Ext.ext; intro i
   rw [Ext.coeff_mul, sum_univ_four' (rfl : Hachi.ext4Params.toExtensionParams.d = 4)]
   simp only [sum_univ_four' (rfl : Hachi.ext4Params.toExtensionParams.d = 4), coeff_toExt']
-  -- The reduction table has to be supplied one exponent at a time: with `k` still
-  -- a metavariable, `simp` will not match `Ext.coeff (Ext.monomialMod k) ⟨_, _⟩`
-  -- here, the index being a `Fin` whose bound is a non-reducible projection.
   rcases fin_four_eq i with rfl | rfl | rfl | rfl <;>
-    simp only [extCoeff, ec0, ec1, ec2, et3, ew4, ew5, ew6, et0, et1, et2, et4, et5, et6,
-      es2, es3a, es3b, es4, em01, em10, em02, em11, em20, em03, em12, em21, em30,
-      em13, em22, em31, em23, em32, toK_W] <;>
+    simp only [extCoeff, ef0, ef1, ef2, ef3, ec0, ec1, ec2, ec3] <;>
     norm_num <;>
     simp only [coeff_monomialMod_val 1, coeff_monomialMod_val 2, coeff_monomialMod_val 3,
       coeff_monomialMod_val 4, coeff_monomialMod_val 5, coeff_monomialMod_val 6] <;>

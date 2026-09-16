@@ -7062,3 +7062,111 @@ started ≈21:15:28, about 64 s later, with no overlap.
 `logs/ledger.jsonl` is append-only *and* checked against HEAD, so two sessions
 appending rows independently will fail `make ledger-check` for whichever merges
 second. Same hazard for `NOTES.md` and the skill files.
+
+## The cpoly pin bump: 583cfaf → d7e26bb, and what it cost to prove (2026-09-16)
+
+The bump the plan had been deferring since candidate P. Upstream HEAD of
+`tobias-rothmann/AeneasCompPoly`, four commits on from our pin ("SPEED-UPs",
+"Stamp F1 genesis baseline", "squaring and doubeling", "clean-up skills").
+
+### What it actually contains
+
+More than the plan's one-line note ("upstream has a delayed-reduction `Ext4`
+multiply") suggested:
+
+* **`reduce_wide(low, high)`** — a pseudo-Mersenne reducer. *This is card T7.*
+  `2^32 ≡ 99`, `2^64 ≡ 9801 (mod q)`, so `low` folds at 32 bits twice and `high`
+  enters scaled by `9801`; then **one** conditional subtraction. Upstream's
+  contract is `high.val ≤ 7`, not the card's "`hi ≤ 6`".
+* **`Ext4::mul` rewritten**: sixteen products accumulated into four unreduced
+  two-word `(low, high)` pairs, then four `reduce_wide` calls — instead of
+  reducing after each of nineteen base multiplications.
+* **`Fp::add`, `Fp::sub`, `Fp::neg` rewritten** to conditional subtracts and a
+  zero branch. `Fp::mul` is unchanged (still `(a*b) % P`).
+* **`eval_mle_layer`'s fold made affine**: `lo + x0·(hi − lo)` instead of
+  `(1 − x0)·lo + x0·hi`. That is **brief 5's S5b**, implemented upstream rather
+  than by us, and it dropped the `one_minus` parameter.
+* `Ext4::square` and `mul_by_w` exist upstream but **are not in our model**,
+  because the whitelist follows only what the crate *reaches* and hachi does not
+  call them yet. `Ext4::square` is card T13, still available, now cheaper.
+
+### `cpoly.field.W` left the model
+
+The sharpest consequence, and not one I predicted. The new `Ext4::mul` folds the
+`Y^4 = 2` wrap into `add_double_product` rather than multiplying by a `W`
+constant, and the only upstream reader of `W` that remains is `mul_by_w`, which
+we do not reach. So `W` is simply *absent* from `Generated.lean` — the same
+failure mode candidate P hit with `Shared1UnivariatePoly…mul`, and the third
+time NOTES § "The model contains what the crate *reaches*" has earned its place.
+
+It took `cpoly_W_val`, `red_W` and `toK_W` with it, and it cost a **pin**:
+`Check.lean` § 2's `cpoly.field.W = params.EXT_W`, which asserted that our
+extension constant is cpoly's. That claim has moved rather than vanished —
+`params.EXT_W = 2#u64` is still asserted, and the `2` on the cpoly side is now
+carried by `add_double_product_spec`'s postcondition — but what is genuinely
+lost is *the equality of the two constants as constants*. Recorded in § 2 in
+those terms rather than quietly deleted.
+
+### The proof work: transcription, and why not import
+
+`ext_mul_spec`'s statement upstream is **byte-identical** to ours, so nothing
+downstream in hachi moved; only bodies did. Every spec needed already exists
+upstream in the same `Red`/`Reduced`/`toK`/`toExt` vocabulary, because hachi's
+`Ext.lean` derives from cpoly's.
+
+It is **not importable**, for a concrete reason: cpoly's Lean package is on
+Lean/Mathlib **v4.32.0** on its own aeneas fork (its lakefile says upstream has
+no 4.32.0 release), while hachi and ArkLib are on **v4.33.1**, and one Lake
+build holds one toolchain. Compounded by the standing decision never to touch
+the aeneas fork for hachi. So these are *our* proofs of upstream's code,
+audited in § 4 like everything else.
+
+What landed, by file:
+
+| file | change |
+|---|---|
+| `Field.lean` | `fp_add_spec`, `fp_sub_spec`, `fp_neg_spec` re-proved for the branching bodies; **new**: `red_mul_fits_u64`, `carryK`, `wideK`, `u64_size_toK`, `overflowing_add_toK`, `add_product_spec`, `add_double_product_spec`, `reduce_wide_spec` |
+| `Ext.lean` | `cpoly_W_val`/`red_W`/`toK_W` removed; `ext_mul_spec` re-proved on `wideK` |
+| `ZeroCheck.lean` | `eval_mle_layer_loop_spec` re-proved for the affine fold, `one_minus` binder dropped |
+| `Check.lean` | § 2's `add`/`sub` body pins rewritten, the `W` pin retired with its reasoning, § 4 gained six audit lines |
+
+`Fp::mul` needed nothing, which is the useful negative: `fp_mul_spec` did not
+break, so the 19-multiply → accumulator change is entirely above the base field.
+
+### Four API-drift fixes, all mechanical
+
+* `linear_combination` is **not** available — `Field.lean` imports only
+  `Generated` and `Mathlib.Data.ZMod.Basic`. Added
+  `import Mathlib.Tactic.LinearCombination`.
+* `U64.max` does not unfold for `omega`; `Std.U64.max_eq` does (upstream's
+  `norm_num [U64.max_eq]` carries over under the `Std.` prefix).
+* Upstream's `P`/`K` are hachi's `q`/`ZMod q`, and upstream reaches the modulus
+  literal through `Hachi.fieldSize`, which hachi does not have — `q` is already
+  the literal, so those steps become `rfl`.
+* One `step` side goal that 4.32 needed an explicit bullet for is discharged
+  automatically here, so the bullet had to go (`reduce_wide_spec`'s subtraction).
+
+### Two process notes
+
+**A regex is not a transcription.** My first attempt substituted `K → ZMod q`
+and `P → q` across 321 extracted lines mechanically. It unbalanced parentheses
+inside `change` expressions, cut a declaration in half, and left a dangling
+docstring — twelve errors that took longer to read than writing the blocks by
+hand did. The second attempt went spec by spec, compiling each before starting
+the next, and every one landed first or second try.
+
+**The stale `Generated.olean` trap fired for the fourth and fifth time today**,
+now including a *second* flavour: after editing `Field.lean` I ran
+`lake env lean lean/Ext.lean`, which type-checks against the stale `Field.olean`
+and reported the brand-new `@[step]` lemmas as "could not find a local
+assumption or a theorem to apply". `lake env lean` never rebuilds dependencies.
+The rule is wider than `make extract && lake build Generated`: **after editing
+any module, `lake build <that module>` before `lake env lean` on a downstream
+one.**
+
+Gates on the bumped tree: `make build` green (no errors, no `sorry`), **303**
+audit lines on the three standard axioms only, **0** axioms in `Generated.lean`,
+extraction deterministic, 199 tests pass, genesis intact at 312 frozen items.
+`check-candidate` correctly *refuses* until this lands as a commit — the slot's
+`Cargo.toml` is git-pinned precisely so a pin change cannot arrive as a loop
+edit.

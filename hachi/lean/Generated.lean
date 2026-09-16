@@ -15,21 +15,21 @@ set_option maxRecDepth 2048
 namespace hachi
 
 /-- [cpoly::field::P]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 56:0-56:16
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 64:0-64:16
     Name pattern: [cpoly::field::P]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "cpoly::field::P"]
 def cpoly.field.P : Std.U64 := 4294967197#u64
 
 /-- [cpoly::field::Fp]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 72:0-72:13
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 80:0-80:13
     Name pattern: [cpoly::field::Fp]
     Visibility: public -/
 @[reducible, rust_type "cpoly::field::Fp"]
 def cpoly.field.Fp := Std.U64
 
 /-- [cpoly::field::{impl core::cmp::PartialEq<cpoly::field::Fp> for cpoly::field::Fp}::eq]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 71:22-71:31
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 79:22-79:31
     Name pattern: [cpoly::field::{core::cmp::PartialEq<cpoly::field::Fp, cpoly::field::Fp>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -39,7 +39,7 @@ def cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq
   ok (self = other)
 
 /-- [cpoly::field::{cpoly::field::Fp}::ZERO]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 76:4-76:22
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 84:4-84:22
     Name pattern: [cpoly::field::{cpoly::field::Fp}::ZERO]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -47,7 +47,7 @@ def cpoly.field.Fp.Insts.CoreCmpPartialEqFp.eq
 def cpoly.field.Fp.ZERO : cpoly.field.Fp := 0#u64
 
 /-- [cpoly::field::{cpoly::field::Fp}::ONE]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 79:4-79:21
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 87:4-87:21
     Name pattern: [cpoly::field::{cpoly::field::Fp}::ONE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -55,7 +55,7 @@ def cpoly.field.Fp.ZERO : cpoly.field.Fp := 0#u64
 def cpoly.field.Fp.ONE : cpoly.field.Fp := 1#u64
 
 /-- [cpoly::field::{cpoly::field::Fp}::new]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 85:4-85:28
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 93:4-93:28
     Name pattern: [cpoly::field::{cpoly::field::Fp}::new]
     Visibility: public -/
 @[rust_fun "cpoly::field::{cpoly::field::Fp}::new"]
@@ -64,7 +64,7 @@ def cpoly.field.Fp.new (v : Std.U64) : Result cpoly.field.Fp := do
   ok i
 
 /-- [cpoly::field::{cpoly::field::Fp}::to_u64]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 90:4-90:36
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 98:4-98:36
     Name pattern: [cpoly::field::{cpoly::field::Fp}::to_u64]
     Visibility: public -/
 @[rust_fun "cpoly::field::{cpoly::field::Fp}::to_u64"]
@@ -72,7 +72,7 @@ def cpoly.field.Fp.to_u64 (self : cpoly.field.Fp) : Result Std.U64 := do
   ok self
 
 /-- [cpoly::field::{cpoly::field::Fp}::is_zero]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 95:4-95:32
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 103:4-103:32
     Name pattern: [cpoly::field::{cpoly::field::Fp}::is_zero]
     Visibility: public -/
 @[rust_fun "cpoly::field::{cpoly::field::Fp}::is_zero"]
@@ -80,32 +80,36 @@ def cpoly.field.Fp.is_zero (self : cpoly.field.Fp) : Result Bool := do
   ok (self = 0#u64)
 
 /-- [cpoly::field::{impl core::ops::arith::Add<cpoly::field::Fp, cpoly::field::Fp> for cpoly::field::Fp}::add]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 111:4-111:31
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 119:4-119:31
     Name pattern: [cpoly::field::{core::ops::arith::Add<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::add]
     Visibility: public -/
 @[rust_fun
   "cpoly::field::{core::ops::arith::Add<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::add"]
 def cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add
   (self : cpoly.field.Fp) (rhs : cpoly.field.Fp) : Result cpoly.field.Fp := do
-  let i ← self + rhs
-  let i1 ← i % cpoly.field.P
-  ok i1
+  let sum ← self + rhs
+  if sum >= cpoly.field.P
+  then let sum1 ← sum - cpoly.field.P
+       ok sum1
+  else ok sum
 
 /-- [cpoly::field::{impl core::ops::arith::Sub<cpoly::field::Fp, cpoly::field::Fp> for cpoly::field::Fp}::sub]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 121:4-121:31
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 130:4-130:31
     Name pattern: [cpoly::field::{core::ops::arith::Sub<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::sub]
     Visibility: public -/
 @[rust_fun
   "cpoly::field::{core::ops::arith::Sub<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::sub"]
 def cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub
   (self : cpoly.field.Fp) (rhs : cpoly.field.Fp) : Result cpoly.field.Fp := do
-  let i ← self + cpoly.field.P
-  let i1 ← i - rhs
-  let i2 ← i1 % cpoly.field.P
-  ok i2
+  if self >= rhs
+  then let i ← self - rhs
+       ok i
+  else let i ← self + cpoly.field.P
+       let i1 ← i - rhs
+       ok i1
 
 /-- [cpoly::field::{impl core::ops::arith::Mul<cpoly::field::Fp, cpoly::field::Fp> for cpoly::field::Fp}::mul]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 131:4-131:31
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 144:4-144:31
     Name pattern: [cpoly::field::{core::ops::arith::Mul<cpoly::field::Fp, cpoly::field::Fp, cpoly::field::Fp>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -117,26 +121,81 @@ def cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul
   ok i1
 
 /-- [cpoly::field::{impl core::ops::arith::Neg<cpoly::field::Fp> for cpoly::field::Fp}::neg]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 140:4-140:22
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 154:4-154:22
     Name pattern: [cpoly::field::{core::ops::arith::Neg<cpoly::field::Fp, cpoly::field::Fp>}::neg]
     Visibility: public -/
 @[rust_fun
   "cpoly::field::{core::ops::arith::Neg<cpoly::field::Fp, cpoly::field::Fp>}::neg"]
 def cpoly.field.Fp.Insts.CoreOpsArithNegFp.neg
   (self : cpoly.field.Fp) : Result cpoly.field.Fp := do
-  let i ← cpoly.field.P - self
-  let i1 ← i % cpoly.field.P
-  ok i1
+  if self = 0#u64
+  then ok 0#u64
+  else let i ← cpoly.field.P - self
+       ok i
 
-/-- [cpoly::field::W]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 171:0-171:15
-    Name pattern: [cpoly::field::W]
-    Visibility: public -/
-@[global_simps, irreducible, rust_const "cpoly::field::W"]
-def cpoly.field.W : cpoly.field.Fp := 2#u64
+/-- [cpoly::field::reduce_wide::LIMB]
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 207:4-207:19
+    Name pattern: [cpoly::field::reduce_wide::LIMB] -/
+@[global_simps, irreducible, rust_const "cpoly::field::reduce_wide::LIMB"]
+def cpoly.field.reduce_wide.LIMB : Result Std.U64 := 1#u64 <<< 32#i32
+
+/-- [cpoly::field::reduce_wide]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 206:0-206:41
+    Name pattern: [cpoly::field::reduce_wide] -/
+@[rust_fun "cpoly::field::reduce_wide"]
+def cpoly.field.reduce_wide
+  (low : Std.U64) (high : Std.U64) : Result cpoly.field.Fp := do
+  let i ← cpoly.field.reduce_wide.LIMB
+  let i1 ← low % i
+  let i2 ← low / i
+  let i3 ← 99#u64 * i2
+  let i4 ← i1 + i3
+  let i5 ← 9801#u64 * high
+  let folded_once ← i4 + i5
+  let i6 ← folded_once % i
+  let i7 ← folded_once / i
+  let i8 ← 99#u64 * i7
+  let folded_twice ← i6 + i8
+  if folded_twice >= cpoly.field.P
+  then let folded_twice1 ← folded_twice - cpoly.field.P
+       ok folded_twice1
+  else ok folded_twice
+
+/-- [cpoly::field::add_product]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 219:0-219:59
+    Name pattern: [cpoly::field::add_product] -/
+@[rust_fun "cpoly::field::add_product"]
+def cpoly.field.add_product
+  (acc : (Std.U64 × Std.U64)) (a : cpoly.field.Fp) (b : cpoly.field.Fp) :
+  Result (Std.U64 × Std.U64)
+  := do
+  let (i, i1) := acc
+  let i2 ← a * b
+  let (low, carry) ← lift (core.num.U64.overflowing_add i i2)
+  let i3 ← lift (core.convert.num.FromU64Bool.from carry)
+  let i4 ← i1 + i3
+  ok (low, i4)
+
+/-- [cpoly::field::add_double_product]:
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 226:0-226:66
+    Name pattern: [cpoly::field::add_double_product] -/
+@[rust_fun "cpoly::field::add_double_product"]
+def cpoly.field.add_double_product
+  (acc : (Std.U64 × Std.U64)) (a : cpoly.field.Fp) (b : cpoly.field.Fp) :
+  Result (Std.U64 × Std.U64)
+  := do
+  let product ← a * b
+  let (i, i1) := acc
+  let (low, carry0) ← lift (core.num.U64.overflowing_add i product)
+  let (low1, carry1) ← lift (core.num.U64.overflowing_add low product)
+  let i2 ← lift (core.convert.num.FromU64Bool.from carry0)
+  let i3 ← i1 + i2
+  let i4 ← lift (core.convert.num.FromU64Bool.from carry1)
+  let i5 ← i3 + i4
+  ok (low1, i5)
 
 /-- [cpoly::field::Ext4]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 185:0-185:15
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 264:0-264:15
     Name pattern: [cpoly::field::Ext4]
     Visibility: public -/
 @[rust_type "cpoly::field::Ext4"]
@@ -147,7 +206,7 @@ structure cpoly.field.Ext4 where
   c3 : cpoly.field.Fp
 
 /-- [cpoly::field::{impl core::clone::Clone for cpoly::field::Ext4}::clone]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 184:15-184:20
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 263:15-263:20
     Name pattern: [cpoly::field::{core::clone::Clone<cpoly::field::Ext4>}::clone]
     Visibility: public -/
 @[rust_fun "cpoly::field::{core::clone::Clone<cpoly::field::Ext4>}::clone"]
@@ -156,7 +215,7 @@ def cpoly.field.Ext4.Insts.CoreCloneClone.clone
   ok self
 
 /-- Trait implementation: [cpoly::field::{impl core::clone::Clone for cpoly::field::Ext4}]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 184:15-184:20
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 263:15-263:20
     Name pattern: [core::clone::Clone<cpoly::field::Ext4>] -/
 @[reducible, rust_trait_impl "core::clone::Clone<cpoly::field::Ext4>"]
 def cpoly.field.Ext4.Insts.CoreCloneClone : core.clone.Clone cpoly.field.Ext4
@@ -165,7 +224,7 @@ def cpoly.field.Ext4.Insts.CoreCloneClone : core.clone.Clone cpoly.field.Ext4
 }
 
 /-- [cpoly::field::{impl core::cmp::PartialEq<cpoly::field::Ext4> for cpoly::field::Ext4}::eq]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 184:22-184:31
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 263:22-263:31
     Name pattern: [cpoly::field::{core::cmp::PartialEq<cpoly::field::Ext4, cpoly::field::Ext4>}::eq]
     Visibility: public -/
 @[rust_fun
@@ -186,7 +245,7 @@ def cpoly.field.Ext4.Insts.CoreCmpPartialEqExt4.eq
   else ok false
 
 /-- [cpoly::field::{cpoly::field::Ext4}::ZERO]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 198:4-198:24
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 277:4-277:24
     Name pattern: [cpoly::field::{cpoly::field::Ext4}::ZERO]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -200,7 +259,7 @@ def cpoly.field.Ext4.ZERO : cpoly.field.Ext4 :=
   }
 
 /-- [cpoly::field::{cpoly::field::Ext4}::ONE]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 206:4-206:23
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 285:4-285:23
     Name pattern: [cpoly::field::{cpoly::field::Ext4}::ONE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -214,7 +273,7 @@ def cpoly.field.Ext4.ONE : cpoly.field.Ext4 :=
   }
 
 /-- [cpoly::field::{cpoly::field::Ext4}::from_base]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 231:4-231:41
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 310:4-310:41
     Name pattern: [cpoly::field::{cpoly::field::Ext4}::from_base]
     Visibility: public -/
 @[rust_fun "cpoly::field::{cpoly::field::Ext4}::from_base"]
@@ -229,7 +288,7 @@ def cpoly.field.Ext4.from_base
     }
 
 /-- [cpoly::field::{cpoly::field::Ext4}::is_zero]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 246:4-246:32
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 325:4-325:32
     Name pattern: [cpoly::field::{cpoly::field::Ext4}::is_zero]
     Visibility: public -/
 @[rust_fun "cpoly::field::{cpoly::field::Ext4}::is_zero"]
@@ -248,7 +307,7 @@ def cpoly.field.Ext4.is_zero (self : cpoly.field.Ext4) : Result Bool := do
   else ok false
 
 /-- [cpoly::field::{impl core::ops::arith::Add<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::add]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 268:4-268:35
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 378:4-378:35
     Name pattern: [cpoly::field::{core::ops::arith::Add<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::add]
     Visibility: public -/
 @[rust_fun
@@ -264,7 +323,7 @@ def cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add
   ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
 
 /-- [cpoly::field::{impl core::ops::arith::Sub<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::sub]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 282:4-282:35
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 392:4-392:35
     Name pattern: [cpoly::field::{core::ops::arith::Sub<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::sub]
     Visibility: public -/
 @[rust_fun
@@ -280,7 +339,7 @@ def cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub
   ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
 
 /-- [cpoly::field::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Ext4}::mul]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 315:4-315:35
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 427:4-427:35
     Name pattern: [cpoly::field::{core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4, cpoly::field::Ext4>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -289,41 +348,34 @@ def cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul
   (self : cpoly.field.Ext4) (rhs : cpoly.field.Ext4) :
   Result cpoly.field.Ext4
   := do
-  let t0 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c0
-  let f ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c1
-  let f1 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c0
-  let t1 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f f1
-  let f2 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c2
-  let f3 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c1
-  let f4 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f2 f3
-  let f5 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c0
-  let t2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f4 f5
-  let f6 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c0 rhs.c3
-  let f7 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c2
-  let f8 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f6 f7
-  let f9 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c1
-  let f10 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f8 f9
-  let f11 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c0
-  let t3 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f10 f11
-  let f12 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c1 rhs.c3
-  let f13 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c2
-  let f14 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f12 f13
-  let f15 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c1
-  let t4 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f14 f15
-  let f16 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c2 rhs.c3
-  let f17 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c2
-  let t5 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f16 f17
-  let t6 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul self.c3 rhs.c3
-  let f18 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t4
-  let f19 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t0 f18
-  let f20 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t5
-  let f21 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t1 f20
-  let f22 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul cpoly.field.W t6
-  let f23 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add t2 f22
-  ok { c0 := f19, c1 := f21, c2 := f23, c3 := t3 }
+  let c0 ← cpoly.field.add_product (0#u64, 0#u64) self.c0 rhs.c0
+  let c1 ← cpoly.field.add_product (0#u64, 0#u64) self.c0 rhs.c1
+  let c2 ← cpoly.field.add_product (0#u64, 0#u64) self.c0 rhs.c2
+  let c3 ← cpoly.field.add_product (0#u64, 0#u64) self.c0 rhs.c3
+  let c01 ← cpoly.field.add_double_product c0 self.c1 rhs.c3
+  let c11 ← cpoly.field.add_product c1 self.c1 rhs.c0
+  let c21 ← cpoly.field.add_product c2 self.c1 rhs.c1
+  let c31 ← cpoly.field.add_product c3 self.c1 rhs.c2
+  let c02 ← cpoly.field.add_double_product c01 self.c2 rhs.c2
+  let c12 ← cpoly.field.add_double_product c11 self.c2 rhs.c3
+  let c22 ← cpoly.field.add_product c21 self.c2 rhs.c0
+  let c32 ← cpoly.field.add_product c31 self.c2 rhs.c1
+  let c03 ← cpoly.field.add_double_product c02 self.c3 rhs.c1
+  let c13 ← cpoly.field.add_double_product c12 self.c3 rhs.c2
+  let c23 ← cpoly.field.add_double_product c22 self.c3 rhs.c3
+  let c33 ← cpoly.field.add_product c32 self.c3 rhs.c0
+  let (i, i1) := c03
+  let f ← cpoly.field.reduce_wide i i1
+  let (i2, i3) := c13
+  let f1 ← cpoly.field.reduce_wide i2 i3
+  let (i4, i5) := c23
+  let f2 ← cpoly.field.reduce_wide i4 i5
+  let (i6, i7) := c33
+  let f3 ← cpoly.field.reduce_wide i6 i7
+  ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
 
 /-- [cpoly::field::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::field::Ext4> for cpoly::field::Fp}::mul]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/field.rs', lines 337:4-337:35
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/field.rs', lines 462:4-462:35
     Name pattern: [cpoly::field::{core::ops::arith::Mul<cpoly::field::Fp, cpoly::field::Ext4, cpoly::field::Ext4>}::mul]
     Visibility: public -/
 @[rust_fun
@@ -339,14 +391,13 @@ def cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul
   ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }
 
 /-- [cpoly::multilinear::eval_mle_layer]: loop body 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 285:4-290:5
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 312:4-317:5
     Name pattern: [cpoly::multilinear::eval_mle_layer]
     Visibility: public -/
 @[rust_loop_body, rust_fun "cpoly::multilinear::eval_mle_layer"]
 def cpoly.multilinear.eval_mle_layer_loop.body
   (values : Slice cpoly.field.Ext4) (x0 : cpoly.field.Ext4) (half : Std.Usize)
-  (one_minus : cpoly.field.Ext4) (out : alloc.vec.Vec cpoly.field.Ext4)
-  (j : Std.Usize) :
+  (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
     (alloc.vec.Vec cpoly.field.Ext4))
   := do
@@ -356,32 +407,31 @@ def cpoly.multilinear.eval_mle_layer_loop.body
     let lo ← Slice.index_usize values i
     let i1 ← i + 1#usize
     let hi ← Slice.index_usize values i1
-    let e ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul one_minus lo
-    let e1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul x0 hi
-    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add e e1
+    let e ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub hi lo
+    let e1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul x0 e
+    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add lo e1
     let out1 ← alloc.vec.Vec.push out e2
     let j1 ← j + 1#usize
     ok (cont (out1, j1))
   else ok (done out)
 
 /-- [cpoly::multilinear::eval_mle_layer]: loop 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 285:4-290:5
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 312:4-317:5
     Name pattern: [cpoly::multilinear::eval_mle_layer]
     Visibility: public -/
 @[rust_loop, rust_fun "cpoly::multilinear::eval_mle_layer"]
 def cpoly.multilinear.eval_mle_layer_loop
   (values : Slice cpoly.field.Ext4) (x0 : cpoly.field.Ext4) (half : Std.Usize)
-  (one_minus : cpoly.field.Ext4) (out : alloc.vec.Vec cpoly.field.Ext4)
-  (j : Std.Usize) :
+  (out : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize) :
   Result (alloc.vec.Vec cpoly.field.Ext4)
   := do
   loop
     (fun (out1, j1) => cpoly.multilinear.eval_mle_layer_loop.body values x0
-      half one_minus out1 j1)
+      half out1 j1)
     (out, j)
 
 /-- [cpoly::multilinear::eval_mle_layer]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 280:0-280:61
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 308:0-308:61
     Name pattern: [cpoly::multilinear::eval_mle_layer]
     Visibility: public -/
 @[rust_fun "cpoly::multilinear::eval_mle_layer"]
@@ -391,20 +441,18 @@ def cpoly.multilinear.eval_mle_layer
   := do
   let i := Slice.len values
   let half ← i / 2#usize
-  let one_minus ←
-    cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub cpoly.field.Ext4.ONE x0
-  cpoly.multilinear.eval_mle_layer_loop values x0 half one_minus
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+  cpoly.multilinear.eval_mle_layer_loop values x0 half (alloc.vec.Vec.new
+    cpoly.field.Ext4) 0#usize
 
 /-- [cpoly::multilinear::MultilinearEvals]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 487:0-487:27
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 514:0-514:27
     Name pattern: [cpoly::multilinear::MultilinearEvals]
     Visibility: public -/
 @[reducible, rust_type "cpoly::multilinear::MultilinearEvals"]
 def cpoly.multilinear.MultilinearEvals := alloc.vec.Vec cpoly.field.Ext4
 
 /-- [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::from_values]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 502:4-502:61
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 529:4-529:61
     Name pattern: [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::from_values]
     Visibility: public -/
 @[rust_fun
@@ -416,7 +464,7 @@ def cpoly.multilinear.MultilinearEvals.from_values
   ok values
 
 /-- [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::into_values]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/multilinear.rs', lines 512:4-512:41
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/multilinear.rs', lines 539:4-539:41
     Name pattern: [cpoly::multilinear::{cpoly::multilinear::MultilinearEvals}::into_values]
     Visibility: public -/
 @[rust_fun
@@ -428,14 +476,14 @@ def cpoly.multilinear.MultilinearEvals.into_values
   ok self
 
 /-- [cpoly::univariate::UnivariatePoly]
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 57:0-57:25
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 61:0-61:25
     Name pattern: [cpoly::univariate::UnivariatePoly]
     Visibility: public -/
 @[reducible, rust_type "cpoly::univariate::UnivariatePoly"]
 def cpoly.univariate.UnivariatePoly := alloc.vec.Vec cpoly.field.Ext4
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::zero]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 65:4-65:35
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 69:4-69:35
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::zero]
     Visibility: public -/
 @[rust_fun "cpoly::univariate::{cpoly::univariate::UnivariatePoly}::zero"]
@@ -444,7 +492,7 @@ def cpoly.univariate.UnivariatePoly.zero
   ok (alloc.vec.Vec.new cpoly.field.Ext4)
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::from_coeffs]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 94:4-94:59
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 98:4-98:59
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::from_coeffs]
     Visibility: public -/
 @[rust_fun
@@ -456,7 +504,7 @@ def cpoly.univariate.UnivariatePoly.from_coeffs
   ok coeffs
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::len]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 110:4-110:30
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 114:4-114:30
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::len]
     Visibility: public -/
 @[rust_fun "cpoly::univariate::{cpoly::univariate::UnivariatePoly}::len"]
@@ -465,7 +513,7 @@ def cpoly.univariate.UnivariatePoly.len
   ok (alloc.vec.Vec.len self)
 
 /-- [cpoly::univariate::{impl core::ops::index::Index<usize, cpoly::field::Ext4> for cpoly::univariate::UnivariatePoly}::index]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 157:4-157:38
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 161:4-161:38
     Name pattern: [cpoly::univariate::{core::ops::index::Index<cpoly::univariate::UnivariatePoly, usize, cpoly::field::Ext4>}::index]
     Visibility: public -/
 @[rust_fun
@@ -478,7 +526,7 @@ def cpoly.univariate.UnivariatePoly.Insts.CoreOpsIndexIndexUsizeExt4.index
     self i
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]: loop body 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 177:8-182:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 181:8-186:9
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -500,7 +548,7 @@ def cpoly.univariate.UnivariatePoly.trim_loop.body
   else ok (done n)
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]: loop 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 177:8-182:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 181:8-186:9
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -512,7 +560,7 @@ def cpoly.univariate.UnivariatePoly.trim_loop
     n
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 175:4-175:43
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 179:4-179:43
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim]
     Visibility: public -/
 @[rust_fun "cpoly::univariate::{cpoly::univariate::UnivariatePoly}::trim"]
@@ -528,7 +576,7 @@ def cpoly.univariate.UnivariatePoly.trim
   ok v
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]: loop body 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 197:8-200:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 201:8-204:9
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -550,7 +598,7 @@ def cpoly.univariate.UnivariatePoly.eval_loop.body
   else ok (done acc)
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]: loop 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 197:8-200:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 201:8-204:9
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -566,7 +614,7 @@ def cpoly.univariate.UnivariatePoly.eval_loop
     (acc, i)
 
 /-- [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 194:4-194:39
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 198:4-198:39
     Name pattern: [cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval]
     Visibility: public -/
 @[rust_fun "cpoly::univariate::{cpoly::univariate::UnivariatePoly}::eval"]
@@ -578,7 +626,7 @@ def cpoly.univariate.UnivariatePoly.eval
   cpoly.univariate.UnivariatePoly.eval_loop self x cpoly.field.Ext4.ZERO i
 
 /-- [cpoly::univariate::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::univariate::UnivariatePoly> for &'_0 cpoly::univariate::UnivariatePoly}::mul]: loop body 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 279:8-282:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 283:8-286:9
     Name pattern: [cpoly::univariate::{core::ops::arith::Mul<&'0 cpoly::univariate::UnivariatePoly, cpoly::field::Ext4, cpoly::univariate::UnivariatePoly>}::mul]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -601,7 +649,7 @@ def Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul_loop.body
   else ok (done out)
 
 /-- [cpoly::univariate::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::univariate::UnivariatePoly> for &'_0 cpoly::univariate::UnivariatePoly}::mul]: loop 0:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 279:8-282:9
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 283:8-286:9
     Name pattern: [cpoly::univariate::{core::ops::arith::Mul<&'0 cpoly::univariate::UnivariatePoly, cpoly::field::Ext4, cpoly::univariate::UnivariatePoly>}::mul]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -618,7 +666,7 @@ def Shared0UnivariatePoly.Insts.CoreOpsArithMulExt4UnivariatePoly.mul_loop
     (out, i)
 
 /-- [cpoly::univariate::{impl core::ops::arith::Mul<cpoly::field::Ext4, cpoly::univariate::UnivariatePoly> for &'_0 cpoly::univariate::UnivariatePoly}::mul]:
-    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/583cfaf/cpoly/src/univariate.rs', lines 275:4-275:48
+    Source: '/cargo/git/checkouts/aeneascomppoly-27508bae189397f4/d7e26bb/cpoly/src/univariate.rs', lines 279:4-279:48
     Name pattern: [cpoly::univariate::{core::ops::arith::Mul<&'0 cpoly::univariate::UnivariatePoly, cpoly::field::Ext4, cpoly::univariate::UnivariatePoly>}::mul]
     Visibility: public -/
 @[rust_fun

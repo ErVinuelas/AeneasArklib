@@ -21,4 +21,4 @@ doctest = false
 # `hachi/Cargo.toml`, which is what makes it compatible with the "no drift" rule
 # this crate is really about -- see src/lib.rs for the full reasoning.
 [dependencies]
-cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "583cfaff0617180764ffd849d867331af206fc5e" }
+cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "d7e26bb42feb80a1d96f904d3c14f85786751513" }

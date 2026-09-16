@@ -96,7 +96,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 [[package]]
 name = "cpoly"
 version = "0.1.0"
-source = "git+https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=583cfaff0617180764ffd849d867331af206fc5e#583cfaff0617180764ffd849d867331af206fc5e"
+source = "git+https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb42feb80a1d96f904d3c14f85786751513"
 
 [[package]]
 name = "criterion"

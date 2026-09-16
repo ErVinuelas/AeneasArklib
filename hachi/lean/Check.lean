@@ -469,21 +469,29 @@ example : cpoly.field.P = 4294967197#u64 := by simp [cpoly.field.P]
 -- ever disagree, every proof bridging the two layers is about two fields.
 example : cpoly.field.P = params.Q := by simp [cpoly.field.P, params.Q]
 
--- The addition has a body, and it is the Rust one: `(self + rhs) % P`, in
--- Aeneas's fallible form. This is the example that an axiom could not satisfy.
+-- The addition has a body, and it is the Rust one. **Updated by the 2026-09-16
+-- cpoly bump**: it was `(self + rhs) % P`, and it is now a *conditional
+-- subtraction*, which is the whole point of the bump -- `a + b < 2q < 2^33` for
+-- reduced operands, so one compare-and-subtract replaces a `u64` division. This
+-- is the example that an axiom could not satisfy, and the fact that it had to be
+-- rewritten is the pin doing its job.
 example (a b : cpoly.field.Fp) :
     cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add a b
-      = (do let s ← a + b; let r ← s % cpoly.field.P; Result.ok r) := by
+      = (do let s ← a + b
+            if s ≥ cpoly.field.P then (do let d ← s - cpoly.field.P; Result.ok d)
+            else Result.ok s) := by
   simp [cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add]
 
 -- The other three operator impls, for the same reason: each has a body, and it is
--- the Rust one. `sub` adds the modulus before subtracting (so the `u64` cannot go
--- negative) and `neg`'s outer `% P` is what sends `0` to `0` rather than to `P` --
--- both visible here, which is what "transparent" means in practice.
+-- the Rust one. `sub` now *branches* instead of adding the modulus
+-- unconditionally -- it subtracts directly when it can and borrows `P` only when
+-- it must -- and `neg` branches on zero where it used to rely on an outer `% P`
+-- to send `0` to `0` rather than to `P`. Both visible here, which is what
+-- "transparent" means in practice.
 example (a b : cpoly.field.Fp) :
     cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub a b
-      = (do let s ← a + cpoly.field.P; let d ← s - b; let r ← d % cpoly.field.P;
-            Result.ok r) := by
+      = (if a ≥ b then (do let d ← a - b; Result.ok d)
+         else (do let s ← a + cpoly.field.P; let d ← s - b; Result.ok d)) := by
   simp [cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub]
 
 example (a b : cpoly.field.Fp) :
@@ -542,10 +550,20 @@ example (a : cpoly.field.Fp) (b : cpoly.field.Ext4) :
             Result.ok { c0 := f, c1 := f1, c2 := f2, c3 := f3 }) := by
   simp [cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul]
 
--- `W` is the extension modulus's constant, `Y^4 - W`, and it arrives as a value
--- rather than a parameter -- which is what makes the multiplication below a
--- closed-form 19 `Fp` multiplies.
-example : cpoly.field.W = params.EXT_W := by simp [cpoly.field.W, params.EXT_W]
+-- `W`, the extension modulus's constant in `Y^4 - W`, **used to be pinned here**
+-- against this crate's own `params.EXT_W`. The 2026-09-16 cpoly bump removed it
+-- from the model: the new `Ext4::mul` folds the `Y^4 = 2` wrap into
+-- `add_double_product` instead of multiplying by a `W` constant, and the only
+-- upstream reader of `W` that remains is `mul_by_w`, which this crate does not
+-- reach -- so the whitelist never translates it (NOTES § "The model contains
+-- what the crate *reaches*").
+--
+-- The claim has not been dropped, it has moved. `params.EXT_W = 2#u64` is still
+-- asserted in § 1 above, and the `2` on the cpoly side is now carried by
+-- `add_double_product_spec`'s postcondition (`wideK acc + 2 * toK a * toK b`),
+-- which is audited in § 4. What is genuinely lost is the *equality of the two
+-- constants as constants*; what replaces it is that the only arithmetic `W` ever
+-- justified is the doubling, and that doubling is proved.
 
 -- The multiplication's *body* is deliberately not transcribed here, unlike the
 -- four `Fp` operators: it is 19 `Fp` multiplies and 13 adds, and copying it into
@@ -1088,6 +1106,24 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Field.fp_neg_spec
 #print axioms HachiEquiv.Field.fp_new_spec
 #print axioms HachiEquiv.Field.toK_inj_of_Red
+-- The two-word accumulator layer, new with the 2026-09-16 cpoly bump. These are
+-- what let `Ext4::mul` defer its reductions: sixteen unreduced products into
+-- four `(low, high)` pairs, then one `reduce_wide` per output coefficient.
+-- `u64_size_toK` is the single arithmetic fact underneath (`2^64 = 9801 mod q`,
+-- because `q = 2^32 - 99`), and `add_double_product_spec` is where the extension
+-- constant `W = 2` now lives, the `cpoly.field.W` constant having left the model
+-- entirely (see § 2).
+--
+-- Transcribed from AeneasCompPoly's own `cpoly/lean/Field.lean` at `d7e26bb`
+-- rather than imported: that package is on Lean/Mathlib v4.32.0 and this one is
+-- on v4.33.1, and one Lake build holds one toolchain. So these are *our* proofs
+-- of upstream's code, audited here like everything else.
+#print axioms HachiEquiv.Field.red_mul_fits_u64
+#print axioms HachiEquiv.Field.u64_size_toK
+#print axioms HachiEquiv.Field.overflowing_add_toK
+#print axioms HachiEquiv.Field.add_product_spec
+#print axioms HachiEquiv.Field.add_double_product_spec
+#print axioms HachiEquiv.Field.reduce_wide_spec
 
 -- The ring layer, at the coefficient level (`lean/Ring.lean`): each operation
 -- total, length-preserving, and coefficientwise equal to `ZMod q` arithmetic.
