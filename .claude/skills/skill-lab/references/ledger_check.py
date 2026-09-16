@@ -60,7 +60,7 @@ POSITIONAL_RE = re.compile(
 # here when its promotion (2a0168f) reached the bench layer, and `ringswitch`
 # when Stage 3 target 1 onboarded `rho_digits` into a module of its own, and
 # `quadeval` when target 2 onboarded the QuadEval fold.
-MODULES = {"params", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
+MODULES = {"params", "ntt", "ring", "linalg", "gadget", "commit", "evalsplit", "ringswitch",
            "quadeval", "endpiece", "zerocheck", "sumcheck", "chain"}
 
 # `accepted-surface` added 2026-09-16 (first row: candidate P, `sumcheck::poly_mul`).

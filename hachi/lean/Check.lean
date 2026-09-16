@@ -1100,11 +1100,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Ring.neg_spec
 #print axioms HachiEquiv.Ring.scalar_mul_spec
 #print axioms HachiEquiv.Ring.mul_spec
--- Candidate Q (Stage 6 I4, route R2): `Rq::mul` with the reduction delayed. The
--- headline above is byte-identical to the schoolbook's; what is new is that the
--- accumulators are naturals, so the audit covers the ceiling that makes the
--- delayed reduction sound (`accBound`: `N · (q−1)² < 2^74` against `u128`) and
--- the cast bridge that makes reducing once equal reducing per term.
+-- `Rq::mul` is an auxiliary-prime negacyclic transform with CRT reconstruction
+-- (`src/ntt.rs`), and the headline above is the schoolbook convolution's
+-- statement verbatim -- which is the whole point of the `Aux*` layer. What the
+-- audit has to cover is therefore the *chain*, not one loop: the `ℕ`
+-- antidiagonals and their cast bridge (unchanged, and still what
+-- `negConv_eq_sums` closes), the three extraction loops, and the two lemmas
+-- that identify the copied words' antidiagonals with the operands'. `accBound`
+-- is no longer `mul`'s -- its accumulation happens in `ZMod p` one layer down --
+-- but `LiftProver.long_mul` still uses it, so it stays audited here.
 #print axioms HachiEquiv.Ring.accBound
 #print axioms HachiEquiv.Ring.wordN_lt
 #print axioms HachiEquiv.Ring.posSum_le
@@ -1112,8 +1116,11 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Ring.posSum_cast
 #print axioms HachiEquiv.Ring.negSum_cast
 #print axioms HachiEquiv.Ring.negConv_eq_sums
-#print axioms HachiEquiv.Ring.mul_loop0_loop0_spec
 #print axioms HachiEquiv.Ring.mul_loop0_spec
+#print axioms HachiEquiv.Ring.mul_loop1_spec
+#print axioms HachiEquiv.Ring.mul_loop2_spec
+#print axioms HachiEquiv.Ring.posW_eq_posSum
+#print axioms HachiEquiv.Ring.negW_eq_negSum
 
 -- Construction and observation: how an element is built, read and compared.
 -- `equals` and `is_zero` are `↔`, so the rejection direction is audited too.

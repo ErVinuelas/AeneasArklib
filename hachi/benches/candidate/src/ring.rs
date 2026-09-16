@@ -34,11 +34,17 @@
 //! see a Rust privacy boundary, so the invariant has to be said out loud there
 //! even though nothing outside this module can break it.
 //!
-//! # What is deliberately not here
+//! # Where the product went
 //!
-//! No NTT. The product below is the schoolbook `O(N²)` convolution, which is
-//! what the specification's `mul` is; an NTT is a later, bench-driven
-//! optimization and carries an equivalence obligation of its own.
+//! [`Rq::mul`] is no longer the schoolbook `O(N²)` convolution. It delegates to
+//! [`crate::ntt`], an auxiliary-prime negacyclic number-theoretic transform
+//! with CRT reconstruction, and what comes back is the *same integer
+//! convolution* the schoolbook loop computed -- reduced mod `q` once per
+//! coefficient, exactly as before. `ntt`'s module header says why the transform
+//! cannot happen in `Z_q` and what makes the reconstruction exact.
+//!
+//! The specification did not move with the implementation: `Ring.mul_spec` and
+//! `RqBridge.mul_spec` are the statements they were.
 
 use alloc::vec::Vec;
 use cpoly::Fp;
@@ -311,65 +317,52 @@ impl Rq {
     ///
     /// Mirrors ArkLib's `Mul (Rq Φ)` instance.
     ///
-    /// Schoolbook: for each pair `(i, j)` the term `aᵢbⱼ` lands in slot `i + j`,
-    /// and when `i + j ≥ N` it lands in slot `i + j - N` with a *minus* sign,
-    /// because `X^N ≡ -1`. That sign is the whole content of the reduction the
-    /// spec performs with `modByMonic`; folding it in here is what keeps the
-    /// output already reduced, with no second pass.
+    /// The mathematics is unchanged from the schoolbook convolution this
+    /// replaced: term `aᵢbⱼ` belongs to slot `i + j` with a `+` and to slot
+    /// `i + j − N` with a `−`, because `X^N ≡ −1`. What changed is how the `N²`
+    /// products are computed. [`crate::ntt`] computes the same integer
+    /// coefficients in `O(N log N)` through three auxiliary prime fields and a
+    /// CRT reconstruction, and its module header carries the whole argument:
+    /// why `Z_q` has no usable root of unity, why `BOUND = N·q²` is the right
+    /// offset, and why the reconstruction is exact rather than merely modular.
     ///
-    /// Delayed reduction (Stage 6 candidate Q; opt:
-    /// `HachiEquiv.Opt.Rq.mul.opt`, `lean/Opt.lean`). The frozen translation
-    /// reduced modulo `q` on *every* one of the `N²` products and again on
-    /// every accumulation, because each `Fp` operation reduces: cpoly's
-    /// `Mul for Fp` is `(a.0 * b.0) % P`. This walks the output coefficient
-    /// instead of the input pair, so slot `k`'s two antidiagonals are summed in
-    /// `u128` **without** reducing and the reduction is paid once per slot:
-    /// `N²` reductions become `2N`.
+    /// Three loops, and each is a plain pass:
     ///
-    /// The sign rule is unchanged, only re-indexed. Term `aᵢbⱼ` lands in slot
-    /// `k` with a `+` when `i + j = k`, i.e. `j = k − i`, which needs `i ≤ k`;
-    /// and in slot `k` with a `−` when `i + j = N + k`, i.e. `j = N + k − i`,
-    /// which needs `i > k` (and then `j` lies in `[k+1, N-1]`, so it is always
-    /// in range). Those two cases are exactly the `if i <= k` below.
+    /// * read both operands' canonical words (the `Red` invariant is what makes
+    ///   `to_u64` the value and not merely a representative);
+    /// * call [`crate::ntt::negconv_mod_q`], which returns coefficient `k` of
+    ///   the product already reduced mod `q`;
+    /// * wrap each word back up as an `Fp`.
     ///
-    /// **The bound, which is what makes this sound**: every word this reads is
-    /// a canonical representative below `q` (the `Red` invariant), so a term is
-    /// at most `(q−1)² < 2^64`, and a slot accumulates `N` of them --
-    /// `1024 · (q−1)² < 2^74`, with 54 bits of headroom in the `u128`. A `u64`
-    /// accumulator would **not** do: one term already fills it.
+    /// There is no correction term and no second reduction pass: `ntt`'s CRT
+    /// offset is a multiple of `q`, so `negconv_mod_q` hands back the
+    /// coefficient itself. Every word it returns is below `q`, which is what
+    /// makes `Fp::new` the identity on the representation -- and that is
+    /// `mul_spec`'s obligation, not an assumption.
     ///
-    /// `k + n` is at most `2N − 1 = 2047`, so no index arithmetic overflows.
-    // clippy wants `u64::try_from(...)` for the two narrowing casts. It is wrong
-    // here in the way `aeneas-idiomatic-rust` describes: `pos % q` and `neg % q`
-    // are below `q < 2^32` by construction, so both casts are exact, while
-    // `try_from().unwrap()` would add a panic branch the extraction has to model
-    // and a `Result` the spec would have to discharge -- for a bound
-    // `mul_spec`'s own proof establishes. The narrowing cast itself is a
-    // measured-supported construct (`aeneas-extract`'s ceiling table).
-    #[allow(clippy::cast_possible_truncation)]
+    /// Pre-sized (Stage 6 candidate D2): `Vec::with_capacity` is erased by the
+    /// extraction (`alloc.vec.Vec.with_capacity T _ = Vec.new T`), so the model
+    /// and its spec are those of the push loop; the capacity spares the ten
+    /// reallocations a 1024-word push loop otherwise pays.
     pub fn mul(&self, rhs: &Rq) -> Rq {
         let n: usize = params::RING_DEGREE;
-        let q: u128 = params::Q as u128;
+        let mut aw: Vec<u64> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            aw.push(self.0[i].to_u64());
+            i += 1;
+        }
+        let mut bw: Vec<u64> = Vec::with_capacity(n);
+        let mut j: usize = 0;
+        while j < n {
+            bw.push(rhs.0[j].to_u64());
+            j += 1;
+        }
+        let cw: Vec<u64> = crate::ntt::negconv_mod_q(&aw, &bw);
         let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut k: usize = 0;
         while k < n {
-            let mut pos: u128 = 0;
-            let mut neg: u128 = 0;
-            let mut i: usize = 0;
-            while i < n {
-                let ai: u128 = self.0[i].to_u64() as u128;
-                if i <= k {
-                    let bj: u128 = rhs.0[k - i].to_u64() as u128;
-                    pos = pos + ai * bj;
-                } else {
-                    let bj: u128 = rhs.0[k + n - i].to_u64() as u128;
-                    neg = neg + ai * bj;
-                }
-                i += 1;
-            }
-            let p: Fp = Fp::new((pos % q) as u64);
-            let m: Fp = Fp::new((neg % q) as u64);
-            out.push(p - m);
+            out.push(Fp::new(cw[k]));
             k += 1;
         }
         Rq(out)

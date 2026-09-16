@@ -26,6 +26,8 @@ extern crate alloc;
 
 pub mod params;
 
+pub mod ntt;
+
 pub mod ring;
 
 pub mod linalg;

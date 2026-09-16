@@ -218,12 +218,19 @@ own cost had already fallen 10x. ~1.3 s per iteration is the same order as
 `evalsplit/lagrange_basis/6` (550 ms), which *is* a live row, so this item is
 very likely benchable now and the exclusion very likely removable.
 
+**Re-based a third time, 2026-09-16, by the NTT champion.** `ring::mul` is now
+an auxiliary-prime negacyclic transform with CRT reconstruction (`src/ntt.rs`),
+so the row is genuinely sub-quadratic and not merely cheaper per term. See
+`logs/ntt-execution.md` for the measurement and NOTES.md § "The NTT is possible
+after all -- in three other fields" for why the note that said it could not be
+done was about transforms *in the coefficient field* only.
+
 **Not removed here.** Turning this into a row is the un-ignore ceremony that
 `PLAN_STAGE6.md` § I4 assigns its own slot: build the case, review it
 adversarially before trusting a number, re-freeze, and walk the 27 `#[ignore]`d
-scale tests in the same pass. This entry records that the condition is met and
-the ceremony is owed; it does not pre-empt it. The NTT note still stands for
-`ring::mul` itself (NOTES.md § "The parameters forbid a radix-2 NTT")."""
+scale tests in the same pass. This entry records that the condition is met --
+now twice over, in arithmetic and in complexity class -- and that the ceremony
+is owed; it does not pre-empt it."""
 
 "sumcheck::nested_to_round_statement" = """
 `zc_target_alpha` plus a move: the range target is the literal `0`, the

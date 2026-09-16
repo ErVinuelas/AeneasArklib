@@ -1372,6 +1372,67 @@ the parameters, and the next person to read "an NTT would replace this" deserves
 to meet it in the same file as the parameter choices. A candidate proposing a
 transform has to name its root of unity, and no such root exists below order 4.
 
+## The NTT is possible after all -- in three other fields
+
+**Superseding the section above, 2026-09-16.** Everything it says is true and
+none of it is retracted: `v₂(q − 1) = 2`, `v₂(q⁴ − 1) = 4`, there is no
+power-of-two root of unity above order 4 anywhere near this modulus, and `q` is
+still not ours to change. What the section got wrong is the conclusion it drew
+from that -- "the complexity-class win on the hot path is **not** a transform"
+-- because it only ever considered transforms *in the coefficient field*.
+
+The product does not have to be computed in `Z_q`. Coefficient `k` of the
+product of two `Rq` elements is, before any reduction, an **integer**: a sum of
+at most `N` products of representatives below `q`, so at most `N·(q−1)² < 2^74`.
+An integer convolution can be computed in any ring large enough to determine it,
+and the CRT makes "large enough" a choice of primes rather than a property of
+`q`. So the transform runs at three auxiliary primes
+
+```text
+p1 = 469762049   = 7 · 2^26 + 1
+p2 = 998244353   = 7 · 17 · 2^23 + 1
+p3 = 1004535809  = 479 · 2^21 + 1
+```
+
+each of which *does* have a root of exact order `2N = 2048`, and Garner
+reconstruction recovers the integer coefficient exactly, because
+`p1·p2·p3 ≈ 2^88.6` dwarfs the bound. Only then is anything reduced mod `q`.
+`hachi/src/ntt.rs` is that construction and `hachi/lean/Aux*.lean` is its
+equivalence proof; `logs/ntt-execution.md` is the full execution record,
+including what was measured and what was tried and rejected.
+
+Three things are worth keeping from the attempt, because each contradicts
+something a reader would reasonably assume:
+
+1. **The textbook route is slower than the schoolbook loop it replaces.** A
+   *cyclic* transform of length `2N` with zero padding -- the obvious way to get
+   an ordinary convolution out of a cyclic transform, and the one the plan
+   specified -- measured **0.79×** the schoolbook product. It does 2.2× the
+   transform work of the negacyclic form, on buffers twice the size. What clears
+   the gate is the negacyclic transform at length `N`, reached by the twist
+   `X ↦ ψ·Y`, which costs two extra proof obligations and half the arithmetic.
+2. **The signed coefficient is handled by an offset, not by a sign test.** The
+   negacyclic coefficient `posSum − negSum` is signed, and the CRT reconstructs
+   a residue class. Adding `BOUND = N·q²` before reconstruction makes it a
+   natural number in `[0, 2·BOUND]`, and `2·BOUND < P` keeps the reconstruction
+   exact. `BOUND` is `N·q²` rather than the tighter `N·(q−1)²` for two proof
+   reasons: it is the ceiling `Ring.lean`'s `posSum_le`/`negSum_le` *already*
+   prove, so no sharper bound was needed; and `q ∣ N·q²`, so the offset is
+   invisible mod `q` and `Rq::mul` needs no correction term at all.
+3. **Doing less arithmetic made it slower, twice.** A runtime `t % len` in the
+   stage index was 70 % of a stage's cost (a hardware division); removing it was
+   free. But the natural butterfly -- writing both outputs in one iteration,
+   which does strictly fewer multiplications and half the loads -- measured
+   **17 % slower** than two sequential half-block loops, because the split form
+   writes its output buffer in one increasing stream. The code therefore
+   computes one twiddle product twice on purpose, and `ntt.rs` says so where a
+   reader would otherwise "fix" it.
+
+The exclusions whose removal condition was "until a sub-quadratic `ring::mul`
+lands" (`benches/exclusions.toml`) now have their condition met on the
+arithmetic as well as on the note above. They are **not** removed here: turning
+one into a row is the un-ignore ceremony that file assigns its own slot.
+
 ---
 
 ## `RqBridge.lean` is promoted: proved now also means checked
