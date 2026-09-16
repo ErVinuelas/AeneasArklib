@@ -181,9 +181,11 @@ const LIFT_COMMIT_Z: usize = 4;
 /// reduction that [`LIFT_MESSAGE_Z`] does not.
 const LIFT_COMMIT_RHO_ROWS: usize = 1;
 
-/// The honest lift prover's `R^lin` width: **REDUCED**, from `RLIN_COLS = 57 344`.
+/// The honest lift prover's `R^lin` width: **REDUCED**, from `RLIN_COLS = 57 344`,
+/// and **block shaped**, because a dense one measures an input the protocol
+/// cannot produce.
 ///
-/// W1 again, in its unreduced form. `c_row_sum` performs `μ` products of two
+/// W1 in its unreduced form. `c_row_sum` performs `μ` products of two
 /// `RING_DEGREE`-coefficient polynomials **without** the negacyclic fold --
 /// `2^20` field multiplications each, the same count as `ring::mul` -- so at
 /// the pin one row is `57 344 × ~1.5 ms ≈ 86 s` and `honest_lift_witness` is
@@ -191,32 +193,40 @@ const LIFT_COMMIT_RHO_ROWS: usize = 1;
 /// champion whose kernel also serves the unreduced product (the `long_mul`
 /// helper is `ring::mul` minus the fold). What survives the reduction is the
 /// composition the row exists to price: `μ` long products, one coefficientwise
-/// accumulation, one `O(N)` division per row. Rows: one, so the
-/// `honest_lift_witness` row is one `c_quotient` plus the witness assembly.
-const LIFT_PROVER_COLS: usize = 4;
-
-/// The width at which the lift rows can show their **block** shape, for the
-/// `*_blocks` cases below.
+/// accumulation, one `O(N)` division per row.
 ///
-/// `LIFT_PROVER_COLS = 4` above is four *dense* columns, and at four columns
-/// there is no room for structure. The real `M` (`quadeval::rlin_stmt`) is five
-/// rows of `cw + ct + cz` columns, `8192 + 8192 + 40 960 = 57 344` at the pin,
-/// and rows c1, c2 and c3 are **86% literal `Rq::zero()`** -- c1 is
-/// `[D | 0 | 0]`, so 8192 dense entries and 49 152 zeros.
+/// # Why the shape, and not just the width
+///
+/// `quadeval::rlin_stmt` never emits a dense `M`. It builds c1 as `[D | 0 | 0]`,
+/// c2 as `[0 | B | 0]` and c3 as `[Gᵀb | 0 | 0]`, and at the pin
+/// (`cw + ct + cz = 8192 + 8192 + 40 960 = 57 344`) rows c1, c2 and c3 are
+/// **86% literal `Rq::zero()`** -- the zeros are `Rq::zero()` pushes in
+/// `src/quadeval.rs`, not a property of some input distribution. A dense
+/// REDUCED statement therefore prices work the prover never does, and it is
+/// blind to any candidate that exploits the structure: there is nothing to
+/// skip, so such a candidate reads as a small loss.
 ///
 /// `28 = 4 · 7` keeps the pin's proportions exactly (`cw : ct : cz = 1 : 1 : 5`,
-/// so `4 : 4 : 20`) while keeping the dense part the same size as
-/// `LIFT_PROVER_COLS`: 4 dense entries and 24 zeros, 86% zeros as at the pin.
+/// so `4 : 4 : 20`) while keeping the dense part the size the previous dense
+/// rows used: 4 dense entries and 24 zeros, 86% zeros as at the pin.
 ///
-/// This exists because the dense cases cannot measure work that is *skipped*.
-/// `c_row_sum` currently calls `long_mul` on every entry -- `O(N²)` -- and then
-/// runs a `2N − 1`-wide accumulation and allocates a `2N − 1` vector, per
-/// column, **including for zero entries**. Against a dense random matrix a
-/// candidate that skips zeros has nothing to skip and only pays the test, so it
-/// reads as a small loss; the row would reject a real 7x. Added as *new* case
-/// ids rather than by redefining the dense ones, so the banked `vs genesis`
-/// history for those keeps its meaning.
-const LIFT_PROVER_COLS_BLOCKS: usize = 28;
+/// # What this replaced, and what that costs
+///
+/// The four-column dense cases `ringswitch/c_row_sum`, `c_quotient` and
+/// `honest_lift_witness` were **retired** for these (user decision,
+/// 2026-09-17). The ids changed rather than the old ones being silently
+/// redefined, so the re-baseline announces itself: those rows' `vs genesis`
+/// history stops here, and its last reading is the pre-bump sweep
+/// `logs/runs/full-20260916-preBump.json`
+/// (run `20260916T1817+0200-af4f447d`, `c_row_sum/4` and siblings).
+///
+/// The dense cases were **not wrong**, which is why this was a decision and not
+/// a bug fix: candidate R was accepted on exactly them at −43%, and correctly,
+/// because R sped up `long_mul` itself and that is structure-independent. They
+/// are the right instrument for structure-independent candidates and the wrong
+/// one for structure-exploiting ones, and the project chose one instrument over
+/// carrying both (NOTES 2026-09-17).
+const LIFT_PROVER_COLS: usize = 28;
 
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
@@ -464,14 +474,6 @@ macro_rules! define_cases {
                 )
             }
 
-            fn statement(seed: u64, rows: usize, cols: usize) -> hc::ringswitch::RlinStatement {
-                hc::ringswitch::RlinStatement::new(
-                    matrix_of(seed, rows, cols),
-                    vec_of(seed.wrapping_add(0x100), rows),
-                    hc::params::CHAIN_GAMMA,
-                )
-            }
-
             fn d_words(v: &Vec<cpoly::Fp>) -> u64 {
                 let n = v.len();
                 let mut acc = support::mix_len(0, n);
@@ -497,7 +499,7 @@ macro_rules! define_cases {
 
             /// A REDUCED statement with the **block** shape of `rlin_stmt`'s c1 row,
             /// `[D | 0 | 0]`: the first `cols / 7` entries dense, the rest
-            /// `Rq::zero()`. See [`LIFT_PROVER_COLS_BLOCKS`] for why the dense
+            /// `Rq::zero()`. See [`LIFT_PROVER_COLS`] for why the dense
             /// generator above cannot stand in for this.
             fn statement_blocks(seed: u64, cols: usize) -> hc::ringswitch::RlinStatement {
                 let cw = cols / 7;
@@ -534,6 +536,18 @@ macro_rules! define_cases {
                 )
             }
 
+            /// `honestLiftWitnessC` at one row against the block-shaped row:
+            /// one `c_quotient` plus copying `z` into the witness.
+            pub fn honest_lift_witness_blocks(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_blocks(0x8047_0000_0000_0140, cols);
+                let z = vec_of(0x8047_0000_0000_0150, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::honest_lift_witness(black_box(&s), black_box(&z)),
+                    d_witness,
+                )
+            }
+
             /// [`c_quotient`] against the block-shaped row.
             pub fn c_quotient_blocks(m: Mode<'_, '_>, cols: usize) -> u64 {
                 let s = statement_blocks(0x8047_0000_0000_0120, cols);
@@ -542,43 +556,6 @@ macro_rules! define_cases {
                     m,
                     || hc::ringswitch::c_quotient(black_box(&s), black_box(&z), black_box(0)),
                     |r| d_rq(&r.to_rq()),
-                )
-            }
-
-            /// `cRowSum` at one row of `LIFT_PROVER_COLS` columns: `μ` unreduced
-            /// `RING_DEGREE²` products plus a `2N − 1`-wide accumulation. W1
-            /// REDUCED; see `LIFT_PROVER_COLS`.
-            pub fn c_row_sum(m: Mode<'_, '_>, cols: usize) -> u64 {
-                let s = statement(0x8047_0000_0000_0080, 1, cols);
-                let z = vec_of(0x8047_0000_0000_0090, cols);
-                support::run(
-                    m,
-                    || hc::ringswitch::c_row_sum(black_box(&s), black_box(&z), black_box(0)),
-                    d_words,
-                )
-            }
-
-            /// `cQuotient` at one row: the row sum, the `yᵢ` subtraction and the
-            /// division by `X^N + 1`. W1 REDUCED; see `LIFT_PROVER_COLS`.
-            pub fn c_quotient(m: Mode<'_, '_>, cols: usize) -> u64 {
-                let s = statement(0x8047_0000_0000_00A0, 1, cols);
-                let z = vec_of(0x8047_0000_0000_00B0, cols);
-                support::run(
-                    m,
-                    || hc::ringswitch::c_quotient(black_box(&s), black_box(&z), black_box(0)),
-                    |r| d_rq(&r.to_rq()),
-                )
-            }
-
-            /// `honestLiftWitnessC` at one row: one `c_quotient` plus copying `z`
-            /// into the witness. W1 REDUCED; see `LIFT_PROVER_COLS`.
-            pub fn honest_lift_witness(m: Mode<'_, '_>, cols: usize) -> u64 {
-                let s = statement(0x8047_0000_0000_00C0, 1, cols);
-                let z = vec_of(0x8047_0000_0000_00D0, cols);
-                support::run(
-                    m,
-                    || hc::ringswitch::honest_lift_witness(black_box(&s), black_box(&z)),
-                    d_witness,
                 )
             }
 
@@ -675,17 +652,14 @@ fn ringswitch_benches(c: &mut Criterion) {
 
     // The honest lift prover, W1 REDUCED at one row of `LIFT_PROVER_COLS`
     // columns; see that constant for the arithmetic and the removal condition.
+    // The lift rows, at the block shape `rlin_stmt` actually emits; the dense
+    // four-column rows these replaced are described in `LIFT_PROVER_COLS`.
     // @covers ringswitch::c_row_sum
-    bench_case!(c, "ringswitch/c_row_sum", c_row_sum, [LIFT_PROVER_COLS]);
+    bench_case!(c, "ringswitch/c_row_sum_blocks", c_row_sum_blocks, [LIFT_PROVER_COLS]);
     // @covers ringswitch::c_quotient
-    bench_case!(c, "ringswitch/c_quotient", c_quotient, [LIFT_PROVER_COLS]);
-    // The same two items at the block shape; see `LIFT_PROVER_COLS_BLOCKS`.
-    // @covers ringswitch::c_row_sum
-    bench_case!(c, "ringswitch/c_row_sum_blocks", c_row_sum_blocks, [LIFT_PROVER_COLS_BLOCKS]);
-    // @covers ringswitch::c_quotient
-    bench_case!(c, "ringswitch/c_quotient_blocks", c_quotient_blocks, [LIFT_PROVER_COLS_BLOCKS]);
+    bench_case!(c, "ringswitch/c_quotient_blocks", c_quotient_blocks, [LIFT_PROVER_COLS]);
     // @covers ringswitch::honest_lift_witness
-    bench_case!(c, "ringswitch/honest_lift_witness", honest_lift_witness, [LIFT_PROVER_COLS]);
+    bench_case!(c, "ringswitch/honest_lift_witness_blocks", honest_lift_witness_blocks, [LIFT_PROVER_COLS]);
 
     // Both at the **real** ring degree: the mixed `Fp`-coefficient/`Ext4`-point
     // evaluation the zero-check's α side is built on. Two rows for two

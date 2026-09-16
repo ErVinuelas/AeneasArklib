@@ -7277,3 +7277,45 @@ Consequences taken: no further benchmark runs from this session tonight, since I
 cannot verify machine exclusivity without inspecting processes, and process
 inspection is now (rightly) refused to me. The bench-case work below is
 separable and lands on its own; candidate T1a1 stays unaccepted and unmeasured.
+
+## The lift rows now measure the shape the prover actually builds (2026-09-17)
+
+**User decision, 2026-09-17**, taken on the question raised in the previous
+entry: the dense four-column lift cases are **replaced** by block-shaped ones,
+rather than the accept rule gaining a third exception.
+
+`quadeval::rlin_stmt` never emits a dense `M`. It builds c1 as `[D | 0 | 0]`,
+c2 as `[0 | B | 0]`, c3 as `[Gᵀb | 0 | 0]`, and at the pin
+(`cw + ct + cz = 8192 + 8192 + 40 960 = 57 344`) rows c1–c3 are **86% literal
+`Rq::zero()`** — those are `Rq::zero()` pushes in `src/quadeval.rs:862`+, not a
+claim about an input distribution. The bench built its REDUCED statement with
+`matrix_of`, dense random, four columns. So the rows priced work the prover
+never does.
+
+Retired: `ringswitch/c_row_sum`, `ringswitch/c_quotient`,
+`ringswitch/honest_lift_witness` (4 dense columns).
+In their place: `…/c_row_sum_blocks`, `…/c_quotient_blocks`,
+`…/honest_lift_witness_blocks` at `LIFT_PROVER_COLS = 28` — the pin's own
+`cw : ct : cz = 1 : 1 : 5` proportions, so 4 dense entries and 24 zeros, 86%
+zeros as at the pin, with the dense part the same size the old rows used.
+
+**The ids changed on purpose.** Silently redefining `/4` would have left every
+future reader comparing two different computations under one name. The cost is
+stated rather than hidden: those rows' `vs genesis` history **stops here**, and
+its last reading is the pre-bump sweep `logs/runs/full-20260916-preBump.json`
+(run `20260916T1817+0200-af4f447d`).
+
+**The dense cases were not wrong, and that is why this needed a decision.**
+Candidate R was accepted on exactly those rows at −43%, and correctly so: R sped
+up `long_mul` itself, which is structure-independent, and a dense matrix is a
+perfectly good instrument for that. They are the right instrument for
+structure-independent candidates and the wrong one for structure-exploiting
+ones. Carrying both would have meant the accept rule ("every measured row of the
+target reads `faster`") permanently blocking every structure-exploiting
+candidate, since the dense row can never improve. The project chose one
+instrument over a rule exception — and notably, the alternative would have been
+the **first** "no `slower`" relaxation granted to a candidate whose deliverable
+*is* speed; the two existing ones (`accepted-wall`, `accepted-surface`) are both
+keyed to deliverables that are not.
+
+This unblocks T1a1, T1a2 and T1a3, all three of which are structure-conditional.
