@@ -1,0 +1,37 @@
+# the_honest_chain_profile — post-T2a, started 2026-09-16T16:48:12+02:00 on 28a043f clean, 1 block
+# prior runs: ...-20260914.log (85e7917, 2179.0s), ...-20260916.log (3ed053e, 1249.5s), ...-20260916-postR.log (6533d1d, 943.0s)
+# since the postR run: candidate T2a (369dcae) on zerocheck::range_product -- the innermost kernel of the rounds phase
+# NOTE: the `M zeta = y` phase is a TEST assertion (chain_semantics.rs:481-484),
+# not protocol work -- protocol totals exclude it (NOTES 2026-09-16 correction).
+# This is preflight gate 1 of PLAN_STAGE6_CANDIDATES.md, re-run to re-price T2b.
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 0.93s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+[     6.2s] committed 1 block(s)
+[    11.6s] statement built
+[    12.3s] honest_compute_v done
+[    19.8s] honest_compute_resp + stack done
+[    21.4s] R^lin statement assembled: 5 x 40976
+test the_honest_chain_profile has been running for over 60 seconds
+[   173.4s] M zeta = y holds
+[   323.5s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 426.5ms
+[profile] lift_commit: 30.5s
+[profile] c_w_table_mle at 2^26: 840.8ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 14.5s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 382.5s
+[profile] honest_compute_y: 4.5s
+[profile] verifier: rlin_stmt + statement thread: 442.3ms
+[profile] verifier: round_verify_loop (26 rounds): 71.4µs
+[profile] verifier: final_check = true: 8.9s
+[profile] verifier: end_piece_check = true: 41.3s
+[profile] chain_verify (whole, as the control) = true: 54.9s
+[   864.1s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 864.40s
+
+# exit 0 at 2026-09-16T17:02:38+02:00

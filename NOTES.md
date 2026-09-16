@@ -6771,3 +6771,111 @@ the two.
 
 Rule 12 headroom left on the table, deliberately: the twelve `Fp::new` calls each
 pay a redundant `% P` on a table word that is already reduced.
+
+## The post-T2a profile: rounds down 35.7%, and the "offset" is not one number (2026-09-16)
+
+Preflight gate 1 re-run on `28a043f`, 1 block, 864.1 s total
+(`logs/runs/honest-chain-profile-20260916-postT2a.log`). Since the post-R run
+(`6533d1d`, 943.0 s) the only change is candidate T2a, on
+`zerocheck::range_product`.
+
+**The machine offset, measured from the phases T2a cannot touch** — and this is
+the finding that matters more than the headline:
+
+| untouched phase | post-R | post-T2a | Δ |
+|---|---|---|---|
+| setup (commit → R^lin) | 19.1 | 21.4 | +12.0% |
+| `M ζ = y` (test assertion) | 134.4 | 152.0 | +13.1% |
+| lifted witness | 133.9 | 150.1 | +12.1% |
+| `lift_commit` | 27.0 | 30.5 | +13.0% |
+| `alpha_public_table` | 12.6 | 14.5 | +15.1% |
+| `honest_compute_y` | 4.1 | 4.5 | +9.8% |
+| `final_check` | 7.7 | 8.9 | +15.6% |
+| **`end_piece_check`** | 32.1 | 41.3 | **+28.7%** |
+| **`chain_verify`** (contains it) | 42.3 | 54.9 | **+29.8%** |
+
+**The offset drifts within a run.** Seven phases cluster at +10 to +16% (median
++13.1%); `end_piece_check` and the `chain_verify` that contains it sit at +29%.
+Those two are the *last* things the run does, at minute 14 of sustained load, so
+the natural reading is thermal or page-cache state rather than anything about the
+code — but the honest statement is that a single scalar cannot recenter this
+profile, and every previous cross-run comparison here (including the "8–12%
+coherent offset" recorded after R) assumed it could.
+
+So the recentering below uses the **median of the seven middle-of-run phases**,
++13.1%, which are the ones the rounds sit among. That is a defensible choice, not
+a correction.
+
+**Rounds**: `526.2 → 382.5 s` raw = **−27.3%**; recentered **−35.7%** (to 338.2 s).
+
+Less than the −43/−44% the five caller bench rows read, and that is expected
+rather than a discrepancy: `honest_round_messages` also contains
+`round_poly_alpha`, `eq_suffix_table`, the interpolation and its own two tables,
+none of which T2a touches. The bench rows measure the kernel's callers; this
+measures the phase those callers live in.
+
+**Protocol total (excluding `M ζ = y`, a test assertion):** `808.6 → 712.1 s`
+raw = −11.9%; recentered 629.6 s = −22.1%. Cumulative against the 1 882.2 s
+genesis baseline that is **2.64× raw / 2.99× recentered** — read as ~2.6–3.0×,
+and note the same caveat the 2.33× figure carried: compounding recentered numbers
+across runs is an estimate, not a within-run measurement, and nothing in the
+ledger does it.
+
+| post-T2a protocol share (recentered) | s | % |
+|---|---|---|
+| **rounds (26)** | 338.2 | **53.7%** |
+| lifted witness | 132.7 | 21.1 |
+| `chain_verify` | 48.5 | 7.7 |
+| `end_piece_check` | 36.5 | 5.8 |
+| `lift_commit` | 27.0 | 4.3 |
+| setup | 18.9 | 3.0 |
+| `alpha_public_table` | 12.8 | 2.0 |
+
+### Consequence: the T2-before-T1 decision rested on numbers T2a has now spent
+
+The order was changed to T2 before T1 on the post-R reading of T2 ≈ 175 s /
+21.7% against T1 ≈ 127 s / 15.7%. T2a has now *taken* most of T2's headroom.
+What is left of the card:
+
+* **T2b** (loop interchange + incremental node fold) removes the fold's two full
+  `Ext4` multiplies — 38 of ~257 base multiplies per node per pair, **~14.8% of
+  round arithmetic** ≈ 50 s ≈ **8% of protocol** — plus whatever the interchange
+  buys on memory traffic (brief 5 priced S5b at 5.4%). Its proof is a loop-nest
+  restatement with a 33-wide vector accumulator, times the variants.
+* **T1** still has the whole lifted-witness phase: 132.7 s / **21.1%** of
+  protocol, down to the card's projected 15–20 s ≈ **18% of protocol** — and it
+  keeps the non-time value T2 never had (removes wall W2, unblocks I6b and I7).
+
+So on measured value T1 is now roughly **twice** T2b, and it was already ahead on
+everything else. **Left as written pending the user's decision**, exactly as the
+pre-R entry was: the grounds for the T2-first decision were the numbers, and the
+numbers moved because T2a landed — but reordering the user's own decision is not
+mine to make.
+
+Cheap pickup available either way: **candidate T2c** (scratchpad draft).
+`round_value_zero`'s fold computes `one_minus * lo + node * hi` as two *full*
+`Ext4 × Ext4` multiplies, yet `node = ofBase(t)` and
+`one_minus = Ext4::ONE − node = ofBase(1 − t)` — both scalars are in `ofBase`'s
+image, so the mixed `Mul<Ext4> for Fp` impl applies: 2 × 4 base multiplies
+instead of 2 × 19. That is ~30 of the 38 T2b would remove, **~11.7% of round
+arithmetic ≈ 6% of protocol**, with no new constructs, no new specs, and one
+rewrite of proof content (`ofBase` is a ring homomorphism). T2b subsumes it but
+needs the interchange first; T2c does not.
+
+### Two owed items paid here
+
+* **The `M ζ = y` assertion is now gated.** It lives in `pin_instance`, the setup
+  helper *both* chain tests share, so it could not simply be deleted; it is now
+  behind a `check_relout` parameter — `true` from `the_honest_chain_verifies`,
+  where a semantics check belongs, `false` from the profile. It is a dense `Rq`
+  matrix–vector multiply at 5 × 40 976, ~205 000 `Rq::mul` calls, and it costs
+  ~150 s, a sixth of a profile run spent on work the protocol never does.
+* **The profile has a control.** `profile_control()` times a fixed
+  allocate-and-fill in the **frozen** `hachi-genesis` crate — immune to
+  candidates by construction, since `check-genesis` pins that copy to git — at
+  the start and again at the end. Same choice, and for the same reasons, as
+  `benches/support/mod.rs`'s `PolyVec::zeros(CONTROL_N)`: fixed-shape, allocating,
+  on no hot path. Sized from measurement, not guess: `_control/*/8192` reads
+  33.4 ms, so 50 reps ≈ 1.7 s, ~3.3 s per run for both readings. Two readings
+  rather than one precisely because of the +29% tail above — the offset drifts
+  within a run, and one reading cannot see that.

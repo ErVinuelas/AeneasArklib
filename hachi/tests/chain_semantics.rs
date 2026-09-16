@@ -404,9 +404,18 @@ struct PinInstance {
 }
 
 /// Build the pin-shaped honest instance at `blocks` message blocks; asserts the
-/// two intermediate facts (`M ζ = y`, cube coverage) and prints stage times.
+/// cube coverage, optionally asserts `M ζ = y`, and prints stage times.
+///
+/// `check_relout` gates the `M ζ = y` assertion, and only the profile passes
+/// `false`. That assertion is a dense `Rq` matrix–vector multiply at the
+/// assembled shape — 5 × 40 976 entries, so ~205 000 `Rq::mul` calls — and it
+/// costs ~150 s at the pin, which is a sixth of a profile run spent on work the
+/// protocol never does. It is a *semantics* check, it belongs to
+/// `the_honest_chain_verifies`, and that test still runs it; the profile's job
+/// is to time protocol phases. Recorded as owed in NOTES 2026-09-16
+/// ("Correction: 144 s of the \"chain\" profile is a test assertion").
 #[allow(clippy::too_many_lines)]
-fn pin_instance(blocks: usize, t0: &std::time::Instant) -> PinInstance {
+fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> PinInstance {
     let mut r = Lcg::new(0xC0A1_0050);
     let message_rows = hachi::params::MESSAGE_ROWS;
     let message_digits = hachi::params::GADGET_DIGITS;
@@ -478,11 +487,15 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant) -> PinInstance {
     );
 
     // relOut ⇒ rlin: the stacked honest response solves the assembled system
-    assert!(
-        rlin.m().mat_vec_mul(&zeta).equals(rlin.yvec()),
-        "the honest stacked response must solve the assembled R^lin system"
-    );
-    eprintln!("[{:>9.1?}] M zeta = y holds", t0.elapsed());
+    if check_relout {
+        assert!(
+            rlin.m().mat_vec_mul(&zeta).equals(rlin.yvec()),
+            "the honest stacked response must solve the assembled R^lin system"
+        );
+        eprintln!("[{:>9.1?}] M zeta = y holds", t0.elapsed());
+    } else {
+        eprintln!("[{:>9.1?}] M zeta = y SKIPPED (not protocol work)", t0.elapsed());
+    }
 
     // the honest lift: `w = (zeta, rho)` by synthetic division
     let w = hachi::ringswitch::honest_lift_witness(&rlin, &zeta);
@@ -539,7 +552,7 @@ fn the_honest_chain_verifies() {
     let inner_digits = hachi::params::GADGET_DIGITS;
     let z_digits = hachi::params::Z_DIGITS;
     let m0 = hachi::params::M_ZERO;
-    let inst = pin_instance(blocks, &t0);
+    let inst = pin_instance(blocks, &t0, true);
 
     // the honest prover
     let (v_open, t, msgs, y_prime) = chain_open(
@@ -592,6 +605,47 @@ fn the_honest_chain_verifies() {
     assert!(ok, "the honest chain must verify");
 }
 
+/// The control the profile did not have.
+///
+/// A fixed amount of work in the **frozen** `hachi-genesis` crate, timed at the
+/// start and again at the end of a profile run. It exists because every
+/// cross-run profile comparison so far has had to hand-wave a systematic offset:
+/// after candidate R -- which touched `long_mul` and nothing else -- every
+/// untouched phase moved coherently by 8-12%, and the same thing happened again
+/// after T2a (`lift_commit` 27.0 -> 30.5 s, `alpha_public_table` 12.6 -> 14.5 s).
+/// Without a control there is no way to tell that offset from a real change, so
+/// a phase that "moved 10%" and a machine that was 10% slower read identically.
+///
+/// `hachi_genesis::linalg::PolyVec::zeros` is the same choice
+/// `benches/support/mod.rs` makes and for its reasons: a fixed-shape
+/// allocate-and-fill at the [NOZ26] Fig. 9 block width, on no hot path, so it is
+/// representative of the allocating rows without being an optimization target.
+/// Taking it from the *genesis* crate is what makes it immune to candidates by
+/// construction -- `make check-genesis` pins that copy to git, so it cannot drift
+/// under a champion landing. (It is not immune to `Rq::zero` moving, which fills
+/// it; that failure is loud, as `ring/zero`.)
+///
+/// Two readings per run, and both are needed: the post-T2a profile showed the
+/// offset is **not one number** -- the phases around the middle of the run moved
+/// +10 to +16%, while `end_piece_check` and the `chain_verify` that contains it
+/// moved +29%, so it drifts *within* a run (thermal or page-cache state, at
+/// minute 14 of a sustained load). The spread between the two readings is that
+/// drift; their level against a previous run's is the machine's offset. Recenter
+/// phase deltas by the reading nearest them before believing anything.
+///
+/// Sizing is measured, not guessed: `_control/*/8192` reads **33.4 ms** per call
+/// (run `20260916T1530+0200-ad543615`), so 50 reps is ~1.7 s -- far above timer
+/// noise, and ~3.3 s added to a ~14 minute run for both readings.
+fn profile_control(reps: usize) -> std::time::Duration {
+    const CONTROL_N: usize = 8192; // = MESSAGE_ROWS * GADGET_DIGITS, as in benches/support
+    let t = std::time::Instant::now();
+    for _ in 0..reps {
+        let v = hachi_genesis::linalg::PolyVec::zeros(CONTROL_N);
+        std::hint::black_box(v.len());
+    }
+    t.elapsed()
+}
+
 /// **Where the honest prover's minutes go.** The same instance as
 /// [`the_honest_chain_verifies`], with `chain_open`'s composition replayed piece
 /// by piece and each piece timed: the lift commitment, the `2^m₀` witness table,
@@ -614,7 +668,9 @@ fn the_honest_chain_profile() {
     let inner_digits = hachi::params::GADGET_DIGITS;
     let z_digits = hachi::params::Z_DIGITS;
     let m0 = hachi::params::M_ZERO;
-    let inst = pin_instance(blocks, &t0);
+    let ctl_before = profile_control(50);
+    eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_before:.1?}");
+    let inst = pin_instance(blocks, &t0, false);
     let stmt = hachi::quadeval::to_quad_eval_statement(&inst.poly_stmt);
 
     let t1 = Instant::now();
@@ -691,7 +747,13 @@ fn the_honest_chain_profile() {
         &inst.tau1, &msgs, &inst.challenges, y_prime, &inst.w, CHAIN_GAMMA, blocks, message_rows,
         message_digits, inner_rows, inner_digits, z_digits,
     );
-    eprintln!("[profile] chain_verify (whole, as the control) = {ok}: {:.1?}", t11.elapsed());
+    eprintln!("[profile] chain_verify (whole) = {ok}: {:.1?}", t11.elapsed());
+    let ctl_after = profile_control(50);
+    eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_after:.1?}");
+    eprintln!(
+        "[profile] control spread within run: {:+.1}%  (recenter cross-run deltas by the level)",
+        100.0 * (ctl_after.as_secs_f64() / ctl_before.as_secs_f64() - 1.0)
+    );
     eprintln!("[{:>9.1?}] profile done", t0.elapsed());
     assert!(ok, "the honest chain must verify");
 }
