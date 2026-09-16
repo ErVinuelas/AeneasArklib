@@ -6638,3 +6638,65 @@ the profile's accounting, or make the test derive it from the lift's output
 instead of multiplying the dense matrix. Until then every phase percentage taken
 from `the_honest_chain_profile` must say whether it is over protocol or over the
 harness total.
+
+## The post-R profile, and the control the profile never had (2026-09-16)
+
+`logs/runs/honest-chain-profile-20260916-postR.log`, 1 block, `6533d1d`, the
+same shape as the two earlier profiles. **943.0 s** harness total,
+**808.6 s protocol** (the `M·ζ = y` assertion excluded, per the correction above).
+
+**Finding 1: the profile's run-to-run offset is systematic, coherent, and about
+10%.** Candidate R touched `long_mul` and nothing else. Every phase it did *not*
+touch came back faster by almost exactly the same margin:
+
+| unchanged phase | 09-16 | post-R | |
+|---|---|---|---|
+| rounds (26) | 599.0 s | 526.2 s | −12.2% |
+| `alpha_public_table` | 14.3 s | 12.6 s | −11.9% |
+| `final_check` | 8.7 s | 7.7 s | −11.5% |
+| `lift_commit` | 30.3 s | 27.0 s | −10.9% |
+| `honest_compute_y` | 4.5 s | 4.1 s | −8.9% |
+| `chain_verify` | 46.1 s | 42.3 s | −8.2% |
+
+That is the control this profile has never had, arrived at by accident: the same
+measurement twice with a known change in exactly one place. **The "three
+untouched phases drifted 10–13%" on 09-16 was not three phases — it was the whole
+run, systematically ~10% slow.** § 5's owed item in
+`PLAN_STAGE6_CANDIDATES.md` is discharged as an explanation (a per-phase control
+is still worth having as an instrument). Practical rule: **no phase figure from
+this profile means anything to better than ±12%**, and cross-run phase ratios
+need the whole-run offset divided out before they are read.
+
+**Finding 2: R's REDUCED row understated its real-shape effect.** The lifted
+witness phase went 345.3 → **133.9 s**. Even taking the 09-16 number as ~10%
+inflated (so ~307 s true), that is **2.3×** where R's accepted rows measured
+**1.75×** at `LIFT_PROVER_COLS = 4`. The reason is structural: at four columns,
+`long_mul` is a smaller share of `honest_lift_witness` than it is at the pin's
+5 × 40 976, so the fixed work around it (allocation, `div_by_modulus`) dilutes
+the win. **A REDUCED row can understate as well as overstate**, and which way
+depends on whether the optimised inner function's share grows or shrinks with the
+shape. Worth checking per candidate rather than assuming conservatism.
+
+**Finding 3: cumulative protocol speedup 2.33×**, `1 882.2 → 808.6 s` across
+F/G, I, J, K, L, M, N, Q, P, R — read as ~2.1–2.6× given the offset above. And
+the shares have moved decisively:
+
+| post-R protocol share | s | % |
+|---|---|---|
+| **rounds (26)** | 526.2 | **65.1%** |
+| lifted witness | 133.9 | 16.6 |
+| `chain_verify` | 42.3 | 5.2 |
+| `lift_commit` | 27.0 | 3.3 |
+| setup (commit → R^lin) | 19.1 | 2.4 |
+| `alpha_public_table` | 12.6 | 1.6 |
+
+**Consequence: this inverts T1 before T2.** The candidate backlog orders
+T7 → T1 → T2 on a pre-R lift phase of 345 s. Measured post-R it is 133.9 s, so
+T1's remaining headroom is ~127 s (**15.7%** of protocol, lift + α-table down to
+the card's projected 15–20 s), while T2's rounds are 526.2 s and its ~1.5×
+is ~175 s (**21.7%**) — on a proof the card itself prices at a day against T1's
+five-block-structure argument. T3 is ~350 s (43%) and is reached *through* T2.
+T1 keeps one thing T2 has not: T1b removes wall W2 (2.2 GiB) and unblocks I6b
+and I7. So the order is a choice between seconds now and unblocking later, not a
+correctness question. This is exactly the check the backlog's preflight gate 1
+existed to force, and it fired.
