@@ -6366,3 +6366,65 @@ tidier fix and is owed, not done.
 as the live `evalsplit/lagrange_basis/6` row. The entry is re-based and says so;
 turning it into a row is the un-ignore ceremony, with the 27 `#[ignore]`d scale
 tests in the same pass.
+
+## Candidate P: the univariate schoolbook moves in, and a new verdict for that shape (2026-09-16)
+
+cpoly's `impl Mul<&UnivariatePoly> for &UnivariatePoly` was reachable from
+hachi, from exactly four places -- `&inner * &free` in the `honest_compute_g`
+family -- where `free` is `eq_free_factor`'s **two** coefficients. Upstream has
+since put Karatsuba and `u128` leaves behind that operator, so a pin bump would
+have forced a re-port of a proof for a product this crate never wants.
+`sumcheck::poly_mul` is that multiplication written here instead, cpoly's body
+verbatim to the extent hachi can be (`UnivariatePoly`'s field is private, so
+`from_coeffs` stands where cpoly names the constructor).
+
+The surface, counted, because that is the deliverable: **out** went five defs
+and two loops; **in** came `UnivariatePoly::len`, its `Index` impl, and
+`alloc.vec.from_elem` -- three identity wrappers.
+
+**Two findings from the desk work, both of which changed the plan.** First, P was
+priced as medium proof work and is not: `lean/Sumcheck.lean` already proved the
+whole chain against cpoly's copy, so a verbatim mirror retargets
+`uni_mul_{inner_loop,outer_loop,}_spec` by **item name alone** -- no statement
+moved. Second, the reason a verbatim mirror is even possible: `vec![x; n]`, the
+*repeat* form, is modelled with no loop of its own, so cpoly's `Mul` extracts to
+exactly two loops and so does ours. The forbidden-list entry in `aeneas-extract`
+covers the `vec![a, b]` *list* form only; conflating the two would have cost a
+loop index and the whole retarget with it.
+
+**A new ledger verdict, `accepted-surface`** (agreed with the user), because the
+enum had no name for this shape. P is not a speed candidate -- the counts are
+identical, the body is the same body -- so `accepted` would assert a win that
+does not exist, and `rejected-noise` reads as "not landed". It sits beside
+`accepted-wall`: same time guard (no row `slower`), and the row must record what
+the model gained and lost as arithmetic. Wired into both enforcers, which is the
+part that would have rotted: `perf-loop`'s enum and step-5 rule, *and*
+`skill-lab`'s `ledger_check.py`, which keeps its own hardcoded list and rejected
+the row until it was updated. The trap is written in too -- the verdict is not
+for a candidate that merely happens to be noise; the test is whether the model
+change *is* the deliverable.
+
+Measured: both `honest_compute_g` rows `noise`, no row slower, as identical
+counts require. Recorded rather than glossed: the A/B bias was 6.7% on that run,
+so it could not have seen a regression below that. The real guard is the
+arithmetic.
+
+**`Check.lean` § 2's alias pin lost its polynomial-multiply ascription, and how
+it was lost is the point.** It stopped *typechecking* the moment the item left
+the model, so this arrived as a build failure rather than silent rot -- exactly
+the outcome the pin was written for, and the first time that section has earned
+its keep. What remains is weaker and the note now says so: with one `Shared<n>`
+impl left there is nothing for the index to swap with, so the surviving pin
+asserts only that `Shared0` is still the scalar multiply. The `Index` impl P
+added needs no pin, being an impl on the type rather than by reference.
+
+`poly_mul` is excluded by name on the `honest_compute_y` precedent: 66 `Ext4`
+multiply-adds at the only ratio the scheme uses (`np = 33`, `nq = 2`), inside the
+certified band, measured one level up. The entry says the part that matters --
+it *could* be given a row at an artificial square size, and that is what would
+make the row misleading.
+
+**The bump is now cheap, and that was the whole point.** With cpoly's generic
+multiplication out of the model, a `583cfaff → d7e26bb` bump has to re-port
+`Ext4::mul` and `eval_mle_layer` and nothing else of substance. It stays
+deferred to the cleanup tier, but it is no longer gated on P.
