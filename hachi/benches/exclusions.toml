@@ -207,15 +207,23 @@ ring products, **~29 s per iteration** at `ring/mul/1024 = 1.43 ms`
 per half, so it is now `2 * 1023 = 2 046` ring products, **~2.9 s** at the same
 per-mul figure.
 
-Still excluded per the Fig. 9 policy exception (header), and the removal
-condition has **changed**: it was "until a sub-quadratic `ring::mul` lands", on
-the honest arithmetic that Karatsuba's 2-4x would leave the old shape at ~8 s
-and only an NTT's ~30x would make it a row. That reasoning was about a cost
-this operation no longer pays. At ~2.9 s the remaining distance is ~3x, which
-I4's measured factor could close on its own -- so the condition is now
-**"until I4 lands a champion"**, and this entry is the one to re-check first
-when it does. The NTT note still stands for `ring::mul` itself
-(NOTES.md § "The parameters forbid a radix-2 NTT")."""
+**Re-based again the same day by candidate Q** (I4's delayed-reduction
+`ring::mul`, `ring/mul/1024` 1.43 ms -> 637 us measured twice). At `2 046` ring
+products that is **~1.3 s per iteration**.
+
+The removal condition written above -- "until a sub-quadratic `ring::mul` lands",
+on the arithmetic that Karatsuba's 2-4x would leave the old shape at ~8 s -- is
+now **met**, by a different route than it anticipated and for an operation whose
+own cost had already fallen 10x. ~1.3 s per iteration is the same order as
+`evalsplit/lagrange_basis/6` (550 ms), which *is* a live row, so this item is
+very likely benchable now and the exclusion very likely removable.
+
+**Not removed here.** Turning this into a row is the un-ignore ceremony that
+`PLAN_STAGE6.md` § I4 assigns its own slot: build the case, review it
+adversarially before trusting a number, re-freeze, and walk the 27 `#[ignore]`d
+scale tests in the same pass. This entry records that the condition is met and
+the ceremony is owed; it does not pre-empt it. The NTT note still stands for
+`ring::mul` itself (NOTES.md § "The parameters forbid a radix-2 NTT")."""
 
 "sumcheck::nested_to_round_statement" = """
 `zc_target_alpha` plus a move: the range target is the literal `0`, the

@@ -3228,133 +3228,118 @@ def linalg.PolyVec.copy (self : linalg.PolyVec) : Result linalg.PolyVec := do
     linalg.PolyVec.copy_loop self n (alloc.vec.Vec.new ring.Rq) 0#usize
   ok out
 
-/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop body 0:
-    Source: 'src/ring.rs', lines 325:8-328:9
+/-- [hachi::params::Q]
+    Source: 'src/params.rs', lines 67:0-67:33
     Visibility: public -/
-@[rust_loop_body]
-def ring.Rq.mul_loop0.body
-  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Fp))
-  := do
-  if k < n
-  then
-    let out1 ← alloc.vec.Vec.push out cpoly.field.Fp.ZERO
-    let k1 ← k + 1#usize
-    ok (cont (out1, k1))
-  else ok (done out)
-
-/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop 0:
-    Source: 'src/ring.rs', lines 325:8-328:9
-    Visibility: public -/
-@[rust_loop]
-def ring.Rq.mul_loop0
-  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Fp)
-  := do
-  loop
-    (fun (out1, k1) => ring.Rq.mul_loop0.body n out1 k1)
-    (out, k)
-
-/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop body 2:
-    Source: 'src/ring.rs', lines 333:12-343:13
-    Visibility: public -/
-@[rust_loop_body]
-def ring.Rq.mul_loop1_loop0.body
-  (n : Std.Usize) (i : Std.Usize) (a : cpoly.field.Fp) (rhs : ring.Rq)
-  (out : alloc.vec.Vec cpoly.field.Fp) (j : Std.Usize) :
-  Result (ControlFlow (ring.Rq × (alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
-    (ring.Rq × (alloc.vec.Vec cpoly.field.Fp)))
-  := do
-  if j < n
-  then
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) rhs j
-    let term ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul a f
-    let s ← i + j
-    let out1 ←
-      if s < n
-      then
-        do
-        let f1 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            cpoly.field.Fp) out s
-        let f2 ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f1 term
-        let (_, index_mut_back) ←
-          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-            cpoly.field.Fp) out s
-        ok (index_mut_back f2)
-      else
-        do
-        let t ← s - n
-        let f1 ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            cpoly.field.Fp) out t
-        let f2 ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub f1 term
-        let (_, index_mut_back) ←
-          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-            cpoly.field.Fp) out t
-        ok (index_mut_back f2)
-    let j1 ← j + 1#usize
-    ok (cont (rhs, out1, j1))
-  else ok (done (rhs, out))
-
-/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop 2:
-    Source: 'src/ring.rs', lines 333:12-343:13
-    Visibility: public -/
-@[rust_loop]
-def ring.Rq.mul_loop1_loop0
-  (rhs : ring.Rq) (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
-  (i : Std.Usize) (a : cpoly.field.Fp) (j : Std.Usize) :
-  Result (ring.Rq × (alloc.vec.Vec cpoly.field.Fp))
-  := do
-  loop
-    (fun (rhs1, out1, j1) => ring.Rq.mul_loop1_loop0.body n i a rhs1 out1 j1)
-    (rhs, out, j)
+@[global_simps, irreducible] def params.Q : Std.U64 := 4294967197#u64
 
 /-- [hachi::ring::{hachi::ring::Rq}::mul]: loop body 1:
-    Source: 'src/ring.rs', lines 330:8-345:9
+    Source: 'src/ring.rs', lines 359:12-369:13
     Visibility: public -/
 @[rust_loop_body]
-def ring.Rq.mul_loop1.body
-  (n : Std.Usize) (self : ring.Rq) (rhs : ring.Rq)
-  (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
-  Result (ControlFlow (ring.Rq × ring.Rq × (alloc.vec.Vec cpoly.field.Fp) ×
-    Std.Usize) (alloc.vec.Vec cpoly.field.Fp))
+def ring.Rq.mul_loop0_loop0.body
+  (n : Std.Usize) (k : Std.Usize) (self : ring.Rq) (rhs : ring.Rq)
+  (pos : Std.U128) (neg : Std.U128) (i : Std.Usize) :
+  Result (ControlFlow (ring.Rq × ring.Rq × Std.U128 × Std.U128 × Std.Usize)
+    (ring.Rq × ring.Rq × Std.U128 × Std.U128))
   := do
   if i < n
   then
-    let a ←
+    let f ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         cpoly.field.Fp) self i
-    let (rhs1, out1) ← ring.Rq.mul_loop1_loop0 rhs n out i a 0#usize
-    let i1 ← i + 1#usize
-    ok (cont (self, rhs1, out1, i1))
-  else ok (done out)
+    let i1 ← cpoly.field.Fp.to_u64 f
+    let ai ← lift (UScalar.cast .U128 i1)
+    let (pos1, neg1) ←
+      if i <= k
+      then
+        do
+        let i2 ← k - i
+        let f1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            cpoly.field.Fp) rhs i2
+        let i3 ← cpoly.field.Fp.to_u64 f1
+        let bj ← lift (UScalar.cast .U128 i3)
+        let i4 ← ai * bj
+        let pos2 ← pos + i4
+        ok (pos2, neg)
+      else
+        do
+        let i2 ← k + n
+        let i3 ← i2 - i
+        let f1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            cpoly.field.Fp) rhs i3
+        let i4 ← cpoly.field.Fp.to_u64 f1
+        let bj ← lift (UScalar.cast .U128 i4)
+        let i5 ← ai * bj
+        let neg2 ← neg + i5
+        ok (pos, neg2)
+    let i2 ← i + 1#usize
+    ok (cont (self, rhs, pos1, neg1, i2))
+  else ok (done (self, rhs, pos, neg))
 
 /-- [hachi::ring::{hachi::ring::Rq}::mul]: loop 1:
-    Source: 'src/ring.rs', lines 330:8-345:9
+    Source: 'src/ring.rs', lines 359:12-369:13
     Visibility: public -/
 @[rust_loop]
-def ring.Rq.mul_loop1
-  (self : ring.Rq) (rhs : ring.Rq) (n : Std.Usize)
-  (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
+def ring.Rq.mul_loop0_loop0
+  (self : ring.Rq) (rhs : ring.Rq) (n : Std.Usize) (k : Std.Usize)
+  (pos : Std.U128) (neg : Std.U128) (i : Std.Usize) :
+  Result (ring.Rq × ring.Rq × Std.U128 × Std.U128)
+  := do
+  loop
+    (fun (self1, rhs1, pos1, neg1, i1) => ring.Rq.mul_loop0_loop0.body n k
+      self1 rhs1 pos1 neg1 i1)
+    (self, rhs, pos, neg, i)
+
+/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop body 0:
+    Source: 'src/ring.rs', lines 355:8-374:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.Rq.mul_loop0.body
+  (n : Std.Usize) (q : Std.U128) (self : ring.Rq) (rhs : ring.Rq)
+  (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
+  Result (ControlFlow (ring.Rq × ring.Rq × (alloc.vec.Vec cpoly.field.Fp) ×
+    Std.Usize) (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if k < n
+  then
+    let (self1, rhs1, pos, neg) ←
+      ring.Rq.mul_loop0_loop0 self rhs n k 0#u128 0#u128 0#usize
+    let i ← pos % q
+    let i1 ← lift (UScalar.cast .U64 i)
+    let p ← cpoly.field.Fp.new i1
+    let i2 ← neg % q
+    let i3 ← lift (UScalar.cast .U64 i2)
+    let m ← cpoly.field.Fp.new i3
+    let f ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub p m
+    let out1 ← alloc.vec.Vec.push out f
+    let k1 ← k + 1#usize
+    ok (cont (self1, rhs1, out1, k1))
+  else ok (done out)
+
+/-- [hachi::ring::{hachi::ring::Rq}::mul]: loop 0:
+    Source: 'src/ring.rs', lines 355:8-374:9
+    Visibility: public -/
+@[rust_loop]
+def ring.Rq.mul_loop0
+  (self : ring.Rq) (rhs : ring.Rq) (n : Std.Usize) (q : Std.U128)
+  (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
   Result (alloc.vec.Vec cpoly.field.Fp)
   := do
   loop
-    (fun (self1, rhs1, out1, i1) => ring.Rq.mul_loop1.body n self1 rhs1 out1
-      i1)
-    (self, rhs, out, i)
+    (fun (self1, rhs1, out1, k1) => ring.Rq.mul_loop0.body n q self1 rhs1 out1
+      k1)
+    (self, rhs, out, k)
 
 /-- [hachi::ring::{hachi::ring::Rq}::mul]:
-    Source: 'src/ring.rs', lines 321:4-347:5
+    Source: 'src/ring.rs', lines 350:4-376:5
     Visibility: public -/
 def ring.Rq.mul (self : ring.Rq) (rhs : ring.Rq) : Result ring.Rq := do
-  let out ←
-    ring.Rq.mul_loop0 params.RING_DEGREE (alloc.vec.Vec.new cpoly.field.Fp)
-      0#usize
-  let out1 ← ring.Rq.mul_loop1 self rhs params.RING_DEGREE out 0#usize
+  let q ← lift (UScalar.cast .U128 params.Q)
+  let out := alloc.vec.Vec.with_capacity cpoly.field.Fp params.RING_DEGREE
+  let out1 ← ring.Rq.mul_loop0 self rhs params.RING_DEGREE q out 0#usize
   ok out1
 
 /-- [hachi::ring::{hachi::ring::Rq}::constant]: loop body 0:
@@ -4163,11 +4148,6 @@ def ringswitch.rho_digits_at
     alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
       ringswitch.QuotientRow) rho i
   ringswitch.rho_digits qr u
-
-/-- [hachi::params::Q]
-    Source: 'src/params.rs', lines 67:0-67:33
-    Visibility: public -/
-@[global_simps, irreducible] def params.Q : Std.U64 := 4294967197#u64
 
 /-- [hachi::commit::centered_abs]:
     Source: 'src/commit.rs', lines 79:0-88:1

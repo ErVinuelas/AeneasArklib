@@ -317,31 +317,60 @@ impl Rq {
     /// spec performs with `modByMonic`; folding it in here is what keeps the
     /// output already reduced, with no second pass.
     ///
-    /// `i + j` cannot overflow: both are below `N = 1024`.
+    /// Delayed reduction (Stage 6 candidate Q; opt:
+    /// `HachiEquiv.Opt.Rq.mul.opt`, `lean/Opt.lean`). The frozen translation
+    /// reduced modulo `q` on *every* one of the `N²` products and again on
+    /// every accumulation, because each `Fp` operation reduces: cpoly's
+    /// `Mul for Fp` is `(a.0 * b.0) % P`. This walks the output coefficient
+    /// instead of the input pair, so slot `k`'s two antidiagonals are summed in
+    /// `u128` **without** reducing and the reduction is paid once per slot:
+    /// `N²` reductions become `2N`.
+    ///
+    /// The sign rule is unchanged, only re-indexed. Term `aᵢbⱼ` lands in slot
+    /// `k` with a `+` when `i + j = k`, i.e. `j = k − i`, which needs `i ≤ k`;
+    /// and in slot `k` with a `−` when `i + j = N + k`, i.e. `j = N + k − i`,
+    /// which needs `i > k` (and then `j` lies in `[k+1, N-1]`, so it is always
+    /// in range). Those two cases are exactly the `if i <= k` below.
+    ///
+    /// **The bound, which is what makes this sound**: every word this reads is
+    /// a canonical representative below `q` (the `Red` invariant), so a term is
+    /// at most `(q−1)² < 2^64`, and a slot accumulates `N` of them --
+    /// `1024 · (q−1)² < 2^74`, with 54 bits of headroom in the `u128`. A `u64`
+    /// accumulator would **not** do: one term already fills it.
+    ///
+    /// `k + n` is at most `2N − 1 = 2047`, so no index arithmetic overflows.
+    // clippy wants `u64::try_from(...)` for the two narrowing casts. It is wrong
+    // here in the way `aeneas-idiomatic-rust` describes: `pos % q` and `neg % q`
+    // are below `q < 2^32` by construction, so both casts are exact, while
+    // `try_from().unwrap()` would add a panic branch the extraction has to model
+    // and a `Result` the spec would have to discharge -- for a bound
+    // `mul_spec`'s own proof establishes. The narrowing cast itself is a
+    // measured-supported construct (`aeneas-extract`'s ceiling table).
+    #[allow(clippy::cast_possible_truncation)]
     pub fn mul(&self, rhs: &Rq) -> Rq {
         let n: usize = params::RING_DEGREE;
-        let mut out: Vec<Fp> = Vec::new();
+        let q: u128 = params::Q as u128;
+        let mut out: Vec<Fp> = Vec::with_capacity(n);
         let mut k: usize = 0;
         while k < n {
-            out.push(Fp::ZERO);
-            k += 1;
-        }
-        let mut i: usize = 0;
-        while i < n {
-            let a: Fp = self.0[i];
-            let mut j: usize = 0;
-            while j < n {
-                let term: Fp = a * rhs.0[j];
-                let s: usize = i + j;
-                if s < n {
-                    out[s] = out[s] + term;
+            let mut pos: u128 = 0;
+            let mut neg: u128 = 0;
+            let mut i: usize = 0;
+            while i < n {
+                let ai: u128 = self.0[i].to_u64() as u128;
+                if i <= k {
+                    let bj: u128 = rhs.0[k - i].to_u64() as u128;
+                    pos = pos + ai * bj;
                 } else {
-                    let t: usize = s - n;
-                    out[t] = out[t] - term;
+                    let bj: u128 = rhs.0[k + n - i].to_u64() as u128;
+                    neg = neg + ai * bj;
                 }
-                j += 1;
+                i += 1;
             }
-            i += 1;
+            let p: Fp = Fp::new((pos % q) as u64);
+            let m: Fp = Fp::new((neg % q) as u64);
+            out.push(p - m);
+            k += 1;
         }
         Rq(out)
     }
