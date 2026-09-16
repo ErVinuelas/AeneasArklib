@@ -6484,3 +6484,54 @@ instruction in favour of moving on, so the question stands open: **the 1.74×
 should not be trusted to better than ~10%, and neither should any single phase
 figure this profile has produced since 09-14.** Owed: either a controlled repeat,
 or a per-phase control in the profile itself.
+
+## Candidate R: the same trick one function over, and the profile is what found it (2026-09-16)
+
+`ringswitch::long_mul` -- the unreduced `2N−1`-wide product `cRowSum` needs --
+was the pre-candidate-Q schoolbook: `ai * b.coeff(j)` reducing once per product
+and `out[s] + term` reducing again. Candidate R walks the output slot, sums its
+clipped antidiagonal in `u128` unreduced, and pays `% q` once per slot.
+**1.75× on all three rows** (`c_row_sum`, `c_quotient`, `honest_lift_witness`,
+−42.8/−43.0/−42.8%, bias 3.2%). Ledger row 29.
+
+**What is worth recording is how it was found.** No brief proposed it. The
+end-to-end profile did, by contradicting me: I had counted the lifted-witness
+phase among the `ring::mul`-bound work when estimating what Q would buy, and it
+is not -- `long_mul` is a separate function, Q never touched it, and it sat there
+as 345 s of a 1 250 s run, the largest unoptimised phase left. An estimate that
+assumed a factor and a measurement that checked it disagreed, and the
+measurement was right. That is the argument for keeping the profile in the loop
+rather than reasoning from per-row factors.
+
+**And one claim I got wrong inside the candidate itself.** The first version's
+comment said the clipped antidiagonal bounds were "the second saving here",
+`N²` inner steps against `(2N−1)·N`. They are not a saving over the *baseline*:
+the frozen scatter was already `N²` steps. The bounds exist so that walking the
+output does not **cost** a factor two, which a guarded pass over the whole square
+would. The measured 1.75× is the reduction, plus an accumulator that stays in a
+register instead of round-tripping through `out[i + j]`. The comment is corrected
+in the landed code, so the landed text differs from the benched `slot_sha` by a
+comment only -- recorded in the ledger row, since the sha is supposed to pin what
+was measured.
+
+**The proof is where Q pays off twice.** `wordN`, `wordN_lt` and `accBound` are
+`Ring.lean`'s, and `Ring.lean` is *upstream* of `LiftProver.lean`, so this time
+the dependency runs the right way and the `ℕ`-level layer is genuinely shared
+rather than duplicated -- the opposite of the `Opt`/`EvalSplit` and
+`Ring`/`Scheme` cases above. R is also strictly easier than Q: a `Zq[X]` product
+has no negacyclic fold, so one accumulator and no sign split.
+`long_mul_spec` is byte-identical; three loop specs became two.
+
+Four small things the model forced, all worth knowing for the next candidate of
+this shape:
+
+* `Rq::coeff` needed a **word-level** spec (`coeff_word`). `coeff_spec` gives the
+  `ZMod q` value, which is the wrong currency for a `u128` accumulator.
+* the two clipped bounds extract as **monadic** `if`s (`k + 1 - n` is a checked
+  subtraction), which `step` cannot take; one spec each (`clip_lo_spec`,
+  `clip_hi_spec`) keeps the four-way split out of the loop proof.
+* `k - i` is a checked subtraction, so the inner spec needs `hi ≤ k + 1` as a
+  hypothesis -- easy to forget, and the model is what reminds you.
+* **`omega` does not unfold `N`.** `abbrev N : ℕ := 1024` is an atom to it, so
+  every bound argument that depends on `N`'s value needs `have hNv : N = 1024 :=
+  rfl` in scope first. This cost several iterations and will cost them again.

@@ -438,8 +438,10 @@ theorem scalar_mul_spec (a : ring.Rq) (c : cpoly.field.Fp) (ha : Wf a) (hc : Red
 
 
 /-- `Fp::to_u64` is the identity on the representation (`Fp := U64`); no `@[step]`
-lemma is registered for it, so the loop body needs it spelled out. -/
-private theorem to_u64_id (f : cpoly.field.Fp) :
+lemma is registered for it, so a loop body that reads a word needs it spelled
+out. Public since 2026-09-16: `LiftProver.lean`'s `long_mul` needs the same fact,
+and one shared lemma beats two copies. -/
+theorem to_u64_id (f : cpoly.field.Fp) :
     cpoly.field.Fp.to_u64 f ⦃ x => x = f ⦄ := by
   rw [cpoly.field.Fp.to_u64, WP.spec_ok]
 

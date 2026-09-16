@@ -1420,6 +1420,16 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- session `1ddd5790`, five obligations to zero with no headline signature
 -- changed, promoted 2026-09-11.
 #print axioms HachiEquiv.LiftProver.long_mul_spec
+-- Candidate R (Stage 6, route R2): `long_mul` with the reduction delayed, the
+-- same trick as candidate Q one function over. The headline above is
+-- byte-identical; what is new is the `ℕ`-level accumulator, so the audit covers
+-- its ceiling and the cast bridge. `accBound` and `wordN_lt` are Q's, reused --
+-- `Ring.lean` is upstream of this file, so this time the dependency runs the
+-- right way and the layer really is shared rather than duplicated.
+#print axioms HachiEquiv.LiftProver.longSum_le
+#print axioms HachiEquiv.LiftProver.longSum_cast
+#print axioms HachiEquiv.LiftProver.long_mul_loop0_loop0_spec
+#print axioms HachiEquiv.LiftProver.long_mul_loop0_spec
 #print axioms HachiEquiv.LiftProver.div_by_modulus_spec
 #print axioms HachiEquiv.LiftProver.c_row_sum_spec
 #print axioms HachiEquiv.LiftProver.c_quotient_spec

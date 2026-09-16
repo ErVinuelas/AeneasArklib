@@ -376,29 +376,62 @@ pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
 /// exactly the quotient the lift prover has to extract. Fixed width: the slot
 /// count is `2N - 1 = 2047` whatever the true degree, so this is the `Raw`
 /// array reading of the polynomial rather than the trimmed `CPolynomial`; the
-/// two denote the same element of `Zq[X]`. `i + j ≤ 2N - 2` cannot overflow.
+/// two denote the same element of `Zq[X]`.
+///
+/// Delayed reduction (Stage 6 candidate R), for the reason [`Rq::mul`]'s
+/// candidate Q gives: every `Fp` operation reduces, so the frozen translation
+/// paid a `% q` on each of the `N²` products and again on each accumulation.
+/// This walks the output slot, sums its antidiagonal in `u128` unreduced, and
+/// reduces once per slot -- `N²` reductions become `2N - 1`. The inner step
+/// count is unchanged at `N²`; the measured 1.75× is the reduction, plus an
+/// accumulator that stays in a register instead of round-tripping through
+/// `out[i + j]`. Note "unreduced"
+/// in this function's name has always meant *not folded by `X^N = -1`*, and
+/// still does; what candidate R delays is the reduction modulo `q`, and the
+/// output words are canonical representatives exactly as before.
+///
+/// What promoted it is the measured chain profile rather than a brief:
+/// `honest_lift_witness` was 345 s of a 1 250 s run, 28% of the total and the
+/// largest thing candidate Q did *not* touch, because this is a separate
+/// function from the ring product (NOTES.md § "The chain, measured again").
+///
+/// Simpler than `Rq::mul`'s version in the one way that matters for the proof:
+/// there is no negacyclic fold, so there is one accumulator and no sign split.
+/// The bound is the same, `1024 · (q−1)² < 2^74` against `u128`, and equally
+/// load-bearing -- one term already fills a `u64`. `k + 1` cannot overflow:
+/// `k < 2N - 1 = 2047`.
 ///
 /// Private: a helper of [`c_row_sum`] alone, measured through it.
+// The narrowing cast is exact: `acc % q` is below `q < 2^32`. `Rq::mul` carries
+// the same allow for the same reason.
+#[allow(clippy::cast_possible_truncation)]
 fn long_mul(a: &Rq, b: &Rq) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
     let width: usize = 2 * n - 1;
-    let mut out: Vec<Fp> = Vec::new();
+    let q: u128 = params::Q as u128;
+    let mut out: Vec<Fp> = Vec::with_capacity(width);
     let mut k: usize = 0;
     while k < width {
-        out.push(Fp::ZERO);
-        k += 1;
-    }
-    let mut i: usize = 0;
-    while i < n {
-        let ai: Fp = a.coeff(i);
-        let mut j: usize = 0;
-        while j < n {
-            let term: Fp = ai * b.coeff(j);
-            let s: usize = i + j;
-            out[s] = out[s] + term;
-            j += 1;
+        // The antidiagonal `i + j = k`, clipped to the `N` slots each operand
+        // has: `i` runs from `max(0, k + 1 − n)` up to `min(k + 1, n)`,
+        // exclusive. This is the same `N²` inner steps the frozen scatter did,
+        // not fewer -- the bounds are here so that walking the output does not
+        // *cost* a factor two, which a guarded pass over the whole square
+        // (`(2N − 1)·N` steps) would. What this loop does save per step is the
+        // accumulator: `acc` stays in a register where the scatter read and
+        // wrote `out[i + j]` on every term.
+        let lo: usize = if k + 1 > n { k + 1 - n } else { 0 };
+        let hi: usize = if k + 1 < n { k + 1 } else { n };
+        let mut acc: u128 = 0;
+        let mut i: usize = lo;
+        while i < hi {
+            let ai: u128 = a.coeff(i).to_u64() as u128;
+            let bj: u128 = b.coeff(k - i).to_u64() as u128;
+            acc = acc + ai * bj;
+            i += 1;
         }
-        i += 1;
+        out.push(Fp::new((acc % q) as u64));
+        k += 1;
     }
     out
 }

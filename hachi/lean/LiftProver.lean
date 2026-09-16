@@ -164,132 +164,277 @@ theorem Red_set {v w : alloc.vec.Vec cpoly.field.Fp} {s : ℕ} {x : cpoly.field.
 
 /-! ### `long_mul` -/
 
-/-- The zeroing loop of `long_mul`: `width` copies of `Fp::ZERO`. -/
-theorem long_mul_zero_loop_spec (width : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
-    (k : Std.Usize) (hk : k.val ≤ width.val)
-    (hout : out.val = List.replicate k.val cpoly.field.Fp.ZERO) :
-    ringswitch.long_mul_loop0 width out k
-      ⦃ z => z.val = List.replicate width.val cpoly.field.Fp.ZERO ⦄ := by
+/-! ### Candidate R: the accumulator as a natural
+
+Candidate R delayed the reduction here as candidate Q did in `Rq::mul`, and the
+`ℕ`-level layer that made Q's proof work is reused verbatim: `wordN`,
+`wordN_lt` and `accBound` are `HachiEquiv.Ring`'s, which this file opens. What is
+*not* shared is the harder half of Q -- there is no negacyclic fold in a `Zq[X]`
+product, so there is one accumulator and no sign split, and the sum runs over the
+clipped antidiagonal `Ico lo hi` rather than all of `range N`. -/
+
+/-- The accumulator after the inner loop has walked `Ico lo i` of slot `k`'s
+antidiagonal. -/
+def longSum (a b : ring.Rq) (k lo i : ℕ) : ℕ :=
+  ∑ t ∈ Finset.Ico lo i, wordN a t * wordN b (k - t)
+
+theorem longSum_self (a b : ring.Rq) (k lo : ℕ) : longSum a b k lo lo = 0 := by
+  simp [longSum]
+
+theorem longSum_succ (a b : ring.Rq) (k lo i : ℕ) (h : lo ≤ i) :
+    longSum a b k lo (i + 1) = longSum a b k lo i + wordN a i * wordN b (k - i) := by
+  unfold longSum
+  rw [Finset.sum_Ico_succ_top h]
+
+/-- Each term is below `q * q`, so the partial sum is below its own length times
+that. The caller supplies the length bound -- for this loop `i - lo ≤ N`, the
+antidiagonal never being longer than an operand. -/
+theorem longSum_le {a b : ring.Rq} (ha : Wf a) (hb : Wf b) (k lo i : ℕ) :
+    longSum a b k lo i ≤ (i - lo) * (q * q) := by
+  unfold longSum
+  calc ∑ t ∈ Finset.Ico lo i, wordN a t * wordN b (k - t)
+      ≤ ∑ _t ∈ Finset.Ico lo i, q * q :=
+        Finset.sum_le_sum (fun t _ => Nat.mul_le_mul
+          (Nat.le_of_lt (wordN_lt ha t)) (Nat.le_of_lt (wordN_lt hb _)))
+    _ = (i - lo) * (q * q) := by rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
+
+/-- The completed antidiagonal, cast once, *is* the specification's coefficient.
+Outside `Ico lo hi` the summand vanishes for the two reasons the clipping
+encodes: below `lo` the right operand's index has run past its `N` words, and
+above `hi` the left one has (or `t` has passed `k`). -/
+theorem longSum_cast {a b : ring.Rq} (_ha : Wf a) (hb : Wf b) {k lo hi : ℕ}
+    (hlo : lo = if k + 1 > N then k + 1 - N else 0)
+    (hhi : hi = if k + 1 < N then k + 1 else N) :
+    ((longSum a b k lo hi : ℕ) : ZMod q)
+      = ∑ t ∈ Finset.range N, if t ≤ k then coeffK a t * coeffK b (k - t) else 0 := by
+  have hhiN : hi ≤ N := by rw [hhi]; split <;> omega
+  have hhik : hi ≤ k + 1 := by rw [hhi]; split <;> omega
+  -- Trim the specification's sum to the clipped antidiagonal: outside it the
+  -- guarded summand is zero, below `lo` because the right operand's index has
+  -- run past its `N` words and above `hi` because `t` has passed `k`.
+  rw [← Finset.sum_subset (s₁ := Finset.Ico lo hi) (s₂ := Finset.range N)
+    (by
+      intro x hx
+      simp only [Finset.mem_Ico] at hx
+      simp only [Finset.mem_range]
+      omega)
+    (by
+      intro x hx hx2
+      simp only [Finset.mem_range] at hx
+      simp only [Finset.mem_Ico, not_and_or, not_le, not_lt] at hx2
+      rcases hx2 with h | h
+      · have hkx : N ≤ k - x := by rw [hlo] at h; split at h <;> omega
+        rw [if_pos (by rw [hlo] at h; split at h <;> omega),
+          coeffK_of_ge (v := b) (k := k - x) (by rw [hb.1]; exact hkx), mul_zero]
+      · rw [if_neg (by rw [hhi] at h; split at h <;> omega)])]
+  unfold longSum
+  push_cast
+  refine Finset.sum_congr rfl (fun t ht => ?_)
+  simp only [Finset.mem_Ico] at ht
+  rw [if_pos (by omega : t ≤ k), coeffK_eq_cast_wordN, coeffK_eq_cast_wordN]
+
+/-- `Rq::coeff` at the word level. `coeff_spec` gives the `ZMod q` value, which
+is the wrong currency for a `u128` accumulator: what the loop needs is the word
+itself. Total, like the Rust -- out of range it reads `Fp::ZERO`, whose word is
+the `0` that `wordN`'s default supplies. -/
+private theorem coeff_word (v : ring.Rq) (hv : Wf v) (k : Std.Usize) :
+    ring.Rq.coeff v k ⦃ c => Red c ∧ c.val = wordN v k.val ⦄ := by
+  rw [ring.Rq.coeff]
+  by_cases hk : k < alloc.vec.Vec.len v
+  · rw [if_pos hk]
+    have hkl : k.val < v.val.length := by scalar_tac
+    step as ⟨f, hf⟩
+    refine ⟨by rw [hf]; exact hv.2 _ (List.getElem_mem hkl), ?_⟩
+    rw [hf]
+    unfold wordN
+    rw [List.getD_eq_getElem _ _ hkl]
+  · rw [if_neg hk, WP.spec_ok]
+    have hkl : v.val.length ≤ k.val := by scalar_tac
+    refine ⟨Red_zero, ?_⟩
+    unfold wordN
+    rw [List.getD_eq_default _ _ hkl, cpoly_Fp_ZERO_val]
+
+/-! ### The two clipped bounds
+
+The Rust computes slot `k`'s antidiagonal bounds with `if`s whose branches are
+*monadic* -- `k + 1 - n` is a checked subtraction -- so `step` cannot take them
+directly. One spec each, and the four-way case split stays out of the loop
+proof. -/
+
+private theorem clip_lo_spec (x n : Std.Usize) :
+    (if x > n then x - n else ok (0#usize))
+      ⦃ z => z.val = if n.val < x.val then x.val - n.val else 0 ⦄ := by
+  by_cases h : x > n
+  · rw [if_pos h, if_pos (by scalar_tac)]
+    step as ⟨d, hd⟩
+    rw [hd]
+  · rw [if_neg h, if_neg (by scalar_tac), WP.spec_ok]
+    simp
+
+private theorem clip_hi_spec (x n : Std.Usize) :
+    (if x < n then ok x else ok n)
+      ⦃ z => z.val = if x.val < n.val then x.val else n.val ⦄ := by
+  by_cases h : x < n
+  · rw [if_pos h, if_pos (by scalar_tac), WP.spec_ok]
+  · rw [if_neg h, if_neg (by scalar_tac), WP.spec_ok]
+
+/-- Everything the loop proof needs about the clipped bounds, once. `N` is a
+literal, so each of the three regions (`k + 1` below, at, or above `N`) closes by
+`omega` -- including the fact that makes `k - i` a legal checked subtraction and
+the right operand's index in range. -/
+private theorem clip_bounds {k lo hi : ℕ} (hk : k < 2 * N - 1)
+    (hlo : lo = if k + 1 > N then k + 1 - N else 0)
+    (hhi : hi = if k + 1 < N then k + 1 else N) :
+    lo ≤ hi ∧ hi ≤ N ∧ hi ≤ k + 1 ∧ ∀ t, lo ≤ t → t < hi → k - t < N := by
+  -- `omega` does not unfold `N`, so hand it the value.
+  have hNv : N = 1024 := rfl
+  subst hlo
+  subst hhi
+  by_cases h1 : k + 1 < N
+  · rw [if_neg (by omega), if_pos h1]
+    exact ⟨by omega, by omega, by omega, fun t h2 h3 => by omega⟩
+  · rw [if_neg h1]
+    by_cases h2 : k + 1 > N
+    · rw [if_pos h2]
+      exact ⟨by omega, by omega, by omega, fun t h3 h4 => by omega⟩
+    · rw [if_neg h2]
+      exact ⟨by omega, by omega, by omega, fun t h3 h4 => by omega⟩
+
+/-! ### The two loops -/
+
+theorem long_mul_loop0_loop0_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b)
+    (k hi : Std.Usize) (acc : Std.U128) (i : Std.Usize) (lo : ℕ)
+    (hlo : lo ≤ i.val) (hik : i.val ≤ hi.val) (hhiN : hi.val ≤ N)
+    (hhik : hi.val ≤ k.val + 1)
+    (hkb : ∀ t, lo ≤ t → t < hi.val → k.val - t < N)
+    (hacc : acc.val = longSum a b k.val lo i.val) :
+    ringswitch.long_mul_loop0_loop0 a b k hi acc i
+      ⦃ z => z.val = longSum a b k.val lo hi.val ⦄ := by
+  rw [ringswitch.long_mul_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => hi.val - s.2.val)
+    (fun s => lo ≤ s.2.val ∧ s.2.val ≤ hi.val ∧
+      s.1.val = longSum a b k.val lo s.2.val)
+  · rintro ⟨sa, si⟩ ⟨hlo1, hle1, hval1⟩
+    dsimp only at hlo1 hle1 hval1
+    simp only [ringswitch.long_mul_loop0_loop0.body]
+    by_cases hlt : si < hi
+    · rw [if_pos hlt]
+      have hsiN : si.val < N := by scalar_tac
+      have hkiN : k.val - si.val < N := hkb si.val hlo1 (by scalar_tac)
+      -- `k - i` is a *checked* subtraction; this is what makes it legal.
+      have hsik : si.val ≤ k.val := by scalar_tac
+      step with coeff_word a ha si as ⟨f, _hRf, hfv⟩
+      step with to_u64_id f as ⟨w, hw⟩
+      have haiv : w.val = wordN a si.val := by rw [hw, hfv]
+      have hcast : lift (UScalar.cast .U128 w) ⦃ y => y.val = w.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 w (by scalar_tac)
+      step with hcast as ⟨ai, hai⟩
+      step as ⟨d, hd⟩
+      step with coeff_word b hb d as ⟨g, _hRg, hgv⟩
+      step with to_u64_id g as ⟨w2, hw2⟩
+      have hbjv : w2.val = wordN b (k.val - si.val) := by rw [hw2, hgv, hd]
+      have hcast2 : lift (UScalar.cast .U128 w2) ⦃ y => y.val = w2.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 w2 (by scalar_tac)
+      step with hcast2 as ⟨bj, hbj⟩
+      have hbnd : sa.val + ai.val * bj.val ≤ Std.U128.max := by
+        have hNv : N = 1024 := rfl
+        have hprod : ai.val * bj.val ≤ q * q := by
+          rw [hai, hbj, haiv, hbjv]
+          exact Nat.mul_le_mul (Nat.le_of_lt (wordN_lt ha _)) (Nat.le_of_lt (wordN_lt hb _))
+        -- The accumulator holds at most `si - lo` terms and one more still fits:
+        -- `si < hi ≤ N`, so `si - lo ≤ N - 1`.
+        have hone : sa.val ≤ (N - 1) * (q * q) := by
+          rw [hval1]
+          exact le_trans (longSum_le ha hb k.val lo si.val)
+            (Nat.mul_le_mul_right _ (by omega))
+        have := accBound
+        calc sa.val + ai.val * bj.val ≤ (N - 1) * (q * q) + q * q :=
+              Nat.add_le_add hone hprod
+          _ = N * (q * q) := by
+              have : N - 1 + 1 = N := by omega
+              calc (N - 1) * (q * q) + q * q = ((N - 1) + 1) * (q * q) := by ring
+                _ = N * (q * q) := by rw [this]
+          _ ≤ Std.U128.max := Nat.le_of_lt this
+      step as ⟨t, ht⟩
+      step as ⟨sa2, hsa2⟩
+      step as ⟨si2, hsi2⟩
+      refine ⟨by scalar_tac, by scalar_tac, ?_, by scalar_tac⟩
+      rw [hsa2, ht, hai, hbj, haiv, hbjv, hval1, hsi2,
+        longSum_succ a b k.val lo si.val hlo1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : si.val = hi.val := by scalar_tac
+      rw [hval1, heq]
+  · exact ⟨hlo, hik, hacc⟩
+
+theorem long_mul_loop0_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b)
+    (n width : Std.Usize) (qw : Std.U128) (out : alloc.vec.Vec cpoly.field.Fp)
+    (k : Std.Usize) (hn : n.val = N) (hw : width.val = 2 * N - 1) (hq : qw.val = q)
+    (hk : k.val ≤ width.val) (hlen : out.val.length = k.val)
+    (hred : ∀ x ∈ out.val, Red x)
+    (hcoeff : ∀ s, s < k.val → coeffK out s
+      = ∑ t ∈ Finset.range N, if t ≤ s then coeffK a t * coeffK b (s - t) else 0) :
+    ringswitch.long_mul_loop0 a b n width qw out k
+      ⦃ z => z.val.length = 2 * N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
+        ∀ s, s < 2 * N - 1 → coeffK z s
+          = ∑ t ∈ Finset.range N, if t ≤ s then coeffK a t * coeffK b (s - t) else 0 ⦄ := by
   rw [ringswitch.long_mul_loop0]
   apply loop.spec_decr_nat (fun s => width.val - s.2.val)
-    (fun s => s.2.val ≤ width.val ∧ s.1.val = List.replicate s.2.val cpoly.field.Fp.ZERO)
-  · rintro ⟨o1, i1⟩ ⟨hi1, ho1⟩
-    dsimp only at hi1 ho1
+    (fun s => s.2.val ≤ width.val ∧ s.1.val.length = s.2.val ∧
+      (∀ x ∈ s.1.val, Red x) ∧
+      ∀ u, u < s.2.val → coeffK s.1 u
+        = ∑ t ∈ Finset.range N, if t ≤ u then coeffK a t * coeffK b (u - t) else 0)
+  · rintro ⟨so, sk⟩ ⟨hk1, hlen1, hred1, hc1⟩
+    dsimp only at hk1 hlen1 hred1 hc1
     simp only [ringswitch.long_mul_loop0.body]
-    by_cases hlt : i1 < width
+    by_cases hlt : sk < width
     · rw [if_pos hlt]
-      have hlen : o1.val.length = i1.val := by rw [ho1, List.length_replicate]
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨by scalar_tac, ?_, ?_⟩
-      · rw [ho2, hi2, ho1, List.replicate_succ']
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      show o1.val = List.replicate width.val cpoly.field.Fp.ZERO
-      have heq : i1.val = width.val := by scalar_tac
-      rw [ho1, heq]
-  · exact ⟨hk, hout⟩
-
-/-- The inner loop of `long_mul`: the row `aᵢ · b` added into the slots
-`i, i+1, …, i+j-1`. -/
-theorem long_mul_inner_loop_spec (b : ring.Rq) (hb : Wf b) (n : Std.Usize) (hn : n.val = N)
-    (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) (ai : cpoly.field.Fp)
-    (j : Std.Usize) (f : ℕ → ZMod q)
-    (hlen : out.val.length = 2 * N - 1) (hred : ∀ x ∈ out.val, Red x)
-    (hai : Red ai) (hi : i.val < N) (hj : j.val ≤ N)
-    (hbase : ∀ s, coeffK out s
-      = f s + (if i.val ≤ s ∧ s - i.val < j.val then toK ai * coeffK b (s - i.val) else 0)) :
-    ringswitch.long_mul_loop1_loop0 b n out i ai j
-      ⦃ z => z.val.length = 2 * N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
-        ∀ s, coeffK z s
-          = f s + (if i.val ≤ s ∧ s - i.val < N then toK ai * coeffK b (s - i.val) else 0) ⦄ := by
-  rw [ringswitch.long_mul_loop1_loop0]
-  apply loop.spec_decr_nat (fun st => N - st.2.val)
-    (fun st => st.2.val ≤ N ∧ st.1.val.length = 2 * N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      ∀ s, coeffK st.1 s
-        = f s + (if i.val ≤ s ∧ s - i.val < st.2.val then toK ai * coeffK b (s - i.val) else 0))
-  · rintro ⟨o1, j1⟩ ⟨hj1, hl1, hr1, hc1⟩
-    dsimp only at hj1 hl1 hr1 hc1
-    simp only [ringswitch.long_mul_loop1_loop0.body]
-    by_cases hlt : j1 < n
-    · rw [if_pos hlt]
-      have hjn : j1.val < N := by rw [← hn]; scalar_tac
-      step with HachiEquiv.Ring.coeff_spec b j1 hb as ⟨fc, hRfc, hfc⟩
-      step with HachiEquiv.Field.fp_mul_spec ai fc hai hRfc as ⟨term, hRterm, hterm⟩
-      step as ⟨s, hs⟩
-      have hsb : s.val < o1.val.length := by rw [hl1]; omega
-      step as ⟨f1, hf1⟩
-      have hRf1 : Red f1 := by rw [hf1]; exact hr1 _ (List.getElem_mem hsb)
-      step with HachiEquiv.Field.fp_add_spec f1 term hRf1 hRterm as ⟨f2, hRf2, hf2⟩
-      step as ⟨x, back, hx, hback⟩
-      step as ⟨j2, hj2⟩
-      have hw : (back f2).val = o1.val.set s.val f2 := by rw [hback]; simp
+      have hqpos : 0 < q := by norm_num [q]
+      step as ⟨kp1, hkp1⟩
+      step with clip_lo_spec kp1 n as ⟨lo, hlo⟩
+      step with clip_hi_spec kp1 n as ⟨hiv, hhiv⟩
+      have hlov : lo.val = if sk.val + 1 > N then sk.val + 1 - N else 0 := by
+        rw [hlo, hkp1, hn]
+      have hhivv : hiv.val = if sk.val + 1 < N then sk.val + 1 else N := by
+        rw [hhiv, hkp1, hn]
+      obtain ⟨hlohi, hhiN, hhik, hkb⟩ := clip_bounds (by scalar_tac) hlov hhivv
+      step with long_mul_loop0_loop0_spec a b ha hb sk hiv 0#u128 lo lo.val
+        (by simp) hlohi hhiN hhik hkb (by simp [longSum_self]) as ⟨acc, hacc⟩
+      step as ⟨m, hm⟩
+      have hcast : lift (UScalar.cast .U64 m) ⦃ y => y.val = m.val ⦄ :=
+        UScalar.cast_inBounds_spec .U64 m (by
+          rw [hm, hq]
+          have hb1 : acc.val % q < q := Nat.mod_lt _ hqpos
+          have hb2 : q ≤ UScalar.max UScalarTy.U64 := by
+            simp only [q, UScalar.max, UScalarTy.numBits]; norm_num
+          omega)
+      step with hcast as ⟨wd, hwd⟩
+      step with fp_new_spec wd as ⟨f, hRf, hfv⟩
+      step as ⟨so2, hso2⟩
+      step as ⟨sk2, hsk2⟩
       refine ⟨by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hw, List.length_set, hl1]
-      · exact Red_set hw hr1 hRf2
-      · intro s'
-        by_cases heq : s' = s.val
-        · subst heq
-          rw [coeffK_set_eq hw hsb, hf2, hterm, hfc, hf1, ← coeffK_of_lt hsb,
-            hc1 s.val, hj2]
-          rw [if_neg (by rintro ⟨-, hlt2⟩; omega), if_pos ⟨by omega, by omega⟩,
-            show s.val - i.val = j1.val by omega]
-          ring
-        · rw [coeffK_set_ne hw heq, hc1 s', hj2]
-          congr 1
-          by_cases hc : i.val ≤ s' ∧ s' - i.val < j1.val
-          · rw [if_pos hc, if_pos (by omega)]
-          · rw [if_neg hc, if_neg ?_]
-            rintro ⟨hle, hlt'⟩
-            exact hc ⟨hle, by omega⟩
+      · rw [hso2, hsk2, List.length_append, hlen1]; simp
+      · intro x hx
+        rw [hso2] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hred1 x h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro u hu
+        rw [hsk2] at hu
+        rcases Nat.lt_or_ge u sk.val with hult | huge
+        · rw [coeffK, hso2, getD_append_lt _ _ _ (by omega)]
+          exact hc1 u hult
+        · have hueq : u = so.val.length := by omega
+          rw [coeffK, hueq, hso2, getD_append_eq _ _ _, hfv, hwd, hm, hq, hacc,
+            ZMod.natCast_mod, hlen1]
+          exact longSum_cast ha hb hlov hhivv
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : j1.val = N := by rw [← hn]; scalar_tac
-      exact ⟨hl1, hr1, by rw [← heq]; exact hc1⟩
-  · exact ⟨hj, hlen, hred, hbase⟩
-
-/-- The outer loop of `long_mul`: the partial convolution over the first `i`
-coefficients of `a`. -/
-theorem long_mul_outer_loop_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b)
-    (n : Std.Usize) (hn : n.val = N) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize)
-    (hlen : out.val.length = 2 * N - 1) (hred : ∀ x ∈ out.val, Red x) (hi : i.val ≤ N)
-    (hbase : ∀ s, coeffK out s
-      = ∑ t ∈ Finset.range i.val, if t ≤ s then coeffK a t * coeffK b (s - t) else 0) :
-    ringswitch.long_mul_loop1 a b n out i
-      ⦃ z => z.val.length = 2 * N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
-        ∀ s, coeffK z s
-          = ∑ t ∈ Finset.range N, if t ≤ s then coeffK a t * coeffK b (s - t) else 0 ⦄ := by
-  rw [ringswitch.long_mul_loop1]
-  apply loop.spec_decr_nat (fun st => N - st.2.val)
-    (fun st => st.2.val ≤ N ∧ st.1.val.length = 2 * N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      ∀ s, coeffK st.1 s
-        = ∑ t ∈ Finset.range st.2.val, if t ≤ s then coeffK a t * coeffK b (s - t) else 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hl1, hr1, hc1⟩
-    dsimp only at hi1 hl1 hr1 hc1
-    simp only [ringswitch.long_mul_loop1.body]
-    by_cases hlt : i1 < n
-    · rw [if_pos hlt]
-      have hin : i1.val < N := by rw [← hn]; scalar_tac
-      step with HachiEquiv.Ring.coeff_spec a i1 ha as ⟨ai, hRai, hai⟩
-      step with long_mul_inner_loop_spec b hb n hn o1 i1 ai 0#usize
-        (fun s => ∑ t ∈ Finset.range i1.val, if t ≤ s then coeffK a t * coeffK b (s - t) else 0)
-        hl1 hr1 hRai hin (by simp) (by intro s; rw [hc1 s]; simp) as ⟨o2, hl2, hr2, hc2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨by scalar_tac, hl2, hr2, ?_, by scalar_tac⟩
-      intro s
-      rw [hc2 s, hi2, Finset.sum_range_succ, hai]
-      congr 1
-      by_cases hle : i1.val ≤ s
-      · by_cases hlt2 : s - i1.val < N
-        · rw [if_pos ⟨hle, hlt2⟩, if_pos hle]
-        · rw [if_neg (by rintro ⟨-, h⟩; exact hlt2 h), if_pos hle,
-            coeffK_of_ge (v := b) (by rw [hb.1]; omega), mul_zero]
-      · rw [if_neg (by rintro ⟨h, -⟩; exact hle h), if_neg hle]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = N := by rw [← hn]; scalar_tac
-      exact ⟨hl1, hr1, by rw [← heq]; exact hc1⟩
-  · exact ⟨hi, hlen, hred, hbase⟩
+      have heq : sk.val = width.val := by scalar_tac
+      refine ⟨by rw [hlen1, heq, hw], hred1, ?_⟩
+      intro s hs
+      exact hc1 s (by rw [heq, hw]; exact hs)
+  · exact ⟨hk, hlen, hred, hcoeff⟩
 
 /-- The coefficients of the specification's product of two canonical
 representatives: the convolution, over the `N` slots the words occupy. -/
@@ -329,33 +474,26 @@ theorem long_mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   step as ⟨i, hi⟩
   step as ⟨width, hwidth⟩
   have hwv : width.val = 2 * N - 1 := by scalar_tac
-  step with long_mul_zero_loop_spec width (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
-    (by simp) (by simp) as ⟨out0, hout0⟩
-  have hl0 : out0.val.length = 2 * N - 1 := by rw [hout0, List.length_replicate, hwv]
-  have hr0 : ∀ x ∈ out0.val, Red x := by
-    intro x hx
-    rw [hout0] at hx
-    rw [List.eq_of_mem_replicate hx]
-    exact Red_zero
-  have hc0 : ∀ s, coeffK out0 s
-      = ∑ t ∈ Finset.range (0#usize : Std.Usize).val,
-          if t ≤ s then coeffK a t * coeffK b (s - t) else 0 := by
-    intro s
-    have : coeffK out0 s = 0 := by
-      unfold coeffK
-      rw [hout0]
-      by_cases hs : s < width.val
-      · rw [List.getD_eq_getElem _ _ (by rw [List.length_replicate]; exact hs),
-          List.getElem_replicate, toK_zero]
-      · rw [List.getD_eq_default _ _ (by rw [List.length_replicate]; omega), toK_zero]
-    rw [this]
-    simp
-  apply spec_mono (long_mul_outer_loop_spec a b ha hb params.RING_DEGREE (by simp) out0
-    0#usize hl0 hr0 (by simp) hc0)
-  rintro z ⟨hzl, hzr, hzc⟩
+  have hcast : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q
+      (by rw [params_Q_val]; norm_num [q, U128.max, U128.numBits])
+  step with hcast as ⟨qw, hqw⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  step with long_mul_loop0_spec a b ha hb params.RING_DEGREE width qw
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize params_RING_DEGREE_val hwv
+    (by rw [hqw]; exact params_Q_val) (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro s hs; simp at hs)
+    as ⟨z, hzl, hzr, hzc⟩
   refine ⟨⟨hzl, hzr⟩, ?_⟩
   refine toCPolyK_eq_of_coeffK fun k => ?_
-  rw [hzc k, coeff_toRq_mul_unreduced a b ha hb k]
+  by_cases hk : k < 2 * N - 1
+  · rw [hzc k hk, coeff_toRq_mul_unreduced a b ha hb k]
+  · rw [coeffK_of_ge (by rw [hzl]; omega), coeff_toRq_mul_unreduced a b ha hb k]
+    refine (Finset.sum_eq_zero (fun t ht => ?_)).symm
+    simp only [Finset.mem_range] at ht
+    by_cases hle : t ≤ k
+    · rw [if_pos hle, coeffK_of_ge (v := b) (k := k - t) (by rw [hb.1]; omega), mul_zero]
+    · rw [if_neg hle]
 
 /-! ### `div_by_modulus` -/
 
