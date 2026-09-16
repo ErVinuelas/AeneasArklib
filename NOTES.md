@@ -6964,3 +6964,64 @@ the extension and a standalone `have` has nothing to infer from. And the stale
 `Generated.olean` trap fired a **third** time this session: `lake env lean`
 reported the new loop names as unknown identifiers until `lake build Generated`
 ran. It is worth treating `make extract && lake build Generated` as one step.
+
+## The pre-bump sweep: 92 rows, 35 of them ≥50% faster than genesis (2026-09-16)
+
+Banked deliberately, because the cpoly pin bump re-baselines `vs genesis` and
+this is the last full measurement on the old pin `583cfaf`. Run
+`20260916T1817+0200-af4f447d`, started on load **0.45** — the quietest machine
+of the session — **usable**, A/B bias 4.3%, 1 h 23 m.
+`logs/runs/full-20260916-preBump.json`.
+
+92 rows: **62 faster, 28 noise, 2 slower**, and **35 rows are at or beyond −50%**
+against the frozen first translation.
+
+### What T2a and T2c did to the cumulative record
+
+| row | 2026-09-16T1210 sweep | this sweep |
+|---|---|---|
+| `sumcheck/round_values_zero/1024` | −18.5% | **−61.2%** |
+| `sumcheck/round_poly_zero/1024` | −18.4% | −60.0% |
+| `sumcheck/honest_compute_g/1024` | −18.1% | −59.6% |
+| `sumcheck/honest_compute_g_split/1024` | −18.1% | −59.2% |
+| `sumcheck/round_value_zero/1024` | −18.7% | −55.5% |
+| `zerocheck/range_product/16` | −26.1% | −63.2% |
+| `zerocheck/h_zero/14` | −98.4% | −98.4% |
+
+Two of these rows say something the within-run numbers cannot.
+
+**`round_value_zero` improved to −55.5% although T2c deliberately did not touch
+it.** No contradiction: T2c's within-run control read −0.7% for exactly that
+row, and `range_product` — which T2a rewrote — is its callee. The two
+instruments measure different things. `cand_vs_now` isolates the one candidate;
+`vs genesis` accumulates every candidate that ever touched the row *or anything
+it calls*. Keeping both is what makes the control row meaningful and the
+cumulative claim honest at the same time.
+
+**`h_zero` is unchanged to four decimal places across the two sweeps.** That is
+rule 12 working, not a null result: `h_zero` routes through
+`range_product_base`, the `Fp` variant, which T2a left alone on purpose so that
+this pair could serve as a cross-check. Candidate F's `rejected-mixed` came from
+exactly these rows, and they have not moved since.
+
+### The two `slower` rows are the band again, and one of them is not new
+
+* `gadget/digit_decompose/8` — **29.3 ns**, an order of magnitude *below* the
+  certified 100 ns–2 µs band's floor. The previous sweep read it **−1.4%,
+  noise**, at 26.3 ns, and nothing has touched `gadget` since. Noise.
+* `zerocheck/w_table_z_row/3` — **6.1 ns**, the timer floor. The previous sweep
+  **also** read it `slower` (+8.8% at 5.91 ns), so this is a persistent artifact
+  and not a new regression; the earlier sweep's entry already named it.
+
+The rotation is the band's signature. Last sweep the pair was
+`quadeval/in_sb` + `w_table_z_row`; this time `gadget/digit_decompose` +
+`w_table_z_row`. The 6 ns row is always there, and the second slot moves around
+among sub-band rows between runs.
+
+### A process note on reading a long run
+
+I checked this sweep's progress at 21:01 by looking at the last `Benchmarking`
+line and concluded it was still going. It had finished at **19:40** — the
+`# exit 0` marker was already in the log. Grep for the exit marker, not for the
+last line of progress output; criterion's trailing `Analyzing` line looks
+identical whether the run is mid-flight or long done.
