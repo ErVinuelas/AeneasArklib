@@ -195,6 +195,29 @@ const LIFT_COMMIT_RHO_ROWS: usize = 1;
 /// `honest_lift_witness` row is one `c_quotient` plus the witness assembly.
 const LIFT_PROVER_COLS: usize = 4;
 
+/// The width at which the lift rows can show their **block** shape, for the
+/// `*_blocks` cases below.
+///
+/// `LIFT_PROVER_COLS = 4` above is four *dense* columns, and at four columns
+/// there is no room for structure. The real `M` (`quadeval::rlin_stmt`) is five
+/// rows of `cw + ct + cz` columns, `8192 + 8192 + 40 960 = 57 344` at the pin,
+/// and rows c1, c2 and c3 are **86% literal `Rq::zero()`** -- c1 is
+/// `[D | 0 | 0]`, so 8192 dense entries and 49 152 zeros.
+///
+/// `28 = 4 · 7` keeps the pin's proportions exactly (`cw : ct : cz = 1 : 1 : 5`,
+/// so `4 : 4 : 20`) while keeping the dense part the same size as
+/// `LIFT_PROVER_COLS`: 4 dense entries and 24 zeros, 86% zeros as at the pin.
+///
+/// This exists because the dense cases cannot measure work that is *skipped*.
+/// `c_row_sum` currently calls `long_mul` on every entry -- `O(N²)` -- and then
+/// runs a `2N − 1`-wide accumulation and allocates a `2N − 1` vector, per
+/// column, **including for zero entries**. Against a dense random matrix a
+/// candidate that skips zeros has nothing to skip and only pays the test, so it
+/// reads as a small loss; the row would reject a real 7x. Added as *new* case
+/// ids rather than by redefining the dense ones, so the banked `vs genesis`
+/// history for those keeps its meaning.
+const LIFT_PROVER_COLS_BLOCKS: usize = 28;
+
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
 /// computations; a macro makes that impossible.
@@ -472,6 +495,56 @@ macro_rules! define_cases {
                 acc
             }
 
+            /// A REDUCED statement with the **block** shape of `rlin_stmt`'s c1 row,
+            /// `[D | 0 | 0]`: the first `cols / 7` entries dense, the rest
+            /// `Rq::zero()`. See [`LIFT_PROVER_COLS_BLOCKS`] for why the dense
+            /// generator above cannot stand in for this.
+            fn statement_blocks(seed: u64, cols: usize) -> hc::ringswitch::RlinStatement {
+                let cw = cols / 7;
+                let dense = vec_of(seed, cw);
+                let mut row: Vec<Rq> = Vec::new();
+                let mut k = 0usize;
+                while k < cw {
+                    row.push(dense.get(k).copy());
+                    k += 1;
+                }
+                let mut z = 0usize;
+                while z < cols - cw {
+                    row.push(Rq::zero());
+                    z += 1;
+                }
+                let mut rows: Vec<PolyVec> = Vec::new();
+                rows.push(PolyVec::new(row));
+                hc::ringswitch::RlinStatement::new(
+                    PolyMatrix::new(rows),
+                    vec_of(seed.wrapping_add(0x100), 1),
+                    hc::params::CHAIN_GAMMA,
+                )
+            }
+
+            /// [`c_row_sum`] against the block-shaped row: same composition, but
+            /// 86% of the columns are zero, as at the pin.
+            pub fn c_row_sum_blocks(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_blocks(0x8047_0000_0000_0100, cols);
+                let z = vec_of(0x8047_0000_0000_0110, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_row_sum(black_box(&s), black_box(&z), black_box(0)),
+                    d_words,
+                )
+            }
+
+            /// [`c_quotient`] against the block-shaped row.
+            pub fn c_quotient_blocks(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_blocks(0x8047_0000_0000_0120, cols);
+                let z = vec_of(0x8047_0000_0000_0130, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_quotient(black_box(&s), black_box(&z), black_box(0)),
+                    |r| d_rq(&r.to_rq()),
+                )
+            }
+
             /// `cRowSum` at one row of `LIFT_PROVER_COLS` columns: `μ` unreduced
             /// `RING_DEGREE²` products plus a `2N − 1`-wide accumulation. W1
             /// REDUCED; see `LIFT_PROVER_COLS`.
@@ -606,6 +679,11 @@ fn ringswitch_benches(c: &mut Criterion) {
     bench_case!(c, "ringswitch/c_row_sum", c_row_sum, [LIFT_PROVER_COLS]);
     // @covers ringswitch::c_quotient
     bench_case!(c, "ringswitch/c_quotient", c_quotient, [LIFT_PROVER_COLS]);
+    // The same two items at the block shape; see `LIFT_PROVER_COLS_BLOCKS`.
+    // @covers ringswitch::c_row_sum
+    bench_case!(c, "ringswitch/c_row_sum_blocks", c_row_sum_blocks, [LIFT_PROVER_COLS_BLOCKS]);
+    // @covers ringswitch::c_quotient
+    bench_case!(c, "ringswitch/c_quotient_blocks", c_quotient_blocks, [LIFT_PROVER_COLS_BLOCKS]);
     // @covers ringswitch::honest_lift_witness
     bench_case!(c, "ringswitch/honest_lift_witness", honest_lift_witness, [LIFT_PROVER_COLS]);
 

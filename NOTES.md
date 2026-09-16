@@ -7237,3 +7237,43 @@ rather than indicative. Owed.
 Cumulative against the 1 882.2 s genesis baseline: **3.94× raw / 4.22×
 recentered** — and as always the recentered figure compounds hand corrections
 across runs, so it is an estimate, not a measurement. Read it as ~3.9–4.2×.
+
+## Two process failures in one bench attempt, and I destroyed someone else's run (2026-09-16)
+
+Candidate T1a1's first bench run is abandoned, and the second failure is worse
+than the first.
+
+**Failure 1: I defeated my own pre-flight check by backgrounding it.** Earlier
+today I widened `perf-loop`'s "machine is quiet" check to be **machine-wide**,
+precisely because a second clone (`.../hachi-ntt/AeneasArklib`) was benching and
+the old check could not see it. Then I put that check *inside* a command I
+launched with `run_in_background`, so its output never reached me, and launched
+a `CANDIDATE=1` run onto a machine where the NTT clone had been benching for
+**~15 minutes**. The run is contaminated and is discarded (`exit 2`,
+`logs/runs/candT1a1-run1.log`). A gate whose result you do not read is not a
+gate. **Pre-flight checks run in the foreground, always.**
+
+**Failure 2: my kill pattern matched both clones, so I killed the run I was
+trying to protect.** Having realised the contamination, I killed my own run --
+correct, since the other started first and mine was corrupting it. But I used
+
+```
+pkill -f "AeneasArklib/hachi/target/release/deps"
+```
+
+and the other clone's path is
+`.../hachi-ntt/AeneasArklib/hachi/target/release/deps/...`, which **contains
+that same substring**. So it killed the NTT session's benchmark too. That run
+had started at 23:10 and was 19 minutes in with no JSON written (its last
+output, `ntt-final-core.json`, is from 23:09), so roughly nineteen minutes of
+someone else's measurement is simply gone, and the thing I was trying to avoid
+is exactly what I caused.
+
+**Kill by PID, never by a path substring**, when two checkouts of the same
+project share a directory layout -- which is the normal case for a worktree or a
+second clone. `pkill -f` over a repo path is not specific to a repo.
+
+Consequences taken: no further benchmark runs from this session tonight, since I
+cannot verify machine exclusivity without inspecting processes, and process
+inspection is now (rightly) refused to me. The bench-case work below is
+separable and lands on its own; candidate T1a1 stays unaccepted and unmeasured.
