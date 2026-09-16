@@ -1151,6 +1151,114 @@ theorem range_product.opt_eq_spec_16 (v : F) :
     range_product.opt 16 v = InnerOuter.rangeProduct 16 v :=
   range_product.opt_eq_spec 16 v
 
+/-! # Candidate T2a -- `zerocheck::range_product`: Paterson--Stockmeyer, block 4
+
+Strategy `opt-algo-swap`, on top of candidate F.  F contracted the two symmetric
+factors and evaluates `∏_{j=1}^{15} (v² − j²)` one factor at a time: fifteen
+*full* extension multiplications, and fifteen `Fp::new` + `Ext4::from_base`
+embeddings, per call.  T2a expands that product once and for all into its
+sixteen coefficients -- pinned in `params::RANGE_Q_COEFFS`, which is a `const`
+table, so the expansion costs nothing at run time -- and then evaluates the
+degree-15 polynomial by Paterson--Stockmeyer at block width 4.
+
+The arithmetic: with `y = v²` and `y², y³, y⁴` precomputed (3 multiplications),
+four blocks of four coefficients cost 3 Horner multiplications by `y⁴` and 12
+**mixed** `Fp × Ext4` multiplications.  A mixed multiply is four base
+multiplications (`fp_ext_mul_spec`, `hachi/lean/Ext.lean:403`) where a full
+extension multiply is nineteen, so the coefficient work drops from 15 × 19 to
+12 × 4 base multiplications -- and the fifteen embeddings become twelve
+`Fp::new`s on table words that are already reduced.
+
+Measured (run `20260916T1530+0200-ad543615`): `−43.0 / −42.6 / −43.6 / −44.5 /
+−44.0 %` on the five caller rows, `zerocheck/range_product/16` itself `−50.1 %`
+(in the 100 ns - 2 µs band, so no verdict of its own -- the callers are the
+evidence, per `perf-loop`'s band rule).  `h_zero` / `h_zero_is_zero` moved
+`+1.6 %`, i.e. noise: those route through `range_product_base`, which T2a
+deliberately does **not** touch (rule 12 -- the `Fp` variant is its own
+candidate).  That cross-check is exactly the one candidate F failed
+(`rejected-mixed`), and it did not recur.
+
+The table is verified twice over, from both ends and independently:
+`params_semantics.rs`'s `range_q_coeffs_are_the_product_form` rebuilds all
+sixteen literals in `u128` from `GADGET_BASE`, and `rangeQ_eq_prod`
+(`hachi/lean/ZeroCheck.lean`) proves the same claim in Lean.
+
+## The loop
+
+The extracted loop descends `i` from 3 to 0 and is stated generically in the
+coefficient sequence, because the *rearrangement* is what this candidate is --
+the particular sixteen words belong to `rc` and to `rangeQ_eq_prod`. -/
+
+/-- The loop of `range_product`'s candidate: Horner over blocks of four, `y⁴` per
+step, descending. Mirrors the extracted `zerocheck.range_product_loop` argument
+for argument. -/
+def range_product.optPS (c : ℕ → F) (y y2 y3 y4 : F) (acc : F) (i : ℕ) : F :=
+  if _h : 0 < i then
+    range_product.optPS c y y2 y3 y4
+      (acc * y4 + (c (4 * (i - 1)) + c (4 * (i - 1) + 1) * y
+        + c (4 * (i - 1) + 2) * y2 + c (4 * (i - 1) + 3) * y3)) (i - 1)
+  else acc
+termination_by i
+decreasing_by omega
+
+/-- The loop invariant, as induction on an upper bound of the measure -- the
+shape `loop.spec_decr_nat` takes on the Rust side, so this is the skeleton
+`range_product_loop_spec` (`hachi/lean/ZeroCheck.lean`) is restated with.
+
+The accumulator holds the top `16 − 4·i` coefficients; one step prepends four
+more, which is the index shift
+`∑_{t<4+M} a_{b+t} y^t = (∑_{t<4} a_{b+t} y^t) + y⁴ · ∑_{t<M} a_{b+4+t} y^t`. -/
+theorem range_product.optPS_eq (c : ℕ → F) (y : F) (k : ℕ) :
+    ∀ (i : ℕ) (acc : F), i ≤ k → 4 * i ≤ 16 →
+      acc = ∑ t ∈ Finset.range (16 - 4 * i), c (4 * i + t) * y ^ t →
+      range_product.optPS c y (y ^ 2) (y ^ 3) (y ^ 4) acc i
+        = ∑ t ∈ Finset.range 16, c t * y ^ t := by
+  induction k with
+  | zero =>
+    intro i acc hik _ hacc
+    have hz : i = 0 := by omega
+    rw [range_product.optPS, dif_neg (by omega), hacc, hz]
+    norm_num
+  | succ m ih =>
+    intro i acc hik hi4 hacc
+    by_cases hpos : 0 < i
+    · rw [range_product.optPS, dif_pos hpos]
+      refine ih (i - 1) _ (by omega) (by omega) ?_
+      have hshift : 16 - 4 * (i - 1) = 4 + (16 - 4 * i) := by omega
+      rw [hshift, Finset.sum_range_add]
+      have hsnd : ∑ t ∈ Finset.range (16 - 4 * i),
+            c (4 * (i - 1) + (4 + t)) * y ^ (4 + t)
+          = (∑ t ∈ Finset.range (16 - 4 * i), c (4 * i + t) * y ^ t) * y ^ 4 := by
+        rw [Finset.sum_mul]
+        refine Finset.sum_congr rfl fun t _ => ?_
+        rw [show 4 * (i - 1) + (4 + t) = 4 * i + t by omega, pow_add]
+        ring
+      rw [hsnd, ← hacc]
+      simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.add_zero]
+      ring
+    · rw [range_product.optPS, dif_neg hpos, hacc, show i = 0 by omega]
+      norm_num
+
+/-- **The candidate's lemma.** The Paterson--Stockmeyer evaluation of the pinned
+coefficient table, times the leading `v`, is the specification's range factor.
+
+Two independent halves, composed: `optPS_eq` above is the *rearrangement* (true
+for any coefficient sequence, no characteristic used), and
+`rangeQ_sq_eq_rangeProduct` (`hachi/lean/ZeroCheck.lean`) is the *table*
+(sixteen `decide`s in `ZMod q` plus one `ring`).  A wrong table entry fails the
+second and cannot be absorbed by the first. -/
+theorem range_product.optPS_eq_spec (v : F) :
+    v * range_product.optPS rc (v * v) ((v * v) ^ 2) ((v * v) ^ 3) ((v * v) ^ 4)
+        (rc 12 + rc 13 * (v * v) + rc 14 * (v * v) ^ 2 + rc 15 * (v * v) ^ 3) 3
+      = InnerOuter.rangeProduct 16 v := by
+  have hentry : rc 12 + rc 13 * (v * v) + rc 14 * (v * v) ^ 2 + rc 15 * (v * v) ^ 3
+      = ∑ t ∈ Finset.range (16 - 4 * 3), rc (4 * 3 + t) * (v * v) ^ t := by
+    simp only [show (4 : ℕ) * 3 = 12 by norm_num, show (16 : ℕ) - 12 = 4 by norm_num,
+      Finset.sum_range_succ, Finset.sum_range_zero]
+    ring
+  rw [range_product.optPS_eq rc (v * v) 3 3 _ (by omega) (by omega) hentry]
+  exact rangeQ_sq_eq_rangeProduct v
+
 /-! # Candidate G -- `zerocheck::h_zero`, `h_zero_is_zero`: the range factor in the base field
 
 Strategy `opt-algo-swap`. Every entry the table builders feed to the range

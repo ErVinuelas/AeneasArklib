@@ -121,18 +121,36 @@ pub fn below_two_pow(i: usize, m: usize) -> bool {
 /// extracted model carries no subtraction to discharge (`lib.rs`
 /// § "Style notes"; the same reason `params::GAMMA` is a literal).
 pub fn range_product(v: Ext4) -> Ext4 {
-    let base: u64 = params::GADGET_BASE;
-    let v2: Ext4 = v * v;
-    let mut acc: Ext4 = v;
-    let mut j: u64 = 1;
-    while j < base {
-        let sq: u64 = j * j;
-        let scalar: Ext4 = Ext4::from_base(Fp::new(sq));
-        let d: Ext4 = v2 - scalar;
-        acc = acc * d;
-        j += 1;
+    // `Q(x) = ∏_{j=1}^{15}(x − j²)` by Paterson–Stockmeyer with block 4, at
+    // `x = v²` (Stage 6 candidate T2a; opt:
+    // `HachiEquiv.Opt.range_product.opt`, `lean/Opt.lean`).
+    //
+    // Candidate F's form evaluated the product literally: one squaring and 15
+    // general `Ext4` multiplications, one per factor. `Q`'s coefficients are
+    // constants once `b` is pinned ([`params::RANGE_Q_COEFFS`]), so the same
+    // value comes out of four powers of `x`, four coefficient blocks and three
+    // Horner steps: **8** general multiplications and 12 base-by-extension
+    // ones, which are a quarter the work each (4 base products against 16).
+    let x: Ext4 = v * v;
+    let x2: Ext4 = x * x;
+    let x3: Ext4 = x2 * x;
+    let x4: Ext4 = x2 * x2;
+    // The top block `A_3`, peeled so the first Horner step is not `0 · x4`.
+    let mut acc: Ext4 = Ext4::from_base(Fp::new(params::RANGE_Q_COEFFS[12]))
+        + Fp::new(params::RANGE_Q_COEFFS[13]) * x
+        + Fp::new(params::RANGE_Q_COEFFS[14]) * x2
+        + Fp::new(params::RANGE_Q_COEFFS[15]) * x3;
+    let mut i: usize = 3;
+    while i > 0 {
+        i -= 1;
+        let b: usize = 4 * i;
+        let blk: Ext4 = Ext4::from_base(Fp::new(params::RANGE_Q_COEFFS[b]))
+            + Fp::new(params::RANGE_Q_COEFFS[b + 1]) * x
+            + Fp::new(params::RANGE_Q_COEFFS[b + 2]) * x2
+            + Fp::new(params::RANGE_Q_COEFFS[b + 3]) * x3;
+        acc = acc * x4 + blk;
     }
-    acc
+    v * acc
 }
 
 /// The range factor computed in the base field: `P_b(c)` over `Fp`, for the

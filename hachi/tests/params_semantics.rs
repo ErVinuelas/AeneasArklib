@@ -24,9 +24,55 @@ use hachi::params::{
     BALANCED_SHIFT, BETA_SQ, BLOCKS, B_ZERO, CHAIN_GAMMA, D_QUAD_COLS, D_ROWS, EXT_DEGREE, EXT_W,
     GADGET_BASE, GADGET_DIGITS, GAMMA, HALF_BASE, INNER_ROWS, KAPPA, LIFT_COLS, MESSAGE_ROWS,
     ML_HIGH_LEN, ML_LOW_LEN, ML_POLY_LEN, ML_VARS_HIGH, ML_VARS_LOW, M_ONE, M_ZERO, OMEGA,
-    OUTER_ROWS, Q, RING_DEGREE, RING_LOG_DEGREE, RLIN_COLS, RLIN_CT, RLIN_CW, RLIN_CZ, RLIN_ROWS,
-    Z_BALANCED_SHIFT, Z_BOUND, Z_DIGITS,
+    OUTER_ROWS, Q, RANGE_Q_COEFFS, RING_DEGREE, RING_LOG_DEGREE, RLIN_COLS, RLIN_CT, RLIN_CW,
+    RLIN_CZ, RLIN_ROWS, Z_BALANCED_SHIFT, Z_BOUND, Z_DIGITS,
 };
+
+/// `RANGE_Q_COEFFS` is `∏_{j=1}^{b−1}(x − j²)`, rebuilt here from
+/// [`GADGET_BASE`] rather than trusted as a table.
+///
+/// This is the test the constant's doc names, and it is the only thing standing
+/// between a change to `b` and sixteen silently wrong literals. It multiplies the
+/// factors out in `u128` with a reduction per step -- deliberately not the
+/// crate's own arithmetic and not the Paterson–Stockmeyer schedule the crate
+/// evaluates them with, so a shared mistake cannot cancel.
+///
+/// The exact integers are astronomically larger than `q` (`a_0` is 25 digits),
+/// which is why the reduction happens inside the loop and why the coefficients
+/// cannot be read off by inspection.
+#[test]
+fn range_q_coeffs_are_the_product_form() {
+    let q: u128 = u128::from(Q);
+    // the polynomial `1`, then multiply in `(x − j²)` for each j
+    let mut coeffs: Vec<u128> = vec![1];
+    for j in 1..GADGET_BASE {
+        let sq = u128::from(j) * u128::from(j) % q;
+        let mut next: Vec<u128> = vec![0; coeffs.len() + 1];
+        for (i, c) in coeffs.iter().enumerate() {
+            next[i + 1] = (next[i + 1] + c) % q; // x · c
+            next[i] = (next[i] + (q - sq % q) * c) % q; // −j² · c
+        }
+        coeffs = next;
+    }
+    assert_eq!(
+        coeffs.len(),
+        RANGE_Q_COEFFS.len(),
+        "b = {GADGET_BASE} gives a degree-{} polynomial, so {} coefficients",
+        coeffs.len() - 1,
+        coeffs.len()
+    );
+    for (k, c) in coeffs.iter().enumerate() {
+        assert_eq!(
+            u128::from(RANGE_Q_COEFFS[k]),
+            *c,
+            "coefficient a{k} of the range polynomial"
+        );
+    }
+    // the two the doc calls out by hand
+    assert_eq!(RANGE_Q_COEFFS[15], 1, "the product is monic");
+    let sum_sq: u64 = (1..GADGET_BASE).map(|j| j * j).sum();
+    assert_eq!(RANGE_Q_COEFFS[14], Q - sum_sq, "a_14 = −Σ j²");
+}
 
 /// `Σ_{u<digits} b^u`: ArkLib's `digitOnesValue b digits` (`Gadget/Core.lean`),
 /// the all-ones base-`b` value, so that a constant balanced digit `a`

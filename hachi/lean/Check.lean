@@ -1467,6 +1467,18 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Candidate F -- the range factor as `v · ∏ (v² − j²)` (brief 5's S5).
 #print axioms HachiEquiv.Opt.range_product.opt_eq_spec
 #print axioms HachiEquiv.Opt.range_product.opt_eq_spec_16
+-- Candidate T2a -- the same range factor by Paterson--Stockmeyer at block 4,
+-- over the pinned coefficient table.  The two halves are audited separately on
+-- purpose: `optPS_eq` is the rearrangement (any coefficient sequence, no
+-- characteristic), `rangeQ_eq_prod` is the table (sixteen `decide`s in `ZMod q`
+-- plus one `ring`), and `rangeQ_sq_eq_rangeProduct` composes them against the
+-- specification.  `rc` is *defined* by `params::RANGE_Q_COEFFS`, so a wrong
+-- table word fails its own `decide` rather than being absorbed by the algebra.
+#print axioms HachiEquiv.ZeroCheck.rangeQ_eq_prod
+#print axioms HachiEquiv.ZeroCheck.rangeQ_sq_eq_rangeProduct
+#print axioms HachiEquiv.ZeroCheck.range_product_loop_spec
+#print axioms HachiEquiv.Opt.range_product.optPS_eq
+#print axioms HachiEquiv.Opt.range_product.optPS_eq_spec
 -- Candidate G -- the table builders' range factor computed in the base field.
 #print axioms HachiEquiv.Opt.phiF_range_product_base
 #print axioms HachiEquiv.Opt.h_zero.opt2_eq_spec

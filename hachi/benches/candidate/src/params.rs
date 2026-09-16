@@ -114,6 +114,44 @@ pub const RING_DEGREE: usize = 1024;
 /// trading digit size for digit count against the binary gadget.
 pub const GADGET_BASE: u64 = 16;
 
+/// The 16 coefficients of `Q(x) = ∏_{j=1}^{b−1} (x − j²)`, least significant
+/// first, reduced mod [`Q`] (Stage 6 candidate T2a).
+///
+/// The range factor of the zero check is
+/// `P_b(v) = v · ∏_{j=1}^{b−1} (v² − j²) = v · Q(v²)`, and candidate F already
+/// rewrote it into that shape. `Q` is a *fixed* degree-15 polynomial once `b` is
+/// pinned, so its coefficients are constants rather than something to recompute
+/// per evaluation: they are the signed elementary symmetric functions of
+/// `{1, 4, 9, …, 225}`, `a_k = (−1)^{15−k} e_{15−k}`, and the exact integers run
+/// to 25 digits before reduction (`a_0 = −1 710 012 252 724 199 424 000 000`).
+///
+/// **Pinned to `GADGET_BASE = 16` and to nothing else.** Change `b` and every
+/// entry here is wrong; `params_semantics::range_q_coeffs_are_the_product_form`
+/// is what keeps the two in step, by rebuilding the product from `GADGET_BASE`
+/// and comparing. That test is the reason this is a literal table and not a
+/// `const fn`: the extraction has no `const fn`, and a literal that a test
+/// checks is worth more than a computation the model cannot see.
+///
+/// `a_15 = 1` (the product is monic) and `a_14 = −Σ j² = −1240 ≡ q − 1240`.
+pub const RANGE_Q_COEFFS: [u64; 16] = [
+    3_482_634_775,
+    2_503_758_464,
+    2_571_177_710,
+    2_088_262_913,
+    1_336_916_483,
+    2_390_189_385,
+    593_857_483,
+    4_019_711_691,
+    895_573_040,
+    2_269_934_483,
+    1_661_002_130,
+    2_173_484_420,
+    4_077_588_997,
+    679_644,
+    4_294_965_957,
+    1,
+];
+
 /// The gadget digit count `digits`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9 (`b = 16`, 8 digits), and it still discharges

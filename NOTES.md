@@ -6700,3 +6700,74 @@ T1 keeps one thing T2 has not: T1b removes wall W2 (2.2 GiB) and unblocks I6b
 and I7. So the order is a choice between seconds now and unblocking later, not a
 correctness question. This is exactly the check the backlog's preflight gate 1
 existed to force, and it fired.
+
+## Candidate T2a: the range factor expanded, and the proof split so the table cannot hide (2026-09-16)
+
+T2's card projects ~1.5× on the round work by loop interchange. Before touching
+the loops, the *innermost* thing they call turned out to be worth more than the
+whole card projected, and it is a smaller change.
+
+`zerocheck::range_product` is the range factor of the zero check,
+`P(v) = v · ∏_{j=1}^{15} (v² − j²)` after candidate F's contraction. F computes
+it one factor at a time: 15 **full** extension multiplications (19 base
+multiplications each, `ext_mul_spec`) and 15 `Fp::new` + `Ext4::from_base`
+embeddings. Candidate T2a expands the product into its 16 coefficients **once,
+at compile time** — `params::RANGE_Q_COEFFS`, a `const [u64; 16]` — and then
+evaluates the degree-15 polynomial by Paterson–Stockmeyer at block width 4:
+with `y = v²` and `y², y³, y⁴` precomputed, three Horner multiplications by `y⁴`
+and twelve **mixed** `Fp × Ext4` multiplications, four base multiplications each.
+So the coefficient work drops from `15 × 19` to `12 × 4` base multiplications.
+
+Measured (`20260916T1530+0200-ad543615`): the five caller rows read
+**−43.0 / −42.6 / −43.6 / −44.5 / −44.0 %**, and the item's own row −50.1% at
+348 ns, which carries no verdict — it is inside the certified 100 ns–2 µs band,
+so the callers are the evidence, per `perf-loop`'s band rule. A/B bias 3.1%.
+
+**The cross-check that mattered.** `h_zero` and `h_zero_is_zero` moved +1.6%,
+i.e. noise. That is the intended result, not an accident: those two route through
+`range_product_base`, the `Fp` variant, which T2a deliberately does **not** touch
+(rule 12 — it is its own candidate). Candidate F's first attempt earned
+`rejected-mixed` on exactly these two rows, and the failure mode did not recur.
+
+### Why the proof is in two halves
+
+The risk in a precomputed table is that it is wrong and the algebra absorbs it.
+So `rangeQ_eq_prod` is split on purpose:
+
+* **Lemma A** — the fifteen-factor product expands to a degree-15 polynomial
+  with **exact integer** coefficients (`a_0 = −1 710 012 252 724 199 424 000 000`,
+  25 digits). `ring` closes it; it uses no characteristic and would hold over any
+  commutative ring.
+* **Lemma B, sixteen times** — each exact integer equals the reduced word the
+  table stores. That is a computation in `ZMod q`, by `decide`, lifted into `F`
+  through `castB`, which factors both casts through the ring homomorphism `φF`.
+  `decide` is why Lemma B is stated about `ZMod q` — a finite type — rather than
+  about `F`, where there is nothing to compute with.
+
+`rc` is *defined* as the table read (`params.RANGE_Q_COEFFS.val.getD j 0`), so a
+wrong word cannot be papered over: it fails its own `decide`. And the claim is
+verified twice from opposite ends —
+`params_semantics::range_q_coeffs_are_the_product_form` rebuilds all sixteen
+literals in `u128` from `GADGET_BASE` on the Rust side.
+
+`Opt.lean` carries the rearrangement generically in the coefficient sequence
+(`range_product.optPS_eq`): the loop shape is what the candidate *is*, and the
+particular sixteen words belong to `rc`. `range_product.optPS_eq_spec` composes
+the two.
+
+### Three things the Lean cost
+
+* **`Array.index_usize_spec` hands back a `getElem` at a boundedness proof**, and
+  `rw`ing the *index* afterwards fails with "motive is not type correct" — the
+  proof depends on the term being abstracted. The fix is ordering: bridge to `rc`
+  (whose argument is an ordinary `ℕ`) **first**, rewrite the index second. Same
+  family as the `rw [hlen]` failure recorded for candidate M.
+* **`@[irreducible]` on an extracted `const` is not a wall.** Aeneas also puts
+  `@[global_simps]` on it, so `simp only [params.RANGE_Q_COEFFS, Array.make]`
+  unfolds the table and `rfl` reads an entry.
+* **`norm_num` cancelled the leading `v`** in `rangeQ_sq_eq_rangeProduct`, turning
+  a goal into `… ∨ v = 0` (it is a field, so it may). Targeted rewrites plus
+  `Finset.prod_congr` — candidate F's shape — instead.
+
+Rule 12 headroom left on the table, deliberately: the twelve `Fp::new` calls each
+pay a redundant `% P` on a table word that is already reduced.

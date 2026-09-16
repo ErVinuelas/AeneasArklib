@@ -376,70 +376,252 @@ theorem RlinStatement_new_spec {n μ : ℕ} (m : linalg.PolyMatrix) (yvec : lina
 
 /-! ## `zerocheck`: the `H₀` side -/
 
-/-- The loop of `range_product`: ascending `j`, one extension multiplication
-per step by `v² - j²` (candidate F's contraction of the two symmetric factors,
-`(v - j)(v + j) = v² - j²`). `v` is not a component of the extracted loop
-state -- only the square `v2` is, which is why `v` is an ordinary parameter here
-and enters only through `hv2v` and the invariant `hval`, and why it needs no
-`Reduced v`: only `toExt v` is ever mentioned (the sibling
-`range_product_base_loop_spec` drops `Red c` for the same reason).
+/-- Coefficient `j` of the range polynomial `Q`, as an element of `F`: the word
+`params::RANGE_Q_COEFFS[j]` read out of the extracted table and embedded.  This
+is the whole interface between the Rust table and the algebra below -- `rc` is
+*defined* by the table, so nothing here can disagree with what the code reads.
 
-`j * j` is a *checked* `u64` product, and the guard `j < GADGET_BASE = 16` is
-what discharges it (`j · j ≤ 225`); `Fp::new` then never actually reduces, but
-the model still goes through `fp_new_spec`. The exit branch is the whole
-algebraic content: `Finset.Ico 1 16 = Finset.Icc 1 15` plus the pairwise
-identity, which is `ring` after `Nat.cast_mul`. -/
-theorem range_product_loop_spec (v v2 acc : cpoly.field.Ext4)
-    (j : Std.U64) (hv2 : Reduced v2) (hacc : Reduced acc)
-    (hj : 1 ≤ j.val) (hjle : j.val ≤ 16) (hv2v : toExt v2 = toExt v * toExt v)
-    (hval : toExt acc = toExt v *
-      ∏ k ∈ Finset.Ico (1 : ℕ) j.val, (toExt v * toExt v - ((k * k : ℕ) : F))) :
-    zerocheck.range_product_loop params.GADGET_BASE v2 acc j
-      ⦃ out => Reduced out ∧ toExt out = InnerOuter.rangeProduct 16 (toExt v) ⦄ := by
-  have hgb : (params.GADGET_BASE).val = 16 := by simp [params.GADGET_BASE]
+Out-of-range `j` gives `0`, which never arises: every use is guarded by
+`coeffs_length`. -/
+def rc (j : ℕ) : F := ((params.RANGE_Q_COEFFS.val.getD j 0#u64).val : ℕ)
+
+/-- The range polynomial in **coefficient** form, `∑_{k<16} a_k · y^k`.  Candidate
+T2a computes exactly this, by Horner over four blocks of four; candidate F
+computed the equal product form one factor at a time. -/
+def rangeQ (y : F) : F := ∑ k ∈ Finset.range 16, rc k * y ^ k
+
+/-- The table has sixteen entries, which is what bounds every index the loop
+forms (`4·i + 3 ≤ 15` for `i ≤ 3`). -/
+theorem coeffs_length : params.RANGE_Q_COEFFS.val.length = 16 := by
+  simp only [params.RANGE_Q_COEFFS, Array.make]; rfl
+
+/-- The bridge from what `Array.index_usize_spec` hands back -- a `getElem` at a
+proof of boundedness -- to the `getD` that `rc` is written with. -/
+theorem rc_of_index (j : ℕ) (h : j < params.RANGE_Q_COEFFS.val.length) :
+    ((params.RANGE_Q_COEFFS.val[j].val : ℕ) : F) = rc j := by
+  rw [rc, List.getD_eq_getElem (l := params.RANGE_Q_COEFFS.val) (d := 0#u64) h]
+
+/-- A reduced literal and the exact integer it reduces from denote the same
+element of `F`.  They agree in `ZMod q` by computation, and `φF` is a ring
+homomorphism, so the two casts into `F` factor through it. This is what lets the
+sixteen `decide`s below be about `ZMod q` -- a finite type -- rather than about
+`F`, where `decide` has nothing to compute with. -/
+theorem castB {n : ℕ} {z : ℤ} (h : ((n : ℕ) : ZMod q) = ((z : ℤ) : ZMod q)) :
+    ((n : ℕ) : F) = ((z : ℤ) : F) := by
+  rw [← map_natCast phiF n, ← map_intCast phiF z, h]
+
+/-- **The identity candidate T2a rests on**: the sixteen reduced words in
+`params::RANGE_Q_COEFFS` are the coefficients of `∏_{j=1}^{15} (y − j²)`.
+
+Two halves, and keeping them apart is the point.  *Lemma A* is the expansion of
+the fifteen-factor product into a degree-15 polynomial with **exact integer**
+coefficients: `ring` closes it, it uses no characteristic, and it would hold over
+any commutative ring.  *Lemma B*, sixteen times, is that each exact integer
+equals the reduced word the table stores -- a computation in `ZMod q`, by
+`decide`, lifted to `F` through `castB`.  So a wrong table entry cannot be
+absorbed by the algebra: it fails its own `decide`.
+
+`params_semantics.rs`'s `range_q_coeffs_are_the_product_form` is the same claim
+on the Rust side, rebuilt in `u128` from `GADGET_BASE`; this is the proof. -/
+theorem rangeQ_eq_prod (y : F) :
+    rangeQ y = ∏ k ∈ Finset.Icc (1 : ℕ) 15, (y - ((k * k : ℕ) : F)) := by
+  -- Lemma B, sixteen times: table word `=` exact integer, in `F`
+  have hrc : ∀ {j n : ℕ} {z : ℤ},
+      (params.RANGE_Q_COEFFS.val.getD j 0#u64).val = n →
+      ((n : ℕ) : ZMod q) = ((z : ℤ) : ZMod q) → rc j = ((z : ℤ) : F) := by
+    intro j n z hn h; rw [rc, hn]; exact castB h
+  have b0 : rc 0 = ((-1710012252724199424000000 : ℤ) : F) :=
+    hrc (n := 3482634775) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b1 : rc 1 = ((2702572249389834608640000 : ℤ) : F) :=
+    hrc (n := 2503758464) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b2 : rc 2 = ((-1210310405427816646041600 : ℤ) : F) :=
+    hrc (n := 2571177710) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b3 : rc 3 = ((242558905724502235934976 : ℤ) : F) :=
+    hrc (n := 2088262913) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b4 : rc 4 = ((-26492213226494426261760 : ℤ) : F) :=
+    hrc (n := 1336916483) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b5 : rc 5 = ((1757180899801703899744 : ℤ) : F) :=
+    hrc (n := 2390189385) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b6 : rc 6 = ((-75623248541039633200 : ℤ) : F) :=
+    hrc (n := 593857483) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b7 : rc 7 = ((2202549127844351265 : ℤ) : F) :=
+    hrc (n := 4019711691) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b8 : rc 8 = ((-44565094136562600 : ℤ) : F) :=
+    hrc (n := 895573040) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b9 : rc 9 = ((635232213337980 : ℤ) : F) :=
+    hrc (n := 2269934483) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b10 : rc 10 = ((-6397840121400 : ℤ) : F) :=
+    hrc (n := 1661002130) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b11 : rc 11 = ((45123156390 : ℤ) : F) :=
+    hrc (n := 2173484420) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b12 : rc 12 = ((-217378200 : ℤ) : F) :=
+    hrc (n := 4077588997) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b13 : rc 13 = ((679644 : ℤ) : F) :=
+    hrc (n := 679644) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b14 : rc 14 = ((-1240 : ℤ) : F) :=
+    hrc (n := 4294965957) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  have b15 : rc 15 = ((1 : ℤ) : F) :=
+    hrc (n := 1) (by simp only [params.RANGE_Q_COEFFS, Array.make]; rfl) (by decide)
+  -- Lemma A: the exact integers *are* the product.  Pure `ring`.
+  have hIcc : (Finset.Icc (1 : ℕ) 15)
+      = ({1,2,3,4,5,6,7,8,9,10,11,12,13,14,15} : Finset ℕ) := by decide
+  rw [hIcc]
+  simp only [rangeQ, Finset.sum_range_succ, Finset.sum_range_zero,
+    b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15]
+  norm_num [Finset.prod_insert, Finset.mem_insert]
+  ring
+
+/-- The coefficient form at `v²`, times the leading `v`, **is** the
+specification's `rangeProduct` at `v`.  `rangeProduct b x = x · ∏_{j=1}^{b−1}
+(x − j)(x + j)`, and `(v² − j²) = (v − j)(v + j)` is `ring` once `Nat.cast_mul`
+has split the square -- candidate F's contraction, read in the other direction. -/
+theorem rangeQ_sq_eq_rangeProduct (v : F) :
+    v * rangeQ (v * v) = InnerOuter.rangeProduct 16 v := by
+  rw [rangeQ_eq_prod, InnerOuter.rangeProduct,
+    show (16 : ℕ) - 1 = 15 by norm_num]
+  refine congrArg (fun t => v * t) (Finset.prod_congr rfl ?_)
+  intro k _
+  rw [Nat.cast_mul]
+  ring
+
+/-- The loop of `range_product`: **descending** `i`, one Horner step per block of
+four coefficients (candidate T2a, Paterson--Stockmeyer at block width 4).  Each
+step multiplies the accumulator by `x⁴` once and adds a block evaluated with the
+precomputed `x, x², x³` -- so four blocks cost 4 extension multiplies for the
+Horner chain plus 12 *mixed* `Fp × Ext4` multiplies for the coefficients, against
+candidate F's 15 full extension multiplies and 15 embeddings.
+
+`x` here is the extracted parameter name, and it is already `v²`: the squaring
+happens in `range_product` before the loop, so `rangeQ` is evaluated at `x` and
+the leading `v` is reapplied afterwards.  The invariant is the *partial*
+coefficient sum -- after the step at `i`, the accumulator holds the top
+`16 − 4·i` coefficients -- and the step is the index shift
+`∑_{k<4+M} a_{b+k} y^k = (∑_{k<4} a_{b+k} y^k) + y⁴ · ∑_{k<M} a_{b+4+k} y^k`,
+which is `Finset.sum_range_add`.  The exit at `i = 0` is `rangeQ` by definition;
+all the algebra is in `rangeQ_eq_prod`, outside the loop. -/
+theorem range_product_loop_spec (x x2 x3 x4 acc : cpoly.field.Ext4) (i : Std.Usize)
+    (hRx : Reduced x) (hRx2 : Reduced x2) (hRx3 : Reduced x3) (hRx4 : Reduced x4)
+    (hacc : Reduced acc) (hi : i.val ≤ 3)
+    (hx2 : toExt x2 = toExt x ^ 2) (hx3 : toExt x3 = toExt x ^ 3)
+    (hx4 : toExt x4 = toExt x ^ 4)
+    (hval : toExt acc
+      = ∑ k ∈ Finset.range (16 - 4 * i.val), rc (4 * i.val + k) * toExt x ^ k) :
+    zerocheck.range_product_loop x x2 x3 x4 acc i
+      ⦃ out => Reduced out ∧ toExt out = rangeQ (toExt x) ⦄ := by
+  have hlen : params.RANGE_Q_COEFFS.val.length = 16 := coeffs_length
   rw [zerocheck.range_product_loop]
-  apply loop.spec_decr_nat (fun s => 16 - s.2.val)
-    (fun s => 1 ≤ s.2.val ∧ s.2.val ≤ 16 ∧ Reduced s.1 ∧ toExt s.1 = toExt v *
-      ∏ k ∈ Finset.Ico (1 : ℕ) s.2.val, (toExt v * toExt v - ((k * k : ℕ) : F)))
-  · rintro ⟨a1, j1⟩ ⟨hj1, hj1le, hR1, hv1⟩
-    dsimp only at hj1 hj1le hR1 hv1
+  apply loop.spec_decr_nat (fun s => s.2.val)
+    (fun s => s.2.val ≤ 3 ∧ Reduced s.1 ∧ toExt s.1
+      = ∑ k ∈ Finset.range (16 - 4 * s.2.val), rc (4 * s.2.val + k) * toExt x ^ k)
+  · rintro ⟨a1, i1⟩ ⟨hi1, hR1, hv1⟩
+    dsimp only at hi1 hR1 hv1
     simp only [zerocheck.range_product_loop.body]
-    by_cases hlt : j1 < params.GADGET_BASE
-    · rw [if_pos hlt]
-      have hj1lt : j1.val < 16 := by scalar_tac
-      step as ⟨sq, hsq⟩
-      step with fp_new_spec sq as ⟨f, hRf, hf⟩
-      step with ext_from_base_spec f hRf as ⟨sc, hRsc, hsc⟩
-      step with ext_sub_spec v2 sc hv2 hRsc as ⟨d, hRd, hd⟩
-      step with ext_mul_spec a1 d hR1 hRd as ⟨a2, hR2, ha2⟩
+    by_cases hpos : i1 > 0#usize
+    · rw [if_pos hpos]
+      have hi1p : 1 ≤ i1.val := by scalar_tac
+      step as ⟨i2, hi2⟩
+      step as ⟨b, hb⟩
+      have hb12 : b.val + 3 < 16 := by scalar_tac
+      -- the four coefficient reads, each embedded and scaled
+      step as ⟨c0, hc0⟩
+      step with fp_new_spec c0 as ⟨f0, hRf0, hf0⟩
+      step with ext_from_base_spec f0 hRf0 as ⟨t0, hRt0, ht0⟩
+      step as ⟨j1, hj1⟩
+      step as ⟨c1, hc1⟩
+      step with fp_new_spec c1 as ⟨f1, hRf1, hf1⟩
+      step with fp_ext_mul_spec f1 x hRf1 hRx as ⟨t1, hRt1, ht1⟩
+      step with ext_add_spec t0 t1 hRt0 hRt1 as ⟨s1, hRs1, hs1⟩
       step as ⟨j2, hj2⟩
-      have hj2n : j2.val = j1.val + 1 := by scalar_tac
-      have hfv : toK f = ((j1.val * j1.val : ℕ) : ZMod q) := by
-        rw [hf]; exact congrArg (fun t : ℕ => (t : ZMod q)) (by scalar_tac)
-      have hscv : toExt sc = ((j1.val * j1.val : ℕ) : F) := by
-        rw [hsc, hfv, ofBase_natCast]
-      refine ⟨by scalar_tac, by scalar_tac, hR2, ?_, by scalar_tac⟩
-      rw [ha2, hv1, hd, hv2v, hscv, hj2n, Finset.prod_Ico_succ_top hj1]
+      step as ⟨c2, hc2⟩
+      step with fp_new_spec c2 as ⟨f2, hRf2, hf2⟩
+      step with fp_ext_mul_spec f2 x2 hRf2 hRx2 as ⟨t2, hRt2, ht2⟩
+      step with ext_add_spec s1 t2 hRs1 hRt2 as ⟨s2, hRs2, hs2⟩
+      step as ⟨j3, hj3⟩
+      step as ⟨c3, hc3⟩
+      step with fp_new_spec c3 as ⟨f3, hRf3, hf3⟩
+      step with fp_ext_mul_spec f3 x3 hRf3 hRx3 as ⟨t3, hRt3, ht3⟩
+      step with ext_add_spec s2 t3 hRs2 hRt3 as ⟨blk, hRblk, hblk⟩
+      step with ext_mul_spec a1 x4 hR1 hRx4 as ⟨sc, hRsc, hsc⟩
+      step with ext_add_spec sc blk hRsc hRblk as ⟨a2, hR2, ha2⟩
+      refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
+      -- the coefficient values, as `rc` at the four indices.  The index is
+      -- rewritten *after* the `getElem` bridge: `rc`'s argument is an ordinary
+      -- natural number, whereas the `getElem`'s carries a boundedness proof
+      -- that depends on it, and `rw` cannot abstract over that.
+      have e0 : toExt t0 = rc (4 * i2.val) := by
+        rw [ht0, hf0, ofBase_natCast, hc0, rc_of_index b.val (by omega), hb]
+      have e1 : toExt t1 = rc (4 * i2.val + 1) * toExt x := by
+        rw [ht1, hf1, ofBase_natCast, hc1, rc_of_index j1.val (by omega), hj1, hb]
+      have e2 : toExt t2 = rc (4 * i2.val + 2) * toExt x ^ 2 := by
+        rw [ht2, hf2, ofBase_natCast, hc2, rc_of_index j2.val (by omega), hj2, hb, hx2]
+      have e3 : toExt t3 = rc (4 * i2.val + 3) * toExt x ^ 3 := by
+        rw [ht3, hf3, ofBase_natCast, hc3, rc_of_index j3.val (by omega), hj3, hb, hx3]
+      -- the index shift: four new low coefficients, the old sum scaled by `x⁴`
+      have hshift : 16 - 4 * i2.val = 4 + (16 - 4 * i1.val) := by omega
+      have hsplit : ∑ k ∈ Finset.range (16 - 4 * i2.val),
+            rc (4 * i2.val + k) * toExt x ^ k
+          = (∑ k ∈ Finset.range 4, rc (4 * i2.val + k) * toExt x ^ k)
+            + toExt x ^ 4 * ∑ k ∈ Finset.range (16 - 4 * i1.val),
+                rc (4 * i1.val + k) * toExt x ^ k := by
+        rw [hshift, Finset.sum_range_add, Finset.mul_sum]
+        refine congrArg (fun t => (∑ k ∈ Finset.range 4,
+          rc (4 * i2.val + k) * toExt x ^ k) + t) (Finset.sum_congr rfl ?_)
+        intro k _
+        rw [show 4 * i2.val + (4 + k) = 4 * i1.val + k by omega, pow_add]
+        ring
+      rw [ha2, hsc, hblk, hs2, hs1, e0, e1, e2, e3, hv1, hx4, hsplit]
+      simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.add_zero]
       ring
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : j1.val = 16 := by scalar_tac
-      have hIco : Finset.Ico (1 : ℕ) 16 = Finset.Icc 1 (16 - 1) := by decide
+    · rw [if_neg hpos, WP.spec_ok]
+      have hz : i1.val = 0 := by scalar_tac
       refine ⟨hR1, ?_⟩
-      rw [hv1, heq, InnerOuter.rangeProduct, hIco]
-      refine congrArg (fun t => toExt v * t) (Finset.prod_congr rfl ?_)
-      intro k _
-      rw [Nat.cast_mul]
-      ring
-  · exact ⟨hj, hjle, hacc, hval⟩
+      rw [hv1, rangeQ, hz]
+      norm_num
+  · exact ⟨hi, hacc, hval⟩
 
 /-- `range_product` computes `rangeProduct` at the crate's gadget base. -/
 theorem range_product_spec (v : cpoly.field.Ext4) (hv : Reduced v) :
     zerocheck.range_product v
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.rangeProduct 16 (toExt v) ⦄ := by
   rw [zerocheck.range_product]
-  step with ext_mul_spec v v hv hv as ⟨v2, hRv2, hv2v⟩
-  exact range_product_loop_spec v v2 v 1#u64 hRv2 hv (by simp) (by simp) hv2v (by simp)
+  step with ext_mul_spec v v hv hv as ⟨y, hRy, hy⟩
+  step with ext_mul_spec y y hRy hRy as ⟨y2, hRy2, hy2⟩
+  step with ext_mul_spec y2 y hRy2 hRy as ⟨y3, hRy3, hy3⟩
+  step with ext_mul_spec y2 y2 hRy2 hRy2 as ⟨y4, hRy4, hy4⟩
+  have hlen : params.RANGE_Q_COEFFS.val.length = 16 := coeffs_length
+  -- the top block, coefficients 12..15, evaluated before the loop is entered
+  step as ⟨c0, hc0⟩
+  step with fp_new_spec c0 as ⟨f0, hRf0, hf0⟩
+  step with ext_from_base_spec f0 hRf0 as ⟨t0, hRt0, ht0⟩
+  step as ⟨c1, hc1⟩
+  step with fp_new_spec c1 as ⟨f1, hRf1, hf1⟩
+  step with fp_ext_mul_spec f1 y hRf1 hRy as ⟨t1, hRt1, ht1⟩
+  step with ext_add_spec t0 t1 hRt0 hRt1 as ⟨s1, hRs1, hs1⟩
+  step as ⟨c2, hc2⟩
+  step with fp_new_spec c2 as ⟨f2, hRf2, hf2⟩
+  step with fp_ext_mul_spec f2 y2 hRf2 hRy2 as ⟨t2, hRt2, ht2⟩
+  step with ext_add_spec s1 t2 hRs1 hRt2 as ⟨s2, hRs2, hs2⟩
+  step as ⟨c3, hc3⟩
+  step with fp_new_spec c3 as ⟨f3, hRf3, hf3⟩
+  step with fp_ext_mul_spec f3 y3 hRf3 hRy3 as ⟨t3, hRt3, ht3⟩
+  step with ext_add_spec s2 t3 hRs2 hRt3 as ⟨acc, hRacc, hacc⟩
+  have he0 : toExt t0 = rc 12 := by
+    rw [ht0, hf0, ofBase_natCast, hc0, rc_of_index 12 (by omega)]
+  have he1 : toExt t1 = rc 13 * toExt y := by
+    rw [ht1, hf1, ofBase_natCast, hc1, rc_of_index 13 (by omega)]
+  have he2 : toExt t2 = rc 14 * toExt y ^ 2 := by
+    rw [ht2, hf2, ofBase_natCast, hc2, rc_of_index 14 (by omega), hy2, hy]; ring
+  have he3 : toExt t3 = rc 15 * toExt y ^ 3 := by
+    rw [ht3, hf3, ofBase_natCast, hc3, rc_of_index 15 (by omega), hy3, hy2, hy]; ring
+  step with range_product_loop_spec y y2 y3 y4 acc 3#usize hRy hRy2 hRy3 hRy4
+    hRacc (by simp) (by rw [hy2, hy]; ring) (by rw [hy3, hy2, hy]; ring)
+    (by rw [hy4, hy2, hy]; ring)
+    (by rw [hacc, hs2, hs1, he0, he1, he2, he3]
+        simp only [show 4 * (3#usize).val = 12 by simp,
+          Finset.sum_range_succ, Finset.sum_range_zero]
+        ring) as ⟨r, hRr, hr⟩
+  step with ext_mul_spec v r hv hRr as ⟨o, hRo, ho⟩
+  exact ⟨hRo, by rw [ho, hr, hy, rangeQ_sq_eq_rangeProduct]⟩
 
 /-- The base-field product, embedded, is the specification's extension range
 factor at the embedded argument: `φF` is a bundled `RingHom`, so the leading
