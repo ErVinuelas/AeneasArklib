@@ -6310,3 +6310,59 @@ the `u128` dense convolution, not Karatsuba** -- the AeneasCompPoly brief's one
 piece of advice about I4 that survived checking, and its bound checks out
 (`1024·(q−1)² < 2^74`, ample `u128` room). If the simpler candidate lands most
 of the factor, the Karatsuba proof cost is never spent.
+
+## I4 opens and closes in one candidate: the reduction, delayed (candidate Q, 2026-09-16)
+
+`Rq::mul` was the broadest lever in the stage -- ~100% of 21 rows -- and the one
+the plan expected to cost the most. It cost the least of the three candidates
+this session, and the reason is worth keeping.
+
+Every `Fp` operation reduces: cpoly's `Mul for Fp` is `(a.0 * b.0) % P`. So the
+frozen schoolbook paid a `%` on each of the `N²` products *and* on each
+accumulation. Walking the output coefficient instead of the input pair lets slot
+`k`'s two antidiagonals accumulate in `u128` untouched, and `% q` is paid once
+per slot: `N²` reductions become `2N`. The sign rule did not change, only its
+indexing -- `j = k − i` for `i ≤ k`, `j = N + k − i` for `i > k`.
+
+**Measured −55.6% twice** (`ring/mul/1024` 1.43 ms → 637 µs; runs
+`20260916T0826+0200-a07c93d7` and `…0835…`, biases 1.8% and 2.8%, same slot sha,
+agreeing to 0.01%). Single-row target, so two runs were required and both read
+`faster`. Ledger row 27.
+
+**This closes I4 without Karatsuba, and that is the finding.** Three-level
+Karatsuba's ceiling is `64/27 ≈ 2.37×` *before* recombination overhead, against
+a much heavier proof; Q delivers 2.25× with a proof that reuses the existing
+`negConv` bridge. The ceiling probe (§ above) was still worth running -- it is
+what made it safe to *not* run Karatsuba, by establishing that the fallback
+existed. And the ordering advice came from the AeneasCompPoly brief, which is the
+one thing in that brief about I4 that survived checking.
+
+**What the proof actually needed**, both paid by hand:
+
+* `accBound` -- `N · (q−1)² < 2^74` against `u128`. Load-bearing, not caution:
+  one term already fills a `u64`, so a `u64` accumulator overflows on the *first*
+  product. This is the hypothesis the whole candidate rests on.
+* the cast bridge -- reducing once per slot equals reducing per product, because
+  `Nat.cast` into `ZMod q` is a ring hom and `ZMod.natCast_mod` discards the
+  `% q`. The `N + k` antidiagonal needs both vanishing arguments: `coeffK a`
+  above `N`, and `coeffK b` because `N + k − t ≥ N` once `t ≤ k`.
+
+`mul_spec` is byte-identical; the three old loop specs became two. Route R2
+(`rust-direct`) rather than R3 -- benched first, proved straight against
+`negConv` with no Lean `opt` chain, so no `Opt.lean` entry by design. The ledger
+row says so, because it is a different shape from M and N in the same session.
+
+Two smaller records. The inner loop state is the 5-tuple
+`(self, rhs, pos, neg, i)`: Aeneas threads both shared borrows, they come back
+unchanged, and the inner spec has to *say* so or the outer loop cannot use them.
+And `Ring.lean` now carries private `getD_append_lt'` / `getD_append_eq'`
+duplicating `Scheme.lean`'s, because `Scheme` is downstream of `Ring` via
+`RqBridge` -- the same "the dependency runs the wrong way" shape as the
+`Opt`/`EvalSplit` note above. Hoisting `Scheme`'s copies into `Ring` is the
+tidier fix and is owed, not done.
+
+**Owed, and now unblocked**: `to_quad_eval_statement`'s exclusion condition is
+**met**. M took it from ~29 s to ~2.9 s and Q takes it to ~1.3 s, the same order
+as the live `evalsplit/lagrange_basis/6` row. The entry is re-based and says so;
+turning it into a row is the un-ignore ceremony, with the 27 `#[ignore]`d scale
+tests in the same pass.
