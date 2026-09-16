@@ -6535,3 +6535,63 @@ this shape:
 * **`omega` does not unfold `N`.** `abbrev N : ℕ := 1024` is an atom to it, so
   every bound argument that depends on `N`'s value needs `have hNv : N = 1024 :=
   rfl` in scope first. This cost several iterations and will cost them again.
+
+## The full sweep, banked before the re-freeze: 87 rows, no regression anywhere (2026-09-16)
+
+First full `make run-bench` since 2026-09-14 (`2af5297`), which predated nine
+accepted candidates -- I, J, K, L, M, N, Q, P, R. Run
+`20260916T1210+0200-84e11de8`, **A/B bias 1.5%**, the tightest of any run this
+session. `logs/runs/full-20260916.json`.
+
+The point of doing it now is that the I4 ceremony **re-freezes genesis**, and
+`vs genesis` is the only cumulative record of what Stage 6 bought. Re-freeze
+first and this evidence would never have existed.
+
+Cumulative gain over the frozen baseline, the largest first:
+
+| row | genesis | now | |
+|---|---|---|---|
+| `sumcheck/final_check/11` | 14.9 s | 96.4 µs | −100.0% (≈1.5·10⁵×) |
+| `sumcheck/alpha_public_table/7` | 1.86 s | 85.1 µs | −100.0% (≈2.2·10⁴×) |
+| `sumcheck/honest_round_messages/11` | 14.9 s | 17.8 ms | −99.9% (≈837×) |
+| `ringswitch/c_eval_at{,_modulus}/1024` | 7.25 ms | 18 / 15.7 µs | −99.8% |
+| `zerocheck/c_w_table_mle/14` | 19 ms | 39.1 µs | −99.8% |
+| `zerocheck/zc_target_alpha/5` | 36.2 ms | 92.3 µs | −99.7% |
+| `zerocheck/h_zero{,_is_zero}/14` | 27 ms | 432 / 393 µs | −98.4 / −98.6% |
+| `zerocheck/w_table_mle_eval/14` | 23.1 ms | 512 µs | −97.8% |
+| `sumcheck/alpha_public_mle_eval/26` | 24 ms | 2.34 ms | −90.3% |
+| `evalsplit/{monomial,lagrange}_basis/6` | 550 ms | 49.3 / 40.4 ms | −91.0 / −92.6% |
+| `endpiece/end_piece_check/14` | 47.6 ms | 11.2 ms | −76.5% |
+| `ring/mul/1024` | 1.43 ms | 636 µs | −55.5% |
+| `linalg/{dot,mat_vec_mul,scalar_vec_mul,split_form}` | — | — | −55.5 … −55.6% |
+| `ringswitch/lift_commit/4` | 17.2 ms | 7.89 ms | −54.1% |
+| `ringswitch/{c_row_sum,c_quotient,honest_lift_witness}/4` | 4.52 ms | ≈2.4 ms | −46 … −47% |
+| `sumcheck/honest_compute_g{,_split}`, round kernels | ≈17 ms | ≈14 ms | −18% |
+| `gadget/*` | — | — | −9 … −29% |
+
+39 rows read `noise`, which is what an unoptimised row should read.
+
+**No regression anywhere in 87 rows.** Two rows print `slower` and neither is a
+measurement of anything:
+
+* `quadeval/in_sb/1024`, 430 → 472 ns, +9.7% -- deep inside the certified
+  100 ns–2 µs band, and its sibling `in_sb_box` moved **−8.9%**, the other way by
+  the same amount. That opposed pair is the band's signature.
+* `zerocheck/w_table_z_row/3`, **5.44 → 5.91 ns**, +8.8%. Five nanoseconds. Two
+  orders of magnitude below the band.
+
+**This also all but settles the profile anomaly.** The 09-16 profile showed three
+untouched phases 10–13% slower, and I could not tell a build-layout effect from a
+real regression. With the A/B bias at 1.5% across all ten binaries and not one
+genuine `slower` row, the machine and the build were clean; the profile's spread
+is its own missing control (it has none) rather than anything in the code. Not
+*proved* -- that needs a controlled profile -- but it is now much the better
+explanation, and the earlier caveat should be read with this beside it.
+
+**Two facts about the harness worth keeping.** The sweep took ~1 h 45 m, and it
+is dominated by the genesis variants of the rows we optimised hardest: criterion
+needed ~750 s for 50 samples of `final_check`'s pre-K baseline and the same again
+for `honest_round_messages`. **The better a candidate is, the slower its own
+baseline is to measure**, so a full `vs genesis` sweep gets more expensive with
+every win. That is a second, independent reason the ceremony's re-freeze belongs
+*after* this measurement: it banks the record and makes the next sweep cheap.
