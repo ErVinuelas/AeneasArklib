@@ -1,0 +1,44 @@
+# the_honest_chain_profile — PRE-BUMP baseline, on e121964 clean, 1 block
+# purpose: the before half of the cpoly pin bump (583cfaf -> d7e26bb). The post-T2a
+#   profile (28a043f, 864.1s) predates candidate T2c, so using it would credit T2c to the bump.
+# FIRST profile to carry profile_control() — a fixed allocate-and-fill in the frozen
+#   hachi-genesis crate, timed at both ends. CAVEAT: that control is immune to hachi/src
+#   changes but NOT to a cpoly bump; it does no multiplication, so a multiply-focused bump
+#   should barely move it, which is reasoning and not measurement.
+# M zeta = y is now SKIPPED here (gated by check_relout); the semantics check lives in
+#   the_honest_chain_verifies. Expect ~150s less wall clock than earlier profiles.
+# started 2026-09-16T21:04:56+02:00 at load 1.26 2.13 1.67
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 0.90s
+     Running tests/chain_semantics.rs (hachi/target/release/deps/chain_semantics-8acfa975251b1c87)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 500.7ms
+[     6.0s] committed 1 block(s)
+[    10.6s] statement built
+[    11.3s] honest_compute_v done
+[    17.9s] honest_compute_resp + stack done
+[    19.3s] R^lin statement assembled: 5 x 40976
+[    19.3s] M zeta = y SKIPPED (not protocol work)
+test the_honest_chain_profile has been running for over 60 seconds
+[   138.7s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 393.8ms
+[profile] lift_commit: 26.9s
+[profile] c_w_table_mle at 2^26: 741.9ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 12.8s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 299.3s
+[profile] honest_compute_y: 4.0s
+[profile] verifier: rlin_stmt + statement thread: 352.8ms
+[profile] verifier: round_verify_loop (26 rounds): 66.1µs
+[profile] verifier: final_check = true: 7.7s
+[profile] verifier: end_piece_check = true: 33.8s
+[profile] chain_verify (whole) = true: 40.5s
+[profile] control (frozen genesis PolyVec::zeros x50): 530.3ms
+[profile] control spread within run: +5.9%  (recenter cross-run deltas by the level)
+[   567.2s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 567.44s
+
+# exit 0 at 2026-09-16T21:14:24+02:00

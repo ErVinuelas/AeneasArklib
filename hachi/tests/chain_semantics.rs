@@ -633,9 +633,15 @@ fn the_honest_chain_verifies() {
 /// drift; their level against a previous run's is the machine's offset. Recenter
 /// phase deltas by the reading nearest them before believing anything.
 ///
-/// Sizing is measured, not guessed: `_control/*/8192` reads **33.4 ms** per call
-/// (run `20260916T1530+0200-ad543615`), so 50 reps is ~1.7 s -- far above timer
-/// noise, and ~3.3 s added to a ~14 minute run for both readings.
+/// Sizing, measured here rather than extrapolated: 50 reps read **500.7 ms**
+/// (~10 ms per call) in the 2026-09-16 pre-bump run -- far above timer noise,
+/// and ~1 s added to a ~12 minute run for both readings.
+///
+/// Note it is *not* the same 33.4 ms that `_control/*/8192` reads, and the
+/// difference is the point: the bench control is
+/// `support::run(m, || PolyVec::zeros(n), d_polyvec)`, so it also digests all
+/// 8192 x 1024 coefficients, which `case!` needs as its semantics oracle and
+/// this does not. Same allocate-and-fill, without the digest.
 fn profile_control(reps: usize) -> std::time::Duration {
     const CONTROL_N: usize = 8192; // = MESSAGE_ROWS * GADGET_DIGITS, as in benches/support
     let t = std::time::Instant::now();

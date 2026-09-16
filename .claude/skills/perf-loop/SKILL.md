@@ -149,8 +149,29 @@ it, once per session, and stop with a report if any of it is missing:
   accept — the number is real, but nothing verified that it is a number for the
   same computation. `benches/endpiece.rs` § "The void oracle" carries the
   argument and `check()` carries what can still be asserted.
-* The machine is quiet, checked on the machine rather than in the repo:
-  `ps -eo command | grep -c "[b]in/lean"` plus the load average.
+* The machine is quiet, checked on the machine rather than in the repo, and
+  **machine-wide rather than repo-wide**:
+
+  ```
+  ps -eo command | grep -cE "[b]in/lean|[c]argo bench|harness\.py"   # must be 0
+  cat /proc/loadavg
+  ```
+
+  The `cargo bench` term is not decoration. On 2026-09-16 a **second clone** of
+  this repository (`.../hachi-ntt/AeneasArklib`, its own `.git`, an NTT candidate
+  in flight) was benching `ring/|linalg/|evalsplit/|gadget/|_control` on the same
+  machine. The old check -- `[b]in/lean` plus load average -- came back clean,
+  the load looked like a decaying tail of this session's own runs, and candidate
+  T2c's first run then failed the bias veto with `_control/ring` at +18.0% on
+  identical code. That failure was written up as a thermal tail; a concurrent
+  bench on a filter that includes `ring/` and `_control` is the better
+  explanation (NOTES 2026-09-16 § "A second session was benchmarking").
+
+  This is what the rule below already means by "one criterion session ... at a
+  time, **repo-wide**": a second checkout is outside that phrase as written and
+  squarely inside its intent. The commit gate catches it after the fact -- it
+  `pgrep`s for `cargo bench` machine-wide and denies the commit -- but the
+  measurement is already spent by then.
 * `hachi/benches/*.rs` are in the case shape the report keys on — one criterion
   group per case named `<module>/<op>`, variants `now` / `candidate` /
   `genesis`. A pre-harness shape (one group per module, ids `<op>/<variant>`)

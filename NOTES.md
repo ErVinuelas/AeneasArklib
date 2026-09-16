@@ -7025,3 +7025,40 @@ line and concluded it was still going. It had finished at **19:40** — the
 `# exit 0` marker was already in the log. Grep for the exit marker, not for the
 last line of progress output; criterion's trailing `Analyzing` line looks
 identical whether the run is mid-flight or long done.
+
+## A second session was benchmarking on this machine, and it changes a diagnosis (2026-09-16)
+
+Discovered when the commit gate refused a commit with "a benchmark is running"
+while nothing was running *here*. It was running in
+`/home/pablo/Documents/internship-eth/hachi-ntt/AeneasArklib` — a **separate
+clone** of this repository (its own `.git`, not a worktree), at `90120fe`, with
+an NTT candidate in progress (`hachi/benches/candidate/src/ntt.rs`,
+`NTT_EXECUTION_PLAYBOOK_v2.md`), running
+`cargo bench --benches -- ring/|linalg/|evalsplit/|gadget/|_control`.
+
+**The correction.** Candidate T2c's first bench run failed the bias veto with
+`_control/ring` at +18.0% on identical code, and I attributed that to "the
+machine was still in the thermal tail of a 14-minute chain profile" — in the
+`bench-unusable` ledger row and in the T2c entry. A concurrent benchmark in
+another clone is a **better explanation**, and the filter that session runs
+includes `ring/` and `_control` specifically. I cannot prove which it was after
+the fact, and the ledger is append-only so the row stands as written; this is
+the qualification. The remedy was the same either way — discard the run, wait,
+repeat — which is why the verdict is still right even if the reason was not.
+
+**The process hole.** `perf-loop` § "Before the first iteration" says to check
+the machine is quiet with `ps -eo command | grep -c "[b]in/lean"` plus the load
+average. I ran exactly that, saw load 1.88–2.28, and attributed it to Firefox
+and to decaying tails of my own runs. Neither check looks for `cargo bench`
+**machine-wide**, and the skill's own rule — "one criterion session or one
+`lake build` at a time, **repo-wide**" — plainly intends to cover this case
+while its wording does not. A second clone is outside "repo-wide" as written and
+squarely inside what the rule is for.
+
+The pre-bump profile itself is **clean**: it exited 21:14:24 and that bench
+started ≈21:15:28, about 64 s later, with no overlap.
+
+**Also worth knowing for anyone working in two clones at once**:
+`logs/ledger.jsonl` is append-only *and* checked against HEAD, so two sessions
+appending rows independently will fail `make ledger-check` for whichever merges
+second. Same hazard for `NOTES.md` and the skill files.
