@@ -1479,6 +1479,14 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZeroCheck.range_product_loop_spec
 #print axioms HachiEquiv.Opt.range_product.optPS_eq
 #print axioms HachiEquiv.Opt.range_product.optPS_eq_spec
+-- Candidate T2c -- the round fold's two scalars kept in the base field, so each
+-- product is the mixed `Fp x Ext4` multiply (four base multiplications) instead
+-- of the full quartic (nineteen).  A representation change on the scalars, not
+-- an algorithmic one: `round_values_zero_spec`'s statement is unmoved and only
+-- its proof was restated around the new inner loop, whose spec is audited here.
+#print axioms HachiEquiv.Opt.round_values_zero.optFold_eq_spec
+#print axioms HachiEquiv.Sumcheck.round_values_zero_loop0_loop0_spec
+#print axioms HachiEquiv.Sumcheck.round_values_zero_spec
 -- Candidate G -- the table builders' range factor computed in the base field.
 #print axioms HachiEquiv.Opt.phiF_range_product_base
 #print axioms HachiEquiv.Opt.h_zero.opt2_eq_spec

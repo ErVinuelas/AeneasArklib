@@ -221,7 +221,28 @@ pub fn round_values_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     let mut out: Vec<Ext4> = Vec::new();
     let mut t: usize = 0;
     while t < nodes {
-        out.push(round_value_zero(w, eq, round_node(t)));
+        // [`round_value_zero`]'s body, with the node kept in the **base field**
+        // (Stage 6 candidate T2c). This function knows something
+        // [`round_value_zero`] cannot: its node is `Fp::new(t)`, so both fold
+        // scalars are base-field elements and each product is the mixed
+        // `Mul<Ext4> for Fp` impl -- four base multiplications where the quartic
+        // multiply does nineteen. `round_value_zero` stays as it is because it
+        // is the faithful mirror at an *arbitrary* extension node; the
+        // duplication is the same one [`round_value_zero_base`] already carries
+        // against it, and for the same reason.
+        let node: Fp = Fp::new(t as u64);
+        let one_minus: Fp = Fp::ONE - node;
+        let half: usize = eq.len();
+        let mut acc: Ext4 = Ext4::ZERO;
+        let mut y: usize = 0;
+        while y < half {
+            let lo: Ext4 = w[2 * y];
+            let hi: Ext4 = w[2 * y + 1];
+            let folded: Ext4 = one_minus * lo + node * hi;
+            acc = acc + eq[y] * crate::zerocheck::range_product(folded);
+            y += 1;
+        }
+        out.push(acc);
         t += 1;
     }
     out

@@ -1,0 +1,537 @@
+# starting at load 0.91 1.67 2.31 2026-09-16T17:28:59+02:00
+==> genesis intact: 312 frozen item(s) verified against git
+==> candidate slot: filled by the loop -- not checked under CANDIDATE=1; the report fingerprints it
+==> coverage: 156 mirrored item(s), 80 benched, 76 excluded by name, 0 UNACCOUNTED FOR  (+5 non-mirrored item(s) benched as well)
+    Finished `bench` profile [optimized] target(s) in 0.07s
+     Running benches/commit.rs (target/release/deps/commit-db2b3f7631366ceb)
+Benchmarking _control/commit/now/8192
+Benchmarking _control/commit/now/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/now/8192: Collecting 50 samples in estimated 10.904 s (250 iterations)
+Benchmarking _control/commit/now/8192: Analyzing
+_control/commit/now/8192
+                        time:   [43.187 ms 43.344 ms 43.506 ms]
+                        change: [−17.177% −16.198% −15.086%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) high mild
+Benchmarking _control/commit/candidate/8192
+Benchmarking _control/commit/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/candidate/8192: Collecting 50 samples in estimated 10.890 s (250 iterations)
+Benchmarking _control/commit/candidate/8192: Analyzing
+_control/commit/candidate/8192
+                        time:   [43.833 ms 43.956 ms 44.088 ms]
+                        change: [−16.405% −15.456% −14.391%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/commit/genesis/8192
+Benchmarking _control/commit/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/genesis/8192: Collecting 50 samples in estimated 11.102 s (250 iterations)
+Benchmarking _control/commit/genesis/8192: Analyzing
+_control/commit/genesis/8192
+                        time:   [44.627 ms 44.740 ms 44.861 ms]
+                        change: [−15.094% −13.976% −12.736%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+
+     Running benches/endpiece.rs (target/release/deps/endpiece-780b3c901df3fe09)
+Benchmarking _control/endpiece/now/8192
+Benchmarking _control/endpiece/now/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/now/8192: Collecting 50 samples in estimated 11.229 s (250 iterations)
+Benchmarking _control/endpiece/now/8192: Analyzing
+_control/endpiece/now/8192
+                        time:   [44.340 ms 44.472 ms 44.615 ms]
+                        change: [−17.418% −16.221% −14.897%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/endpiece/candidate/8192
+Benchmarking _control/endpiece/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/candidate/8192: Collecting 50 samples in estimated 11.048 s (250 iterations)
+Benchmarking _control/endpiece/candidate/8192: Analyzing
+_control/endpiece/candidate/8192
+                        time:   [43.578 ms 43.741 ms 43.899 ms]
+                        change: [−17.555% −16.328% −14.978%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 50 measurements (14.00%)
+  5 (10.00%) low mild
+  2 (4.00%) high mild
+Benchmarking _control/endpiece/genesis/8192
+Benchmarking _control/endpiece/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/genesis/8192: Collecting 50 samples in estimated 10.831 s (250 iterations)
+Benchmarking _control/endpiece/genesis/8192: Analyzing
+_control/endpiece/genesis/8192
+                        time:   [43.570 ms 43.654 ms 43.749 ms]
+                        change: [−17.973% −16.832% −15.602%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 50 measurements (4.00%)
+  1 (2.00%) high mild
+  1 (2.00%) high severe
+
+     Running benches/evalsplit.rs (target/release/deps/evalsplit-c8472d44c994e3ec)
+Benchmarking _control/evalsplit/now/8192
+Benchmarking _control/evalsplit/now/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/now/8192: Collecting 100 samples in estimated 8.4694 s (200 iterations)
+Benchmarking _control/evalsplit/now/8192: Analyzing
+_control/evalsplit/now/8192
+                        time:   [43.200 ms 43.327 ms 43.455 ms]
+                        change: [−19.015% −18.116% −17.159%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking _control/evalsplit/candidate/8192
+Benchmarking _control/evalsplit/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/candidate/8192: Collecting 100 samples in estimated 8.8668 s (200 iterations)
+Benchmarking _control/evalsplit/candidate/8192: Analyzing
+_control/evalsplit/candidate/8192
+                        time:   [44.271 ms 44.358 ms 44.447 ms]
+                        change: [−18.725% −18.076% −17.405%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking _control/evalsplit/genesis/8192
+Benchmarking _control/evalsplit/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/genesis/8192: Collecting 100 samples in estimated 8.6601 s (200 iterations)
+Benchmarking _control/evalsplit/genesis/8192: Analyzing
+_control/evalsplit/genesis/8192
+                        time:   [44.155 ms 44.322 ms 44.494 ms]
+                        change: [−19.918% −18.857% −17.780%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+     Running benches/gadget.rs (target/release/deps/gadget-5dd34ae4c12b6f85)
+Benchmarking _control/gadget/now/8192
+Benchmarking _control/gadget/now/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/now/8192: Collecting 100 samples in estimated 9.0356 s (200 iterations)
+Benchmarking _control/gadget/now/8192: Analyzing
+_control/gadget/now/8192
+                        time:   [43.465 ms 43.574 ms 43.688 ms]
+                        change: [−18.964% −18.138% −17.247%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking _control/gadget/candidate/8192
+Benchmarking _control/gadget/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/candidate/8192: Collecting 100 samples in estimated 8.7040 s (200 iterations)
+Benchmarking _control/gadget/candidate/8192: Analyzing
+_control/gadget/candidate/8192
+                        time:   [43.545 ms 43.636 ms 43.728 ms]
+                        change: [−17.118% −15.831% −14.522%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking _control/gadget/genesis/8192
+Benchmarking _control/gadget/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/genesis/8192: Collecting 100 samples in estimated 8.7520 s (200 iterations)
+Benchmarking _control/gadget/genesis/8192: Analyzing
+_control/gadget/genesis/8192
+                        time:   [43.019 ms 43.150 ms 43.283 ms]
+                        change: [−19.962% −18.809% −17.615%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+     Running benches/linalg.rs (target/release/deps/linalg-f3a59ce7ad162987)
+Benchmarking _control/linalg/now/8192
+Benchmarking _control/linalg/now/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/now/8192: Collecting 100 samples in estimated 8.8602 s (200 iterations)
+Benchmarking _control/linalg/now/8192: Analyzing
+_control/linalg/now/8192
+                        time:   [44.276 ms 44.383 ms 44.494 ms]
+                        change: [−19.911% −18.751% −17.528%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking _control/linalg/candidate/8192
+Benchmarking _control/linalg/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/candidate/8192: Collecting 100 samples in estimated 8.9091 s (200 iterations)
+Benchmarking _control/linalg/candidate/8192: Analyzing
+_control/linalg/candidate/8192
+                        time:   [44.455 ms 44.574 ms 44.700 ms]
+                        change: [−15.972% −15.035% −14.039%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+Benchmarking _control/linalg/genesis/8192
+Benchmarking _control/linalg/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/genesis/8192: Collecting 100 samples in estimated 8.9427 s (200 iterations)
+Benchmarking _control/linalg/genesis/8192: Analyzing
+_control/linalg/genesis/8192
+                        time:   [44.537 ms 44.645 ms 44.756 ms]
+                        change: [−18.011% −16.859% −15.674%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+
+     Running benches/quadeval.rs (target/release/deps/quadeval-f95ea3e874e16bf0)
+Benchmarking _control/quadeval/now/8192
+Benchmarking _control/quadeval/now/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/now/8192: Collecting 100 samples in estimated 8.7095 s (200 iterations)
+Benchmarking _control/quadeval/now/8192: Analyzing
+_control/quadeval/now/8192
+                        time:   [44.142 ms 44.248 ms 44.356 ms]
+                        change: [−16.776% −15.730% −14.642%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking _control/quadeval/candidate/8192
+Benchmarking _control/quadeval/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/candidate/8192: Collecting 100 samples in estimated 8.8798 s (200 iterations)
+Benchmarking _control/quadeval/candidate/8192: Analyzing
+_control/quadeval/candidate/8192
+                        time:   [44.455 ms 44.557 ms 44.661 ms]
+                        change: [−17.305% −16.227% −15.119%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking _control/quadeval/genesis/8192
+Benchmarking _control/quadeval/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/genesis/8192: Collecting 100 samples in estimated 8.9344 s (200 iterations)
+Benchmarking _control/quadeval/genesis/8192: Analyzing
+_control/quadeval/genesis/8192
+                        time:   [44.902 ms 45.049 ms 45.200 ms]
+                        change: [−18.108% −17.369% −16.588%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+     Running benches/ring.rs (target/release/deps/ring-cc4b66be7aead139)
+Benchmarking _control/ring/now/8192
+Benchmarking _control/ring/now/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/now/8192: Collecting 100 samples in estimated 9.0325 s (200 iterations)
+Benchmarking _control/ring/now/8192: Analyzing
+_control/ring/now/8192  time:   [44.095 ms 44.195 ms 44.300 ms]
+                        change: [−19.339% −18.338% −17.307%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 100 measurements (1.00%)
+  1 (1.00%) high mild
+Benchmarking _control/ring/candidate/8192
+Benchmarking _control/ring/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/candidate/8192: Collecting 100 samples in estimated 8.8014 s (200 iterations)
+Benchmarking _control/ring/candidate/8192: Analyzing
+_control/ring/candidate/8192
+                        time:   [43.980 ms 44.535 ms 45.172 ms]
+                        change: [−18.320% −16.790% −15.224%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 13 outliers among 100 measurements (13.00%)
+  5 (5.00%) high mild
+  8 (8.00%) high severe
+Benchmarking _control/ring/genesis/8192
+Benchmarking _control/ring/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/genesis/8192: Collecting 100 samples in estimated 8.7373 s (200 iterations)
+Benchmarking _control/ring/genesis/8192: Analyzing
+_control/ring/genesis/8192
+                        time:   [43.241 ms 43.340 ms 43.444 ms]
+                        change: [−13.560% −11.280% −8.8724%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  4 (4.00%) high mild
+
+     Running benches/ringswitch.rs (target/release/deps/ringswitch-80f6467fcc8e7db1)
+Benchmarking _control/ringswitch/now/8192
+Benchmarking _control/ringswitch/now/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/now/8192: Collecting 50 samples in estimated 10.864 s (250 iterations)
+Benchmarking _control/ringswitch/now/8192: Analyzing
+_control/ringswitch/now/8192
+                        time:   [43.545 ms 43.615 ms 43.684 ms]
+                        change: [+7.7011% +8.6668% +9.5142%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 50 measurements (6.00%)
+  1 (2.00%) low mild
+  2 (4.00%) high mild
+Benchmarking _control/ringswitch/candidate/8192
+Benchmarking _control/ringswitch/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/candidate/8192: Collecting 50 samples in estimated 11.005 s (250 iterations)
+Benchmarking _control/ringswitch/candidate/8192: Analyzing
+_control/ringswitch/candidate/8192
+                        time:   [43.612 ms 43.710 ms 43.811 ms]
+                        change: [+8.9673% +9.6195% +10.207%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/ringswitch/genesis/8192
+Benchmarking _control/ringswitch/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/genesis/8192: Collecting 50 samples in estimated 10.816 s (250 iterations)
+Benchmarking _control/ringswitch/genesis/8192: Analyzing
+_control/ringswitch/genesis/8192
+                        time:   [43.587 ms 43.647 ms 43.704 ms]
+                        change: [+8.5396% +9.5388% +10.346%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) low mild
+
+     Running benches/sumcheck.rs (target/release/deps/sumcheck-4a54cb14c8c8a867)
+Benchmarking _control/sumcheck/now/8192
+Benchmarking _control/sumcheck/now/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/now/8192: Collecting 50 samples in estimated 10.793 s (200 iterations)
+Benchmarking _control/sumcheck/now/8192: Analyzing
+_control/sumcheck/now/8192
+                        time:   [43.928 ms 44.009 ms 44.092 ms]
+                        change: [+4.4022% +6.2978% +7.9526%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/sumcheck/candidate/8192
+Benchmarking _control/sumcheck/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/candidate/8192: Collecting 50 samples in estimated 10.983 s (250 iterations)
+Benchmarking _control/sumcheck/candidate/8192: Analyzing
+_control/sumcheck/candidate/8192
+                        time:   [44.136 ms 44.205 ms 44.276 ms]
+                        change: [+3.3942% +5.5568% +7.4405%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) high mild
+Benchmarking _control/sumcheck/genesis/8192
+Benchmarking _control/sumcheck/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/genesis/8192: Collecting 50 samples in estimated 10.852 s (250 iterations)
+Benchmarking _control/sumcheck/genesis/8192: Analyzing
+_control/sumcheck/genesis/8192
+                        time:   [43.417 ms 43.484 ms 43.557 ms]
+                        change: [+8.2094% +9.0732% +9.8970%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 50 measurements (10.00%)
+  1 (2.00%) low mild
+  3 (6.00%) high mild
+  1 (2.00%) high severe
+
+Benchmarking sumcheck/round_value_zero/now/1024
+Benchmarking sumcheck/round_value_zero/now/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/round_value_zero/now/1024: Collecting 50 samples in estimated 10.150 s (33k iterations)
+Benchmarking sumcheck/round_value_zero/now/1024: Analyzing
+sumcheck/round_value_zero/now/1024
+                        time:   [306.24 µs 306.35 µs 306.46 µs]
+                        change: [+14.995% +15.266% +15.520%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 5 outliers among 50 measurements (10.00%)
+  3 (6.00%) high mild
+  2 (4.00%) high severe
+Benchmarking sumcheck/round_value_zero/candidate/1024
+Benchmarking sumcheck/round_value_zero/candidate/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/round_value_zero/candidate/1024: Collecting 50 samples in estimated 10.156 s (33k iterations)
+Benchmarking sumcheck/round_value_zero/candidate/1024: Analyzing
+sumcheck/round_value_zero/candidate/1024
+                        time:   [306.52 µs 306.64 µs 306.76 µs]
+                        change: [+13.794% +14.667% +15.324%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking sumcheck/round_value_zero/genesis/1024
+Benchmarking sumcheck/round_value_zero/genesis/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/round_value_zero/genesis/1024: Collecting 50 samples in estimated 10.425 s (15k iterations)
+Benchmarking sumcheck/round_value_zero/genesis/1024: Analyzing
+sumcheck/round_value_zero/genesis/1024
+                        time:   [680.84 µs 680.95 µs 681.06 µs]
+                        change: [+14.869% +15.118% +15.341%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 50 measurements (6.00%)
+  2 (4.00%) high mild
+  1 (2.00%) high severe
+
+Benchmarking sumcheck/round_values_zero/now/1024
+Benchmarking sumcheck/round_values_zero/now/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 12.9s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/round_values_zero/now/1024: Collecting 50 samples in estimated 12.880 s (1275 iterations)
+Benchmarking sumcheck/round_values_zero/now/1024: Analyzing
+sumcheck/round_values_zero/now/1024
+                        time:   [10.109 ms 10.115 ms 10.123 ms]
+                        change: [+15.042% +15.357% +15.626%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 50 measurements (4.00%)
+  1 (2.00%) high mild
+  1 (2.00%) high severe
+Benchmarking sumcheck/round_values_zero/candidate/1024
+Benchmarking sumcheck/round_values_zero/candidate/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 11.2s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/round_values_zero/candidate/1024: Collecting 50 samples in estimated 11.181 s (1275 iterations)
+Benchmarking sumcheck/round_values_zero/candidate/1024: Analyzing
+sumcheck/round_values_zero/candidate/1024
+                        time:   [8.7710 ms 8.7740 ms 8.7770 ms]
+                        change: [+15.655% +15.817% +15.960%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) high mild
+Benchmarking sumcheck/round_values_zero/genesis/1024
+Benchmarking sumcheck/round_values_zero/genesis/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/round_values_zero/genesis/1024: Collecting 50 samples in estimated 10.110 s (450 iterations)
+Benchmarking sumcheck/round_values_zero/genesis/1024: Analyzing
+sumcheck/round_values_zero/genesis/1024
+                        time:   [22.836 ms 22.889 ms 22.937 ms]
+                        change: [+17.899% +18.197% +18.459%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 13 outliers among 50 measurements (26.00%)
+  8 (16.00%) low severe
+  2 (4.00%) high mild
+  3 (6.00%) high severe
+
+Benchmarking sumcheck/round_poly_zero/now/1024
+Benchmarking sumcheck/round_poly_zero/now/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 13.3s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/round_poly_zero/now/1024: Collecting 50 samples in estimated 13.279 s (1275 iterations)
+Benchmarking sumcheck/round_poly_zero/now/1024: Analyzing
+sumcheck/round_poly_zero/now/1024
+                        time:   [10.335 ms 10.337 ms 10.340 ms]
+                        change: [+15.504% +15.679% +15.845%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 4 outliers among 50 measurements (8.00%)
+  1 (2.00%) high mild
+  3 (6.00%) high severe
+Benchmarking sumcheck/round_poly_zero/candidate/1024
+Benchmarking sumcheck/round_poly_zero/candidate/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 11.5s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/round_poly_zero/candidate/1024: Collecting 50 samples in estimated 11.486 s (1275 iterations)
+Benchmarking sumcheck/round_poly_zero/candidate/1024: Analyzing
+sumcheck/round_poly_zero/candidate/1024
+                        time:   [9.0135 ms 9.0179 ms 9.0226 ms]
+                        change: [+14.814% +15.364% +15.722%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Benchmarking sumcheck/round_poly_zero/genesis/1024
+Benchmarking sumcheck/round_poly_zero/genesis/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/round_poly_zero/genesis/1024: Collecting 50 samples in estimated 10.225 s (450 iterations)
+Benchmarking sumcheck/round_poly_zero/genesis/1024: Analyzing
+sumcheck/round_poly_zero/genesis/1024
+                        time:   [31.896 ms 36.778 ms 41.902 ms]
+                        change: [+60.601% +87.106% +113.78%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+
+Benchmarking sumcheck/honest_compute_g/now/1024
+Benchmarking sumcheck/honest_compute_g/now/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 13.6s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/honest_compute_g/now/1024: Collecting 50 samples in estimated 13.640 s (1275 iterations)
+Benchmarking sumcheck/honest_compute_g/now/1024: Analyzing
+sumcheck/honest_compute_g/now/1024
+                        time:   [10.726 ms 10.740 ms 10.753 ms]
+                        change: [+14.640% +15.156% +15.600%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Benchmarking sumcheck/honest_compute_g/candidate/1024
+Benchmarking sumcheck/honest_compute_g/candidate/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 12.0s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/honest_compute_g/candidate/1024: Collecting 50 samples in estimated 11.964 s (1275 iterations)
+Benchmarking sumcheck/honest_compute_g/candidate/1024: Analyzing
+sumcheck/honest_compute_g/candidate/1024
+                        time:   [9.3675 ms 9.3693 ms 9.3712 ms]
+                        change: [+15.117% +15.288% +15.460%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high severe
+Benchmarking sumcheck/honest_compute_g/genesis/1024
+Benchmarking sumcheck/honest_compute_g/genesis/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/honest_compute_g/genesis/1024: Collecting 50 samples in estimated 10.379 s (450 iterations)
+Benchmarking sumcheck/honest_compute_g/genesis/1024: Analyzing
+sumcheck/honest_compute_g/genesis/1024
+                        time:   [23.076 ms 23.084 ms 23.093 ms]
+                        change: [+15.429% +15.666% +15.873%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 3 outliers among 50 measurements (6.00%)
+  1 (2.00%) high mild
+  2 (4.00%) high severe
+
+Benchmarking sumcheck/honest_compute_g_split/now/1024
+Benchmarking sumcheck/honest_compute_g_split/now/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 13.9s, enable flat sampling, or reduce sample count to 20.
+Benchmarking sumcheck/honest_compute_g_split/now/1024: Collecting 50 samples in estimated 13.854 s (1275 iterations)
+Benchmarking sumcheck/honest_compute_g_split/now/1024: Analyzing
+sumcheck/honest_compute_g_split/now/1024
+                        time:   [10.859 ms 10.870 ms 10.881 ms]
+                        change: [+6.7932% +8.9755% +11.207%] (p = 0.00 < 0.05)
+                        Performance has regressed.
+Found 2 outliers among 50 measurements (4.00%)
+  1 (2.00%) high mild
+  1 (2.00%) high severe
+Benchmarking sumcheck/honest_compute_g_split/candidate/1024
+Benchmarking sumcheck/honest_compute_g_split/candidate/1024: Warming up for 1.0000 s
+
+Warning: Unable to complete 50 samples in 10.0s. You may wish to increase target time to 12.2s, enable flat sampling, or reduce sample count to 30.
+Benchmarking sumcheck/honest_compute_g_split/candidate/1024: Collecting 50 samples in estimated 12.212 s (1275 iterations)
+Benchmarking sumcheck/honest_compute_g_split/candidate/1024: Analyzing
+sumcheck/honest_compute_g_split/candidate/1024
+                        time:   [9.5264 ms 9.5486 ms 9.5733 ms]
+                        change: [−0.4702% −0.0949% +0.4136%] (p = 0.71 > 0.05)
+                        No change in performance detected.
+Found 5 outliers among 50 measurements (10.00%)
+  2 (4.00%) high mild
+  3 (6.00%) high severe
+Benchmarking sumcheck/honest_compute_g_split/genesis/1024
+Benchmarking sumcheck/honest_compute_g_split/genesis/1024: Warming up for 1.0000 s
+Benchmarking sumcheck/honest_compute_g_split/genesis/1024: Collecting 50 samples in estimated 10.513 s (450 iterations)
+Benchmarking sumcheck/honest_compute_g_split/genesis/1024: Analyzing
+sumcheck/honest_compute_g_split/genesis/1024
+                        time:   [23.214 ms 23.246 ms 23.284 ms]
+                        change: [−1.1757% −0.9157% −0.6433%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 7 outliers among 50 measurements (14.00%)
+  1 (2.00%) high mild
+  6 (12.00%) high severe
+
+     Running benches/zerocheck.rs (target/release/deps/zerocheck-ad14c95db3502c88)
+Benchmarking _control/zerocheck/now/8192
+Benchmarking _control/zerocheck/now/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/now/8192: Collecting 50 samples in estimated 10.671 s (200 iterations)
+Benchmarking _control/zerocheck/now/8192: Analyzing
+_control/zerocheck/now/8192
+                        time:   [44.275 ms 44.352 ms 44.435 ms]
+                        change: [−3.3957% −2.5762% −1.9335%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Found 3 outliers among 50 measurements (6.00%)
+  3 (6.00%) high mild
+Benchmarking _control/zerocheck/candidate/8192
+Benchmarking _control/zerocheck/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/candidate/8192: Collecting 50 samples in estimated 11.032 s (250 iterations)
+Benchmarking _control/zerocheck/candidate/8192: Analyzing
+_control/zerocheck/candidate/8192
+                        time:   [43.673 ms 43.773 ms 43.880 ms]
+                        change: [−4.8004% −4.1272% −3.4712%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 50 measurements (6.00%)
+  3 (6.00%) high mild
+Benchmarking _control/zerocheck/genesis/8192
+Benchmarking _control/zerocheck/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/genesis/8192: Collecting 50 samples in estimated 10.882 s (250 iterations)
+Benchmarking _control/zerocheck/genesis/8192: Analyzing
+_control/zerocheck/genesis/8192
+                        time:   [43.008 ms 43.099 ms 43.191 ms]
+                        change: [−4.9662% −3.9263% −3.0445%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
+  (skipping 96 case(s) not measured in this run)
+
+  machine   AMD Ryzen 7 8845HS w/ Radeon 780M Graphics · 16 cores · Linux 6.17.0-1032-oem · id d19cb42225da
+  toolchain rustc 1.98.0-nightly (14210df0e 2026-05-31)
+  rustflags (none)
+  source    3a29d1c +uncommitted
+  run       20260916T1729+0200-21e46dc2  <- cite this in a ledger row; a row without it is unattributable
+
+  case                                     genesis         now   candidate          vs genesis         cand vs now
+  ------------------------------------  ----------  ----------  ----------  ------------------  ------------------
+  sumcheck/honest_compute_g/1024            23.1ms      10.7ms      9.36ms     -53.6% ▼ faster     -13.1% ▼ faster
+  sumcheck/honest_compute_g_split/1024      23.2ms      10.8ms      9.49ms     -53.2% ▼ faster     -13.1% ▼ faster
+  sumcheck/round_poly_zero/1024             22.7ms      10.3ms         9ms     -54.5% ▼ faster     -13.5% ▼ faster
+  sumcheck/round_value_zero/1024             681µs       306µs       306µs     -55.0% ▼ faster       -0.7% · noise
+  sumcheck/round_values_zero/1024           22.5ms      10.1ms      8.76ms     -55.1% ▼ faster     -13.9% ▼ faster
+
+  harness self-test — all variants run identical code, so these should read 0%
+  _control/commit/8192                      44.1ms      42.3ms      43.1ms       -4.0% · noise       +0.0% · noise
+  _control/endpiece/8192                    43.1ms      43.6ms      42.4ms       +1.2% · noise       +0.0% · noise
+  _control/evalsplit/8192                   42.9ms      42.2ms      43.6ms       -1.6% · noise       +0.0% · noise
+  _control/gadget/8192                        42ms      42.6ms      42.9ms       +1.5% · noise       +0.0% · noise
+  _control/linalg/8192                      43.8ms      43.6ms      43.8ms       -0.6% · noise       +0.0% · noise
+  _control/quadeval/8192                    43.8ms      43.4ms      43.7ms       -0.9% · noise       +0.0% · noise
+  _control/ring/8192                        42.6ms      43.4ms      42.7ms       +1.7% · noise       +0.0% · noise
+  _control/ringswitch/8192                  43.1ms      43.1ms      43.1ms       -0.1% · noise       +0.0% · noise
+  _control/sumcheck/8192                      43ms      43.4ms      43.8ms       +0.9% · noise       +0.0% · noise
+  _control/zerocheck/8192                   42.6ms        44ms      43.2ms       +3.2% · noise       +0.0% · noise
+
+  times average the 3 fastest of criterion's settled samples (those given at least
+  half the maximum iteration count), which is robust to background load; criterion's
+  own output above reports its regression slope and reads higher.
+  Only the `vs genesis` column is a comparison; an absolute time is not comparable
+  to another run's, nor to another row's.
+
+  A/B bias       4.0%  worst of the identical-code controls, applied as a flat threshold
+  cand lean    commit +2.0%  endpiece -2.8%  evalsplit +3.4%  gadget +0.6%  linalg +0.5%  quadeval +0.7%  ring -1.5%  ringswitch +0.1%  sumcheck +0.7%  zerocheck -1.7%
+               the slot's signed identical-code offset, measured per binary by its
+               control and divided out of `cand vs now` before any verdict; a
+               control's own adjusted value is 0 by construction
+  slot         diverged from hachi/src: sumcheck 2845d6a6f0b8
+               the candidate numbers above belong to that diff — keep the sha with them
+# exit 0 at 2026-09-16T17:41:44+02:00

@@ -1908,51 +1908,158 @@ theorem round_value_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
       rw [hacc, hyeq, rangeSumZero_eq_sum_range]
   · exact ⟨by simp, hRZ, by simp⟩
 
-/-- `round_values_zero`: the `33` node values of `rangeSumZero`, at `0 … 32`. -/
+/-- The **inner** loop of `round_values_zero`: one pair per step, with the
+two-point fold done in the **base field** (candidate T2c).
+
+`round_values_zero` knows what `round_value_zero` cannot: its node is
+`Fp::new(t)`, so `one_minus = Fp::ONE - node` is a base-field element too, and
+each of the two fold products is the *mixed* `Mul<Ext4> for Fp` impl --
+`fp_ext_mul_spec`, four base multiplications -- where `round_value_zero`'s
+`Ext4 x Ext4` fold pays nineteen apiece. That is the whole candidate; the sum
+being computed is unchanged, which is why the caller's statement below does not
+move.
+
+The scalars enter only through `hone`, and `hom` in the step is the one line of
+new proof content: `ofBase` is a ring homomorphism, so
+`ofBase (1 - toK node) = 1 - ofBase (toK node)` and the invariant is
+`round_value_zero_spec`'s with `toExt node` read as `ofBase (toK node)`.
+`half` is a *pure* `let` in the extracted body (`Vec.len` is not monadic), so it
+arrives as a parameter and `hhalf` is what translates the loop guard. -/
+theorem round_values_zero_loop0_loop0_spec {k : ℕ}
+    (w eq : alloc.vec.Vec cpoly.field.Ext4)
+    (node one_minus : cpoly.field.Fp) (half : Std.Usize)
+    (acc : cpoly.field.Ext4) (y : Std.Usize)
+    (hw : WfEvals (k + 1) w) (heq : WfEvals k eq)
+    (hRn : Red node) (hRo : Red one_minus)
+    (hone : toK one_minus = 1 - toK node)
+    (hhalf : half.val = eq.val.length)
+    (hy : y.val ≤ 2 ^ k) (hRacc : Reduced acc)
+    (hacc : toExt acc = ∑ y' ∈ Finset.range y.val,
+      toExt (eq.val.getD y' cpoly.field.Ext4.ZERO) *
+        InnerOuter.rangeProduct 16
+          ((1 - Ext.ofBase (toK node)) *
+              toExt (w.val.getD (2 * y') cpoly.field.Ext4.ZERO) +
+            Ext.ofBase (toK node) *
+              toExt (w.val.getD (2 * y' + 1) cpoly.field.Ext4.ZERO))) :
+    sumcheck.round_values_zero_loop0_loop0 w eq node one_minus half acc y
+      ⦃ out => Reduced out ∧ toExt out =
+        rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq)
+          (Ext.ofBase (toK node)) ⦄ := by
+  obtain ⟨hwlen, hwred⟩ := hw
+  obtain ⟨heqlen, heqred⟩ := heq
+  have hwmax : w.val.length ≤ Usize.max := w.property
+  rw [sumcheck.round_values_zero_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => 2 ^ k - s.2.val)
+    (fun s => s.2.val ≤ 2 ^ k ∧ Reduced s.1 ∧
+      toExt s.1 = ∑ y' ∈ Finset.range s.2.val,
+        toExt (eq.val.getD y' cpoly.field.Ext4.ZERO) *
+          InnerOuter.rangeProduct 16
+            ((1 - Ext.ofBase (toK node)) *
+                toExt (w.val.getD (2 * y') cpoly.field.Ext4.ZERO) +
+              Ext.ofBase (toK node) *
+                toExt (w.val.getD (2 * y' + 1) cpoly.field.Ext4.ZERO)))
+  · rintro ⟨a1, y1⟩ ⟨hy1, hRa1, ha1⟩
+    dsimp only at hy1 hRa1 ha1
+    simp only [sumcheck.round_values_zero_loop0_loop0.body]
+    by_cases hlt : y1 < half
+    · rw [if_pos hlt]
+      have hylt : y1.val < 2 ^ k := by
+        have : y1.val < eq.val.length := by scalar_tac
+        omega
+      have h2y : 2 * y1.val + 1 < w.val.length := by rw [hwlen, pow_succ]; omega
+      have hmul : 2 * y1.val ≤ Usize.max := by omega
+      step as ⟨i, hi⟩
+      have hib : i.val < w.val.length := by rw [hi]; omega
+      step as ⟨lo0, hlo0⟩
+      have hRlo0 : Reduced lo0 := hlo0 ▸ hwred _ (List.getElem_mem hib)
+      step as ⟨i1, hi1⟩
+      have hi1b : i1.val < w.val.length := by rw [hi1, hi]; omega
+      step as ⟨hi0, hhi0⟩
+      have hRhi0 : Reduced hi0 := hhi0 ▸ hwred _ (List.getElem_mem hi1b)
+      step with fp_ext_mul_spec one_minus lo0 hRo hRlo0 as ⟨e, hRe, he⟩
+      step with fp_ext_mul_spec node hi0 hRn hRhi0 as ⟨e1, hRe1, he1⟩
+      step with ext_add_spec e e1 hRe hRe1 as ⟨folded, hRf, hf⟩
+      have hyb : y1.val < eq.val.length := by omega
+      step as ⟨e2, he2⟩
+      have hRe2 : Reduced e2 := he2 ▸ heqred _ (List.getElem_mem hyb)
+      step with range_product_spec folded hRf as ⟨e3, hRe3, he3⟩
+      step with ext_mul_spec e2 e3 hRe2 hRe3 as ⟨e4, hRe4, he4⟩
+      step with ext_add_spec a1 e4 hRa1 hRe4 as ⟨acc1, hRacc1, hacc1⟩
+      step as ⟨y2, hy2⟩
+      refine ⟨by scalar_tac, hRacc1, ?_, by scalar_tac⟩
+      have hom : (Ext.ofBase (toK one_minus) : F) = 1 - Ext.ofBase (toK node) := by
+        rw [hone, ← phiF_apply, ← phiF_apply, map_sub, map_one]
+      rw [hacc1, ha1, hy2, Finset.sum_range_succ, he4, he3, hf, he, he1, hom,
+        he2, hlo0, hhi0,
+        ← List.getD_eq_getElem eq.val cpoly.field.Ext4.ZERO hyb,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hib,
+        ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hi1b, hi1, hi]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hyeq : y1.val = 2 ^ k := by
+        have : half.val ≤ y1.val := by scalar_tac
+        omega
+      refine ⟨hRa1, ?_⟩
+      rw [ha1, hyeq, rangeSumZero_eq_sum_range]
+  · exact ⟨hy, hRacc, hacc⟩
+
+/-- `round_values_zero`: the `33` node values of `rangeSumZero`, at `0 … 32`.
+
+**The statement is candidate F's, unchanged.** It is pointwise in the node, so it
+says nothing about how the `33` values were produced, and candidate T2c's
+rearrangement of the fold leaves it exactly where it was -- only the proof below
+is restated, around the new inner loop. Aeneas renamed the outer loop
+`round_values_zero_loop` to `_loop0` when the second loop appeared, which is what
+made the restatement mandatory rather than optional. -/
 theorem round_values_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
     (hw : WfEvals (k + 1) w) (heq : WfEvals k eq) :
     sumcheck.round_values_zero w eq
       ⦃ out => out.val.length = 33 ∧ VecReduced out ∧
         ∀ t : Fin 33, toExt (out.val.getD t.val cpoly.field.Ext4.ZERO) =
-          rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) (t.val : F) ⦄ := by
+          rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq)
+            (t.val : F) ⦄ := by
   have hrn : (params.ROUND_NODES).val = 33 := by simp [params.ROUND_NODES]
   have hmax := usize_max_ge
-  rw [sumcheck.round_values_zero, sumcheck.round_values_zero_loop]
+  have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
+  rw [sumcheck.round_values_zero, sumcheck.round_values_zero_loop0]
   apply loop.spec_decr_nat (fun s => 33 - s.2.val)
     (fun s => s.2.val ≤ 33 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
       ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
         rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) (t : F))
   · rintro ⟨v1, t1⟩ ⟨ht1, hlen1, hred1, hval1⟩
     dsimp only at ht1 hlen1 hred1 hval1
-    simp only [sumcheck.round_values_zero_loop.body]
+    simp only [sumcheck.round_values_zero_loop0.body]
     by_cases hlt : t1 < params.ROUND_NODES
     · rw [if_pos hlt]
       have ht1lt : t1.val < 33 := by scalar_tac
-      step with round_node_spec t1 as ⟨nd, hRnd, hnd⟩
-      step with round_value_zero_spec (k := k) w eq nd hw heq hRnd as ⟨e, hRe, he⟩
+      step with node_cast_spec t1 as ⟨u, hu⟩
+      step with fp_new_spec u as ⟨nd, hRnd, hnd⟩
+      step with fp_sub_spec cpoly.field.Fp.ONE nd red_Fp_ONE hRnd as ⟨om, hRom, hom⟩
+      step with round_values_zero_loop0_loop0_spec (k := k) w eq nd om
+        (alloc.vec.Vec.len eq) cpoly.field.Ext4.ZERO 0#usize hw heq hRnd hRom
+        (by rw [hom, toK_one]) (by simp) (by simp) hRZ (by simp) as ⟨e, hRe, he⟩
       have hbound : v1.val.length < Usize.max := by omega
       step as ⟨v2, hv2⟩
       step as ⟨t2, ht2⟩
       have ht2n : t2.val = t1.val + 1 := by scalar_tac
       refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
       · rw [ht2n, hv2, List.length_append, hlen1]; simp
-      · intro u hu
-        rw [hv2] at hu
-        rcases List.mem_append.mp hu with h | h
-        · exact hred1 u h
+      · intro u' hu'
+        rw [hv2] at hu'
+        rcases List.mem_append.mp hu' with h | h
+        · exact hred1 u' h
         · rw [List.mem_singleton.mp h]; exact hRe
       · intro t ht
         rw [ht2n] at ht
         rcases Nat.lt_or_ge t t1.val with htlt | htge
         · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
         · have hteq : t = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, he, hnd, hlen1]
+          rw [hteq, hv2, getD_append_eq, he, hnd, hu, hlen1, ofBase_natCast]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have hteq : t1.val = 33 := by scalar_tac
       exact ⟨by rw [hlen1, hteq], hred1, fun t => hval1 t.val (by rw [hteq]; exact t.isLt)⟩
   · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht; simp at ht⟩
-
 
 /-- `round_poly_zero` interpolates the `33` node values, and the interpolant
 **is** `rangeSumZero` everywhere: the node function is a polynomial of degree

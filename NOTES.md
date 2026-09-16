@@ -6879,3 +6879,88 @@ needs the interchange first; T2c does not.
   33.4 ms, so 50 reps ≈ 1.7 s, ~3.3 s per run for both readings. Two readings
   rather than one precisely because of the +29% tail above — the offset drifts
   within a run, and one reading cannot see that.
+
+## Candidate T2c: the fold's scalars belong in the base field (2026-09-16)
+
+The specification's two-point fold is `fold w T y = (1 − T)·w(lo y) + T·w(hi y)`,
+and the crate evaluates it at the 33 nodes `T = 0 … 32`. `round_value_zero`
+takes `T` as an arbitrary `Ext4`, so it pays two **full** quartic
+multiplications per pair per node — nineteen base multiplications apiece. But
+`round_values_zero` knows something `round_value_zero` cannot: its node is
+`Fp::new(t)`, and therefore `1 − T` is `Fp::ONE − Fp::new(t)`. *Both* scalars
+are in `ofBase`'s image, so each product is the **mixed** `Mul<Ext4> for Fp`
+impl — four base multiplications. 30 of ~257 base multiplications per node per
+pair, which predicted −11.7% of the round arithmetic.
+
+Measured `20260916T1729+0200` (exit 0, A/B bias 4.0%, every control noise):
+
+| row | `cand vs now` | verdict |
+|---|---|---|
+| `sumcheck/round_values_zero/1024` | **−13.9%** | faster |
+| `sumcheck/round_poly_zero/1024` | −13.5% | faster |
+| `sumcheck/honest_compute_g/1024` | −13.1% | faster |
+| `sumcheck/honest_compute_g_split/1024` | −13.1% | faster |
+| `sumcheck/round_value_zero/1024` | −0.7% | **noise** |
+
+That last row is the candidate's **built-in control**: it is the arbitrary-node
+function, left untouched under rule 12, so it must *not* move while its caller
+does. Same device as `zerocheck/h_zero` for T2a, and this time it was free.
+
+### Two things this candidate taught the harness and the loop
+
+**A benched item's signature cannot change.** This is new, and it is a design
+constraint on candidates rather than a bug. `benches/*.rs` defines each case
+body once inside `define_cases!(<mod>, <crate>)`, instantiated against **all
+three** variant crates, so one source expression must typecheck against the
+current code *and* against the frozen first translation. The natural form of
+T2c was `round_value_zero(w, eq, node: Fp)`, and the bench body's
+`hc::sumcheck::round_node(7)` returns `Ext4` in `hachi_genesis` — which is
+frozen and cannot be brought along. So the optimization moved to the caller
+that already has the cheaper type, which is also the caller that *knows* the
+node is `Fp::new(t)`. Written into `perf-loop` § "Before the first iteration"
+with the three ways out ranked; route 1 (move it to such a caller) is best
+because it costs no new item, no genesis freeze, no bench-case work, and
+usually leaves the changed function's spec statement alone. Here it did exactly
+that, and it handed over the control row as a bonus.
+
+**The first run was thrown away, correctly.** Run 1 (`20260916T1708+0200`) came
+back exit 2: `_control/ring` measured **+18.0%** against genesis on *identical
+code*, against a 10% limit, so every verdict was `unusable` and nothing was
+recorded. The cause is worth keeping: the genesis controls split into two
+clusters (`ring`/`ringswitch`/`sumcheck` at ~38.8 ms, the other seven at
+~44–48 ms), and the run had started six minutes after a 14-minute full-load
+chain profile ended. Run 2 waited for load < 1.0 first and read bias 4.0%. The
+threshold was never touched, and the unusable run has its own `bench-unusable`
+ledger row — including the one thing it got wrong, `honest_compute_g_split` at
++0.8%, which would have been `rejected-mixed` had it been believed. It was the
+bias, and the clean run puts that row at −13.1% with the rest.
+
+### The proof
+
+`round_values_zero_spec`'s **statement does not move.** It is pointwise in the
+node — `∀ t : Fin 33, toExt out[t] = rangeSumZero … (t : F)` — so it says
+nothing about how the 33 values were produced, and T2c changes only that. What
+forced a restatement was Aeneas: a second loop appeared, so the outer loop was
+renamed `round_values_zero_loop` → `_loop0` positionally, and the old proof
+stopped compiling. The new `round_values_zero_loop0_loop0_spec` is
+`round_value_zero_spec`'s loop with `toExt node` read as `ofBase (toK node)`,
+and the single line of new content is that `ofBase` is a ring homomorphism:
+
+```lean
+have hom : (Ext.ofBase (toK one_minus) : F) = 1 - Ext.ofBase (toK node) := by
+  rw [hone, ← phiF_apply, ← phiF_apply, map_sub, map_one]
+```
+
+`Opt.lean` carries the same fact as `round_values_zero.optFold_eq_spec`, at the
+scalar level, which is the honest granularity: T2c is a representation change
+on the scalars, not an algorithm.
+
+No new items, so **no genesis freeze** — genesis stays at 312 frozen items.
+`make build` green, 297 audit lines on the three standard axioms only, 0 axioms
+in `Generated.lean`, extraction deterministic, 199 tests, `bench-check` green.
+
+One `Ext.ofBase` annotation was needed (`… : F`) because it is polymorphic in
+the extension and a standalone `have` has nothing to infer from. And the stale
+`Generated.olean` trap fired a **third** time this session: `lake env lean`
+reported the new loop names as unknown identifiers until `lake build Generated`
+ran. It is worth treating `make extract && lake build Generated` as one step.

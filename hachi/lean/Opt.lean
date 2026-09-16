@@ -1259,6 +1259,54 @@ theorem range_product.optPS_eq_spec (v : F) :
   rw [range_product.optPS_eq rc (v * v) 3 3 _ (by omega) (by omega) hentry]
   exact rangeQ_sq_eq_rangeProduct v
 
+/-! # Candidate T2c -- `sumcheck::round_values_zero`: the fold's scalars in the base field
+
+Strategy `rust-direct`.  The specification's two-point fold is
+`fold w T y = (1 - T)·w(lo y) + T·w(hi y)`, and the crate evaluates it at the
+`33` nodes `T = 0 … 32`.  `round_value_zero` takes `T` as an arbitrary `Ext4`
+and so must pay two **full** quartic multiplications per pair per node --
+nineteen base multiplications apiece.  But `round_values_zero` knows its node is
+`Fp::new(t)`, and therefore that `1 - T` is `Fp::ONE - Fp::new(t)`: *both*
+scalars are in `ofBase`'s image, so each product is the **mixed**
+`Mul<Ext4> for Fp` impl -- four base multiplications (`fp_ext_mul_spec`,
+`lean/Ext.lean:403`).  30 of ~257 base multiplications per node per pair.
+
+This is a *representation* change on the scalars, not an algorithmic one: the
+sum computed is identical termwise, which is why `round_values_zero_spec`'s
+statement did not move and only its proof was restated around the new inner
+loop.  The one line of content is below -- `ofBase` is a ring homomorphism, so
+subtracting before embedding is subtracting after.
+
+Measured (run `20260916T1708+0200-... run 2`, exit 0, A/B bias 4.0%):
+`round_values_zero` **-13.9%**, `round_poly_zero` -13.5%, `honest_compute_g`
+-13.1%, `honest_compute_g_split` -13.1%; and `sumcheck/round_value_zero`
+**-0.7%, noise** -- that row is the arbitrary-node function, left untouched on
+purpose, so it is this candidate's built-in control, exactly as
+`zerocheck/h_zero` was T2a's.
+
+Why the fold was inlined into `round_values_zero` rather than
+`round_value_zero`'s signature being changed: `benches/*.rs` instantiates one
+case body against all three variant crates, and the frozen `hachi-genesis` copy
+would stop compiling if a benched item's parameter types moved.  Recorded in
+`perf-loop` § "Before the first iteration". -/
+
+/-- Candidate T2c's fold: the scalars formed in `ZMod q` and embedded, rather
+than formed in the extension. -/
+def round_values_zero.optFold (t : ZMod q) (a b : F) : F :=
+  Ext.ofBase (1 - t) * a + Ext.ofBase t * b
+
+/-- **The candidate's lemma.**  The base-field fold *is* the specification's
+fold at the embedded node: `φF` is a bundled `RingHom`, so `map_sub` and
+`map_one` carry `ofBase (1 - t)` to `1 - ofBase t` and the two expressions are
+equal term for term.  Unconditional in `t`, `a` and `b`.
+
+The right-hand side is the body of `fold w (ofBase t) y` with
+`a = w (lo y)`, `b = w (hi y)`, so `rangeSumZero` -- and hence every node value,
+the interpolated round polynomial, and `honest_compute_g` -- is unchanged. -/
+theorem round_values_zero.optFold_eq_spec (t : ZMod q) (a b : F) :
+    round_values_zero.optFold t a b = (1 - Ext.ofBase t) * a + Ext.ofBase t * b := by
+  rw [round_values_zero.optFold, ← phiF_apply, ← phiF_apply, map_sub, map_one]
+
 /-! # Candidate G -- `zerocheck::h_zero`, `h_zero_is_zero`: the range factor in the base field
 
 Strategy `opt-algo-swap`. Every entry the table builders feed to the range

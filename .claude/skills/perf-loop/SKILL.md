@@ -105,6 +105,41 @@ it, once per session, and stop with a report if any of it is missing:
   because the failure it catches is invisible until the accept pass — two
   `endpiece/*` rows sat in `benches/ringswitch.rs` printing perfectly good times
   while resolving to a binary that had no control.
+* **A benched item's *signature* cannot change.** `benches/*.rs` define each case
+  body once, in a `define_cases!(<mod>, <crate>)` macro instantiated against
+  **all three** variant crates (`hachi`, `hachi_genesis`, `hachi_candidate`), so
+  one source expression has to typecheck against the current code *and* against
+  the frozen first translation. Change a benched function's parameter types and
+  the genesis instantiation stops compiling -- and genesis is frozen by
+  definition, so it cannot be brought along. Measured 2026-09-16 while designing
+  candidate T2c: `sumcheck::round_value_zero(w, eq, node: Ext4)` wanted
+  `node: Fp` (both fold scalars are in `ofBase`'s image, so the mixed
+  `Mul<Ext4> for Fp` impl applies -- four base multiplications against
+  nineteen), and the bench body's `hc::sumcheck::round_node(7)` returns `Ext4`
+  in genesis and would have had to return `Fp` in the candidate.
+
+  This is a *design* constraint on candidates, not a bug to route around, and
+  the three ways out rank clearly:
+  1. **Move the optimization to a caller that already has the cheaper type.**
+     Best: no new items, no freeze, no bench-case work, and the changed
+     function's spec statement usually does not move. T2c took this route --
+     `round_values_zero` knows its node is `Fp::new(t)`, which is exactly what
+     `round_value_zero` cannot know, so the fold was inlined there and
+     `round_value_zero` kept as the faithful arbitrary-node mirror. The
+     duplication is idiomatic here (`round_value_zero_base` already carries the
+     same one, and `cube_size` is a documented local copy).
+  2. **Add a new function with the new signature**, freeze it into genesis as a
+     first translation, give it a case + `@covers`, and leave the old one. Pay
+     this only when no caller has the cheaper type.
+  3. Never: excluding the row to dodge the compile error. That deletes the
+     evidence the candidate needs, and `coverage --strict` is the gate that
+     would otherwise have caught it.
+
+  A pleasant side effect of route 1: the *unchanged* function's row becomes a
+  free per-candidate control. T2c leaves `sumcheck/round_value_zero` on the old
+  path, so that row must read `noise` while its `round_values_zero` caller reads
+  `faster` -- the same built-in cross-check `zerocheck/h_zero` gave T2a.
+
 * **Oracle-void rows.** `case!`'s digest equality is the backstop that stops a
   semantics change being reported as a speedup, and on one row it does not
   exist: `endpiece/rho_digits_short_check` is a tautology at the pinned
