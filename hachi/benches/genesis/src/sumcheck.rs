@@ -427,6 +427,7 @@ pub fn alpha_public_table(
     out
 }
 
+// @genesis 4543028 2026-09-16 — sumcheck::poly_mul
 /// The product of two univariate polynomials over `Ext4` (spec:
 /// `CPolynomial.Raw.mul`, `CompPoly/Univariate/Raw/Ops.lean`).
 ///
