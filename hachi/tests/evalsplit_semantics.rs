@@ -98,6 +98,39 @@ fn monomial_basis_is_the_tensor_of_the_point() {
     );
 }
 
+/// Candidate M's oracle: the doubling build agrees, entry by entry, with the
+/// `n`-factor form the frozen baseline computed.
+///
+/// The oracle is spelled the way the *specification* is and the way the
+/// implementation now is not -- for every index, the product of exactly `n`
+/// factors selected by the bits of that index, with `1` multiplied in when a
+/// bit is clear -- so it shares no loop, no index arithmetic and no allocation
+/// with the function under test. Four variables, not two: the doubling build's
+/// failure mode is a level whose high half lands at the wrong offset, which is
+/// invisible at `n = 1` and degenerate at `n = 2`.
+#[test]
+fn monomial_basis_agrees_with_the_n_factor_oracle() {
+    let mut lcg = Lcg::new(0xE5_07);
+    let n: usize = 4;
+    let pt: Vec<Rq> = (0..n).map(|_| lcg.next_rq()).collect();
+    let w = PolyVec::new(pt.iter().map(Rq::copy).collect());
+
+    let mb = monomial_basis(&w);
+    assert_eq!(mb.len(), 1usize << n);
+    for i in 0..(1usize << n) {
+        let mut acc = Rq::one();
+        for (j, wj) in pt.iter().enumerate() {
+            let factor = if bit(i, j) { wj.copy() } else { Rq::one() };
+            acc = acc.mul(&factor);
+        }
+        assert!(
+            mb.get(i).equals(&acc),
+            "entry {i} disagrees with the n-factor oracle: {}",
+            show(mb.get(i))
+        );
+    }
+}
+
 /// The empty point: `monomialBasis` of a length-0 vector is `[1]`
 /// (`monomialBasis_zero`), and the Lagrange basis likewise.
 #[test]

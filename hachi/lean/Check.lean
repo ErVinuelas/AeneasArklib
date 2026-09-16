@@ -1523,4 +1523,17 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_split_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_base_split_spec
 
+-- Candidate M (Stage 6, `evalsplit::monomial_basis`) -- the doubling build. Two
+-- independent proofs of one identity, and the dependency between the files
+-- makes that the safe direction: the candidate-time contract is stated over a
+-- bare `CommSemiring` against `CMlPolynomial.monomialBasis` itself, while the
+-- campaign proves the extracted loops in `EvalSplit` (which `Opt` imports, so
+-- it cannot route through the contract). `monomial_basis_spec` is audited above
+-- and its statement did not move.
+#print axioms HachiEquiv.Opt.monomial_basis.opt_eq_spec
+#print axioms HachiEquiv.Opt.monomial_basis.opt_getD
+#print axioms HachiEquiv.Opt.monomial_basis.opt_length
+#print axioms HachiEquiv.EvalSplit.monomial_basis_inner_loop_spec
+#print axioms HachiEquiv.EvalSplit.monomial_basis_outer_loop_spec
+
 end HachiEquiv.Check

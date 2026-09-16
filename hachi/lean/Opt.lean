@@ -26,6 +26,7 @@ the power through the loop state instead: `2N` multiplications for `c_eval_at`,
 -/
 import ZeroCheck
 import Sumcheck
+import EvalSplit
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -2087,5 +2088,153 @@ theorem honest_round_messages.opt_eq_spec {n μ m₁ : ℕ} (rs : InnerOuter.Rli
   ⟨fun x idx hidx => alphaPublicEvals_eq_tensorTable rs α τ₁ m₀ x idx hidx,
     fun _ _ L H => fold_tensorTable_low L H a,
     fun _ L H => fold_tensorTable_scalar L H a⟩
+
+/-! # Stage 6, iteration 8 (the `Rq`-valued bases; `hachi/src/evalsplit.rs`)
+
+## Candidate M -- `evalsplit::monomial_basis`
+
+Strategy `opt-algo-swap`, "build the table one variable at a time". The frozen
+translation reads the specification literally: entry `i` of the length-`2 ^ n`
+result is a product of exactly `n` factors, one per variable, `1` where bit `j`
+of `i` is clear (`hachi/src/evalsplit.rs:142`, the `crate::gadget::base_pow`
+convention). That is `2 ^ n · n` ring products per call, `n - popcount i` of
+them multiplications by `Rq::one()`, and at `ML_VARS_LOW = ML_VARS_HIGH = 10`
+it is `10 240` schoolbook degree-1024 products -- twice over in
+`quadeval::to_quad_eval_statement`, which `NOTES.md` prices at ~29 s.
+
+The doubling build pays `2 ^ n - 1 = 1 023`. Bit `j` of every index below
+`2 ^ j` is clear and bit `j` of `2 ^ j + r` is set, so the table for the prefix
+`w₀ … wⱼ` is the table for `w₀ … wⱼ₋₁` followed by that same table scaled by
+`wⱼ` -- no index arithmetic, no `1`-factors, and one multiplication per entry
+ever written. The shape is already in this crate at `Ext4`
+(`sumcheck::eq_suffix_table`, `hachi/src/sumcheck.rs:302`), which is why the
+translation is trivial and the loop specs have a precedent.
+
+Stated over a `CommSemiring`, not at `Rq`: candidate N reuses it for the
+Lagrange basis.
+-/
+
+section MonomialBasis
+
+variable {R : Type*} [CommSemiring R]
+
+/-! ## 1. The candidate -/
+
+/-- One level of the doubling build: the table for the prefix `w₀ … wⱼ` is the
+table for `w₀ … wⱼ₋₁` followed by that same table scaled by `wⱼ`. -/
+def monomial_basis.optStep (tab : List R) (x : R) : List R :=
+  tab ++ tab.map (fun p => p * x)
+
+/-- `CMlPolynomial.monomialBasis` built one variable at a time: `2 ^ n - 1`
+products instead of `2 ^ n · n`. One `List.foldl` over the point, whose step is
+one ascending `while` loop appending to the table the Rust already holds. -/
+def monomial_basis.opt (w : List R) : List R :=
+  w.foldl monomial_basis.optStep [1]
+
+/-! ## 2. What one entry of the build is -/
+
+@[simp] theorem monomial_basis.opt_nil : monomial_basis.opt ([] : List R) = [1] := rfl
+
+theorem monomial_basis.opt_append (w : List R) (x : R) :
+    monomial_basis.opt (w ++ [x]) = monomial_basis.optStep (monomial_basis.opt w) x := by
+  simp only [monomial_basis.opt, List.foldl_append, List.foldl_cons, List.foldl_nil]
+
+/-- The build doubles: after `j` variables the table has `2 ^ j` entries. This
+is the `Vec`'s length invariant, and the `2 ^ n ≤ Usize.max` the campaign's
+`push` obligations need. -/
+theorem monomial_basis.opt_length (w : List R) :
+    (monomial_basis.opt w).length = 2 ^ w.length := by
+  induction w using List.reverseRecOn with
+  | nil => simp only [monomial_basis.opt_nil, List.length_singleton, List.length_nil, pow_zero]
+  | append_singleton w x ih =>
+      rw [monomial_basis.opt_append, monomial_basis.optStep]
+      simp only [List.length_append, List.length_map, ih, List.length_singleton]
+      ring
+
+omit [CommSemiring R] in
+private theorem getD_append_lt {l₁ l₂ : List R} {t : ℕ} (h : t < l₁.length) (d : R) :
+    (l₁ ++ l₂).getD t d = l₁.getD t d := by
+  rw [List.getD_eq_getElem _ _ (by simp only [List.length_append]; omega),
+    List.getD_eq_getElem _ _ h, List.getElem_append_left h]
+
+omit [CommSemiring R] in
+private theorem getD_append_singleton {l : List R} {x d : R} :
+    (l ++ [x]).getD l.length d = x := by
+  rw [List.getD_eq_getElem _ _ (by simp only [List.length_append, List.length_singleton]; omega),
+    List.getElem_append_right (Nat.le_refl _)]
+  simp
+
+/-- Entry `i` of the doubling build is the specification's product of the
+factors of `w` that the bits of `i` select. The induction is on the point from
+the right, so the step is exactly one level of the build: the low half keeps
+its value because bit `j` of an index below `2 ^ j` is clear
+(`Nat.testBit_eq_false_of_lt`), and the high half gains the factor `wⱼ` because
+bit `j` of `2 ^ j + r` is set (`Nat.testBit_two_pow_add_eq`) while its lower
+bits are `r`'s (`Nat.testBit_two_pow_add_gt`). -/
+theorem monomial_basis.opt_getD (w : List R) : ∀ i : ℕ, i < 2 ^ w.length →
+    (monomial_basis.opt w).getD i 1
+      = ∏ t ∈ Finset.range w.length, (if Nat.testBit i t then w.getD t 1 else 1) := by
+  induction w using List.reverseRecOn with
+  | nil =>
+      intro i hi
+      simp only [List.length_nil, pow_zero] at hi
+      have hi0 : i = 0 := by omega
+      subst hi0
+      simp only [monomial_basis.opt_nil, List.length_nil, Finset.range_zero, Finset.prod_empty]
+      rfl
+  | append_singleton w x ih =>
+      intro i hi
+      have hlen : (monomial_basis.opt w).length = 2 ^ w.length := monomial_basis.opt_length w
+      have hsplit : (2 : ℕ) ^ (w.length + 1) = 2 ^ w.length + 2 ^ w.length := by ring
+      simp only [List.length_append, List.length_singleton] at hi ⊢
+      rw [monomial_basis.opt_append, monomial_basis.optStep, Finset.prod_range_succ]
+      by_cases hsmall : i < 2 ^ w.length
+      · rw [getD_append_lt (by omega) (1 : R), ih i hsmall,
+          Nat.testBit_eq_false_of_lt hsmall]
+        simp only [Bool.false_eq_true, if_false, mul_one]
+        refine Finset.prod_congr rfl (fun t ht => ?_)
+        simp only [Finset.mem_range] at ht
+        rw [getD_append_lt ht (1 : R)]
+      · obtain ⟨r, hrlt, rfl⟩ : ∃ r, r < 2 ^ w.length ∧ i = 2 ^ w.length + r :=
+          ⟨i - 2 ^ w.length, by omega, by omega⟩
+        rw [List.getD_eq_getElem
+              (l := monomial_basis.opt w ++ List.map (fun p => p * x) (monomial_basis.opt w))
+              (d := (1 : R)) (by simp only [List.length_append, List.length_map]; omega),
+          List.getElem_append_right (by omega), List.getElem_map]
+        simp only [hlen, Nat.add_sub_cancel_left]
+        rw [← List.getD_eq_getElem (l := monomial_basis.opt w) (d := (1 : R)) (by omega),
+          ih r hrlt, Nat.testBit_two_pow_add_eq, Nat.testBit_eq_false_of_lt hrlt]
+        simp only [Bool.not_false, if_true]
+        rw [getD_append_singleton (l := w) (x := x) (d := (1 : R))]
+        congr 1
+        refine Finset.prod_congr rfl (fun t ht => ?_)
+        simp only [Finset.mem_range] at ht
+        rw [Nat.testBit_two_pow_add_gt ht, getD_append_lt ht (1 : R)]
+
+/-! ## 3. The candidate's lemma -/
+
+/-- **Candidate M's `opt_eq_spec`.** The doubling build *is*
+`CMlPolynomial.monomialBasis`, as a list of the same length and the same
+entries -- so `monomial_basis_spec`'s statement does not move. -/
+theorem monomial_basis.opt_eq_spec {n : ℕ} (v : Vector R n) :
+    monomial_basis.opt v.toList = (CMlPolynomial.monomialBasis v).toList := by
+  have hvlen : v.toList.length = n := by simp
+  refine List.ext_getElem
+    (by simp only [monomial_basis.opt_length, hvlen, Vector.length_toList]) ?_
+  intro i h₁ h₂
+  have hi : i < 2 ^ n := by simpa using h₂
+  have hrhs : (CMlPolynomial.monomialBasis v)[i]
+      = ∏ j : Fin n, (if (BitVec.ofFin (⟨i, hi⟩ : Fin (2 ^ n))).getLsb j then v[j] else 1) := by
+    simpa using CMlPolynomial.monomialBasis_getElem (w := v) ⟨i, hi⟩
+  rw [← List.getD_eq_getElem (l := monomial_basis.opt v.toList) (d := (1 : R)) h₁,
+    monomial_basis.opt_getD v.toList i (by rw [hvlen]; exact hi), hvlen,
+    Vector.getElem_toList, hrhs,
+    ← Fin.prod_univ_eq_prod_range
+      (fun t => if Nat.testBit i t then v.toList.getD t 1 else 1) n]
+  refine Finset.prod_congr rfl (fun j _ => ?_)
+  simp only [BitVec.getLsb_eq_getElem, Fin.getElem_fin, BitVec.getElem_ofFin]
+  rw [List.getD_eq_getElem (l := v.toList) (d := (1 : R)) (by simp), Vector.getElem_toList]
+
+end MonomialBasis
 
 end HachiEquiv.Opt

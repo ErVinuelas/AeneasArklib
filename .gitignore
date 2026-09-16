@@ -86,6 +86,7 @@ target/
 # project's decision record and skill catalogue, cited from code comments, the
 # Makefile and the README -- and remain tracked.
 /PLAN_*.md
+/OPTIMIZATION_AGENT_ROADMAP.md
 /STAGE*_*.md
 /briefs/
 

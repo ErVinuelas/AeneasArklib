@@ -176,73 +176,106 @@ theorem split_equiv_inv_spec (k : Std.Usize) (hk : k.val < 2 ^ (nl + nh)) :
 
 /-! ## The bases -/
 
-/-- `monomial_basis` computes `CMlPolynomial.monomialBasis` of the represented
-point, entrywise: length `2^n`, entries reduced, and the `Fin`-function reading
-equal to the spec's basis vector. Stated at every point length `n` with the
-`usize` ceiling as the one model-artefact hypothesis. -/
-theorem monomial_basis_inner_loop_spec {n : ℕ} (w : linalg.PolyVec) (nn i : Std.Usize)
-    (one acc : ring.Rq) (j : Std.Usize)
-    (hw : WfVec n w) (hn : nn.val = n) (hone : Wf one) (honev : toRq one = 1)
-    (hj : j.val ≤ nn.val) (hacc : Wf acc)
-    (hval : toRq acc = ∏ t ∈ Finset.range j.val,
-      (if Nat.testBit i.val t then toRq (w.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        else 1)) :
-    evalsplit.monomial_basis_loop0_loop0 one w nn i acc j
-      ⦃ z => Wf z ∧ toRq z = ∏ t ∈ Finset.range n,
-        (if Nat.testBit i.val t then toRq (w.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          else 1) ⦄ := by
+/-! ### `monomial_basis` (Stage 6 candidate M)
+
+The doubling build: the table for the prefix `w₀ … wⱼ` is the table for
+`w₀ … wⱼ₋₁` followed by that same table scaled by `wⱼ`. The two loops are the
+level loop and the append loop, and the arithmetic content is entirely in the
+outer one's step -- bit `j` of an index below `2 ^ j` is clear, and bit `j` of
+`2 ^ j + r` is set while its lower bits are `r`'s.
+
+The same algebra is proved independently, over a bare `CommSemiring` and
+against `CMlPolynomial.monomialBasis` itself, as `monomial_basis.opt_eq_spec`
+in `lean/Opt.lean` (the candidate-time opt-contract). It is not *reused* here
+and cannot be: `Opt.lean` **imports** this file. Two independent proofs of one
+identity is the safe direction of that dependency, and `Check.lean` § 4 audits
+both.
+-/
+
+/-- The inner loop of `monomial_basis`: one level of the doubling build. `p` is
+the table the level starts from -- `out` holds it unchanged below `half`, and
+its `x`-multiples above -- and each step appends one more multiple. -/
+theorem monomial_basis_inner_loop_spec (out : alloc.vec.Vec ring.Rq)
+    (half : Std.Usize) (x : ring.Rq) (i : Std.Usize) (p : ℕ → Rq Φ)
+    (hx : Wf x) (hi : i.val ≤ half.val) (hcap : half.val + half.val ≤ Usize.max)
+    (hlen : out.val.length = half.val + i.val)
+    (hwf : ∀ y ∈ out.val, Wf y)
+    (hlow : ∀ t, t < half.val →
+      toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = p t)
+    (hhigh : ∀ t, t < i.val →
+      toRq (out.val.getD (half.val + t) (alloc.vec.Vec.new cpoly.field.Fp))
+        = p t * toRq x) :
+    evalsplit.monomial_basis_loop0_loop0 out half x i
+      ⦃ z => z.val.length = half.val + half.val ∧ (∀ y ∈ z.val, Wf y) ∧
+        (∀ t, t < half.val →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = p t) ∧
+        (∀ t, t < half.val →
+          toRq (z.val.getD (half.val + t) (alloc.vec.Vec.new cpoly.field.Fp))
+            = p t * toRq x) ⦄ := by
   rw [evalsplit.monomial_basis_loop0_loop0]
-  apply loop.spec_decr_nat (fun s => nn.val - s.2.val)
-    (fun s => s.2.val ≤ nn.val ∧ Wf s.1 ∧
-      toRq s.1 = ∏ t ∈ Finset.range s.2.val,
-        (if Nat.testBit i.val t then toRq (w.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          else 1))
-  · rintro ⟨a1, j1⟩ ⟨hj1, hWa1, hval1⟩
-    dsimp only at hj1 hWa1 hval1
+  apply loop.spec_decr_nat (fun s => half.val - s.2.val)
+    (fun s => s.2.val ≤ half.val ∧ s.1.val.length = half.val + s.2.val ∧
+      (∀ y ∈ s.1.val, Wf y) ∧
+      (∀ t, t < half.val →
+        toRq (s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = p t) ∧
+      (∀ t, t < s.2.val →
+        toRq (s.1.val.getD (half.val + t) (alloc.vec.Vec.new cpoly.field.Fp))
+          = p t * toRq x))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hlow1, hhigh1⟩
+    dsimp only at hi1 hlen1 hwf1 hlow1 hhigh1
     simp only [evalsplit.monomial_basis_loop0_loop0.body]
-    by_cases hlt : j1 < nn
+    by_cases hlt : i1 < half
     · rw [if_pos hlt]
-      have hjn : j1.val < n := by rw [← hn]; scalar_tac
-      have hjw : j1.val < w.val.length := by rw [hw.1]; exact hjn
-      step with test_bit_spec i j1 as ⟨b, hb⟩
-      by_cases hbb : b = true
-      · rw [if_pos hbb]
-        have htb : Nat.testBit i.val j1.val = true := by rw [← hb]; exact hbb
-        simp only [linalg.PolyVec.get]
-        step as ⟨r, hr⟩
-        have hWr : Wf r := by rw [hr]; exact hw.2 _ (List.getElem_mem hjw)
-        step as ⟨f, hWf, hf⟩
-        step as ⟨a2, hWa2, ha2⟩
-        step as ⟨j2, hj2⟩
-        refine ⟨by scalar_tac, hWa2, ?_, by scalar_tac⟩
-        rw [ha2, hval1, hf, hr, hj2, Finset.prod_range_succ, if_pos htb,
-          List.getD_eq_getElem _ _ hjw]
-      · rw [if_neg hbb]
-        have htb : Nat.testBit i.val j1.val = false := by
-          rw [← hb]; exact Bool.eq_false_iff.mpr hbb
-        step as ⟨a2, hWa2, ha2⟩
-        step as ⟨j2, hj2⟩
-        refine ⟨by scalar_tac, hWa2, ?_, by scalar_tac⟩
-        rw [ha2, hval1, honev, hj2, Finset.prod_range_succ, if_neg (by simp [htb])]
+      have hib : i1.val < o1.val.length := by scalar_tac
+      step as ⟨r, hr⟩
+      have hWr : Wf r := hwf1 _ (by rw [hr]; exact List.getElem_mem hib)
+      have hrv : toRq r = p i1.val := by
+        rw [hr, ← List.getD_eq_getElem _ _ hib]
+        exact hlow1 i1.val (by scalar_tac)
+      step with HachiEquiv.RqBridge.mul_spec r x hWr hx as ⟨scaled, hWs, hs⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp; scalar_tac
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWs
+      · intro t ht
+        rw [ho2, getD_append_lt _ _ _ (by omega)]
+        exact hlow1 t ht
+      · intro t ht
+        rw [hi2] at ht
+        rcases Nat.lt_or_ge t i1.val with htlt | htge
+        · rw [ho2, getD_append_lt _ _ _ (by omega)]
+          exact hhigh1 t htlt
+        · have hteq : half.val + t = o1.val.length := by scalar_tac
+          have hti : t = i1.val := by scalar_tac
+          rw [hteq, ho2, getD_append_eq, hs, hrv, hti]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : j1.val = n := by rw [← hn]; scalar_tac
-      exact ⟨hWa1, by rw [hval1, heq]⟩
-  · exact ⟨hj, hacc, hval⟩
+      have heq : i1.val = half.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, hlow1, by
+        intro t ht; exact hhigh1 t (by rw [heq]; exact ht)⟩
+  · exact ⟨hi, hlen, hwf, hlow, hhigh⟩
 
-/-- The outer loop of `monomial_basis`: entry `t` already written is the monomial
-basis value at index `t`. -/
-theorem monomial_basis_outer_loop_spec {n : ℕ} (w : linalg.PolyVec) (nn size : Std.Usize)
-    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (hw : WfVec n w) (hn : nn.val = n) (hsize : size.val = 2 ^ n)
-    (hi : i.val ≤ size.val) (hlen : out.val.length = i.val)
+/-- The outer loop of `monomial_basis`: after `j` levels the table is the
+monomial basis of the point's first `j` coordinates, `2 ^ j` entries long. The
+step is the whole arithmetic content: the low half keeps its value because bit
+`j` of an index below `2 ^ j` is clear, and the high half gains the factor `wⱼ`
+because bit `j` of `2 ^ j + r` is set while its lower bits are `r`'s. -/
+theorem monomial_basis_outer_loop_spec {n : ℕ} (w : linalg.PolyVec) (nn : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (j : Std.Usize)
+    (hw : WfVec n w) (hn : nn.val = n) (hcap : 2 ^ n ≤ Usize.max)
+    (hj : j.val ≤ nn.val) (hlen : out.val.length = 2 ^ j.val)
     (hwf : ∀ y ∈ out.val, Wf y)
-    (hval : ∀ t, t < i.val →
+    (hval : ∀ t, t < 2 ^ j.val →
       toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = ∏ s ∈ Finset.range n,
+        = ∏ s ∈ Finset.range j.val,
           (if Nat.testBit t s then toRq (w.val.getD s (alloc.vec.Vec.new cpoly.field.Fp))
             else 1)) :
-    evalsplit.monomial_basis_loop0 w nn size out i
+    evalsplit.monomial_basis_loop0 w nn out j
       ⦃ z => z.val.length = 2 ^ n ∧ (∀ y ∈ z.val, Wf y) ∧
         ∀ t, t < 2 ^ n →
           toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
@@ -250,44 +283,73 @@ theorem monomial_basis_outer_loop_spec {n : ℕ} (w : linalg.PolyVec) (nn size :
               (if Nat.testBit t s then toRq (w.val.getD s (alloc.vec.Vec.new cpoly.field.Fp))
                 else 1) ⦄ := by
   rw [evalsplit.monomial_basis_loop0]
-  apply loop.spec_decr_nat (fun s => size.val - s.2.val)
-    (fun s => s.2.val ≤ size.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
-      ∀ t, t < s.2.val →
+  apply loop.spec_decr_nat (fun s => nn.val - s.2.val)
+    (fun s => s.2.val ≤ nn.val ∧ s.1.val.length = 2 ^ s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ t, t < 2 ^ s.2.val →
         toRq (s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          = ∏ u ∈ Finset.range n,
+          = ∏ u ∈ Finset.range s.2.val,
             (if Nat.testBit t u then toRq (w.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               else 1))
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hval1
+  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hwf1, hval1⟩
+    dsimp only at hj1 hlen1 hwf1 hval1
     simp only [evalsplit.monomial_basis_loop0.body]
-    by_cases hlt : i1 < size
+    by_cases hlt : j1 < nn
     · rw [if_pos hlt]
-      step as ⟨one, hWone, hone⟩
-      step with monomial_basis_inner_loop_spec w nn i1 one one 0#usize hw hn hWone hone
-        (by simp) hWone (by simp [hone]) as ⟨a1, hWa1, ha1⟩
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      and_intros
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]; simp
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWa1
+      have hjn : j1.val < n := by rw [← hn]; scalar_tac
+      have hjw : j1.val < w.val.length := by rw [hw.1]; exact hjn
+      have hpow : 2 ^ j1.val + 2 ^ j1.val = 2 ^ (j1.val + 1) := by ring
+      have hcapj : 2 ^ j1.val + 2 ^ j1.val ≤ Usize.max := by
+        rw [hpow]
+        exact le_trans (Nat.pow_le_pow_right (by omega) (by omega)) hcap
+      simp only [linalg.PolyVec.get]
+      step as ⟨x, hx⟩
+      have hWx : Wf x := hw.2 _ (by rw [hx]; exact List.getElem_mem hjw)
+      have hxv : toRq x = toRq (w.val.getD j1.val (alloc.vec.Vec.new cpoly.field.Fp)) := by
+        rw [hx, ← List.getD_eq_getElem _ _ hjw]
+      step with monomial_basis_inner_loop_spec o1 (alloc.vec.Vec.len o1) x 0#usize
+        (fun t => ∏ u ∈ Finset.range j1.val,
+          (if Nat.testBit t u then toRq (w.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            else 1))
+        hWx (by simp) (by simpa [hlen1] using hcapj) (by simp)
+        hwf1 (by simpa [hlen1] using hval1) (by intro t ht; simp at ht)
+        as ⟨o2, hlen2, hwf2, hlow2, hhigh2⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, ?_, hwf2, ?_, by scalar_tac⟩
+      · rw [hj2, ← hpow, ← hlen1]; simpa using hlen2
       · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = o1.val.length := by omega
-          rw [hteq, ho2, getD_append_eq, ha1, hlen1]
-      · scalar_tac
+        have hj2v : j2.val = j1.val + 1 := by scalar_tac
+        rw [hj2v] at ht ⊢
+        rw [Finset.prod_range_succ]
+        rcases Nat.lt_or_ge t (2 ^ j1.val) with htlt | htge
+        · rw [hlow2 t (by simpa [hlen1] using htlt), Nat.testBit_eq_false_of_lt htlt]
+          simp
+        · obtain ⟨rr, hrlt, hrr⟩ : ∃ rr, rr < 2 ^ j1.val ∧ t = 2 ^ j1.val + rr :=
+            ⟨t - 2 ^ j1.val, by rw [← hpow] at ht; omega, by omega⟩
+          have hlenv : (alloc.vec.Vec.len o1).val = 2 ^ j1.val := by simpa using hlen1
+          have hentry : toRq (o2.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+              = (∏ u ∈ Finset.range j1.val,
+                  (if Nat.testBit rr u then
+                    toRq (w.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) else 1))
+                * toRq x := by
+            rw [hrr, ← hlenv]
+            exact hhigh2 rr (by rw [hlenv]; exact hrlt)
+          have hprod : (∏ u ∈ Finset.range j1.val,
+                (if Nat.testBit rr u then
+                  toRq (w.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) else 1))
+              = ∏ u ∈ Finset.range j1.val,
+                (if Nat.testBit (2 ^ j1.val + rr) u then
+                  toRq (w.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) else 1) :=
+            Finset.prod_congr rfl (fun u hu => by
+              rw [Nat.testBit_two_pow_add_gt (Finset.mem_range.mp hu)])
+          rw [hentry, hxv, hrr, hprod, Nat.testBit_two_pow_add_eq,
+            Nat.testBit_eq_false_of_lt hrlt]
+          simp only [Bool.not_false, if_true]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = size.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq, hsize], hwf1, by
-        intro t ht; exact hval1 t (by rw [heq, hsize]; exact ht)⟩
-  · exact ⟨hi, hlen, hwf, hval⟩
+      have heq : j1.val = n := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, by
+        intro t ht; rw [← heq] at ht ⊢; exact hval1 t ht⟩
+  · exact ⟨hj, hlen, hwf, hval⟩
 
 /-- The spec's monomial basis, entrywise, in the vocabulary of the extracted
 vector: a product of `Nat.testBit`-selected coordinates. -/
@@ -312,10 +374,16 @@ theorem monomial_basis_spec {n : ℕ} (w : linalg.PolyVec)
   rw [evalsplit.monomial_basis]
   simp only [linalg.PolyVec.len]
   have hnn : (alloc.vec.Vec.len w).val = n := by simpa using hw.1
-  step with two_pow_spec (alloc.vec.Vec.len w) (by rw [hnn]; exact hn) as ⟨size, hsize⟩
-  step with monomial_basis_outer_loop_spec w (alloc.vec.Vec.len w) size
-    (alloc.vec.Vec.new ring.Rq) 0#usize hw hnn (by rw [hsize, hnn]) (by simp)
-    (by simp) (by intro y hy; simp at hy) (by intro t ht; simp at ht)
+  step as ⟨one, hWone, hone⟩
+  step as ⟨out0, hout0⟩
+  step with monomial_basis_outer_loop_spec w (alloc.vec.Vec.len w) out0 0#usize
+    hw hnn hn (by simp) (by rw [hout0]; simp)
+    (by intro y hy; rw [hout0] at hy; simp at hy; rw [hy]; exact hWone)
+    (by
+      intro t ht
+      have ht0 : t = 0 := by simp at ht; omega
+      rw [ht0, hout0]
+      simpa using hone)
     as ⟨z, hzlen, hzwf, hzval⟩
   simp only [linalg.PolyVec.new, WP.spec_ok]
   refine ⟨⟨hzlen, hzwf⟩, ?_⟩

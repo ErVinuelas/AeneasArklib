@@ -136,28 +136,31 @@ pub struct MlEvals(Vec<Rq>);
 /// split consumes it through `monomialBasis_get`).
 ///
 /// Entry `i` of the length-`2^n` result is
-/// `∏_{j < n} (if bit j of i then w[j] else 1)` -- the factor is multiplied in
-/// even when it is `1`, so each entry is syntactically the spec's product of
-/// exactly `n` factors (the [`crate::gadget::base_pow`] convention).
+/// `∏_{j < n} (if bit j of i then w[j] else 1)`.
+///
+/// Built one variable at a time (Stage 6 candidate M; opt:
+/// `HachiEquiv.Opt.monomial_basis.opt`, `lean/Opt.lean`): the table for the
+/// prefix `w₀ … wⱼ` is the table for `w₀ … wⱼ₋₁` followed by that same table
+/// scaled by `wⱼ`, because bit `j` of an index below `2^j` is clear and bit `j`
+/// of `2^j + r` is set. The frozen baseline recomputed each entry from all `n`
+/// variables -- `2^n · n` ring products, and `n - popcount(i)` of them
+/// multiplications by `Rq::one()`; this pays `2^n - 1`, which is `1023` instead
+/// of `10240` at `ML_VARS_LOW = 10`.
 pub fn monomial_basis(w: &PolyVec) -> PolyVec {
     let n: usize = w.len();
-    let size: usize = two_pow(n);
     let mut out: Vec<Rq> = Vec::new();
-    let mut i: usize = 0;
-    while i < size {
-        let mut acc: Rq = Rq::one();
-        let mut j: usize = 0;
-        while j < n {
-            let factor: Rq = if test_bit(i, j) {
-                w.get(j).copy()
-            } else {
-                Rq::one()
-            };
-            acc = acc.mul(&factor);
-            j += 1;
+    out.push(Rq::one());
+    let mut j: usize = 0;
+    while j < n {
+        let half: usize = out.len();
+        let x: &Rq = w.get(j);
+        let mut i: usize = 0;
+        while i < half {
+            let scaled: Rq = out[i].mul(x);
+            out.push(scaled);
+            i += 1;
         }
-        out.push(acc);
-        i += 1;
+        j += 1;
     }
     PolyVec::new(out)
 }
