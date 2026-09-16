@@ -7170,3 +7170,70 @@ extraction deterministic, 199 tests pass, genesis intact at 312 frozen items.
 `check-candidate` correctly *refuses* until this lands as a commit — the slot's
 `Cargo.toml` is git-pinned precisely so a pin change cannot arrive as a loop
 edit.
+
+### What the bump measured: a trade, not a pure win
+
+The harness cannot see a cpoly bump at all — `hachi`, `benches/genesis` and
+`benches/candidate` pin the same rev *by design*, so `cand_vs_now` and
+`vs_genesis` both move together and read nothing. And holding `genesis` on the
+old rev to recover a real `vs genesis` number is **impossible**, not merely
+unwise: `define_cases!`'s body has `use cpoly::{Ext4, Fp, UnivariatePoly}`
+unparameterized by the variant, so two revs are two distinct `Ext4` types and
+the bench harness stops compiling. That makes the same-rev pin load-bearing for
+the *build*, which is stronger than what `Cargo.toml`'s "no drift" comment
+claims.
+
+So the measurement is the profile pair, `-preBump` (567.2 s) against `-postBump`
+(477.2 s), and the verdict is `accepted-surface` with no within-run number:
+
+| phase | pre | post raw | Δ raw | recentered | Δ |
+|---|---|---|---|---|---|
+| **rounds (26)** | 299.3 | **212.8** | −28.9% | 199.1 | **−33.5%** |
+| **lifted witness** | 119.4 | **132.0** | **+10.6%** | 123.5 | **+3.4%** |
+| `alpha_public_table` | 12.8 | 8.4 | −34.4% | 7.9 | −38.6% |
+| `final_check` | 7.7 | 4.7 | −39.0% | 4.4 | −42.9% |
+| `honest_compute_y` | 4.0 | 2.5 | −37.5% | 2.3 | −42.5% |
+| `end_piece_check` | 33.8 | 29.6 | −12.4% | 27.7 | −18.0% |
+| `chain_verify` | 40.5 | 37.4 | −7.7% | 35.0 | −13.6% |
+| `lift_commit` | 26.9 | 26.5 | −1.5% | 24.8 | −7.8% |
+| **total** | 567.2 | **477.2** | −15.9% | 446.4 | **−21.3%** |
+
+The gains land exactly where `Ext4` multiplication lives, which is the
+prediction the op count made: rounds −33.5%, `alpha_public_table` −38.6%,
+`final_check` −42.9%, `honest_compute_y` −42.5%.
+
+**But the lifted-witness phase got slower** — the only phase that did, +10.6%
+raw and still +3.4% recentered. That phase is `long_mul`/`div_by_modulus`-bound,
+i.e. heavy in `Fp::add`/`Fp::sub` rather than in `Ext4::mul`, and those two are
+precisely what the bump changed from a `%` by a **compile-time constant** — which
+LLVM lowers to branchless multiply-shift — into a **data-dependent branch** that
+can mispredict. Stated as a hypothesis, not a finding: it fits the phase
+breakdown exactly, and confirming it needs a perf-counter run this repository has
+no harness for. Either way the honest summary is that the bump is a **trade**,
+and it is a very good one: about −21% of protocol for about +3% on a phase worth
+21% of it.
+
+### The control moved, and reading it beat re-running it
+
+`profile_control()` read 500.7/530.3 ms pre-bump and 547.4/554.7 ms post-bump —
+a **+7–9% shift in level**, which by the rule written into it demanded
+investigation. Its within-run spread actually *improved* (+5.9% → +1.3%), so the
+run was internally more stable; only the level moved.
+
+Resolved by reading the control rather than burning another eight-minute run:
+`PolyVec::zeros` pushes `Rq::zero()`, and `Rq::zero` pushes `Fp::ZERO`, a
+`const`. **The control calls no cpoly function at all**, so the bump cannot have
+changed its machine code, and the movement is machine state. That is the check
+doing its job and then being answered by argument instead of by more
+measurement.
+
+One limitation this exposed, and it belongs in the record: the control is
+**allocate-and-fill, i.e. memory-bound**, while every phase it is being used to
+recenter is **compute-bound**. Using it to correct compute drift is an
+approximation, not a calibration. A second, compute-bound control — a fixed
+number of frozen-genesis `Rq::mul`s, say — would make the recentering honest
+rather than indicative. Owed.
+
+Cumulative against the 1 882.2 s genesis baseline: **3.94× raw / 4.22×
+recentered** — and as always the recentered figure compounds hand corrections
+across runs, so it is an estimate, not a measurement. Read it as ~3.9–4.2×.
