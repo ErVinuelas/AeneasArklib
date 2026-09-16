@@ -4285,7 +4285,11 @@ a re-freeze aside, any difference in the text is the point of the file.
 
 `quadeval::to_quad_eval_statement` is two `monomial_basis` calls =
 `2 · 1024 · 10 = 20 480` ring products = **~29 s per iteration** at the
-measured `ring/mul/1024 = 1.43 ms`. Its removal condition says "until a
+measured `ring/mul/1024 = 1.43 ms`. (**Superseded 2026-09-16 by candidate M**:
+the doubling build pays `2 · 1023 = 2 046` products ≈ 2.9 s, so the removal
+condition below was re-based in `exclusions.toml` from "a sub-quadratic
+`ring::mul`" to "I4 lands a champion". The reasoning recorded here was right
+about the cost it was measuring; that cost is gone.) Its removal condition says "until a
 sub-quadratic `ring::mul` lands", and the entry now spells out what that is
 worth: Karatsuba's 2–4× leaves it at ~8 s, still not a criterion row. What it
 needs is the ~30× an NTT would give, which `q = 2^32 − 99` forbids at radix 2.

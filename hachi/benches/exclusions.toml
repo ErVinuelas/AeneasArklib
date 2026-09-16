@@ -198,15 +198,24 @@ run would measure the harness. Its content is measured wherever
 `to_quad_eval_statement` is."""
 
 "quadeval::to_quad_eval_statement" = """
-Two `evalsplit::monomial_basis` calls, one per point half. Each builds `2^10`
-entries as a product of `10` factors, so `2 * 1024 * 10 = 20 480` ring
-products: **~29 s per iteration** at `ring/mul/1024 = 1.43 ms` measured
-(`bench-report-20260908-t456-birth.json`). Excluded per the Fig. 9 policy
-exception (header) until a sub-quadratic `ring::mul` lands -- and note the
-honest arithmetic of that condition: Karatsuba's 2-4x leaves this at ~8 s,
-still not a criterion row. What it actually needs is the ~30x an NTT would
-give, which q = 2^32 - 99 forbids at radix 2 (NOTES.md § "The parameters forbid
-a radix-2 NTT")."""
+Two `evalsplit::monomial_basis` calls, one per point half.
+
+**Re-based 2026-09-16 by candidate M** (the doubling build). Each half was
+`2^10` entries built as a product of `10` factors -- `2 * 1024 * 10 = 20 480`
+ring products, **~29 s per iteration** at `ring/mul/1024 = 1.43 ms`
+(`bench-report-20260908-t456-birth.json`). The doubling build pays `2^n - 1`
+per half, so it is now `2 * 1023 = 2 046` ring products, **~2.9 s** at the same
+per-mul figure.
+
+Still excluded per the Fig. 9 policy exception (header), and the removal
+condition has **changed**: it was "until a sub-quadratic `ring::mul` lands", on
+the honest arithmetic that Karatsuba's 2-4x would leave the old shape at ~8 s
+and only an NTT's ~30x would make it a row. That reasoning was about a cost
+this operation no longer pays. At ~2.9 s the remaining distance is ~3x, which
+I4's measured factor could close on its own -- so the condition is now
+**"until I4 lands a champion"**, and this entry is the one to re-check first
+when it does. The NTT note still stands for `ring::mul` itself
+(NOTES.md § "The parameters forbid a radix-2 NTT")."""
 
 "sumcheck::nested_to_round_statement" = """
 `zc_target_alpha` plus a move: the range target is the literal `0`, the
