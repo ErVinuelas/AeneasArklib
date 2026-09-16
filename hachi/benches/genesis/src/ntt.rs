@@ -141,6 +141,7 @@ use alloc::vec::Vec;
 
 use crate::params;
 
+// @genesis 5dd855a 2026-09-16 — ntt::NTT_LEN
 /// The transform length, `N = 2^α`: the same `1024` as
 /// [`params::RING_DEGREE`], because the transform is negacyclic and so runs at
 /// the ring degree itself rather than at twice it.
@@ -150,11 +151,13 @@ use crate::params;
 /// would have to discharge. `params_semantics` keeps the two in step.
 pub const NTT_LEN: usize = 1024;
 
+// @genesis 5dd855a 2026-09-16 — ntt::NTT_LOG
 /// The number of transform stages, `log2(NTT_LEN)`. The loops count on `len`
 /// rather than reading this; it is here because the Lean stage induction is
 /// stated over it.
 pub const NTT_LOG: usize = 10;
 
+// @genesis 5dd855a 2026-09-16 — ntt::BARRETT_SCALE
 /// `2^64`, the Barrett scale.
 ///
 /// A literal rather than `1u128 << 64`, because Aeneas models a shift as
@@ -162,53 +165,75 @@ pub const NTT_LOG: usize = 10;
 /// by a constant power of two, which is taking the high word.
 const BARRETT_SCALE: u128 = 18_446_744_073_709_551_616;
 
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_P1
 /// The first auxiliary prime, `7 · 2^26 + 1`.
 pub const AUX_P1: u64 = 469_762_049;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_M1
 /// Barrett magic for [`AUX_P1`]: `⌊2^64 / p1⌋`.
 pub const AUX_M1: u64 = 39_268_272_336;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSI1
 /// A root of exact order `2 · NTT_LEN` mod [`AUX_P1`] (`3^((p1−1)/2048)`).
 pub const AUX_PSI1: u64 = 165_447_688;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSIINV1
 /// The inverse of [`AUX_PSI1`] mod [`AUX_P1`].
 pub const AUX_PSIINV1: u64 = 63_413_564;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_NINV1
 /// The inverse of [`NTT_LEN`] mod [`AUX_P1`].
 pub const AUX_NINV1: u64 = 469_303_297;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_BOFF1
 /// `BOUND mod p1`, the offset that makes the reconstructed value a natural
 /// number. See the module header.
 pub const AUX_BOFF1: u64 = 261_237_050;
 
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_P2
 /// The second auxiliary prime, `7 · 17 · 2^23 + 1`.
 pub const AUX_P2: u64 = 998_244_353;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_M2
 /// Barrett magic for [`AUX_P2`]: `⌊2^64 / p2⌋`.
 pub const AUX_M2: u64 = 18_479_187_002;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSI2
 /// A root of exact order `2 · NTT_LEN` mod [`AUX_P2`] (`3^((p2−1)/2048)`).
 pub const AUX_PSI2: u64 = 584_193_783;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSIINV2
 /// The inverse of [`AUX_PSI2`] mod [`AUX_P2`].
 pub const AUX_PSIINV2: u64 = 335_559_352;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_NINV2
 /// The inverse of [`NTT_LEN`] mod [`AUX_P2`].
 pub const AUX_NINV2: u64 = 997_269_505;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_BOFF2
 /// `BOUND mod p2`.
 pub const AUX_BOFF2: u64 = 370_509_789;
 
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_P3
 /// The third auxiliary prime, `479 · 2^21 + 1`.
 pub const AUX_P3: u64 = 1_004_535_809;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_M3
 /// Barrett magic for [`AUX_P3`]: `⌊2^64 / p3⌋`.
 pub const AUX_M3: u64 = 18_363_450_967;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSI3
 /// A root of exact order `2 · NTT_LEN` mod [`AUX_P3`] (`3^((p3−1)/2048)`).
 pub const AUX_PSI3: u64 = 714_163_887;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_PSIINV3
 /// The inverse of [`AUX_PSI3`] mod [`AUX_P3`].
 pub const AUX_PSIINV3: u64 = 278_605_116;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_NINV3
 /// The inverse of [`NTT_LEN`] mod [`AUX_P3`].
 pub const AUX_NINV3: u64 = 1_003_554_817;
+// @genesis 5dd855a 2026-09-16 — ntt::AUX_BOFF3
 /// `BOUND mod p3`.
 pub const AUX_BOFF3: u64 = 695_009_305;
 
+// @genesis 5dd855a 2026-09-16 — ntt::GARNER_P12
 /// `p1 · p2`, the second Garner radix. `< 2^59`, so it is a `u64`.
 pub const GARNER_P12: u64 = 468_937_312_667_959_297;
+// @genesis 5dd855a 2026-09-16 — ntt::GARNER_INV1
 /// `p1⁻¹ mod p2`.
 pub const GARNER_INV1: u64 = 554_580_198;
+// @genesis 5dd855a 2026-09-16 — ntt::GARNER_INV12
 /// `(p1 · p2)⁻¹ mod p3`.
 pub const GARNER_INV12: u64 = 395_249_030;
 
+// @genesis 5dd855a 2026-09-16 — ntt::aux_reduce
 /// Barrett reduction: `x mod p`, for any `x < 2^64` and `p < 2^32` with
 /// `m = ⌊2^64 / p⌋`.
 ///
@@ -240,6 +265,7 @@ pub fn aux_reduce(x: u64, p: u64, m: u64) -> u64 {
     }
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::aux_add
 /// `a + b mod p`, for `a, b < p < 2^30`.
 pub fn aux_add(a: u64, b: u64, p: u64) -> u64 {
     let s: u64 = a + b;
@@ -250,6 +276,7 @@ pub fn aux_add(a: u64, b: u64, p: u64) -> u64 {
     }
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::aux_sub
 /// `a − b mod p`, for `a, b < p < 2^30`.
 pub fn aux_sub(a: u64, b: u64, p: u64) -> u64 {
     if a >= b {
@@ -259,12 +286,14 @@ pub fn aux_sub(a: u64, b: u64, p: u64) -> u64 {
     }
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::aux_mul
 /// `a · b mod p`, for `a, b < p < 2^30`: the product is `< 2^60`, so it fits a
 /// `u64` and [`aux_reduce`] applies to it.
 pub fn aux_mul(a: u64, b: u64, p: u64, m: u64) -> u64 {
     aux_reduce(a * b, p, m)
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::zeros
 /// A zero buffer of length `n`, as a push loop: the scratch half of the
 /// ping-pong pair.
 ///
@@ -281,6 +310,7 @@ pub fn zeros(n: usize) -> Vec<u64> {
     out
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::psi_table
 /// The powers `ψ^0, ψ^1, …, ψ^(NTT_LEN − 1)` mod `p`.
 ///
 /// One table serves two purposes: the twist reads `ψ^t` at every `t`, and the
@@ -300,6 +330,7 @@ pub fn psi_table(psi: u64, p: u64, m: u64) -> Vec<u64> {
     out
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::twist
 /// The twist: `out[t] = (v[t] mod p) · ψ^t mod p`.
 ///
 /// `v`'s entries are canonical representatives below `q < 2^32`, which is why
@@ -315,6 +346,7 @@ pub fn twist(v: &Vec<u64>, pt: &Vec<u64>, p: u64, m: u64) -> Vec<u64> {
     out
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::dif_stage
 /// One decimation-in-frequency stage at block length `len`, written into `dst`.
 ///
 /// With `half = len / 2` and `step = 2 · (N / len)`, for every block start
@@ -356,6 +388,7 @@ pub fn dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>, p
     dst
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::dit_stage
 /// One decimation-in-time stage at block length `len`: the inverse of
 /// [`dif_stage`] at the same `len`, given the inverse root's table.
 ///
@@ -400,6 +433,7 @@ pub fn dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>, p
     dst
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::ntt_forward
 /// The forward transform: [`dif_stage`] at `len = N, N/2, …, 2`, ping-ponging
 /// between the two buffers.
 ///
@@ -423,6 +457,7 @@ pub fn ntt_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>, p: u64, m: u64
     (cur, tmp)
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::ntt_inverse
 /// The inverse transform up to the factor `N`: [`dit_stage`] at
 /// `len = 2, 4, …, N`. The `N⁻¹` is applied by [`untwist`], where it is one
 /// multiplication on a pass that happens anyway.
@@ -441,6 +476,7 @@ pub fn ntt_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>, p: u64, m: u64
     (cur, tmp)
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::pointwise
 /// Coefficientwise product mod `p`, in place in `a`.
 pub fn pointwise(mut a: Vec<u64>, b: &Vec<u64>, p: u64, m: u64) -> Vec<u64> {
     let n: usize = NTT_LEN;
@@ -452,6 +488,7 @@ pub fn pointwise(mut a: Vec<u64>, b: &Vec<u64>, p: u64, m: u64) -> Vec<u64> {
     a
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::untwist
 /// The untwist, the `N⁻¹` normalisation and the offset, in one pass:
 ///
 /// ```text
@@ -473,6 +510,7 @@ pub fn untwist(src: &Vec<u64>, it: &Vec<u64>, ninv: u64, boff: u64, p: u64, m: u
     out
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::negconv_mod_p
 /// `W_k mod p` for every `k < NTT_LEN`: the whole pipeline at one prime.
 #[allow(clippy::too_many_arguments)]
 pub fn negconv_mod_p(
@@ -497,6 +535,7 @@ pub fn negconv_mod_p(
     untwist(&inv.0, &it, ninv, boff, p, m)
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::garner
 /// Garner reconstruction from the three residues: the unique `x < P` with
 /// `x ≡ r1 (p1)`, `x ≡ r2 (p2)`, `x ≡ r3 (p3)`.
 ///
@@ -526,6 +565,7 @@ pub fn garner(r1: u64, r2: u64, r3: u64) -> u128 {
     (r1 as u128) + (AUX_P1 as u128) * (t1 as u128) + (GARNER_P12 as u128) * (t2 as u128)
 }
 
+// @genesis 5dd855a 2026-09-16 — ntt::negconv_mod_q
 /// Coefficient `k` of the negacyclic product, reduced mod `q`, for every
 /// `k < RING_DEGREE`.
 ///
