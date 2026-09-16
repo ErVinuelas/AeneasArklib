@@ -6595,3 +6595,46 @@ for `honest_round_messages`. **The better a candidate is, the slower its own
 baseline is to measure**, so a full `vs genesis` sweep gets more expensive with
 every win. That is a second, independent reason the ceremony's re-freeze belongs
 *after* this measurement: it banks the record and makes the next sweep cheap.
+
+## Correction: 144 s of the "chain" profile is a test assertion, not protocol work (2026-09-16)
+
+`hachi/tests/chain_semantics.rs:481-484` is
+
+    assert!(rlin.m().mat_vec_mul(&zeta).equals(rlin.yvec()), …);
+    eprintln!("[…] M zeta = y holds", …);
+
+The protocol never forms `M·ζ`. The prover builds the lifted witness and the
+verifier checks the R^lin claim through `alpha_contract`; this `mat_vec_mul` over
+the dense `5 × 57 344` matrix exists only so the test can assert the relation
+directly. So the phase the two profile logs label `M zeta = y` — **296.8 s** on
+09-14 and **144.4 s** on 09-16 — is test-harness time.
+
+**What this corrects in the two entries above.** § "The chain, measured again"
+reports `2 179.0 s → 1 249.5 s = 1.74×` as the end-to-end figure and lists
+`M·ζ = y` among the chain phases without qualification. Both are true of the
+*test*, which is what the profile times; neither is protocol time. Protocol-only:
+
+    1 882.2 s → 1 105.1 s = 1.70×
+
+The headline barely moves. The **shares move a lot**, and those were the basis
+of a reprioritisation, so they matter more:
+
+| of protocol time | pre-R | after R (lift ≈197 s) |
+|---|---|---|
+| rounds (26) | 54.2% | **62.6%** |
+| lifted witness | 31.2% | 20.6% |
+| `chain_verify` | 4.2% | 4.8% |
+
+I had also counted `M·ζ = y` among the `ring::mul`-bound phases when estimating
+what candidate Q would buy end-to-end. It *is* mul-bound — `mat_vec_mul` is ring
+products, and Q duly took it 296.8 → 144.4 s — but it is mul-bound *test* work,
+so it never belonged in a chain projection. That is the second error in the same
+estimate: the first was counting the lifted-witness phase as `ring::mul`-bound
+when it is `long_mul`-bound (§ "Candidate R"). One estimate, two
+misattributions, both caught by measurement rather than by re-reading it.
+
+**Owed** (now on the candidate backlog's § 5): either drop this assertion from
+the profile's accounting, or make the test derive it from the lift's output
+instead of multiplying the dense matrix. Until then every phase percentage taken
+from `the_honest_chain_profile` must say whether it is over protocol or over the
+harness total.
