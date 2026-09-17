@@ -1573,6 +1573,163 @@ theorem honest_compute_resp_spec (stmt : quadeval.QuadEvalStatement)
       = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
     rw [hDval, hZval, Hachi.zDecompBounded]
 
+/-! ### The streamed prover's entry points
+
+The three specifications below are the ones above with the message blocks handed
+in **raw**: each hypothesis `toBlocks message = wo.message` becomes
+"the decomposition of `raw` is `wo.message`", and nothing in any conclusion
+moves. Together with `Scheme.commit_streamed_spec` they are what lets the honest
+prover run without ever holding `Decomp.message`. -/
+
+/-- The inner-decomposition copy loop, at the streamed function's name. -/
+theorem honest_compute_resp_from_raw_loop_spec {blocks width : ℕ}
+    (inner_decomp inner : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hid : WfBlocks blocks width inner_decomp) (hi : i.val ≤ blocks)
+    (hlen : inner.val.length = i.val) (hwf : ∀ y ∈ inner.val, WfVec width y)
+    (hval : ∀ j, j < i.val → toVec (k := width) (inner.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq))) :
+    quadeval.honest_compute_resp_from_raw_loop inner_decomp inner i
+      ⦃ z => z.val.length = blocks ∧ (∀ y ∈ z.val, WfVec width y) ∧
+        ∀ j, j < blocks → toVec (k := width) (z.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  have hnn : (alloc.vec.Vec.len inner_decomp).val = blocks := by simpa using hid.1
+  rw [quadeval.honest_compute_resp_from_raw_loop]
+  apply loop.spec_decr_nat (fun t => blocks - t.2.val)
+    (fun t => t.2.val ≤ blocks ∧ t.1.val.length = t.2.val ∧ (∀ y ∈ t.1.val, WfVec width y) ∧
+      ∀ j, j < t.2.val → toVec (k := width) (t.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = toVec (k := width) (inner_decomp.val.getD j (alloc.vec.Vec.new ring.Rq)))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [quadeval.honest_compute_resp_from_raw_loop.body]
+    by_cases hlt : i1.val < blocks
+    · rw [if_pos (by scalar_tac : i1 < alloc.vec.Vec.len inner_decomp)]
+      have hix : i1.val < inner_decomp.val.length := by rw [hid.1]; exact hlt
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec width pv := by
+        rw [hpv]; exact hid.2 _ (List.getElem_mem hix)
+      step with poly_vec_copy_spec (k := width) pv hWpv as ⟨pv1, hPwf, hPval⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hPwf
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hPval, hpv, hlen1, List.getD_eq_getElem _ _ hix]
+      · scalar_tac
+    · rw [if_neg (by scalar_tac : ¬ i1 < alloc.vec.Vec.len inner_decomp), WP.spec_ok]
+      dsimp only
+      have heq : i1.val = blocks := by omega
+      exact ⟨by rw [hlen1, heq], hwf1, by intro j hj; exact hval1 j (by omega)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- The raw-message carrier decomposition. -/
+theorem carrier_decomp_from_raw_spec (a : linalg.PolyVec)
+    (raw : alloc.vec.Vec linalg.PolyVec)
+    (hWa : WfVec (2 ^ 10) a) (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.carrier_decomp_from_raw a raw
+      ⦃ out => WfVec (2 ^ 10 * 8) out ∧
+        toVec (k := 2 ^ 10 * 8) out
+          = Hachi.carrierDecomp Φ ddBal (toVec (k := 2 ^ 10) a)
+              (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+                (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [quadeval.carrier_decomp_from_raw]
+  step with carrier_from_raw_spec (rows := 2 ^ 10) (blocks := 2 ^ 10) a raw hWa hWraw
+    as ⟨w, hWw, hw⟩
+  apply spec_mono (Balanced.balanced_gadget_decompose_spec (rows := 2 ^ 10) w hWw (by scalar_tac))
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, by rw [hzval, hw, Hachi.carrierDecomp]⟩
+
+/-- The raw-message carrier commitment. -/
+theorem carrier_commit_from_raw_spec (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
+    (raw : alloc.vec.Vec linalg.PolyVec)
+    (hWd : WfMat 1 (2 ^ 10 * 8) d_matrix) (hWa : WfVec (2 ^ 10) a)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.carrier_commit_from_raw d_matrix a raw
+      ⦃ out => WfVec 1 out ∧
+        toVec (k := 1) out
+          = Hachi.carrierCommit Φ (toMat (rows := 1) (cols := 2 ^ 10 * 8) d_matrix) ddBal
+              (toVec (k := 2 ^ 10) a)
+              (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+                (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [quadeval.carrier_commit_from_raw]
+  step with carrier_decomp_from_raw_spec a raw hWa hWraw as ⟨what, hWwhat, hwhat⟩
+  apply spec_mono (mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) d_matrix what hWd hWwhat)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, by rw [Hachi.carrierCommit, Simple.commit, hzval, hwhat]⟩
+
+/-- **`honest_compute_v_from_raw` computes `honestComputeV`** -- the same round-0
+message, from the raw blocks. This is what `chain_open` calls. -/
+theorem honest_compute_v_from_raw_spec (pp : quadeval.PublicParamsD)
+    (stmt : quadeval.QuadEvalStatement) (raw : alloc.vec.Vec linalg.PolyVec)
+    (sp : Hachi.PublicParamsD Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hpp : RepParamsD pp sp) (hst : RepStmt stmt ss)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.honest_compute_v_from_raw pp stmt raw
+      ⦃ out => WfVec 1 out ∧
+        toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
+  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
+  rw [quadeval.honest_compute_v_from_raw]
+  simp only [quadeval.PublicParamsD.impl.d_matrix, quadeval.QuadEvalStatement.impl.avec,
+    bind_tc_ok]
+  apply spec_mono (carrier_commit_from_raw_spec pp.d_matrix stmt.avec raw hWpd hWa hWraw)
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hpd, ha, hm, InnerOuter.honestComputeV]
+
+/-- **`honest_compute_resp_from_raw` computes `honestComputeResp`** -- the second
+half of the streamed prover. -/
+theorem honest_compute_resp_from_raw_spec (stmt : quadeval.QuadEvalStatement)
+    (raw inner_decomp : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hc : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
+    (hst : RepStmt stmt ss)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hi : toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner_decomp = wo.innerDecomp)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw)
+    (hWi : WfBlocks (2 ^ 10) (1 * 8) inner_decomp) (hWc : WfVec (2 ^ 10) c) :
+    quadeval.honest_compute_resp_from_raw stmt raw inner_decomp c
+      ⦃ out => RepResp out
+        (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
+  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
+  rw [quadeval.honest_compute_resp_from_raw]
+  simp only [quadeval.QuadEvalStatement.impl.avec, bind_tc_ok]
+  step with carrier_decomp_from_raw_spec stmt.avec raw hWa hWraw as ⟨cdec, hCwf, hCval⟩
+  step with honest_z_from_raw_spec raw c wo hc hm hWraw hWc as ⟨zz, hZwf, hZval⟩
+  step with QuadEval.bounded_z_gadget_decompose_spec (rows := 2 ^ 10 * 8) zz hZwf (by scalar_tac)
+    as ⟨zdec, hDwf, hDval⟩
+  step with honest_compute_resp_from_raw_loop_spec (blocks := 2 ^ 10) (width := 1 * 8)
+    inner_decomp (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWi (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+    as ⟨inner, hIlen, hIwf, hIval⟩
+  rw [quadeval.QuadEvalResponse.new, WP.spec_ok]
+  refine ⟨hCwf, ⟨hIlen, hIwf⟩, hDwf, ?_, ?_, ?_⟩
+  · show toVec (k := 2 ^ 10 * 8) cdec = Hachi.carrierDecomp Φ ddBal ss.avec wo.message
+    rw [hCval, ha, hm]
+  · show toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner = wo.innerDecomp
+    rw [← hi]
+    funext j
+    exact hIval j.val j.isLt
+  · show toVec (k := 2 ^ 10 * 8 * 5) zdec
+      = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
+    rw [hDval, hZval, Hachi.zDecompBounded]
+
 /-! ## The two output relations
 
 Both are decision procedures for specification `Set`s, so both are iffs. -/

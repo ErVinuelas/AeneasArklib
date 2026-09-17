@@ -2116,7 +2116,7 @@ def linalg.PolyVec.new
   ok entries
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 3:
-    Source: 'src/quadeval.rs', lines 822:16-830:17
+    Source: 'src/quadeval.rs', lines 870:16-878:17
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0.body
@@ -2141,7 +2141,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 3:
-    Source: 'src/quadeval.rs', lines 822:16-830:17
+    Source: 'src/quadeval.rs', lines 870:16-878:17
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0
@@ -2156,7 +2156,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0
     (row, f)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 2:
-    Source: 'src/quadeval.rs', lines 820:12-832:13
+    Source: 'src/quadeval.rs', lines 868:12-880:13
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0.body
@@ -2175,7 +2175,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 2:
-    Source: 'src/quadeval.rs', lines 820:12-832:13
+    Source: 'src/quadeval.rs', lines 868:12-880:13
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0
@@ -2189,7 +2189,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0
     (row, e)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 1:
-    Source: 'src/quadeval.rs', lines 818:8-834:9
+    Source: 'src/quadeval.rs', lines 866:8-882:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0.body
@@ -2208,7 +2208,7 @@ def quadeval.tensor_g_matrix_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 1:
-    Source: 'src/quadeval.rs', lines 818:8-834:9
+    Source: 'src/quadeval.rs', lines 866:8-882:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0
@@ -2223,7 +2223,7 @@ def quadeval.tensor_g_matrix_loop0_loop0
     (row, i)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 0:
-    Source: 'src/quadeval.rs', lines 815:4-837:5
+    Source: 'src/quadeval.rs', lines 863:4-885:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0.body
@@ -2244,7 +2244,7 @@ def quadeval.tensor_g_matrix_loop0.body
   else ok (done rows)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 0:
-    Source: 'src/quadeval.rs', lines 815:4-837:5
+    Source: 'src/quadeval.rs', lines 863:4-885:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0
@@ -2258,7 +2258,7 @@ def quadeval.tensor_g_matrix_loop0
     (rows, p)
 
 /-- [hachi::quadeval::tensor_g_matrix]:
-    Source: 'src/quadeval.rs', lines 811:0-839:1
+    Source: 'src/quadeval.rs', lines 859:0-887:1
     Visibility: public -/
 def quadeval.tensor_g_matrix
   (k : Std.Usize) (digits : Std.Usize) (c : linalg.PolyVec) :
@@ -2271,7 +2271,7 @@ def quadeval.tensor_g_matrix
   linalg.PolyMatrix.new rows
 
 /-- [hachi::quadeval::rlin_cz]:
-    Source: 'src/quadeval.rs', lines 736:0-738:1
+    Source: 'src/quadeval.rs', lines 784:0-786:1
     Visibility: public -/
 def quadeval.rlin_cz
   (message_rows : Std.Usize) (message_digits : Std.Usize)
@@ -2282,7 +2282,7 @@ def quadeval.rlin_cz
   i * z_digits
 
 /-- [hachi::quadeval::rlin_ct]:
-    Source: 'src/quadeval.rs', lines 728:0-730:1
+    Source: 'src/quadeval.rs', lines 776:0-778:1
     Visibility: public -/
 def quadeval.rlin_ct
   (blocks : Std.Usize) (inner_rows : Std.Usize) (inner_digits : Std.Usize) :
@@ -2292,7 +2292,7 @@ def quadeval.rlin_ct
   blocks * i
 
 /-- [hachi::quadeval::rlin_cw]:
-    Source: 'src/quadeval.rs', lines 720:0-722:1
+    Source: 'src/quadeval.rs', lines 768:0-770:1
     Visibility: public -/
 def quadeval.rlin_cw
   (blocks : Std.Usize) (message_digits : Std.Usize) : Result Std.Usize := do
@@ -2455,7 +2455,7 @@ def commit.PublicParams.impl.inner_matrix
   ok self.inner_matrix
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1122:8-1125:9
+    Source: 'src/quadeval.rs', lines 1170:8-1173:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop0_loop0.body
@@ -2476,7 +2476,7 @@ def quadeval.rlin_stmt_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 1:
-    Source: 'src/quadeval.rs', lines 1122:8-1125:9
+    Source: 'src/quadeval.rs', lines 1170:8-1173:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop0_loop0
@@ -2489,7 +2489,7 @@ def quadeval.rlin_stmt_loop0_loop0
     (row, k)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1127:8-1130:9
+    Source: 'src/quadeval.rs', lines 1175:8-1178:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop0_loop1.body
@@ -2508,7 +2508,7 @@ def quadeval.rlin_stmt_loop0_loop1.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 2:
-    Source: 'src/quadeval.rs', lines 1127:8-1130:9
+    Source: 'src/quadeval.rs', lines 1175:8-1178:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop0_loop1
@@ -2521,7 +2521,7 @@ def quadeval.rlin_stmt_loop0_loop1
     (row, z)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1119:4-1133:5
+    Source: 'src/quadeval.rs', lines 1167:4-1181:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop0.body
@@ -2545,7 +2545,7 @@ def quadeval.rlin_stmt_loop0.body
   else ok (done out)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 0:
-    Source: 'src/quadeval.rs', lines 1119:4-1133:5
+    Source: 'src/quadeval.rs', lines 1167:4-1181:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop0
@@ -2558,7 +2558,7 @@ def quadeval.rlin_stmt_loop0
     (out, i)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 4:
-    Source: 'src/quadeval.rs', lines 1140:8-1143:9
+    Source: 'src/quadeval.rs', lines 1188:8-1191:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1_loop0.body
@@ -2575,7 +2575,7 @@ def quadeval.rlin_stmt_loop1_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 4:
-    Source: 'src/quadeval.rs', lines 1140:8-1143:9
+    Source: 'src/quadeval.rs', lines 1188:8-1191:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1_loop0
@@ -2587,7 +2587,7 @@ def quadeval.rlin_stmt_loop1_loop0
     (row, z)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 5:
-    Source: 'src/quadeval.rs', lines 1145:8-1148:9
+    Source: 'src/quadeval.rs', lines 1193:8-1196:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1_loop1.body
@@ -2609,7 +2609,7 @@ def quadeval.rlin_stmt_loop1_loop1.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 5:
-    Source: 'src/quadeval.rs', lines 1145:8-1148:9
+    Source: 'src/quadeval.rs', lines 1193:8-1196:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1_loop1
@@ -2622,7 +2622,7 @@ def quadeval.rlin_stmt_loop1_loop1
     (row, k)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 6:
-    Source: 'src/quadeval.rs', lines 1150:8-1153:9
+    Source: 'src/quadeval.rs', lines 1198:8-1201:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1_loop2.body
@@ -2639,7 +2639,7 @@ def quadeval.rlin_stmt_loop1_loop2.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 6:
-    Source: 'src/quadeval.rs', lines 1150:8-1153:9
+    Source: 'src/quadeval.rs', lines 1198:8-1201:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1_loop2
@@ -2651,7 +2651,7 @@ def quadeval.rlin_stmt_loop1_loop2
     (row, z2)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 3:
-    Source: 'src/quadeval.rs', lines 1137:4-1156:5
+    Source: 'src/quadeval.rs', lines 1185:4-1204:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1.body
@@ -2676,7 +2676,7 @@ def quadeval.rlin_stmt_loop1.body
   else ok (done out)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 3:
-    Source: 'src/quadeval.rs', lines 1137:4-1156:5
+    Source: 'src/quadeval.rs', lines 1185:4-1204:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1
@@ -2689,7 +2689,7 @@ def quadeval.rlin_stmt_loop1
     (out, i2)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 7:
-    Source: 'src/quadeval.rs', lines 1161:4-1164:5
+    Source: 'src/quadeval.rs', lines 1209:4-1212:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop2.body
@@ -2708,7 +2708,7 @@ def quadeval.rlin_stmt_loop2.body
   else ok (done row3)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 7:
-    Source: 'src/quadeval.rs', lines 1161:4-1164:5
+    Source: 'src/quadeval.rs', lines 1209:4-1212:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop2
@@ -2721,7 +2721,7 @@ def quadeval.rlin_stmt_loop2
     (row3, k3)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 8:
-    Source: 'src/quadeval.rs', lines 1166:4-1169:5
+    Source: 'src/quadeval.rs', lines 1214:4-1217:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop3.body
@@ -2740,7 +2740,7 @@ def quadeval.rlin_stmt_loop3.body
   else ok (done row3)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 8:
-    Source: 'src/quadeval.rs', lines 1166:4-1169:5
+    Source: 'src/quadeval.rs', lines 1214:4-1217:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop3
@@ -2753,7 +2753,7 @@ def quadeval.rlin_stmt_loop3
     (row3, z3)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 9:
-    Source: 'src/quadeval.rs', lines 1175:4-1178:5
+    Source: 'src/quadeval.rs', lines 1223:4-1226:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop4.body
@@ -2772,7 +2772,7 @@ def quadeval.rlin_stmt_loop4.body
   else ok (done row4)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 9:
-    Source: 'src/quadeval.rs', lines 1175:4-1178:5
+    Source: 'src/quadeval.rs', lines 1223:4-1226:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop4
@@ -2785,7 +2785,7 @@ def quadeval.rlin_stmt_loop4
     (row4, k4)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 10:
-    Source: 'src/quadeval.rs', lines 1180:4-1183:5
+    Source: 'src/quadeval.rs', lines 1228:4-1231:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop5.body
@@ -2802,7 +2802,7 @@ def quadeval.rlin_stmt_loop5.body
   else ok (done row4)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 10:
-    Source: 'src/quadeval.rs', lines 1180:4-1183:5
+    Source: 'src/quadeval.rs', lines 1228:4-1231:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop5
@@ -2814,7 +2814,7 @@ def quadeval.rlin_stmt_loop5
     (row4, z4)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 11:
-    Source: 'src/quadeval.rs', lines 1185:4-1188:5
+    Source: 'src/quadeval.rs', lines 1233:4-1236:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop6.body
@@ -2833,7 +2833,7 @@ def quadeval.rlin_stmt_loop6.body
   else ok (done row4)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 11:
-    Source: 'src/quadeval.rs', lines 1185:4-1188:5
+    Source: 'src/quadeval.rs', lines 1233:4-1236:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop6
@@ -2846,7 +2846,7 @@ def quadeval.rlin_stmt_loop6
     (row4, k4z)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 13:
-    Source: 'src/quadeval.rs', lines 1196:8-1199:9
+    Source: 'src/quadeval.rs', lines 1244:8-1247:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop7_loop0.body
@@ -2863,7 +2863,7 @@ def quadeval.rlin_stmt_loop7_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 13:
-    Source: 'src/quadeval.rs', lines 1196:8-1199:9
+    Source: 'src/quadeval.rs', lines 1244:8-1247:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop7_loop0
@@ -2875,7 +2875,7 @@ def quadeval.rlin_stmt_loop7_loop0
     (row, z)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 14:
-    Source: 'src/quadeval.rs', lines 1201:8-1204:9
+    Source: 'src/quadeval.rs', lines 1249:8-1252:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop7_loop1.body
@@ -2895,7 +2895,7 @@ def quadeval.rlin_stmt_loop7_loop1.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 14:
-    Source: 'src/quadeval.rs', lines 1201:8-1204:9
+    Source: 'src/quadeval.rs', lines 1249:8-1252:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop7_loop1
@@ -2908,7 +2908,7 @@ def quadeval.rlin_stmt_loop7_loop1
     (row, k)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 15:
-    Source: 'src/quadeval.rs', lines 1208:8-1211:9
+    Source: 'src/quadeval.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop7_loop2.body
@@ -2927,7 +2927,7 @@ def quadeval.rlin_stmt_loop7_loop2.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 15:
-    Source: 'src/quadeval.rs', lines 1208:8-1211:9
+    Source: 'src/quadeval.rs', lines 1256:8-1259:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop7_loop2
@@ -2940,7 +2940,7 @@ def quadeval.rlin_stmt_loop7_loop2
     (row, kz)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 12:
-    Source: 'src/quadeval.rs', lines 1193:4-1214:5
+    Source: 'src/quadeval.rs', lines 1241:4-1262:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop7.body
@@ -2968,7 +2968,7 @@ def quadeval.rlin_stmt_loop7.body
   else ok (done out)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 12:
-    Source: 'src/quadeval.rs', lines 1193:4-1214:5
+    Source: 'src/quadeval.rs', lines 1241:4-1262:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop7
@@ -2984,7 +2984,7 @@ def quadeval.rlin_stmt_loop7
     (out, p)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 16:
-    Source: 'src/quadeval.rs', lines 1219:4-1222:5
+    Source: 'src/quadeval.rs', lines 1267:4-1270:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop8.body
@@ -3003,7 +3003,7 @@ def quadeval.rlin_stmt_loop8.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 16:
-    Source: 'src/quadeval.rs', lines 1219:4-1222:5
+    Source: 'src/quadeval.rs', lines 1267:4-1270:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop8
@@ -3015,7 +3015,7 @@ def quadeval.rlin_stmt_loop8
     (y, a)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 17:
-    Source: 'src/quadeval.rs', lines 1224:4-1227:5
+    Source: 'src/quadeval.rs', lines 1272:4-1275:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop9.body
@@ -3036,7 +3036,7 @@ def quadeval.rlin_stmt_loop9.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 17:
-    Source: 'src/quadeval.rs', lines 1224:4-1227:5
+    Source: 'src/quadeval.rs', lines 1272:4-1275:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop9
@@ -3049,7 +3049,7 @@ def quadeval.rlin_stmt_loop9
     (y, b)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 18:
-    Source: 'src/quadeval.rs', lines 1231:4-1234:5
+    Source: 'src/quadeval.rs', lines 1279:4-1282:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop10.body
@@ -3066,7 +3066,7 @@ def quadeval.rlin_stmt_loop10.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 18:
-    Source: 'src/quadeval.rs', lines 1231:4-1234:5
+    Source: 'src/quadeval.rs', lines 1279:4-1282:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop10
@@ -3079,7 +3079,7 @@ def quadeval.rlin_stmt_loop10
     (y, e)
 
 /-- [hachi::quadeval::rlin_stmt]:
-    Source: 'src/quadeval.rs', lines 1089:0-1237:1
+    Source: 'src/quadeval.rs', lines 1137:0-1285:1
     Visibility: public -/
 def quadeval.rlin_stmt
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -3130,7 +3130,7 @@ def quadeval.rlin_stmt
   ringswitch.RlinStatement.new pm pv4 gamma
 
 /-- [hachi::quadeval::PolyEvalStatement]
-    Source: 'src/quadeval.rs', lines 640:0-645:1
+    Source: 'src/quadeval.rs', lines 688:0-693:1
     Visibility: public -/
 structure quadeval.PolyEvalStatement where
   u : linalg.PolyVec
@@ -3139,28 +3139,28 @@ structure quadeval.PolyEvalStatement where
   y : ring.Rq
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::y]:
-    Source: 'src/quadeval.rs', lines 669:4-671:5
+    Source: 'src/quadeval.rs', lines 717:4-719:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.y
   (self : quadeval.PolyEvalStatement) : Result ring.Rq := do
   ok self.y
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::xh]:
-    Source: 'src/quadeval.rs', lines 664:4-666:5
+    Source: 'src/quadeval.rs', lines 712:4-714:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.xh
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
   ok self.xh
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::xl]:
-    Source: 'src/quadeval.rs', lines 659:4-661:5
+    Source: 'src/quadeval.rs', lines 707:4-709:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.xl
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
   ok self.xl
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::u]:
-    Source: 'src/quadeval.rs', lines 654:4-656:5
+    Source: 'src/quadeval.rs', lines 702:4-704:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.u
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
@@ -4322,7 +4322,7 @@ def evalsplit.monomial_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   linalg.PolyVec.new out1
 
 /-- [hachi::quadeval::to_quad_eval_statement]:
-    Source: 'src/quadeval.rs', lines 694:0-698:1
+    Source: 'src/quadeval.rs', lines 742:0-746:1
     Visibility: public -/
 def quadeval.to_quad_eval_statement
   (s : quadeval.PolyEvalStatement) : Result quadeval.QuadEvalStatement := do
@@ -7230,98 +7230,13 @@ def linalg.PolyVec.dot
     else ok (alloc.vec.Vec.len rhs)
   ring.dot_fused self rhs n
 
-/-- [hachi::gadget::gadget_mul]: loop body 1:
-    Source: 'src/gadget.rs', lines 202:8-206:9
+/-- [hachi::quadeval::carrier_from_raw]: loop body 0:
+    Source: 'src/quadeval.rs', lines 398:4-401:5
     Visibility: public -/
 @[rust_loop_body]
-def gadget.gadget_mul_loop0_loop0.body
-  (v : linalg.PolyVec) (digits : Std.Usize) (i : Std.Usize) (acc : ring.Rq)
-  (e : Std.Usize) :
-  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
-  := do
-  if e < digits
-  then
-    let i1 ← digits * i
-    let i2 ← i1 + e
-    let r ← linalg.PolyVec.get v i2
-    let f ← gadget.base_pow e
-    let scaled ← ring.Rq.scalar_mul r f
-    let acc1 ← ring.Rq.add acc scaled
-    let e1 ← e + 1#usize
-    ok (cont (acc1, e1))
-  else ok (done acc)
-
-/-- [hachi::gadget::gadget_mul]: loop 1:
-    Source: 'src/gadget.rs', lines 202:8-206:9
-    Visibility: public -/
-@[rust_loop]
-def gadget.gadget_mul_loop0_loop0
-  (v : linalg.PolyVec) (digits : Std.Usize) (i : Std.Usize) (acc : ring.Rq)
-  (e : Std.Usize) :
-  Result ring.Rq
-  := do
-  loop
-    (fun (acc1, e1) => gadget.gadget_mul_loop0_loop0.body v digits i acc1 e1)
-    (acc, e)
-
-/-- [hachi::gadget::gadget_mul]: loop body 0:
-    Source: 'src/gadget.rs', lines 199:4-209:5
-    Visibility: public -/
-@[rust_loop_body]
-def gadget.gadget_mul_loop0.body
-  (rows : Std.Usize) (v : linalg.PolyVec) (digits : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
-    ring.Rq))
-  := do
-  if i < rows
-  then
-    let acc ← ring.Rq.zero
-    let acc1 ← gadget.gadget_mul_loop0_loop0 v digits i acc 0#usize
-    let out1 ← alloc.vec.Vec.push out acc1
-    let i1 ← i + 1#usize
-    ok (cont (out1, i1))
-  else ok (done out)
-
-/-- [hachi::gadget::gadget_mul]: loop 0:
-    Source: 'src/gadget.rs', lines 199:4-209:5
-    Visibility: public -/
-@[rust_loop]
-def gadget.gadget_mul_loop0
-  (rows : Std.Usize) (v : linalg.PolyVec) (digits : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
-  Result (alloc.vec.Vec ring.Rq)
-  := do
-  loop
-    (fun (out1, i1) => gadget.gadget_mul_loop0.body rows v digits out1 i1)
-    (out, i)
-
-/-- [hachi::gadget::gadget_mul]:
-    Source: 'src/gadget.rs', lines 195:0-211:1
-    Visibility: public -/
-def gadget.gadget_mul
-  (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec := do
-  let out ←
-    gadget.gadget_mul_loop0 rows v params.GADGET_DIGITS (alloc.vec.Vec.new
-      ring.Rq) 0#usize
-  linalg.PolyVec.new out
-
-/-- [hachi::quadeval::carrier_entry]:
-    Source: 'src/quadeval.rs', lines 191:0-195:1
-    Visibility: public -/
-def quadeval.carrier_entry
-  (a : linalg.PolyVec) (s : linalg.PolyVec) : Result ring.Rq := do
-  let rows ← linalg.PolyVec.len a
-  let recomposed ← gadget.gadget_mul rows s
-  linalg.PolyVec.dot a recomposed
-
-/-- [hachi::quadeval::carrier]: loop body 0:
-    Source: 'src/quadeval.rs', lines 205:4-208:5
-    Visibility: public -/
-@[rust_loop_body]
-def quadeval.carrier_loop.body
-  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+def quadeval.carrier_from_raw_loop.body
+  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec)
+  (blocks : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
     ring.Rq))
   := do
@@ -7329,36 +7244,38 @@ def quadeval.carrier_loop.body
   then
     let pv ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        linalg.PolyVec) s i
-    let r ← quadeval.carrier_entry a pv
+        linalg.PolyVec) raw1 i
+    let r ← linalg.PolyVec.dot a pv
     let out1 ← alloc.vec.Vec.push out r
     let i1 ← i + 1#usize
     ok (cont (out1, i1))
   else ok (done out)
 
-/-- [hachi::quadeval::carrier]: loop 0:
-    Source: 'src/quadeval.rs', lines 205:4-208:5
+/-- [hachi::quadeval::carrier_from_raw]: loop 0:
+    Source: 'src/quadeval.rs', lines 398:4-401:5
     Visibility: public -/
 @[rust_loop]
-def quadeval.carrier_loop
-  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
-  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+def quadeval.carrier_from_raw_loop
+  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec)
+  (blocks : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
   Result (alloc.vec.Vec ring.Rq)
   := do
   loop
-    (fun (out1, i1) => quadeval.carrier_loop.body a s blocks out1 i1)
+    (fun (out1, i1) => quadeval.carrier_from_raw_loop.body a raw1 blocks out1
+      i1)
     (out, i)
 
-/-- [hachi::quadeval::carrier]:
-    Source: 'src/quadeval.rs', lines 201:0-210:1
+/-- [hachi::quadeval::carrier_from_raw]:
+    Source: 'src/quadeval.rs', lines 394:0-403:1
     Visibility: public -/
-def quadeval.carrier
-  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) :
+def quadeval.carrier_from_raw
+  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec) :
   Result linalg.PolyVec
   := do
-  let blocks := alloc.vec.Vec.len s
+  let blocks := alloc.vec.Vec.len raw1
   let out ←
-    quadeval.carrier_loop a s blocks (alloc.vec.Vec.new ring.Rq) 0#usize
+    quadeval.carrier_from_raw_loop a raw1 blocks (alloc.vec.Vec.new ring.Rq)
+      0#usize
   linalg.PolyVec.new out
 
 /-- [hachi::gadget::balanced_gadget_decompose]: loop body 2:
@@ -7475,14 +7392,14 @@ def gadget.balanced_gadget_decompose
       params.RING_DEGREE rows (alloc.vec.Vec.new ring.Rq) 0#usize
   linalg.PolyVec.new out
 
-/-- [hachi::quadeval::carrier_decomp]:
-    Source: 'src/quadeval.rs', lines 220:0-223:1
+/-- [hachi::quadeval::carrier_decomp_from_raw]:
+    Source: 'src/quadeval.rs', lines 407:0-410:1
     Visibility: public -/
-def quadeval.carrier_decomp
-  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) :
+def quadeval.carrier_decomp_from_raw
+  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec) :
   Result linalg.PolyVec
   := do
-  let w ← quadeval.carrier a s
+  let w ← quadeval.carrier_from_raw a raw1
   gadget.balanced_gadget_decompose w
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::mat_vec_mul]: loop body 0:
@@ -7530,36 +7447,36 @@ def linalg.PolyMatrix.mat_vec_mul
       0#usize
   ok out
 
-/-- [hachi::quadeval::carrier_commit]:
-    Source: 'src/quadeval.rs', lines 230:0-233:1
+/-- [hachi::quadeval::carrier_commit_from_raw]:
+    Source: 'src/quadeval.rs', lines 414:0-421:1
     Visibility: public -/
-def quadeval.carrier_commit
+def quadeval.carrier_commit_from_raw
   (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
-  (s : alloc.vec.Vec linalg.PolyVec) :
+  (raw1 : alloc.vec.Vec linalg.PolyVec) :
   Result linalg.PolyVec
   := do
-  let what ← quadeval.carrier_decomp a s
+  let what ← quadeval.carrier_decomp_from_raw a raw1
   linalg.PolyMatrix.mat_vec_mul d_matrix what
 
-/-- [hachi::quadeval::honest_compute_v]:
-    Source: 'src/quadeval.rs', lines 421:0-427:1
+/-- [hachi::quadeval::honest_compute_v_from_raw]:
+    Source: 'src/quadeval.rs', lines 442:0-448:1
     Visibility: public -/
-def quadeval.honest_compute_v
+def quadeval.honest_compute_v_from_raw
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
-  (message : alloc.vec.Vec linalg.PolyVec) :
+  (raw1 : alloc.vec.Vec linalg.PolyVec) :
   Result linalg.PolyVec
   := do
   let pm ← quadeval.PublicParamsD.impl.d_matrix pp
   let pv ← quadeval.QuadEvalStatement.impl.avec stmt
-  quadeval.carrier_commit pm pv message
+  quadeval.carrier_commit_from_raw pm pv raw1
 
 /-- [hachi::chain::chain_open]:
-    Source: 'src/chain.rs', lines 251:0-303:1
+    Source: 'src/chain.rs', lines 251:0-307:1
     Visibility: public -/
 def chain.chain_open
   (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
   (poly_stmt : quadeval.PolyEvalStatement)
-  (message : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+  (raw_message : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
   (w : ringswitch.LiftedWitness) (alpha : cpoly.field.Ext4)
   (tau0 : alloc.vec.Vec cpoly.field.Ext4)
   (tau1 : alloc.vec.Vec cpoly.field.Ext4)
@@ -7571,7 +7488,7 @@ def chain.chain_open
   := do
   let m0 := alloc.vec.Vec.len tau0
   let stmt ← quadeval.to_quad_eval_statement poly_stmt
-  let v ← quadeval.honest_compute_v pp stmt message
+  let v ← quadeval.honest_compute_v_from_raw pp stmt raw_message
   let rlin ←
     quadeval.rlin_stmt pp stmt v c gamma blocks message_rows message_digits
       inner_rows inner_digits z_digits
@@ -7824,6 +7741,82 @@ def commit.Opening.impl.challenge
     Source: 'src/params.rs', lines 180:0-180:37
     Visibility: public -/
 @[global_simps, irreducible] def params.MESSAGE_ROWS : Std.Usize := 1024#usize
+
+/-- [hachi::gadget::gadget_mul]: loop body 1:
+    Source: 'src/gadget.rs', lines 202:8-206:9
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.gadget_mul_loop0_loop0.body
+  (v : linalg.PolyVec) (digits : Std.Usize) (i : Std.Usize) (acc : ring.Rq)
+  (e : Std.Usize) :
+  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
+  := do
+  if e < digits
+  then
+    let i1 ← digits * i
+    let i2 ← i1 + e
+    let r ← linalg.PolyVec.get v i2
+    let f ← gadget.base_pow e
+    let scaled ← ring.Rq.scalar_mul r f
+    let acc1 ← ring.Rq.add acc scaled
+    let e1 ← e + 1#usize
+    ok (cont (acc1, e1))
+  else ok (done acc)
+
+/-- [hachi::gadget::gadget_mul]: loop 1:
+    Source: 'src/gadget.rs', lines 202:8-206:9
+    Visibility: public -/
+@[rust_loop]
+def gadget.gadget_mul_loop0_loop0
+  (v : linalg.PolyVec) (digits : Std.Usize) (i : Std.Usize) (acc : ring.Rq)
+  (e : Std.Usize) :
+  Result ring.Rq
+  := do
+  loop
+    (fun (acc1, e1) => gadget.gadget_mul_loop0_loop0.body v digits i acc1 e1)
+    (acc, e)
+
+/-- [hachi::gadget::gadget_mul]: loop body 0:
+    Source: 'src/gadget.rs', lines 199:4-209:5
+    Visibility: public -/
+@[rust_loop_body]
+def gadget.gadget_mul_loop0.body
+  (rows : Std.Usize) (v : linalg.PolyVec) (digits : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if i < rows
+  then
+    let acc ← ring.Rq.zero
+    let acc1 ← gadget.gadget_mul_loop0_loop0 v digits i acc 0#usize
+    let out1 ← alloc.vec.Vec.push out acc1
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::gadget::gadget_mul]: loop 0:
+    Source: 'src/gadget.rs', lines 199:4-209:5
+    Visibility: public -/
+@[rust_loop]
+def gadget.gadget_mul_loop0
+  (rows : Std.Usize) (v : linalg.PolyVec) (digits : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, i1) => gadget.gadget_mul_loop0.body rows v digits out1 i1)
+    (out, i)
+
+/-- [hachi::gadget::gadget_mul]:
+    Source: 'src/gadget.rs', lines 195:0-211:1
+    Visibility: public -/
+def gadget.gadget_mul
+  (rows : Std.Usize) (v : linalg.PolyVec) : Result linalg.PolyVec := do
+  let out ←
+    gadget.gadget_mul_loop0 rows v params.GADGET_DIGITS (alloc.vec.Vec.new
+      ring.Rq) 0#usize
+  linalg.PolyVec.new out
 
 /-- [hachi::commit::derived_message]: loop body 0:
     Source: 'src/commit.rs', lines 328:4-331:5
@@ -10466,6 +10459,82 @@ def quadeval.QuadEvalResponse.impl.z_dec
   (self : quadeval.QuadEvalResponse) : Result linalg.PolyVec := do
   ok self.z_dec
 
+/-- [hachi::quadeval::carrier_entry]:
+    Source: 'src/quadeval.rs', lines 191:0-195:1
+    Visibility: public -/
+def quadeval.carrier_entry
+  (a : linalg.PolyVec) (s : linalg.PolyVec) : Result ring.Rq := do
+  let rows ← linalg.PolyVec.len a
+  let recomposed ← gadget.gadget_mul rows s
+  linalg.PolyVec.dot a recomposed
+
+/-- [hachi::quadeval::carrier]: loop body 0:
+    Source: 'src/quadeval.rs', lines 205:4-208:5
+    Visibility: public -/
+@[rust_loop_body]
+def quadeval.carrier_loop.body
+  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if i < blocks
+  then
+    let pv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        linalg.PolyVec) s i
+    let r ← quadeval.carrier_entry a pv
+    let out1 ← alloc.vec.Vec.push out r
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::quadeval::carrier]: loop 0:
+    Source: 'src/quadeval.rs', lines 205:4-208:5
+    Visibility: public -/
+@[rust_loop]
+def quadeval.carrier_loop
+  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+  (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, i1) => quadeval.carrier_loop.body a s blocks out1 i1)
+    (out, i)
+
+/-- [hachi::quadeval::carrier]:
+    Source: 'src/quadeval.rs', lines 201:0-210:1
+    Visibility: public -/
+def quadeval.carrier
+  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) :
+  Result linalg.PolyVec
+  := do
+  let blocks := alloc.vec.Vec.len s
+  let out ←
+    quadeval.carrier_loop a s blocks (alloc.vec.Vec.new ring.Rq) 0#usize
+  linalg.PolyVec.new out
+
+/-- [hachi::quadeval::carrier_decomp]:
+    Source: 'src/quadeval.rs', lines 220:0-223:1
+    Visibility: public -/
+def quadeval.carrier_decomp
+  (a : linalg.PolyVec) (s : alloc.vec.Vec linalg.PolyVec) :
+  Result linalg.PolyVec
+  := do
+  let w ← quadeval.carrier a s
+  gadget.balanced_gadget_decompose w
+
+/-- [hachi::quadeval::carrier_commit]:
+    Source: 'src/quadeval.rs', lines 230:0-233:1
+    Visibility: public -/
+def quadeval.carrier_commit
+  (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
+  (s : alloc.vec.Vec linalg.PolyVec) :
+  Result linalg.PolyVec
+  := do
+  let what ← quadeval.carrier_decomp a s
+  linalg.PolyMatrix.mat_vec_mul d_matrix what
+
 /-- [hachi::quadeval::tensor_g]: loop body 0:
     Source: 'src/quadeval.rs', lines 252:4-257:5
     Visibility: public -/
@@ -11063,68 +11132,20 @@ def quadeval.honest_z_from_raw
     quadeval.honest_z_from_raw_loop1 raw1 c blocks width acc1 0#usize
   linalg.PolyVec.new acc2
 
-/-- [hachi::quadeval::carrier_from_raw]: loop body 0:
-    Source: 'src/quadeval.rs', lines 398:4-401:5
+/-- [hachi::quadeval::honest_compute_v]:
+    Source: 'src/quadeval.rs', lines 427:0-433:1
     Visibility: public -/
-@[rust_loop_body]
-def quadeval.carrier_from_raw_loop.body
-  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec)
-  (blocks : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
-    ring.Rq))
-  := do
-  if i < blocks
-  then
-    let pv ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        linalg.PolyVec) raw1 i
-    let r ← linalg.PolyVec.dot a pv
-    let out1 ← alloc.vec.Vec.push out r
-    let i1 ← i + 1#usize
-    ok (cont (out1, i1))
-  else ok (done out)
-
-/-- [hachi::quadeval::carrier_from_raw]: loop 0:
-    Source: 'src/quadeval.rs', lines 398:4-401:5
-    Visibility: public -/
-@[rust_loop]
-def quadeval.carrier_from_raw_loop
-  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec)
-  (blocks : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize) :
-  Result (alloc.vec.Vec ring.Rq)
-  := do
-  loop
-    (fun (out1, i1) => quadeval.carrier_from_raw_loop.body a raw1 blocks out1
-      i1)
-    (out, i)
-
-/-- [hachi::quadeval::carrier_from_raw]:
-    Source: 'src/quadeval.rs', lines 394:0-403:1
-    Visibility: public -/
-def quadeval.carrier_from_raw
-  (a : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.PolyVec) :
+def quadeval.honest_compute_v
+  (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
+  (message : alloc.vec.Vec linalg.PolyVec) :
   Result linalg.PolyVec
   := do
-  let blocks := alloc.vec.Vec.len raw1
-  let out ←
-    quadeval.carrier_from_raw_loop a raw1 blocks (alloc.vec.Vec.new ring.Rq)
-      0#usize
-  linalg.PolyVec.new out
-
-/-- [hachi::quadeval::carrier_commit_from_raw]:
-    Source: 'src/quadeval.rs', lines 407:0-415:1
-    Visibility: public -/
-def quadeval.carrier_commit_from_raw
-  (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
-  (raw1 : alloc.vec.Vec linalg.PolyVec) :
-  Result linalg.PolyVec
-  := do
-  let w ← quadeval.carrier_from_raw a raw1
-  let what ← gadget.balanced_gadget_decompose w
-  linalg.PolyMatrix.mat_vec_mul d_matrix what
+  let pm ← quadeval.PublicParamsD.impl.d_matrix pp
+  let pv ← quadeval.QuadEvalStatement.impl.avec stmt
+  quadeval.carrier_commit pm pv message
 
 /-- [hachi::quadeval::honest_compute_resp]: loop body 0:
-    Source: 'src/quadeval.rs', lines 449:4-452:5
+    Source: 'src/quadeval.rs', lines 470:4-473:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.honest_compute_resp_loop.body
@@ -11146,7 +11167,7 @@ def quadeval.honest_compute_resp_loop.body
   else ok (done inner)
 
 /-- [hachi::quadeval::honest_compute_resp]: loop 0:
-    Source: 'src/quadeval.rs', lines 449:4-452:5
+    Source: 'src/quadeval.rs', lines 470:4-473:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.honest_compute_resp_loop
@@ -11160,7 +11181,7 @@ def quadeval.honest_compute_resp_loop
     (inner, i)
 
 /-- [hachi::quadeval::honest_compute_resp]:
-    Source: 'src/quadeval.rs', lines 438:0-454:1
+    Source: 'src/quadeval.rs', lines 459:0-475:1
     Visibility: public -/
 def quadeval.honest_compute_resp
   (stmt : quadeval.QuadEvalStatement) (message : alloc.vec.Vec linalg.PolyVec)
@@ -11176,8 +11197,61 @@ def quadeval.honest_compute_resp
       linalg.PolyVec) 0#usize
   quadeval.QuadEvalResponse.new carrier_dec inner z_dec
 
+/-- [hachi::quadeval::honest_compute_resp_from_raw]: loop body 0:
+    Source: 'src/quadeval.rs', lines 497:4-500:5
+    Visibility: public -/
+@[rust_loop_body]
+def quadeval.honest_compute_resp_from_raw_loop.body
+  (inner_decomp : alloc.vec.Vec linalg.PolyVec)
+  (inner : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec linalg.PolyVec) × Std.Usize)
+    (alloc.vec.Vec linalg.PolyVec))
+  := do
+  let i1 := alloc.vec.Vec.len inner_decomp
+  if i < i1
+  then
+    let pv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        linalg.PolyVec) inner_decomp i
+    let pv1 ← linalg.PolyVec.copy pv
+    let inner1 ← alloc.vec.Vec.push inner pv1
+    let i2 ← i + 1#usize
+    ok (cont (inner1, i2))
+  else ok (done inner)
+
+/-- [hachi::quadeval::honest_compute_resp_from_raw]: loop 0:
+    Source: 'src/quadeval.rs', lines 497:4-500:5
+    Visibility: public -/
+@[rust_loop]
+def quadeval.honest_compute_resp_from_raw_loop
+  (inner_decomp : alloc.vec.Vec linalg.PolyVec)
+  (inner : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
+  Result (alloc.vec.Vec linalg.PolyVec)
+  := do
+  loop
+    (fun (inner1, i1) => quadeval.honest_compute_resp_from_raw_loop.body
+      inner_decomp inner1 i1)
+    (inner, i)
+
+/-- [hachi::quadeval::honest_compute_resp_from_raw]:
+    Source: 'src/quadeval.rs', lines 486:0-502:1
+    Visibility: public -/
+def quadeval.honest_compute_resp_from_raw
+  (stmt : quadeval.QuadEvalStatement) (raw1 : alloc.vec.Vec linalg.PolyVec)
+  (inner_decomp : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec) :
+  Result quadeval.QuadEvalResponse
+  := do
+  let pv ← quadeval.QuadEvalStatement.impl.avec stmt
+  let carrier_dec ← quadeval.carrier_decomp_from_raw pv raw1
+  let z ← quadeval.honest_z_from_raw raw1 c
+  let z_dec ← gadget.bounded_z_gadget_decompose z
+  let inner ←
+    quadeval.honest_compute_resp_from_raw_loop inner_decomp (alloc.vec.Vec.new
+      linalg.PolyVec) 0#usize
+  quadeval.QuadEvalResponse.new carrier_dec inner z_dec
+
 /-- [hachi::quadeval::in_sb]: loop body 0:
-    Source: 'src/quadeval.rs', lines 477:4-491:5
+    Source: 'src/quadeval.rs', lines 525:4-539:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.in_sb_loop.body
@@ -11204,7 +11278,7 @@ def quadeval.in_sb_loop.body
   else ok (done ok1)
 
 /-- [hachi::quadeval::in_sb]: loop 0:
-    Source: 'src/quadeval.rs', lines 477:4-491:5
+    Source: 'src/quadeval.rs', lines 525:4-539:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.in_sb_loop
@@ -11216,14 +11290,14 @@ def quadeval.in_sb_loop
     (ok1, k)
 
 /-- [hachi::quadeval::in_sb]:
-    Source: 'src/quadeval.rs', lines 471:0-493:1
+    Source: 'src/quadeval.rs', lines 519:0-541:1
     Visibility: public -/
 def quadeval.in_sb (a : ring.Rq) : Result Bool := do
   let half ← params.Q / 2#u64
   quadeval.in_sb_loop a params.RING_DEGREE half true 0#usize
 
 /-- [hachi::quadeval::vec_in_sb]: loop body 0:
-    Source: 'src/quadeval.rs', lines 506:4-511:5
+    Source: 'src/quadeval.rs', lines 554:4-559:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.vec_in_sb_loop.body
@@ -11242,7 +11316,7 @@ def quadeval.vec_in_sb_loop.body
   else ok (done ok1)
 
 /-- [hachi::quadeval::vec_in_sb]: loop 0:
-    Source: 'src/quadeval.rs', lines 506:4-511:5
+    Source: 'src/quadeval.rs', lines 554:4-559:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.vec_in_sb_loop
@@ -11254,21 +11328,21 @@ def quadeval.vec_in_sb_loop
     (ok1, i)
 
 /-- [hachi::quadeval::vec_in_sb]:
-    Source: 'src/quadeval.rs', lines 502:0-513:1
+    Source: 'src/quadeval.rs', lines 550:0-561:1
     Visibility: public -/
 def quadeval.vec_in_sb (v : linalg.PolyVec) : Result Bool := do
   let n ← linalg.PolyVec.len v
   quadeval.vec_in_sb_loop v n true 0#usize
 
 /-- [hachi::quadeval::j_mul]:
-    Source: 'src/quadeval.rs', lines 523:0-526:1
+    Source: 'src/quadeval.rs', lines 571:0-574:1
     Visibility: public -/
 def quadeval.j_mul (z_dec : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← params.MESSAGE_ROWS * params.GADGET_DIGITS
   gadget.gadget_mul_z n z_dec
 
 /-- [hachi::quadeval::rel_out]:
-    Source: 'src/quadeval.rs', lines 543:0-576:1
+    Source: 'src/quadeval.rs', lines 591:0-624:1
     Visibility: public -/
 def quadeval.rel_out
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -11329,7 +11403,7 @@ def quadeval.rel_out
   else ok false
 
 /-- [hachi::quadeval::paper_rel_out]:
-    Source: 'src/quadeval.rs', lines 588:0-618:1
+    Source: 'src/quadeval.rs', lines 636:0-666:1
     Visibility: public -/
 def quadeval.paper_rel_out
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -11389,7 +11463,7 @@ def quadeval.paper_rel_out
   else ok false
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::new]:
-    Source: 'src/quadeval.rs', lines 649:4-651:5
+    Source: 'src/quadeval.rs', lines 697:4-699:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.new
   (u : linalg.PolyVec) (xl : linalg.PolyVec) (xh : linalg.PolyVec)
@@ -11399,7 +11473,7 @@ def quadeval.PolyEvalStatement.new
   ok { u, xl, xh, y }
 
 /-- [hachi::quadeval::rlin_cols]:
-    Source: 'src/quadeval.rs', lines 748:0-759:1
+    Source: 'src/quadeval.rs', lines 796:0-807:1
     Visibility: public -/
 def quadeval.rlin_cols
   (blocks : Std.Usize) (message_rows : Std.Usize) (message_digits : Std.Usize)
@@ -11413,7 +11487,7 @@ def quadeval.rlin_cols
   i + i3
 
 /-- [hachi::quadeval::rlin_rows]:
-    Source: 'src/quadeval.rs', lines 768:0-770:1
+    Source: 'src/quadeval.rs', lines 816:0-818:1
     Visibility: public -/
 def quadeval.rlin_rows
   (inner_rows : Std.Usize) (outer_rows : Std.Usize) (d_rows : Std.Usize) :
@@ -11425,7 +11499,7 @@ def quadeval.rlin_rows
   d_rows + i2
 
 /-- [hachi::quadeval::unflatten]: loop body 1:
-    Source: 'src/quadeval.rs', lines 787:8-790:9
+    Source: 'src/quadeval.rs', lines 835:8-838:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unflatten_loop0_loop0.body
@@ -11445,7 +11519,7 @@ def quadeval.unflatten_loop0_loop0.body
   else ok (done block)
 
 /-- [hachi::quadeval::unflatten]: loop 1:
-    Source: 'src/quadeval.rs', lines 787:8-790:9
+    Source: 'src/quadeval.rs', lines 835:8-838:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.unflatten_loop0_loop0
@@ -11459,7 +11533,7 @@ def quadeval.unflatten_loop0_loop0
     (block, w)
 
 /-- [hachi::quadeval::unflatten]: loop body 0:
-    Source: 'src/quadeval.rs', lines 784:4-793:5
+    Source: 'src/quadeval.rs', lines 832:4-841:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unflatten_loop0.body
@@ -11480,7 +11554,7 @@ def quadeval.unflatten_loop0.body
   else ok (done out)
 
 /-- [hachi::quadeval::unflatten]: loop 0:
-    Source: 'src/quadeval.rs', lines 784:4-793:5
+    Source: 'src/quadeval.rs', lines 832:4-841:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unflatten_loop0
@@ -11494,7 +11568,7 @@ def quadeval.unflatten_loop0
     (out, base)
 
 /-- [hachi::quadeval::unflatten]:
-    Source: 'src/quadeval.rs', lines 780:0-795:1
+    Source: 'src/quadeval.rs', lines 828:0-843:1
     Visibility: public -/
 def quadeval.unflatten
   (v : linalg.PolyVec) (width : Std.Usize) :
@@ -11505,7 +11579,7 @@ def quadeval.unflatten
     0#usize
 
 /-- [hachi::quadeval::stack]: loop body 0:
-    Source: 'src/quadeval.rs', lines 853:4-856:5
+    Source: 'src/quadeval.rs', lines 901:4-904:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop0.body
@@ -11526,7 +11600,7 @@ def quadeval.stack_loop0.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 0:
-    Source: 'src/quadeval.rs', lines 853:4-856:5
+    Source: 'src/quadeval.rs', lines 901:4-904:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop0
@@ -11539,7 +11613,7 @@ def quadeval.stack_loop0
     (out, i)
 
 /-- [hachi::quadeval::stack]: loop body 1:
-    Source: 'src/quadeval.rs', lines 858:4-861:5
+    Source: 'src/quadeval.rs', lines 906:4-909:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop1.body
@@ -11558,7 +11632,7 @@ def quadeval.stack_loop1.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 1:
-    Source: 'src/quadeval.rs', lines 858:4-861:5
+    Source: 'src/quadeval.rs', lines 906:4-909:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop1
@@ -11570,7 +11644,7 @@ def quadeval.stack_loop1
     (out, j)
 
 /-- [hachi::quadeval::stack]: loop body 2:
-    Source: 'src/quadeval.rs', lines 863:4-866:5
+    Source: 'src/quadeval.rs', lines 911:4-914:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop2.body
@@ -11591,7 +11665,7 @@ def quadeval.stack_loop2.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 2:
-    Source: 'src/quadeval.rs', lines 863:4-866:5
+    Source: 'src/quadeval.rs', lines 911:4-914:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop2
@@ -11604,7 +11678,7 @@ def quadeval.stack_loop2
     (out, k)
 
 /-- [hachi::quadeval::stack]:
-    Source: 'src/quadeval.rs', lines 849:0-868:1
+    Source: 'src/quadeval.rs', lines 897:0-916:1
     Visibility: public -/
 def quadeval.stack
   (resp : quadeval.QuadEvalResponse) : Result linalg.PolyVec := do
@@ -11616,7 +11690,7 @@ def quadeval.stack
   linalg.PolyVec.new out2
 
 /-- [hachi::quadeval::unstack]: loop body 0:
-    Source: 'src/quadeval.rs', lines 881:4-884:5
+    Source: 'src/quadeval.rs', lines 929:4-932:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop0.body
@@ -11635,7 +11709,7 @@ def quadeval.unstack_loop0.body
   else ok (done carrier)
 
 /-- [hachi::quadeval::unstack]: loop 0:
-    Source: 'src/quadeval.rs', lines 881:4-884:5
+    Source: 'src/quadeval.rs', lines 929:4-932:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop0
@@ -11648,7 +11722,7 @@ def quadeval.unstack_loop0
     (carrier, i)
 
 /-- [hachi::quadeval::unstack]: loop body 1:
-    Source: 'src/quadeval.rs', lines 887:4-890:5
+    Source: 'src/quadeval.rs', lines 935:4-938:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop1.body
@@ -11668,7 +11742,7 @@ def quadeval.unstack_loop1.body
   else ok (done middle)
 
 /-- [hachi::quadeval::unstack]: loop 1:
-    Source: 'src/quadeval.rs', lines 887:4-890:5
+    Source: 'src/quadeval.rs', lines 935:4-938:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop1
@@ -11681,7 +11755,7 @@ def quadeval.unstack_loop1
     (middle, j)
 
 /-- [hachi::quadeval::unstack]: loop body 2:
-    Source: 'src/quadeval.rs', lines 893:4-896:5
+    Source: 'src/quadeval.rs', lines 941:4-944:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop2.body
@@ -11700,7 +11774,7 @@ def quadeval.unstack_loop2.body
   else ok (done z)
 
 /-- [hachi::quadeval::unstack]: loop 2:
-    Source: 'src/quadeval.rs', lines 893:4-896:5
+    Source: 'src/quadeval.rs', lines 941:4-944:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop2
@@ -11712,7 +11786,7 @@ def quadeval.unstack_loop2
     (z, k)
 
 /-- [hachi::quadeval::unstack]:
-    Source: 'src/quadeval.rs', lines 878:0-902:1
+    Source: 'src/quadeval.rs', lines 926:0-950:1
     Visibility: public -/
 def quadeval.unstack
   (zeta : linalg.PolyVec) (cw : Std.Usize) (ct : Std.Usize)
@@ -11732,7 +11806,7 @@ def quadeval.unstack
   quadeval.QuadEvalResponse.new pv v pv2
 
 /-- [hachi::quadeval::rlin_row]: loop body 0:
-    Source: 'src/quadeval.rs', lines 958:8-961:9
+    Source: 'src/quadeval.rs', lines 1006:8-1009:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop0.body
@@ -11753,7 +11827,7 @@ def quadeval.rlin_row_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 0:
-    Source: 'src/quadeval.rs', lines 958:8-961:9
+    Source: 'src/quadeval.rs', lines 1006:8-1009:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop0
@@ -11766,7 +11840,7 @@ def quadeval.rlin_row_loop0
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 1:
-    Source: 'src/quadeval.rs', lines 963:8-966:9
+    Source: 'src/quadeval.rs', lines 1011:8-1014:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop1.body
@@ -11785,7 +11859,7 @@ def quadeval.rlin_row_loop1.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 1:
-    Source: 'src/quadeval.rs', lines 963:8-966:9
+    Source: 'src/quadeval.rs', lines 1011:8-1014:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop1
@@ -11798,7 +11872,7 @@ def quadeval.rlin_row_loop1
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 2:
-    Source: 'src/quadeval.rs', lines 971:8-974:9
+    Source: 'src/quadeval.rs', lines 1019:8-1022:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop2.body
@@ -11815,7 +11889,7 @@ def quadeval.rlin_row_loop2.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 2:
-    Source: 'src/quadeval.rs', lines 971:8-974:9
+    Source: 'src/quadeval.rs', lines 1019:8-1022:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop2
@@ -11827,7 +11901,7 @@ def quadeval.rlin_row_loop2
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 3:
-    Source: 'src/quadeval.rs', lines 976:8-979:9
+    Source: 'src/quadeval.rs', lines 1024:8-1027:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop3.body
@@ -11849,7 +11923,7 @@ def quadeval.rlin_row_loop3.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 3:
-    Source: 'src/quadeval.rs', lines 976:8-979:9
+    Source: 'src/quadeval.rs', lines 1024:8-1027:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop3
@@ -11862,7 +11936,7 @@ def quadeval.rlin_row_loop3
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 4:
-    Source: 'src/quadeval.rs', lines 981:8-984:9
+    Source: 'src/quadeval.rs', lines 1029:8-1032:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop4.body
@@ -11879,7 +11953,7 @@ def quadeval.rlin_row_loop4.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 4:
-    Source: 'src/quadeval.rs', lines 981:8-984:9
+    Source: 'src/quadeval.rs', lines 1029:8-1032:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop4
@@ -11891,7 +11965,7 @@ def quadeval.rlin_row_loop4
     (row, z2)
 
 /-- [hachi::quadeval::rlin_row]: loop body 5:
-    Source: 'src/quadeval.rs', lines 989:8-992:9
+    Source: 'src/quadeval.rs', lines 1037:8-1040:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop5.body
@@ -11910,7 +11984,7 @@ def quadeval.rlin_row_loop5.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 5:
-    Source: 'src/quadeval.rs', lines 989:8-992:9
+    Source: 'src/quadeval.rs', lines 1037:8-1040:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop5
@@ -11923,7 +11997,7 @@ def quadeval.rlin_row_loop5
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 6:
-    Source: 'src/quadeval.rs', lines 994:8-997:9
+    Source: 'src/quadeval.rs', lines 1042:8-1045:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop6.body
@@ -11942,7 +12016,7 @@ def quadeval.rlin_row_loop6.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 6:
-    Source: 'src/quadeval.rs', lines 994:8-997:9
+    Source: 'src/quadeval.rs', lines 1042:8-1045:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop6
@@ -11955,7 +12029,7 @@ def quadeval.rlin_row_loop6
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 7:
-    Source: 'src/quadeval.rs', lines 1005:8-1008:9
+    Source: 'src/quadeval.rs', lines 1053:8-1056:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop7.body
@@ -11974,7 +12048,7 @@ def quadeval.rlin_row_loop7.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 7:
-    Source: 'src/quadeval.rs', lines 1005:8-1008:9
+    Source: 'src/quadeval.rs', lines 1053:8-1056:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop7
@@ -11987,7 +12061,7 @@ def quadeval.rlin_row_loop7
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 8:
-    Source: 'src/quadeval.rs', lines 1010:8-1013:9
+    Source: 'src/quadeval.rs', lines 1058:8-1061:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop8.body
@@ -12004,7 +12078,7 @@ def quadeval.rlin_row_loop8.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 8:
-    Source: 'src/quadeval.rs', lines 1010:8-1013:9
+    Source: 'src/quadeval.rs', lines 1058:8-1061:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop8
@@ -12016,7 +12090,7 @@ def quadeval.rlin_row_loop8
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 9:
-    Source: 'src/quadeval.rs', lines 1015:8-1018:9
+    Source: 'src/quadeval.rs', lines 1063:8-1066:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop9.body
@@ -12035,7 +12109,7 @@ def quadeval.rlin_row_loop9.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 9:
-    Source: 'src/quadeval.rs', lines 1015:8-1018:9
+    Source: 'src/quadeval.rs', lines 1063:8-1066:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop9
@@ -12048,7 +12122,7 @@ def quadeval.rlin_row_loop9
     (row, kz)
 
 /-- [hachi::quadeval::rlin_row]: loop body 10:
-    Source: 'src/quadeval.rs', lines 1026:8-1029:9
+    Source: 'src/quadeval.rs', lines 1074:8-1077:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop10.body
@@ -12065,7 +12139,7 @@ def quadeval.rlin_row_loop10.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 10:
-    Source: 'src/quadeval.rs', lines 1026:8-1029:9
+    Source: 'src/quadeval.rs', lines 1074:8-1077:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop10
@@ -12077,7 +12151,7 @@ def quadeval.rlin_row_loop10
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 11:
-    Source: 'src/quadeval.rs', lines 1031:8-1034:9
+    Source: 'src/quadeval.rs', lines 1079:8-1082:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop11.body
@@ -12097,7 +12171,7 @@ def quadeval.rlin_row_loop11.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 11:
-    Source: 'src/quadeval.rs', lines 1031:8-1034:9
+    Source: 'src/quadeval.rs', lines 1079:8-1082:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop11
@@ -12110,7 +12184,7 @@ def quadeval.rlin_row_loop11
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 12:
-    Source: 'src/quadeval.rs', lines 1036:8-1039:9
+    Source: 'src/quadeval.rs', lines 1084:8-1087:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop12.body
@@ -12129,7 +12203,7 @@ def quadeval.rlin_row_loop12.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 12:
-    Source: 'src/quadeval.rs', lines 1036:8-1039:9
+    Source: 'src/quadeval.rs', lines 1084:8-1087:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop12
@@ -12142,7 +12216,7 @@ def quadeval.rlin_row_loop12
     (row, kz)
 
 /-- [hachi::quadeval::rlin_row]:
-    Source: 'src/quadeval.rs', lines 935:0-1042:1
+    Source: 'src/quadeval.rs', lines 983:0-1090:1
     Visibility: public -/
 def quadeval.rlin_row
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)

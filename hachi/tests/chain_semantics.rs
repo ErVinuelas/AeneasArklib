@@ -151,7 +151,12 @@ fn common(seed: u64) -> Common {
     );
     Common {
         pp,
-        d_key: r.next_poly_matrix(1, 2),
+        // `lift_commit_row` reads `|z| + |rho| * GADGET_DIGITS` entries of each
+        // row -- 2 + 1 * 8 here -- so a width-2 key indexes out of bounds. This
+        // was only ever reachable once `chain_open` stopped materializing the
+        // decomposed message: before that the test was killed by the OOM killer
+        // building 68.7 GiB, so the fixture's width was never exercised.
+        d_key: r.next_poly_matrix(1, 2 + hachi::params::GADGET_DIGITS),
         poly_stmt,
         c: r.next_poly_vec(s.blocks),
         w,
@@ -218,13 +223,13 @@ fn run(cm: &Common, tr: &Transcript) -> bool {
     )
 }
 
-fn open(cm: &Common, message: &Vec<PolyVec>) -> Transcript {
+fn open(cm: &Common, raw: &Vec<PolyVec>) -> Transcript {
     let s = &TOY;
     let (v, t, msgs, y_prime) = chain_open(
         &cm.pp,
         &cm.d_key,
         &cm.poly_stmt,
-        message,
+        raw,
         &cm.c,
         &cm.w,
         cm.alpha,
@@ -265,11 +270,12 @@ fn chain_open_produces_the_messages_the_verifier_reads() {
     let s = &TOY;
     let cm = common(0xC0A1_0030);
     let mut r = Lcg::new(0xC0A1_0031);
-    let message: Vec<PolyVec> = (0..s.blocks)
-        .map(|_| r.next_poly_vec(s.message_rows * s.message_digits))
+    // the RAW width: `chain_open` decomposes internally now
+    let raw: Vec<PolyVec> = (0..s.blocks)
+        .map(|_| r.next_poly_vec(s.message_rows))
         .collect();
 
-    let tr = open(&cm, &message);
+    let tr = open(&cm, &raw);
 
     assert_eq!(tr.v.len(), 1, "the carrier commitment has dRows entries");
     assert_eq!(tr.t.len(), 1, "the lift commitment has the key's rows");
@@ -304,10 +310,10 @@ fn an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only() {
     let s = &TOY;
     let cm = common(0xC0A1_0040);
     let mut r = Lcg::new(0xC0A1_0041);
-    let message: Vec<PolyVec> = (0..s.blocks)
-        .map(|_| r.next_poly_vec(s.message_rows * s.message_digits))
+    let raw: Vec<PolyVec> = (0..s.blocks)
+        .map(|_| r.next_poly_vec(s.message_rows))
         .collect();
-    let tr = open(&cm, &message);
+    let tr = open(&cm, &raw);
 
     // rounds 2.. are consistent with round 1's evaluation at the challenge.
     for i in 1..s.m0 {
@@ -393,7 +399,7 @@ struct PinInstance {
     pp: PublicParamsD,
     d_key: PolyMatrix,
     poly_stmt: PolyEvalStatement,
-    message: Vec<PolyVec>,
+    raw: Vec<PolyVec>,
     c: PolyVec,
     w: LiftedWitness,
     v: PolyVec,
@@ -436,9 +442,10 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
 
     // the message: `blocks` blocks of `message_rows` coefficients, committed
     let raw: Vec<PolyVec> = (0..blocks).map(|_| r.next_poly_vec(message_rows)).collect();
-    let (u, decomp) = hachi::commit::commit(&inner, &raw);
-    let message: Vec<PolyVec> = (0..blocks).map(|i| decomp.message(i).copy()).collect();
-    let inner_decomp: Vec<PolyVec> = decomp.inner_decomps().iter().map(PolyVec::copy).collect();
+    // the STREAMED committer: the 68.7 GiB `Decomp.message` is never built, and
+    // nothing below needs it -- `honest_compute_v_from_raw` and
+    // `honest_compute_resp_from_raw` both work from `raw`.
+    let (u, inner_decomp) = hachi::commit::commit_streamed(&inner, &raw);
     let pp = PublicParamsD::new(inner, d_matrix);
     eprintln!("[{:>9.1?}] committed {blocks} block(s)", t0.elapsed());
 
@@ -460,9 +467,10 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
 
     // the honest QuadEval side: `v`, the response, its stacking
-    let v = hachi::quadeval::honest_compute_v(&pp, &stmt, &message);
-    eprintln!("[{:>9.1?}] honest_compute_v done", t0.elapsed());
-    let resp = hachi::quadeval::honest_compute_resp(&stmt, &message, &inner_decomp, &c);
+    let v = hachi::quadeval::honest_compute_v_from_raw(&pp, &stmt, &raw);
+    eprintln!("[{:>9.1?}] honest_compute_v_from_raw done", t0.elapsed());
+    let resp =
+        hachi::quadeval::honest_compute_resp_from_raw(&stmt, &raw, &inner_decomp, &c);
     let zeta = hachi::quadeval::stack(&resp);
     eprintln!("[{:>9.1?}] honest_compute_resp + stack done", t0.elapsed());
     let rlin = hachi::quadeval::rlin_stmt(
@@ -509,7 +517,7 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let d_key = r.next_poly_matrix(1, lift_cols);
     eprintln!("[{:>9.1?}] lifted witness built, lift width {lift_cols}", t0.elapsed());
 
-    PinInstance { pp, d_key, poly_stmt, message, c, w, v, alpha, tau0, tau1, challenges }
+    PinInstance { pp, d_key, poly_stmt, raw, c, w, v, alpha, tau0, tau1, challenges }
 }
 
 
@@ -559,7 +567,7 @@ fn the_honest_chain_verifies() {
         &inst.pp,
         &inst.d_key,
         &inst.poly_stmt,
-        &inst.message,
+        &inst.raw,
         &inst.c,
         &inst.w,
         inst.alpha,

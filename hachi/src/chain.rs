@@ -252,7 +252,7 @@ pub fn chain_open(
     pp: &PublicParamsD,
     d_key: &PolyMatrix,
     poly_stmt: &PolyEvalStatement,
-    message: &Vec<PolyVec>,
+    raw_message: &Vec<PolyVec>,
     c: &PolyVec,
     w: &LiftedWitness,
     alpha: Ext4,
@@ -271,7 +271,11 @@ pub fn chain_open(
 
     // row 1, then row 2's message: the carrier commitment.
     let stmt = crate::quadeval::to_quad_eval_statement(poly_stmt);
-    let v: PolyVec = crate::quadeval::honest_compute_v(pp, &stmt, message);
+    // The RAW message, not the decomposed one: `honest_compute_v_from_raw` needs
+    // no decomposition at all (the gadget round trip inside `carrier_entry`
+    // cancels against it), so the honest prover never builds the 68.7 GiB
+    // `Decomp.message`. See `quadeval::carrier_from_raw`.
+    let v: PolyVec = crate::quadeval::honest_compute_v_from_raw(pp, &stmt, raw_message);
 
     // row 3, the statement the rounds are computed against.
     let rlin = crate::quadeval::rlin_stmt(

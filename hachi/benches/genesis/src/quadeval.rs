@@ -1238,3 +1238,52 @@ pub fn carrier_commit_from_raw(
     let what: PolyVec = gadget::balanced_gadget_decompose(&w);
     d_matrix.mat_vec_mul(&what)
 }
+
+/// `ŵ = G⁻¹(w)` from the raw message: [`carrier_decomp`] without the decomposed
+/// message.
+pub fn carrier_decomp_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
+    let w: PolyVec = carrier_from_raw(a, raw);
+    gadget::balanced_gadget_decompose(&w)
+}
+
+/// The prover's round-0 message `v = D ŵ` from the **raw** message (spec: the
+/// same `honestComputeV` [`honest_compute_v`] mirrors, composed with
+/// `gadgetDecompose`).
+///
+/// What [`chain_open`](crate::chain::chain_open) calls, so that the honest
+/// prover never holds the decomposed message. The decomposition cancels here
+/// rather than streaming: see [`carrier_from_raw`].
+pub fn honest_compute_v_from_raw(
+    pp: &PublicParamsD,
+    stmt: &QuadEvalStatement,
+    raw: &Vec<PolyVec>,
+) -> PolyVec {
+    carrier_commit_from_raw(pp.d_matrix(), stmt.avec(), raw)
+}
+
+/// The honest output witness from the **raw** message (spec: the same
+/// `honestComputeResp` [`honest_compute_resp`] mirrors, composed with
+/// `gadgetDecompose`).
+///
+/// The second half of the streamed prover: `honest_z_from_raw` rebuilds one
+/// block's `sᵢ` at a time, and `carrier_decomp_from_raw` needs no decomposition
+/// at all. With [`honest_compute_v_from_raw`] and
+/// [`crate::commit::commit_streamed`], nothing on the honest path holds the
+/// 68.7 GiB `Decomp.message`.
+pub fn honest_compute_resp_from_raw(
+    stmt: &QuadEvalStatement,
+    raw: &Vec<PolyVec>,
+    inner_decomp: &Vec<PolyVec>,
+    c: &PolyVec,
+) -> QuadEvalResponse {
+    let carrier_dec: PolyVec = carrier_decomp_from_raw(stmt.avec(), raw);
+    let z: PolyVec = honest_z_from_raw(raw, c);
+    let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
+    let mut inner: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < inner_decomp.len() {
+        inner.push(inner_decomp[i].copy());
+        i += 1;
+    }
+    QuadEvalResponse::new(carrier_dec, inner, z_dec)
+}

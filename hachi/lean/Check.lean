@@ -1843,5 +1843,24 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_loop1_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_spec
+-- Change 8's ADOPTION: the honest prover now runs from the raw message.
+-- `chain_open` takes the raw blocks and decomposes internally, so nothing on
+-- the honest path builds `Decomp.message`. Each hypothesis
+-- `toBlocks message = wo.message` became "the decomposition of `raw` is
+-- `wo.message`", and no conclusion moved -- including `chain_open_spec`'s,
+-- which is the whole point: the composed honest prover is the same prover.
+--
+-- Evidence that the wall was real and is gone: the toy chain test
+-- `chain_open_produces_the_messages_the_verifier_reads` was killed by the OOM
+-- killer before this change (it materializes 68.7 GiB at `BLOCKS = 1024`) and
+-- passes in 180 s after it. It had also never reached `lift_commit`, whose
+-- fixture width was wrong by `GADGET_DIGITS` -- a bug the memory wall had been
+-- hiding.
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_loop_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_spec
+#print axioms HachiEquiv.Chain.chain_open_spec
 
 end HachiEquiv.Check
