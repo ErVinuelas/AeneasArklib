@@ -511,6 +511,7 @@ pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
 // Fused dot products
 // ---------------------------------------------------------------------------
 
+// @genesis 47c5893 2026-09-17 — ring::DOT_CHUNK
 /// How many terms a fused dot accumulates before reducing.
 ///
 /// The transform-domain accumulator holds
@@ -525,6 +526,7 @@ pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
 /// chunking the reconstruction would be silently wrong there.
 pub const DOT_CHUNK: usize = 8192;
 
+// @genesis 47c5893 2026-09-17 — ring::dot_chunk_mod_p
 /// One chunk of a fused dot product, modulo one auxiliary prime.
 ///
 /// The saving over `negconv_mod_p` per term: the two ψ tables are built once
@@ -584,6 +586,7 @@ pub fn dot_chunk_mod_p(
     crate::ntt::untwist(&inv.0, &it, ninv, scaled, p, m)
 }
 
+// @genesis 47c5893 2026-09-17 — ring::dot_fused
 /// `Σⱼ a[j] · b[j]` in `Rq`, fused: one inverse transform and one Garner pass
 /// per chunk of [`DOT_CHUNK`] terms instead of one per term.
 pub fn dot_fused(a: &Vec<Rq>, b: &Vec<Rq>, n: usize) -> Rq {
