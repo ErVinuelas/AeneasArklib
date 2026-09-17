@@ -331,6 +331,7 @@ impl Rq {
 // Multiplication by a short element
 // ---------------------------------------------------------------------------
 
+// @genesis 6dff292 2026-09-17 — ring::ShortMul
 /// A short left operand, described by its nonzero centred coefficients.
 ///
 /// Three parallel vectors rather than a `Vec` of tuples: Aeneas models
@@ -346,12 +347,14 @@ pub struct ShortMul {
 }
 
 impl ShortMul {
+    // @genesis 6dff292 2026-09-17 — ring::ShortMul::terms
     /// How many nonzero coefficients the described element has.
     pub fn terms(&self) -> usize {
         self.idx.len()
     }
 }
 
+// @genesis 6dff292 2026-09-17 — ring::classify_short
 /// Describe `a` as a short element, or decline.
 ///
 /// Returns `Some(desc)` exactly when `a`'s **centred** `ℓ₁` norm is at most
@@ -391,6 +394,7 @@ pub fn classify_short(a: &Rq) -> Option<ShortMul> {
     Some(ShortMul { idx, mag, neg })
 }
 
+// @genesis 6dff292 2026-09-17 — ring::mul_short_desc
 /// `desc · s` in `Rq = Z_q[X]/(X^N + 1)`, by signed negacyclic shifts.
 ///
 /// **Nothing multiplies.** Each described term `(k, m, sign)` contributes `m`
