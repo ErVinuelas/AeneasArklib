@@ -1,0 +1,55 @@
+# Phase D reprofile: the honest prover at BLOCKS = 1024, the pin.
+# First time this is possible: before Change 8 the instance built the
+#   68.7 GiB decomposed message and was killed by the OOM killer.
+# The earlier profiles in this plan ran at 1 and 128 blocks, and the work
+#   order's whole correction was that the 1-block profile gives the wrong
+#   priority ordering. This is the ordering at the real instance, after
+#   Changes 1-4, 6 and 8.
+# Not a criterion session: wall-clock per stage, printed as it goes.
+# quiet: idle=99%
+# started 2026-09-17T22:10:12+02:00
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+    Finished `release` profile [optimized] target(s) in 0.91s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 503.5ms
+test the_honest_chain_profile has been running for over 60 seconds
+[   545.7s] committed 1024 block(s)
+# STOPPED DELIBERATELY at 33 min, with the finding in hand.
+#
+#   control (frozen genesis PolyVec::zeros x50)  503.5 ms
+#   commit_streamed, 1024 blocks                 545.7 s     <- 9.1 min
+#   honest_compute_v_from_raw                    > 23 min, still running
+#
+# The commitment is the number this whole stage was aimed at: 9.1 minutes at
+# BLOCKS = 1024, inside 8.4 GiB, where the frozen baseline is 9.95 s per block
+# (39.8 s at four blocks) = 2.8 HOURS, and could not run at all for want of
+# memory.
+#
+# CORRECTION, written after the candT25 bench row contradicted the first
+# reading of this log. The >23 min stage is NOT prover work.
+#
+# Between `committed` and `statement built`, pin_instance calls dense_eval --
+# the TEST's own reference evaluation of the message polynomial at the drawn
+# point, needed to make the statement a true one. It is
+# blocks * rows * popcount(j) ring multiplications: 1024 * 1024 * ~5 = 5.2
+# MILLION Rq::mul calls, and that is where the time went. It is scaffolding, and
+# no amount of prover optimization touches it.
+#
+# `carrier_from_raw` at 1024 blocks is about 165 s, not 23 minutes: the
+# `quadeval/carrier_from_raw/8` row reads 1.286 s at eight blocks, and the
+# function is linear in blocks.
+#
+# What survives of the finding, and it is still worth acting on:
+# carrier_from_raw dots the SAME `a` against every block, so `dot_fused`
+# re-transforms all 1024 entries of `a` on each of 1024 blocks -- 1023/1024 of
+# that work redundant. At ~165 s against the commitment's 546 s that is 23% of
+# the pre-round prover, and preparing `a` once should take -46% of it. Candidate
+# T25. The justification is the bench row, not this log.
+#
+# LESSON: a profile stage is only as attributable as the code between its two
+# prints. This one bundles prover work with test scaffolding, and the first
+# reading blamed the prover for 23 minutes of `dense_eval`. The bench row is
+# what caught it, which is exactly why the accept rule insists on one.

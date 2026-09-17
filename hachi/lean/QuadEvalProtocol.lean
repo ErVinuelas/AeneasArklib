@@ -356,16 +356,21 @@ decomposition of `raw`: the same value, from an argument that is never built. -/
 
 /-- The loop of `quadeval::carrier_from_raw`: entry `j` is `a · rawⱼ`. -/
 theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (am : linalg.PolyMatrix) (prep : linalg.PreparedMatrix)
     (raw : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize)
     (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (ha : WfVec rows a) (hraw : WfBlocks blocks rows raw) (hn : n.val = blocks)
+    (ha : WfVec rows a) (ham : WfMat 1 rows am)
+    (ha0 : toVec (k := rows) (am.val.getD 0 (alloc.vec.Vec.new ring.Rq))
+             = toVec (k := rows) a)
+    (hprep : WfPrep 1 rows prep am)
+    (hraw : WfBlocks blocks rows raw) (hn : n.val = blocks)
     (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
     (hwf : ∀ y ∈ out.val, Wf y)
     (hval : ∀ j, j < i.val →
       toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
         = ArkLib.Lattices.dot (toVec (k := rows) a)
             (toVec (k := rows) (raw.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
-    quadeval.carrier_from_raw_loop a raw n out i
+    quadeval.carrier_from_raw_loop raw n prep out i
       ⦃ z => z.val.length = blocks ∧ (∀ y ∈ z.val, Wf y) ∧
         ∀ j, j < blocks →
           toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
@@ -387,7 +392,23 @@ theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
       have hWpv : WfVec rows pv := by rw [hpv]; exact hraw.2 _ (List.getElem_mem hib)
       have hri : raw.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
         rw [hpv]; exact List.getD_eq_getElem _ _ hib
-      step with dot_spec (k := rows) a pv ha hWpv as ⟨r, hWr, hr⟩
+      -- the prepared row, applied: `matVecMul` at one row IS the dot against it
+      step with apply_spec (rows := 1) (cols := rows) prep am pv ham hWpv hprep
+        as ⟨rv, hWrv, hrv⟩
+      have hr0 : (0 : ℕ) < rv.val.length := by rw [hWrv.1]; norm_num
+      simp only [linalg.PolyVec.get]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by rw [hr]; exact hWrv.2 _ (List.getElem_mem hr0)
+      have hrval : toRq r = ArkLib.Lattices.dot (toVec (k := rows) a)
+          (toVec (k := rows) pv) := by
+        have h1 := congrFun hrv (0 : Fin 1)
+        rw [ArkLib.Lattices.matVecMul_apply, toMat_apply] at h1
+        simp only [Fin.val_zero] at h1
+        rw [ha0] at h1
+        rw [hr, ← h1]
+        simp only [toVec, Fin.val_zero]
+        rw [List.getD_eq_getElem _ _ hr0]
+      step with RqBridge.copy_spec r hWr as ⟨rc, hWrc, hrc⟩
       step as ⟨o2, ho2⟩
       step as ⟨i2, hi2⟩
       refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
@@ -396,13 +417,13 @@ theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
         rw [ho2] at hy
         rcases List.mem_append.mp hy with h | h
         · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr
+        · rw [List.mem_singleton.mp h]; exact hWrc
       · intro j hj
         rw [hi2] at hj
         rcases Nat.lt_or_ge j i1.val with hjlt | hjge
         · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
         · have hjeq : j = o1.val.length := by omega
-          rw [hjeq, ho2, getD_append_eq, hr, hlen1, hri]
+          rw [hjeq, ho2, getD_append_eq, hrc, hrval, hlen1, hri]
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -411,6 +432,32 @@ theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
         by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
   · exact ⟨hi, hlen, hwf, hval⟩
 
+/-- **The gadget round trip inside `carrierEntry` cancels.** The dot of `a`
+against `b` *is* `carrierEntry` at `b`'s decomposition, because `carrierEntry` is
+`splitForm G` -- the dot against `gadgetMul` -- and `gadgetMul ∘ gadgetDecompose`
+is the identity.
+
+Its own lemma, not a step inside `carrier_from_raw_spec`: unfolding `carrier`
+here and elaborating `spec_mono` there in one declaration exceeded four million
+heartbeats together, and separately each is cheap. -/
+theorem dot_eq_carrierEntry_of_decomp {rows : ℕ} (a b : linalg.PolyVec) :
+    ArkLib.Lattices.dot (toVec (k := rows) a) (toVec (k := rows) b)
+      = Hachi.carrierEntry Φ (16 : ZMod q) (toVec (k := rows) a)
+          (gadgetDecompose Φ dd (toVec (k := rows) b)) := by
+  simp only [Hachi.carrierEntry, ArkLib.Lattices.splitForm]
+  congr 1
+  exact (gadgetDecompose_lawful Φ (rows := rows) (by norm_num)
+    (by rw [RqBridge.phi_natDegree]; norm_num) dd (toVec (k := rows) b)).symm
+
+-- The one-row prepared matrix makes `spec_mono`'s unification heavy: it has to
+-- see through `PolyMatrix`'s reducible alias and `PreparedMatrix`'s two fields
+-- at once. Slow, not divergent, and the budget below is measured rather than
+-- guessed -- 200 000 (the default) and 800 000 both time out, 1 000 000 passes
+-- once the `carrier` unfolding is out of this declaration and in
+-- `dot_eq_carrierEntry_of_decomp`. Splitting the two apart is what made either
+-- of them affordable: together they wanted more than four million.
+set_option maxHeartbeats 1000000 in
+set_option maxRecDepth 8192 in
 /-- **`quadeval::carrier_from_raw` is `carrier` at the decomposed message.**
 
 The gadget round trip is where the work goes: the streamed form never
@@ -418,31 +465,49 @@ decomposes, and never recomposes either, because `carrier_entry` would have
 undone exactly what the decomposition did. -/
 theorem carrier_from_raw_spec {rows blocks : ℕ} (a : linalg.PolyVec)
     (raw : alloc.vec.Vec linalg.PolyVec) (ha : WfVec rows a)
-    (hraw : WfBlocks blocks rows raw) :
+    (hraw : WfBlocks blocks rows raw) (hmax : rows * N ≤ Std.Usize.max) :
     quadeval.carrier_from_raw a raw
       ⦃ out => WfVec blocks out ∧ toVec (k := blocks) out
         = Hachi.carrier Φ (16 : ZMod q) (toVec (k := rows) a)
             (fun i : Fin blocks => gadgetDecompose Φ dd
               (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
   rw [quadeval.carrier_from_raw]
+  -- `a` as a one-row matrix, prepared once
+  step with poly_vec_copy_spec (k := rows) a ha as ⟨ac, hWac, hac⟩
+  step as ⟨rws, hrws⟩
+  rw [linalg.PolyMatrix.new]
+  simp only [bind_tc_ok]
+  -- `PolyMatrix` is a reducible alias for the vector, so `rws` is the matrix
+  have ham : WfMat 1 rows rws := by
+    refine ⟨by rw [hrws]; simp, ?_⟩
+    intro r hr
+    rw [hrws] at hr
+    rcases List.mem_append.mp hr with h | h
+    · simp at h
+    · rw [List.mem_singleton.mp h]; exact hWac
+  have ha0 : toVec (k := rows) (rws.val.getD 0 (alloc.vec.Vec.new ring.Rq))
+      = toVec (k := rows) a := by
+    rw [hrws]
+    simpa using hac
+  step with prepare_spec (rows := 1) (cols := rows) rws ham (by norm_num) hmax
+    as ⟨prep, hprep⟩
   simp only [linalg.PolyVec.new, bind_ok_id]
-  apply spec_mono (carrier_from_raw_loop_spec a raw (alloc.vec.Vec.len raw)
-    (alloc.vec.Vec.new ring.Rq) 0#usize ha hraw (by simpa using hraw.1)
-    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  -- bound to a `have` before the `apply`: elaborating the loop spec's arguments
+  -- first is what keeps `spec_mono`'s unification from blowing up on
+  -- `PolyMatrix`'s reducible alias (200 000 heartbeats were not enough inline)
+  have hloop := carrier_from_raw_loop_spec (rows := rows) (blocks := blocks)
+    a rws prep raw (alloc.vec.Vec.len raw)
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha ham ha0 hprep hraw (by simpa using hraw.1)
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+  apply spec_mono hloop
   rintro z ⟨hzlen, hzwf, hzval⟩
   refine ⟨⟨hzlen, hzwf⟩, ?_⟩
   funext i
   rw [show toVec (k := blocks) z i
         = toRq (z.val.getD i.val (alloc.vec.Vec.new cpoly.field.Fp)) from rfl,
     hzval i.val i.isLt]
-  -- `carrierEntry` is `splitForm G`, which is the dot against `gadgetMul`, and
-  -- `gadgetMul ∘ gadgetDecompose` is the identity -- so the recomposition the
-  -- streamed form skips is exactly the decomposition it also skips.
-  simp only [Hachi.carrier, Hachi.carrierEntry, ArkLib.Lattices.splitForm]
-  congr 1
-  exact (gadgetDecompose_lawful Φ (rows := rows) (by norm_num)
-    (by rw [RqBridge.phi_natDegree]; norm_num) dd
-    (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))).symm
+  exact dot_eq_carrierEntry_of_decomp (rows := rows) a
+    (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))
 
 /-- The loop of `quadeval::tensor_g`: the accumulator is the partial
 challenge-weighted gadget sum. -/

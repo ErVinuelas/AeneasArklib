@@ -391,12 +391,30 @@ pub fn honest_z_from_raw(raw: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
 ///
 /// It is therefore not merely a memory win over `carrier(a, s)`: it removes the
 /// `BLOCKS` gadget recompositions as well.
+///
+/// **`a` is prepared once**, and that is the whole cost of this function. The
+/// same `a` is dotted against every one of `BLOCKS` blocks, so the unprepared
+/// form re-transforms all `2^ML_VARS_LOW = 1024` of its entries on every block:
+/// `1024 · 1024` entry transforms of which `1023/1024` are redundant. The
+/// reprofile at the pin found this to be the dominant prover cost once the
+/// commitment came down -- `> 23 min` against the commitment's `9.1 min` -- and
+/// [`crate::ring::prepare_vec`] is exactly the machinery for it. The store is
+/// `1024 · 24 KiB` = **24 MiB**, held for the length of one call.
 pub fn carrier_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
     let blocks: usize = raw.len();
+    // `a` as a one-row matrix, so that the prepared machinery applies as it
+    // stands: `PreparedMatrix::apply` at one row *is* the dot against that row
+    // (`matVecMul` at `rows = 1`), which is why this needs no new item and no
+    // new specification -- only a different composition of landed ones.
+    let mut rows: Vec<PolyVec> = Vec::new();
+    rows.push(a.copy());
+    let am: PolyMatrix = PolyMatrix::new(rows);
+    let prep: crate::linalg::PreparedMatrix = am.prepare();
     let mut out: Vec<Rq> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
-        out.push(a.dot(&raw[i]));
+        let r: PolyVec = prep.apply(&raw[i]);
+        out.push(r.get(0).copy());
         i += 1;
     }
     PolyVec::new(out)

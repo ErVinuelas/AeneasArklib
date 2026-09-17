@@ -547,8 +547,13 @@ fn quadeval_benches(c: &mut Criterion) {
     // @covers quadeval::honest_z_from_raw
     bench_case!(c, "quadeval/honest_z_from_raw", honest_z_from_raw, [honest_z_blocks],
                 samples: honest_z_samples);
+    // `samples:` for the same reason the `honest_z` rows have it: the frozen
+    // genesis variant runs `carrier_entry`'s gadget recomposition per block
+    // through the schoolbook `Rq::mul`, which is 9.6 s per iteration -- 100
+    // samples of that is 16 minutes for one row.
     // @covers quadeval::carrier_from_raw
-    bench_case!(c, "quadeval/carrier_from_raw", carrier_from_raw, [reduced_blocks]);
+    bench_case!(c, "quadeval/carrier_from_raw", carrier_from_raw, [reduced_blocks],
+                samples: honest_z_samples);
     // @covers quadeval::tensor_g_matrix
     bench_case!(c, "quadeval/tensor_g_matrix", tensor_g_matrix, [reduced_blocks]);
 }

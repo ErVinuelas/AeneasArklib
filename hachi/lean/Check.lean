@@ -1862,5 +1862,17 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_loop_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_spec
 #print axioms HachiEquiv.Chain.chain_open_spec
+-- Candidate T25, found by the Phase D reprofile rather than by the work order:
+-- `carrier_from_raw` prepares `a` ONCE. It dotted the same `a` against every
+-- block, so `dot_fused` re-transformed all 1024 of its entries on each of 1024
+-- blocks, 1023/1024 of that work redundant. Measured -33.4% and -35.4% on
+-- `quadeval/carrier_from_raw/8` in two independent runs.
+--
+-- No new item and no new specification: `a` becomes a one-row `PolyMatrix`, and
+-- `PreparedMatrix::apply` at one row IS the dot against that row, so
+-- `apply_spec` plus `matVecMul_apply` does it. `carrier_from_raw_spec`'s
+-- statement is unchanged -- the sixth Stage 6 champion to move an
+-- implementation without moving its specification.
+#print axioms HachiEquiv.QuadEvalProtocol.dot_eq_carrierEntry_of_decomp
 
 end HachiEquiv.Check
