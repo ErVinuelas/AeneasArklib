@@ -1,0 +1,12 @@
+n = 8192, one term = one 1024-coefficient ring element
+  prepare   two 30-bit primes 0.510s   one 62-bit prime 0.156s   -69.4%
+  dot       two 30-bit primes 0.532s   one 62-bit prime 0.141s   -73.4%
+  table     two 30-bit primes 128 MiB   one 62-bit prime 64 MiB
+
+  SAME loop structure, two 30-bit primes:
+    prepare 0.469s   dot 0.497s
+  allocation gap (landed 2-prime -> scratch 2-prime): prepare -8.0%  dot -6.5%
+  prime count    (scratch 2-prime -> scratch 1-prime): prepare -66.7%  dot -71.5%
+
+  ONE 30-bit prime's dot: runtime modulus 0.236s   const modulus 0.139s   -41.0%
+  (so of the -72% above, the constant-modulus part is available at ANY prime count)
