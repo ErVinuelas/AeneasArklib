@@ -297,5 +297,72 @@ theorem two_bound_lt_P : 2 * (1024 * (4294967197 * 4294967197)) < P := by norm_n
 term. -/
 theorem bound_mod_q : 1024 * (4294967197 * 4294967197) % 4294967197 = 0 := by norm_num
 
+/-! ## Two primes, for a digit-bounded operand
+
+A generic ring product needs all three primes: its exact convolution coefficient
+can reach `N·q²`, and even one term of that does not fit `p1·p2`. A product in
+which one operand's coefficients are gadget *digits* has an exact coefficient
+below `N·q·16`, which is `2^46` rather than `2^73` -- so thousands of terms fit
+two primes, and the third transform is pure waste.
+
+This section is the arithmetic of that: the radix, the fit, and the two-residue
+reconstruction. The transforms themselves are untouched; `dot_prep_chunk_mod_p`
+is already generic in the prime and the offset. -/
+
+/-- `p1 · p2`, the two-prime radix. A `u64`, unlike `P`. -/
+abbrev P12 : ℕ := p1 * p2
+
+/-- `P12` as a literal, for `omega`. -/
+theorem P12_val : P12 = 468937312667959297 := by norm_num [P12, p1, p2]
+
+/-- **Two-prime Garner reconstruction is exact.** Given the two residues of a
+natural number below `p1 · p2`, `ntt.garner2` returns that number.
+
+This is `garner_spec`'s first stage and nothing more, and it is sound only under
+the much tighter `hx`: two primes identify a 59-bit range, not an 89-bit one.
+There is no third digit to compute precisely *because* `x < p1·p2` forces the
+quotient `q1` below `p2`, which is the step below that has no analogue in
+`garner_spec`. -/
+theorem garner2_spec (r1 r2 : Std.U64) (x : ℕ) (hx : x < P12)
+    (h1 : r1.val = x % p1) (h2 : r2.val = x % p2) :
+    ntt.garner2 r1 r2 ⦃ z => z.val = x ⦄ := by
+  have np1 : (p1 : ℕ) = 469762049 := rfl
+  have np2 : (p2 : ℕ) = 998244353 := rfl
+  have hr1lt : r1.val < p1 := by rw [h1]; exact Nat.mod_lt _ (by norm_num)
+  have hr2lt : r2.val < p2 := by rw [h2]; exact Nat.mod_lt _ (by norm_num)
+  have hr1p2 : r1.val < p2 := by omega
+  obtain ⟨q1, hq1⟩ : ∃ q, x = r1.val + p1 * q :=
+    ⟨x / p1, by rw [h1]; exact (Nat.mod_add_div x p1).symm⟩
+  -- the two-prime fit, used twice: it is what leaves no third digit
+  have hq1lt : q1 < p2 := by
+    by_contra hge
+    have hmul : p1 * p2 ≤ p1 * q1 := Nat.mul_le_mul_left p1 (by omega)
+    simp only [P12] at hx
+    omega
+  rw [ntt.garner2]
+  step with aux_sub_lt r2 r1 ntt.AUX_P2 (by rw [AUX_P2_val]; norm_num)
+      (by rw [AUX_P2_val]; exact hr2lt) (by rw [AUX_P2_val]; exact hr1p2)
+    as ⟨d1, hd1, hd1lt⟩
+  rw [AUX_P2_val] at hd1 hd1lt
+  step with aux_mul_lt d1 ntt.GARNER_INV1 ntt.AUX_P2 ntt.AUX_M2 magic2
+      (by rw [AUX_P2_val]; exact hd1lt)
+      (by rw [AUX_P2_val, GARNER_INV1_val]; norm_num)
+    as ⟨t1, ht1, ht1lt⟩
+  rw [AUX_P2_val, GARNER_INV1_val] at ht1
+  rw [AUX_P2_val] at ht1lt
+  have ht1eq : t1.val = q1 := by
+    rw [ht1, hd1]
+    rw [show q1 = q1 % p2 from (Nat.mod_eq_of_lt hq1lt).symm]
+    refine garner_generic p2 p1 554580198 q1 (r2.val + p2 - r1.val) r1.val
+      (by norm_num) inv1_spec ?_
+    have hA : r2.val + p2 - r1.val + r1.val = r2.val + p2 := by omega
+    have hsum : p1 * q1 + r1.val = x := by omega
+    rw [hA, hsum, Nat.add_mod_right, h2]
+    exact Nat.mod_mod_of_dvd x (dvd_refl p2)
+  -- `r1 + p1·t1` is `x`, and it fits a `u64` because it is below `p1·p2 < 2^59`
+  step as ⟨i, hi⟩
+  step as ⟨z, hz⟩
+  rw [hz, hi, AUX_P1_val, ht1eq, hq1]
+
 end HachiEquiv.AuxCRT
 

@@ -325,6 +325,24 @@ impl PolyMatrix {
         }
         PreparedMatrix { rows, cols: c }
     }
+
+    /// Forward-transform every entry under **two** primes, for the bounded dot.
+    ///
+    /// Pairs with [`PreparedMatrix::apply_digits`], and carries that method's
+    /// precondition: the vectors it will be applied to must have every
+    /// coefficient below `GADGET_BASE`. Two thirds of `prepare`'s store -- 128
+    /// MiB for the inner Ajtai matrix rather than 192 MiB.
+    pub fn prepare_digits(&self) -> PreparedMatrix {
+        let n: usize = self.0.len();
+        let c: usize = self.cols();
+        let mut rows: Vec<crate::ring::PreparedVec> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            rows.push(crate::ring::prepare_vec_two(&self.0[i].0, c));
+            i += 1;
+        }
+        PreparedMatrix { rows, cols: c }
+    }
 }
 
 impl PreparedMatrix {
@@ -343,6 +361,27 @@ impl PreparedMatrix {
         let mut i: usize = 0;
         while i < n {
             out.push(crate::ring::dot_prepared(&self.rows[i], &v.0, w));
+            i += 1;
+        }
+        PolyVec(out)
+    }
+
+    /// `A *ᵥ v` for a `v` of gadget digits (spec: `matVecMul`,
+    /// `Vectors.lean:81` -- the same product [`PolyMatrix::mat_vec_mul`]
+    /// computes).
+    ///
+    /// **Only correct when every coefficient of every entry of `v` is below
+    /// `GADGET_BASE`**, and only for a `self` built by
+    /// [`PolyMatrix::prepare_digits`]. See
+    /// [`crate::ring::dot_prepared_digits`] for why the precondition cannot be
+    /// a type.
+    pub fn apply_digits(&self, v: &PolyVec) -> PolyVec {
+        let n: usize = self.rows.len();
+        let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
+        let mut out: Vec<Rq> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::dot_prepared_digits(&self.rows[i], &v.0, w));
             i += 1;
         }
         PolyVec(out)

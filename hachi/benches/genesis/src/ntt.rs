@@ -589,3 +589,35 @@ pub fn negconv_mod_q(a: &Vec<u64>, b: &Vec<u64>) -> Vec<u64> {
     }
     out
 }
+
+/// `BOUND_D mod p1`, where `BOUND_D = NTT_LEN · GADGET_BASE · Q`.
+///
+/// The offset for the **bounded** fused dot, where one operand's coefficients
+/// are gadget digits rather than arbitrary residues. The generic offset
+/// `BOUND = N·q²` is `2^73`, so `2 · L · BOUND` cannot fit `p1·p2` for any
+/// `L ≥ 1`; `BOUND_D = N·16·q` is `2^46`, and it is what makes a two-prime
+/// reconstruction possible at all. Like `BOUND` it is a multiple of `q`, so it
+/// is still invisible in the answer.
+pub const AUX_DOFF1: u64 = 266_663_644;
+/// `BOUND_D mod p2`. See [`AUX_DOFF1`].
+pub const AUX_DOFF2: u64 = 501_623_972;
+
+/// Garner reconstruction from **two** residues: the unique `x < p1·p2` with
+/// `x ≡ r1 (p1)` and `x ≡ r2 (p2)`.
+///
+/// ```text
+/// t1 = (r2 − r1) · p1⁻¹   mod p2
+/// x  = r1 + p1 · t1
+/// ```
+///
+/// Exactly the first stage of [`garner`], and the result is a `u64` rather than
+/// a `u128`: `r1 < p1` and `t1 < p2` give `x < p1 + p1·(p2−1) = p1·p2 < 2^59`,
+/// so neither the product nor the sum can overflow.
+///
+/// Only sound where the reconstructed integer is known to be below `p1·p2`;
+/// that is the bounded fused dot's precondition, not a property of the residues.
+pub fn garner2(r1: u64, r2: u64) -> u64 {
+    let d1: u64 = aux_sub(r2, r1, AUX_P2);
+    let t1: u64 = aux_mul(d1, GARNER_INV1, AUX_P2, AUX_M2);
+    r1 + AUX_P1 * t1
+}

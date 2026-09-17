@@ -817,3 +817,79 @@ pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     }
     acc
 }
+
+/// The chunk width of the **bounded** fused dot, where one operand's
+/// coefficients are gadget digits.
+///
+/// The ceiling is `2 · L · BOUND_D < p1 · p2` with `BOUND_D = N · GADGET_BASE ·
+/// Q`, i.e. `L ≤ 3332`; a signed convolution coefficient over `L` terms is at
+/// most `L · N · (Q−1) · 15` in absolute value, so at `L = 3332` the shifted
+/// value is `454 283 009 702 445 056` against a radix of
+/// `468 937 312 667 959 297`. This is the largest power of two below that
+/// ceiling, which leaves a 1.6x margin: the ceiling moves with `Q` and
+/// `GADGET_BASE`, and a chunk boundary is the wrong place to be exactly tight.
+///
+/// Four chunks at the inner matrix's width of 8192. The extra chunk boundaries
+/// cost one inverse transform and one untwist each -- about 57 000 modular
+/// multiplies over the whole product against the 117 million the terms cost, so
+/// 0.05%.
+pub const DOT_CHUNK_D: usize = 2048;
+
+/// Forward-transform every entry of `a` under **two** primes.
+///
+/// For the bounded dot only. `fwd3` is left empty, which is what makes the store
+/// 128 MiB rather than 192 MiB for the inner matrix; nothing reads it, and
+/// [`dot_prepared_digits`] is the only consumer.
+pub fn prepare_vec_two(a: &Vec<Rq>, n: usize) -> PreparedVec {
+    let fwd1: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P1, crate::ntt::AUX_M1,
+        crate::ntt::AUX_PSI1);
+    let fwd2: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P2, crate::ntt::AUX_M2,
+        crate::ntt::AUX_PSI2);
+    let fwd3: Vec<u64> = Vec::new();
+    PreparedVec { len: n, fwd1, fwd2, fwd3 }
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared and **`b`'s coefficients bounded by
+/// `GADGET_BASE`** -- the same value [`dot_prepared`] computes, under two primes
+/// instead of three.
+///
+/// **This is only correct for a `b` whose every coefficient is below
+/// [`crate::params::GADGET_BASE`]**, which is what the unsigned gadget
+/// decomposition produces. It is a separate function rather than a branch
+/// because the precondition is on values, not on types: a caller that hands it
+/// an arbitrary `b` gets a wrong answer with no complaint from the compiler.
+/// [`crate::linalg::PreparedMatrix::apply_digits`] is the only caller, and
+/// `commit::generate_decomps` applies it to `G⁻¹(m)`.
+///
+/// The saving is one third of the per-term work: 7168 modular multiplies per
+/// term per prime (a twist, a forward transform, a pointwise multiply-add), so
+/// 14336 rather than 21504.
+///
+/// The *balanced* decomposition does not qualify: its digits are centred, so a
+/// negative digit is the `Fp` word `q − |d|`, and the bound is two-sided.
+pub fn dot_prepared_digits(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u64 = params::Q;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        let remaining: usize = n - start;
+        let take: usize = if remaining < DOT_CHUNK_D { remaining } else { DOT_CHUNK_D };
+        let end: usize = start + take;
+        let r1: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd1, b, start, end,
+            crate::ntt::AUX_P1, crate::ntt::AUX_M1, crate::ntt::AUX_PSI1,
+            crate::ntt::AUX_PSIINV1, crate::ntt::AUX_NINV1, crate::ntt::AUX_DOFF1);
+        let r2: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd2, b, start, end,
+            crate::ntt::AUX_P2, crate::ntt::AUX_M2, crate::ntt::AUX_PSI2,
+            crate::ntt::AUX_PSIINV2, crate::ntt::AUX_NINV2, crate::ntt::AUX_DOFF2);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            out.push(Fp::new(crate::ntt::garner2(r1[t], r2[t]) % qw));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}

@@ -518,6 +518,20 @@ theorem difWord_cast (p half step : ℕ) (psi : ZMod p) (sw tww : ℕ → ℕ)
     congr 2
     ring
 
+/-! ## Conjoining two specifications of the same program
+
+`spec_mono` weakens a postcondition; nothing in the Aeneas `WP` library
+*combines* two postconditions of the same program. Change 6 needs exactly that:
+`gadget_decompose` has an audited value specification and a separate word-level
+digit bound, and the caller needs both without either theorem changing. -/
+
+/-- Two specifications of the same program conjoin. -/
+theorem spec_and {α} {m : Result α} {P Q : Post α} (hp : m ⦃ P ⦄) (hq : m ⦃ Q ⦄) :
+    m ⦃ fun z => P z ∧ Q z ⦄ := by
+  revert hp hq
+  unfold WP.spec WP.theta WP.wp_return
+  cases m <;> grind
+
 end HachiEquiv.AuxCode
 
 

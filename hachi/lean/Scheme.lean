@@ -655,6 +655,187 @@ theorem apply_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
   rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
   exact hzval i.val i.isLt
 
+/-! ### The two-prime prepared matrix
+
+The same value again, under two primes rather than three, for a vector of gadget
+digits. `apply_digits_spec`'s conclusion is once more `mat_vec_mul_spec`'s word
+for word; what it carries extra is `DigitVec`, and that is the one precondition
+in this file that a caller can violate without the compiler noticing. It is
+discharged at `generate_decomps` by `gadget_decompose_digit_words`. -/
+
+/-- `ring::dot_prepared_digits` at the specification level. -/
+theorem dot_prep_digits_spec {k : ℕ} (prep : ring.PreparedVec) (u v : linalg.PolyVec)
+    (nU : Std.Usize) (hn : nU.val = k) (hu : WfVec k u) (hv : WfVec k v)
+    (hvd : DigitVec k v) (hprep : PrepRow2 k prep u) :
+    ring.dot_prepared_digits prep v nU
+      ⦃ z => Wf z ∧ toRq z
+        = ArkLib.Lattices.dot (toVec (k := k) u) (toVec (k := k) v) ⦄ := by
+  apply spec_mono (HachiEquiv.RqBridge.dot_prepared_digits_spec prep u v nU
+    (by intro j hj; rw [hn] at hj; exact wf_getD hu hj)
+    (by intro j hj; rw [hn] at hj; exact wf_getD hv hj)
+    (by rw [hn]; exact hvd)
+    (by rw [hn, hu.1]) (by rw [hn, hv.1]) (by rw [hn]; exact hprep))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hn, ArkLib.Lattices.dot_eq_sum]
+  exact (Fin.sum_univ_eq_sum_range
+    (fun j => toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+      * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) k).symm
+
+/-- `pm` is the two-prime prepared form of `m`. -/
+def WfPrep2 (rows cols : ℕ) (pm : linalg.PreparedMatrix) (m : linalg.PolyMatrix) : Prop :=
+  pm.cols.val = cols ∧ pm.rows.val.length = rows
+  ∧ ∀ i, i < rows → PrepRow2 cols (pm.rows.val.getD i prepJunk)
+      (m.val.getD i (alloc.vec.Vec.new ring.Rq))
+
+/-- The loop of `PolyMatrix::prepare_digits`. -/
+theorem prepare_digits_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (n c : Std.Usize) (rws : alloc.vec.Vec ring.PreparedVec) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hn : n.val = rows) (hc : c.val = cols)
+    (hmax : cols * N ≤ Std.Usize.max)
+    (hi : i.val ≤ n.val) (hlen : rws.val.length = i.val)
+    (hval : ∀ u, u < i.val → PrepRow2 cols (rws.val.getD u prepJunk)
+      (m.val.getD u (alloc.vec.Vec.new ring.Rq))) :
+    linalg.PolyMatrix.prepare_digits_loop m n c rws i
+      ⦃ z => z.val.length = rows ∧ ∀ u, u < rows →
+          PrepRow2 cols (z.val.getD u prepJunk)
+            (m.val.getD u (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  rw [linalg.PolyMatrix.prepare_digits_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val
+      ∧ ∀ u, u < s.2.val → PrepRow2 cols (s.1.val.getD u prepJunk)
+          (m.val.getD u (alloc.vec.Vec.new ring.Rq)))
+  · rintro ⟨r1, i1⟩ ⟨hi1, hlen1, hval1⟩
+    dsimp only at hi1 hlen1 hval1
+    simp only [linalg.PolyMatrix.prepare_digits_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
+      have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv]; exact List.getD_eq_getElem _ _ him
+      step with HachiEquiv.AuxFused.prepare_vec_two_spec pv c
+        (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
+        (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1, hp2⟩
+      step as ⟨r2, hr2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_⟩
+      · rw [hr2, hi2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hi2] at hu
+        rcases Nat.lt_or_ge u i1.val with hult | huge
+        · rw [hr2, getD_append_lt _ _ _ (by omega)]
+          exact hval1 u hult
+        · have hueq : u = r1.val.length := by omega
+          rw [hueq, hr2, getD_append_eq, hlen1, hmi]
+          refine ⟨by rw [hpl]; exact hc, ?_, ?_⟩
+          · rw [← hc]; exact hp1
+          · rw [← hc]; exact hp2
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], by intro u hu; exact hval1 u (by rw [heq, hn]; exact hu)⟩
+  · exact ⟨hi, hlen, hval⟩
+
+/-- `PolyMatrix::prepare_digits` — the two-prime prepared form. -/
+theorem prepare_digits_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
+    linalg.PolyMatrix.prepare_digits m ⦃ z => WfPrep2 rows cols z m ⦄ := by
+  rw [linalg.PolyMatrix.prepare_digits]
+  step with cols_spec m ha hrows as ⟨c, hc⟩
+  step with prepare_digits_loop_spec m (alloc.vec.Vec.len m) c
+    (alloc.vec.Vec.new ring.PreparedVec) 0#usize ha (by simp [ha.1]) hc hmax
+    (by simp) (by simp) (by intro u hu; simp at hu) as ⟨rws, hrl, hrv⟩
+  exact ⟨hc, hrl, hrv⟩
+
+/-- The loop of `PreparedMatrix::apply_digits`. -/
+theorem apply_digits_loop_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec) (n w : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hvd : DigitVec cols v)
+    (hp : WfPrep2 rows cols pm m)
+    (hn : n.val = rows) (hw : w.val = cols)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hwf : ∀ z ∈ out.val, Wf z)
+    (hval : ∀ j, j < i.val →
+      toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v)) :
+    linalg.PreparedMatrix.apply_digits_loop pm.rows v n w out i
+      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < rows → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+          = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+              (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrix.apply_digits_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [linalg.PreparedMatrix.apply_digits_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hip : i1.val < pm.rows.val.length := by rw [hp.2.1, ← hn]; scalar_tac
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hprow : PrepRow2 cols pv (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        have := hp.2.2 i1.val (by rw [← hn]; scalar_tac)
+        rwa [List.getD_eq_getElem _ _ hip, ← hpv] at this
+      have hWrow : WfVec cols (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        rw [List.getD_eq_getElem _ _ him]; exact ha.2 _ (List.getElem_mem him)
+      step with dot_prep_digits_spec (k := cols) pv
+        (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) v w hw hWrow hv hvd hprow
+        as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr, hlen1]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], hwf1, by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- **`PreparedMatrix::apply_digits` = `PolyMatrix::mat_vec_mul`**, for a vector
+of gadget digits. The conclusion is `mat_vec_mul_spec`'s and `apply_spec`'s, word
+for word; only the hypotheses differ. -/
+theorem apply_digits_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hvd : DigitVec cols v)
+    (hp : WfPrep2 rows cols pm m) :
+    linalg.PreparedMatrix.apply_digits pm v
+      ⦃ z => WfVec rows z ∧ toVec (k := rows) z
+        = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
+            (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrix.apply_digits]
+  have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
+  have hcl : pm.cols.val = cols := hp.1
+  simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
+  apply spec_mono (apply_digits_loop_spec pm m v (alloc.vec.Vec.len pm.rows) pm.cols
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha hv hvd hp (by simp [hp.2.1]) hcl
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
+  exact hzval i.val i.isLt
+
 /-- The inner loop of `flatten_blocks`: it appends the `width` entries of block `i`,
 and every entry written so far — old or new — is the block-major entry it should be. -/
 theorem flatten_blocks_inner_loop_spec {blocks width : ℕ} (xs : alloc.vec.Vec linalg.PolyVec)
@@ -879,6 +1060,38 @@ theorem dd_digit_natAbs_le (c : ZMod q) (e : Fin 8) :
   simp only [Int.natAbs_natCast]
   omega
 
+/-! ### The digit bound, at the word level
+
+The two-prime bounded dot is correct only for an operand whose *words* are below
+the gadget base, so somebody has to say so about `gadget_decompose`'s output.
+Nothing existing does: `digit_at_spec` says `Red d`, which is `< q`, and
+`gadget_decompose_spec` says the result represents `gadgetDecompose Φ dd`, which
+is a statement about `Rq`s and not about their `u64` representatives.
+
+Both facts below are *derived* rather than proved by a second induction over the
+three loops of `gadget_decompose`: ArkLib's `gadgetDecompose_coeff` says each
+coefficient of the result is a digit, and `dd_digit_val_lt` says a digit's
+canonical value is below the base. `AuxCode.spec_and` is what lets the caller
+have this and `gadget_decompose_spec` at once, with neither statement moving. -/
+/-- **The unsigned digit bound, on the canonical value.** `dd`'s digits are
+natural numbers below the base, so they do not wrap: `val`, not just
+`valMinAbs.natAbs`, is below 16.
+
+The sibling `dd_digit_natAbs_le` is the *centered* bound, which is what the
+shortness arguments want; this one is what an integer bound on a `u64` word
+wants, and the two are genuinely different statements -- a centered bound of 15
+also admits `val = q − 15`. -/
+theorem dd_digit_val_lt (c : ZMod q) (e : Fin 8) : (dd.digit c e).val < 16 := by
+  simp only [dd, zmodDigitDecomposition]
+  set d := (Nat.digits 16 c.val).getD (e : ℕ) 0 with hd
+  have hdb : d < 16 := by
+    rcases lt_or_ge (e : ℕ) (Nat.digits 16 c.val).length with hlt | hge
+    · rw [hd, List.getD_eq_getElem _ _ hlt]
+      exact Nat.digits_lt_base (by norm_num) (List.getElem_mem _)
+    · rw [hd, List.getD_eq_default _ _ hge]; omega
+  rw [ZMod.val_natCast]
+  exact lt_of_le_of_lt (Nat.mod_le _ _) hdb
+
 /-- The loop of `gadget::digit_at`: after `i` divisions by 16 the remaining
 word is `c / 16ⁱ`. -/
 theorem digit_at_loop_spec (e : Std.Usize) (rest : Std.U64) (i : Std.Usize) (c0 : ℕ)
@@ -927,6 +1140,17 @@ theorem digit_at_spec (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.
   rw [hd, dd, zmodDigitDecomposition]
   dsimp only
   rw [hcv, Nat.getD_digits _ _ (by norm_num), hm, hr, hb]
+
+/-- `gadget::digit_at` returns a word below the base. -/
+theorem digit_at_lt_base (c : cpoly.field.Fp) (e : Std.Usize) (hc : Red c) (he : e.val < 8) :
+    gadget.digit_at c e ⦃ d => d.val < 16 ⦄ := by
+  apply spec_mono (digit_at_spec c e hc he)
+  rintro d ⟨hRd, hd⟩
+  have hv : (toK d).val = d.val := by
+    simp only [toK, ZMod.val_natCast]
+    exact Nat.mod_eq_of_lt hRd
+  rw [← hv, hd]
+  exact dd_digit_val_lt (toK c) ⟨e.val, he⟩
 
 /-! ### `gadget::digit_decompose`
 
@@ -1643,6 +1867,65 @@ theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows
   rw [hz, digitBlock, RqBridge.phi_natDegree]
   rfl
 
+/-- **Every word `gadget_decompose` writes is below the base.**
+
+The precondition of `PreparedMatrix::apply_digits`, and the one thing about the
+unsigned decomposition that nothing above says: `digit_at_spec` gives `Red`,
+which is `< q`, and `gadget_decompose_spec` speaks about `Rq`s rather than about
+their `u64` representatives.
+
+Derived from `gadget_decompose_spec` rather than proved by a second induction
+over its three loops -- the represented block *is* `dd.digit` of the input
+coefficient, and `dd_digit_val_lt` bounds that. A separate theorem rather than a
+conjunct, because `gadget_decompose_spec` is audited by name and its three call
+sites do not need this; `AuxCode.spec_and` puts the two together where they are
+both wanted. -/
+theorem gadget_decompose_digit_words {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows x)
+    (hmax : 8 * rows ≤ Usize.max) :
+    gadget.gadget_decompose x
+      ⦃ z => ∀ y ∈ z.val, ∀ w ∈ y.val, w.val < 16 ⦄ := by
+  apply spec_mono (gadget_decompose_spec x hx hmax)
+  rintro z ⟨hWz, hzval⟩
+  intro y hy w hw
+  obtain ⟨j, hj, hjy⟩ := List.getElem_of_mem hy
+  obtain ⟨t, ht, htw⟩ := List.getElem_of_mem hw
+  have hjr : j < rows * 8 := by rw [← hWz.1]; exact hj
+  have hWy : Wf y := hWz.2 y hy
+  have htN : t < N := by rw [← hWy.1]; exact ht
+  have hred : w.val < q := hWy.2 w hw
+  have hyd : z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp) = y := by
+    rw [List.getD_eq_getElem _ _ hj, hjy]
+  -- the block index, split exactly as `gadget_decompose_spec` splits it
+  have he'lt : j % 8 < 8 := Nat.mod_lt _ (by norm_num)
+  have hi'lt : j / 8 < rows := by omega
+  have hfp : (finProdFinEquiv (⟨j / 8, hi'lt⟩, ⟨j % 8, he'lt⟩) : Fin (rows * 8))
+      = ⟨j, hjr⟩ := by
+    apply Fin.ext
+    show j % 8 + 8 * (j / 8) = j
+    omega
+  have hgd : gadgetDecompose Φ dd (toVec (k := rows) x) ⟨j, hjr⟩
+      = Rq.ofFinCoeff Φ Φ.φ.natDegree
+          (fun k => dd.digit ((toVec (k := rows) x ⟨j / 8, hi'lt⟩).1.coeff k)
+            ⟨j % 8, he'lt⟩) := by
+    rw [← hfp]
+    exact gadgetDecomposeFun_apply Φ dd.digit (toVec (k := rows) x) _ _
+  -- so the word is a digit, and a digit's canonical value is below the base
+  have hcoeff : coeffK y t
+      = dd.digit ((toVec (k := rows) x ⟨j / 8, hi'lt⟩).1.coeff t) ⟨j % 8, he'lt⟩ := by
+    have h1 : (toVec (k := rows * 8) z ⟨j, hjr⟩).1.coeff t = coeffK y t := by
+      simp only [toVec]
+      rw [hyd, toRq_coeff_eq_coeffK hWy]
+    rw [← h1, hzval, hgd, Rq.ofFinCoeff_coeff Φ _ (Rq.phi_natDegree_le_degree Φ) t,
+      if_pos (by rw [RqBridge.phi_natDegree]; exact htN)]
+  have hlt := dd_digit_val_lt
+    ((toVec (k := rows) x ⟨j / 8, hi'lt⟩).1.coeff t) ⟨j % 8, he'lt⟩
+  rw [← hcoeff] at hlt
+  have hwv : coeffK y t = ((w.val : ℕ) : ZMod q) := by
+    simp only [coeffK, toK]
+    rw [List.getD_eq_getElem _ _ ht, htw]
+  rw [hwv, ZMod.val_natCast, Nat.mod_eq_of_lt hred] at hlt
+  exact hlt
+
 /-- **The gadget is lawful**, as a statement about the *Rust*: the extracted
 `gadget_mul` inverts the extracted `gadget_decompose`. A corollary of the two
 specs above and the specification's `gadgetDecompose_lawful`, and the property the
@@ -2160,7 +2443,7 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
     (prep : linalg.PreparedMatrix)
     (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hprep : WfPrep 1 (1024 * 8) prep pp.inner_matrix)
+    (hpp : WfParams pp) (hprep : WfPrep2 1 (1024 * 8) prep pp.inner_matrix)
     (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
     (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
@@ -2203,9 +2486,19 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
       have hilt : i1.val < m.val.length := by rw [hm.1, ← hb]; scalar_tac
       step as ⟨pv, hpv⟩
       have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
-      step with gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac) as ⟨s, hWs, hs⟩
-      step with apply_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
-        hpp.1 hWs hprep as ⟨inner, hWinner, hinner⟩
+      -- the value spec and the digit bound at once: `apply_digits` needs both,
+      -- and neither theorem changes to provide it
+      step with HachiEquiv.AuxCode.spec_and
+        (gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac))
+        (gadget_decompose_digit_words (rows := 1024) pv hWpv (by scalar_tac))
+        as ⟨s, hWs, hs, hsd⟩
+      have hsdv : DigitVec (1024 * 8) s := by
+        intro u hu
+        refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
+        rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
+        exact List.getElem_mem _
+      step with apply_digits_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
+        hpp.1 hWs hsdv hprep as ⟨inner, hWinner, hinner⟩
       step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
@@ -2258,7 +2551,7 @@ theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec lina
   rw [commit.generate_decomps]
   simp only [commit.Decomp.new, commit.PublicParams.impl.inner_matrix]
   -- the one prepared matrix, hoisted above the block loop: 192 MiB paid once
-  step with prepare_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
+  step with prepare_digits_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
     (by norm_num) (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
   step with generate_decomps_loop_spec pp m (alloc.vec.Vec.len m) prep
     (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize

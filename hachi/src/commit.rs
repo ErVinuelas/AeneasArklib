@@ -348,16 +348,21 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     let blocks: usize = m.len();
     // `A` is public and fixed, and is applied to every one of `BLOCKS` message
     // blocks, so its forward transforms are computed once here instead of once
-    // per block. At the paper's parameters that store is 192 MiB, independent of
+    // per block. At the paper's parameters that store is 128 MiB, independent of
     // `BLOCKS`; see `PolyMatrix::prepare` for why this is the caller's decision
     // and not `mat_vec_mul`'s.
-    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare();
+    //
+    // Two primes rather than three, which is sound *here* and not in general:
+    // the vector `A` is applied to is `G⁻¹(mᵢ)`, whose coefficients are unsigned
+    // gadget digits, so the exact convolution fits `p1 · p2`. See
+    // `ring::dot_prepared_digits`.
+    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
     let mut ss: Vec<PolyVec> = Vec::new();
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
-        let inner: PolyVec = prep.apply(&s);
+        let inner: PolyVec = prep.apply_digits(&s);
         ts.push(gadget::gadget_decompose(&inner));
         ss.push(s);
         i += 1;

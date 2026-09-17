@@ -1759,5 +1759,53 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Scheme.cols_spec
 #print axioms HachiEquiv.Scheme.prepare_spec
 #print axioms HachiEquiv.Scheme.apply_spec
+-- Candidate T20 Change 6 (Stage 6, `commit::generate_decomps`) -- the TWO-PRIME
+-- bounded dot. One operand of the Ajtai product is `G⁻¹(m)`, whose coefficients
+-- are unsigned gadget digits below `GADGET_BASE = 16`, so the exact convolution
+-- coefficient is at most `N · q · 16 = 2^46` rather than `N · q² = 2^73` and
+-- thousands of terms fit `p1 · p2`. The third prime's transform is then pure
+-- waste: 14336 modular multiplies per term instead of 21504.
+--
+-- The transforms are reused UNCHANGED: `dot_prep_chunk_mod_p_spec` is already
+-- generic in `(p, m, psi, psiinv, ninv, boff)` and states its offset as
+-- `boff · L`, with no mention of `BOUND` or `P`, so instantiating it at the
+-- digit offsets costs nothing at all.
+--
+-- What is new is the bound and the reconstruction: `offConvSumD_lt_P12` is the
+-- fit that pins `DOT_CHUNK_D = 2048` (the ceiling is 3332), and `garner2_spec`
+-- is `garner_spec`'s first stage -- with `x < p1·p2` there is no third digit to
+-- compute, which is the step that has no three-prime analogue.
+--
+-- The precondition is on VALUES, not on types: a caller that hands
+-- `dot_prepared_digits` an arbitrary operand gets a wrong answer with no
+-- complaint from the compiler. `gadget_decompose_digit_words` is what discharges
+-- it, and it is derived from `gadget_decompose_spec` rather than proved by a
+-- second induction -- the represented block IS `dd.digit` of the input
+-- coefficient, and `dd_digit_val_lt` bounds that. `AuxCode.spec_and` puts the
+-- value spec and the bound together without either statement moving, which is
+-- why `gadget_decompose_spec` is untouched and its other call sites are too.
+--
+-- The BALANCED path is deliberately excluded: centred digits give a two-sided
+-- word bound (`< 8` or `> q − 9`), for which this argument does not hold.
+#print axioms HachiEquiv.AuxCode.spec_and
+#print axioms HachiEquiv.AuxCRT.garner2_spec
+#print axioms HachiEquiv.Scheme.dd_digit_val_lt
+#print axioms HachiEquiv.Scheme.digit_at_lt_base
+#print axioms HachiEquiv.Scheme.gadget_decompose_digit_words
+#print axioms HachiEquiv.AuxFused.posSumD_le
+#print axioms HachiEquiv.AuxFused.negSumD_le
+#print axioms HachiEquiv.AuxFused.offConvSumD_lt_P12
+#print axioms HachiEquiv.AuxFused.offConvSumD_cast_q
+#print axioms HachiEquiv.AuxFused.doff1_val
+#print axioms HachiEquiv.AuxFused.doff2_val
+#print axioms HachiEquiv.AuxFused.dot_prep_chunk_word_digits_spec
+#print axioms HachiEquiv.AuxFused.prep2_garner_out_spec
+#print axioms HachiEquiv.AuxFused.prep2_chunk_loop_spec
+#print axioms HachiEquiv.AuxFused.dot_prepared_digits_spec
+#print axioms HachiEquiv.AuxFused.prepare_vec_two_spec
+#print axioms HachiEquiv.RqBridge.dot_prepared_digits_spec
+#print axioms HachiEquiv.Scheme.dot_prep_digits_spec
+#print axioms HachiEquiv.Scheme.prepare_digits_spec
+#print axioms HachiEquiv.Scheme.apply_digits_spec
 
 end HachiEquiv.Check

@@ -637,4 +637,42 @@ theorem dot_prepared_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
 
+/-! ## The two-prime prepared dot
+
+`dot_prepared_digits` is the same value again, computed under two primes because
+one operand's coefficients are gadget digits. That precondition is `DigitVec`
+below, and unlike everything else in this file it is a condition on *values*: a
+caller that hands it an arbitrary operand gets a wrong answer, and only the
+proof obligation stops that. -/
+
+/-- `p` holds the two forward transforms of the first `cols` entries of `a`. -/
+def PrepRow2 (cols : ℕ) (p : ring.PreparedVec) (a : linalg.PolyVec) : Prop :=
+  p.len.val = cols
+  ∧ HachiEquiv.AuxFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
+  ∧ HachiEquiv.AuxFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
+
+/-- Every word of every entry below `cols` is a gadget digit. -/
+def DigitVec (cols : ℕ) (v : linalg.PolyVec) : Prop :=
+  ∀ u, u < cols → HachiEquiv.AuxFused.DigitWf
+    (v.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+
+/-- **`ring::dot_prepared_digits` at the `Rq` level** -- the value
+`dot_fused_spec` and `dot_prepared_spec` compute, under two primes. -/
+theorem dot_prepared_digits_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq)
+    (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbd : DigitVec nU.val b)
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hprep : PrepRow2 nU.val prep a) :
+    ring.dot_prepared_digits prep b nU
+      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
+          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  obtain ⟨-, hp1, hp2⟩ := hprep
+  apply spec_mono (HachiEquiv.AuxFused.dot_prepared_digits_spec prep a b nU haw hbw
+    hbd han hbn hp1 hp2)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
+
 end HachiEquiv.RqBridge

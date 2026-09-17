@@ -863,3 +863,87 @@ fn prepared_dot_agrees_with_the_fused_dot() {
         );
     }
 }
+
+/// `dot_prepared_digits` is `dot_fused`, on the inputs it is allowed.
+///
+/// The two-prime reconstruction is exact only because one operand's
+/// coefficients are below `GADGET_BASE`; nothing in the types says so, so this
+/// is the only check that the bound chosen for `DOT_CHUNK_D` is the right one.
+/// Widths straddle the chunk boundary in both directions, because a
+/// reconstruction that overflows `p1 · p2` fails *per chunk* and a single-chunk
+/// test would never see it.
+#[test]
+fn bounded_prepared_dot_agrees_with_the_fused_dot() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0016);
+    let q = hachi::params::Q;
+    let base = hachi::params::GADGET_BASE;
+    let chunk = hachi::ring::DOT_CHUNK_D;
+
+    let dense = |rng: &mut Lcg, n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            let mut cs = Vec::with_capacity(RING_DEGREE);
+            for _ in 0..RING_DEGREE {
+                cs.push(rng.next_u64() % q);
+            }
+            v.push(rq_from_u64s(&cs));
+        }
+        v
+    };
+    // every coefficient a digit: the precondition, and the worst case for the
+    // bound is the largest digit, so `base - 1` is forced in explicitly.
+    let digits = |rng: &mut Lcg, n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for j in 0..n {
+            let mut cs = Vec::with_capacity(RING_DEGREE);
+            for k in 0..RING_DEGREE {
+                if (j + k) % 7 == 0 {
+                    cs.push(base - 1);
+                } else {
+                    cs.push(rng.next_u64() % base);
+                }
+            }
+            v.push(rq_from_u64s(&cs));
+        }
+        v
+    };
+
+    for &n in &[1usize, 2, 5, chunk - 1, chunk, chunk + 1, 8192] {
+        let a = dense(&mut rng, n);
+        let b = digits(&mut rng, n);
+        let prep = hachi::ring::prepare_vec_two(&a, n);
+        let got = hachi::ring::dot_prepared_digits(&prep, &b, n);
+        let expected = hachi::ring::dot_fused(&a, &b, n);
+        assert!(
+            got.equals(&expected),
+            "bounded prepared dot disagrees at n = {n} (chunks = {})",
+            n.div_ceil(chunk)
+        );
+    }
+}
+
+/// The all-maximal-digit case at the full 8192 width: the single input that
+/// comes closest to `p1 · p2`, and the one a margin error shows up on first.
+#[test]
+fn the_bounded_dot_survives_its_worst_case() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0017);
+    let q = hachi::params::Q;
+    let base = hachi::params::GADGET_BASE;
+    let n = 8192;
+
+    let mut a = Vec::with_capacity(n);
+    let mut b = Vec::with_capacity(n);
+    for _ in 0..n {
+        let mut cs = Vec::with_capacity(RING_DEGREE);
+        for _ in 0..RING_DEGREE {
+            cs.push(q - 1 - (rng.next_u64() % 3));
+        }
+        a.push(rq_from_u64s(&cs));
+        b.push(rq_from_u64s(&vec![base - 1; RING_DEGREE]));
+    }
+
+    let prep = hachi::ring::prepare_vec_two(&a, n);
+    let got = hachi::ring::dot_prepared_digits(&prep, &b, n);
+    let expected = hachi::ring::dot_fused(&a, &b, n);
+    assert!(got.equals(&expected), "bounded dot wrong at the worst case");
+}
