@@ -590,6 +590,7 @@ pub fn negconv_mod_q(a: &Vec<u64>, b: &Vec<u64>) -> Vec<u64> {
     out
 }
 
+// @genesis 09a57ac 2026-09-17 — ntt::AUX_DOFF1
 /// `BOUND_D mod p1`, where `BOUND_D = NTT_LEN · GADGET_BASE · Q`.
 ///
 /// The offset for the **bounded** fused dot, where one operand's coefficients
@@ -599,9 +600,11 @@ pub fn negconv_mod_q(a: &Vec<u64>, b: &Vec<u64>) -> Vec<u64> {
 /// reconstruction possible at all. Like `BOUND` it is a multiple of `q`, so it
 /// is still invisible in the answer.
 pub const AUX_DOFF1: u64 = 266_663_644;
+// @genesis 09a57ac 2026-09-17 — ntt::AUX_DOFF2
 /// `BOUND_D mod p2`. See [`AUX_DOFF1`].
 pub const AUX_DOFF2: u64 = 501_623_972;
 
+// @genesis 09a57ac 2026-09-17 — ntt::garner2
 /// Garner reconstruction from **two** residues: the unique `x < p1·p2` with
 /// `x ≡ r1 (p1)` and `x ≡ r2 (p2)`.
 ///

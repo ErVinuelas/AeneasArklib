@@ -374,6 +374,7 @@ impl PreparedMatrix {
 }
 
 impl PolyMatrix {
+    // @genesis 09a57ac 2026-09-17 — linalg::PolyMatrix::prepare_digits
     /// Forward-transform every entry under **two** primes, for the bounded dot.
     ///
     /// Pairs with [`PreparedMatrix::apply_digits`], and carries that method's
@@ -394,6 +395,7 @@ impl PolyMatrix {
 }
 
 impl PreparedMatrix {
+    // @genesis 09a57ac 2026-09-17 — linalg::PreparedMatrix::apply_digits
     /// `A *ᵥ v` for a `v` of gadget digits (spec: `matVecMul`,
     /// `Vectors.lean:81` -- the same product [`PolyMatrix::mat_vec_mul`]
     /// computes).

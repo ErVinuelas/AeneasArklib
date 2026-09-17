@@ -818,6 +818,7 @@ pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     acc
 }
 
+// @genesis 09a57ac 2026-09-17 — ring::DOT_CHUNK_D
 /// The chunk width of the **bounded** fused dot, where one operand's
 /// coefficients are gadget digits.
 ///
@@ -835,6 +836,7 @@ pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
 /// 0.05%.
 pub const DOT_CHUNK_D: usize = 2048;
 
+// @genesis 09a57ac 2026-09-17 — ring::prepare_vec_two
 /// Forward-transform every entry of `a` under **two** primes.
 ///
 /// For the bounded dot only. `fwd3` is left empty, which is what makes the store
@@ -849,6 +851,7 @@ pub fn prepare_vec_two(a: &Vec<Rq>, n: usize) -> PreparedVec {
     PreparedVec { len: n, fwd1, fwd2, fwd3 }
 }
 
+// @genesis 09a57ac 2026-09-17 — ring::dot_prepared_digits
 /// `Σⱼ a[j] · b[j]` with `a` prepared and **`b`'s coefficients bounded by
 /// `GADGET_BASE`** -- the same value [`dot_prepared`] computes, under two primes
 /// instead of three.
