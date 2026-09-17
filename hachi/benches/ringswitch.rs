@@ -515,10 +515,8 @@ macro_rules! define_cases {
                     row.push(Rq::zero());
                     z += 1;
                 }
-                let mut rows: Vec<PolyVec> = Vec::new();
-                rows.push(PolyVec::new(row));
                 hc::ringswitch::RlinStatement::new(
-                    PolyMatrix::new(rows),
+                    PolyMatrix::new(vec![PolyVec::new(row)]),
                     vec_of(seed.wrapping_add(0x100), 1),
                     hc::params::CHAIN_GAMMA,
                 )
