@@ -43,6 +43,7 @@ the rejection direction is the half a broken implementation would still satisfy,
 the half `Simple.verify` rests on.
 -/
 import Ring
+import AuxShort
 import ArkLib.Commitments.Functional.Hachi.InnerOuter.Arithmetic
 -- `Nat.Prime 4294967197` is decided by norm_num's primality extension, which is not
 -- reached by the ArkLib import above; without this the instance below is unprovable
@@ -478,6 +479,32 @@ theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   intro k
   by_cases hk : k < N
   · rw [toRq_coeff, if_pos hk, hcoef k hk, coeff_toRq_mul a b ha hb hk]
+  · rw [toRq_coeff, if_neg hk]
+    exact (Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)).symm
+
+/-- **`ring::mul_short_desc` at the `Rq` level.** The same conclusion as
+[`mul_spec`], from the same coefficientwise closed form -- because
+`AuxShort.mul_short_desc_spec` proves `negConv`, exactly as `Ring.mul_spec`
+does. Everything below this point is unaware that the product was computed by
+signed shifts rather than by a transform. -/
+theorem mul_short_desc_spec (desc : ring.ShortMul) (s a : ring.Rq)
+    (hs : Wf s) (ha : Wf a)
+    (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
+    (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
+    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.AuxShort.idxAt desc.idx u < N)
+    (hden : ∀ j, j < N → coeffK a j
+      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+          desc.idx.val.length j) :
+    ring.mul_short_desc desc s ⦃ z => Wf z ∧ toRq z = toRq a * toRq s ⦄ := by
+  apply spec_mono (HachiEquiv.AuxShort.mul_short_desc_spec desc s a hs ha hmlen
+    hnlen hidx hden)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hcoef k hk, coeff_toRq_mul a s ha hs hk]
   · rw [toRq_coeff, if_neg hk]
     exact (Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)).symm
 

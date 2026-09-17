@@ -326,3 +326,127 @@ impl Rq {
         Rq(out)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Multiplication by a short element
+// ---------------------------------------------------------------------------
+
+/// A short left operand, described by its nonzero centred coefficients.
+///
+/// Three parallel vectors rather than a `Vec` of tuples: Aeneas models
+/// `Vec::push` / `len` / `index`, and a struct of `Vec`s keeps every field a
+/// `@[reducible]` `Vec` alias in the extracted model, which is the shape
+/// `Generated.lean`'s existing specs are written about. `idx[t]` is the
+/// coefficient position, `mag[t]` its centred magnitude and `neg[t]` its sign
+/// (`true` = the centred value is `-mag[t]`).
+pub struct ShortMul {
+    idx: Vec<usize>,
+    mag: Vec<u64>,
+    neg: Vec<bool>,
+}
+
+impl ShortMul {
+    /// How many nonzero coefficients the described element has.
+    pub fn terms(&self) -> usize {
+        self.idx.len()
+    }
+}
+
+/// Describe `a` as a short element, or decline.
+///
+/// Returns `Some(desc)` exactly when `a`'s **centred** `ℓ₁` norm is at most
+/// [`params::OMEGA`] -- which is precisely the `ShortChallenge Φ ω` predicate
+/// the protocol's challenges satisfy -- and `None` otherwise. Declining is not
+/// a failure: [`honest_z`](crate::quadeval::honest_z) falls back to the generic
+/// product, so correctness never depends on the classification succeeding.
+///
+/// The centred representative of a word `c` is `c` when `c ≤ q/2` and
+/// `-(q - c)` otherwise; the budget is checked incrementally so a dense input
+/// is rejected after ~`OMEGA` nonzero coefficients rather than after `N`.
+pub fn classify_short(a: &Rq) -> Option<ShortMul> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let half: u64 = q / 2;
+    let budget: u64 = params::OMEGA;
+    let mut idx: Vec<usize> = Vec::new();
+    let mut mag: Vec<u64> = Vec::new();
+    let mut neg: Vec<bool> = Vec::new();
+    let mut total: u64 = 0;
+    let mut k: usize = 0;
+    while k < n {
+        let c: u64 = a.coeff(k).to_u64();
+        if c != 0 {
+            let m: u64 = if c <= half { c } else { q - c };
+            let s: bool = c > half;
+            total = total + m;
+            if total > budget {
+                return None;
+            }
+            idx.push(k);
+            mag.push(m);
+            neg.push(s);
+        }
+        k += 1;
+    }
+    Some(ShortMul { idx, mag, neg })
+}
+
+/// `desc · s` in `Rq = Z_q[X]/(X^N + 1)`, by signed negacyclic shifts.
+///
+/// **Nothing multiplies.** Each described term `(k, m, sign)` contributes `m`
+/// passes that add (or subtract) the `k`-shifted `s`, and `Σ m ≤ OMEGA = 16`,
+/// so the whole product costs at most 16 passes over `N` -- `16 · 1024` modular
+/// additions against the three-prime NTT's forward/pointwise/inverse pipeline
+/// plus its Garner recombination.
+///
+/// The negacyclic rule is the only subtle line: `X^N = -1`, so a term whose
+/// shifted position `pos = k + i` reaches `N` or beyond lands at `pos - N`
+/// **with its sign flipped**.
+pub fn mul_short_desc(desc: &ShortMul, s: &Rq) -> Rq {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let terms: usize = desc.idx.len();
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut z: usize = 0;
+    while z < n {
+        out.push(0);
+        z += 1;
+    }
+    let mut t: usize = 0;
+    while t < terms {
+        let k: usize = desc.idx[t];
+        let m: u64 = desc.mag[t];
+        let negt: bool = desc.neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            let mut i: usize = 0;
+            while i < n {
+                let sv: u64 = s.coeff(i).to_u64();
+                if sv != 0 {
+                    let pos: usize = k + i;
+                    // X^N = -1: crossing the boundary flips the sign
+                    let w: usize = if pos >= n { pos - n } else { pos };
+                    let wrapped: bool = pos >= n;
+                    let sub: bool = negt != wrapped;
+                    let cur: u64 = out[w];
+                    if sub {
+                        out[w] = if cur >= sv { cur - sv } else { cur + q - sv };
+                    } else {
+                        let sum: u64 = cur + sv;
+                        out[w] = if sum >= q { sum - q } else { sum };
+                    }
+                }
+                i += 1;
+            }
+            pass += 1;
+        }
+        t += 1;
+    }
+    let mut res: Vec<Fp> = Vec::with_capacity(n);
+    let mut j: usize = 0;
+    while j < n {
+        res.push(Fp::new(out[j]));
+        j += 1;
+    }
+    Rq(res)
+}

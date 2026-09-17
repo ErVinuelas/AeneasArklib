@@ -61,6 +61,57 @@ macro_rules! define_cases {
                 PolyVec::new(entries)
             }
 
+            /// A **protocol-valid short challenge**: centred `ℓ₁` norm exactly
+            /// `weight`, spread over `weight / mag` coefficients of magnitude
+            /// `mag` with alternating signs.
+            ///
+            /// This corpus exists because the one the acceptance test uses is
+            /// not protocol-valid. `tests/chain_semantics.rs`'s `ternary_rq`
+            /// fills **all** `RING_DEGREE` coefficients from `{0, ±1}`, giving a
+            /// centred `ℓ₁` norm around `2N/3 ≈ 683`, while the specification's
+            /// challenge type is `ShortChallenge Φ ω` with
+            /// `ω = params::OMEGA = 16`. A short-multiplication candidate
+            /// measured against the dense draw classifies every challenge as
+            /// non-short, takes the fallback, and reads as a small loss -- the
+            /// same way the dense `R^lin` rows were blind to the block-structure
+            /// candidate until they were replaced (NOTES 2026-09-17).
+            ///
+            /// `mag` is a parameter because the budget does not fix the shape:
+            /// 16 units can be sixteen `±1`s or one `±16`, and the multiplier
+            /// applies magnitude by repeated addition, so the two have the same
+            /// total pass count but different loop structure.
+            fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+                let degree = hc::params::RING_DEGREE;
+                let q = hc::params::Q;
+                let mut coeffs = Vec::with_capacity(degree);
+                for _ in 0..degree {
+                    coeffs.push(Fp::new(0));
+                }
+                let terms = (weight / mag) as usize;
+                let mut t = 0usize;
+                while t < terms {
+                    // spread the terms so some of them wrap under any shift
+                    let at = (t * 97 + 13) % degree;
+                    let word = if t % 2 == 0 { mag } else { q - mag };
+                    coeffs[at] = Fp::new(word);
+                    t += 1;
+                }
+                Rq::from_coeffs(&coeffs)
+            }
+
+            /// `blocks` protocol-valid short challenges.
+            fn short_challenges(seed: u64, blocks: usize, weight: u64, mag: u64) -> PolyVec {
+                let mut entries = Vec::with_capacity(blocks);
+                for i in 0..blocks {
+                    entries.push(short_challenge(
+                        seed.wrapping_add(i as u64 * 0x100),
+                        weight,
+                        mag,
+                    ));
+                }
+                PolyVec::new(entries)
+            }
+
             fn blocks_of(seed: u64, blocks: usize, width: usize) -> Vec<PolyVec> {
                 let mut out = Vec::with_capacity(blocks);
                 for i in 0..blocks {
@@ -294,6 +345,57 @@ macro_rules! define_cases {
                 )
             }
 
+            /// `honest_z` at `blocks` blocks with **protocol-valid short**
+            /// challenges: `2^r · n` ring products, the prover's single largest
+            /// arithmetic cost at the pin (`1024 · 8192 = 2^23`).
+            ///
+            /// REDUCED in `blocks` and in width. The item is excluded by name at
+            /// full shape (W4 + W1, hours per iteration over the 64 GiB
+            /// witness); what this row prices is the **per-block** cost, which
+            /// is what scales, and at a challenge shape the protocol can
+            /// actually produce.
+            pub fn honest_z_short(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let width = hc::params::MESSAGE_ROWS * hc::params::GADGET_DIGITS;
+                let message = blocks_of(0x2117_0000_0000_0001, blocks, width);
+                let c = short_challenges(0x2117_0000_0000_0002, blocks, 16, 1);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z(black_box(&message), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
+            /// [`honest_z_short`] with the whole budget in **one** coefficient:
+            /// the same `ℓ₁` total, one descriptor entry rather than sixteen.
+            pub fn honest_z_short_heavy(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let width = hc::params::MESSAGE_ROWS * hc::params::GADGET_DIGITS;
+                let message = blocks_of(0x2117_0000_0000_0003, blocks, width);
+                let c = short_challenges(0x2117_0000_0000_0004, blocks, 16, 16);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z(black_box(&message), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
+            /// [`honest_z_short`] with **dense ternary** challenges — the shape
+            /// the acceptance test draws, and one the protocol never produces.
+            ///
+            /// This is the control for the short-multiplication candidate: every
+            /// challenge fails the classifier, so the row must take the generic
+            /// fallback and must **not** regress. It is what says the candidate
+            /// bought its win from the structure rather than from anywhere else.
+            pub fn honest_z_dense(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let width = hc::params::MESSAGE_ROWS * hc::params::GADGET_DIGITS;
+                let message = blocks_of(0x2117_0000_0000_0005, blocks, width);
+                let c = vec_of(0x2117_0000_0000_0006, blocks);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z(black_box(&message), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
             /// The c5 block matrix of the `R^lin` adapter, materialized:
             /// `k × blocks·(k·digits)` entries, one `scalar_mul` on the gadget
             /// diagonal and a zero elsewhere. Paired with the `tensor_g` row
@@ -343,6 +445,27 @@ fn quadeval_benches(c: &mut Criterion) {
     // one `Rq::mul` at d = 1024 is ~1.5 ms, so `blocks` of them at the
     // scheme's 1024 is ~1.5 s per iteration.
     let reduced_blocks = 8;
+    // `honest_z` fixes `width = MESSAGE_ROWS * GADGET_DIGITS = 8192` from
+    // `params` internally, so the corpus cannot reduce it and the only free
+    // dimension is `blocks`. Even one block is 8192 ring products, so this row
+    // is *seconds* per iteration in every variant and there is no size at which
+    // it is cheap -- which is exactly why it was excluded before (see
+    // `exclusions.toml`) and why it now carries a `samples:` override.
+    //
+    // Measured 2026-09-17, one execution: `now` ~3.4 s, `genesis` ~11.8 s (the
+    // frozen snapshot predates the NTT, so it still runs the schoolbook
+    // `Rq::mul` at 1.17 ms against the NTT's 263 µs). `blocks = 8` was tried
+    // first at ~22 s per iteration and ~5 h for a three-row run, and abandoned;
+    // `blocks = 2` was tried next and its genesis variant alone estimated at
+    // 2356 s. One block still sums over blocks -- which is what the row is
+    // about -- and is the cheapest honest instance of it.
+    let honest_z_blocks = 1;
+    // The sample count for the three `honest_z` rows only. 10 x (3.4 + 3.4 +
+    // 11.8) s = ~3 min per row, ~10 min for all three; 100 samples would be
+    // ~100 min per row. Criterion's own minimum is 10. The `_control` group in
+    // this binary keeps 100 samples, so the threshold every verdict here is
+    // recentered by is still measured at full strength.
+    let honest_z_samples = 10;
     let reduced_rows = 8;
     // REDUCED width. 256 entries = 262144 coefficients, ~665 µs. The scheme's
     // widths are 8192 / 8192 / 40960 (`paper_rel_out`'s three); see the case
@@ -364,6 +487,25 @@ fn quadeval_benches(c: &mut Criterion) {
     bench_case!(c, "quadeval/tensor_g1", tensor_g1, [reduced_blocks]);
     // @covers quadeval::tensor_g
     bench_case!(c, "quadeval/tensor_g", tensor_g, [reduced_blocks]);
+    // `honest_z` at a REDUCED block count, with protocol-valid short challenges
+    // and a dense-challenge control. See `short_challenge`.
+    //
+    // The two short rows are the **evidence** rows for any candidate that
+    // exploits challenge shortness: both must read `faster`. The dense row is a
+    // **guard**, not evidence -- a dense challenge is outside the protocol and
+    // takes the generic fallback, which is byte-identical work, so it is
+    // expected to read `noise` and is required only not to read `slower`. A
+    // candidate that made the fallback slower would be trading a protocol-valid
+    // input against an invalid one, which is not a trade this loop accepts.
+    // @covers quadeval::honest_z
+    bench_case!(c, "quadeval/honest_z_short", honest_z_short, [honest_z_blocks],
+                samples: honest_z_samples);
+    // @covers quadeval::honest_z
+    bench_case!(c, "quadeval/honest_z_short_heavy", honest_z_short_heavy, [honest_z_blocks],
+                samples: honest_z_samples);
+    // @covers quadeval::honest_z
+    bench_case!(c, "quadeval/honest_z_dense", honest_z_dense, [honest_z_blocks],
+                samples: honest_z_samples);
     // @covers quadeval::tensor_g_matrix
     bench_case!(c, "quadeval/tensor_g_matrix", tensor_g_matrix, [reduced_blocks]);
 }

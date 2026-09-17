@@ -270,13 +270,14 @@ fn ntt_length_is_the_ring_degree() {
 /// `u64`; `2N | p − 1` is what makes ψ exist at all.
 #[test]
 fn auxiliary_moduli_are_ntt_friendly_primes() {
+    // Ordered, which is what `garner` skips two reductions on. The operands
+    // are constants, so this is checked at compile time.
+    const _: () = assert!(ntt::AUX_P1 < ntt::AUX_P2 && ntt::AUX_P2 < ntt::AUX_P3);
     for (p, _, _, _, _, _) in aux_params() {
         assert!(is_prime(p), "{p} is not prime");
         assert!(p < (1u64 << 30), "{p} is not below 2^30");
         assert_eq!((p - 1) % (2 * ntt::NTT_LEN as u64), 0, "2N does not divide {p} - 1");
     }
-    // Ordered, which is what `garner` skips two reductions on.
-    assert!(ntt::AUX_P1 < ntt::AUX_P2 && ntt::AUX_P2 < ntt::AUX_P3);
 }
 
 /// Each Barrett magic is `⌊2^64 / p⌋`, and [`ntt::aux_reduce`] really is `% p`
@@ -284,7 +285,8 @@ fn auxiliary_moduli_are_ntt_friendly_primes() {
 #[test]
 fn barrett_reduction_is_modular_reduction() {
     for (p, m, _, _, _, _) in aux_params() {
-        assert_eq!(m, ((1u128 << 64) / u128::from(p)) as u64, "barrett magic for {p}");
+        let magic = u64::try_from((1u128 << 64) / u128::from(p)).unwrap();
+        assert_eq!(m, magic, "barrett magic for {p}");
         let mut probes = vec![0u64, 1, p - 1, p, p + 1, 2 * p - 1, 2 * p, p * p - 1, p * p,
                               u64::MAX, u64::MAX - 1, u64::MAX / p * p];
         let mut rng = Lcg::new(0x4E54_5400_0000_0001 ^ p);
@@ -307,7 +309,8 @@ fn auxiliary_arithmetic_is_field_arithmetic() {
             let b = rng.next_u64() % p;
             assert_eq!(ntt::aux_add(a, b, p), (a + b) % p);
             assert_eq!(ntt::aux_sub(a, b, p), (a + p - b) % p);
-            assert_eq!(ntt::aux_mul(a, b, p, m), (u128::from(a) * u128::from(b) % u128::from(p)) as u64);
+            let expected = u64::try_from(u128::from(a) * u128::from(b) % u128::from(p)).unwrap();
+            assert_eq!(ntt::aux_mul(a, b, p, m), expected);
         }
     }
 }
@@ -406,7 +409,11 @@ fn garner_reconstruction_is_exact() {
     }
     for x in xs {
         assert_eq!(
-            ntt::garner((x % p1) as u64, (x % p2) as u64, (x % p3) as u64),
+            ntt::garner(
+                u64::try_from(x % p1).unwrap(),
+                u64::try_from(x % p2).unwrap(),
+                u64::try_from(x % p3).unwrap(),
+            ),
             x,
             "garner is not exact at {x}"
         );
@@ -445,8 +452,8 @@ fn schoolbook_oracle(a: &Rq, b: &Rq) -> Vec<u64> {
                 neg += ai * u128::from(b.coeff(k + n - i).to_u64());
             }
         }
-        let p = (pos % q) as u64;
-        let m = (neg % q) as u64;
+        let p = u64::try_from(pos % q).unwrap();
+        let m = u64::try_from(neg % q).unwrap();
         out.push(if p >= m { p - m } else { p + Q - m });
     }
     out
@@ -475,17 +482,18 @@ fn ntt_product_agrees_with_the_schoolbook_oracle() {
     let mut rng = Lcg::new(0x4E54_5444_4946_4600);
     let arb = rng.next_rq();
 
-    let mut cases: Vec<(Rq, Rq)> = Vec::new();
-    cases.push((zero.copy(), zero.copy()));
-    cases.push((zero.copy(), arb.copy()));
-    cases.push((one.copy(), arb.copy()));
-    cases.push((arb.copy(), one.copy()));
-    cases.push((x_pow(n - 1), x_pow(1)));
-    cases.push((x_pow(n - 1), x_pow(n - 1)));
-    cases.push((x_pow(n / 2), x_pow(n / 2)));
-    cases.push((allmax.copy(), allmax.copy()));
-    cases.push((alt.copy(), alt.copy()));
-    cases.push((allmax.copy(), arb.copy()));
+    let mut cases: Vec<(Rq, Rq)> = vec![
+        (zero.copy(), zero.copy()),
+        (zero.copy(), arb.copy()),
+        (one.copy(), arb.copy()),
+        (arb.copy(), one.copy()),
+        (x_pow(n - 1), x_pow(1)),
+        (x_pow(n - 1), x_pow(n - 1)),
+        (x_pow(n / 2), x_pow(n / 2)),
+        (allmax.copy(), allmax.copy()),
+        (alt.copy(), alt.copy()),
+        (allmax.copy(), arb.copy()),
+    ];
     for _ in 0..12 {
         cases.push((rng.next_rq(), rng.next_rq()));
     }
@@ -526,4 +534,109 @@ fn ntt_product_coefficients_are_reduced() {
             }
         }
     }
+}
+
+/// `classify_short` + `mul_short_desc` agree with `Rq::mul` on every short
+/// element, and decline exactly the ones over budget.
+///
+/// The oracle for Stage 6 candidate T17 Change 1. The protocol's challenges are
+/// `ShortChallenge Φ 16`, so a valid `c` has centred `ℓ₁` norm at most
+/// `params::OMEGA`; such an element needs signed negacyclic shifts, not a
+/// three-prime NTT. The only thing worth asserting is that the fast path is
+/// *the same product*, so every case below is compared against `Rq::mul`.
+///
+/// The cases are chosen to hit what the implementation can get wrong:
+/// magnitudes beyond `±1` (a `-5` is protocol-valid if the budget still fits,
+/// so `±1` must not be assumed); the **wrap**, where `X^N = −1` flips the sign
+/// of whatever crosses the degree boundary; a coefficient at exactly `N − 1`,
+/// which wraps for every nonzero shift; the budget boundary at 16 and 17; and
+/// dense ternary, which must decline.
+#[test]
+fn short_multiplication_agrees_with_the_generic_one() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0011);
+    let q = hachi::params::Q;
+    let omega = hachi::params::OMEGA;
+
+    // a dense-ish arbitrary right operand: the short side is `c`, not this
+    let mut sc = Vec::new();
+    for _ in 0..RING_DEGREE {
+        sc.push(rng.next_u64() % q);
+    }
+    let s = rq_from_u64s(&sc);
+
+    // (description, coefficient list) — each is `c`, built as raw words
+    let mut cases: Vec<(&str, Vec<u64>)> = Vec::new();
+
+    // weight 1, no wrap
+    let mut c = vec![0u64; RING_DEGREE];
+    c[0] = 1;
+    cases.push(("weight 1 at index 0", c));
+
+    // weight 1 at the last index: every shift wraps
+    let mut c = vec![0u64; RING_DEGREE];
+    c[RING_DEGREE - 1] = 1;
+    cases.push(("weight 1 at index N-1", c));
+
+    // a single negative unit (centred -1 is the word q-1)
+    let mut c = vec![0u64; RING_DEGREE];
+    c[3] = q - 1;
+    cases.push(("weight 1, negative", c));
+
+    // magnitude beyond +/-1: +5 and -5, total 10
+    let mut c = vec![0u64; RING_DEGREE];
+    c[7] = 5;
+    c[RING_DEGREE - 2] = q - 5;
+    cases.push(("magnitudes 5 and -5", c));
+
+    // exactly at the budget: 16 units spread over 16 indices, mixed signs
+    let mut c = vec![0u64; RING_DEGREE];
+    let mut k = 0usize;
+    while k < omega as usize {
+        let at = (k * 61) % RING_DEGREE;
+        c[at] = if k % 2 == 0 { 1 } else { q - 1 };
+        k += 1;
+    }
+    cases.push(("weight 16, mixed signs", c));
+
+    // exactly at the budget as a single coefficient
+    let mut c = vec![0u64; RING_DEGREE];
+    c[11] = omega;
+    cases.push(("weight 16 in one coefficient", c));
+
+    for (name, cc) in &cases {
+        let cpoly_c = rq_from_u64s(cc);
+        let desc = hachi::ring::classify_short(&cpoly_c)
+            .unwrap_or_else(|| panic!("{name}: should classify as short"));
+        let fast = hachi::ring::mul_short_desc(&desc, &s);
+        let slow = cpoly_c.mul(&s);
+        assert!(
+            fast.equals(&slow),
+            "{name}: short multiply disagrees with Rq::mul\n  short: {}\n  generic: {}",
+            show(&fast),
+            show(&slow)
+        );
+    }
+
+    // over budget by one unit: must decline, and the caller then falls back
+    let mut c = vec![0u64; RING_DEGREE];
+    let mut k = 0usize;
+    while k < omega as usize + 1 {
+        c[k * 7] = 1;
+        k += 1;
+    }
+    assert!(
+        hachi::ring::classify_short(&rq_from_u64s(&c)).is_none(),
+        "weight 17 is over the omega budget and must decline"
+    );
+
+    // dense ternary, the shape the acceptance test draws: must decline
+    let mut c = vec![0u64; RING_DEGREE];
+    for e in c.iter_mut() {
+        let t = rng.next_u64() % 3;
+        *e = if t == 2 { q - 1 } else { t };
+    }
+    assert!(
+        hachi::ring::classify_short(&rq_from_u64s(&c)).is_none(),
+        "dense ternary has l1 norm in the hundreds and must decline"
+    );
 }

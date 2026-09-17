@@ -1647,5 +1647,34 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.lagrange_basis.optLoop_length
 #print axioms HachiEquiv.EvalSplit.lagrange_basis_inner_loop_spec
 #print axioms HachiEquiv.EvalSplit.lagrange_basis_outer_loop_spec
+-- Candidate T17 Change 1 (Stage 6, `quadeval::honest_z` via
+-- `ring::mul_short_desc`) -- multiplication by a short element as signed
+-- negacyclic shifts. The headline is stated against `Ring.negConv`, the same
+-- right-hand side `Ring.mul_spec` proves, so `honest_z`'s specification did not
+-- move: `honest_z_loop0_spec` carries the identical statement the pre-candidate
+-- `honest_z_loop_spec` did. The `ell_1` budget `Sigma mag <= OMEGA` is
+-- deliberately NOT a hypothesis anywhere below, which is what makes the
+-- classification unable to affect soundness -- only speed.
+--
+-- The algebra (`Opt.lean`) and the word level (`AuxShort.lean`) share one copy
+-- of `negConvF`/`single`/`contrib`, which is why those three audit lines name
+-- `AuxShort` rather than `Opt`.
+#print axioms HachiEquiv.Opt.MulShort.opt_eq_spec
+#print axioms HachiEquiv.Opt.MulShort.opt_eq_negConvF
+#print axioms HachiEquiv.Opt.MulShort.passLoop_eq
+#print axioms HachiEquiv.AuxShort.negConvF_single
+#print axioms HachiEquiv.AuxShort.negConvF_add_left
+#print axioms HachiEquiv.AuxShort.negConvF_coeffK
+#print axioms HachiEquiv.AuxShort.inner_spec
+#print axioms HachiEquiv.AuxShort.pass_spec
+#print axioms HachiEquiv.AuxShort.terms_spec
+#print axioms HachiEquiv.AuxShort.termsSum_eq_negConvF
+#print axioms HachiEquiv.AuxShort.mul_short_desc_spec
+#print axioms HachiEquiv.AuxShort.classify_short_loop_spec
+#print axioms HachiEquiv.AuxShort.classify_short_spec
+#print axioms HachiEquiv.RqBridge.mul_short_desc_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop0_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_spec
 
 end HachiEquiv.Check

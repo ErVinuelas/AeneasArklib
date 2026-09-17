@@ -876,7 +876,7 @@ fn rlin_row_agrees_with_rlin_stmt() {
     let mut i = 0usize;
     while i < rows {
         let lazy = hachi::quadeval::rlin_row(
-            &pp, &stmt, &v, &c, blocks, message_rows, message_digits,
+            &pp, &stmt, &c, blocks, message_rows, message_digits,
             inner_rows, inner_digits, z_digits, i,
         );
         assert_eq!(lazy.len(), cols, "row {i} has rlinCols entries");

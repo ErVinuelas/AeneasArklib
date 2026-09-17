@@ -518,4 +518,29 @@ macro_rules! bench_case {
         $( $crate::case!(g, $f, $p); )+
         g.finish();
     }};
+    // `samples: n` -- lower the sample count for THIS group only.
+    //
+    // Criterion samples linearly: `n` samples of a routine costs
+    // `n(n+1)/2` executions when the routine fits the measurement window, and
+    // when it does not, criterion falls back to one execution per sample and
+    // simply takes `n` times as long as a single call. Either way a row whose
+    // single execution is *seconds* cannot afford 100 samples -- 100 executions
+    // of a 12 s genesis body is 20 minutes for one variant of one row.
+    //
+    // Prefer this to a per-binary `criterion_config` override (which
+    // `benches/commit.rs` uses, and is the only binary that does): a binary
+    // usually mixes microsecond rows, which want the full 100, with the one
+    // block-linear row that does not. Lowering the binary would quietly weaken
+    // the `_control` group that every verdict in that binary is recentered by.
+    //
+    // Fewer samples is a wider confidence interval, not a biased one, and the
+    // `_control` group keeps its 100 -- so the run's threshold is still
+    // measured at full strength. The floor is criterion's own minimum of 10.
+    // Record the arithmetic at the call site, as `commit.rs` does.
+    ($c:expr, $name:literal, $f:ident, [$($p:expr),+ $(,)?], samples: $n:expr) => {{
+        let mut g = $c.benchmark_group($name);
+        g.sample_size($n);
+        $( $crate::case!(g, $f, $p); )+
+        g.finish();
+    }};
 }

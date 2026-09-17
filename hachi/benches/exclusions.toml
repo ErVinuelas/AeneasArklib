@@ -423,11 +423,21 @@ directly as `gadget/balanced_gadget_decompose`; what cannot run here is the
 W4 + W1: `carrier_decomp` plus `dRows · (2^r · δ) = 8192` ring muls. Blocked by
 the witness before the multiplication."""
 
-"quadeval::honest_z" = """
-W4 + W1, and the target's dominant term: `2^r · n = 2^23` full ring products
-(`scalarVecMul` multiplies by a ring element, not a constant) -- the same order
-as `commit::commit`, hours per criterion iteration -- over the 64 GiB witness.
-Both walls fire; the memory one is not removed by a mul champion."""
+# `quadeval::honest_z` was excluded here until 2026-09-17. Its reason was
+# "W4 + W1, and the target's dominant term: 2^r·n = 2^23 full ring products ...
+# hours per criterion iteration over the 64 GiB witness. Both walls fire; the
+# memory one is not removed by a mul champion." All of that is still true *at
+# full shape*, which is why the replacement is REDUCED in `blocks`: the row
+# prices the per-block cost, which is what scales with `BLOCKS`, and neither
+# wall fires at eight blocks.
+#
+# It came back because the 64-block end-to-end run (2026-09-17) measured
+# block-linear work at ~96% of the pin-scale runtime, with this item's phase the
+# largest single share -- so the thing the exclusion called "the target's
+# dominant term" needed a row more than it needed an apology. Three cases:
+# `honest_z_short` (protocol-valid `ShortChallenge Φ 16`), `honest_z_short_heavy`
+# (same budget in one coefficient) and `honest_z_dense` (dense ternary, the
+# control for the short-multiplication fallback).
 
 "quadeval::honest_compute_v" = """
 W4 + W1: `carrier_commit` under another name (`QuadEval/Reduction.lean`)."""

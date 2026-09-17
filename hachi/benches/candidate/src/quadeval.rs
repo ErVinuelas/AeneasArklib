@@ -292,8 +292,27 @@ pub fn honest_z(message: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
     let mut acc: PolyVec = PolyVec::zeros(width);
     let mut i: usize = 0;
     while i < blocks {
-        let scaled: PolyVec = message[i].scalar_mul(c.get(i));
-        acc = acc.add(&scaled);
+        // A protocol challenge is `ShortChallenge Φ ω`, so `cᵢ` has centred
+        // `ℓ₁` norm at most `params::OMEGA = 16` and its product with a ring
+        // element is 16 signed negacyclic shifts, not a three-prime NTT. The
+        // fallback is the generic product, so a `cᵢ` that is *not* short --
+        // anything outside the protocol -- is still computed correctly.
+        let ci: &Rq = c.get(i);
+        match crate::ring::classify_short(ci) {
+            Some(desc) => {
+                let mut out: Vec<Rq> = Vec::with_capacity(width);
+                let mut j: usize = 0;
+                while j < width {
+                    out.push(crate::ring::mul_short_desc(&desc, message[i].get(j)));
+                    j += 1;
+                }
+                acc = acc.add(&PolyVec::new(out));
+            }
+            None => {
+                let scaled: PolyVec = message[i].scalar_mul(ci);
+                acc = acc.add(&scaled);
+            }
+        }
         i += 1;
     }
     acc
@@ -820,7 +839,6 @@ pub fn unstack(zeta: &PolyVec, cw: usize, ct: usize, inner_width: usize) -> Quad
 pub fn rlin_row(
     pp: &PublicParamsD,
     stmt: &QuadEvalStatement,
-    v: &PolyVec,
     c: &PolyVec,
     blocks: usize,
     message_rows: usize,
