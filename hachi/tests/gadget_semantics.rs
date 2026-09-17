@@ -661,3 +661,39 @@ fn bounded_z_digits_do_not_reconstruct_long_elements() {
         "a long element reconstructed; the bounded decomposition is not bounded"
     );
 }
+
+/// `digit_at` is still `⌊c / bᵉ⌋ mod b`, at every `e` -- including past the
+/// digit count, where the specification's `getD` returns its `0` default.
+///
+/// The implementation is now a shift and a mask rather than a division chain,
+/// and this is the oracle for that: the reference below is the division chain
+/// it replaced, written out here so the two cannot drift together. `e` is taken
+/// well past `GADGET_DIGITS` on purpose, because that is exactly where a bare
+/// shift would be undefined and the guard is what keeps the agreement.
+#[test]
+fn digit_at_agrees_with_the_division_chain_at_every_index() {
+    let b = hachi::params::GADGET_BASE;
+    let reference = |c: u64, e: usize| -> u64 {
+        let mut rest = c;
+        for _ in 0..e {
+            rest /= b;
+        }
+        rest % b
+    };
+
+    let mut rng = Lcg::new(0x6AD6_0001);
+    let mut cs: Vec<u64> = vec![0, 1, b - 1, b, Q - 1, Q / 2];
+    for _ in 0..64 {
+        cs.push(rng.next_u64() % Q);
+    }
+
+    for &c in &cs {
+        for e in 0..40usize {
+            assert_eq!(
+                hachi::gadget::digit_at(Fp::new(c), e).to_u64(),
+                reference(c, e),
+                "digit_at({c}, {e}) disagrees with the division chain"
+            );
+        }
+    }
+}
