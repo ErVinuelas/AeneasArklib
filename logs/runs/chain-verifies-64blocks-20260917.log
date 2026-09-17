@@ -1,0 +1,38 @@
+# the_honest_chain_verifies at HACHI_CHAIN_BLOCKS=64, on db6898c clean
+# W4 route 1 (PLAN_STAGE6 § The fourth wall): a reduced-blocks end-to-end point.
+# Needs NO code -- chain_blocks_from_env() already reads HACHI_CHAIN_BLOCKS and both
+#   the acceptance test and the profile use it; the plan thought a parameter was owed.
+# Sized from the measured 1-block peak (7.63 GiB, of which ~7.5 is block-independent):
+#   64 blocks ~= 7.5 + 0.5 message + 4 decomposition ~= 12 GiB of 30.
+# This run INCLUDES the M zeta = y assertion (check_relout = true) -- it is the
+#   acceptance test, not the profile, so the semantics check is the point.
+# started 2026-09-17T09:14:27+02:00
+warning: unused variable: `v`
+   --> src/quadeval.rs:823:5
+    |
+823 |     v: &PolyVec,
+    |     ^ help: if this is intentional, prefix it with an underscore: `_v`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: `hachi` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.05s
+     Running tests/chain_semantics.rs (hachi/target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+test the_honest_chain_verifies has been running for over 60 seconds
+[   198.7s] committed 64 block(s)
+[   319.4s] statement built
+[   344.2s] honest_compute_v done
+[   550.0s] honest_compute_resp + stack done
+[   551.5s] R^lin statement assembled: 5 x 41984
+[   601.5s] M zeta = y holds
+[   652.0s] lifted witness built, lift width 42024
+[   914.4s] chain_open done
+[   937.4s] chain_verify = true
+test the_honest_chain_verifies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 938.21s
+
+# PEAK RSS (VmHWM) = 15021280 kB = 14669 MiB
+# exit 0 at 2026-09-17T09:30:10+02:00

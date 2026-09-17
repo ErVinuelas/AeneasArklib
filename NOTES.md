@@ -7686,3 +7686,79 @@ candidate, and it is the cheapest route to a Stage 7 number.
 
 Consequence for T1b: finish it for **I7** — which closes Stage 5's inherited
 obligation and gates Stage 7 — not for headroom.
+
+## The 64-block end-to-end point: 15.6 min, 14.3 GiB, and the shares invert (2026-09-17)
+
+`the_honest_chain_verifies` at `HACHI_CHAIN_BLOCKS=64`, `8dec09e`, **passed**:
+938.2 s and peak RSS **14 669 MiB = 14.3 GiB** of 30
+(`logs/runs/chain-verifies-64blocks-20260917.log`).
+
+**It needed no code.** `chain_blocks_from_env()` already reads
+`HACHI_CHAIN_BLOCKS`, and both the acceptance test and the profile use it — the
+plan's W4 route 1 says "needs one `blocks` parameter on
+`the_honest_chain_verifies`", and that parameter has been there all along.
+
+### Per-block costs, measured
+
+| phase | 1 block | 64 blocks | scaling |
+|---|---|---|---|
+| `commit` | 3.9 | **198.7** | linear, **3.10 s/block** |
+| statement built | 2.6 | **120.7** | linear, **1.89 s/block** |
+| `honest_compute_v` | 0.4 | 24.8 | linear, 0.39 s/block |
+| `honest_compute_resp` + `stack` | 4.0 | **205.8** | linear, **3.22 s/block** |
+| `R^lin` assembled | 1.5 | 1.5 | **fixed** |
+| lifted witness | 50.1 | 50.5 | **fixed** |
+| rounds (26) | ~212 | ~212 | **fixed** |
+| `chain_verify` | ~21 | 23.0 | **fixed** |
+
+Block-linear total **550.0 s / 64 = 8.59 s/block**; block-independent **338 s**.
+That cross-checks against the 1-block profile: `338 + 8.6 = 347` against the
+350.6 s measured, 1% apart, on two different tests.
+
+### Extrapolated to the pin (labelled as extrapolation)
+
+`1024 × 8.59 = 8 796 s` block-linear plus 338 s fixed ≈ **2.54 h**, so
+**block-linear work is ~96% of the pin-scale runtime**:
+
+| phase | s at 1024 blocks | share |
+|---|---|---|
+| `honest_compute_resp` + `stack` | 3 293 | **36.0%** |
+| `commit` | 3 179 | **34.8%** |
+| statement built | 1 931 | 21.1% |
+| `honest_compute_v` | 397 | 4.3% |
+| rounds (26) | 212 | **2.3%** |
+| lifted witness | 50 | 0.5% |
+
+**Every share quoted earlier in this session was a 1-block share, and for
+anything block-linear that is the wrong denominator.** The rounds — which the
+post-T1a1 entry calls 62.7% of protocol and which the S question and card T3
+both target — are **2.3%** at the pin. The lifted-witness phase, two sessions'
+headline target, is 0.5%.
+
+Memory extrapolates the same way: block-linear part is `(14.3 − 7.5)/64 =
+0.106 GiB/block`, so 1024 blocks needs ≈ **116 GiB** — consistent with W4's
+64 GiB decomposition plus the message. The ceiling on this 30 GiB machine is
+about **192 blocks**; 128 blocks needs ≈ 21 GiB and fits.
+
+### Two things the phase list exposed
+
+**"Statement built" is partly test scaffolding.** It is
+`dense_eval(&raw, &xl, &xh)` — the test computing the ground-truth evaluation —
+plus `to_quad_eval_statement`. Like `M ζ = y`, part of that 21% is not protocol
+work, and the split has never been measured.
+
+**And the challenge is *not* block-sparse.** I had proposed an `honest_z`
+zero-skip on the reading that `‖c‖₁ ≤ ω = 16` bounds the whole vector, making at
+most 16 of 1024 blocks nonzero — "T1a1 again". It does not.
+`params::OMEGA`'s own docstring says it is "the `ℓ₁` bound `ω` on a *sampled*
+challenge: `ShortChallenge Φ ω`" — one ring element. So `c` is 1024 short
+challenges, all nonzero, and the test's dense ternary draw is representative.
+There is nothing to skip.
+
+What brief 2's factor actually rests on is **coefficient** sparsity: each `c_i`
+has at most 16 nonzero coefficients of `N = 1024`, so
+`message[i].scalar_mul(c_i)` is a product with one coefficient-sparse operand
+and can be 16 shifted adds instead of a ring product. The plan's "~64×" is
+`1024/16`, i.e. against the *schoolbook*; post-NTT the comparison is 16 shifted
+adds against ~92 000 butterflies, which is still large but is a different
+number and is not quoted here because it has not been measured.
