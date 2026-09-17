@@ -1213,4 +1213,484 @@ theorem classify_short_spec (a : ring.Rq) (ha : Wf a) :
   intro j hj
   rw [e5 j, if_pos hj]
 
+/-! ## 11. `ring::mul_short_add_into` -- the same product, accumulated in place
+
+Candidate T17 Change 2. `mul_short_desc` must allocate a `u64` scratch, zero it,
+and convert it to `Fp`; its caller then allocates again to add the result in. At
+the paper's parameters `honest_z` does that 8192 times per message block, so the
+allocations and the `Fp` conversion are pure overhead: the shift loop can add
+straight into the accumulator, since adding a shifted copy is what it does.
+
+**Everything in §§1-8 is reused unchanged.** `applied`, `passed`, `termsSum`,
+`sgn`, `dstOf`/`srcOf`, the branch lemmas and `termsSum_eq_negConvF` are stated
+over `ℕ → ZMod q` and know nothing about which buffer holds the coefficients. Only
+the *loop* specs are new, because the extracted loops here write a `Vec Fp`
+through `coeffK` where §§3-6 wrote a `Vec Std.U64` through `AuxCode.wordAt`. -/
+
+theorem coeffK_set_eq {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize}
+    {x : cpoly.field.Fp} (ht : t.val < v.val.length) :
+    coeffK (v.set t x) t.val = toK x := by
+  unfold coeffK
+  rw [alloc.vec.Vec.set_val_eq,
+    List.getD_eq_getElem _ _ (by rw [List.length_set]; exact ht), List.getElem_set]
+  simp
+
+theorem coeffK_set_ne {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize}
+    {x : cpoly.field.Fp} {k : ℕ} (h : k ≠ t.val) :
+    coeffK (v.set t x) k = coeffK v k := by
+  unfold coeffK
+  rw [alloc.vec.Vec.set_val_eq]
+  by_cases hk : k < v.val.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+/-- The `Fp`-buffer twin of [`write_invariant`]: one write advances `applied` by
+one source index. Same proof, `coeffK` in place of `AuxCode.wordAt`. -/
+theorem write_invariant_fp (d : ring.Rq) (base sc : ℕ → ZMod q)
+    (k i : ℕ) (negt : Bool) (wU : Std.Usize) (x : cpoly.field.Fp)
+    (hk : k < N) (hi : i < N) (hdl : d.val.length = N)
+    (hred : ∀ u ∈ d.val, Red u)
+    (hwv : wU.val = dstOf k i) (hxred : Red x)
+    (hxval : toK x = coeffK d wU.val + sgn negt k wU.val * sc i)
+    (hw : ∀ w, w < N → coeffK d w = applied base sc k negt i w) :
+    Wf (d.set wU x) ∧
+      ∀ w, w < N → coeffK (d.set wU x) w = applied base sc k negt (i + 1) w := by
+  refine ⟨⟨by rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hdl,
+    Red_set hred hxred⟩, ?_⟩
+  intro w hwlt
+  rw [applied_succ]
+  by_cases heq : w = wU.val
+  · have hsrceq : srcOf k wU.val = i := by rw [hwv]; exact srcOf_dstOf hk hi
+    have hwltU : wU.val < N := by rw [← heq]; exact hwlt
+    rw [heq, coeffK_set_eq (by rw [hdl]; exact hwltU), hxval, hw wU.val hwltU,
+      hsrceq, if_pos rfl]
+  · have hne : srcOf k w ≠ i := by
+      intro hcon
+      have hwd : w = dstOf k i := by rw [← hcon, dstOf_srcOf hk hwlt]
+      rw [← hwv] at hwd
+      exact heq hwd
+    rw [coeffK_set_ne heq, hw w hwlt, if_neg hne, add_zero]
+
+/-- **The inner loop, accumulating.** One pass added into `acc`. The `s`
+component of the state is the borrowed operand and comes back untouched. -/
+theorem inner_add_spec (s acc : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
+    (kU : Std.Usize) (negt : Bool) (iU : Std.Usize) (base : ℕ → ZMod q)
+    (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q) (hk : kU.val < N)
+    (hi : iU.val ≤ N) (hacc : Wf acc)
+    (hval : ∀ w, w < N → coeffK acc w
+              = applied base (coeffK s) kU.val negt iU.val w) :
+    ring.mul_short_add_into_loop0_loop0_loop0 s acc nU qU kU negt iU
+      ⦃ z => z.1 = s ∧ Wf z.2 ∧
+        ∀ w, w < N → coeffK z.2 w
+          = applied base (coeffK s) kU.val negt N w ⦄ := by
+  rw [ring.mul_short_add_into_loop0_loop0_loop0]
+  apply loop.spec_decr_nat (fun t => nU.val - t.2.2.val)
+    (fun t => t.1 = s ∧ t.2.2.val ≤ N ∧ Wf t.2.1
+      ∧ ∀ w, w < N → coeffK t.2.1 w
+              = applied base (coeffK s) kU.val negt t.2.2.val w)
+  · rintro ⟨s1, d, ii⟩ ⟨hs1, hii, hcd, hw⟩
+    dsimp only at hs1 hii hcd hw
+    -- rewrite the GOAL's `s1` to `s`; `subst` here eliminates `s` instead,
+    -- and every hypothesis below is stated about `s`
+    rw [hs1]
+    simp only [ring.mul_short_add_into_loop0_loop0_loop0.body]
+    by_cases hlt : ii < nU
+    · rw [if_pos hlt]
+      have hiin : ii.val < nU.val := (Std.UScalar.lt_equiv ii nU).mp hlt
+      have hiilt : ii.val < N := by rw [← hn]; exact hiin
+      have hsb : ii.val < s.val.length := by rw [hs.1]; exact hiilt
+      have hdl : d.val.length = N := hcd.1
+      step as ⟨f, hf⟩
+      step with to_u64_id f as ⟨sv, hsvf⟩
+      have hsvlt : sv.val < q := by
+        rw [hsvf, hf]; exact hs.2 _ (List.getElem_mem hsb)
+      have hsvval : ((sv.val : ℕ) : ZMod q) = coeffK s ii.val := by
+        rw [hsvf, hf, coeffK_of_lt hsb]; rfl
+      by_cases hsv0 : sv = 0#u64
+      · have hzero : coeffK s ii.val = 0 := by rw [← hsvval, hsv0]; simp
+        rw [if_neg (by simp [hsv0])]
+        step as ⟨ii1, hii1⟩
+        refine ⟨by rw [hii1]; omega, hcd, ?_, by rw [hii1]; omega⟩
+        intro w hwlt
+        rw [hii1, applied_succ, hw w hwlt]
+        by_cases hsrc : srcOf kU.val w = ii.val
+        · rw [if_pos hsrc, hsrc, hzero, mul_zero, add_zero]
+        · rw [if_neg hsrc, add_zero]
+      · rw [if_pos (by simp [hsv0])]
+        step as ⟨pos, hpos⟩
+        by_cases hge : N ≤ kU.val + ii.val
+        · -- wrapped: the sign folds
+          have hpge : pos ≥ nU := by scalar_tac
+          rw [if_pos hpge]
+          step as ⟨wU, hwU⟩
+          have hwv : wU.val = dstOf kU.val ii.val := by
+            unfold dstOf; rw [if_neg (by omega)]; omega
+          have hwltN : wU.val < N := by rw [hwv]; exact dstOf_lt hk hiilt
+          have hwb : wU.val < d.val.length := by rw [hdl]; exact hwltN
+          have hdf : decide (pos ≥ nU) = true := by simp [hpge]
+          have hsgnbase : sgn negt kU.val wU.val
+              = (if xor negt true then -1 else 1) := by
+            rw [hwv, sgn_eq negt kU.val ii.val hk hiilt]
+            unfold wrapped
+            rw [decide_eq_true hge]
+          step as ⟨fc, hfc⟩
+          step with to_u64_id fc as ⟨cur, hcurf⟩
+          have hcurlt : cur.val < q := by
+            rw [hcurf, hfc]; exact hcd.2 _ (List.getElem_mem hwb)
+          have hcurval : ((cur.val : ℕ) : ZMod q) = coeffK d wU.val := by
+            rw [hcurf, hfc, coeffK_of_lt hwb]; rfl
+          rw [hdf]
+          cases negt with
+          | false =>
+            have hsgnv : sgn false kU.val wU.val = -1 := by rw [hsgnbase]; simp
+            simp only [bne_iff_ne, ne_eq, Bool.false_eq_true, not_false_eq_true,
+              ite_true]
+            by_cases hcs : sv.val ≤ cur.val
+            · rw [if_pos (show cur ≥ sv by scalar_tac)]
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = subW cur.val sv.val := by
+                unfold subW; rw [if_pos hcs]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val false wU f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (subBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+            · rw [if_neg (show ¬ (cur ≥ sv) by scalar_tac)]
+              step as ⟨i2, hi2⟩
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = subW cur.val sv.val := by
+                unfold subW; rw [if_neg hcs, ← hq]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val false wU f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (subBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+          | true =>
+            have hsgnv : sgn true kU.val wU.val = 1 := by rw [hsgnbase]; simp
+            simp only [bne_self_eq_false, Bool.false_eq_true, if_false]
+            step as ⟨sum, hsum⟩
+            by_cases hcq : q ≤ cur.val + sv.val
+            · rw [if_pos (show sum ≥ qU by scalar_tac)]
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = addW cur.val sv.val := by
+                unfold addW; rw [if_pos hcq, ← hq]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val true wU f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (addBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+            · rw [if_neg (show ¬ (sum ≥ qU) by scalar_tac)]
+              have hnvs : sum.val = addW cur.val sv.val := by
+                unfold addW; rw [if_neg hcq]; scalar_tac
+              step with fp_new_spec sum as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val true wU f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (addBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+        · -- no wrap: `pos` is the target and the sign is unfolded
+          have hpge : ¬ (pos ≥ nU) := by scalar_tac
+          rw [if_neg hpge]
+          have hwv : pos.val = dstOf kU.val ii.val := by
+            unfold dstOf; rw [if_pos (by omega)]; exact hpos
+          have hwltN : pos.val < N := by rw [hwv]; exact dstOf_lt hk hiilt
+          have hwb : pos.val < d.val.length := by rw [hdl]; exact hwltN
+          have hdf : decide (pos ≥ nU) = false := by simp [hpge]
+          have hsgnbase : sgn negt kU.val pos.val
+              = (if xor negt false then -1 else 1) := by
+            rw [hwv, sgn_eq negt kU.val ii.val hk hiilt]
+            unfold wrapped
+            rw [decide_eq_false (by omega : ¬ (N ≤ kU.val + ii.val))]
+          step as ⟨fc, hfc⟩
+          step with to_u64_id fc as ⟨cur, hcurf⟩
+          have hcurlt : cur.val < q := by
+            rw [hcurf, hfc]; exact hcd.2 _ (List.getElem_mem hwb)
+          have hcurval : ((cur.val : ℕ) : ZMod q) = coeffK d pos.val := by
+            rw [hcurf, hfc, coeffK_of_lt hwb]; rfl
+          rw [hdf]
+          cases negt with
+          | false =>
+            have hsgnv : sgn false kU.val pos.val = 1 := by rw [hsgnbase]; simp
+            simp only [bne_self_eq_false, Bool.false_eq_true, if_false]
+            step as ⟨sum, hsum⟩
+            by_cases hcq : q ≤ cur.val + sv.val
+            · rw [if_pos (show sum ≥ qU by scalar_tac)]
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = addW cur.val sv.val := by
+                unfold addW; rw [if_pos hcq, ← hq]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val false pos f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (addBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+            · rw [if_neg (show ¬ (sum ≥ qU) by scalar_tac)]
+              have hnvs : sum.val = addW cur.val sv.val := by
+                unfold addW; rw [if_neg hcq]; scalar_tac
+              step with fp_new_spec sum as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val false pos f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (addBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+          | true =>
+            have hsgnv : sgn true kU.val pos.val = -1 := by rw [hsgnbase]; simp
+            simp only [bne_iff_ne, ne_eq, Bool.true_eq_false, not_false_eq_true,
+              ite_true]
+            by_cases hcs : sv.val ≤ cur.val
+            · rw [if_pos (show cur ≥ sv by scalar_tac)]
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = subW cur.val sv.val := by
+                unfold subW; rw [if_pos hcs]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val true pos f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (subBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+            · rw [if_neg (show ¬ (cur ≥ sv) by scalar_tac)]
+              step as ⟨i2, hi2⟩
+              step as ⟨nv, hnv⟩
+              have hnvs : nv.val = subW cur.val sv.val := by
+                unfold subW; rw [if_neg hcs, ← hq]; scalar_tac
+              step with fp_new_spec nv as ⟨f2, hf2red, hf2val⟩
+              step as ⟨pr, hpr1, hpr2⟩
+              obtain ⟨e, bk⟩ := pr
+              dsimp only at hpr2 ⊢
+              rw [hpr2]
+              step as ⟨ii1, hii1⟩
+              obtain ⟨hcan, hvals⟩ := write_invariant_fp d base (coeffK s)
+                kU.val ii.val true pos f2 hk hiilt hdl hcd.2 hwv hf2red
+                (by
+                  rw [hf2val, hnvs, (subBranch cur.val sv.val hcurlt hsvlt).2,
+                    hcurval, hsgnv, ← hsvval]
+                  ring)
+                hw
+              exact ⟨by rw [hii1]; omega, hcan,
+                by intro w hwlt; rw [hii1]; exact hvals w hwlt,
+                by rw [hii1]; omega⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = N := by
+        have h1 : nU.val ≤ ii.val := by scalar_tac
+        rw [hn] at h1; omega
+      rw [heq] at hw
+      exact ⟨rfl, hcd, hw⟩
+  · exact ⟨rfl, hi, hacc, hval⟩
+
+/-- **The pass loop, accumulating.** `m` copies added in. -/
+theorem pass_add_spec (s acc : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
+    (kU : Std.Usize) (mU : Std.U64) (negt : Bool) (passU : Std.U64)
+    (base : ℕ → ZMod q)
+    (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q) (hk : kU.val < N)
+    (hp : passU.val ≤ mU.val) (hacc : Wf acc)
+    (hval : ∀ w, w < N → coeffK acc w
+              = passed base (coeffK s) kU.val negt passU.val w) :
+    ring.mul_short_add_into_loop0_loop0 s acc nU qU kU mU negt passU
+      ⦃ z => z.1 = s ∧ Wf z.2 ∧
+        ∀ w, w < N → coeffK z.2 w
+          = passed base (coeffK s) kU.val negt mU.val w ⦄ := by
+  rw [ring.mul_short_add_into_loop0_loop0]
+  apply loop.spec_decr_nat (fun t => mU.val - t.2.2.val)
+    (fun t => t.1 = s ∧ t.2.2.val ≤ mU.val ∧ Wf t.2.1
+      ∧ ∀ w, w < N → coeffK t.2.1 w
+              = passed base (coeffK s) kU.val negt t.2.2.val w)
+  · rintro ⟨s1, d, pp⟩ ⟨hs1, hpp, hcd, hw⟩
+    dsimp only at hs1 hpp hcd hw
+    rw [hs1]
+    simp only [ring.mul_short_add_into_loop0_loop0.body]
+    by_cases hlt : pp < mU
+    · rw [if_pos hlt]
+      have hppm : pp.val < mU.val := (Std.UScalar.lt_equiv pp mU).mp hlt
+      step with inner_add_spec s d nU qU kU negt 0#usize
+        (passed base (coeffK s) kU.val negt pp.val) hs hn hq hk (by simp) hcd
+        (by
+          intro w hwlt
+          unfold applied
+          simpa using hw w hwlt) as ⟨za, zb, hzeq, hzc, hzv⟩
+      step as ⟨pp1, hpp1⟩
+      refine ⟨hzeq, by rw [hpp1]; omega, hzc, ?_, by rw [hpp1]; omega⟩
+      intro w hwlt
+      rw [hpp1, ← applied_passed base (coeffK s) kU.val negt pp.val w hk hwlt]
+      exact hzv w hwlt
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : pp.val = mU.val := by scalar_tac
+      rw [heq] at hw
+      exact ⟨rfl, hcd, hw⟩
+  · exact ⟨rfl, hp, hacc, hval⟩
+
+/-- **The terms loop, accumulating.** -/
+theorem terms_add_spec (vi : alloc.vec.Vec Std.Usize) (vm : alloc.vec.Vec Std.U64)
+    (vn : alloc.vec.Vec Bool) (s acc : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
+    (termsU tU : Std.Usize) (base : ℕ → ZMod q)
+    (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q)
+    (hlen : vi.val.length = termsU.val)
+    (hmlen : termsU.val ≤ vm.val.length) (hnlen : termsU.val ≤ vn.val.length)
+    (hidx : ∀ u, u < termsU.val → idxAt vi u < N)
+    (ht : tU.val ≤ termsU.val) (hacc : Wf acc)
+    (hval : ∀ w, w < N → coeffK acc w
+              = base w + termsSum (coeffK s) vi vm vn tU.val w) :
+    ring.mul_short_add_into_loop0 vi vm vn s acc nU qU termsU tU
+      ⦃ z => Wf z ∧ ∀ w, w < N → coeffK z w
+          = base w + termsSum (coeffK s) vi vm vn termsU.val w ⦄ := by
+  rw [ring.mul_short_add_into_loop0]
+  apply loop.spec_decr_nat (fun r => termsU.val - r.2.2.val)
+    (fun r => r.1 = s ∧ r.2.2.val ≤ termsU.val ∧ Wf r.2.1
+      ∧ ∀ w, w < N → coeffK r.2.1 w
+              = base w + termsSum (coeffK s) vi vm vn r.2.2.val w)
+  · rintro ⟨s1, d, tt⟩ ⟨hs1, htt, hcd, hw⟩
+    dsimp only at hs1 htt hcd hw
+    rw [hs1]
+    simp only [ring.mul_short_add_into_loop0.body]
+    by_cases hlt : tt < termsU
+    · rw [if_pos hlt]
+      have httlt : tt.val < termsU.val := by scalar_tac
+      step as ⟨kk, hkk⟩
+      step as ⟨mm, hmm⟩
+      step as ⟨nn, hnn⟩
+      have hkkv : kk.val = idxAt vi tt.val := by
+        unfold idxAt; rw [hkk, List.getD_eq_getElem _ _ (by rw [hlen]; exact httlt)]
+      have hmmv : mm.val = magAt vm tt.val := by
+        unfold magAt; rw [hmm, List.getD_eq_getElem _ _ (by omega)]
+      have hnnv : nn = negAt vn tt.val := by
+        unfold negAt; rw [hnn, List.getD_eq_getElem _ _ (by omega)]
+      have hkN : kk.val < N := by rw [hkkv]; exact hidx tt.val httlt
+      step with pass_add_spec s d nU qU kk mm nn 0#u64
+        (fun w => base w + termsSum (coeffK s) vi vm vn tt.val w)
+        hs hn hq hkN (by simp) hcd
+        (by
+          intro w hwlt
+          unfold passed
+          simpa using hw w hwlt) as ⟨za, zb, hzeq, hzc, hzv⟩
+      step as ⟨tt1, htt1⟩
+      refine ⟨hzeq, by rw [htt1]; omega, hzc, ?_, by rw [htt1]; omega⟩
+      intro w hwlt
+      rw [htt1, hzv w hwlt, passed_eq_contribW]
+      unfold termsSum
+      rw [Finset.sum_range_succ, hkkv, hmmv, hnnv]
+      ring
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = termsU.val := by scalar_tac
+      rw [heq] at hw
+      exact ⟨hcd, hw⟩
+  · exact ⟨rfl, ht, hacc, hval⟩
+
+/-- **`mul_short_add_into` adds the negacyclic product into `acc`.**
+
+Same contract as [`mul_short_desc_spec`] with `acc +` in front, and the same
+`hden` obligation on the description -- so `classify_short_spec` serves both. -/
+theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
+    (hs : Wf s) (ha : Wf a) (hacc : Wf acc)
+    (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
+    (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
+    (hidx : ∀ u, u < desc.idx.val.length → idxAt desc.idx u < N)
+    (hden : ∀ j, j < N →
+      coeffK a j = descCoeffW desc.idx desc.mag desc.neg desc.idx.val.length j) :
+    ring.mul_short_add_into desc s acc
+      ⦃ z => Wf z ∧ ∀ w, w < N → coeffK z w = coeffK acc w + negConv a s w ⦄ := by
+  have hdenall : ∀ j,
+      coeffK a j = descCoeffW desc.idx desc.mag desc.neg desc.idx.val.length j := by
+    intro j
+    by_cases hj : j < N
+    · exact hden j hj
+    · rw [coeffK_of_ge (by rw [ha.1]; omega)]
+      unfold descCoeffW
+      refine (Finset.sum_eq_zero (fun u hu => ?_)).symm
+      unfold single
+      rw [if_neg (by have := hidx u (by simpa using hu); omega)]
+  have hscz : ∀ i, N ≤ i → coeffK s i = 0 :=
+    fun i hi => coeffK_of_ge (by rw [hs.1]; exact hi)
+  rw [ring.mul_short_add_into]
+  apply spec_mono (terms_add_spec desc.idx desc.mag desc.neg s acc
+    params.RING_DEGREE params.Q (alloc.vec.Vec.len desc.idx) 0#usize
+    (fun w => coeffK acc w)
+    hs params_RING_DEGREE_val params_Q_val rfl hmlen hnlen hidx (by simp) hacc
+    (by intro w hwlt; unfold termsSum; simp))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  intro w hwlt
+  rw [show (alloc.vec.Vec.len desc.idx).val = desc.idx.val.length from by simp] at hzval
+  rw [hzval w hwlt,
+    termsSum_eq_negConvF (coeffK s) desc.idx desc.mag desc.neg
+      desc.idx.val.length w hidx hwlt hscz,
+    ← negConvF_coeffK a s w]
+  exact congrArg (fun f => coeffK acc w + negConvF f (coeffK s) w) (funext hdenall).symm
+
 end HachiEquiv.AuxShort

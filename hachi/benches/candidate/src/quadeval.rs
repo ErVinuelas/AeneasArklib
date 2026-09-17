@@ -289,7 +289,17 @@ pub fn tensor_g1(c: &PolyVec, x: &PolyVec) -> Rq {
 pub fn honest_z(message: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
     let blocks: usize = message.len();
     let width: usize = params::MESSAGE_ROWS * params::GADGET_DIGITS;
-    let mut acc: PolyVec = PolyVec::zeros(width);
+    // The accumulator is a bare `Vec<Rq>` rather than a `PolyVec` so that both
+    // branches below can write *into* it. Every intermediate this function used
+    // to build -- the per-column product, the per-block column vector, and the
+    // vector `add` produced -- is `width` ring elements, which is 64 MiB each at
+    // the paper's parameters; none of them is needed.
+    let mut acc: Vec<Rq> = Vec::with_capacity(width);
+    let mut z: usize = 0;
+    while z < width {
+        acc.push(Rq::zero());
+        z += 1;
+    }
     let mut i: usize = 0;
     while i < blocks {
         // A protocol challenge is `ShortChallenge Φ ω`, so `cᵢ` has centred
@@ -300,22 +310,24 @@ pub fn honest_z(message: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
         let ci: &Rq = c.get(i);
         match crate::ring::classify_short(ci) {
             Some(desc) => {
-                let mut out: Vec<Rq> = Vec::with_capacity(width);
                 let mut j: usize = 0;
                 while j < width {
-                    out.push(crate::ring::mul_short_desc(&desc, message[i].get(j)));
+                    crate::ring::mul_short_add_into(&desc, message[i].get(j), &mut acc[j]);
                     j += 1;
                 }
-                acc = acc.add(&PolyVec::new(out));
             }
             None => {
                 let scaled: PolyVec = message[i].scalar_mul(ci);
-                acc = acc.add(&scaled);
+                let mut j: usize = 0;
+                while j < width {
+                    acc[j] = acc[j].add(scaled.get(j));
+                    j += 1;
+                }
             }
         }
         i += 1;
     }
-    acc
+    PolyVec::new(acc)
 }
 
 /// The prover's round-0 message `v = D ŵ` (spec: `honestComputeV`,

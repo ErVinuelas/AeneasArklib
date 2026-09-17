@@ -640,3 +640,73 @@ fn short_multiplication_agrees_with_the_generic_one() {
         "dense ternary has l1 norm in the hundreds and must decline"
     );
 }
+
+/// `mul_short_add_into` accumulates exactly what `mul_short_desc` returns.
+///
+/// The oracle for Stage 6 candidate T17 Change 2. The in-place form exists only
+/// to avoid allocating, so the property to pin is that it changes nothing about
+/// the value: for every description and every accumulator,
+/// `add_into(desc, s, acc)` leaves `acc` holding `acc + desc·s`.
+///
+/// A *non-zero* starting accumulator is the case worth testing, and the one a
+/// zero-initialised test would miss: the function adds into whatever is already
+/// there, so an implementation that overwrote instead of accumulating would pass
+/// against a zero accumulator and be wrong on the second message block. The
+/// repeated-application case below is that second block.
+#[test]
+fn short_multiplication_in_place_accumulates() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0012);
+    let q = hachi::params::Q;
+
+    // an arbitrary right operand and an arbitrary *non-zero* accumulator
+    let mut sc = Vec::new();
+    let mut ac = Vec::new();
+    for _ in 0..RING_DEGREE {
+        sc.push(rng.next_u64() % q);
+        ac.push(rng.next_u64() % q);
+    }
+    let s = rq_from_u64s(&sc);
+    let acc0 = rq_from_u64s(&ac);
+
+    // the same descriptions the returning form is tested on
+    let mut cases: Vec<(&str, Vec<u64>)> = Vec::new();
+    let mut c = vec![0u64; RING_DEGREE];
+    c[0] = 1;
+    cases.push(("weight 1 at index 0", c));
+    let mut c = vec![0u64; RING_DEGREE];
+    c[RING_DEGREE - 1] = 1;
+    cases.push(("weight 1 at index N-1", c));
+    let mut c = vec![0u64; RING_DEGREE];
+    c[3] = q - 1;
+    cases.push(("weight 1, negative", c));
+    let mut c = vec![0u64; RING_DEGREE];
+    c[7] = 5;
+    c[RING_DEGREE - 2] = q - 5;
+    cases.push(("magnitudes 5 and -5", c));
+    let mut c = vec![0u64; RING_DEGREE];
+    c[11] = 16;
+    cases.push(("the whole budget in one coefficient", c));
+
+    for (name, coeffs) in &cases {
+        let cc = rq_from_u64s(coeffs);
+        let desc = hachi::ring::classify_short(&cc)
+            .unwrap_or_else(|| panic!("{name}: should classify as short"));
+
+        // against the returning form, plus the accumulator
+        let expected = acc0.add(&hachi::ring::mul_short_desc(&desc, &s));
+        let mut got = acc0.copy();
+        hachi::ring::mul_short_add_into(&desc, &s, &mut got);
+        assert!(
+            got.equals(&expected),
+            "{name}: in-place accumulation disagrees with add(mul_short_desc(..))"
+        );
+
+        // and it really accumulates: applying it twice adds twice
+        let expected2 = expected.add(&hachi::ring::mul_short_desc(&desc, &s));
+        hachi::ring::mul_short_add_into(&desc, &s, &mut got);
+        assert!(
+            got.equals(&expected2),
+            "{name}: applying it twice did not add twice -- it overwrites"
+        );
+    }
+}

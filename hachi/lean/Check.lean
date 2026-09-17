@@ -1647,18 +1647,21 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.lagrange_basis.optLoop_length
 #print axioms HachiEquiv.EvalSplit.lagrange_basis_inner_loop_spec
 #print axioms HachiEquiv.EvalSplit.lagrange_basis_outer_loop_spec
--- Candidate T17 Change 1 (Stage 6, `quadeval::honest_z` via
--- `ring::mul_short_desc`) -- multiplication by a short element as signed
--- negacyclic shifts. The headline is stated against `Ring.negConv`, the same
+-- Candidate T17 Changes 1 and 2 (Stage 6, `quadeval::honest_z` via
+-- `ring::mul_short_desc` / `ring::mul_short_add_into`) -- multiplication by a
+-- short element as signed negacyclic shifts, then the same product accumulated
+-- in place. Both headlines are stated against `Ring.negConv`, the same
 -- right-hand side `Ring.mul_spec` proves, so `honest_z`'s specification did not
--- move: `honest_z_loop0_spec` carries the identical statement the pre-candidate
--- `honest_z_loop_spec` did. The `ell_1` budget `Sigma mag <= OMEGA` is
--- deliberately NOT a hypothesis anywhere below, which is what makes the
--- classification unable to affect soundness -- only speed.
+-- move under either change: `honest_z_spec` below carries the statement it had
+-- before the fast path existed. The `ell_1` budget is deliberately NOT a
+-- hypothesis anywhere, which is what makes the classification unable to affect
+-- soundness -- only speed.
 --
--- The algebra (`Opt.lean`) and the word level (`AuxShort.lean`) share one copy
--- of `negConvF`/`single`/`contrib`, which is why those three audit lines name
--- `AuxShort` rather than `Opt`.
+-- `Opt.lean` (the algebra) and `AuxShort.lean` (the word level) share one copy
+-- of `negConvF`/`single`/`contrib`, which is why those audit lines name
+-- `AuxShort` rather than `Opt`. Change 2 reuses that algebra verbatim and adds
+-- only `Fp`-buffer twins of the loop specs (`coeffK` where Change 1 used
+-- `AuxCode.wordAt`).
 #print axioms HachiEquiv.Opt.MulShort.opt_eq_spec
 #print axioms HachiEquiv.Opt.MulShort.opt_eq_negConvF
 #print axioms HachiEquiv.Opt.MulShort.passLoop_eq
@@ -1672,9 +1675,17 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.AuxShort.mul_short_desc_spec
 #print axioms HachiEquiv.AuxShort.classify_short_loop_spec
 #print axioms HachiEquiv.AuxShort.classify_short_spec
+#print axioms HachiEquiv.AuxShort.write_invariant_fp
+#print axioms HachiEquiv.AuxShort.inner_add_spec
+#print axioms HachiEquiv.AuxShort.pass_add_spec
+#print axioms HachiEquiv.AuxShort.terms_add_spec
+#print axioms HachiEquiv.AuxShort.mul_short_add_into_spec
 #print axioms HachiEquiv.RqBridge.mul_short_desc_spec
-#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop0_loop0_spec
+#print axioms HachiEquiv.RqBridge.mul_short_add_into_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop1_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop1_loop1_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop1_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_spec
 
 end HachiEquiv.Check

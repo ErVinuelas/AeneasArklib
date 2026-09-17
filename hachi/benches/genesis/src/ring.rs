@@ -454,3 +454,54 @@ pub fn mul_short_desc(desc: &ShortMul, s: &Rq) -> Rq {
     }
     Rq(res)
 }
+
+/// `acc += desc · s`, in place (spec: the same product
+/// [`mul_short_desc`] computes, added to `acc`).
+///
+/// The allocation-free form of [`mul_short_desc`], for callers that already
+/// hold the accumulator. `mul_short_desc` must allocate twice per call -- the
+/// `u64` scratch it zero-fills and the `Fp` vector it converts into -- and its
+/// caller then allocates a third time to add the result in. At the paper's
+/// parameters `honest_z` calls it `MESSAGE_ROWS · GADGET_DIGITS = 8192` times
+/// per message block, so those are `16 384` allocations and ~`16.7M` pushes per
+/// block that buy nothing: the shift loop can add straight into the
+/// accumulator, since adding a shifted copy is what it already does.
+///
+/// Writes through `&mut Rq`'s own storage rather than a `set_coeff` method,
+/// which this module may do and no other may.
+pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let terms: usize = desc.idx.len();
+    let mut t: usize = 0;
+    while t < terms {
+        let k: usize = desc.idx[t];
+        let m: u64 = desc.mag[t];
+        let negt: bool = desc.neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            let mut i: usize = 0;
+            while i < n {
+                let sv: u64 = s.0[i].to_u64();
+                if sv != 0 {
+                    let pos: usize = k + i;
+                    // X^N = -1: crossing the boundary flips the sign
+                    let w: usize = if pos >= n { pos - n } else { pos };
+                    let wrapped: bool = pos >= n;
+                    let sub: bool = negt != wrapped;
+                    let cur: u64 = acc.0[w].to_u64();
+                    let nv: u64 = if sub {
+                        if cur >= sv { cur - sv } else { cur + q - sv }
+                    } else {
+                        let sum: u64 = cur + sv;
+                        if sum >= q { sum - q } else { sum }
+                    };
+                    acc.0[w] = Fp::new(nv);
+                }
+                i += 1;
+            }
+            pass += 1;
+        }
+        t += 1;
+    }
+}

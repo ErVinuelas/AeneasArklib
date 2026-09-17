@@ -425,15 +425,92 @@ theorem tensor_g_spec {krows blocks : ℕ} (r : Std.Usize) (c : linalg.PolyVec)
           (toVec (k := krows * 8) (x.val.getD j (alloc.vec.Vec.new ring.Rq))))) blocks]
   rfl
 
-/-- The inner loop of `quadeval::honest_z`'s fast path: the `width` products of
-one short challenge against one message block, pushed in order.
+/-! ### `quadeval::honest_z`, accumulating in place
 
-`ci` is the challenge and `desc` its description;
-`RqBridge.mul_short_desc_spec` turns each pushed entry into the ring product, so
-nothing here knows it was computed by signed shifts. -/
-theorem honest_z_loop0_loop0_spec {width : ℕ} (message : alloc.vec.Vec linalg.PolyVec)
-    (widthU iU : Std.Usize) (desc : ring.ShortMul) (ci : ring.Rq)
-    (out : alloc.vec.Vec ring.Rq) (jU : Std.Usize)
+Candidate T17 Change 2. The accumulator is a bare `Vec ring.Rq` written through
+`index_mut`, so there are four loops where there was one: the zero-fill, the
+block loop, and one inner loop per branch of `classify_short`. Every invariant
+below is *pointwise* -- `toRq (acc[t]) = …` -- which is the natural shape for an
+in-place write and which `toVec`'s definition turns back into the function
+equality `honest_z_spec` needs.
+
+`honest_z_spec`'s statement does not move, again. -/
+
+private theorem vgetD_set_eq {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x d : α}
+    (ht : t.val < v.val.length) : (v.set t x).val.getD t.val d = x := by
+  rw [alloc.vec.Vec.set_val_eq,
+    List.getD_eq_getElem _ _ (by rw [List.length_set]; exact ht), List.getElem_set]
+  simp
+
+private theorem vgetD_set_ne {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x d : α}
+    {k : ℕ} (h : k ≠ t.val) : (v.set t x).val.getD k d = v.val.getD k d := by
+  rw [alloc.vec.Vec.set_val_eq]
+  by_cases hk : k < v.val.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+private theorem all_set {α : Type} {P : α → Prop} {v : alloc.vec.Vec α}
+    {t : Std.Usize} {y : α} (hv : ∀ x ∈ v.val, P x) (hy : P y) :
+    ∀ x ∈ (v.set t y).val, P x := by
+  intro x hx
+  rw [alloc.vec.Vec.set_val_eq] at hx
+  rcases List.mem_or_eq_of_mem_set hx with h | h
+  · exact hv x h
+  · rw [h]; exact hy
+
+/-- The zero-fill: `width` copies of `0`, pushed. -/
+theorem honest_z_loop0_spec {width : ℕ} (widthU : Std.Usize)
+    (acc : alloc.vec.Vec ring.Rq) (zU : Std.Usize)
+    (hw : widthU.val = width) (hz : zU.val ≤ width)
+    (hlen : acc.val.length = zU.val) (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < zU.val →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0) :
+    quadeval.honest_z_loop0 widthU acc zU
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
+  rw [quadeval.honest_z_loop0]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = r.2.val
+      ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < r.2.val →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
+  · rintro ⟨d, zz⟩ ⟨hzz, hdl, hdw, hdv⟩
+    dsimp only at hzz hdl hdw hdv
+    simp only [quadeval.honest_z_loop0.body]
+    by_cases hlt : zz < widthU
+    · rw [if_pos hlt]
+      have hzlt : zz.val < width := by rw [← hw]; scalar_tac
+      step with HachiEquiv.RqBridge.zero_spec as ⟨r, hrwf, hrval⟩
+      step as ⟨d1, hd1⟩
+      step as ⟨zz1, hzz1⟩
+      refine ⟨by rw [hzz1]; omega, ?_, ?_, ?_, by rw [hzz1]; omega⟩
+      · rw [hd1, hzz1, List.length_append, hdl]; simp
+      · intro x hx
+        rw [hd1] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hdw x h
+        · rw [List.mem_singleton.mp h]; exact hrwf
+      · intro t ht
+        rw [hzz1] at ht
+        rcases Nat.lt_or_ge t zz.val with htlt | htge
+        · rw [hd1, getD_append_lt _ _ _ (by omega)]
+          exact hdv t htlt
+        · have hteq : t = d.val.length := by omega
+          rw [hteq, hd1, getD_append_eq]; exact hrval
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : zz.val = width := by rw [← hw]; scalar_tac
+      exact ⟨by rw [hdl, heq], hdw, fun t ht => hdv t (by rw [heq]; exact ht)⟩
+  · exact ⟨hz, hlen, hwf, hval⟩
+
+/-- The **short** branch's inner loop: `width` products added into `acc` in
+place. `prev` is what the accumulator held when the block started. -/
+theorem honest_z_loop1_loop1_spec {width : ℕ} (message : alloc.vec.Vec linalg.PolyVec)
+    (widthU iU jU : Std.Usize) (desc : ring.ShortMul) (ci : ring.Rq)
+    (acc : alloc.vec.Vec ring.Rq) (prev : ℕ → Rq Φ)
     (hw : widthU.val = width) (hib : iU.val < message.val.length)
     (hmi : WfVec width (message.val.getD iU.val (alloc.vec.Vec.new ring.Rq)))
     (hci : Wf ci)
@@ -444,159 +521,240 @@ theorem honest_z_loop0_loop0_spec {width : ℕ} (message : alloc.vec.Vec linalg.
     (hden : ∀ j, j < N → coeffK ci j
       = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
           desc.idx.val.length j)
-    (hj : jU.val ≤ width) (hlen : out.val.length = jU.val)
-    (hwf : ∀ x ∈ out.val, Wf x)
-    (hval : ∀ t, t < jU.val →
-      toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq ci * toRq ((message.val.getD iU.val
-            (alloc.vec.Vec.new ring.Rq)).val.getD t
-              (alloc.vec.Vec.new cpoly.field.Fp))) :
-    quadeval.honest_z_loop0_loop0 message widthU iU desc out jU
+    (hj : jU.val ≤ width) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = prev t + (if t < jU.val then toRq ci
+            * toRq ((message.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD t
+                (alloc.vec.Vec.new cpoly.field.Fp)) else 0)) :
+    quadeval.honest_z_loop1_loop1 message widthU acc iU desc jU
       ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
         ∀ t, t < width →
           toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq ci * toRq ((message.val.getD iU.val
-                (alloc.vec.Vec.new ring.Rq)).val.getD t
-                  (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.honest_z_loop0_loop0]
-  apply loop.spec_decr_nat (fun t => width - t.2.val)
-    (fun t => t.2.val ≤ width ∧ t.1.val.length = t.2.val ∧ (∀ x ∈ t.1.val, Wf x)
-      ∧ ∀ u, u < t.2.val →
-          toRq (t.1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq ci * toRq ((message.val.getD iU.val
-                (alloc.vec.Vec.new ring.Rq)).val.getD u
-                  (alloc.vec.Vec.new cpoly.field.Fp)))
-  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hwf1, hval1⟩
-    dsimp only at hj1 hlen1 hwf1 hval1
-    simp only [quadeval.honest_z_loop0_loop0.body]
-    by_cases hlt : j1 < widthU
+            = prev t + toRq ci
+                * toRq ((message.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD t
+                    (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [quadeval.honest_z_loop1_loop1]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t + (if t < r.2.val then toRq ci
+                * toRq ((message.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD t
+                    (alloc.vec.Vec.new cpoly.field.Fp)) else 0))
+  · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdw, hdv⟩
+    dsimp only at hjj hdl hdw hdv
+    simp only [quadeval.honest_z_loop1_loop1.body]
+    by_cases hlt : jj < widthU
     · rw [if_pos hlt]
-      have hjlt : j1.val < width := by rw [← hw]; scalar_tac
+      have hjlt : jj.val < width := by rw [← hw]; scalar_tac
       step as ⟨pv, hpv⟩
       have hpvv : pv = message.val.getD iU.val (alloc.vec.Vec.new ring.Rq) := by
         rw [hpv, List.getD_eq_getElem _ _ hib]
-      have hjb : j1.val < pv.val.length := by rw [hpvv, hmi.1]; exact hjlt
+      have hjb : jj.val < pv.val.length := by rw [hpvv, hmi.1]; exact hjlt
       simp only [linalg.PolyVec.get]
       step as ⟨r, hr⟩
       have hrwf : Wf r := by
         rw [hr]; exact hmi.2 _ (by rw [← hpvv]; exact List.getElem_mem hjb)
-      step with HachiEquiv.RqBridge.mul_short_desc_spec desc r ci hrwf hci
-        hmlen hnlen hidx hden as ⟨r1, hr1wf, hr1val⟩
-      step as ⟨o2, ho2⟩
-      step as ⟨j2, hj2⟩
-      refine ⟨by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [ho2, hj2, List.length_append, hlen1]; simp
-      · intro x hx
-        rw [ho2] at hx
-        rcases List.mem_append.mp hx with h | h
-        · exact hwf1 x h
-        · rw [List.mem_singleton.mp h]; exact hr1wf
-      · intro u hu
-        rw [hj2] at hu
-        rcases Nat.lt_or_ge u j1.val with hult | huge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 u hult
-        · have hueq : u = o1.val.length := by omega
-          -- bridge `r` to `getD` form BEFORE touching the index: rewriting the
-          -- index first leaves the motive ill-typed, since the bound proof
-          -- depends on it
+      step as ⟨elem, back, helem, hback⟩
+      have hdjb : jj.val < d.val.length := by rw [hdl]; exact hjlt
+      have hewf : Wf elem := by rw [helem]; exact hdw _ (List.getElem_mem hdjb)
+      step with HachiEquiv.RqBridge.mul_short_add_into_spec desc r elem ci hrwf
+        hci hewf hmlen hnlen hidx hden as ⟨r2, hr2wf, hr2val⟩
+      step as ⟨jj1, hjj1⟩
+      rw [hback]
+      refine ⟨by rw [hjj1]; omega, ?_, all_set hdw hr2wf, ?_, by rw [hjj1]; omega⟩
+      · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hdl
+      · intro t ht
+        rw [hjj1]
+        by_cases heq : t = jj.val
+        · have hdgetD : d.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = elem := by
+            rw [helem, List.getD_eq_getElem _ _ hdjb]
           have hrg : r = (message.val.getD iU.val
-              (alloc.vec.Vec.new ring.Rq)).val.getD j1.val
+              (alloc.vec.Vec.new ring.Rq)).val.getD jj.val
                 (alloc.vec.Vec.new cpoly.field.Fp) := by
             rw [hr, ← hpvv, List.getD_eq_getElem _ _ hjb]
-          rw [hueq, ho2, getD_append_eq, hr1val, hrg, hlen1]
+          rw [heq, vgetD_set_eq hdjb, hr2val, ← hdgetD, hdv jj.val hjlt,
+            if_neg (by omega), add_zero, hrg, if_pos (by omega)]
+        · rw [vgetD_set_ne heq, hdv t ht]
+          by_cases hlt2 : t < jj.val
+          · rw [if_pos hlt2, if_pos (by omega)]
+          · rw [if_neg hlt2, if_neg (by omega)]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : j1.val = width := by rw [← hw]; scalar_tac
-      refine ⟨by rw [hlen1, heq], hwf1, ?_⟩
-      intro u hu
-      exact hval1 u (by rw [heq]; exact hu)
+      have heq : jj.val = width := by rw [← hw]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq, if_pos ht]
   · exact ⟨hj, hlen, hwf, hval⟩
 
-/-- The loop of `quadeval::honest_z`: the accumulator is the partial
-challenge-weighted fold of the message blocks.
+/-- The **fallback** branch's inner loop: the generic scaled vector, added in
+place. Same shape as the short branch's, with `scaled` in hand rather than a
+description. -/
+theorem honest_z_loop1_loop0_spec {width : ℕ} (widthU jU : Std.Usize)
+    (scaled : linalg.PolyVec) (acc : alloc.vec.Vec ring.Rq) (prev : ℕ → Rq Φ)
+    (hw : widthU.val = width) (hs : WfVec width scaled)
+    (hj : jU.val ≤ width) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = prev t + (if t < jU.val then
+            toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) else 0)) :
+    quadeval.honest_z_loop1_loop0 widthU acc scaled jU
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t
+                + toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [quadeval.honest_z_loop1_loop0]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t + (if t < r.2.val then
+                toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) else 0))
+  · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdw, hdv⟩
+    dsimp only at hjj hdl hdw hdv
+    simp only [quadeval.honest_z_loop1_loop0.body]
+    by_cases hlt : jj < widthU
+    · rw [if_pos hlt]
+      have hjlt : jj.val < width := by rw [← hw]; scalar_tac
+      have hdjb : jj.val < d.val.length := by rw [hdl]; exact hjlt
+      have hsjb : jj.val < scaled.val.length := by rw [hs.1]; exact hjlt
+      step as ⟨r, hr⟩
+      have hrwf : Wf r := by rw [hr]; exact hdw _ (List.getElem_mem hdjb)
+      simp only [linalg.PolyVec.get]
+      step as ⟨r1, hr1⟩
+      have hr1wf : Wf r1 := by rw [hr1]; exact hs.2 _ (List.getElem_mem hsjb)
+      step with HachiEquiv.RqBridge.add_spec r r1 hrwf hr1wf as ⟨r2, hr2wf, hr2val⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨jj1, hjj1⟩
+      rw [hback]
+      refine ⟨by rw [hjj1]; omega, ?_, all_set hdw hr2wf, ?_, by rw [hjj1]; omega⟩
+      · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hdl
+      · intro t ht
+        rw [hjj1]
+        by_cases heq : t = jj.val
+        · have hdgetD : d.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = r := by
+            rw [hr, List.getD_eq_getElem _ _ hdjb]
+          have hsgetD : scaled.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = r1 := by
+            rw [hr1, List.getD_eq_getElem _ _ hsjb]
+          rw [heq, vgetD_set_eq hdjb, hr2val, ← hdgetD, hdv jj.val hjlt,
+            if_neg (by omega), add_zero, hsgetD, if_pos (by omega)]
+        · rw [vgetD_set_ne heq, hdv t ht]
+          by_cases hlt2 : t < jj.val
+          · rw [if_pos hlt2, if_pos (by omega)]
+          · rw [if_neg hlt2, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = width := by rw [← hw]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq, if_pos ht]
+  · exact ⟨hj, hlen, hwf, hval⟩
 
-**The statement is unchanged** from before the short-challenge fast path landed,
-which is the point. The body now branches on `ring::classify_short`, and the two
-branches discharge to the *same* goal `scalarVecMul (toRq cᵢ)`: the `none`
-branch through the generic `scalar_vec_mul`, the `some` branch through the
-shift-based product, whose equality to the ring product is
-`RqBridge.mul_short_desc_spec`. -/
-theorem honest_z_loop0_spec {width blocks : ℕ} (message : alloc.vec.Vec linalg.PolyVec)
-    (c : linalg.PolyVec) (blocksU widthU : Std.Usize) (acc : linalg.PolyVec)
-    (i : Std.Usize)
+/-- The block loop of `quadeval::honest_z`.
+
+The two branches of `classify_short` discharge to the *same* pointwise goal --
+`prev t + toRq cᵢ * toRq messageᵢ[t]` -- the `some` branch through
+`RqBridge.mul_short_add_into_spec` and the `none` branch through the generic
+`scalar_vec_mul` followed by `Rq::add`. -/
+theorem honest_z_loop1_spec {width blocks : ℕ} (message : alloc.vec.Vec linalg.PolyVec)
+    (c : linalg.PolyVec) (blocksU widthU : Std.Usize)
+    (acc : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (hm : WfBlocks blocks width message) (hc : WfVec blocks c)
     (hn : blocksU.val = blocks) (hw : widthU.val = width)
-    (hi : i.val ≤ blocksU.val) (hacc : WfVec width acc)
-    (hval : toVec (k := width) acc
-      = ∑ j ∈ Finset.range i.val,
-          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-            (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
-    quadeval.honest_z_loop0 message c blocksU widthU acc i
-      ⦃ z => WfVec width z ∧ toVec (k := width) z
-        = ∑ j ∈ Finset.range blocks,
-            scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-              (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
-  rw [quadeval.honest_z_loop0]
-  apply loop.spec_decr_nat (fun t => blocksU.val - t.2.val)
-    (fun t => t.2.val ≤ blocksU.val ∧ WfVec width t.1 ∧ toVec (k := width) t.1
-      = ∑ j ∈ Finset.range t.2.val,
-          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-            (toVec (k := width) (message.val.getD j (alloc.vec.Vec.new ring.Rq))))
-  · rintro ⟨a1, i1⟩ ⟨hi1, hacc1, hval1⟩
-    dsimp only at hi1 hacc1 hval1
-    simp only [quadeval.honest_z_loop0.body]
-    by_cases hlt : i1 < blocksU
+    (hi : i.val ≤ blocks) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = ∑ j ∈ Finset.range i.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+              * toRq ((message.val.getD j (alloc.vec.Vec.new ring.Rq)).val.getD t
+                  (alloc.vec.Vec.new cpoly.field.Fp))) :
+    quadeval.honest_z_loop1 message c blocksU widthU acc i
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = ∑ j ∈ Finset.range blocks,
+                toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+                  * toRq ((message.val.getD j (alloc.vec.Vec.new ring.Rq)).val.getD t
+                      (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [quadeval.honest_z_loop1]
+  apply loop.spec_decr_nat (fun r => blocks - r.2.val)
+    (fun r => r.2.val ≤ blocks ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = ∑ j ∈ Finset.range r.2.val,
+                toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+                  * toRq ((message.val.getD j (alloc.vec.Vec.new ring.Rq)).val.getD t
+                      (alloc.vec.Vec.new cpoly.field.Fp)))
+  · rintro ⟨d, ii⟩ ⟨hii, hdl, hdw, hdv⟩
+    dsimp only at hii hdl hdw hdv
+    simp only [quadeval.honest_z_loop1.body]
+    by_cases hlt : ii < blocksU
     · rw [if_pos hlt]
-      have hib : i1.val < message.val.length := by rw [hm.1, ← hn]; scalar_tac
-      have hic : i1.val < c.val.length := by rw [hc.1, ← hn]; scalar_tac
+      have hiib : ii.val < blocks := by rw [← hn]; scalar_tac
+      have hib : ii.val < message.val.length := by rw [hm.1]; exact hiib
+      have hic : ii.val < c.val.length := by rw [hc.1]; exact hiib
       simp only [linalg.PolyVec.get]
       step as ⟨cr, hcr⟩
       have hWcr : Wf cr := by rw [hcr]; exact hc.2 _ (List.getElem_mem hic)
-      have hcrv : cr = c.val.getD i1.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+      have hcrv : cr = c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp) := by
         rw [hcr, List.getD_eq_getElem _ _ hic]
-      have hmiwf : WfVec width (message.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+      have hmiwf : WfVec width (message.val.getD ii.val (alloc.vec.Vec.new ring.Rq)) := by
         rw [List.getD_eq_getElem _ _ hib]; exact hm.2 _ (List.getElem_mem hib)
+      -- the pointwise term this block adds, shared by both branches
+      set term : ℕ → Rq Φ := fun t =>
+        toRq (c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq ((message.val.getD ii.val (alloc.vec.Vec.new ring.Rq)).val.getD t
+              (alloc.vec.Vec.new cpoly.field.Fp)) with hterm
       step with HachiEquiv.AuxShort.classify_short_spec cr hWcr as ⟨o, ho⟩
       cases o with
       | none =>
-        -- the challenge is not short: the generic scaled product, unchanged
         step as ⟨pv, hpv⟩
-        have hpvv : pv = message.val.getD i1.val (alloc.vec.Vec.new ring.Rq) := by
+        have hpvv : pv = message.val.getD ii.val (alloc.vec.Vec.new ring.Rq) := by
           rw [hpv, List.getD_eq_getElem _ _ hib]
         have hWpv : WfVec width pv := by rw [hpvv]; exact hmiwf
         step with scalar_vec_mul_spec (k := width) cr pv hWcr hWpv
           as ⟨scaled, hSwf, hSval⟩
-        step with vec_add_spec (k := width) a1 scaled hacc1 hSwf as ⟨a2, hAwf, hAval⟩
-        step as ⟨i2, hi2⟩
-        refine ⟨by scalar_tac, hAwf, ?_, by scalar_tac⟩
-        rw [hAval, hSval, hval1, hi2, Finset.sum_range_succ, hcrv, hpvv]
+        step with honest_z_loop1_loop0_spec (width := width) widthU 0#usize scaled d
+          (fun t => ∑ j ∈ Finset.range ii.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+              * toRq ((message.val.getD j (alloc.vec.Vec.new ring.Rq)).val.getD t
+                  (alloc.vec.Vec.new cpoly.field.Fp)))
+          hw hSwf (by simp) hdl hdw
+          (by intro t ht; simpa using hdv t ht) as ⟨z, hzl, hzw, hzv⟩
+        step as ⟨ii1, hii1⟩
+        refine ⟨by rw [hii1]; omega, hzl, hzw, ?_, by rw [hii1]; omega⟩
+        intro t ht
+        have hst : toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = term t := by
+          have := congrFun hSval ⟨t, by omega⟩
+          simpa [toVec, scalarVecMul, hterm, hcrv, hpvv] using this
+        rw [hii1, hzv t ht, hst, hterm, Finset.sum_range_succ]
       | some desc =>
-        -- the challenge is short: the shift-based products, one per column
         obtain ⟨e2, e3, e4, e5⟩ := ho desc rfl
-        simp only [alloc.vec.Vec.with_capacity, linalg.PolyVec.new, bind_ok_id]
-        step with honest_z_loop0_loop0_spec (width := width) message widthU i1 desc cr
-          (alloc.vec.Vec.new ring.Rq) 0#usize hw hib hmiwf hWcr e2 e3 e4 e5
-          (by simp) (by simp) (by intro x hx; simp at hx)
-          (by intro t ht; simp at ht) as ⟨o1v, hoLen, hoWf, hoVal⟩
-        have hWpv : WfVec width o1v := ⟨hoLen, hoWf⟩
-        have hSval : toVec (k := width) o1v
-            = scalarVecMul (toRq cr)
-                (toVec (k := width)
-                  (message.val.getD i1.val (alloc.vec.Vec.new ring.Rq))) := by
-          funext t
-          simp only [toVec, scalarVecMul]
-          exact hoVal t.val t.isLt
-        step with vec_add_spec (k := width) a1 o1v hacc1 hWpv as ⟨a2, hAwf, hAval⟩
-        step as ⟨i2, hi2⟩
-        refine ⟨by scalar_tac, hAwf, ?_, by scalar_tac⟩
-        rw [hAval, hSval, hval1, hi2, Finset.sum_range_succ, hcrv]
+        step with honest_z_loop1_loop1_spec (width := width) message widthU ii 0#usize
+          desc cr d
+          (fun t => ∑ j ∈ Finset.range ii.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+              * toRq ((message.val.getD j (alloc.vec.Vec.new ring.Rq)).val.getD t
+                  (alloc.vec.Vec.new cpoly.field.Fp)))
+          hw hib hmiwf hWcr e2 e3 e4 e5 (by simp) hdl hdw
+          (by intro t ht; simpa using hdv t ht) as ⟨z, hzl, hzw, hzv⟩
+        step as ⟨ii1, hii1⟩
+        refine ⟨by rw [hii1]; omega, hzl, hzw, ?_, by rw [hii1]; omega⟩
+        intro t ht
+        rw [hii1, hzv t ht, hcrv, Finset.sum_range_succ]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = blocks := by rw [← hn]; scalar_tac
-      rw [heq] at hval1
-      exact ⟨hacc1, hval1⟩
-  · exact ⟨hi, hacc, hval⟩
+      have heq : ii.val = blocks := by rw [← hn]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq]
+  · exact ⟨hi, hlen, hwf, hval⟩
 
 /-- The copy loop of `quadeval::honest_compute_resp`: the inner decompositions
 are passed through unchanged. -/
@@ -833,18 +991,29 @@ theorem honest_z_spec (message : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyV
     rw [h]
     simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
     scalar_tac
-  step with poly_vec_zeros_spec width as ⟨acc, hAlen, hAwf, hAval⟩
-  have hWacc : WfVec (2 ^ 10 * 8) acc := ⟨by rw [hAlen, hwv], hAwf⟩
-  have hAzero : toVec (k := 2 ^ 10 * 8) acc = 0 := by
-    funext j
-    simp only [toVec, Pi.zero_apply]
-    exact hAval j.val (by rw [hwv]; exact j.isLt)
-  apply spec_mono (honest_z_loop0_spec (width := 2 ^ 10 * 8) (blocks := 2 ^ 10) message c
-    (alloc.vec.Vec.len message) width acc 0#usize hWm hWc (by simpa using hWm.1) hwv
-    (by simp) hWacc (by rw [hAzero]; simp))
-  rintro z ⟨hzwf, hzval⟩
-  refine ⟨hzwf, ?_⟩
-  rw [hzval, InnerOuter.honestZ, ← hm,
+  simp only [alloc.vec.Vec.with_capacity]
+  step with honest_z_loop0_spec (width := 2 ^ 10 * 8) width
+    (alloc.vec.Vec.new ring.Rq) 0#usize hwv (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro t ht; simp at ht)
+    as ⟨acc1, hA1len, hA1wf, hA1zero⟩
+  step with honest_z_loop1_spec (width := 2 ^ 10 * 8) (blocks := 2 ^ 10) message c
+    (alloc.vec.Vec.len message) width acc1 0#usize hWm hWc (by simpa using hWm.1)
+    hwv (by simp) hA1len hA1wf
+    (by intro t ht; rw [hA1zero t ht]; simp)
+    as ⟨acc2, hA2len, hA2wf, hA2val⟩
+  rw [linalg.PolyVec.new, WP.spec_ok]
+  -- the loops deliver the fold *pointwise*; `toVec` turns that back into the
+  -- function equality, and `Finset.sum_apply` is the only step involved
+  have hfun : toVec (k := 2 ^ 10 * 8) acc2
+      = ∑ j ∈ Finset.range (2 ^ 10),
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (toVec (k := 2 ^ 10 * 8)
+              (message.val.getD j (alloc.vec.Vec.new ring.Rq))) := by
+    funext t
+    simp only [toVec, Finset.sum_apply, scalarVecMul]
+    exact hA2val t.val t.isLt
+  refine ⟨⟨hA2len, hA2wf⟩, ?_⟩
+  rw [hfun, InnerOuter.honestZ, ← hm,
     ← Fin.sum_univ_eq_sum_range (fun j =>
       scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
         (toVec (k := 2 ^ 10 * 8) (message.val.getD j (alloc.vec.Vec.new ring.Rq)))) (2 ^ 10)]

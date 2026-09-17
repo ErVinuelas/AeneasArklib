@@ -508,4 +508,32 @@ theorem mul_short_desc_spec (desc : ring.ShortMul) (s a : ring.Rq)
   · rw [toRq_coeff, if_neg hk]
     exact (Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)).symm
 
+/-- **`ring::mul_short_add_into` at the `Rq` level.** [`mul_short_desc_spec`]
+with `toRq acc +` in front -- the in-place form adds the same product. -/
+theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
+    (hs : Wf s) (ha : Wf a) (hacc : Wf acc)
+    (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
+    (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
+    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.AuxShort.idxAt desc.idx u < N)
+    (hden : ∀ j, j < N → coeffK a j
+      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+          desc.idx.val.length j) :
+    ring.mul_short_add_into desc s acc
+      ⦃ z => Wf z ∧ toRq z = toRq acc + toRq a * toRq s ⦄ := by
+  apply spec_mono (HachiEquiv.AuxShort.mul_short_add_into_spec desc s acc a hs ha
+    hacc hmlen hnlen hidx hden)
+  rintro z ⟨hz, hcoef⟩
+  refine ⟨hz, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  -- the same three `if k < N` guards `add_spec` splits once
+  rw [Rq.add_val, CompPoly.CPolynomial.coeff_add]
+  simp only [toRq_coeff]
+  split_ifs with hk
+  · rw [hcoef k hk, coeff_toRq_mul a s ha hs hk]
+  · rw [zero_add]
+    exact (Rq.coeff_eq_zero_of_natDegree_le Φ (toRq a * toRq s)
+      (by rw [phi_natDegree]; omega)).symm
+
 end HachiEquiv.RqBridge
