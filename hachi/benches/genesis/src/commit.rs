@@ -563,6 +563,7 @@ pub fn commit_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp)
 }
 
 
+// @genesis 964ae4b 2026-09-17 — commit::commit_streamed
 /// Commit to a message **without ever materializing the decomposed message**
 /// (spec: the same `commitmentScheme.commit` [`commit`] mirrors).
 ///

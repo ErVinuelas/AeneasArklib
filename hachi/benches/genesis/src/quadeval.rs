@@ -1152,6 +1152,7 @@ pub fn rlin_row(
     PolyVec::new(row)
 }
 
+// @genesis 964ae4b 2026-09-17 — quadeval::honest_z_from_raw
 /// `z = Σᵢ cᵢ •ᵥ sᵢ` from the **raw** message, decomposing one block at a time
 /// (spec: the same `honestZ` [`honest_z`] mirrors, composed with
 /// `gadgetDecompose`).
@@ -1202,6 +1203,7 @@ pub fn honest_z_from_raw(raw: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
     PolyVec::new(acc)
 }
 
+// @genesis 964ae4b 2026-09-17 — quadeval::carrier_from_raw
 /// The carrier `w` from the **raw** message (spec: the same `carrier`
 /// [`carrier`] mirrors, composed with `gadgetDecompose`).
 ///
@@ -1224,6 +1226,7 @@ pub fn carrier_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
     PolyVec::new(out)
 }
 
+// @genesis 964ae4b 2026-09-17 — quadeval::carrier_commit_from_raw
 /// `v = D · G⁻¹(w)` from the raw message: [`carrier_commit`] without the
 /// decomposed message.
 pub fn carrier_commit_from_raw(
