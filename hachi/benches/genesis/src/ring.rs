@@ -628,6 +628,7 @@ pub fn dot_fused(a: &Vec<Rq>, b: &Vec<Rq>, n: usize) -> Rq {
 // A prepared left operand
 // ---------------------------------------------------------------------------
 
+// @genesis 47976f7 2026-09-17 — ring::PreparedVec
 /// One operand of a dot product, forward-transformed under all three auxiliary
 /// primes and kept.
 ///
@@ -642,12 +643,14 @@ pub struct PreparedVec {
 }
 
 impl PreparedVec {
+    // @genesis 47976f7 2026-09-17 — ring::PreparedVec::len
     /// How many entries were prepared.
     pub fn len(&self) -> usize {
         self.len
     }
 }
 
+// @genesis 47976f7 2026-09-17 — ring::prepare_one
 /// Forward-transform every entry of `a` under one prime, concatenated.
 #[allow(clippy::too_many_arguments)]
 pub fn prepare_one(a: &Vec<Rq>, n: usize, p: u64, m: u64, psi: u64) -> Vec<u64> {
@@ -675,6 +678,7 @@ pub fn prepare_one(a: &Vec<Rq>, n: usize, p: u64, m: u64, psi: u64) -> Vec<u64> 
     out
 }
 
+// @genesis 47976f7 2026-09-17 — ring::prepare_vec
 /// Forward-transform every entry of `a`, once, and keep the result.
 ///
 /// **Only worth doing for an operand reused across many dot products.** The
@@ -696,6 +700,7 @@ pub fn prepare_vec(a: &Vec<Rq>, n: usize) -> PreparedVec {
     PreparedVec { len: n, fwd1, fwd2, fwd3 }
 }
 
+// @genesis 47976f7 2026-09-17 — ring::slice_out
 /// `pfwd`'s `n` words starting at `base`, copied out.
 ///
 /// A function of its own rather than a loop inside
@@ -713,6 +718,7 @@ pub fn slice_out(pfwd: &Vec<u64>, base: usize, n: usize) -> Vec<u64> {
     out
 }
 
+// @genesis 47976f7 2026-09-17 — ring::mac_into
 /// `acc += af ∘ bf` pointwise, modulo `p`.
 ///
 /// The multiply-accumulate the prepared dot spends all its time in, factored
@@ -729,6 +735,7 @@ pub fn mac_into(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize, p: u64, m
     out
 }
 
+// @genesis 47976f7 2026-09-17 — ring::dot_prep_chunk_mod_p
 /// One chunk of a dot product against a prepared left operand, modulo one
 /// auxiliary prime.
 ///
@@ -779,6 +786,7 @@ pub fn dot_prep_chunk_mod_p(
     crate::ntt::untwist(&inv.0, &it, ninv, scaled, p, m)
 }
 
+// @genesis 47976f7 2026-09-17 — ring::dot_prepared
 /// `Σⱼ a[j] · b[j]` with `a` prepared: the same value [`dot_fused`] computes.
 pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     let deg: usize = params::RING_DEGREE;

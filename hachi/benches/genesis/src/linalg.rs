@@ -310,6 +310,7 @@ pub fn flatten_blocks(blocks: &Vec<PolyVec>) -> PolyVec {
 // A prepared matrix
 // ---------------------------------------------------------------------------
 
+// @genesis 47976f7 2026-09-17 — linalg::PreparedMatrix
 /// A matrix with every entry forward-transformed and kept, one
 /// [`crate::ring::PreparedVec`] per row.
 ///
@@ -322,6 +323,7 @@ pub struct PreparedMatrix {
 }
 
 impl PolyMatrix {
+    // @genesis 47976f7 2026-09-17 — linalg::PolyMatrix::prepare
     /// Forward-transform every entry, once.
     ///
     /// **Not wired into [`PolyMatrix::mat_vec_mul`], deliberately.** The store
@@ -348,11 +350,13 @@ impl PolyMatrix {
 }
 
 impl PreparedMatrix {
+    // @genesis 47976f7 2026-09-17 — linalg::PreparedMatrix::rows
     /// The number of prepared rows.
     pub fn rows(&self) -> usize {
         self.rows.len()
     }
 
+    // @genesis 47976f7 2026-09-17 — linalg::PreparedMatrix::apply
     /// `A *ᵥ v`, with `A`'s transforms already in hand (spec: `matVecMul`,
     /// `Vectors.lean:81` -- the same product [`PolyMatrix::mat_vec_mul`]
     /// computes).
