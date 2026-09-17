@@ -1239,6 +1239,7 @@ pub fn carrier_commit_from_raw(
     d_matrix.mat_vec_mul(&what)
 }
 
+// @genesis fa135b2 2026-09-17 — quadeval::carrier_decomp_from_raw
 /// `ŵ = G⁻¹(w)` from the raw message: [`carrier_decomp`] without the decomposed
 /// message.
 pub fn carrier_decomp_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
@@ -1246,6 +1247,7 @@ pub fn carrier_decomp_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
     gadget::balanced_gadget_decompose(&w)
 }
 
+// @genesis fa135b2 2026-09-17 — quadeval::honest_compute_v_from_raw
 /// The prover's round-0 message `v = D ŵ` from the **raw** message (spec: the
 /// same `honestComputeV` [`honest_compute_v`] mirrors, composed with
 /// `gadgetDecompose`).
@@ -1261,6 +1263,7 @@ pub fn honest_compute_v_from_raw(
     carrier_commit_from_raw(pp.d_matrix(), stmt.avec(), raw)
 }
 
+// @genesis fa135b2 2026-09-17 — quadeval::honest_compute_resp_from_raw
 /// The honest output witness from the **raw** message (spec: the same
 /// `honestComputeResp` [`honest_compute_resp`] mirrors, composed with
 /// `gadgetDecompose`).
