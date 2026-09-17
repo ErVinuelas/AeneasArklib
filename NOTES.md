@@ -7570,3 +7570,63 @@ proof wanted.
 `make build` green, 306 audit lines on the three standard axioms only, 0 axioms
 in `Generated.lean`, extraction deterministic, 199 tests, genesis intact at 352,
 slot null across 13 modules, coverage 0 unaccounted.
+
+## Post-T1a1: 5.69× cumulative, and the rounds are now 63% of everything (2026-09-17)
+
+`4612b31`, 1 block, **353.4 s** against the post-NTT run's 421.3 s
+(`logs/runs/honest-chain-profile-20260917-postT1a1.log`). The control was the
+steadiest of the session — spread **−1.3%** within the run — with its level
++6.8% against post-NTT.
+
+| phase | post-NTT | post-T1a1 | Δ raw | recentered |
+|---|---|---|---|---|
+| **lifted witness** | 132.0 | **50.1** | **−62.0%** | **−64.5%** |
+| rounds (26) | 212.0 | 221.7 | +4.6% | −2.1% |
+| `chain_verify` | 20.9 | 22.2 | +6.2% | −0.6% |
+| `end_piece_check` | 14.3 | 15.0 | +4.9% | −1.8% |
+| setup | 11.6 | 12.4 | +6.9% | +0.1% |
+| `lift_commit` | 11.8 | 12.3 | +4.2% | −2.4% |
+| `alpha_public_table` | 8.4 | 8.8 | +4.8% | −1.9% |
+| **total** | 421.3 | **353.4** | −16.1% | **−21.5%** |
+
+Every phase T1a1 does not touch reads +4 to +7% raw and lands within ±2.5% of
+zero once recentered. That is the control doing exactly the job it was added
+for: a table that would otherwise look like seven small regressions is legibly
+one machine offset.
+
+**T1a1 delivered ~20% of protocol** against the ~18% predicted from the block
+structure — the estimate that came from reading `rlin_stmt`'s five rows (c1–c3
+86% zeros, c4/c5 ~14%) rather than extrapolating the bench row's 86%.
+Cumulative against the 1 882.2 s genesis baseline: **5.33× raw / 5.69×
+recentered**.
+
+### The shares have become lopsided, and that is the finding
+
+| post-T1a1 protocol share (recentered) | s | % |
+|---|---|---|
+| **rounds (26)** | 207.6 | **62.7%** |
+| lifted witness | 46.9 | 14.2 |
+| `chain_verify` | 20.8 | 6.3 |
+| `end_piece_check` | 14.0 | 4.2 |
+| `lift_commit` | 11.5 | 3.5 |
+| setup | 11.6 | 3.5 |
+| `alpha_public_table` | 8.2 | 2.5 |
+| `final_check` | 4.5 | 1.4 |
+| `honest_compute_y` | 2.5 | 0.8 |
+
+**One phase is now 62.7% of protocol.** The lifted-witness phase, which was the
+headline target for two sessions, has fallen from 31.3% to 14.2% — not because
+it stopped mattering but because T1a1 took two thirds of it.
+
+The consequence for the plan is blunt. `honest_round_messages` is the only thing
+left that matters at this scale, and the only card aimed at it is **T3** (the
+Taylor-shift round polynomial), whose card prices the proof at a week and which
+is **gated on the unanswered S / `bZero` question** — preflight gate 3, still
+unasked. Every other open card now addresses a slice of the remaining 37%:
+T16 ~2% (and shrinking, since T1a1 removed most of the calls it would speed up),
+T1a2/T1a3 slices of 14.2%, T5/T6/T8 re-priced or dead after the NTT.
+
+So the honest position is that Stage 6's arithmetic work is **substantially
+done at 5.3–5.7×**, and what remains is one large, gated, week-long candidate
+plus the owed ceremonies. Continuing to mine the 37% is not a good use of proof
+effort, and saying so is more useful than adding another 2% row.

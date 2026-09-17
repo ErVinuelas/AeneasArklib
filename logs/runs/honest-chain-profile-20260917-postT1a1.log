@@ -1,0 +1,41 @@
+# the_honest_chain_profile — POST-T1a1, on 4612b31 clean, 1 block
+# pairs with -postNTT.log (f8d9fce, 421.3s, control 551.2->607.4ms).
+# PURPOSE: replace the ~18% estimate with a measurement. The bench rows model c1
+#   only (86% zeros); the real M has five rows and c4/c5 are ~14% zeros, so the
+#   five-row average should be ~57% of entries skipped. This measures which.
+# Only the lifted-witness phase should move; rounds are Ext4-bound and untouched.
+# started 2026-09-17T08:28:08+02:00 at load 0.42 0.23 0.16
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 1.29s
+     Running tests/chain_semantics.rs (hachi/target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 622.7ms
+[     3.9s] committed 1 block(s)
+[     6.5s] statement built
+[     6.9s] honest_compute_v done
+[    10.9s] honest_compute_resp + stack done
+[    12.4s] R^lin statement assembled: 5 x 40976
+[    12.4s] M zeta = y SKIPPED (not protocol work)
+test the_honest_chain_profile has been running for over 60 seconds
+[    62.5s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 416.0ms
+[profile] lift_commit: 12.3s
+[profile] c_w_table_mle at 2^26: 867.5ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 8.8s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 221.7s
+[profile] honest_compute_y: 2.7s
+[profile] verifier: rlin_stmt + statement thread: 376.4ms
+[profile] verifier: round_verify_loop (26 rounds): 46.8µs
+[profile] verifier: final_check = true: 4.8s
+[profile] verifier: end_piece_check = true: 15.0s
+[profile] chain_verify (whole) = true: 22.2s
+[profile] control (frozen genesis PolyVec::zeros x50): 614.4ms
+[profile] control spread within run: -1.3%  (recenter cross-run deltas by the level)
+[   353.4s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 353.69s
+
+# exit 0 at 2026-09-17T08:34:03+02:00
