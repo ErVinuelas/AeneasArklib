@@ -455,6 +455,7 @@ pub fn mul_short_desc(desc: &ShortMul, s: &Rq) -> Rq {
     Rq(res)
 }
 
+// @genesis f442c57 2026-09-17 — ring::mul_short_add_into
 /// `acc += desc · s`, in place (spec: the same product
 /// [`mul_short_desc`] computes, added to `acc`).
 ///
