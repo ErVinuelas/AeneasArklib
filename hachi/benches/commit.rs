@@ -382,6 +382,32 @@ fn commit_benches(c: &mut Criterion) {
     // @covers commit::vec_l_infty_norm
     bench_case!(c, "commit/vec_l_infty_norm", vec_l_infty_norm, [width]);
 
+    // `generate_decomps` at a REDUCED block count. The exclusion this replaces
+    // said "until a sub-quadratic `ring::mul` lands"; the auxiliary-prime NTT
+    // landed, and then the fused dot, so the stated condition is met twice over.
+    //
+    // One block is `MESSAGE_ROWS * GADGET_DIGITS = 8192` ring products through
+    // `A · s`, plus two gadget decompositions. That is seconds per iteration in
+    // every variant and there is no block count at which it is cheap -- the
+    // `genesis` variant still runs the frozen schoolbook `Rq::mul` through the
+    // frozen unfused `dot` -- hence the `samples:` override, whose arithmetic is
+    // the same as `benches/quadeval.rs`'s: 10 x (genesis + now + candidate) is a
+    // few minutes, 100 would be most of an hour for one row.
+    //
+    // `blocks` is **4, not 1**, and that is the whole point of the row. `A` is
+    // `INNER_ROWS x (MESSAGE_ROWS * GADGET_DIGITS)` -- fixed, independent of
+    // `blocks` -- and is applied once per block, so any optimization that
+    // *prepares* `A` pays only by amortizing over blocks. At one block the
+    // operation counts are exactly equal (measured: candidate T19 read +15.5%
+    // at `blocks = 1`, which is the preparation's memory traffic and nothing
+    // else), so a one-block row cannot distinguish such a candidate from a
+    // regression. Four blocks is the cheapest count that shows amortization.
+    let decomp_blocks = 4;
+    let decomp_samples = 10;
+    // @covers commit::generate_decomps
+    bench_case!(c, "commit/generate_decomps", generate_decomps, [decomp_blocks],
+                samples: decomp_samples);
+
     // The six scheme-level cases (`generate_decomps`, `commit_with_decomps`,
     // `derived_message`, `commit`, `verify_weak`, `verify`) are excluded at the
     // [NOZ26] Fig. 9 parameters: every one of them pays >= `MESSAGE_ROWS *

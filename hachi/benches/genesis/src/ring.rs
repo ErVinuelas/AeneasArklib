@@ -623,3 +623,189 @@ pub fn dot_fused(a: &Vec<Rq>, b: &Vec<Rq>, n: usize) -> Rq {
     }
     acc
 }
+
+// ---------------------------------------------------------------------------
+// A prepared left operand
+// ---------------------------------------------------------------------------
+
+/// One operand of a dot product, forward-transformed under all three auxiliary
+/// primes and kept.
+///
+/// Three separate stores rather than one interleaved buffer: the primes are
+/// individual constants, not an indexable table, so a loop over them would need
+/// a lookup Aeneas has no model for. Each store is `len * NTT_LEN` words.
+pub struct PreparedVec {
+    len: usize,
+    fwd1: Vec<u64>,
+    fwd2: Vec<u64>,
+    fwd3: Vec<u64>,
+}
+
+impl PreparedVec {
+    /// How many entries were prepared.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+/// Forward-transform every entry of `a` under one prime, concatenated.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_one(a: &Vec<Rq>, n: usize, p: u64, m: u64, psi: u64) -> Vec<u64> {
+    let deg: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::psi_table(psi, p, m);
+    let mut out: Vec<u64> = Vec::with_capacity(n * deg);
+    let mut j: usize = 0;
+    while j < n {
+        let mut w: Vec<u64> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            w.push(a[j].0[t].to_u64());
+            t += 1;
+        }
+        let scratch: Vec<u64> = crate::ntt::zeros(deg);
+        let tw: Vec<u64> = crate::ntt::twist(&w, &pt, p, m);
+        let f: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_forward(tw, scratch, &pt, p, m);
+        let mut k: usize = 0;
+        while k < deg {
+            out.push(f.0[k]);
+            k += 1;
+        }
+        j += 1;
+    }
+    out
+}
+
+/// Forward-transform every entry of `a`, once, and keep the result.
+///
+/// **Only worth doing for an operand reused across many dot products.** The
+/// store is `n * 3 * NTT_LEN * 8` bytes = `n * 24 KiB`: at the inner Ajtai
+/// matrix's `n = MESSAGE_ROWS * GADGET_DIGITS = 8192` that is 192 MiB, computed
+/// once and applied to all `BLOCKS` message blocks. Applied to a vector used
+/// *once* it is strictly worse than [`dot_fused`], because it does the same
+/// transforms and then holds them.
+///
+/// For scale: `rlin_stmt`'s `M` is `5 x 40976`, which would be **4.8 GiB**.
+/// Nothing mechanical stops a caller preparing that; this comment is the guard.
+pub fn prepare_vec(a: &Vec<Rq>, n: usize) -> PreparedVec {
+    let fwd1: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P1, crate::ntt::AUX_M1,
+        crate::ntt::AUX_PSI1);
+    let fwd2: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P2, crate::ntt::AUX_M2,
+        crate::ntt::AUX_PSI2);
+    let fwd3: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P3, crate::ntt::AUX_M3,
+        crate::ntt::AUX_PSI3);
+    PreparedVec { len: n, fwd1, fwd2, fwd3 }
+}
+
+/// `pfwd`'s `n` words starting at `base`, copied out.
+///
+/// A function of its own rather than a loop inside
+/// [`dot_prep_chunk_mod_p`]: reading a borrowed buffer inside a loop that also
+/// writes an accumulator makes the pinned Aeneas abort in
+/// `filter_loop_useless_inputs_outputs` (measured 2026-09-17,
+/// `nightly-2026.07.26-3a8586f`), and there is no fork here to patch.
+pub fn slice_out(pfwd: &Vec<u64>, base: usize, n: usize) -> Vec<u64> {
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut c: usize = 0;
+    while c < n {
+        out.push(pfwd[base + c]);
+        c += 1;
+    }
+    out
+}
+
+/// `acc += af ∘ bf` pointwise, modulo `p`.
+///
+/// The multiply-accumulate the prepared dot spends all its time in, factored
+/// out for the same extraction reason as [`slice_out`].
+pub fn mac_into(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize, p: u64, m: u64)
+    -> Vec<u64> {
+    let mut out: Vec<u64> = acc;
+    let mut k: usize = 0;
+    while k < n {
+        let prod: u64 = crate::ntt::aux_mul(af[k], bf[k], p, m);
+        out[k] = crate::ntt::aux_add(out[k], prod, p);
+        k += 1;
+    }
+    out
+}
+
+/// One chunk of a dot product against a prepared left operand, modulo one
+/// auxiliary prime.
+///
+/// [`dot_chunk_mod_p`] without the left operand's twist and forward transform:
+/// those are read out of `pfwd` instead. That is the whole of Change 4 --
+/// `7168` modular multiplies per term per prime against the fused dot's
+/// `13 312` and the unfused `21 528`.
+#[allow(clippy::too_many_arguments)]
+pub fn dot_prep_chunk_mod_p(
+    pfwd: &Vec<u64>,
+    b: &Vec<Rq>,
+    start: usize,
+    end: usize,
+    p: u64,
+    m: u64,
+    psi: u64,
+    psiinv: u64,
+    ninv: u64,
+    boff: u64,
+) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::psi_table(psi, p, m);
+    let it: Vec<u64> = crate::ntt::psi_table(psiinv, p, m);
+    let mut acc: Vec<u64> = crate::ntt::zeros(n);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = start;
+    while j < end {
+        let mut bw: Vec<u64> = Vec::with_capacity(n);
+        let mut u: usize = 0;
+        while u < n {
+            bw.push(b[j].0[u].to_u64());
+            u += 1;
+        }
+        let tb: Vec<u64> = crate::ntt::twist(&bw, &pt, p, m);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_forward(tb, scratch, &pt, p, m);
+        // `j * n` is an ABSOLUTE offset: `pfwd` holds every prepared entry, not
+        // just this chunk's. Using a position-within-chunk offset here is the one
+        // mistake preparation can make that the unprepared path cannot, and the
+        // semantics oracle is checked to catch it at the first multi-chunk width.
+        let af: Vec<u64> = slice_out(pfwd, j * n, n);
+        acc = mac_into(acc, &af, &fwb.0, n, p, m);
+        scratch = fwb.1;
+        j += 1;
+    }
+    let len: u64 = (end - start) as u64;
+    let scaled: u64 = crate::ntt::aux_mul(boff, len, p, m);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_inverse(acc, scratch, &it, p, m);
+    crate::ntt::untwist(&inv.0, &it, ninv, scaled, p, m)
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared: the same value [`dot_fused`] computes.
+pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u128 = params::Q as u128;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        let remaining: usize = n - start;
+        let take: usize = if remaining < DOT_CHUNK { remaining } else { DOT_CHUNK };
+        let end: usize = start + take;
+        let r1: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd1, b, start, end,
+            crate::ntt::AUX_P1, crate::ntt::AUX_M1, crate::ntt::AUX_PSI1,
+            crate::ntt::AUX_PSIINV1, crate::ntt::AUX_NINV1, crate::ntt::AUX_BOFF1);
+        let r2: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd2, b, start, end,
+            crate::ntt::AUX_P2, crate::ntt::AUX_M2, crate::ntt::AUX_PSI2,
+            crate::ntt::AUX_PSIINV2, crate::ntt::AUX_NINV2, crate::ntt::AUX_BOFF2);
+        let r3: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd3, b, start, end,
+            crate::ntt::AUX_P3, crate::ntt::AUX_M3, crate::ntt::AUX_PSI3,
+            crate::ntt::AUX_PSIINV3, crate::ntt::AUX_NINV3, crate::ntt::AUX_BOFF3);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            out.push(Fp::new((crate::ntt::garner(r1[t], r2[t], r3[t]) % qw) as u64));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}

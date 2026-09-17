@@ -554,18 +554,22 @@ theorem coeff_sum {ι : Type*} (s : Finset ι) (f : ι → Rq Φ) (k : ℕ) :
     rw [Finset.sum_insert ha, Rq.add_val, CompPoly.CPolynomial.coeff_add, ih,
       Finset.sum_insert ha]
 
-/-- **`ring::dot_fused` at the `Rq` level.** -/
-theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+/-- The shared tail of the two fused dot specifications: a result whose `N`
+coefficients are the sum of the entrywise negacyclic convolutions *is* the sum
+of the entrywise `Rq` products. Both `ring::dot_fused` and `ring::dot_prepared`
+end here, which is the point -- preparing the left operand changes the work, not
+the value. -/
+theorem dot_sum_toRq (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
     (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
-    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length) :
-    ring.dot_fused a b nU
-      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
-          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
-            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  apply spec_mono (HachiEquiv.AuxFused.dot_fused_spec a b nU haw hbw han hbn)
-  rintro z ⟨hzwf, hzval⟩
-  refine ⟨hzwf, ?_⟩
+    (z : ring.Rq)
+    (hzval : ∀ k, k < N → coeffK z k
+      = ∑ u ∈ Finset.range nU.val, negConv
+          (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k) :
+    toRq z = ∑ u ∈ Finset.range nU.val,
+        toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := by
   apply Subtype.ext
   rw [CompPoly.CPolynomial.eq_iff_coeff]
   intro k
@@ -578,5 +582,59 @@ theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
   · rw [toRq_coeff, if_neg hk]
     refine (Finset.sum_eq_zero (fun u _ => ?_)).symm
     exact Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)
+
+/-- **`ring::dot_fused` at the `Rq` level.** -/
+theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length) :
+    ring.dot_fused a b nU
+      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
+          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  apply spec_mono (HachiEquiv.AuxFused.dot_fused_spec a b nU haw hbw han hbn)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
+
+/-! ## The prepared dot product
+
+`ring::dot_prepared` takes the left operand's three forward transforms already
+computed (`ring::prepare_vec`), so a matrix row is transformed once instead of
+once per matrix-vector product. `PrepRow` below is the relation "this
+`PreparedVec` is that row's prepared form"; it is the only new piece of
+vocabulary the change costs, and it is the thing `PolyMatrix::prepare`
+establishes and `PreparedMatrix::apply` consumes. -/
+
+/-- The `getD` default for a `PreparedVec` slot: the empty tables. Nothing is ever
+read out of it -- every use is guarded by an index bound -- but `getD` needs a
+value, and a `PreparedVec` has no `Default`. -/
+def prepJunk : ring.PreparedVec :=
+  { len := 0#usize, fwd1 := alloc.vec.Vec.new Std.U64,
+    fwd2 := alloc.vec.Vec.new Std.U64, fwd3 := alloc.vec.Vec.new Std.U64 }
+
+/-- `p` holds the three forward transforms of the first `cols` entries of `a`. -/
+def PrepRow (cols : ℕ) (p : ring.PreparedVec) (a : linalg.PolyVec) : Prop :=
+  p.len.val = cols
+  ∧ HachiEquiv.AuxFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
+  ∧ HachiEquiv.AuxFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
+  ∧ HachiEquiv.AuxFused.PrepAt p.fwd3 a cols ntt.AUX_P3 ntt.AUX_PSI3
+
+/-- **`ring::dot_prepared` at the `Rq` level** -- the same value as
+`dot_fused_spec`, for a left operand supplied in prepared form. -/
+theorem dot_prepared_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq)
+    (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hprep : PrepRow nU.val prep a) :
+    ring.dot_prepared prep b nU
+      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
+          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  obtain ⟨-, hp1, hp2, hp3⟩ := hprep
+  apply spec_mono (HachiEquiv.AuxFused.dot_prepared_spec prep a b nU haw hbw han hbn
+    hp1 hp2 hp3)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
 
 end HachiEquiv.RqBridge

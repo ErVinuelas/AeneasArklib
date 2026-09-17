@@ -1723,5 +1723,41 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.AuxFused.dot_fused_spec
 #print axioms HachiEquiv.RqBridge.dot_fused_spec
 #print axioms HachiEquiv.Scheme.dot_spec
+-- Candidate T19 Change 4 (Stage 6, `commit::generate_decomps`) -- the CACHED
+-- transformed matrix: `PolyMatrix::prepare` twists and forward-transforms every
+-- entry of a matrix once, and `PreparedMatrix::apply` then only multiplies
+-- pointwise, inverts and reconstructs. The left operand's transform is paid per
+-- MATRIX instead of per matrix-vector product, so at 1024 message blocks the
+-- Ajtai `A · s` pays it once rather than 1024 times.
+--
+-- `Scheme.apply_spec`'s conclusion is `mat_vec_mul_spec`'s word for word, which
+-- is the whole content of the change: `PrepRow` and `WfPrep` are the only new
+-- vocabulary, and `generate_decomps_spec`'s statement is unchanged, so the
+-- layers above it are untouched.
+--
+-- `prepare_one_spec` had to be strengthened with the canonicity of its table
+-- (`∀ u ∈ z.val, u.val < p`) before `PrepAt` could be discharged: the values
+-- alone do not say the words are reduced, and `dot_prep_chunk_mod_p` reads them
+-- back as residues.
+--
+-- The change is NOT wired into `mat_vec_mul` itself. The store is
+-- `rows · cols · 3 · N · 8` bytes -- 192 MiB for `A` (1 × 8192) but 4.8 GiB for
+-- `rlin_stmt`'s `M` (5 × 40976) -- so the choice is per caller, and
+-- `hachi/src/linalg.rs` records it at `PolyMatrix::prepare`.
+#print axioms HachiEquiv.AuxFused.slice_out_spec
+#print axioms HachiEquiv.AuxFused.mac_into_spec
+#print axioms HachiEquiv.AuxFused.prep_append_spec
+#print axioms HachiEquiv.AuxFused.prepare_one_spec
+#print axioms HachiEquiv.AuxFused.prep_terms_chunk_spec
+#print axioms HachiEquiv.AuxFused.dot_prep_chunk_mod_p_spec
+#print axioms HachiEquiv.AuxFused.dot_prep_chunk_word_spec
+#print axioms HachiEquiv.AuxFused.prep_chunk_loop_spec
+#print axioms HachiEquiv.AuxFused.dot_prepared_spec
+#print axioms HachiEquiv.AuxFused.prepare_vec_spec
+#print axioms HachiEquiv.RqBridge.dot_prepared_spec
+#print axioms HachiEquiv.Scheme.dot_prep_spec
+#print axioms HachiEquiv.Scheme.cols_spec
+#print axioms HachiEquiv.Scheme.prepare_spec
+#print axioms HachiEquiv.Scheme.apply_spec
 
 end HachiEquiv.Check

@@ -444,6 +444,217 @@ theorem mat_vec_mul_spec {rows cols : ℕ} (a : linalg.PolyMatrix) (v : linalg.P
   rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
   exact hzval i.val i.isLt
 
+/-! ### The prepared matrix-vector product
+
+`PolyMatrix::prepare` forward-transforms every entry of a matrix once;
+`PreparedMatrix::apply` then only multiplies pointwise and inverts. The value is
+unchanged -- `apply_spec` below concludes *exactly* what `mat_vec_mul_spec`
+concludes, so no caller's specification moves -- and what changes is that a row's
+twist and forward transform are paid once for the whole matrix instead of once
+per matrix-vector product.
+
+`mat_vec_mul` itself is deliberately **not** rewired: the prepared tables are
+`rows * cols * 3 * N * 8` bytes, which is 192 MiB for the Ajtai matrix `A`
+(1 x 8192) but 4.8 GiB for `rlin_stmt`'s `M` (5 x 40976). The choice is per
+caller, and `hachi/src/linalg.rs` records it at `PolyMatrix::prepare`. -/
+
+/-- A `usize` holds at least `2 ^ 32 - 1`. `Usize.max` is platform-dependent in
+the Aeneas model, so a concrete bound has to come from somewhere; this is the
+same fact `Sumcheck.usize_max_ge` states, restated here because that file sits
+above this one in the import graph. -/
+theorem usize_max_ge' : 4294967295 ≤ Usize.max := by
+  rw [Usize.max_def]
+  rcases System.Platform.numBits_eq with h | h <;> simp [Usize.numBits, h]
+
+/-- `ring::dot_prepared` at the specification level: the same `ArkLib` dot product
+`dot_spec` computes, for a left operand supplied in prepared form. -/
+theorem dot_prep_spec {k : ℕ} (prep : ring.PreparedVec) (u v : linalg.PolyVec)
+    (nU : Std.Usize) (hn : nU.val = k) (hu : WfVec k u) (hv : WfVec k v)
+    (hprep : PrepRow k prep u) :
+    ring.dot_prepared prep v nU
+      ⦃ z => Wf z ∧ toRq z
+        = ArkLib.Lattices.dot (toVec (k := k) u) (toVec (k := k) v) ⦄ := by
+  apply spec_mono (HachiEquiv.RqBridge.dot_prepared_spec prep u v nU
+    (by intro j hj; rw [hn] at hj; exact wf_getD hu hj)
+    (by intro j hj; rw [hn] at hj; exact wf_getD hv hj)
+    (by rw [hn, hu.1]) (by rw [hn, hv.1]) (by rw [hn]; exact hprep))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hn, ArkLib.Lattices.dot_eq_sum]
+  exact (Fin.sum_univ_eq_sum_range
+    (fun j => toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+      * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) k).symm
+
+/-- `pm` is the prepared form of `m`: the same shape, and every row prepared. -/
+def WfPrep (rows cols : ℕ) (pm : linalg.PreparedMatrix) (m : linalg.PolyMatrix) : Prop :=
+  pm.cols.val = cols ∧ pm.rows.val.length = rows
+  ∧ ∀ i, i < rows → PrepRow cols (pm.rows.val.getD i prepJunk)
+      (m.val.getD i (alloc.vec.Vec.new ring.Rq))
+
+/-- `PolyMatrix::cols` reads the width off row 0, so it answers for a matrix that
+has one. (The `rows = 0` case returns 0 and is not used: a prepared matrix with no
+rows prepares nothing.) -/
+theorem cols_spec {rows cols : ℕ} (m : linalg.PolyMatrix) (ha : WfMat rows cols m)
+    (hrows : 0 < rows) : linalg.PolyMatrix.cols m ⦃ c => c.val = cols ⦄ := by
+  have hlen : (alloc.vec.Vec.len m).val = rows := by simp [ha.1]
+  have h0 : (0 : ℕ) < m.val.length := by rw [ha.1]; exact hrows
+  rw [linalg.PolyMatrix.cols]
+  simp only [if_neg (by scalar_tac : ¬ (alloc.vec.Vec.len m = 0#usize))]
+  step as ⟨pv, hpv⟩
+  rw [linalg.PolyVec.len, WP.spec_ok]
+  have hW : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0)
+  simp [hW.1]
+
+/-- The loop of `PolyMatrix::prepare`: after `i` rows the table holds `i` prepared
+rows, each the prepared form of the matrix row at the same index. -/
+theorem prepare_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (n c : Std.Usize) (rws : alloc.vec.Vec ring.PreparedVec) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hn : n.val = rows) (hc : c.val = cols)
+    (hmax : cols * N ≤ Std.Usize.max)
+    (hi : i.val ≤ n.val) (hlen : rws.val.length = i.val)
+    (hval : ∀ u, u < i.val → PrepRow cols (rws.val.getD u prepJunk)
+      (m.val.getD u (alloc.vec.Vec.new ring.Rq))) :
+    linalg.PolyMatrix.prepare_loop m n c rws i
+      ⦃ z => z.val.length = rows ∧ ∀ u, u < rows →
+          PrepRow cols (z.val.getD u prepJunk)
+            (m.val.getD u (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  rw [linalg.PolyMatrix.prepare_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val
+      ∧ ∀ u, u < s.2.val → PrepRow cols (s.1.val.getD u prepJunk)
+          (m.val.getD u (alloc.vec.Vec.new ring.Rq)))
+  · rintro ⟨r1, i1⟩ ⟨hi1, hlen1, hval1⟩
+    dsimp only at hi1 hlen1 hval1
+    simp only [linalg.PolyMatrix.prepare_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
+      have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv]; exact List.getD_eq_getElem _ _ him
+      step with HachiEquiv.AuxFused.prepare_vec_spec pv c
+        (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
+        (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1, hp2, hp3⟩
+      step as ⟨r2, hr2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_⟩
+      · rw [hr2, hi2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hi2] at hu
+        rcases Nat.lt_or_ge u i1.val with hult | huge
+        · rw [hr2, getD_append_lt _ _ _ (by omega)]
+          exact hval1 u hult
+        · have hueq : u = r1.val.length := by omega
+          rw [hueq, hr2, getD_append_eq, hlen1, hmi]
+          refine ⟨by rw [hpl]; exact hc, ?_, ?_, ?_⟩
+          · rw [← hc]; exact hp1
+          · rw [← hc]; exact hp2
+          · rw [← hc]; exact hp3
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], by intro u hu; exact hval1 u (by rw [heq, hn]; exact hu)⟩
+  · exact ⟨hi, hlen, hval⟩
+
+/-- `PolyMatrix::prepare` — the prepared form of the matrix it is given. -/
+theorem prepare_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
+    linalg.PolyMatrix.prepare m ⦃ z => WfPrep rows cols z m ⦄ := by
+  rw [linalg.PolyMatrix.prepare]
+  step with cols_spec m ha hrows as ⟨c, hc⟩
+  step with prepare_loop_spec m (alloc.vec.Vec.len m) c
+    (alloc.vec.Vec.new ring.PreparedVec) 0#usize ha (by simp [ha.1]) hc hmax
+    (by simp) (by simp) (by intro u hu; simp at hu) as ⟨rws, hrl, hrv⟩
+  exact ⟨hc, hrl, hrv⟩
+
+/-- The loop of `PreparedMatrix::apply`: entry `j` already written is the dot
+product of matrix row `j` with the input vector — the very invariant
+`mat_vec_mul_loop_spec` carries. -/
+theorem apply_loop_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec) (n w : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hp : WfPrep rows cols pm m)
+    (hn : n.val = rows) (hw : w.val = cols)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hwf : ∀ z ∈ out.val, Wf z)
+    (hval : ∀ j, j < i.val →
+      toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v)) :
+    linalg.PreparedMatrix.apply_loop pm.rows v n w out i
+      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < rows → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+          = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+              (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrix.apply_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [linalg.PreparedMatrix.apply_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hip : i1.val < pm.rows.val.length := by rw [hp.2.1, ← hn]; scalar_tac
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hprow : PrepRow cols pv (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        have := hp.2.2 i1.val (by rw [← hn]; scalar_tac)
+        rwa [List.getD_eq_getElem _ _ hip, ← hpv] at this
+      have hWrow : WfVec cols (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        rw [List.getD_eq_getElem _ _ him]; exact ha.2 _ (List.getElem_mem him)
+      step with dot_prep_spec (k := cols) pv
+        (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) v w hw hWrow hv hprow
+        as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr, hlen1]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], hwf1, by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- **`PreparedMatrix::apply` = `PolyMatrix::mat_vec_mul`.** The conclusion is
+`mat_vec_mul_spec`'s, word for word: ArkLib's `matVecMul` of the matrix the
+prepared form was built from. -/
+theorem apply_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hp : WfPrep rows cols pm m) :
+    linalg.PreparedMatrix.apply pm v
+      ⦃ z => WfVec rows z ∧ toVec (k := rows) z
+        = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
+            (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrix.apply]
+  have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
+  have hcl : pm.cols.val = cols := hp.1
+  simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
+  apply spec_mono (apply_loop_spec pm m v (alloc.vec.Vec.len pm.rows) pm.cols
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha hv hp (by simp [hp.2.1]) hcl
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
+  exact hzval i.val i.isLt
+
 /-- The inner loop of `flatten_blocks`: it appends the `width` entries of block `i`,
 and every entry written so far — old or new — is the block-major entry it should be. -/
 theorem flatten_blocks_inner_loop_spec {blocks width : ℕ} (xs : alloc.vec.Vec linalg.PolyVec)
@@ -1947,8 +2158,10 @@ apply anything; the agreement half is what makes it the specification's
 decomposition and not merely a decomposition of the right shape. -/
 theorem generate_decomps_loop_spec (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+    (prep : linalg.PreparedMatrix)
     (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hpp : WfParams pp) (hprep : WfPrep 1 (1024 * 8) prep pp.inner_matrix)
+    (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
     (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
     (hWss : ∀ y ∈ ss.val, WfVec (1024 * 8) y) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
@@ -1959,7 +2172,7 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
           (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
           (gadgetDecompose Φ dd
             (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
-    commit.generate_decomps_loop pp m blocks ss ts i
+    commit.generate_decomps_loop m blocks prep ss ts i
       ⦃ r => r.1.val.length = 1024 ∧ r.2.val.length = 1024 ∧
         (∀ y ∈ r.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ r.2.val, WfVec (1 * 8) y) ∧
         (∀ j < 1024, toVec (k := 1024 * 8) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
@@ -1991,9 +2204,8 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
       step as ⟨pv, hpv⟩
       have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
       step with gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac) as ⟨s, hWs, hs⟩
-      simp only [commit.PublicParams.impl.inner_matrix]
-      step with mat_vec_mul_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix s
-        hpp.1 hWs as ⟨inner, hWinner, hinner⟩
+      step with apply_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
+        hpp.1 hWs hprep as ⟨inner, hWinner, hinner⟩
       step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
@@ -2044,10 +2256,13 @@ theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec lina
             (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val
               (alloc.vec.Vec.new ring.Rq))) ⦄ := by
   rw [commit.generate_decomps]
-  simp only [commit.Decomp.new]
-  step with generate_decomps_loop_spec pp m (alloc.vec.Vec.len m)
+  simp only [commit.Decomp.new, commit.PublicParams.impl.inner_matrix]
+  -- the one prepared matrix, hoisted above the block loop: 192 MiB paid once
+  step with prepare_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
+    (by norm_num) (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
+  step with generate_decomps_loop_spec pp m (alloc.vec.Vec.len m) prep
     (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
-    hpp hm (by simpa using hm.1) (by simp) (by simp) (by simp)
+    hpp hprep hm (by simpa using hm.1) (by simp) (by simp) (by simp)
     (by intro y hy; simp at hy) (by intro y hy; simp at hy)
     (by intro j hj; simp at hj) (by intro j hj; simp at hj)
     as ⟨ss, ts, hsl, htl, hWs, hWt, hvs, hvt⟩

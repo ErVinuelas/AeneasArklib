@@ -285,3 +285,66 @@ pub fn flatten_blocks(blocks: &Vec<PolyVec>) -> PolyVec {
     }
     PolyVec(out)
 }
+
+// ---------------------------------------------------------------------------
+// A prepared matrix
+// ---------------------------------------------------------------------------
+
+/// A matrix with every entry forward-transformed and kept, one
+/// [`crate::ring::PreparedVec`] per row.
+///
+/// **Whether this is worth building is the caller's decision, not
+/// `mat_vec_mul`'s.** The store is `rows · cols · 24 KiB`, so it pays only when
+/// one matrix is applied to many vectors. See [`PolyMatrix::prepare`].
+pub struct PreparedMatrix {
+    rows: Vec<crate::ring::PreparedVec>,
+    cols: usize,
+}
+
+impl PolyMatrix {
+    /// Forward-transform every entry, once.
+    ///
+    /// **Not wired into [`PolyMatrix::mat_vec_mul`], deliberately.** The store
+    /// is `rows · cols · 3 · RING_DEGREE · 8` bytes = `rows · cols · 24 KiB`:
+    ///
+    /// * the inner Ajtai matrix `A` is `1 × 8192` → **192 MiB**, built once and
+    ///   applied to all `BLOCKS` message blocks, which is what makes it pay;
+    /// * `ringswitch`'s `R^lin` matrix `M` is `5 × 40976` → **4.8 GiB**, which
+    ///   does not pay and must not be prepared.
+    ///
+    /// A matrix applied *once* should never be prepared: preparation performs
+    /// exactly the transforms the unprepared dot would, and then holds them.
+    pub fn prepare(&self) -> PreparedMatrix {
+        let n: usize = self.0.len();
+        let c: usize = self.cols();
+        let mut rows: Vec<crate::ring::PreparedVec> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            rows.push(crate::ring::prepare_vec(&self.0[i].0, c));
+            i += 1;
+        }
+        PreparedMatrix { rows, cols: c }
+    }
+}
+
+impl PreparedMatrix {
+    /// The number of prepared rows.
+    pub fn rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// `A *ᵥ v`, with `A`'s transforms already in hand (spec: `matVecMul`,
+    /// `Vectors.lean:81` -- the same product [`PolyMatrix::mat_vec_mul`]
+    /// computes).
+    pub fn apply(&self, v: &PolyVec) -> PolyVec {
+        let n: usize = self.rows.len();
+        let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
+        let mut out: Vec<Rq> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::dot_prepared(&self.rows[i], &v.0, w));
+            i += 1;
+        }
+        PolyVec(out)
+    }
+}

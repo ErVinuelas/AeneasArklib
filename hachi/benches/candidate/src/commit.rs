@@ -346,12 +346,18 @@ pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
 /// serves both and `ofDigits` has no computational content left to translate.
 pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     let blocks: usize = m.len();
+    // `A` is public and fixed, and is applied to every one of `BLOCKS` message
+    // blocks, so its forward transforms are computed once here instead of once
+    // per block. At the paper's parameters that store is 192 MiB, independent of
+    // `BLOCKS`; see `PolyMatrix::prepare` for why this is the caller's decision
+    // and not `mat_vec_mul`'s.
+    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare();
     let mut ss: Vec<PolyVec> = Vec::new();
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
-        let inner: PolyVec = pp.inner_matrix().mat_vec_mul(&s);
+        let inner: PolyVec = prep.apply(&s);
         ts.push(gadget::gadget_decompose(&inner));
         ss.push(s);
         i += 1;

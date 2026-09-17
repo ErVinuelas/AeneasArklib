@@ -363,11 +363,12 @@ the same `2^m_1` scan as `h_alpha` plus one `Ext4::is_zero` per entry, and the
 one `bool`, so it wants `check()`-style pinning in its bench file the way
 `endpiece/lift_short_check` has, not just the digest oracle."""
 
-"commit::generate_decomps" = """
-per block: one `gadget_decompose` (8192 digit loops), one `A · s` (8192 ring
-muls, ~25 s at d = 1024 schoolbook), one more decompose. Hours at the scheme's
-`BLOCKS = 1024`; tens of seconds per iteration even at one block. Excluded per
-the Fig. 9 policy exception (header) until a sub-quadratic `ring::mul` lands."""
+# `commit::generate_decomps` was excluded here "until a sub-quadratic
+# `ring::mul` lands". It has: the auxiliary-prime NTT replaced the schoolbook
+# product, and candidate T18's fused dot then removed the per-term transform
+# pipeline. The item now carries a real row in `benches/commit.rs`, REDUCED in
+# `blocks` (one block = 8192 ring products, still seconds per iteration) with a
+# per-group `samples:` override. The old reason is kept above for the record.
 
 "commit::commit_with_decomps" = """
 `B · flatten(t̂)`: `BLOCKS · (INNER_ROWS · GADGET_DIGITS) = 8192` ring muls,

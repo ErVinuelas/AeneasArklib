@@ -7867,6 +7867,545 @@ def commit.derived_message
   commit.derived_message_loop decomp blocks params.MESSAGE_ROWS
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize
 
+/-- [hachi::ring::mac_into]: loop body 0:
+    Source: 'src/ring.rs', lines 758:4-762:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.mac_into_loop.body
+  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (p : Std.U64) (m : Std.U64) (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if k < n
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) af k
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) bf k
+    let prod ← ntt.aux_mul i i1 p m
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) out k
+    let i3 ← ntt.aux_add i2 prod p
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        out k
+    let k1 ← k + 1#usize
+    let out1 := index_mut_back i3
+    ok (cont (out1, k1))
+  else ok (done out)
+
+/-- [hachi::ring::mac_into]: loop 0:
+    Source: 'src/ring.rs', lines 758:4-762:5
+    Visibility: public -/
+@[rust_loop]
+def ring.mac_into_loop
+  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (p : Std.U64) (m : Std.U64) (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, k1) => ring.mac_into_loop.body af bf n p m out1 k1)
+    (out, k)
+
+/-- [hachi::ring::mac_into]:
+    Source: 'src/ring.rs', lines 754:0-764:1
+    Visibility: public -/
+@[reducible]
+def ring.mac_into
+  (acc : alloc.vec.Vec Std.U64) (af : alloc.vec.Vec Std.U64)
+  (bf : alloc.vec.Vec Std.U64) (n : Std.Usize) (p : Std.U64) (m : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  ring.mac_into_loop af bf n p m acc 0#usize
+
+/-- [hachi::ring::slice_out]: loop body 0:
+    Source: 'src/ring.rs', lines 743:4-746:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.slice_out_loop.body
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if c < n
+  then
+    let i ← base + c
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pfwd
+        i
+    let out1 ← alloc.vec.Vec.push out i1
+    let c1 ← c + 1#usize
+    ok (cont (out1, c1))
+  else ok (done out)
+
+/-- [hachi::ring::slice_out]: loop 0:
+    Source: 'src/ring.rs', lines 743:4-746:5
+    Visibility: public -/
+@[rust_loop]
+def ring.slice_out_loop
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, c1) => ring.slice_out_loop.body pfwd base n out1 c1)
+    (out, c)
+
+/-- [hachi::ring::slice_out]:
+    Source: 'src/ring.rs', lines 740:0-748:1
+    Visibility: public -/
+def ring.slice_out
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let out := alloc.vec.Vec.with_capacity Std.U64 n
+  ring.slice_out_loop pfwd base n out 0#usize
+
+/-- [hachi::ring::dot_prep_chunk_mod_p]: loop body 1:
+    Source: 'src/ring.rs', lines 795:8-798:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prep_chunk_mod_p_loop0_loop0.body
+  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
+  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if u < n
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) b j
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) r u
+    let i ← cpoly.field.Fp.to_u64 f
+    let bw1 ← alloc.vec.Vec.push bw i
+    let u1 ← u + 1#usize
+    ok (cont (bw1, u1))
+  else ok (done bw)
+
+/-- [hachi::ring::dot_prep_chunk_mod_p]: loop 1:
+    Source: 'src/ring.rs', lines 795:8-798:9
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prep_chunk_mod_p_loop0_loop0
+  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
+  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (bw1, u1) => ring.dot_prep_chunk_mod_p_loop0_loop0.body b n j bw1 u1)
+    (bw, u)
+
+/-- [hachi::ring::dot_prep_chunk_mod_p]: loop body 0:
+    Source: 'src/ring.rs', lines 792:4-809:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prep_chunk_mod_p_loop0.body
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
+  (p : Std.U64) (m : Std.U64) (n : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+  (acc : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if j < end1
+  then
+    let bw := alloc.vec.Vec.with_capacity Std.U64 n
+    let bw1 ← ring.dot_prep_chunk_mod_p_loop0_loop0 b n j bw 0#usize
+    let tb ← ntt.twist bw1 pt p m
+    let fwb ← ntt.ntt_forward tb scratch pt p m
+    let i ← j * n
+    let af ← ring.slice_out pfwd i n
+    let (v, scratch1) := fwb
+    let acc1 ← ring.mac_into acc af v n p m
+    let j1 ← j + 1#usize
+    ok (cont (acc1, scratch1, j1))
+  else ok (done (acc, scratch))
+
+/-- [hachi::ring::dot_prep_chunk_mod_p]: loop 0:
+    Source: 'src/ring.rs', lines 792:4-809:5
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prep_chunk_mod_p_loop0
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
+  (p : Std.U64) (m : Std.U64) (n : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+  (acc : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
+  (j : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (acc1, scratch1, j1) => ring.dot_prep_chunk_mod_p_loop0.body pfwd b
+      end1 p m n pt acc1 scratch1 j1)
+    (acc, scratch, j)
+
+/-- [hachi::ring::dot_prep_chunk_mod_p]:
+    Source: 'src/ring.rs', lines 774:0-814:1
+    Visibility: public -/
+def ring.dot_prep_chunk_mod_p
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq)
+  (start : Std.Usize) (end1 : Std.Usize) (p : Std.U64) (m : Std.U64)
+  (psi : Std.U64) (psiinv : Std.U64) (ninv : Std.U64) (boff : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let pt ← ntt.psi_table psi p m
+  let it ← ntt.psi_table psiinv p m
+  let acc ← ntt.zeros ntt.NTT_LEN
+  let (acc1, scratch) ←
+    ring.dot_prep_chunk_mod_p_loop0 pfwd b end1 p m ntt.NTT_LEN pt acc acc
+      start
+  let i ← end1 - start
+  let len ← lift (UScalar.cast .U64 i)
+  let scaled ← ntt.aux_mul boff len p m
+  let (v, _) ← ntt.ntt_inverse acc1 scratch it p m
+  ntt.untwist v it ninv scaled p m
+
+/-- [hachi::ring::PreparedVec]
+    Source: 'src/ring.rs', lines 671:0-676:1
+    Visibility: public -/
+structure ring.PreparedVec where
+  len : Std.Usize
+  fwd1 : alloc.vec.Vec Std.U64
+  fwd2 : alloc.vec.Vec Std.U64
+  fwd3 : alloc.vec.Vec Std.U64
+
+/-- [hachi::ring::dot_prepared]: loop body 1:
+    Source: 'src/ring.rs', lines 837:8-840:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prepared_loop0_loop0.body
+  (deg : Std.Usize) (qw : Std.U128) (r1 : alloc.vec.Vec Std.U64)
+  (r2 : alloc.vec.Vec Std.U64) (r3 : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if t < deg
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) r1 t
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) r2 t
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) r3 t
+    let i3 ← ntt.garner i i1 i2
+    let i4 ← i3 % qw
+    let i5 ← lift (UScalar.cast .U64 i4)
+    let f ← cpoly.field.Fp.new i5
+    let out1 ← alloc.vec.Vec.push out f
+    let t1 ← t + 1#usize
+    ok (cont (out1, t1))
+  else ok (done out)
+
+/-- [hachi::ring::dot_prepared]: loop 1:
+    Source: 'src/ring.rs', lines 837:8-840:9
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prepared_loop0_loop0
+  (deg : Std.Usize) (qw : Std.U128) (r1 : alloc.vec.Vec Std.U64)
+  (r2 : alloc.vec.Vec Std.U64) (r3 : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, t1) => ring.dot_prepared_loop0_loop0.body deg qw r1 r2 r3 out1
+      t1)
+    (out, t)
+
+/-- [hachi::ring::dot_prepared]: loop body 0:
+    Source: 'src/ring.rs', lines 822:4-843:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prepared_loop0.body
+  (prep : ring.PreparedVec) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
+  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
+  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
+  := do
+  if start < n
+  then
+    let remaining ← n - start
+    let take ←
+      if remaining < ring.DOT_CHUNK
+      then ok remaining
+      else ok ring.DOT_CHUNK
+    let end1 ← start + take
+    let r1 ←
+      ring.dot_prep_chunk_mod_p prep.fwd1 b start end1 ntt.AUX_P1 ntt.AUX_M1
+        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1
+    let r2 ←
+      ring.dot_prep_chunk_mod_p prep.fwd2 b start end1 ntt.AUX_P2 ntt.AUX_M2
+        ntt.AUX_PSI2 ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_BOFF2
+    let r3 ←
+      ring.dot_prep_chunk_mod_p prep.fwd3 b start end1 ntt.AUX_P3 ntt.AUX_M3
+        ntt.AUX_PSI3 ntt.AUX_PSIINV3 ntt.AUX_NINV3 ntt.AUX_BOFF3
+    let out := alloc.vec.Vec.with_capacity cpoly.field.Fp deg
+    let out1 ← ring.dot_prepared_loop0_loop0 deg qw r1 r2 r3 out 0#usize
+    let acc1 ← ring.Rq.add acc out1
+    ok (cont (acc1, end1))
+  else ok (done acc)
+
+/-- [hachi::ring::dot_prepared]: loop 0:
+    Source: 'src/ring.rs', lines 822:4-843:5
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prepared_loop0
+  (prep : ring.PreparedVec) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
+  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
+  Result ring.Rq
+  := do
+  loop
+    (fun (acc1, start1) => ring.dot_prepared_loop0.body prep b n deg qw acc1
+      start1)
+    (acc, start)
+
+/-- [hachi::ring::dot_prepared]:
+    Source: 'src/ring.rs', lines 817:0-845:1
+    Visibility: public -/
+def ring.dot_prepared
+  (prep : ring.PreparedVec) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) :
+  Result ring.Rq
+  := do
+  let qw ← lift (UScalar.cast .U128 params.Q)
+  let acc ← ring.Rq.zero
+  ring.dot_prepared_loop0 prep b n params.RING_DEGREE qw acc 0#usize
+
+/-- [hachi::linalg::PreparedMatrix]
+    Source: 'src/linalg.rs', lines 299:0-302:1
+    Visibility: public -/
+structure linalg.PreparedMatrix where
+  rows : alloc.vec.Vec ring.PreparedVec
+  cols : Std.Usize
+
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]: loop body 0:
+    Source: 'src/linalg.rs', lines 344:8-347:9
+    Visibility: public -/
+@[rust_loop_body]
+def linalg.PreparedMatrix.apply_loop.body
+  (v : alloc.vec.Vec ring.PreparedVec) (v1 : alloc.vec.Vec ring.Rq)
+  (n : Std.Usize) (w : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+  :
+  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
+    ring.Rq))
+  := do
+  if i < n
+  then
+    let pv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        ring.PreparedVec) v i
+    let r ← ring.dot_prepared pv v1 w
+    let out1 ← alloc.vec.Vec.push out r
+    let i1 ← i + 1#usize
+    ok (cont (out1, i1))
+  else ok (done out)
+
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]: loop 0:
+    Source: 'src/linalg.rs', lines 344:8-347:9
+    Visibility: public -/
+@[rust_loop]
+def linalg.PreparedMatrix.apply_loop
+  (v : alloc.vec.Vec ring.PreparedVec) (v1 : alloc.vec.Vec ring.Rq)
+  (n : Std.Usize) (w : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec ring.Rq)
+  := do
+  loop
+    (fun (out1, i1) => linalg.PreparedMatrix.apply_loop.body v v1 n w out1 i1)
+    (out, i)
+
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]:
+    Source: 'src/linalg.rs', lines 339:4-349:5
+    Visibility: public -/
+def linalg.PreparedMatrix.apply
+  (self : linalg.PreparedMatrix) (v : linalg.PolyVec) :
+  Result linalg.PolyVec
+  := do
+  let n := alloc.vec.Vec.len self.rows
+  let i := alloc.vec.Vec.len v
+  let w ← if self.cols <= i
+            then ok self.cols
+            else ok (alloc.vec.Vec.len v)
+  let out ←
+    linalg.PreparedMatrix.apply_loop self.rows v n w (alloc.vec.Vec.new
+      ring.Rq) 0#usize
+  ok out
+
+/-- [hachi::ring::prepare_one]: loop body 1:
+    Source: 'src/ring.rs', lines 695:8-698:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.prepare_one_loop0_loop0.body
+  (a : alloc.vec.Vec ring.Rq) (deg : Std.Usize) (j : Std.Usize)
+  (w : alloc.vec.Vec Std.U64) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if t < deg
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) a j
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) r t
+    let i ← cpoly.field.Fp.to_u64 f
+    let w1 ← alloc.vec.Vec.push w i
+    let t1 ← t + 1#usize
+    ok (cont (w1, t1))
+  else ok (done w)
+
+/-- [hachi::ring::prepare_one]: loop 1:
+    Source: 'src/ring.rs', lines 695:8-698:9
+    Visibility: public -/
+@[rust_loop]
+def ring.prepare_one_loop0_loop0
+  (a : alloc.vec.Vec ring.Rq) (deg : Std.Usize) (j : Std.Usize)
+  (w : alloc.vec.Vec Std.U64) (t : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (w1, t1) => ring.prepare_one_loop0_loop0.body a deg j w1 t1)
+    (w, t)
+
+/-- [hachi::ring::prepare_one]: loop body 2:
+    Source: 'src/ring.rs', lines 703:8-706:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.prepare_one_loop0_loop1.body
+  (deg : Std.Usize) (f : ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if k < deg
+  then
+    let (v, _) := f
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v k
+    let out1 ← alloc.vec.Vec.push out i
+    let k1 ← k + 1#usize
+    ok (cont (out1, k1))
+  else ok (done out)
+
+/-- [hachi::ring::prepare_one]: loop 2:
+    Source: 'src/ring.rs', lines 703:8-706:9
+    Visibility: public -/
+@[rust_loop]
+def ring.prepare_one_loop0_loop1
+  (deg : Std.Usize) (out : alloc.vec.Vec Std.U64)
+  (f : ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, k1) => ring.prepare_one_loop0_loop1.body deg f out1 k1)
+    (out, k)
+
+/-- [hachi::ring::prepare_one]: loop body 0:
+    Source: 'src/ring.rs', lines 692:4-708:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.prepare_one_loop0.body
+  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) (p : Std.U64) (m : Std.U64)
+  (deg : Std.Usize) (pt : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec Std.U64)
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if j < n
+  then
+    let w := alloc.vec.Vec.with_capacity Std.U64 deg
+    let w1 ← ring.prepare_one_loop0_loop0 a deg j w 0#usize
+    let scratch ← ntt.zeros deg
+    let tw ← ntt.twist w1 pt p m
+    let f ← ntt.ntt_forward tw scratch pt p m
+    let out1 ← ring.prepare_one_loop0_loop1 deg out f 0#usize
+    let j1 ← j + 1#usize
+    ok (cont (out1, j1))
+  else ok (done out)
+
+/-- [hachi::ring::prepare_one]: loop 0:
+    Source: 'src/ring.rs', lines 692:4-708:5
+    Visibility: public -/
+@[rust_loop]
+def ring.prepare_one_loop0
+  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) (p : Std.U64) (m : Std.U64)
+  (deg : Std.Usize) (pt : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec Std.U64)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, j1) => ring.prepare_one_loop0.body a n p m deg pt out1 j1)
+    (out, j)
+
+/-- [hachi::ring::prepare_one]:
+    Source: 'src/ring.rs', lines 687:0-710:1
+    Visibility: public -/
+def ring.prepare_one
+  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) (p : Std.U64) (m : Std.U64)
+  (psi : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let pt ← ntt.psi_table psi p m
+  let i ← n * ntt.NTT_LEN
+  let out := alloc.vec.Vec.with_capacity Std.U64 i
+  ring.prepare_one_loop0 a n p m ntt.NTT_LEN pt out 0#usize
+
+/-- [hachi::ring::prepare_vec]:
+    Source: 'src/ring.rs', lines 723:0-731:1
+    Visibility: public -/
+def ring.prepare_vec
+  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) : Result ring.PreparedVec := do
+  let fwd1 ← ring.prepare_one a n ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
+  let fwd2 ← ring.prepare_one a n ntt.AUX_P2 ntt.AUX_M2 ntt.AUX_PSI2
+  let fwd3 ← ring.prepare_one a n ntt.AUX_P3 ntt.AUX_M3 ntt.AUX_PSI3
+  ok { len := n, fwd1, fwd2, fwd3 }
+
+/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare]: loop body 0:
+    Source: 'src/linalg.rs', lines 322:8-325:9
+    Visibility: public -/
+@[rust_loop_body]
+def linalg.PolyMatrix.prepare_loop.body
+  (v : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (c : Std.Usize)
+  (rows : alloc.vec.Vec ring.PreparedVec) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec ring.PreparedVec) × Std.Usize)
+    (alloc.vec.Vec ring.PreparedVec))
+  := do
+  if i < n
+  then
+    let pv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        linalg.PolyVec) v i
+    let pv1 ← ring.prepare_vec pv c
+    let rows1 ← alloc.vec.Vec.push rows pv1
+    let i1 ← i + 1#usize
+    ok (cont (rows1, i1))
+  else ok (done rows)
+
+/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare]: loop 0:
+    Source: 'src/linalg.rs', lines 322:8-325:9
+    Visibility: public -/
+@[rust_loop]
+def linalg.PolyMatrix.prepare_loop
+  (v : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (c : Std.Usize)
+  (rows : alloc.vec.Vec ring.PreparedVec) (i : Std.Usize) :
+  Result (alloc.vec.Vec ring.PreparedVec)
+  := do
+  loop
+    (fun (rows1, i1) => linalg.PolyMatrix.prepare_loop.body v n c rows1 i1)
+    (rows, i)
+
+/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare]:
+    Source: 'src/linalg.rs', lines 317:4-327:5
+    Visibility: public -/
+def linalg.PolyMatrix.prepare
+  (self : linalg.PolyMatrix) : Result linalg.PreparedMatrix := do
+  let n := alloc.vec.Vec.len self
+  let c ← linalg.PolyMatrix.cols self
+  let rows ←
+    linalg.PolyMatrix.prepare_loop self n c (alloc.vec.Vec.new
+      ring.PreparedVec) 0#usize
+  ok { rows, cols := c }
+
 /-- [hachi::gadget::gadget_decompose]: loop body 2:
     Source: 'src/gadget.rs', lines 234:12-237:13
     Visibility: public -/
@@ -7979,12 +8518,12 @@ def gadget.gadget_decompose (x : linalg.PolyVec) : Result linalg.PolyVec := do
   linalg.PolyVec.new out
 
 /-- [hachi::commit::generate_decomps]: loop body 0:
-    Source: 'src/commit.rs', lines 352:4-358:5
+    Source: 'src/commit.rs', lines 358:4-364:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.generate_decomps_loop.body
-  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
-  (blocks : Std.Usize) (ss : alloc.vec.Vec linalg.PolyVec)
+  (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+  (prep : linalg.PreparedMatrix) (ss : alloc.vec.Vec linalg.PolyVec)
   (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec linalg.PolyVec) × (alloc.vec.Vec
     linalg.PolyVec) × Std.Usize) ((alloc.vec.Vec linalg.PolyVec) ×
@@ -7996,8 +8535,7 @@ def commit.generate_decomps_loop.body
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
         linalg.PolyVec) m i
     let s ← gadget.gadget_decompose pv
-    let pm ← commit.PublicParams.impl.inner_matrix pp
-    let inner ← linalg.PolyMatrix.mat_vec_mul pm s
+    let inner ← linalg.PreparedMatrix.apply prep s
     let pv1 ← gadget.gadget_decompose inner
     let ts1 ← alloc.vec.Vec.push ts pv1
     let ss1 ← alloc.vec.Vec.push ss s
@@ -8006,31 +8544,33 @@ def commit.generate_decomps_loop.body
   else ok (done (ss, ts))
 
 /-- [hachi::commit::generate_decomps]: loop 0:
-    Source: 'src/commit.rs', lines 352:4-358:5
+    Source: 'src/commit.rs', lines 358:4-364:5
     Visibility: public -/
 @[rust_loop]
 def commit.generate_decomps_loop
-  (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
-  (blocks : Std.Usize) (ss : alloc.vec.Vec linalg.PolyVec)
+  (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+  (prep : linalg.PreparedMatrix) (ss : alloc.vec.Vec linalg.PolyVec)
   (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize) :
   Result ((alloc.vec.Vec linalg.PolyVec) × (alloc.vec.Vec linalg.PolyVec))
   := do
   loop
-    (fun (ss1, ts1, i1) => commit.generate_decomps_loop.body pp m blocks ss1
+    (fun (ss1, ts1, i1) => commit.generate_decomps_loop.body m blocks prep ss1
       ts1 i1)
     (ss, ts, i)
 
 /-- [hachi::commit::generate_decomps]:
-    Source: 'src/commit.rs', lines 347:0-360:1
+    Source: 'src/commit.rs', lines 347:0-366:1
     Visibility: public -/
 def commit.generate_decomps
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
   Result commit.Decomp
   := do
   let blocks := alloc.vec.Vec.len m
+  let pm ← commit.PublicParams.impl.inner_matrix pp
+  let prep ← linalg.PolyMatrix.prepare pm
   let (ss, ts) ←
-    commit.generate_decomps_loop pp m blocks (alloc.vec.Vec.new linalg.PolyVec)
-      (alloc.vec.Vec.new linalg.PolyVec) 0#usize
+    commit.generate_decomps_loop m blocks prep (alloc.vec.Vec.new
+      linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
   commit.Decomp.new ss ts
 
 /-- [hachi::linalg::flatten_blocks]: loop body 1:
@@ -8115,7 +8655,7 @@ def linalg.flatten_blocks
   ok out
 
 /-- [hachi::commit::commit_with_decomps]:
-    Source: 'src/commit.rs', lines 366:0-369:1
+    Source: 'src/commit.rs', lines 372:0-375:1
     Visibility: public -/
 def commit.commit_with_decomps
   (pp : commit.PublicParams) (decomp : commit.Decomp) :
@@ -8127,7 +8667,7 @@ def commit.commit_with_decomps
   linalg.PolyMatrix.mat_vec_mul pm flat
 
 /-- [hachi::commit::commit]:
-    Source: 'src/commit.rs', lines 378:0-382:1
+    Source: 'src/commit.rs', lines 384:0-388:1
     Visibility: public -/
 def commit.commit
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
@@ -8138,7 +8678,7 @@ def commit.commit
   ok (u, decomp)
 
 /-- [hachi::commit::generate_decomps_balanced]: loop body 0:
-    Source: 'src/commit.rs', lines 410:4-416:5
+    Source: 'src/commit.rs', lines 416:4-422:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.generate_decomps_balanced_loop.body
@@ -8165,7 +8705,7 @@ def commit.generate_decomps_balanced_loop.body
   else ok (done (ss, ts))
 
 /-- [hachi::commit::generate_decomps_balanced]: loop 0:
-    Source: 'src/commit.rs', lines 410:4-416:5
+    Source: 'src/commit.rs', lines 416:4-422:5
     Visibility: public -/
 @[rust_loop]
 def commit.generate_decomps_balanced_loop
@@ -8180,7 +8720,7 @@ def commit.generate_decomps_balanced_loop
     (ss, ts, i)
 
 /-- [hachi::commit::generate_decomps_balanced]:
-    Source: 'src/commit.rs', lines 405:0-418:1
+    Source: 'src/commit.rs', lines 411:0-424:1
     Visibility: public -/
 def commit.generate_decomps_balanced
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
@@ -8193,7 +8733,7 @@ def commit.generate_decomps_balanced
   commit.Decomp.new ss ts
 
 /-- [hachi::commit::commit_balanced]:
-    Source: 'src/commit.rs', lines 436:0-440:1
+    Source: 'src/commit.rs', lines 442:0-446:1
     Visibility: public -/
 def commit.commit_balanced
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec) :
@@ -8268,7 +8808,7 @@ def linalg.PolyVec.scalar_mul
   ok out
 
 /-- [hachi::commit::verify_weak]: loop body 0:
-    Source: 'src/commit.rs', lines 476:4-495:5
+    Source: 'src/commit.rs', lines 482:4-501:5
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_weak_loop.body
@@ -8305,7 +8845,7 @@ def commit.verify_weak_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify_weak]: loop 0:
-    Source: 'src/commit.rs', lines 476:4-495:5
+    Source: 'src/commit.rs', lines 482:4-501:5
     Visibility: public -/
 @[rust_loop]
 def commit.verify_weak_loop
@@ -8319,7 +8859,7 @@ def commit.verify_weak_loop
     (ok1, i)
 
 /-- [hachi::commit::verify_weak]:
-    Source: 'src/commit.rs', lines 470:0-507:1
+    Source: 'src/commit.rs', lines 476:0-513:1
     Visibility: public -/
 def commit.verify_weak
   (pp : commit.PublicParams) (u : linalg.PolyVec) (opening : commit.Opening) :
@@ -8342,7 +8882,7 @@ def commit.verify_weak
   else ok false
 
 /-- [hachi::commit::verify]: loop body 0:
-    Source: 'src/commit.rs', lines 522:8-527:9
+    Source: 'src/commit.rs', lines 528:8-533:9
     Visibility: public -/
 @[rust_loop_body]
 def commit.verify_loop.body
@@ -8367,7 +8907,7 @@ def commit.verify_loop.body
   else ok (done ok1)
 
 /-- [hachi::commit::verify]: loop 0:
-    Source: 'src/commit.rs', lines 522:8-527:9
+    Source: 'src/commit.rs', lines 528:8-533:9
     Visibility: public -/
 @[rust_loop]
 def commit.verify_loop
@@ -8380,7 +8920,7 @@ def commit.verify_loop
     (ok1, i)
 
 /-- [hachi::commit::verify]:
-    Source: 'src/commit.rs', lines 514:0-533:1
+    Source: 'src/commit.rs', lines 520:0-539:1
     Visibility: public -/
 def commit.verify
   (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
@@ -9474,6 +10014,13 @@ def linalg.PolyVec.sub
   let out := alloc.vec.Vec.with_capacity ring.Rq n
   let out1 ← linalg.PolyVec.sub_loop self rhs n out 0#usize
   ok out1
+
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::rows]:
+    Source: 'src/linalg.rs', lines 332:4-334:5
+    Visibility: public -/
+def linalg.PreparedMatrix.impl.rows
+  (self : linalg.PreparedMatrix) : Result Std.Usize := do
+  ok (alloc.vec.Vec.len self.rows)
 
 /-- [hachi::ntt::NTT_LOG]
     Source: 'src/ntt.rs', lines 156:0-156:30
@@ -11417,6 +11964,13 @@ def ring.mul_short_desc
   let res := alloc.vec.Vec.with_capacity cpoly.field.Fp params.RING_DEGREE
   let res1 ← ring.mul_short_desc_loop2 params.RING_DEGREE out2 res 0#usize
   ok res1
+
+/-- [hachi::ring::{hachi::ring::PreparedVec}::len]:
+    Source: 'src/ring.rs', lines 680:4-682:5
+    Visibility: public -/
+def ring.PreparedVec.impl.len
+  (self : ring.PreparedVec) : Result Std.Usize := do
+  ok self.len
 
 /-- [hachi::ringswitch::{hachi::ringswitch::QuotientRow}::new]:
     Source: 'src/ringswitch.rs', lines 90:4-92:5

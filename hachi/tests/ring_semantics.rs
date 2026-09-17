@@ -818,3 +818,48 @@ fn poly_vec_dot_matches_the_fused_dot() {
         );
     }
 }
+
+/// `dot_prepared` computes exactly what `dot_fused` does.
+///
+/// The oracle for Stage 6 candidate T19/Change 4. Preparation only caches the
+/// left operand's forward transforms, so the value must be bit-identical to the
+/// unprepared fused dot -- and, transitively, to the summed per-term products.
+///
+/// The widths are the same set the fused dot is tested at, for the same reason:
+/// `n = 8` is where a mis-scaled CRT offset would first show, and
+/// `n = DOT_CHUNK + 1` is the only one that runs the chunk loop twice, which is
+/// what checks that a *prepared* operand is indexed by absolute position `j`
+/// rather than by position-within-chunk. That indexing is the one thing
+/// preparation can get wrong and the unprepared path cannot.
+#[test]
+fn prepared_dot_agrees_with_the_fused_dot() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0015);
+    let q = hachi::params::Q;
+    let chunk = hachi::ring::DOT_CHUNK;
+
+    let build = |rng: &mut Lcg, n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            let mut cs = Vec::with_capacity(RING_DEGREE);
+            for _ in 0..RING_DEGREE {
+                cs.push(rng.next_u64() % q);
+            }
+            v.push(rq_from_u64s(&cs));
+        }
+        v
+    };
+
+    for &n in &[1usize, 2, 5, 8, 33, chunk, chunk + 1] {
+        let a = build(&mut rng, n);
+        let b = build(&mut rng, n);
+        let prep = hachi::ring::prepare_vec(&a, n);
+        assert_eq!(prep.len(), n, "prepared length at n = {n}");
+        let got = hachi::ring::dot_prepared(&prep, &b, n);
+        let expected = hachi::ring::dot_fused(&a, &b, n);
+        assert!(
+            got.equals(&expected),
+            "prepared dot disagrees with the fused dot at n = {n} (chunks = {})",
+            (n + chunk - 1) / chunk
+        );
+    }
+}

@@ -198,3 +198,35 @@ fn split_form_is_the_double_sum() {
     let got = m.split_form(&u, &v);
     assert!(got.equals(&want), "got {}, want {}", show(&got), show(&want));
 }
+
+/// `PreparedMatrix::apply` is `mat_vec_mul`.
+///
+/// The prepared form transforms every entry of the matrix once and then only
+/// multiplies pointwise, so this is the oracle for the whole of `prepare`: the
+/// two paths share no code below `ring::aux_mul`, and a transposed row index or
+/// a wrong table offset would leave `apply` self-consistent and wrong. Applied
+/// to *several* vectors, because preparing a matrix for one product is exactly
+/// the case where the reuse that justifies it does not happen.
+#[test]
+fn a_prepared_matrix_applies_like_mat_vec_mul() {
+    let mut rng = Lcg::new(0x5F_0004);
+    for &(rows, cols) in &[(1usize, 1usize), (1, 5), (3, 1), (2, 4), (4, 9)] {
+        let m = rng.next_poly_matrix(rows, cols);
+        let prep = m.prepare();
+        assert_eq!(prep.rows(), rows, "prepared rows at {rows}x{cols}");
+        for _ in 0..3 {
+            let v = rng.next_poly_vec(cols);
+            let got = prep.apply(&v);
+            let want = m.mat_vec_mul(&v);
+            assert_eq!(got.len(), want.len(), "width at {rows}x{cols}");
+            for i in 0..rows {
+                assert!(
+                    got.get(i).equals(want.get(i)),
+                    "prepared apply disagrees at {rows}x{cols} row {i}: got {}, want {}",
+                    show(got.get(i)),
+                    show(want.get(i))
+                );
+            }
+        }
+    }
+}
