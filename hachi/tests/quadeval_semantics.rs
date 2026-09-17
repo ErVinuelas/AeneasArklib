@@ -819,3 +819,75 @@ fn the_assembled_rlin_system_has_the_specified_blocks() {
     assert!(out.yvec().get(d_rows + outer_rows).equals(stmt.y()), "then y");
     assert!(out.yvec().get(d_rows + outer_rows + 1).is_zero(), "then 0");
 }
+
+/// `rlin_row` builds the same matrix as `rlin_stmt`, row by row.
+///
+/// This is the oracle for Stage 6 candidate T1b's first increment. `rlin_stmt`
+/// materialises `rlinRows × rlinCols` ring elements at once — 2.2 GiB at the
+/// pin, memory wall W2 — while every consumer walks one row at a time. So
+/// `rlin_row` exists to make the dense assembly unnecessary, and the only thing
+/// worth asserting about it is that it is *the same matrix*: every row, every
+/// column, compared against the dense build at a reduced shape with all six
+/// dimensions distinct, so a transposed or mis-offset block cannot hide behind
+/// equal widths.
+///
+/// Reduced, not full-const, for the reason the module doc gives: the pinned
+/// shape is `5 × 57 344`, and this test is about block *placement*, which is
+/// shape-generic.
+#[test]
+fn rlin_row_agrees_with_rlin_stmt() {
+    let mut r = Lcg::new(0x5115_0000_0000_0001);
+
+    let blocks = 2usize;
+    let message_rows = 2usize;
+    let message_digits = 2usize;
+    let inner_rows = 1usize;
+    let inner_digits = 2usize;
+    let z_digits = 3usize;
+    let d_rows = 1usize;
+    let outer_rows = 1usize;
+
+    let ct = rlin_ct(blocks, inner_rows, inner_digits);
+    let pp = hachi::quadeval::PublicParamsD::new(
+        hachi::commit::PublicParams::new(
+            r.next_poly_matrix(inner_rows, message_rows * message_digits),
+            r.next_poly_matrix(outer_rows, ct),
+        ),
+        r.next_poly_matrix(d_rows, rlin_cw(blocks, message_digits)),
+    );
+    let stmt = hachi::quadeval::QuadEvalStatement::new(
+        r.next_poly_vec(outer_rows),
+        r.next_poly_vec(message_rows),
+        r.next_poly_vec(blocks),
+        r.next_rq(),
+    );
+    let v = r.next_poly_vec(d_rows);
+    let c = r.next_poly_vec(blocks);
+
+    let dense = rlin_stmt(
+        &pp, &stmt, &v, &c, CHAIN_GAMMA, blocks, message_rows, message_digits,
+        inner_rows, inner_digits, z_digits,
+    );
+
+    let rows = dense.m().rows();
+    let cols = dense.m().cols();
+    assert!(rows > 0 && cols > 0, "the reduced shape is non-degenerate");
+
+    let mut i = 0usize;
+    while i < rows {
+        let lazy = hachi::quadeval::rlin_row(
+            &pp, &stmt, &v, &c, blocks, message_rows, message_digits,
+            inner_rows, inner_digits, z_digits, i,
+        );
+        assert_eq!(lazy.len(), cols, "row {i} has rlinCols entries");
+        let mut j = 0usize;
+        while j < cols {
+            assert!(
+                lazy.get(j).equals(dense.m().row(i).get(j)),
+                "row {i} column {j} disagrees with the dense assembly"
+            );
+            j += 1;
+        }
+        i += 1;
+    }
+}

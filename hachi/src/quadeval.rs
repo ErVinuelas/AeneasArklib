@@ -786,6 +786,147 @@ pub fn unstack(zeta: &PolyVec, cw: usize, ct: usize, inner_width: usize) -> Quad
     )
 }
 
+/// Row `i` of `R^lin`'s matrix `M`, built **alone** (Stage 6 candidate T1b,
+/// first increment).
+///
+/// `rlin_stmt` below materialises all `rlinRows × rlinCols` entries at once,
+/// which at the pin is `5 × 57 344` ring elements — **2.2 GiB**, memory wall W2
+/// (`PLAN_STAGE6.md` § I6). Every consumer, though, walks one row at a time:
+/// `ringswitch::c_row_sum` takes the row index `i` as a parameter, and the
+/// verifier's `α`-side walks rows too. So the dense matrix is a materialisation
+/// nothing actually needs.
+///
+/// This is the piece both paths need in order to stop needing it: the same
+/// blocks `rlin_stmt` builds, emitted one row at a time.
+///
+/// # Why a row and not an entry
+///
+/// An entry-at-`(i, j)` form looks tempting and is a trap. c5's `z`-block is
+/// `−(A·J)`, whose row is `gadget_transpose_mul(inner_cols, z_digits, …)` — a
+/// vector derived from one row of `A` in `O(cz)` work. `rlin_stmt` computes it
+/// once per row inside the row loop; an entry-shaped interface would recompute
+/// it per access, `O(cz²) ≈ 1.7·10^9` operations per row. Row-shaped keeps that
+/// derivation where it belongs, computed once and consumed `cz` times.
+///
+/// # What this does and does not claim
+///
+/// It does **not** remove W2. The wall falls only when no live path
+/// materialises `M`, and today both the lift and the verifier call
+/// `rlin_stmt` (the profile's `rlin_stmt (verifier assembles it too)` line).
+/// This is additive: nothing calls it yet, and
+/// `quadeval_semantics::rlin_row_agrees_with_rlin_stmt` is what says it is the
+/// same matrix, row by row.
+#[allow(clippy::too_many_arguments)]
+pub fn rlin_row(
+    pp: &PublicParamsD,
+    stmt: &QuadEvalStatement,
+    v: &PolyVec,
+    c: &PolyVec,
+    blocks: usize,
+    message_rows: usize,
+    message_digits: usize,
+    inner_rows: usize,
+    inner_digits: usize,
+    z_digits: usize,
+    i: usize,
+) -> PolyVec {
+    let cw: usize = rlin_cw(blocks, message_digits);
+    let ct: usize = rlin_ct(blocks, inner_rows, inner_digits);
+    let cz: usize = rlin_cz(message_rows, message_digits, z_digits);
+    let inner_cols: usize = message_rows * message_digits;
+    let d_rows: usize = pp.d_matrix().rows();
+    let b_rows: usize = pp.inner().outer_matrix().rows();
+
+    let mut row: Vec<Rq> = Vec::with_capacity(cw + ct + cz);
+    if i < d_rows {
+        // c1: [ D | 0 | 0 ]
+        let mut k: usize = 0;
+        while k < cw {
+            row.push(pp.d_matrix().row(i).get(k).copy());
+            k += 1;
+        }
+        let mut z: usize = 0;
+        while z < ct + cz {
+            row.push(Rq::zero());
+            z += 1;
+        }
+    } else if i < d_rows + b_rows {
+        // c2: [ 0 | B | 0 ]
+        let p: usize = i - d_rows;
+        let mut z: usize = 0;
+        while z < cw {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        let mut k: usize = 0;
+        while k < ct {
+            row.push(pp.inner().outer_matrix().row(p).get(k).copy());
+            k += 1;
+        }
+        let mut z2: usize = 0;
+        while z2 < cz {
+            row.push(Rq::zero());
+            z2 += 1;
+        }
+    } else if i == d_rows + b_rows {
+        // c3: [ (G_{2^r})ᵀ b | 0 | 0 ]
+        let g_b: PolyVec = gadget::gadget_transpose_mul(blocks, message_digits, stmt.bvec());
+        let mut k: usize = 0;
+        while k < cw {
+            row.push(g_b.get(k).copy());
+            k += 1;
+        }
+        let mut z: usize = 0;
+        while z < ct + cz {
+            row.push(Rq::zero());
+            z += 1;
+        }
+    } else if i == d_rows + b_rows + 1 {
+        // c4: [ (G_{2^r})ᵀ c | 0 | −Jᵀ((G_{2^m})ᵀ a) ]
+        let g_c: PolyVec = gadget::gadget_transpose_mul(blocks, message_digits, c);
+        let g_a: PolyVec =
+            gadget::gadget_transpose_mul(message_rows, message_digits, stmt.avec());
+        let jt_g_a: PolyVec = gadget::gadget_transpose_mul(inner_cols, z_digits, &g_a);
+        let mut k: usize = 0;
+        while k < cw {
+            row.push(g_c.get(k).copy());
+            k += 1;
+        }
+        let mut z: usize = 0;
+        while z < ct {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        let mut kz: usize = 0;
+        while kz < cz {
+            row.push(jt_g_a.get(kz).neg());
+            kz += 1;
+        }
+    } else {
+        // c5: [ 0 | (cᵀ ⊗ G_{n_A}) | −(A J) ]
+        let p: usize = i - (d_rows + b_rows + 2);
+        let tensor: PolyMatrix = tensor_g_matrix(inner_rows, inner_digits, c);
+        let aj: PolyVec =
+            gadget::gadget_transpose_mul(inner_cols, z_digits, pp.inner().inner_matrix().row(p));
+        let mut z: usize = 0;
+        while z < cw {
+            row.push(Rq::zero());
+            z += 1;
+        }
+        let mut k: usize = 0;
+        while k < ct {
+            row.push(tensor.row(p).get(k).copy());
+            k += 1;
+        }
+        let mut kz: usize = 0;
+        while kz < cz {
+            row.push(aj.get(kz).neg());
+            kz += 1;
+        }
+    }
+    PolyVec::new(row)
+}
+
 /// **The `R^lin` statement assembly**: build the Eq. (20) block matrix and
 /// right-hand side from QuadEval's output `(stmt, v, c)` (spec: `rlinStmt`,
 /// `RingSwitch/Rlin.lean:205`).
