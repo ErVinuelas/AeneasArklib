@@ -1,0 +1,24 @@
+# candidate T22 Change 8 -- STREAMED decomposition (a WALL removal)
+#   commit::commit_streamed decomposes one block at a time and drops it,
+#   so the 68.7 GiB Decomp.message is never built; quadeval::
+#   honest_z_from_raw rebuilds one block's s per iteration in the second
+#   pass; quadeval::carrier_from_raw needs no decomposition at all,
+#   because carrier_entry's gadget_mul cancels against it.
+# This run is a GUARD, not a speed claim. Change 8 only ADDS functions:
+#   every row measured here is code that is byte-identical in both arms,
+#   so the question it answers is whether adding the items perturbed the
+#   codegen of the ones that were there. Nothing may read slower.
+# The streamed items' own rows are registered AFTER this run: a new row
+#   needs the item in the  crate too, so it cannot be A/B'd.
+# Measured peak RSS (VmHWM, in-process): materialized grows 72.5 MiB per
+#   block, streamed 8 MiB per block (the raw input alone) -- 774 vs 324
+#   MiB at 8 blocks. At BLOCKS = 1024 that is ~74 GiB against ~8.5 GiB.
+# quiet: idle=99%
+# started 2026-09-17T18:27:37+02:00 at load 0.77 0.97 2.01 1/2611 1261985
+==> genesis check FAILED
+  - commit::commit_streamed: no `// @genesis <sha> <date>` annotation. Run `make bench-stamp`, or add it by hand.
+  - quadeval::honest_z_from_raw: no `// @genesis <sha> <date>` annotation. Run `make bench-stamp`, or add it by hand.
+  - quadeval::carrier_from_raw: no `// @genesis <sha> <date>` annotation. Run `make bench-stamp`, or add it by hand.
+  - quadeval::carrier_commit_from_raw: no `// @genesis <sha> <date>` annotation. Run `make bench-stamp`, or add it by hand.
+make: *** [Makefile:450: run-bench] Error 1
+# exit 2 at 2026-09-17T18:27:39+02:00

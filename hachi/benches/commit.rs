@@ -180,6 +180,14 @@ macro_rules! define_cases {
                 support::mix(d_polyvec(&x.0), d_decomp(&x.1))
             }
 
+            /// `commit_streamed`'s output: the outer commitment and the `t̂ᵢ`.
+            /// Deliberately NOT `d_commit`: the streamed committer does not
+            /// return the decomposed message, which is the whole point, so its
+            /// digest cannot include it.
+            fn d_streamed(x: &(PolyVec, Vec<PolyVec>)) -> u64 {
+                support::mix(d_polyvec(&x.0), d_polyvecs(&x.1))
+            }
+
             fn d_u64(x: &u64) -> u64 {
                 support::mix(0, *x)
             }
@@ -253,6 +261,22 @@ macro_rules! define_cases {
                     m,
                     || hc::commit::generate_decomps(black_box(&pp), black_box(&msg)),
                     d_decomp,
+                )
+            }
+
+            /// The streamed committer: the same outer commitment and `t̂`, with
+            /// the 68.7 GiB decomposed message never built. Registered at the
+            /// same block count as `generate_decomps` so the two are readable
+            /// against each other; the wall-clock is expected to match, since
+            /// the arithmetic is identical and only the liveness of `sᵢ`
+            /// differs.
+            pub fn commit_streamed(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let pp = public_params(blocks);
+                let msg = message(blocks);
+                support::run(
+                    m,
+                    || hc::commit::commit_streamed(black_box(&pp), black_box(&msg)),
+                    d_streamed,
                 )
             }
 
@@ -406,6 +430,13 @@ fn commit_benches(c: &mut Criterion) {
     let decomp_samples = 10;
     // @covers commit::generate_decomps
     bench_case!(c, "commit/generate_decomps", generate_decomps, [decomp_blocks],
+                samples: decomp_samples);
+    // The streamed committer, at the same block count. Its reason for existing
+    // is memory, not time, so this row is a *guard*: it must not read slower.
+    // The memory it removes is not visible to criterion at all -- see the
+    // ledger row for candidate T22, which records the peak RSS.
+    // @covers commit::commit_streamed
+    bench_case!(c, "commit/commit_streamed", commit_streamed, [decomp_blocks],
                 samples: decomp_samples);
 
     // The six scheme-level cases (`generate_decomps`, `commit_with_decomps`,

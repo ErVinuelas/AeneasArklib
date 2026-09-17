@@ -891,3 +891,68 @@ fn rlin_row_agrees_with_rlin_stmt() {
         i += 1;
     }
 }
+
+/// `honest_z_from_raw` is `honest_z` composed with the decomposition.
+///
+/// The streamed form rebuilds one block's `sᵢ` per iteration instead of reading
+/// it out of a 68.7 GiB table, so this is the check that the reassociation kept
+/// the same sum. Both a short challenge and a dense one, because `honest_z` has
+/// two branches and only the short one is the protocol path.
+#[test]
+fn honest_z_from_raw_agrees_with_honest_z() {
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, RING_DEGREE};
+    let mut rng = support::Lcg::new(0x5108);
+    let blocks = 2usize;
+    let raw: Vec<hachi::linalg::PolyVec> =
+        (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+    let decomposed: Vec<hachi::linalg::PolyVec> =
+        raw.iter().map(|b| hachi::gadget::gadget_decompose(b)).collect();
+    assert_eq!(decomposed[0].len(), MESSAGE_ROWS * GADGET_DIGITS);
+
+    // a protocol-valid short challenge, and a dense one for the fallback branch
+    let short = {
+        let mut cs = vec![0u64; RING_DEGREE];
+        for k in 0..8 {
+            cs[(k * 37) % RING_DEGREE] = if k % 2 == 0 { 2 } else { hachi::params::Q - 2 };
+        }
+        support::rq_from_u64s(&cs)
+    };
+    let dense = rng.next_rq();
+
+    for c0 in [short, dense] {
+        let c = hachi::linalg::PolyVec::new((0..blocks).map(|_| c0.copy()).collect());
+        let want = hachi::quadeval::honest_z(&decomposed, &c);
+        let got = hachi::quadeval::honest_z_from_raw(&raw, &c);
+        assert_eq!(got.len(), want.len());
+        for j in 0..want.len() {
+            assert!(
+                got.get(j).equals(want.get(j)),
+                "streamed honest_z differs at column {j}"
+            );
+        }
+    }
+}
+
+/// `carrier_from_raw` is `carrier` composed with the decomposition -- and it
+/// does no gadget arithmetic at all, because `carrier_entry` recomposes what
+/// the decomposition just took apart. This is the oracle for that cancellation:
+/// if the round trip were not exact the two would differ, and nothing else in
+/// the crate would notice.
+#[test]
+fn carrier_from_raw_agrees_with_carrier() {
+    use hachi::params::MESSAGE_ROWS;
+    let mut rng = support::Lcg::new(0x5109);
+    let blocks = 3usize;
+    let raw: Vec<hachi::linalg::PolyVec> =
+        (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+    let decomposed: Vec<hachi::linalg::PolyVec> =
+        raw.iter().map(|b| hachi::gadget::gadget_decompose(b)).collect();
+    let a = rng.next_poly_vec(MESSAGE_ROWS);
+
+    let want = hachi::quadeval::carrier(&a, &decomposed);
+    let got = hachi::quadeval::carrier_from_raw(&a, &raw);
+    assert_eq!(got.len(), blocks);
+    for i in 0..blocks {
+        assert!(got.get(i).equals(want.get(i)), "streamed carrier differs at block {i}");
+    }
+}

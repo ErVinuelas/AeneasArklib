@@ -342,6 +342,108 @@ theorem carrier_spec {rows blocks : ℕ} (a : linalg.PolyVec)
   simp only [toVec, Hachi.carrier, toBlocks]
   exact hzval i.val i.isLt
 
+/-! ## The streamed carrier
+
+`carrier_from_raw` takes the *raw* message and computes the same `w`, without
+the decomposed message and -- this is the part worth stating -- without any
+gadget arithmetic at all. ArkLib's `carrier` recomposes its argument with
+`gadgetMul` before the dot, and `gadgetMul ∘ gadgetDecompose` is the identity
+(`gadgetDecompose_lawful`), so the recomposition the streamed prover would have
+performed cancels against the decomposition it would have performed first.
+
+The conclusion is `carrier_spec`'s with the block family replaced by the
+decomposition of `raw`: the same value, from an argument that is never built. -/
+
+/-- The loop of `quadeval::carrier_from_raw`: entry `j` is `a · rawⱼ`. -/
+theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (raw : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (ha : WfVec rows a) (hraw : WfBlocks blocks rows raw) (hn : n.val = blocks)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hwf : ∀ y ∈ out.val, Wf y)
+    (hval : ∀ j, j < i.val →
+      toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := rows) a)
+            (toVec (k := rows) (raw.val.getD j (alloc.vec.Vec.new ring.Rq)))) :
+    quadeval.carrier_from_raw_loop a raw n out i
+      ⦃ z => z.val.length = blocks ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < blocks →
+          toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+            = ArkLib.Lattices.dot (toVec (k := rows) a)
+                (toVec (k := rows) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))) ⦄ := by
+  rw [quadeval.carrier_from_raw_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := rows) a)
+            (toVec (k := rows) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [quadeval.carrier_from_raw_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hib : i1.val < raw.val.length := by rw [hraw.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec rows pv := by rw [hpv]; exact hraw.2 _ (List.getElem_mem hib)
+      have hri : raw.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv]; exact List.getD_eq_getElem _ _ hib
+      step with dot_spec (k := rows) a pv ha hWpv as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr, hlen1, hri]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], hwf1,
+        by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- **`quadeval::carrier_from_raw` is `carrier` at the decomposed message.**
+
+The gadget round trip is where the work goes: the streamed form never
+decomposes, and never recomposes either, because `carrier_entry` would have
+undone exactly what the decomposition did. -/
+theorem carrier_from_raw_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (raw : alloc.vec.Vec linalg.PolyVec) (ha : WfVec rows a)
+    (hraw : WfBlocks blocks rows raw) :
+    quadeval.carrier_from_raw a raw
+      ⦃ out => WfVec blocks out ∧ toVec (k := blocks) out
+        = Hachi.carrier Φ (16 : ZMod q) (toVec (k := rows) a)
+            (fun i : Fin blocks => gadgetDecompose Φ dd
+              (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [quadeval.carrier_from_raw]
+  simp only [linalg.PolyVec.new, bind_ok_id]
+  apply spec_mono (carrier_from_raw_loop_spec a raw (alloc.vec.Vec.len raw)
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha hraw (by simpa using hraw.1)
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [show toVec (k := blocks) z i
+        = toRq (z.val.getD i.val (alloc.vec.Vec.new cpoly.field.Fp)) from rfl,
+    hzval i.val i.isLt]
+  -- `carrierEntry` is `splitForm G`, which is the dot against `gadgetMul`, and
+  -- `gadgetMul ∘ gadgetDecompose` is the identity -- so the recomposition the
+  -- streamed form skips is exactly the decomposition it also skips.
+  simp only [Hachi.carrier, Hachi.carrierEntry, ArkLib.Lattices.splitForm]
+  congr 1
+  exact (gadgetDecompose_lawful Φ (rows := rows) (by norm_num)
+    (by rw [RqBridge.phi_natDegree]; norm_num) dd
+    (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))).symm
+
 /-- The loop of `quadeval::tensor_g`: the accumulator is the partial
 challenge-weighted gadget sum. -/
 theorem tensor_g_loop_spec {krows blocks : ℕ} (r : Std.Usize) (c : linalg.PolyVec)
@@ -1017,6 +1119,392 @@ theorem honest_z_spec (message : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyV
     ← Fin.sum_univ_eq_sum_range (fun j =>
       scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
         (toVec (k := 2 ^ 10 * 8) (message.val.getD j (alloc.vec.Vec.new ring.Rq)))) (2 ^ 10)]
+  rfl
+
+/-! ## The streamed `z` pass
+
+`honest_z_from_raw` computes the same `z` as `honest_z`, from the raw message,
+rebuilding one block's `sᵢ` per iteration instead of reading it out of a 68.7 GiB
+table.
+
+The loop spec below is `honest_z_loop1_spec` with the block vector supplied by a
+decomposition rather than an index, and the device that makes that cheap is
+`sv` with `hsv`: rather than putting `gadgetDecompose` in the invariant -- where
+its `Fin (rows * 8)` index would fight the `∀ t, t < width` form every other
+spec in this file uses -- the block family is abstract, and `hsv` is the
+specification of "decomposing block `j` gives a vector whose entries are
+`sv j`". The top-level theorem instantiates it from `gadget_decompose_spec`.
+
+The inner loops are the same two `honest_z` has, at new names: Aeneas numbers
+loops positionally, so the streamed function's are separate constants even
+though the `None` arm's body is textually identical. -/
+
+/-- The zero-fill loop of `quadeval::honest_z_from_raw`. Byte-identical to
+`honest_z_loop0_spec`'s; Aeneas names loops positionally, so it is a separate
+constant. -/
+theorem honest_z_from_raw_loop0_spec {width : ℕ} (widthU : Std.Usize)
+    (acc : alloc.vec.Vec ring.Rq) (zU : Std.Usize)
+    (hw : widthU.val = width) (hz : zU.val ≤ width)
+    (hlen : acc.val.length = zU.val) (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < zU.val →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0) :
+    quadeval.honest_z_from_raw_loop0 widthU acc zU
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
+  rw [quadeval.honest_z_from_raw_loop0]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = r.2.val
+      ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < r.2.val →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
+  · rintro ⟨d, zz⟩ ⟨hzz, hdl, hdw, hdv⟩
+    dsimp only at hzz hdl hdw hdv
+    simp only [quadeval.honest_z_from_raw_loop0.body]
+    by_cases hlt : zz < widthU
+    · rw [if_pos hlt]
+      have hzlt : zz.val < width := by rw [← hw]; scalar_tac
+      step with HachiEquiv.RqBridge.zero_spec as ⟨r, hrwf, hrval⟩
+      step as ⟨d1, hd1⟩
+      step as ⟨zz1, hzz1⟩
+      refine ⟨by rw [hzz1]; omega, ?_, ?_, ?_, by rw [hzz1]; omega⟩
+      · rw [hd1, hzz1, List.length_append, hdl]; simp
+      · intro x hx
+        rw [hd1] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hdw x h
+        · rw [List.mem_singleton.mp h]; exact hrwf
+      · intro t ht
+        rw [hzz1] at ht
+        rcases Nat.lt_or_ge t zz.val with htlt | htge
+        · rw [hd1, getD_append_lt _ _ _ (by omega)]
+          exact hdv t htlt
+        · have hteq : t = d.val.length := by omega
+          rw [hteq, hd1, getD_append_eq]; exact hrval
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : zz.val = width := by rw [← hw]; scalar_tac
+      exact ⟨by rw [hdl, heq], hdw, fun t ht => hdv t (by rw [heq]; exact ht)⟩
+  · exact ⟨hz, hlen, hwf, hval⟩
+
+/-- The fallback branch's inner loop, at the streamed function's name. -/
+theorem honest_z_from_raw_loop1_loop0_spec {width : ℕ} (widthU jU : Std.Usize)
+    (scaled : linalg.PolyVec) (acc : alloc.vec.Vec ring.Rq) (prev : ℕ → Rq Φ)
+    (hw : widthU.val = width) (hs : WfVec width scaled)
+    (hj : jU.val ≤ width) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = prev t + (if t < jU.val then
+            toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) else 0)) :
+    quadeval.honest_z_from_raw_loop1_loop0 widthU acc scaled jU
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t
+                + toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [quadeval.honest_z_from_raw_loop1_loop0]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t + (if t < r.2.val then
+                toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) else 0))
+  · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdw, hdv⟩
+    dsimp only at hjj hdl hdw hdv
+    simp only [quadeval.honest_z_from_raw_loop1_loop0.body]
+    by_cases hlt : jj < widthU
+    · rw [if_pos hlt]
+      have hjlt : jj.val < width := by rw [← hw]; scalar_tac
+      have hdjb : jj.val < d.val.length := by rw [hdl]; exact hjlt
+      have hsjb : jj.val < scaled.val.length := by rw [hs.1]; exact hjlt
+      step as ⟨r, hr⟩
+      have hrwf : Wf r := by rw [hr]; exact hdw _ (List.getElem_mem hdjb)
+      simp only [linalg.PolyVec.get]
+      step as ⟨r1, hr1⟩
+      have hr1wf : Wf r1 := by rw [hr1]; exact hs.2 _ (List.getElem_mem hsjb)
+      step with HachiEquiv.RqBridge.add_spec r r1 hrwf hr1wf as ⟨r2, hr2wf, hr2val⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨jj1, hjj1⟩
+      rw [hback]
+      refine ⟨by rw [hjj1]; omega, ?_, all_set hdw hr2wf, ?_, by rw [hjj1]; omega⟩
+      · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hdl
+      · intro t ht
+        rw [hjj1]
+        by_cases heq : t = jj.val
+        · have hdgetD : d.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = r := by
+            rw [hr, List.getD_eq_getElem _ _ hdjb]
+          have hsgetD : scaled.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = r1 := by
+            rw [hr1, List.getD_eq_getElem _ _ hsjb]
+          rw [heq, vgetD_set_eq hdjb, hr2val, ← hdgetD, hdv jj.val hjlt,
+            if_neg (by omega), add_zero, hsgetD, if_pos (by omega)]
+        · rw [vgetD_set_ne heq, hdv t ht]
+          by_cases hlt2 : t < jj.val
+          · rw [if_pos hlt2, if_pos (by omega)]
+          · rw [if_neg hlt2, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = width := by rw [← hw]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq, if_pos ht]
+  · exact ⟨hj, hlen, hwf, hval⟩
+
+/-- The short branch's inner loop, with the block in hand as a local. -/
+theorem honest_z_from_raw_loop1_loop1_spec {width : ℕ} (s : linalg.PolyVec)
+    (widthU jU : Std.Usize) (desc : ring.ShortMul) (ci : ring.Rq)
+    (acc : alloc.vec.Vec ring.Rq) (prev : ℕ → Rq Φ)
+    (hw : widthU.val = width) (hmi : WfVec width s)
+    (hci : Wf ci)
+    (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
+    (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
+    (hidx : ∀ u, u < desc.idx.val.length →
+      HachiEquiv.AuxShort.idxAt desc.idx u < N)
+    (hden : ∀ j, j < N → coeffK ci j
+      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+          desc.idx.val.length j)
+    (hj : jU.val ≤ width) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = prev t + (if t < jU.val then toRq ci
+            * toRq (s.val.getD t
+                (alloc.vec.Vec.new cpoly.field.Fp)) else 0)) :
+    quadeval.honest_z_from_raw_loop1_loop1 widthU acc s desc jU
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t + toRq ci
+                * toRq (s.val.getD t
+                    (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [quadeval.honest_z_from_raw_loop1_loop1]
+  apply loop.spec_decr_nat (fun r => width - r.2.val)
+    (fun r => r.2.val ≤ width ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = prev t + (if t < r.2.val then toRq ci
+                * toRq (s.val.getD t
+                    (alloc.vec.Vec.new cpoly.field.Fp)) else 0))
+  · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdw, hdv⟩
+    dsimp only at hjj hdl hdw hdv
+    simp only [quadeval.honest_z_from_raw_loop1_loop1.body]
+    by_cases hlt : jj < widthU
+    · rw [if_pos hlt]
+      have hjlt : jj.val < width := by rw [← hw]; scalar_tac
+      -- `s` is a local, so it is indexed directly: no outer `message[i]` step
+      have hjb : jj.val < s.val.length := by rw [hmi.1]; exact hjlt
+      simp only [linalg.PolyVec.get]
+      step as ⟨r, hr⟩
+      have hrwf : Wf r := by rw [hr]; exact hmi.2 _ (List.getElem_mem hjb)
+      step as ⟨elem, back, helem, hback⟩
+      have hdjb : jj.val < d.val.length := by rw [hdl]; exact hjlt
+      have hewf : Wf elem := by rw [helem]; exact hdw _ (List.getElem_mem hdjb)
+      step with HachiEquiv.RqBridge.mul_short_add_into_spec desc r elem ci hrwf
+        hci hewf hmlen hnlen hidx hden as ⟨r2, hr2wf, hr2val⟩
+      step as ⟨jj1, hjj1⟩
+      rw [hback]
+      refine ⟨by rw [hjj1]; omega, ?_, all_set hdw hr2wf, ?_, by rw [hjj1]; omega⟩
+      · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hdl
+      · intro t ht
+        rw [hjj1]
+        by_cases heq : t = jj.val
+        · have hdgetD : d.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) = elem := by
+            rw [helem, List.getD_eq_getElem _ _ hdjb]
+          have hrg : r = s.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+            rw [hr, List.getD_eq_getElem _ _ hjb]
+          rw [heq, vgetD_set_eq hdjb, hr2val, ← hdgetD, hdv jj.val hjlt,
+            if_neg (by omega), add_zero, hrg, if_pos (by omega)]
+        · rw [vgetD_set_ne heq, hdv t ht]
+          by_cases hlt2 : t < jj.val
+          · rw [if_pos hlt2, if_pos (by omega)]
+          · rw [if_neg hlt2, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = width := by rw [← hw]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq, if_pos ht]
+  · exact ⟨hj, hlen, hwf, hval⟩
+
+/-- The block loop of `quadeval::honest_z_from_raw`.
+
+`honest_z_loop1_spec` with the block vector supplied by a decomposition rather
+than an index. The abstract family `sv`, pinned by `hsv`, is what keeps the
+invariant in the `∀ t, t < width` form every other spec in this file uses:
+putting `gadgetDecompose` there directly would drag its `Fin (rows * 8)` index
+into an arithmetic side condition at every step. `hsv` is itself a
+specification -- "decomposing block `j` gives a vector whose entries are
+`sv j`" -- which the top-level theorem discharges from
+`gadget_decompose_spec`. -/
+theorem honest_z_from_raw_loop1_spec {width blocks rows : ℕ}
+    (raw : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+    (blocksU widthU : Std.Usize) (acc : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (sv : ℕ → ℕ → Rq Φ)
+    (hraw : WfBlocks blocks rows raw) (hc : WfVec blocks c)
+    (hn : blocksU.val = blocks) (hw : widthU.val = width)
+    (hsv : ∀ j, j < blocks →
+      gadget.gadget_decompose (raw.val.getD j (alloc.vec.Vec.new ring.Rq))
+        ⦃ s => WfVec width s ∧ ∀ t, t < width →
+                 toRq (s.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = sv j t ⦄)
+    (hi : i.val ≤ blocks) (hlen : acc.val.length = width)
+    (hwf : ∀ x ∈ acc.val, Wf x)
+    (hval : ∀ t, t < width →
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        = ∑ j ∈ Finset.range i.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) * sv j t) :
+    quadeval.honest_z_from_raw_loop1 raw c blocksU widthU acc i
+      ⦃ z => z.val.length = width ∧ (∀ x ∈ z.val, Wf x) ∧
+        ∀ t, t < width →
+          toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = ∑ j ∈ Finset.range blocks,
+                toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) * sv j t ⦄ := by
+  rw [quadeval.honest_z_from_raw_loop1]
+  apply loop.spec_decr_nat (fun r => blocks - r.2.val)
+    (fun r => r.2.val ≤ blocks ∧ r.1.val.length = width ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ ∀ t, t < width →
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = ∑ j ∈ Finset.range r.2.val,
+                toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) * sv j t)
+  · rintro ⟨d, ii⟩ ⟨hii, hdl, hdw, hdv⟩
+    dsimp only at hii hdl hdw hdv
+    simp only [quadeval.honest_z_from_raw_loop1.body]
+    by_cases hlt : ii < blocksU
+    · rw [if_pos hlt]
+      have hiib : ii.val < blocks := by rw [← hn]; scalar_tac
+      have hib : ii.val < raw.val.length := by rw [hraw.1]; exact hiib
+      have hic : ii.val < c.val.length := by rw [hc.1]; exact hiib
+      -- the block, decomposed here and dropped at the end of the iteration
+      step as ⟨pv, hpv⟩
+      have hri : raw.val.getD ii.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv, List.getD_eq_getElem _ _ hib]
+      have hdec := hsv ii.val hiib
+      rw [hri] at hdec
+      step with hdec as ⟨s, hWs, hsval⟩
+      simp only [linalg.PolyVec.get]
+      step as ⟨cr, hcr⟩
+      have hWcr : Wf cr := by rw [hcr]; exact hc.2 _ (List.getElem_mem hic)
+      have hcrv : cr = c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+        rw [hcr, List.getD_eq_getElem _ _ hic]
+      step with HachiEquiv.AuxShort.classify_short_spec cr hWcr as ⟨o, ho⟩
+      cases o with
+      | none =>
+        step with scalar_vec_mul_spec (k := width) cr s hWcr hWs
+          as ⟨scaled, hSwf, hSval⟩
+        step with honest_z_from_raw_loop1_loop0_spec (width := width) widthU 0#usize
+          scaled d
+          (fun t => ∑ j ∈ Finset.range ii.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) * sv j t)
+          hw hSwf (by simp) hdl hdw
+          (by intro t ht; simpa using hdv t ht) as ⟨z, hzl, hzw, hzv⟩
+        step as ⟨ii1, hii1⟩
+        refine ⟨by rw [hii1]; omega, hzl, hzw, ?_, by rw [hii1]; omega⟩
+        intro t ht
+        have hst : toRq (scaled.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = toRq (c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp)) * sv ii.val t := by
+          have h1 := congrFun hSval ⟨t, by omega⟩
+          simp only [toVec, scalarVecMul] at h1
+          rw [h1, hcrv, hsval t ht]
+        rw [hii1, hzv t ht, hst, Finset.sum_range_succ]
+      | some desc =>
+        obtain ⟨e2, e3, e4, e5⟩ := ho desc rfl
+        step with honest_z_from_raw_loop1_loop1_spec (width := width) s widthU 0#usize
+          desc cr d
+          (fun t => ∑ j ∈ Finset.range ii.val,
+            toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) * sv j t)
+          hw hWs hWcr e2 e3 e4 e5 (by simp) hdl hdw
+          (by intro t ht; simpa using hdv t ht) as ⟨z, hzl, hzw, hzv⟩
+        step as ⟨ii1, hii1⟩
+        refine ⟨by rw [hii1]; omega, hzl, hzw, ?_, by rw [hii1]; omega⟩
+        intro t ht
+        rw [hii1, hzv t ht, hcrv, hsval t ht, Finset.sum_range_succ]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = blocks := by rw [← hn]; scalar_tac
+      refine ⟨hdl, hdw, ?_⟩
+      intro t ht
+      rw [hdv t ht, heq]
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- **`quadeval::honest_z_from_raw` computes `honestZ`.**
+
+`honest_z_spec`'s conclusion, word for word. What changes is the hypothesis: the
+message blocks are no longer handed in decomposed, so `hm` ties the *raw* blocks
+to the opening through `gadgetDecompose`. That is the whole statement of the
+change -- the prover reads the raw message and the value is unaffected. -/
+theorem honest_z_from_raw_spec (raw : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hc : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) (hWc : WfVec (2 ^ 10) c) :
+    quadeval.honest_z_from_raw raw c
+      ⦃ out => WfVec (2 ^ 10 * 8) out ∧
+        toVec (k := 2 ^ 10 * 8) out = InnerOuter.honestZ Φ wo (toChals c hc) ⦄ := by
+  rw [quadeval.honest_z_from_raw]
+  step as ⟨width, hwidth⟩
+  case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
+  have hwv : width.val = 2 ^ 10 * 8 := by
+    have h : (2 : ℕ) ^ 10 * 8 = 8192 := by norm_num
+    rw [h]
+    simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
+    scalar_tac
+  simp only [alloc.vec.Vec.with_capacity]
+  step with honest_z_from_raw_loop0_spec (width := 2 ^ 10 * 8) width
+    (alloc.vec.Vec.new ring.Rq) 0#usize hwv (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro t ht; simp at ht)
+    as ⟨acc1, hA1len, hA1wf, hA1zero⟩
+  -- the block family, and its defining specification, both from
+  -- `gadget_decompose_spec` at one block
+  set sv : ℕ → ℕ → Rq Φ := fun j t =>
+    if h : t < 2 ^ 10 * 8 then
+      gadgetDecompose Φ dd
+        (toVec (k := 2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))) ⟨t, h⟩
+    else 0 with hsvdef
+  have hsv : ∀ j, j < 2 ^ 10 →
+      gadget.gadget_decompose (raw.val.getD j (alloc.vec.Vec.new ring.Rq))
+        ⦃ s => WfVec (2 ^ 10 * 8) s ∧ ∀ t, t < 2 ^ 10 * 8 →
+                 toRq (s.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) = sv j t ⦄ := by
+    intro j hj
+    have hWj : WfVec (2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq)) := by
+      rw [List.getD_eq_getElem _ _ (by rw [hWraw.1]; exact hj)]
+      exact hWraw.2 _ (List.getElem_mem _)
+    apply spec_mono (gadget_decompose_spec (rows := 2 ^ 10)
+      (raw.val.getD j (alloc.vec.Vec.new ring.Rq)) hWj (by scalar_tac))
+    rintro s ⟨hWs, hsval⟩
+    refine ⟨hWs, ?_⟩
+    intro t ht
+    have h1 : toVec (k := 2 ^ 10 * 8) s ⟨t, ht⟩
+        = toRq (s.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) := rfl
+    rw [hsvdef]
+    simp only [dif_pos ht]
+    rw [← h1, hsval]
+  step with honest_z_from_raw_loop1_spec (width := 2 ^ 10 * 8) (blocks := 2 ^ 10)
+    (rows := 2 ^ 10) raw c (alloc.vec.Vec.len raw) width acc1 0#usize sv
+    hWraw hWc (by simpa using hWraw.1) hwv hsv (by simp) hA1len hA1wf
+    (by intro t ht; rw [hA1zero t ht]; simp)
+    as ⟨acc2, hA2len, hA2wf, hA2val⟩
+  rw [linalg.PolyVec.new, WP.spec_ok]
+  -- the loops deliver the fold pointwise; this is `honest_z_spec`'s tail with
+  -- `sv` unfolded back into the decomposition it was standing for
+  have hfun : toVec (k := 2 ^ 10 * 8) acc2
+      = ∑ j ∈ Finset.range (2 ^ 10),
+          scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+            (gadgetDecompose Φ dd
+              (toVec (k := 2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq)))) := by
+    funext t
+    simp only [toVec, Finset.sum_apply, scalarVecMul]
+    rw [hA2val t.val t.isLt]
+    refine Finset.sum_congr rfl (fun j _ => ?_)
+    congr 1
+    -- `sv` is already unfolded here, so all that is left is the guard
+    rw [dif_pos t.isLt]
+  refine ⟨⟨hA2len, hA2wf⟩, ?_⟩
+  rw [hfun, InnerOuter.honestZ, ← hm,
+    ← Fin.sum_univ_eq_sum_range (fun j =>
+      scalarVecMul (toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
+        (gadgetDecompose Φ dd
+          (toVec (k := 2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))))) (2 ^ 10)]
   rfl
 
 /-- `honest_compute_v` computes `honestComputeV`, the prover's round-0 message

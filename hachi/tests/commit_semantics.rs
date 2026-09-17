@@ -683,3 +683,32 @@ fn the_balanced_decomposition_is_the_shorter_one() {
         "the balanced and unsigned decompositions coincide"
     );
 }
+
+/// `commit_streamed` is `commit`, without the 68.7 GiB.
+///
+/// The two loops compute the same `t̂ᵢ` and the same outer commitment; the
+/// difference is only that one keeps every `sᵢ` and the other keeps one at a
+/// time. Two blocks rather than `BLOCKS`, because this checks an equality and
+/// not a scale: the loop body is the same at any block count, and the shape
+/// error a reassociation can make -- a `t̂` pushed in the wrong order, so that
+/// `flatten_blocks` lays them out transposed -- shows up at two.
+#[test]
+fn commit_streamed_agrees_with_commit() {
+    let mut rng = Lcg::new(0xC008);
+    let a = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
+    let b = rng.next_poly_matrix(OUTER_ROWS, 2 * (INNER_ROWS * GADGET_DIGITS));
+    let pp = PublicParams::new(a, b);
+    let m: Vec<PolyVec> = (0..2).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+
+    let (u_want, decomp) = hachi::commit::commit(&pp, &m);
+    let (u_got, ts) = hachi::commit::commit_streamed(&pp, &m);
+
+    assert_eq!(ts.len(), decomp.blocks(), "block count");
+    for i in 0..ts.len() {
+        assert!(
+            ts[i].equals(decomp.inner_decomp(i)),
+            "streamed t̂ of block {i} differs"
+        );
+    }
+    assert!(u_got.equals(&u_want), "streamed outer commitment differs");
+}

@@ -562,3 +562,38 @@ pub fn commit_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp)
     (u, decomp)
 }
 
+
+/// Commit to a message **without ever materializing the decomposed message**
+/// (spec: the same `commitmentScheme.commit` [`commit`] mirrors).
+///
+/// [`commit`] returns a [`Decomp`], whose `message` field is `BLOCKS` blocks of
+/// `MESSAGE_ROWS · GADGET_DIGITS` ring elements: `1024 · 8192 · 8 KiB` =
+/// **68.7 GiB** at the paper's parameters, and the largest single object the
+/// prover builds. Nothing in the *commitment* needs it -- `commit_with_decomps`
+/// reads only `inner_decomp` -- so this variant decomposes one block at a time
+/// and drops it, and the resident decomposed state is one block's `s`: 8192 ring
+/// elements, **64 MiB**.
+///
+/// What it returns is the outer commitment and the `t̂ᵢ`, which is
+/// `1024 · 8 · 8 KiB` = 64 MiB. The cost is that the prover's *second* pass --
+/// [`crate::quadeval::honest_z_from_raw`] -- decomposes the message again;
+/// `gadget_decompose` is run twice over the raw input instead of once, which is
+/// the trade the memory buys.
+///
+/// The value is exactly `commit`'s, which is what `commit_streamed_spec` says:
+/// the loop is reassociated, not changed.
+pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<PolyVec>) {
+    let blocks: usize = m.len();
+    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
+    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        let s: PolyVec = gadget::gadget_decompose(&m[i]);
+        let inner: PolyVec = prep.apply_digits(&s);
+        ts.push(gadget::gadget_decompose(&inner));
+        i += 1;
+    }
+    let flat: PolyVec = linalg::flatten_blocks(&ts);
+    let u: PolyVec = pp.outer_matrix().mat_vec_mul(&flat);
+    (u, ts)
+}

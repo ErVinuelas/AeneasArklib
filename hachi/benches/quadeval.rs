@@ -365,6 +365,39 @@ macro_rules! define_cases {
                 )
             }
 
+            /// [`honest_z_short`] from the **raw** message: the streamed form,
+            /// which decomposes each block on the fly instead of reading it out
+            /// of a 68.7 GiB table.
+            ///
+            /// Not comparable to `honest_z_short` and not meant to be: it does
+            /// strictly more work -- one `gadget_decompose` per block, which is
+            /// the price of the memory -- so its value here is as a row that
+            /// exists, so that a regression in the path the prover will actually
+            /// take is something the loop can notice.
+            pub fn honest_z_from_raw(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0011, blocks, hc::params::MESSAGE_ROWS);
+                let c = short_challenges(0x2117_0000_0000_0012, blocks, 16, 1);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z_from_raw(black_box(&raw), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
+            /// The carrier from the raw message. The interesting row of the
+            /// three: it does *less* work than `carrier`, not more, because the
+            /// gadget recomposition inside `carrier_entry` cancels against the
+            /// decomposition it would have undone.
+            pub fn carrier_from_raw(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0013, blocks, hc::params::MESSAGE_ROWS);
+                let a = vec_of(0x2117_0000_0000_0014, hc::params::MESSAGE_ROWS);
+                support::run(
+                    m,
+                    || hc::quadeval::carrier_from_raw(black_box(&a), black_box(&raw)),
+                    d_polyvec,
+                )
+            }
+
             /// [`honest_z_short`] with the whole budget in **one** coefficient:
             /// the same `ℓ₁` total, one descriptor entry rather than sixteen.
             pub fn honest_z_short_heavy(m: Mode<'_, '_>, blocks: usize) -> u64 {
@@ -506,6 +539,16 @@ fn quadeval_benches(c: &mut Criterion) {
     // @covers quadeval::honest_z
     bench_case!(c, "quadeval/honest_z_dense", honest_z_dense, [honest_z_blocks],
                 samples: honest_z_samples);
+    // The streamed z pass and the streamed carrier. Both exist for memory, so
+    // both are guards rather than speed claims; `honest_z_from_raw` is expected
+    // to be slower than `honest_z` by one gadget decomposition per block, which
+    // is the trade, and `carrier_from_raw` is expected to be faster than
+    // `carrier` because the gadget round trip cancels.
+    // @covers quadeval::honest_z_from_raw
+    bench_case!(c, "quadeval/honest_z_from_raw", honest_z_from_raw, [honest_z_blocks],
+                samples: honest_z_samples);
+    // @covers quadeval::carrier_from_raw
+    bench_case!(c, "quadeval/carrier_from_raw", carrier_from_raw, [reduced_blocks]);
     // @covers quadeval::tensor_g_matrix
     bench_case!(c, "quadeval/tensor_g_matrix", tensor_g_matrix, [reduced_blocks]);
 }

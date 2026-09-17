@@ -2867,6 +2867,139 @@ theorem commit_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec
   step with commit_with_decomps_spec pp d hpp hWd as ⟨u, hWu, huspec⟩
   exact ⟨hWu, hWd, hdspec, huspec⟩
 
+/-! ### The streamed committer
+
+`commit_streamed` computes the same outer commitment and the same `t̂ᵢ` as
+`commit`, and never builds the decomposed message. The two halves of
+`generate_decomps_loop_spec` were always independent -- nothing in the
+commitment reads `ss` -- and the loop below is that spec with the `ss` half
+deleted, which is the whole content of the change at the proof level.
+
+The memory it removes is invisible here by construction: a statement about
+output equality cannot mention how long an intermediate lived. The arithmetic
+and the measured peak RSS are in the ledger row. -/
+
+/-- The loop of `commit::commit_streamed`: the `t̂ᵢ` only. -/
+theorem commit_streamed_loop_spec (pp : commit.PublicParams)
+    (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+    (prep : linalg.PreparedMatrix) (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hpp : WfParams pp) (hprep : WfPrep2 1 (1024 * 8) prep pp.inner_matrix)
+    (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
+    (hts : ts.val.length = i.val) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
+    (hvts : ∀ j < i.val, toVec (k := 1 * 8) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
+          (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+          (gadgetDecompose Φ dd
+            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
+    commit.commit_streamed_loop m blocks prep ts i
+      ⦃ r => r.val.length = 1024 ∧ (∀ y ∈ r.val, WfVec (1 * 8) y) ∧
+        ∀ j < 1024, toVec (k := 1 * 8) (r.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
+              (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+              (gadgetDecompose Φ dd
+                (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))) ⦄ := by
+  rw [commit.commit_streamed_loop]
+  apply loop.spec_decr_nat (fun s => blocks.val - s.2.val)
+    (fun s => s.2.val ≤ 1024 ∧ s.1.val.length = s.2.val ∧
+      (∀ y ∈ s.1.val, WfVec (1 * 8) y) ∧
+      (∀ j < s.2.val, toVec (k := 1 * 8) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+        = gadgetDecompose Φ dd (ArkLib.Lattices.matVecMul
+            (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+            (gadgetDecompose Φ dd
+              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))))
+  · rintro ⟨t1, i1⟩ ⟨hi1, ht1, hWt1, hvt1⟩
+    dsimp only at hi1 ht1 hWt1 hvt1
+    simp only [commit.commit_streamed_loop.body]
+    by_cases hlt : i1 < blocks
+    · rw [if_pos hlt]
+      have hilt : i1.val < m.val.length := by rw [hm.1, ← hb]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
+      step with HachiEquiv.AuxCode.spec_and
+        (gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac))
+        (gadget_decompose_digit_words (rows := 1024) pv hWpv (by scalar_tac))
+        as ⟨s, hWs, hs, hsd⟩
+      have hsdv : DigitVec (1024 * 8) s := by
+        intro u hu
+        refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
+        rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
+        exact List.getElem_mem _
+      step with apply_digits_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
+        hpp.1 hWs hsdv hprep as ⟨inner, hWinner, hinner⟩
+      step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
+        as ⟨t, hWt, ht⟩
+      step as ⟨t2, ht2⟩
+      step as ⟨i2, hi2⟩
+      have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv]; exact List.getD_eq_getElem _ _ hilt
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ht2, hi2, List.length_append, ht1]; simp
+      · intro y hy
+        rw [ht2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hWt1 y h
+        · rw [List.mem_singleton.mp h]; exact hWt
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ht2, getD_append_lt _ _ _ (by omega), hvt1 j hjlt]
+        · have hjeq : j = t1.val.length := by omega
+          rw [hjeq, ht2, getD_append_eq, ht, hinner, hs, ht1, hmi]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
+      rw [heq] at ht1 hvt1
+      exact ⟨ht1, hWt1, hvt1⟩
+  · exact ⟨hi, hts, hWts, hvts⟩
+
+/-- **`commit::commit_streamed` = `commit`**, on the parts it returns: the same
+`t̂` and the same outer commitment, with the 68.7 GiB decomposed message never
+built. -/
+theorem commit_streamed_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linalg.PolyVec)
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x) :
+    commit.commit_streamed pp m
+      ⦃ z => WfVec 1 z.1 ∧ z.2.val.length = 1024
+        ∧ (∀ y ∈ z.2.val, WfVec (1 * 8) y)
+        ∧ (∀ j : Fin 1024,
+            toVec (k := 1 * 8) (z.2.val.getD j.val (alloc.vec.Vec.new ring.Rq))
+              = (InnerOuter.generateDecomps Φ
+                  (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParams pp)
+                  (fun i : Fin 1024 => toVec (k := 1024)
+                    (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))).innerDecomp j)
+        ∧ toVec (k := 1) z.1
+            = InnerOuter.commitWithDecomps Φ (toParams pp)
+                (InnerOuter.generateDecomps Φ
+                  (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParams pp)
+                  (fun i : Fin 1024 => toVec (k := 1024)
+                    (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [commit.commit_streamed]
+  simp only [commit.PublicParams.impl.inner_matrix, commit.PublicParams.impl.outer_matrix]
+  step with prepare_digits_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
+    (by norm_num) (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
+  step with commit_streamed_loop_spec pp m (alloc.vec.Vec.len m) prep
+    (alloc.vec.Vec.new linalg.PolyVec) 0#usize hpp hprep hm (by simpa using hm.1)
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+    as ⟨ts, htl, hWts, hvts⟩
+  step with flatten_blocks_spec (blocks := 1024) (width := 1 * 8) ts
+    (by scalar_tac) ⟨htl, hWts⟩ as ⟨flat, hWflat, hflat⟩
+  step with mat_vec_mul_spec (rows := 1) (cols := 1024 * (1 * 8))
+    pp.outer_matrix flat hpp.2 hWflat as ⟨u, hWu, hu⟩
+  -- the `t̂` half, once: both remaining components are this equality
+  have hts : (fun j : Fin 1024 =>
+        toVec (k := 1 * 8) (ts.val.getD j.val (alloc.vec.Vec.new ring.Rq)))
+      = (InnerOuter.generateDecomps Φ
+          (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParams pp)
+          (fun i : Fin 1024 => toVec (k := 1024)
+            (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))).innerDecomp := by
+    funext j
+    rw [hvts j.val j.isLt]
+    rfl
+  refine ⟨hWu, htl, hWts, fun j => by rw [← hts], ?_⟩
+  rw [hu, hflat, hts]
+  rfl
+
 /-- The loop of `Opening::honest`: it pushes `blocks` copies of `1`. -/
 theorem honest_loop_spec (blocks : Std.Usize) (ones : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (hb : blocks.val = 1024) (hi : i.val ≤ 1024) (hlen : ones.val.length = i.val)

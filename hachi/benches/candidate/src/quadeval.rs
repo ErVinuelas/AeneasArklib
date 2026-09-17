@@ -330,6 +330,90 @@ pub fn honest_z(message: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
     PolyVec::new(acc)
 }
 
+/// `z = Σᵢ cᵢ •ᵥ sᵢ` from the **raw** message, decomposing one block at a time
+/// (spec: the same `honestZ` [`honest_z`] mirrors, composed with
+/// `gadgetDecompose`).
+///
+/// [`honest_z`] takes the decomposed message, which is `BLOCKS · MESSAGE_ROWS ·
+/// GADGET_DIGITS` ring elements = **68.7 GiB** at the paper's parameters. This
+/// variant takes the raw message and rebuilds `sᵢ` per block, so the resident
+/// decomposed state is one block: 8192 ring elements, **64 MiB**. Paired with
+/// [`crate::commit::commit_streamed`], the prover never holds the full
+/// decomposition at all, and the price is that `gadget_decompose` runs a second
+/// time over the raw input.
+///
+/// The unsigned gadget, matching what `commit::generate_decomps` produces. The
+/// balanced path has its own decomposition and would need its own variant.
+pub fn honest_z_from_raw(raw: &Vec<PolyVec>, c: &PolyVec) -> PolyVec {
+    let blocks: usize = raw.len();
+    let width: usize = params::MESSAGE_ROWS * params::GADGET_DIGITS;
+    let mut acc: Vec<Rq> = Vec::with_capacity(width);
+    let mut z: usize = 0;
+    while z < width {
+        acc.push(Rq::zero());
+        z += 1;
+    }
+    let mut i: usize = 0;
+    while i < blocks {
+        // one block's decomposition, alive for one iteration
+        let s: PolyVec = gadget::gadget_decompose(&raw[i]);
+        let ci: &Rq = c.get(i);
+        match crate::ring::classify_short(ci) {
+            Some(desc) => {
+                let mut j: usize = 0;
+                while j < width {
+                    crate::ring::mul_short_add_into(&desc, s.get(j), &mut acc[j]);
+                    j += 1;
+                }
+            }
+            None => {
+                let scaled: PolyVec = s.scalar_mul(ci);
+                let mut j: usize = 0;
+                while j < width {
+                    acc[j] = acc[j].add(scaled.get(j));
+                    j += 1;
+                }
+            }
+        }
+        i += 1;
+    }
+    PolyVec::new(acc)
+}
+
+/// The carrier `w` from the **raw** message (spec: the same `carrier`
+/// [`carrier`] mirrors, composed with `gadgetDecompose`).
+///
+/// This one needs no decomposition at all, and that is the point:
+/// [`carrier_entry`] recomposes its argument with `gadget_mul` before dotting
+/// with `a`, and `gadget_mul ∘ gadget_decompose` is the identity
+/// (`Scheme.gadget_round_trip`). So `carrier a (G⁻¹ m) = a · m`, and the
+/// decomposition the streamed prover would have rebuilt cancels instead.
+///
+/// It is therefore not merely a memory win over `carrier(a, s)`: it removes the
+/// `BLOCKS` gadget recompositions as well.
+pub fn carrier_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
+    let blocks: usize = raw.len();
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        out.push(a.dot(&raw[i]));
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+/// `v = D · G⁻¹(w)` from the raw message: [`carrier_commit`] without the
+/// decomposed message.
+pub fn carrier_commit_from_raw(
+    d_matrix: &PolyMatrix,
+    a: &PolyVec,
+    raw: &Vec<PolyVec>,
+) -> PolyVec {
+    let w: PolyVec = carrier_from_raw(a, raw);
+    let what: PolyVec = gadget::balanced_gadget_decompose(&w);
+    d_matrix.mat_vec_mul(&what)
+}
+
 /// The prover's round-0 message `v = D ŵ` (spec: `honestComputeV`,
 /// `QuadEval/Reduction.lean:502`).
 ///

@@ -1807,5 +1807,41 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Scheme.dot_prep_digits_spec
 #print axioms HachiEquiv.Scheme.prepare_digits_spec
 #print axioms HachiEquiv.Scheme.apply_digits_spec
+-- Candidate T22 Change 8 (Stage 6) -- STREAMED decomposition, a WALL removal.
+-- `Decomp.message` is `BLOCKS · MESSAGE_ROWS · GADGET_DIGITS` ring elements =
+-- 68.7 GiB at the paper's parameters, and the largest single object the prover
+-- builds. The three items below take the RAW message and rebuild one block's
+-- `sᵢ` at a time, so the resident decomposed state is 64 MiB.
+--
+-- All three statements are output equalities against the specification the
+-- materializing versions already satisfy: nothing here reasons about memory,
+-- which is the only way to state a liveness change as a theorem. The measured
+-- peak RSS is in the ledger row.
+--
+-- `commit_streamed_spec` is `commit_spec` on the parts it returns -- the two
+-- halves of `generate_decomps_loop_spec` were always independent, and this is
+-- that spec with the `ss` half deleted.
+--
+-- `honest_z_from_raw_spec` is `honest_z_spec`'s conclusion word for word, with
+-- `hm` tying the RAW blocks to the opening through `gadgetDecompose`. The
+-- device that keeps its loop invariant in the same shape as every other one in
+-- that file is the abstract family `sv` with `hsv`: a hypothesis that is itself
+-- a specification, saying "decomposing block `j` gives a vector whose entries
+-- are `sv j`", discharged from `gadget_decompose_spec`.
+--
+-- `carrier_from_raw_spec` is the interesting one: the streamed carrier does no
+-- gadget arithmetic AT ALL. `carrierEntry` is `splitForm G`, which recomposes
+-- its argument with `gadgetMul`, and `gadgetMul ∘ gadgetDecompose` is the
+-- identity -- so the recomposition cancels against the decomposition, and the
+-- streamed form is both smaller and strictly less work.
+#print axioms HachiEquiv.Scheme.commit_streamed_loop_spec
+#print axioms HachiEquiv.Scheme.commit_streamed_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_from_raw_loop_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_from_raw_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_loop0_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_loop1_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_spec
 
 end HachiEquiv.Check
