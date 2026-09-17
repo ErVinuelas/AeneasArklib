@@ -1010,6 +1010,7 @@ pub fn rlin_stmt(
     crate::ringswitch::RlinStatement::new(PolyMatrix::new(out), PolyVec::new(y), gamma)
 }
 
+// @genesis c591e87 2026-09-17 — quadeval::rlin_row
 /// Row `i` of `R^lin`'s matrix `M`, built **alone** (Stage 6 candidate T1b,
 /// first increment).
 ///
