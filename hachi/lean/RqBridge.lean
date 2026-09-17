@@ -44,6 +44,7 @@ the half `Simple.verify` rests on.
 -/
 import Ring
 import AuxShort
+import AuxFused
 import ArkLib.Commitments.Functional.Hachi.InnerOuter.Arithmetic
 -- `Nat.Prime 4294967197` is decided by norm_num's primality extension, which is not
 -- reached by the ArkLib import above; without this the instance below is unprovable
@@ -535,5 +536,47 @@ theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
   · rw [zero_add]
     exact (Rq.coeff_eq_zero_of_natDegree_le Φ (toRq a * toRq s)
       (by rw [phi_natDegree]; omega)).symm
+
+/-! ## The fused dot product
+
+`linalg::PolyVec::dot` no longer multiplies term by term; `ring::dot_fused`
+accumulates in the transform domain (`AuxFused`). The statement below, and
+`Scheme.dot_spec` above it, are unchanged by that -- which is the third time a
+Stage 6 champion has moved an implementation without moving its specification. -/
+
+/-- A finite sum's coefficient is the sum of the coefficients. -/
+theorem coeff_sum {ι : Type*} (s : Finset ι) (f : ι → Rq Φ) (k : ℕ) :
+    (∑ i ∈ s, f i).1.coeff k = ∑ i ∈ s, (f i).1.coeff k := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp; rfl
+  | insert a s ha ih =>
+    rw [Finset.sum_insert ha, Rq.add_val, CompPoly.CPolynomial.coeff_add, ih,
+      Finset.sum_insert ha]
+
+/-- **`ring::dot_fused` at the `Rq` level.** -/
+theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length) :
+    ring.dot_fused a b nU
+      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
+          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  apply spec_mono (HachiEquiv.AuxFused.dot_fused_spec a b nU haw hbw han hbn)
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [coeff_sum]
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hzval k hk]
+    refine Finset.sum_congr rfl (fun u hu => ?_)
+    simp only [Finset.mem_range] at hu
+    exact (coeff_toRq_mul _ _ (haw u hu) (hbw u hu) hk).symm
+  · rw [toRq_coeff, if_neg hk]
+    refine (Finset.sum_eq_zero (fun u _ => ?_)).symm
+    exact Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)
 
 end HachiEquiv.RqBridge

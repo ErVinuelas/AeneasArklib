@@ -506,3 +506,117 @@ pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
         t += 1;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Fused dot products
+// ---------------------------------------------------------------------------
+
+/// How many terms a fused dot accumulates before reducing.
+///
+/// The transform-domain accumulator holds
+/// `Σⱼ posSumⱼ + L·BOUND − Σⱼ negSumⱼ` with `BOUND = N·q²`, which is in
+/// `[0, 2·L·BOUND)`. Garner reconstructs only below `P = p₁p₂p₃`, so
+/// `2·L·BOUND < P` bounds `L` at **12 468** (checked: 12 469 overflows).
+/// `8192` is a power of two comfortably inside that, and is exactly the
+/// commitment's own width, so the pin's dots are a single chunk.
+///
+/// This constant is the whole reason a fused dot is not a drop-in replacement:
+/// `rlin_stmt`'s rows are 40 976 wide, three times the bound, and without
+/// chunking the reconstruction would be silently wrong there.
+pub const DOT_CHUNK: usize = 8192;
+
+/// One chunk of a fused dot product, modulo one auxiliary prime.
+///
+/// The saving over `negconv_mod_p` per term: the two ψ tables are built once
+/// for the whole chunk instead of per product, and there is one inverse
+/// transform for the chunk instead of one per product. Per term this leaves
+/// twist + forward on each operand and one pointwise multiply -- 13 312 modular
+/// multiplies against `negconv_mod_p`'s 21 528.
+#[allow(clippy::too_many_arguments)]
+pub fn dot_chunk_mod_p(
+    a: &Vec<Rq>,
+    b: &Vec<Rq>,
+    start: usize,
+    end: usize,
+    p: u64,
+    m: u64,
+    psi: u64,
+    psiinv: u64,
+    ninv: u64,
+    boff: u64,
+) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::psi_table(psi, p, m);
+    let it: Vec<u64> = crate::ntt::psi_table(psiinv, p, m);
+    let mut acc: Vec<u64> = crate::ntt::zeros(n);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = start;
+    while j < end {
+        let mut aw: Vec<u64> = Vec::with_capacity(n);
+        let mut t: usize = 0;
+        while t < n {
+            aw.push(a[j].0[t].to_u64());
+            t += 1;
+        }
+        let mut bw: Vec<u64> = Vec::with_capacity(n);
+        let mut u: usize = 0;
+        while u < n {
+            bw.push(b[j].0[u].to_u64());
+            u += 1;
+        }
+        let ta: Vec<u64> = crate::ntt::twist(&aw, &pt, p, m);
+        let fwa: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_forward(ta, scratch, &pt, p, m);
+        let tb: Vec<u64> = crate::ntt::twist(&bw, &pt, p, m);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_forward(tb, fwa.1, &pt, p, m);
+        let prod: Vec<u64> = crate::ntt::pointwise(fwa.0, &fwb.0, p, m);
+        let mut k: usize = 0;
+        while k < n {
+            acc[k] = crate::ntt::aux_add(acc[k], prod[k], p);
+            k += 1;
+        }
+        scratch = fwb.1;
+        j += 1;
+    }
+    // ONE offset per accumulated term, not one per chunk: see DOT_CHUNK.
+    let len: u64 = (end - start) as u64;
+    let scaled: u64 = crate::ntt::aux_mul(boff, len, p, m);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::ntt_inverse(acc, scratch, &it, p, m);
+    crate::ntt::untwist(&inv.0, &it, ninv, scaled, p, m)
+}
+
+/// `Σⱼ a[j] · b[j]` in `Rq`, fused: one inverse transform and one Garner pass
+/// per chunk of [`DOT_CHUNK`] terms instead of one per term.
+pub fn dot_fused(a: &Vec<Rq>, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u128 = params::Q as u128;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        // `start + take` rather than `min(start + DOT_CHUNK, n)`: the latter can
+        // overflow `usize` for an absurd `n`, which would force every caller of
+        // `PolyVec::dot` to carry a headroom precondition -- and three of them
+        // are generic in the width, so it would cascade. Taking the remainder
+        // first bounds the sum by `n` and needs nothing from the caller.
+        let remaining: usize = n - start;
+        let take: usize = if remaining < DOT_CHUNK { remaining } else { DOT_CHUNK };
+        let end: usize = start + take;
+        let r1: Vec<u64> = dot_chunk_mod_p(a, b, start, end, crate::ntt::AUX_P1,
+            crate::ntt::AUX_M1, crate::ntt::AUX_PSI1, crate::ntt::AUX_PSIINV1,
+            crate::ntt::AUX_NINV1, crate::ntt::AUX_BOFF1);
+        let r2: Vec<u64> = dot_chunk_mod_p(a, b, start, end, crate::ntt::AUX_P2,
+            crate::ntt::AUX_M2, crate::ntt::AUX_PSI2, crate::ntt::AUX_PSIINV2,
+            crate::ntt::AUX_NINV2, crate::ntt::AUX_BOFF2);
+        let r3: Vec<u64> = dot_chunk_mod_p(a, b, start, end, crate::ntt::AUX_P3,
+            crate::ntt::AUX_M3, crate::ntt::AUX_PSI3, crate::ntt::AUX_PSIINV3,
+            crate::ntt::AUX_NINV3, crate::ntt::AUX_BOFF3);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            out.push(Fp::new((crate::ntt::garner(r1[t], r2[t], r3[t]) % qw) as u64));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}

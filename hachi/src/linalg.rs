@@ -197,14 +197,7 @@ impl PolyVec {
         } else {
             rhs.0.len()
         };
-        let mut acc: Rq = Rq::zero();
-        let mut i: usize = 0;
-        while i < n {
-            let term: Rq = self.0[i].mul(&rhs.0[i]);
-            acc = acc.add(&term);
-            i += 1;
-        }
-        acc
+        crate::ring::dot_fused(&self.0, &rhs.0, n)
     }
 }
 

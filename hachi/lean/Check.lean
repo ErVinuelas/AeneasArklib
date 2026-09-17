@@ -1687,5 +1687,41 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop1_loop1_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop1_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_spec
+-- Candidate T18 Change 3 (Stage 6, `linalg::PolyVec::dot`) -- the fused dot
+-- product: the accumulator stays in the transform domain, so the two psi tables
+-- are built once per chunk and there is ONE inverse transform and ONE Garner
+-- pass per chunk instead of one per term.
+--
+-- `Scheme.dot_spec`'s statement is UNCHANGED, so its seven call sites are
+-- untouched -- the third Stage 6 champion to move an implementation without
+-- moving its specification. `AuxProduct` needed no generalizing: `inv_value`
+-- already takes an arbitrary buffer and `garner_spec` an arbitrary `x < P`.
+--
+-- The one new mathematical fact is that the transforms commute with a finite
+-- sum (`AuxNTT.difRun_sum` / `ditRun_sum`), which is not free because they are
+-- butterfly networks rather than explicit sums.
+--
+-- The correctness-critical detail is the offset: `untwist` adds `BOUND` once
+-- per coefficient, so a fused dot over `L` terms needs `L · BOUND` or the
+-- reconstructed integer goes negative and Garner returns a different value.
+-- `offConvSum_lt_P` is the bound that pins `DOT_CHUNK = 8192`.
+#print axioms HachiEquiv.AuxNTT.difRun_add
+#print axioms HachiEquiv.AuxNTT.ditRun_add
+#print axioms HachiEquiv.AuxNTT.difRun_sum
+#print axioms HachiEquiv.AuxNTT.ditRun_sum
+#print axioms HachiEquiv.AuxFused.untwist_value_sum
+#print axioms HachiEquiv.AuxFused.accum_spec
+#print axioms HachiEquiv.AuxFused.words_a_spec
+#print axioms HachiEquiv.AuxFused.words_b_spec
+#print axioms HachiEquiv.AuxFused.terms_chunk_spec
+#print axioms HachiEquiv.AuxFused.dot_chunk_mod_p_spec
+#print axioms HachiEquiv.AuxFused.garner_out_spec
+#print axioms HachiEquiv.AuxFused.offConvSum_lt_P
+#print axioms HachiEquiv.AuxFused.offConvSum_cast_q
+#print axioms HachiEquiv.AuxFused.dot_chunk_word_spec
+#print axioms HachiEquiv.AuxFused.chunk_loop_spec
+#print axioms HachiEquiv.AuxFused.dot_fused_spec
+#print axioms HachiEquiv.RqBridge.dot_fused_spec
+#print axioms HachiEquiv.Scheme.dot_spec
 
 end HachiEquiv.Check

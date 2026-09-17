@@ -1,0 +1,756 @@
+# candidate T18 Change 3 (restructured) -- FUSED PolyVec::dot
+#   linalg::PolyVec::dot delegates to ring::dot_fused, which keeps the
+#   accumulator in the transform domain: the two psi tables are built
+#   once per chunk instead of per product, and there is ONE inverse
+#   transform and ONE Garner pass per chunk instead of one per term.
+# The CRT offset is scaled by the chunk length (L*BOUND, not BOUND):
+#   untwist adds it once per coefficient, and a fused dot accumulates L
+#   products, so a single offset leaves the reconstructed integer
+#   NEGATIVE once the negative antidiagonal dominates. Verified: with
+#   the scaling removed, the oracle fails at exactly n = 5, where the
+#   arithmetic said it would.
+# DOT_CHUNK = 8192, forced by 2*L*BOUND < P => L <= 12468.
+# Evidence = the dot-bound rows (dot, mat_vec_mul, split_form);
+#   linalg/scalar_vec_mul goes through Rq::mul directly and is a guard.
+# quiet: idle=98% cargo=0 lean=0
+# started 2026-09-17T14:27:05+02:00 at load 2.91 2.03 1.61 1/2511 1158022
+==> genesis intact: 358 frozen item(s) verified against git
+==> candidate slot: filled by the loop -- not checked under CANDIDATE=1; the report fingerprints it
+==> coverage: 156 mirrored item(s), 81 benched, 75 excluded by name, 0 UNACCOUNTED FOR  (+5 non-mirrored item(s) benched as well)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+warning: unused variable: `seed`
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+430 | define_cases!(now, hachi);
+    | ------------------------- in this macro invocation
+    |
+help: `seed` is captured in macro and introduced a unused variable
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+430 | define_cases!(now, hachi);
+    | ------------------------- in this macro invocation
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+    = note: this warning originates in the macro `define_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused variable: `seed`
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+431 | define_cases!(genesis, hachi_genesis);
+    | ------------------------------------- in this macro invocation
+    |
+help: `seed` is captured in macro and introduced a unused variable
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+431 | define_cases!(genesis, hachi_genesis);
+    | ------------------------------------- in this macro invocation
+    = note: this warning originates in the macro `define_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused variable: `seed`
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+433 | define_cases!(candidate, hachi_candidate);
+    | ----------------------------------------- in this macro invocation
+    |
+help: `seed` is captured in macro and introduced a unused variable
+   --> benches/quadeval.rs:83:32
+    |
+ 83 |             fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+    |                                ^^^^
+...
+433 | define_cases!(candidate, hachi_candidate);
+    | ----------------------------------------- in this macro invocation
+    = note: this warning originates in the macro `define_cases` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `hachi` (bench "quadeval") generated 3 warnings
+    Finished `bench` profile [optimized] target(s) in 25.21s
+     Running benches/commit.rs (target/release/deps/commit-e501a9e003cee570)
+Benchmarking _control/commit/now/8192
+Benchmarking _control/commit/now/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/now/8192: Collecting 50 samples in estimated 10.154 s (300 iterations)
+Benchmarking _control/commit/now/8192: Analyzing
+_control/commit/now/8192
+                        time:   [33.752 ms 33.835 ms 33.920 ms]
+                        change: [−22.624% −21.834% −20.993%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 9 outliers among 50 measurements (18.00%)
+  6 (12.00%) low mild
+  2 (4.00%) high mild
+  1 (2.00%) high severe
+Benchmarking _control/commit/candidate/8192
+Benchmarking _control/commit/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/candidate/8192: Collecting 50 samples in estimated 10.263 s (300 iterations)
+Benchmarking _control/commit/candidate/8192: Analyzing
+_control/commit/candidate/8192
+                        time:   [33.905 ms 33.993 ms 34.087 ms]
+                        change: [−23.166% −22.394% −21.559%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 50 measurements (4.00%)
+  1 (2.00%) low mild
+  1 (2.00%) high severe
+Benchmarking _control/commit/genesis/8192
+Benchmarking _control/commit/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/commit/genesis/8192: Collecting 50 samples in estimated 10.498 s (300 iterations)
+Benchmarking _control/commit/genesis/8192: Analyzing
+_control/commit/genesis/8192
+                        time:   [34.183 ms 34.227 ms 34.286 ms]
+                        change: [−23.954% −23.312% −22.596%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high severe
+
+     Running benches/endpiece.rs (target/release/deps/endpiece-4dcb3a08d8a0c99f)
+Benchmarking _control/endpiece/now/8192
+Benchmarking _control/endpiece/now/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/now/8192: Collecting 50 samples in estimated 10.208 s (300 iterations)
+Benchmarking _control/endpiece/now/8192: Analyzing
+_control/endpiece/now/8192
+                        time:   [34.072 ms 34.109 ms 34.148 ms]
+                        change: [−22.625% −21.913% −21.142%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/endpiece/candidate/8192
+Benchmarking _control/endpiece/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/candidate/8192: Collecting 50 samples in estimated 10.235 s (300 iterations)
+Benchmarking _control/endpiece/candidate/8192: Analyzing
+_control/endpiece/candidate/8192
+                        time:   [34.011 ms 34.077 ms 34.148 ms]
+                        change: [−22.181% −21.123% −20.029%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/endpiece/genesis/8192
+Benchmarking _control/endpiece/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/endpiece/genesis/8192: Collecting 50 samples in estimated 10.252 s (300 iterations)
+Benchmarking _control/endpiece/genesis/8192: Analyzing
+_control/endpiece/genesis/8192
+                        time:   [33.899 ms 33.936 ms 33.974 ms]
+                        change: [−20.349% −19.457% −18.604%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) high mild
+
+     Running benches/evalsplit.rs (target/release/deps/evalsplit-849edf7de0e73e22)
+Benchmarking _control/evalsplit/now/8192
+Benchmarking _control/evalsplit/now/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/now/8192: Collecting 100 samples in estimated 6.6657 s (200 iterations)
+Benchmarking _control/evalsplit/now/8192: Analyzing
+_control/evalsplit/now/8192
+                        time:   [33.417 ms 33.477 ms 33.539 ms]
+                        change: [−19.230% −18.600% −17.978%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Benchmarking _control/evalsplit/candidate/8192
+Benchmarking _control/evalsplit/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/candidate/8192: Collecting 100 samples in estimated 6.7445 s (200 iterations)
+Benchmarking _control/evalsplit/candidate/8192: Analyzing
+_control/evalsplit/candidate/8192
+                        time:   [33.703 ms 33.761 ms 33.826 ms]
+                        change: [−20.473% −19.882% −19.277%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  5 (5.00%) high mild
+  2 (2.00%) high severe
+Benchmarking _control/evalsplit/genesis/8192
+Benchmarking _control/evalsplit/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/evalsplit/genesis/8192: Collecting 100 samples in estimated 6.7629 s (200 iterations)
+Benchmarking _control/evalsplit/genesis/8192: Analyzing
+_control/evalsplit/genesis/8192
+                        time:   [33.770 ms 33.825 ms 33.881 ms]
+                        change: [−23.920% −23.039% −22.157%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
+     Running benches/gadget.rs (target/release/deps/gadget-cb0d6b60767a96a9)
+Benchmarking _control/gadget/now/8192
+Benchmarking _control/gadget/now/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/now/8192: Collecting 100 samples in estimated 6.7301 s (200 iterations)
+Benchmarking _control/gadget/now/8192: Analyzing
+_control/gadget/now/8192
+                        time:   [33.516 ms 33.592 ms 33.677 ms]
+                        change: [−23.461% −22.769% −22.089%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 9 outliers among 100 measurements (9.00%)
+  6 (6.00%) high mild
+  3 (3.00%) high severe
+Benchmarking _control/gadget/candidate/8192
+Benchmarking _control/gadget/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/candidate/8192: Collecting 100 samples in estimated 6.6738 s (200 iterations)
+Benchmarking _control/gadget/candidate/8192: Analyzing
+_control/gadget/candidate/8192
+                        time:   [33.569 ms 33.632 ms 33.696 ms]
+                        change: [−23.512% −22.735% −21.935%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+Benchmarking _control/gadget/genesis/8192
+Benchmarking _control/gadget/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/gadget/genesis/8192: Collecting 100 samples in estimated 6.8315 s (200 iterations)
+Benchmarking _control/gadget/genesis/8192: Analyzing
+_control/gadget/genesis/8192
+                        time:   [33.961 ms 34.045 ms 34.133 ms]
+                        change: [−22.360% −21.859% −21.330%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+
+     Running benches/linalg.rs (target/release/deps/linalg-e127a11bb53a82b9)
+Benchmarking _control/linalg/now/8192
+Benchmarking _control/linalg/now/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/now/8192: Collecting 100 samples in estimated 6.7238 s (200 iterations)
+Benchmarking _control/linalg/now/8192: Analyzing
+_control/linalg/now/8192
+                        time:   [33.740 ms 33.803 ms 33.870 ms]
+                        change: [−22.901% −22.119% −21.322%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  1 (1.00%) low mild
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking _control/linalg/candidate/8192
+Benchmarking _control/linalg/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/candidate/8192: Collecting 100 samples in estimated 6.8754 s (200 iterations)
+Benchmarking _control/linalg/candidate/8192: Analyzing
+_control/linalg/candidate/8192
+                        time:   [34.309 ms 34.378 ms 34.452 ms]
+                        change: [−23.799% −23.104% −22.378%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 8 outliers among 100 measurements (8.00%)
+  5 (5.00%) low mild
+  3 (3.00%) high severe
+Benchmarking _control/linalg/genesis/8192
+Benchmarking _control/linalg/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/linalg/genesis/8192: Collecting 100 samples in estimated 6.8384 s (200 iterations)
+Benchmarking _control/linalg/genesis/8192: Analyzing
+_control/linalg/genesis/8192
+                        time:   [34.229 ms 34.320 ms 34.425 ms]
+                        change: [−23.758% −23.124% −22.480%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 13 outliers among 100 measurements (13.00%)
+  2 (2.00%) low mild
+  5 (5.00%) high mild
+  6 (6.00%) high severe
+
+Benchmarking linalg/dot/now/16
+Benchmarking linalg/dot/now/16: Warming up for 1.0000 s
+Benchmarking linalg/dot/now/16: Collecting 100 samples in estimated 5.5328 s (1000 iterations)
+Benchmarking linalg/dot/now/16: Analyzing
+linalg/dot/now/16       time:   [5.5040 ms 5.5062 ms 5.5086 ms]
+                        change: [−12.705% −12.357% −12.021%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/dot/candidate/16
+Benchmarking linalg/dot/candidate/16: Warming up for 1.0000 s
+Benchmarking linalg/dot/candidate/16: Collecting 100 samples in estimated 5.0381 s (1900 iterations)
+Benchmarking linalg/dot/candidate/16: Analyzing
+linalg/dot/candidate/16 time:   [2.6495 ms 2.6509 ms 2.6525 ms]
+                        change: [−14.391% −13.983% −13.593%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 9 outliers among 100 measurements (9.00%)
+  8 (8.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/dot/genesis/16
+Benchmarking linalg/dot/genesis/16: Warming up for 1.0000 s
+Benchmarking linalg/dot/genesis/16: Collecting 100 samples in estimated 5.6754 s (300 iterations)
+Benchmarking linalg/dot/genesis/16: Analyzing
+linalg/dot/genesis/16   time:   [18.911 ms 18.918 ms 18.926 ms]
+                        change: [−11.084% −10.619% −10.195%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 11 outliers among 100 measurements (11.00%)
+  7 (7.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking linalg/vec_add/now/8192
+Benchmarking linalg/vec_add/now/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_add/now/8192: Collecting 100 samples in estimated 7.0845 s (200 iterations)
+Benchmarking linalg/vec_add/now/8192: Analyzing
+linalg/vec_add/now/8192 time:   [35.581 ms 35.659 ms 35.744 ms]
+                        change: [−24.860% −24.071% −23.210%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  6 (6.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/vec_add/candidate/8192
+Benchmarking linalg/vec_add/candidate/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_add/candidate/8192: Collecting 100 samples in estimated 6.9637 s (200 iterations)
+Benchmarking linalg/vec_add/candidate/8192: Analyzing
+linalg/vec_add/candidate/8192
+                        time:   [34.701 ms 34.799 ms 34.901 ms]
+                        change: [−27.643% −26.889% −26.128%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 100 measurements (3.00%)
+  3 (3.00%) high mild
+Benchmarking linalg/vec_add/genesis/8192
+Benchmarking linalg/vec_add/genesis/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_add/genesis/8192: Collecting 100 samples in estimated 8.0609 s (200 iterations)
+Benchmarking linalg/vec_add/genesis/8192: Analyzing
+linalg/vec_add/genesis/8192
+                        time:   [40.563 ms 40.646 ms 40.736 ms]
+                        change: [−25.392% −24.361% −23.312%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking linalg/vec_sub/now/8192
+Benchmarking linalg/vec_sub/now/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_sub/now/8192: Collecting 100 samples in estimated 7.0976 s (200 iterations)
+Benchmarking linalg/vec_sub/now/8192: Analyzing
+linalg/vec_sub/now/8192 time:   [35.143 ms 35.263 ms 35.381 ms]
+                        change: [−28.037% −27.285% −26.519%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 9 outliers among 100 measurements (9.00%)
+  6 (6.00%) low mild
+  3 (3.00%) high mild
+Benchmarking linalg/vec_sub/candidate/8192
+Benchmarking linalg/vec_sub/candidate/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_sub/candidate/8192: Collecting 100 samples in estimated 7.1356 s (200 iterations)
+Benchmarking linalg/vec_sub/candidate/8192: Analyzing
+linalg/vec_sub/candidate/8192
+                        time:   [35.588 ms 35.632 ms 35.679 ms]
+                        change: [−25.837% −25.106% −24.326%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 6 outliers among 100 measurements (6.00%)
+  6 (6.00%) high mild
+Benchmarking linalg/vec_sub/genesis/8192
+Benchmarking linalg/vec_sub/genesis/8192: Warming up for 1.0000 s
+Benchmarking linalg/vec_sub/genesis/8192: Collecting 100 samples in estimated 7.9368 s (200 iterations)
+Benchmarking linalg/vec_sub/genesis/8192: Analyzing
+linalg/vec_sub/genesis/8192
+                        time:   [39.782 ms 39.906 ms 40.065 ms]
+                        change: [−24.162% −22.808% −21.548%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  3 (3.00%) high mild
+  4 (4.00%) high severe
+
+Benchmarking linalg/scalar_vec_mul/now/16
+Benchmarking linalg/scalar_vec_mul/now/16: Warming up for 1.0000 s
+Benchmarking linalg/scalar_vec_mul/now/16: Collecting 100 samples in estimated 5.3842 s (1000 iterations)
+Benchmarking linalg/scalar_vec_mul/now/16: Analyzing
+linalg/scalar_vec_mul/now/16
+                        time:   [5.3832 ms 5.3859 ms 5.3888 ms]
+                        change: [−11.881% −11.594% −11.315%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+Benchmarking linalg/scalar_vec_mul/candidate/16
+Benchmarking linalg/scalar_vec_mul/candidate/16: Warming up for 1.0000 s
+Benchmarking linalg/scalar_vec_mul/candidate/16: Collecting 100 samples in estimated 5.3980 s (1000 iterations)
+Benchmarking linalg/scalar_vec_mul/candidate/16: Analyzing
+linalg/scalar_vec_mul/candidate/16
+                        time:   [5.3776 ms 5.3807 ms 5.3840 ms]
+                        change: [−12.170% −11.862% −11.561%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/scalar_vec_mul/genesis/16
+Benchmarking linalg/scalar_vec_mul/genesis/16: Warming up for 1.0000 s
+Benchmarking linalg/scalar_vec_mul/genesis/16: Collecting 100 samples in estimated 5.6300 s (300 iterations)
+Benchmarking linalg/scalar_vec_mul/genesis/16: Analyzing
+linalg/scalar_vec_mul/genesis/16
+                        time:   [18.810 ms 18.821 ms 18.832 ms]
+                        change: [−10.305% −9.9287% −9.5661%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 8 outliers among 100 measurements (8.00%)
+  6 (6.00%) high mild
+  2 (2.00%) high severe
+
+Benchmarking linalg/equals/now/8192
+Benchmarking linalg/equals/now/8192: Warming up for 1.0000 s
+Benchmarking linalg/equals/now/8192: Collecting 100 samples in estimated 5.1519 s (1900 iterations)
+Benchmarking linalg/equals/now/8192: Analyzing
+linalg/equals/now/8192  time:   [2.8056 ms 2.8143 ms 2.8254 ms]
+                        change: [−26.334% −25.260% −24.136%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) high mild
+  3 (3.00%) high severe
+Benchmarking linalg/equals/candidate/8192
+Benchmarking linalg/equals/candidate/8192: Warming up for 1.0000 s
+Benchmarking linalg/equals/candidate/8192: Collecting 100 samples in estimated 5.1605 s (1900 iterations)
+Benchmarking linalg/equals/candidate/8192: Analyzing
+linalg/equals/candidate/8192
+                        time:   [2.8078 ms 2.8135 ms 2.8195 ms]
+                        change: [−25.336% −24.176% −22.993%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/equals/genesis/8192
+Benchmarking linalg/equals/genesis/8192: Warming up for 1.0000 s
+Benchmarking linalg/equals/genesis/8192: Collecting 100 samples in estimated 5.1781 s (1900 iterations)
+Benchmarking linalg/equals/genesis/8192: Analyzing
+linalg/equals/genesis/8192
+                        time:   [2.8265 ms 2.8312 ms 2.8362 ms]
+                        change: [−24.562% −23.398% −22.202%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking linalg/mat_vec_mul/now/16
+Benchmarking linalg/mat_vec_mul/now/16: Warming up for 1.0000 s
+Benchmarking linalg/mat_vec_mul/now/16: Collecting 100 samples in estimated 5.5360 s (1000 iterations)
+Benchmarking linalg/mat_vec_mul/now/16: Analyzing
+linalg/mat_vec_mul/now/16
+                        time:   [5.4995 ms 5.5050 ms 5.5112 ms]
+                        change: [−13.064% −12.742% −12.437%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  2 (2.00%) high mild
+  5 (5.00%) high severe
+Benchmarking linalg/mat_vec_mul/candidate/16
+Benchmarking linalg/mat_vec_mul/candidate/16: Warming up for 1.0000 s
+Benchmarking linalg/mat_vec_mul/candidate/16: Collecting 100 samples in estimated 5.0542 s (1900 iterations)
+Benchmarking linalg/mat_vec_mul/candidate/16: Analyzing
+linalg/mat_vec_mul/candidate/16
+                        time:   [2.6494 ms 2.6514 ms 2.6536 ms]
+                        change: [−13.957% −13.551% −13.162%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 6 outliers among 100 measurements (6.00%)
+  5 (5.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/mat_vec_mul/genesis/16
+Benchmarking linalg/mat_vec_mul/genesis/16: Warming up for 1.0000 s
+Benchmarking linalg/mat_vec_mul/genesis/16: Collecting 100 samples in estimated 5.6295 s (300 iterations)
+Benchmarking linalg/mat_vec_mul/genesis/16: Analyzing
+linalg/mat_vec_mul/genesis/16
+                        time:   [18.845 ms 18.865 ms 18.886 ms]
+                        change: [−11.333% −10.891% −10.472%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  6 (6.00%) high mild
+  1 (1.00%) high severe
+
+Benchmarking linalg/split_form/now/4
+Benchmarking linalg/split_form/now/4: Warming up for 1.0000 s
+Benchmarking linalg/split_form/now/4: Collecting 100 samples in estimated 5.5595 s (800 iterations)
+Benchmarking linalg/split_form/now/4: Analyzing
+linalg/split_form/now/4 time:   [6.8723 ms 6.8790 ms 6.8866 ms]
+                        change: [−12.549% −12.198% −11.846%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 8 outliers among 100 measurements (8.00%)
+  5 (5.00%) high mild
+  3 (3.00%) high severe
+Benchmarking linalg/split_form/candidate/4
+Benchmarking linalg/split_form/candidate/4: Warming up for 1.0000 s
+Benchmarking linalg/split_form/candidate/4: Collecting 100 samples in estimated 5.2621 s (1300 iterations)
+Benchmarking linalg/split_form/candidate/4: Analyzing
+linalg/split_form/candidate/4
+                        time:   [4.0381 ms 4.0419 ms 4.0459 ms]
+                        change: [−14.098% −13.696% −13.295%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking linalg/split_form/genesis/4
+Benchmarking linalg/split_form/genesis/4: Warming up for 1.0000 s
+Benchmarking linalg/split_form/genesis/4: Collecting 100 samples in estimated 7.0199 s (300 iterations)
+Benchmarking linalg/split_form/genesis/4: Analyzing
+linalg/split_form/genesis/4
+                        time:   [23.398 ms 23.404 ms 23.411 ms]
+                        change: [−12.085% −11.670% −11.270%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  3 (3.00%) high mild
+  2 (2.00%) high severe
+Benchmarking linalg/split_form/now/8
+Benchmarking linalg/split_form/now/8: Warming up for 1.0000 s
+Benchmarking linalg/split_form/now/8: Collecting 100 samples in estimated 7.4162 s (300 iterations)
+Benchmarking linalg/split_form/now/8: Analyzing
+linalg/split_form/now/8 time:   [24.703 ms 24.731 ms 24.770 ms]
+                        change: [−11.850% −11.507% −11.169%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 11 outliers among 100 measurements (11.00%)
+  2 (2.00%) high mild
+  9 (9.00%) high severe
+Benchmarking linalg/split_form/candidate/8
+Benchmarking linalg/split_form/candidate/8: Warming up for 1.0000 s
+Benchmarking linalg/split_form/candidate/8: Collecting 100 samples in estimated 5.1166 s (400 iterations)
+Benchmarking linalg/split_form/candidate/8: Analyzing
+linalg/split_form/candidate/8
+                        time:   [12.789 ms 12.797 ms 12.806 ms]
+                        change: [−13.699% −13.338% −12.986%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 10 outliers among 100 measurements (10.00%)
+  9 (9.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/split_form/genesis/8
+Benchmarking linalg/split_form/genesis/8: Warming up for 1.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 8.5s, or reduce sample count to 50.
+Benchmarking linalg/split_form/genesis/8: Collecting 100 samples in estimated 8.4591 s (100 iterations)
+Benchmarking linalg/split_form/genesis/8: Analyzing
+linalg/split_form/genesis/8
+                        time:   [84.579 ms 84.620 ms 84.663 ms]
+                        change: [−11.673% −11.333% −11.001%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 22 outliers among 100 measurements (22.00%)
+  12 (12.00%) low severe
+  4 (4.00%) high mild
+  6 (6.00%) high severe
+
+Benchmarking linalg/flatten_blocks/now/8
+Benchmarking linalg/flatten_blocks/now/8: Warming up for 1.0000 s
+Benchmarking linalg/flatten_blocks/now/8: Collecting 100 samples in estimated 6.4997 s (200 iterations)
+Benchmarking linalg/flatten_blocks/now/8: Analyzing
+linalg/flatten_blocks/now/8
+                        time:   [32.430 ms 32.519 ms 32.637 ms]
+                        change: [−25.019% −24.152% −23.282%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 7 outliers among 100 measurements (7.00%)
+  3 (3.00%) high mild
+  4 (4.00%) high severe
+Benchmarking linalg/flatten_blocks/candidate/8
+Benchmarking linalg/flatten_blocks/candidate/8: Warming up for 1.0000 s
+Benchmarking linalg/flatten_blocks/candidate/8: Collecting 100 samples in estimated 6.4626 s (200 iterations)
+Benchmarking linalg/flatten_blocks/candidate/8: Analyzing
+linalg/flatten_blocks/candidate/8
+                        time:   [32.143 ms 32.185 ms 32.233 ms]
+                        change: [−26.570% −25.884% −25.167%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 100 measurements (3.00%)
+  2 (2.00%) high mild
+  1 (1.00%) high severe
+Benchmarking linalg/flatten_blocks/genesis/8
+Benchmarking linalg/flatten_blocks/genesis/8: Warming up for 1.0000 s
+Benchmarking linalg/flatten_blocks/genesis/8: Collecting 100 samples in estimated 7.3364 s (200 iterations)
+Benchmarking linalg/flatten_blocks/genesis/8: Analyzing
+linalg/flatten_blocks/genesis/8
+                        time:   [36.820 ms 36.876 ms 36.940 ms]
+                        change: [−25.381% −24.792% −24.177%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  1 (1.00%) high mild
+  4 (4.00%) high severe
+
+     Running benches/quadeval.rs (target/release/deps/quadeval-d1cd6e42de772a27)
+Benchmarking _control/quadeval/now/8192
+Benchmarking _control/quadeval/now/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/now/8192: Collecting 100 samples in estimated 6.7381 s (200 iterations)
+Benchmarking _control/quadeval/now/8192: Analyzing
+_control/quadeval/now/8192
+                        time:   [33.490 ms 33.570 ms 33.659 ms]
+                        change: [−23.303% −22.765% −22.172%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking _control/quadeval/candidate/8192
+Benchmarking _control/quadeval/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/candidate/8192: Collecting 100 samples in estimated 6.7221 s (200 iterations)
+Benchmarking _control/quadeval/candidate/8192: Analyzing
+_control/quadeval/candidate/8192
+                        time:   [33.864 ms 33.945 ms 34.036 ms]
+                        change: [−26.191% −24.828% −23.661%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 100 measurements (4.00%)
+  2 (2.00%) high mild
+  2 (2.00%) high severe
+Benchmarking _control/quadeval/genesis/8192
+Benchmarking _control/quadeval/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/quadeval/genesis/8192: Collecting 100 samples in estimated 6.8486 s (200 iterations)
+Benchmarking _control/quadeval/genesis/8192: Analyzing
+_control/quadeval/genesis/8192
+                        time:   [34.205 ms 34.275 ms 34.349 ms]
+                        change: [−23.444% −22.737% −22.014%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 100 measurements (5.00%)
+  5 (5.00%) high mild
+
+     Running benches/ring.rs (target/release/deps/ring-cb059cc8e6ccdb85)
+Benchmarking _control/ring/now/8192
+Benchmarking _control/ring/now/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/now/8192: Collecting 100 samples in estimated 6.7031 s (200 iterations)
+Benchmarking _control/ring/now/8192: Analyzing
+_control/ring/now/8192  time:   [33.664 ms 33.763 ms 33.876 ms]
+                        change: [−21.759% −21.148% −20.507%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 8 outliers among 100 measurements (8.00%)
+  1 (1.00%) low mild
+  7 (7.00%) high severe
+Benchmarking _control/ring/candidate/8192
+Benchmarking _control/ring/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/candidate/8192: Collecting 100 samples in estimated 6.6794 s (200 iterations)
+Benchmarking _control/ring/candidate/8192: Analyzing
+_control/ring/candidate/8192
+                        time:   [33.433 ms 33.519 ms 33.611 ms]
+                        change: [−21.191% −20.650% −20.094%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Benchmarking _control/ring/genesis/8192
+Benchmarking _control/ring/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/ring/genesis/8192: Collecting 100 samples in estimated 6.7928 s (200 iterations)
+Benchmarking _control/ring/genesis/8192: Analyzing
+_control/ring/genesis/8192
+                        time:   [33.763 ms 33.815 ms 33.867 ms]
+                        change: [−21.566% −20.892% −20.200%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 6 outliers among 100 measurements (6.00%)
+  3 (3.00%) low mild
+  3 (3.00%) high mild
+
+     Running benches/ringswitch.rs (target/release/deps/ringswitch-edfad5e15323c877)
+Benchmarking _control/ringswitch/now/8192
+Benchmarking _control/ringswitch/now/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/now/8192: Collecting 50 samples in estimated 10.047 s (300 iterations)
+Benchmarking _control/ringswitch/now/8192: Analyzing
+_control/ringswitch/now/8192
+                        time:   [33.585 ms 33.632 ms 33.681 ms]
+                        change: [−22.301% −21.380% −20.382%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+Benchmarking _control/ringswitch/candidate/8192
+Benchmarking _control/ringswitch/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/candidate/8192: Collecting 50 samples in estimated 10.047 s (300 iterations)
+Benchmarking _control/ringswitch/candidate/8192: Analyzing
+_control/ringswitch/candidate/8192
+                        time:   [33.791 ms 33.872 ms 33.954 ms]
+                        change: [−23.054% −22.284% −21.466%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking _control/ringswitch/genesis/8192
+Benchmarking _control/ringswitch/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/ringswitch/genesis/8192: Collecting 50 samples in estimated 10.205 s (300 iterations)
+Benchmarking _control/ringswitch/genesis/8192: Analyzing
+_control/ringswitch/genesis/8192
+                        time:   [33.746 ms 33.824 ms 33.902 ms]
+                        change: [−23.362% −22.436% −21.467%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
+     Running benches/sumcheck.rs (target/release/deps/sumcheck-c4631ec8618abdaa)
+Benchmarking _control/sumcheck/now/8192
+Benchmarking _control/sumcheck/now/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/now/8192: Collecting 50 samples in estimated 10.185 s (300 iterations)
+Benchmarking _control/sumcheck/now/8192: Analyzing
+_control/sumcheck/now/8192
+                        time:   [34.513 ms 34.612 ms 34.732 ms]
+                        change: [−22.619% −21.786% −20.877%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 50 measurements (10.00%)
+  2 (4.00%) high mild
+  3 (6.00%) high severe
+Benchmarking _control/sumcheck/candidate/8192
+Benchmarking _control/sumcheck/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/candidate/8192: Collecting 50 samples in estimated 10.099 s (300 iterations)
+Benchmarking _control/sumcheck/candidate/8192: Analyzing
+_control/sumcheck/candidate/8192
+                        time:   [34.230 ms 34.291 ms 34.355 ms]
+                        change: [−21.407% −20.802% −20.176%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 5 outliers among 50 measurements (10.00%)
+  1 (2.00%) low mild
+  2 (4.00%) high mild
+  2 (4.00%) high severe
+Benchmarking _control/sumcheck/genesis/8192
+Benchmarking _control/sumcheck/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/sumcheck/genesis/8192: Collecting 50 samples in estimated 10.327 s (300 iterations)
+Benchmarking _control/sumcheck/genesis/8192: Analyzing
+_control/sumcheck/genesis/8192
+                        time:   [34.134 ms 34.219 ms 34.311 ms]
+                        change: [−23.205% −22.439% −21.633%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 1 outliers among 50 measurements (2.00%)
+  1 (2.00%) high mild
+
+     Running benches/zerocheck.rs (target/release/deps/zerocheck-6269fe6e9934ddb4)
+Benchmarking _control/zerocheck/now/8192
+Benchmarking _control/zerocheck/now/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/now/8192: Collecting 50 samples in estimated 10.175 s (300 iterations)
+Benchmarking _control/zerocheck/now/8192: Analyzing
+_control/zerocheck/now/8192
+                        time:   [33.834 ms 33.886 ms 33.941 ms]
+                        change: [−21.948% −21.247% −20.509%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 3 outliers among 50 measurements (6.00%)
+  3 (6.00%) high mild
+Benchmarking _control/zerocheck/candidate/8192
+Benchmarking _control/zerocheck/candidate/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/candidate/8192: Collecting 50 samples in estimated 10.166 s (300 iterations)
+Benchmarking _control/zerocheck/candidate/8192: Analyzing
+_control/zerocheck/candidate/8192
+                        time:   [33.900 ms 33.954 ms 34.015 ms]
+                        change: [−21.426% −20.793% −20.156%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 4 outliers among 50 measurements (8.00%)
+  2 (4.00%) low mild
+  1 (2.00%) high mild
+  1 (2.00%) high severe
+Benchmarking _control/zerocheck/genesis/8192
+Benchmarking _control/zerocheck/genesis/8192: Warming up for 1.0000 s
+Benchmarking _control/zerocheck/genesis/8192: Collecting 50 samples in estimated 10.251 s (300 iterations)
+Benchmarking _control/zerocheck/genesis/8192: Analyzing
+_control/zerocheck/genesis/8192
+                        time:   [34.097 ms 34.161 ms 34.228 ms]
+                        change: [−21.810% −20.707% −19.544%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Found 2 outliers among 50 measurements (4.00%)
+  2 (4.00%) high mild
+
+  (skipping 100 case(s) not measured in this run)
+
+  machine   AMD Ryzen 7 8845HS w/ Radeon 780M Graphics · 16 cores · Linux 6.17.0-1032-oem · id d19cb42225da
+  toolchain rustc 1.98.0-nightly (14210df0e 2026-05-31)
+  rustflags (none)
+  source    d93aa28 +uncommitted
+  run       20260917T1427+0200-3ee97063  <- cite this in a ledger row; a row without it is unattributable
+
+  case                         genesis         now   candidate          vs genesis         cand vs now
+  ------------------------  ----------  ----------  ----------  ------------------  ------------------
+  linalg/dot/16                 18.9ms      5.49ms      2.64ms     -70.9% ▼ faster     -52.5% ▼ faster
+  linalg/equals/8192             2.8ms      2.77ms      2.77ms       -0.8% · noise       -1.4% · noise
+  linalg/flatten_blocks/8       36.5ms      32.2ms      31.9ms     -11.7% ▼ faster       -2.2% · noise
+  linalg/mat_vec_mul/16         18.7ms      5.48ms      2.64ms     -70.7% ▼ faster     -52.4% ▼ faster
+  linalg/scalar_vec_mul/16      18.8ms      5.37ms      5.36ms     -71.4% ▼ faster       -1.4% · noise
+  linalg/split_form/4           23.4ms      6.85ms      4.02ms     -70.7% ▼ faster     -42.1% ▼ faster
+  linalg/split_form/8           84.2ms      24.7ms      12.8ms     -70.7% ▼ faster     -48.9% ▼ faster
+  linalg/vec_add/8192           39.9ms      35.1ms      33.9ms     -12.0% ▼ faster       -4.7% · noise
+  linalg/vec_sub/8192           39.4ms        34ms      35.3ms     -13.8% ▼ faster       +2.5% · noise
+
+  harness self-test — all variants run identical code, so these should read 0%
+  _control/commit/8192            34ms      33.3ms      33.4ms       -2.3% · noise       +0.0% · noise
+  _control/endpiece/8192        33.7ms      33.9ms      33.6ms       +0.5% · noise       +0.0% · noise
+  _control/evalsplit/8192       33.4ms        33ms      33.4ms       -1.2% · noise       +0.0% · noise
+  _control/gadget/8192          33.4ms        33ms      33.1ms       -1.0% · noise       +0.0% · noise
+  _control/linalg/8192          33.5ms      33.2ms      33.6ms       -1.1% · noise       +0.0% · noise
+  _control/quadeval/8192        33.9ms      33.1ms      33.4ms       -2.4% · noise       +0.0% · noise
+  _control/ring/8192            33.2ms        33ms      32.9ms       -0.5% · noise       +0.0% · noise
+  _control/ringswitch/8192      33.3ms      33.4ms      33.3ms       +0.1% · noise       +0.0% · noise
+  _control/sumcheck/8192        33.8ms      34.3ms      33.9ms       +1.5% · noise       +0.0% · noise
+  _control/zerocheck/8192       33.8ms      33.6ms      33.6ms       -0.6% · noise       +0.0% · noise
+
+  times average the 3 fastest of criterion's settled samples (those given at least
+  half the maximum iteration count), which is robust to background load; criterion's
+  own output above reports its regression slope and reads higher.
+  Only the `vs genesis` column is a comparison; an absolute time is not comparable
+  to another run's, nor to another row's.
+
+  A/B bias       2.4%  worst of the identical-code controls, applied as a flat threshold
+  cand lean    commit +0.5%  endpiece -0.7%  evalsplit +1.2%  gadget +0.1%  linalg +1.3%  quadeval +1.0%  ring -0.5%  ringswitch -0.2%  sumcheck -1.2%  zerocheck -0.0%
+               the slot's signed identical-code offset, measured per binary by its
+               control and divided out of `cand vs now` before any verdict; a
+               control's own adjusted value is 0 by construction
+  slot         diverged from hachi/src: ring 5402781d5fb4, linalg 2b562f219d04
+               the candidate numbers above belong to that diff — keep the sha with them
+# exit 0 at 2026-09-17T14:39:32+02:00

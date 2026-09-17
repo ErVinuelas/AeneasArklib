@@ -710,3 +710,111 @@ fn short_multiplication_in_place_accumulates() {
         );
     }
 }
+// Change 3's oracle, to append to hachi/tests/ring_semantics.rs.
+
+/// `dot_fused` agrees with summing per-term `Rq::mul`, at every width that
+/// matters.
+///
+/// The oracle for Stage 6 candidate T18/Change 3. The fused dot keeps its
+/// accumulator in the transform domain, so it reconstructs ONE integer for a
+/// whole chunk rather than one per product, and that integer carries the CRT
+/// offset `L · BOUND` rather than a single `BOUND`.
+///
+/// **`n = 8` is the load-bearing case, and it is deliberately small.** With
+/// random dense operands, coefficient 0's negative antidiagonal has `N − 1`
+/// terms against the positive one's 1, so the accumulated value under a
+/// *single* offset is
+///
+/// ```text
+///   L·E[posSum] + BOUND − L·E[negSum]
+/// ```
+///
+/// which turns negative from `L = 5` onwards (computed: `L = 4` leaves
+/// `+3.7e19`, `L = 5` leaves `−4.7e21`). Garner does not reconstruct negatives,
+/// so an implementation that forgot to scale the offset by the chunk length is
+/// wrong here and *right* at `n ≤ 4` -- which is exactly why a test that only
+/// tried one or two terms would pass while the commitment silently computed
+/// garbage. It is a small test only because the arithmetic was worked out
+/// first; nothing about `n = 8` looks special.
+///
+/// `n = DOT_CHUNK + 1` is the other case with teeth: it is the only width here
+/// that runs the chunk loop twice, so it is what checks that the ring-level
+/// accumulator carries correctly across a reduction and that the final short
+/// chunk gets its own (smaller) offset.
+#[test]
+fn fused_dot_agrees_with_summed_products() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0013);
+    let q = hachi::params::Q;
+    let chunk = hachi::ring::DOT_CHUNK;
+
+    // dense random operands are the adversarial shape here, not a lazy choice:
+    // they are what makes the negative antidiagonal dominate
+    let build = |rng: &mut Lcg, n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            let mut cs = Vec::with_capacity(RING_DEGREE);
+            for _ in 0..RING_DEGREE {
+                cs.push(rng.next_u64() % q);
+            }
+            v.push(rq_from_u64s(&cs));
+        }
+        v
+    };
+
+    for &n in &[1usize, 2, 4, 5, 8, 33, chunk, chunk + 1] {
+        let a = build(&mut rng, n);
+        let b = build(&mut rng, n);
+
+        // the oracle: the champion's per-term product, summed at ring level
+        let mut expected = hachi::ring::Rq::zero();
+        let mut j = 0usize;
+        while j < n {
+            expected = expected.add(&a[j].mul(&b[j]));
+            j += 1;
+        }
+
+        let got = hachi::ring::dot_fused(&a, &b, n);
+        assert!(
+            got.equals(&expected),
+            "fused dot disagrees at n = {n} (chunks = {})",
+            (n + chunk - 1) / chunk
+        );
+    }
+}
+
+/// The fused dot is what `PolyVec::dot` now computes.
+///
+/// Separate from the test above because it pins the *caller*: `dot` also has to
+/// keep truncating to the shorter operand, which the fused path must not
+/// disturb.
+#[test]
+fn poly_vec_dot_matches_the_fused_dot() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0014);
+    let q = hachi::params::Q;
+    for &(la, lb) in &[(4usize, 4usize), (4, 7), (9, 3)] {
+        let mk = |rng: &mut Lcg, n: usize| {
+            let mut v = Vec::with_capacity(n);
+            for _ in 0..n {
+                let mut cs = Vec::with_capacity(RING_DEGREE);
+                for _ in 0..RING_DEGREE {
+                    cs.push(rng.next_u64() % q);
+                }
+                v.push(rq_from_u64s(&cs));
+            }
+            hachi::linalg::PolyVec::new(v)
+        };
+        let u = mk(&mut rng, la);
+        let v = mk(&mut rng, lb);
+        let n = la.min(lb);
+        let mut expected = hachi::ring::Rq::zero();
+        let mut j = 0usize;
+        while j < n {
+            expected = expected.add(&u.get(j).mul(v.get(j)));
+            j += 1;
+        }
+        assert!(
+            u.dot(&v).equals(&expected),
+            "PolyVec::dot at lengths {la}/{lb} disagrees with the truncated sum"
+        );
+    }
+}

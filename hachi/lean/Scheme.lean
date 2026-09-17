@@ -112,58 +112,6 @@ theorem toVec_ext {k : ℕ} {v w : linalg.PolyVec}
   funext i
   simp only [toVec, h i.val i.isLt]
 
-/-- The loop of `PolyVec::dot`: the accumulator is the partial sum over the indices
-already visited. -/
-theorem dot_loop_spec {k : ℕ} (u v : linalg.PolyVec) (n : Std.Usize)
-    (acc : ring.Rq) (i : Std.Usize)
-    (hu : WfVec k u) (hv : WfVec k v) (hn : n.val = k)
-    (hi : i.val ≤ n.val) (hacc : Wf acc)
-    (hval : toRq acc = ∑ j ∈ Finset.range i.val,
-      toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-        * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) :
-    linalg.PolyVec.dot_loop u v n acc i
-      ⦃ z => Wf z ∧ toRq z = ∑ j ∈ Finset.range k,
-        toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-          * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [linalg.PolyVec.dot_loop]
-  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
-    (fun s => s.2.val ≤ n.val ∧ Wf s.1 ∧
-      toRq s.1 = ∑ j ∈ Finset.range s.2.val,
-        toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-          * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp)))
-  · rintro ⟨a1, i1⟩ ⟨hi1, hacc1, hval1⟩
-    dsimp only at hi1 hacc1 hval1
-    simp only [linalg.PolyVec.dot_loop.body]
-    by_cases hlt : i1 < n
-    · rw [if_pos hlt]
-      have hiu : i1.val < u.val.length := by rw [hu.1]; scalar_tac
-      have hiv : i1.val < v.val.length := by rw [hv.1]; scalar_tac
-      step as ⟨a, ha⟩
-      have hWa : Wf a := by rw [ha]; exact hu.2 _ (List.getElem_mem hiu)
-      step as ⟨b, hb⟩
-      have hWb : Wf b := by rw [hb]; exact hv.2 _ (List.getElem_mem hiv)
-      step as ⟨t, hWt, ht⟩
-      step as ⟨a2, hWa2, ha2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨by scalar_tac, hWa2, ?_, ?_⟩
-      · rw [ha2, hval1, ht, hi2, Finset.sum_range_succ,
-          List.getD_eq_getElem _ _ hiu, List.getD_eq_getElem _ _ hiv, ha, hb]
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = n.val := by scalar_tac
-      exact ⟨hacc1, by rw [hval1, heq, hn]⟩
-  · exact ⟨hi, hacc, hval⟩
-
-/-- `PolyVec::dot` — ArkLib's `dot`.
-
-The two are not syntactically the same sum: the specification is
-`(List.ofFn fun i => u i * v i).sum`, which is right-nested and ends in `0`, while
-the Rust accumulates from the left. They agree because `Rq Φ` is a commutative
-monoid under `+`, and `dot_eq_sum` is the bridge to the `Finset.sum` form the rest
-of the specification uses. Equal lengths are a hypothesis: the Rust takes the
-shorter of the two, which makes it total, and the specification's version is only
-defined when they match. -/
 theorem dot_spec {k : ℕ} (u v : linalg.PolyVec) (hu : WfVec k u) (hv : WfVec k v) :
     linalg.PolyVec.dot u v
       ⦃ z => Wf z ∧ toRq z = ArkLib.Lattices.dot (toVec (k := k) u) (toVec (k := k) v) ⦄ := by
@@ -171,12 +119,22 @@ theorem dot_spec {k : ℕ} (u v : linalg.PolyVec) (hu : WfVec k u) (hv : WfVec k
   have hlen : (alloc.vec.Vec.len u).val = k := by simp [hu.1]
   have hlen' : (alloc.vec.Vec.len v).val = k := by simp [hv.1]
   simp only [if_pos (by scalar_tac : alloc.vec.Vec.len u ≤ alloc.vec.Vec.len v)]
-  step as ⟨z0, hz0wf, hz0⟩
-  apply spec_mono (dot_loop_spec u v (alloc.vec.Vec.len u) z0 0#usize hu hv hlen
-    (by simp) hz0wf (by simp [hz0]))
+  -- `dot` now delegates to `ring::dot_fused`, whose statement this one is
+  apply spec_mono (HachiEquiv.RqBridge.dot_fused_spec u v (alloc.vec.Vec.len u)
+    (by
+      intro j hj
+      rw [hlen] at hj
+      rw [List.getD_eq_getElem _ _ (by rw [hu.1]; exact hj)]
+      exact hu.2 _ (List.getElem_mem _))
+    (by
+      intro j hj
+      rw [hlen] at hj
+      rw [List.getD_eq_getElem _ _ (by rw [hv.1]; exact hj)]
+      exact hv.2 _ (List.getElem_mem _))
+    (by rw [hlen, hu.1]) (by rw [hlen, hv.1]))
   rintro z ⟨hzwf, hzval⟩
   refine ⟨hzwf, ?_⟩
-  rw [hzval, ArkLib.Lattices.dot_eq_sum]
+  rw [hzval, hlen, ArkLib.Lattices.dot_eq_sum]
   exact (Fin.sum_univ_eq_sum_range
     (fun j => toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
       * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) k).symm

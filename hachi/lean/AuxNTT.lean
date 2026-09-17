@@ -187,6 +187,97 @@ closed form: what the induction needs is only how it changes when a block splits
 which is exactly its recursion equation.
 -/
 
+/-! ## The transforms are additive
+
+Needed by the *fused* dot product (Stage 6 candidate T18): it accumulates
+`Σⱼ fwd(aⱼ) ∘ fwd(bⱼ)` in the transform domain and inverts **once**, so the
+correctness argument has to move the inverse transform through a sum. The
+transforms here are butterfly networks rather than explicit sums, so this is not
+free -- but it is one `split_ifs; ring` per stage and one induction per run.
+
+Stated for `ditRun` (the inverse direction, which is what the fused dot needs)
+and for `difRun` alongside it, since the proof is the same three lines and a
+one-directional lemma would be a trap for the next reader. -/
+
+theorem difStage_add (half step : ℕ) (om : R) (f g : ℕ → R) :
+    difStage half step om (fun t => f t + g t)
+      = fun t => difStage half step om f t + difStage half step om g t := by
+  funext t; unfold difStage; split_ifs <;> ring
+
+theorem ditStage_add (half step : ℕ) (omi : R) (f g : ℕ → R) :
+    ditStage half step omi (fun t => f t + g t)
+      = fun t => ditStage half step omi f t + ditStage half step omi g t := by
+  funext t; unfold ditStage; split_ifs <;> ring
+
+theorem difStage_zero_fun (half step : ℕ) (om : R) :
+    difStage half step om (fun _ => (0 : R)) = fun _ => (0 : R) := by
+  funext t; unfold difStage; split_ifs <;> ring
+
+theorem ditStage_zero_fun (half step : ℕ) (omi : R) :
+    ditStage half step omi (fun _ => (0 : R)) = fun _ => (0 : R) := by
+  funext t; unfold ditStage; split_ifs <;> ring
+
+theorem difRun_add (om : R) (k step : ℕ) (f g : ℕ → R) :
+    difRun om k step (fun t => f t + g t)
+      = fun t => difRun om k step f t + difRun om k step g t := by
+  induction k generalizing step f g with
+  | zero => rfl
+  | succ n ih => rw [difRun_succ, difRun_succ, difRun_succ, difStage_add, ih]
+
+theorem ditRun_add (omi : R) (k step : ℕ) (f g : ℕ → R) :
+    ditRun omi k step (fun t => f t + g t)
+      = fun t => ditRun omi k step f t + ditRun omi k step g t := by
+  induction k generalizing step with
+  | zero => rfl
+  | succ n ih => rw [ditRun_succ, ditRun_succ, ditRun_succ, ih, ditStage_add]
+
+theorem ditRun_zero_fun (omi : R) (k step : ℕ) :
+    ditRun omi k step (fun _ => (0 : R)) = fun _ => (0 : R) := by
+  induction k generalizing step with
+  | zero => rfl
+  | succ n ih => rw [ditRun_succ, ih, ditStage_zero_fun]
+
+theorem difRun_zero_fun (om : R) (k step : ℕ) :
+    difRun om k step (fun _ => (0 : R)) = fun _ => (0 : R) := by
+  induction k generalizing step with
+  | zero => rfl
+  | succ n ih => rw [difRun_succ, difStage_zero_fun, ih]
+
+/-- **The forward transform commutes with a finite sum.** The companion to
+[`ditRun_sum`]: the fused dot needs this direction to see its accumulated
+pointwise products as *one* forward transform. -/
+theorem difRun_sum {ι : Type*} (om : R) (k step : ℕ) (s : Finset ι) (F : ι → ℕ → R) :
+    difRun om k step (fun t => ∑ j ∈ s, F j t)
+      = fun t => ∑ j ∈ s, difRun om k step (F j) t := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simpa using difRun_zero_fun om k step
+  | insert a s ha ih =>
+    have hexp : (fun t => ∑ j ∈ insert a s, F j t)
+        = fun t => F a t + ∑ j ∈ s, F j t := by
+      funext t; rw [Finset.sum_insert ha]
+    rw [hexp, difRun_add, ih]
+    funext t
+    rw [Finset.sum_insert ha]
+
+/-- **The inverse transform commutes with a finite sum.** This is the lemma the
+fused dot rests on: one inverse transform of the accumulated pointwise products
+is the sum of the per-term inverse transforms, so every term reduces to the
+single-product argument already proved. -/
+theorem ditRun_sum {ι : Type*} (omi : R) (k step : ℕ) (s : Finset ι) (F : ι → ℕ → R) :
+    ditRun omi k step (fun t => ∑ j ∈ s, F j t)
+      = fun t => ∑ j ∈ s, ditRun omi k step (F j) t := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simpa using ditRun_zero_fun omi k step
+  | insert a s ha ih =>
+    have hexp : (fun t => ∑ j ∈ insert a s, F j t)
+        = fun t => F a t + ∑ j ∈ s, F j t := by
+      funext t; rw [Finset.sum_insert ha]
+    rw [hexp, ditRun_add, ih]
+    funext t
+    rw [Finset.sum_insert ha]
+
 /-- The low `j` bits of `b`, reversed. -/
 def brev : ℕ → ℕ → ℕ
   | 0, _ => 0
