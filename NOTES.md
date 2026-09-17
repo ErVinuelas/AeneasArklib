@@ -7630,3 +7630,59 @@ So the honest position is that Stage 6's arithmetic work is **substantially
 done at 5.3–5.7×**, and what remains is one large, gated, week-long candidate
 plus the owed ceremonies. Continuing to mine the 37% is not a good use of proof
 effort, and saying so is more useful than adding another 2% row.
+
+## Peak memory, measured: 7.63 GiB at one block (2026-09-17)
+
+Asked directly ("how are we doing memory wise"), and the honest answer needed a
+measurement rather than the wall arithmetic. `/usr/bin/time` is **not installed
+on this machine**, so peak RSS comes from `/proc/<pid>/status`'s `VmHWM`, the
+kernel's own high-water mark, polled while the test ran.
+
+`the_honest_chain_profile`, 1 block, `8dec09e`: **7 997 244 kB = 7.63 GiB**,
+350.6 s (`logs/runs/memory-20260917-postT1a1.log`).
+
+It accounts for itself:
+
+| allocation | size |
+|---|---|
+| **W2** — `rlin_stmt`'s dense `M` (`5 × 57 344` `Rq`) | 2.2 GiB |
+| `c_w_table_mle` at `2^26` (built, timed, dropped) | 2 GiB |
+| `alpha_public_table` at `2^26` (built, timed, dropped) | 2 GiB |
+| the lifted witness, width 41 016 | ~0.33 GiB |
+| the block's balanced digit decomposition | 0.06 GiB |
+| **measured peak** | **7.63 GiB** of 30 |
+
+### Wall status, and which one actually matters
+
+* **W1** (`alpha_public_table`, 2 GiB → 2 MiB) — **down**, candidate L.
+* **W3** (`lift_commit`'s materialised concatenation) — **down**, candidate E.
+* **W2** (`rlin_stmt`, 2.2 GiB) — **standing.** T1b's first increment
+  (`rlin_row`) is additive and nothing calls it, so no live path has stopped
+  materialising `M`, and by the `accepted-wall` rule the wall has not fallen.
+* **W4** (`commit::commit`'s decomposition, `1024 × 8192 Rq × 8 KiB` =
+  **64 GiB**) — **standing, and untouched by any queue item.**
+
+**W2 is not the constraint, and that is worth stating plainly.** At ℓ = 30 with
+`BLOCKS = 1024`, W4 alone is 64 GiB against a 30 GiB machine. Removing W2
+entirely takes the peak from 7.63 to ~5.4 GiB and changes nothing about that
+verdict. The reference implementation reaches 12.7 GiB peak by *streaming* a
+4 GiB witness file rather than materialising decompositions
+(`logs/paper-impl/README.md`).
+
+### What the measurement unlocks
+
+The block-independent part of the peak is ~7.5 GiB, which is the number the
+plan's W4 **route 1** needed and did not have:
+
+* **64 blocks**: ≈ 7.5 + 0.5 message + 4 decomposition ≈ **12 GiB** — comfortable.
+* **128 blocks**: ≈ 7.5 + 1 + 8 ≈ **16.5 GiB** — fits, with room.
+
+So a reduced-blocks end-to-end point is **feasible on this machine today**, with
+no algorithmic work: it needs one `blocks` parameter on
+`the_honest_chain_verifies`, then the block-linear spans reported per block and
+extrapolated ×1024 **labelled as extrapolation**, with the block-independent
+spans reported as measured. That is days rather than the week-class W4-proper
+candidate, and it is the cheapest route to a Stage 7 number.
+
+Consequence for T1b: finish it for **I7** — which closes Stage 5's inherited
+obligation and gates Stage 7 — not for headroom.

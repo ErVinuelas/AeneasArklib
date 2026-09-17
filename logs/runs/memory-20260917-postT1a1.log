@@ -1,0 +1,49 @@
+# PEAK MEMORY of the_honest_chain_profile, 1 block, on 8dec09e
+# /usr/bin/time is not installed on this machine; peak RSS is read from
+#   /proc/<pid>/status VmHWM (the kernel own high-water mark) of the test binary.
+# started 2026-09-17T09:01:18+02:00
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+warning: unused variable: `v`
+   --> src/quadeval.rs:823:5
+    |
+823 |     v: &PolyVec,
+    |     ^ help: if this is intentional, prefix it with an underscore: `_v`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: `hachi` (lib) generated 1 warning
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+    Finished `release` profile [optimized] target(s) in 0.94s
+     Running tests/chain_semantics.rs (hachi/target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 610.3ms
+[     3.7s] committed 1 block(s)
+[     6.3s] statement built
+[     6.7s] honest_compute_v done
+[    10.6s] honest_compute_resp + stack done
+[    12.0s] R^lin statement assembled: 5 x 40976
+[    12.0s] M zeta = y SKIPPED (not protocol work)
+test the_honest_chain_profile has been running for over 60 seconds
+[    62.1s] lifted witness built, lift width 41016
+[profile] rlin_stmt (verifier assembles it too): 425.3ms
+[profile] lift_commit: 12.4s
+[profile] c_w_table_mle at 2^26: 896.4ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 8.9s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 220.2s
+[profile] honest_compute_y: 2.7s
+[profile] verifier: rlin_stmt + statement thread: 338.5ms
+[profile] verifier: round_verify_loop (26 rounds): 43.3µs
+[profile] verifier: final_check = true: 4.8s
+[profile] verifier: end_piece_check = true: 14.7s
+[profile] chain_verify (whole) = true: 21.4s
+[profile] control (frozen genesis PolyVec::zeros x50): 613.3ms
+[profile] control spread within run: +0.5%  (recenter cross-run deltas by the level)
+[   350.6s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 350.82s
+
+# PEAK RSS (VmHWM) = 7997244 kB = 7809 MiB = 7 GiB
+# exit 0 at 2026-09-17T09:07:12+02:00
