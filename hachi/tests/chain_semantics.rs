@@ -1332,3 +1332,326 @@ fn the_u32_transform_at_the_caller() {
     );
     eprintln!("[u32] the replica agrees with apply_digits on every block: {agree}");
 }
+
+// ---------------------------------------------------------------------------
+// Card 7 / T11: the decomposer kernel, prototyped before it is proved
+// ---------------------------------------------------------------------------
+//
+// Card 6 measured `gadget_decompose` at 29.68 ns/coeff in the commitment and
+// 40.34 in the z pass, against T11's target of 5 and its kill line of 15. The
+// cost is structural and visible in the source: the decomposers loop e-outer,
+// so `digit_at(c, e)` restarts the division chain from digit 0 every time --
+// 0+1+...+7 = 28 divisions per coefficient where 8 would do -- and the
+// balanced path additionally recomputes `c + shift` and subtracts `half` once
+// per digit.
+//
+// The kernel is k-outer with a running remainder, exactly as T11's card
+// specifies: shift once, `rest % 16` and `rest /= 16` eight times, and for the
+// balanced path a sixteen-entry residue table in place of a field element per
+// digit. These replicas are here, not in `hachi/src`, so the kill gate can be
+// read before any proof is spent -- the same order that rejected card 8.
+
+/// `(d - 8 : ZMod q)` for `d` in `0..16`: T11's item 3, as a table.
+const BALANCED_DIGIT_RESIDUE: [u64; 16] = {
+    let q = 4_294_967_197u64;
+    let mut t = [0u64; 16];
+    let mut d = 0usize;
+    while d < 16 {
+        t[d] = if d >= 8 { (d - 8) as u64 } else { q - (8 - d) as u64 };
+        d += 1;
+    }
+    t
+};
+
+fn gadget_decompose_kernel(x: &PolyVec) -> PolyVec {
+    let digits = hachi::params::GADGET_DIGITS;
+    let degree = hachi::params::RING_DEGREE;
+    let b = hachi::params::GADGET_BASE;
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i = 0usize;
+    while i < x.len() {
+        let mut flat: Vec<cpoly::field::Fp> = Vec::with_capacity(digits * degree);
+        let mut z = 0usize;
+        while z < digits * degree { flat.push(cpoly::field::Fp::new(0)); z += 1; }
+        let mut k = 0usize;
+        while k < degree {
+            let mut rest: u64 = x.get(i).coeff(k).to_u64();
+            let mut e = 0usize;
+            while e < digits {
+                flat[e * degree + k] = cpoly::field::Fp::new(rest % b);
+                rest /= b;
+                e += 1;
+            }
+            k += 1;
+        }
+        let mut e = 0usize;
+        while e < digits {
+            let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(degree);
+            let mut k2 = 0usize;
+            while k2 < degree { coeffs.push(flat[e * degree + k2]); k2 += 1; }
+            out.push(Rq::from_coeffs(&coeffs));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+fn balanced_gadget_decompose_kernel(x: &PolyVec) -> PolyVec {
+    let digits = hachi::params::GADGET_DIGITS;
+    let degree = hachi::params::RING_DEGREE;
+    let b = hachi::params::GADGET_BASE;
+    let shift = hachi::params::BALANCED_SHIFT;
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i = 0usize;
+    while i < x.len() {
+        let mut flat: Vec<cpoly::field::Fp> = Vec::with_capacity(digits * degree);
+        let mut z = 0usize;
+        while z < digits * degree { flat.push(cpoly::field::Fp::new(0)); z += 1; }
+        let mut k = 0usize;
+        while k < degree {
+            // shift ONCE, not once per digit
+            let mut rest: u64 = (x.get(i).coeff(k) + cpoly::field::Fp::new(shift)).to_u64();
+            let mut e = 0usize;
+            while e < digits {
+                // the balanced residue by lookup: no field element per digit
+                flat[e * degree + k] =
+                    cpoly::field::Fp::new(BALANCED_DIGIT_RESIDUE[(rest % b) as usize]);
+                rest /= b;
+                e += 1;
+            }
+            k += 1;
+        }
+        let mut e = 0usize;
+        while e < digits {
+            let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(degree);
+            let mut k2 = 0usize;
+            while k2 < degree { coeffs.push(flat[e * degree + k2]); k2 += 1; }
+            out.push(Rq::from_coeffs(&coeffs));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+
+/// Kernel v2 for the unsigned path: keep e-outer and the output order, and
+/// attack what the profile actually pays -- `Vec::new()` growing to 1024 by
+/// reallocation 8192 times per row, `x.get(i)` re-indexed per digit, and
+/// `digit_at`'s division chain where one shift and a mask will do.
+fn gadget_decompose_kernel2(x: &PolyVec) -> PolyVec {
+    let digits = hachi::params::GADGET_DIGITS;
+    let degree = hachi::params::RING_DEGREE;
+    let mut out: Vec<Rq> = Vec::with_capacity(x.len() * digits);
+    let mut i = 0usize;
+    while i < x.len() {
+        let row = x.get(i); // hoisted: one index per ROW, not per digit
+        let mut e = 0usize;
+        while e < digits {
+            let sh = 4 * e;
+            let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(degree);
+            let mut k = 0usize;
+            while k < degree {
+                coeffs.push(cpoly::field::Fp::new((row.coeff(k).to_u64() >> sh) & 15));
+                k += 1;
+            }
+            out.push(Rq::from_coeffs(&coeffs));
+            e += 1;
+        }
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+/// **T11's kill gate, read before any proof is spent.**
+///
+/// Warmed and repeated, because the first measurement of this lied: the same
+/// function read 45.60 ns/coeff on its first call and 17.52 on its second,
+/// entirely from cache and allocator warmth. Each variant is run once to warm
+/// and then `reps` times, and the MINIMUM is reported -- the minimum is the
+/// one statistic a cold start cannot inflate.
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_decomposer_kernel_against_its_kill_gate() {
+    use hachi::params::{MESSAGE_ROWS, RING_DEGREE};
+    let rows: usize = std::env::var("HACHI_T11_ROWS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(MESSAGE_ROWS);
+    let reps: usize = std::env::var("HACHI_T11_REPS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(7);
+    let mut r = Lcg::new(0xC0A1_0080);
+    let x = r.next_poly_vec(rows);
+    let coeffs = (rows * RING_DEGREE) as f64;
+
+    let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+        let warm = f(&x);
+        std::hint::black_box(warm.len());
+        let mut best = f64::MAX;
+        for _ in 0..reps {
+            let t = std::time::Instant::now();
+            let got = f(&x);
+            let d = t.elapsed();
+            std::hint::black_box(got.len());
+            best = best.min(d.as_nanos() as f64);
+        }
+        let ns = best / coeffs;
+        eprintln!("[t11] {name:30} {ns:>7.2} ns/coeff   (best of {reps})");
+        ns
+    };
+
+    // correctness first, timing second: a faster wrong answer is not a result
+    for (name, f_old, f_new) in [
+        ("gadget_decompose / flat-buffer kernel",
+         hachi::gadget::gadget_decompose as fn(&PolyVec) -> PolyVec,
+         gadget_decompose_kernel as fn(&PolyVec) -> PolyVec),
+        ("gadget_decompose / kernel v2",
+         hachi::gadget::gadget_decompose as fn(&PolyVec) -> PolyVec,
+         gadget_decompose_kernel2 as fn(&PolyVec) -> PolyVec),
+        ("balanced_gadget_decompose / kernel",
+         hachi::gadget::balanced_gadget_decompose as fn(&PolyVec) -> PolyVec,
+         balanced_gadget_decompose_kernel as fn(&PolyVec) -> PolyVec),
+    ] {
+        let want = f_old(&x);
+        let got = f_new(&x);
+        assert_eq!(got.len(), want.len(), "{name}: output width changed");
+        for j in 0..want.len() {
+            assert!(got.get(j).equals(want.get(j)), "{name}: differs at output {j}");
+        }
+    }
+
+    let base_u = timed("gadget_decompose (current)", hachi::gadget::gadget_decompose);
+    let k1 = timed("  flat-buffer kernel", gadget_decompose_kernel);
+    let k2 = timed("  kernel v2 (shift+mask, sized)", gadget_decompose_kernel2);
+    let base_b = timed("balanced (current)", hachi::gadget::balanced_gadget_decompose);
+    let kb = timed("  balanced kernel (table)", balanced_gadget_decompose_kernel);
+
+    eprintln!("[t11] unsigned: flat {:+.1}%, v2 {:+.1}%    balanced: {:+.1}%",
+        100.0 * (k1 / base_u - 1.0), 100.0 * (k2 / base_u - 1.0), 100.0 * (kb / base_b - 1.0));
+    eprintln!("[t11] T11's gate: target <= 5 ns/coeff, KILL if a first cut does not reach 15");
+}
+
+// ---------------------------------------------------------------------------
+// Card 9 / T17 Change 3: the gather form, prototyped before it is proved
+// ---------------------------------------------------------------------------
+//
+// Card 6 measured the short multiply at 170.88 ns/coeff and 79.8% of the z
+// pass -- about 184 s at the pin, 15.5% of the prover, the largest single item
+// left after `apply_digits`. `mul_short_add_into` is a SCATTER: for each
+// descriptor term and each unit of magnitude it makes a full pass over the
+// 1024-entry accumulator with a branchy modular add/sub and a canonical write
+// per element, so at the pin's weight-16 challenges the accumulator is written
+// and reduced sixteen times per coefficient.
+//
+// The gather walks each OUTPUT coefficient once, sums its <= 16 signed reads of
+// the operand in an `i64`, and reduces once. Same finite sum, different
+// schedule. The descriptor's fields are private, so it is rebuilt here exactly
+// as `classify_short` builds it -- centred residue, magnitude, sign -- which
+// keeps `hachi/src` untouched while the kill gate is read.
+
+struct Desc { idx: Vec<usize>, mag: Vec<u64>, neg: Vec<bool> }
+
+fn classify_here(a: &Rq) -> Option<Desc> {
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q;
+    let half = q / 2;
+    let budget = hachi::params::OMEGA;
+    let (mut idx, mut mag, mut neg) = (Vec::new(), Vec::new(), Vec::new());
+    let mut total = 0u64;
+    for k in 0..n {
+        let c = a.coeff(k).to_u64();
+        if c != 0 {
+            let m = if c <= half { c } else { q - c };
+            total += m;
+            if total > budget { return None; }
+            idx.push(k); mag.push(m); neg.push(c > half);
+        }
+    }
+    Some(Desc { idx, mag, neg })
+}
+
+/// The gather: one pass over the output, one reduction per coefficient.
+fn mul_short_add_into_gather(d: &Desc, s: &Rq, acc: &mut Vec<i64>) {
+    let n = hachi::params::RING_DEGREE;
+    let terms = d.idx.len();
+    let mut w = 0usize;
+    while w < n {
+        let mut sum: i64 = 0;
+        let mut t = 0usize;
+        while t < terms {
+            let k = d.idx[t];
+            // the unique i with (k + i) ≡ w, and whether it crossed X^N = −1
+            let (i, wrapped) = if w >= k { (w - k, false) } else { (w + n - k, true) };
+            let sv = s.coeff(i).to_u64() as i64;
+            let c = (d.mag[t] as i64) * sv;
+            sum += if d.neg[t] != wrapped { -c } else { c };
+            t += 1;
+        }
+        acc[w] += sum;
+        w += 1;
+    }
+}
+
+/// **Card 9's kill gate: if the short rows move < 5%, the pass structure was
+/// not the cost.** The `i64` accumulator carries across blocks, as the card's
+/// strong form specifies, and is reduced to `Fp` once at the end.
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_gather_form_against_its_kill_gate() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, OMEGA, Q, RING_DEGREE};
+    let blocks: usize = std::env::var("HACHI_T17_BLOCKS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(2);
+    let mut r = Lcg::new(0xC0A1_0090);
+    let width = MESSAGE_ROWS * GADGET_DIGITS;
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(MESSAGE_ROWS))).collect();
+    let c = PolyVec::new((0..blocks).map(|i| short_challenge_rq(i, OMEGA, 1)).collect());
+    let digits: Vec<PolyVec> =
+        raw.iter().map(|b| hachi::gadget::gadget_decompose(&b.expand())).collect();
+
+    // --- the scatter, as the crate has it ---
+    let t0 = std::time::Instant::now();
+    let mut acc_s: Vec<Rq> = (0..width).map(|_| Rq::zero()).collect();
+    for (i, s) in digits.iter().enumerate() {
+        let desc = hachi::ring::classify_short(c.get(i)).expect("weight-16 challenge is short");
+        for j in 0..width {
+            hachi::ring::mul_short_add_into(&desc, s.get(j), &mut acc_s[j]);
+        }
+    }
+    let d_scatter = t0.elapsed();
+
+    // --- the gather, i64 accumulators carried across blocks ---
+    let t1 = std::time::Instant::now();
+    let mut acc_g: Vec<Vec<i64>> = (0..width).map(|_| vec![0i64; RING_DEGREE]).collect();
+    for (i, s) in digits.iter().enumerate() {
+        let d = classify_here(c.get(i)).expect("weight-16 challenge is short");
+        for j in 0..width {
+            mul_short_add_into_gather(&d, s.get(j), &mut acc_g[j]);
+        }
+    }
+    // one reduction per coefficient, at the end
+    let q = Q as i64;
+    let mut out_g: Vec<Rq> = Vec::with_capacity(width);
+    for a in acc_g.iter() {
+        let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(RING_DEGREE);
+        for &v in a.iter() {
+            let m = v % q;
+            coeffs.push(cpoly::field::Fp::new(if m < 0 { (m + q) as u64 } else { m as u64 }));
+        }
+        out_g.push(Rq::from_coeffs(&coeffs));
+    }
+    let d_gather = t1.elapsed();
+
+    for j in 0..width {
+        assert!(out_g[j].equals(&acc_s[j]), "the gather differs from the scatter at {j}");
+    }
+    let coeffs = (width * RING_DEGREE * blocks) as f64;
+    eprintln!(
+        "[t17] scatter {:>8.2?} ({:>6.2} ns/coeff)   gather {:>8.2?} ({:>6.2} ns/coeff)   {:+.1}%",
+        d_scatter, d_scatter.as_nanos() as f64 / coeffs,
+        d_gather, d_gather.as_nanos() as f64 / coeffs,
+        100.0 * (d_gather.as_secs_f64() / d_scatter.as_secs_f64() - 1.0)
+    );
+    eprintln!("[t17] the gather agrees with the scatter on all {width} outputs");
+    eprintln!("[t17] kill gate: reject if the short path moves < 5%");
+}

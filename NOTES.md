@@ -8164,3 +8164,69 @@ from the primitive probe, and **7.3%** at the caller. Each step lost about half,
 and each step was a legitimate inference from the one before. Nothing under
 `hachi/src` was changed at any point, so the cost of finding out was one scratch
 crate and one test — which is exactly the trade Gate A and Gate B exist to make.
+
+## Cards 7 and 9: two more projections that the measurement reversed (2026-09-18)
+
+Both were prototyped test-side, correctness-asserted against the code they
+would replace, measured against their own kill gates, and rejected — without
+touching `hachi/src` and without spending a line of proof. Together with card
+8 that is three consecutive cards whose projected win the measurement reversed,
+which is worth stating plainly rather than three times separately.
+
+### Card 7 (T11), the decomposer kernel
+
+Warmed, best-of-7 — and the first harness had to be rewritten, because it lied:
+the same function read 45.60 ns/coeff on its first call and 17.52 on its
+second, purely from cache and allocator warmth.
+
+| | ns/coeff | vs current |
+|---|---|---|
+| `gadget_decompose` (current) | 20.52 | |
+| flat-buffer kernel (the card's shape) | 20.59 | +0.3% |
+| kernel v2 — shift+mask, sized vectors | **18.51** | −9.8% |
+| `balanced_gadget_decompose` (current) | 43.27 | |
+| balanced kernel — 16-entry residue table | **25.19** | −41.8% |
+
+Two of the card's premises were wrong. It counted `digit_at`'s chain as **28
+divisions**; with `b = 16` a constant they are *shifts*, so attacking the chain
+buys nothing and the flat buffer's transpose costs more than it saves. And the
+balanced decomposer, where the kernel genuinely wins 41.8%, **is not on a hot
+path**: `carrier_decomp_from_raw` runs it on 2^20 coefficients once, 45 ms.
+What is left is kernel v2's −9.8% on the 74 s the unsigned decomposer actually
+costs: **−7.3 s, 0.6% of the prover**, below the stop threshold. Both first cuts
+also miss T11's own 15 ns kill line.
+
+The floor for any kernel that still produces `Rq` is about 16 ns/coeff — the
+`mod P` inside `Fp::new` (cpoly has no `from_raw` and is not ours to change),
+the push, and `Rq::from_coeffs`' copy. Reaching the 5 ns target needs T22:
+write digits straight into the per-prime transform buffers and skip the `Rq`
+entirely, which lands in the transform layer card 8 was just rejected on.
+
+### Card 9 (T17 Change 3), the gather form
+
+The short multiply is the largest single item after `apply_digits`: 79.8% of
+the z pass, ~184 s, 15.5% of the prover. `mul_short_add_into` is a scatter —
+sixteen full passes over the accumulator per product at the pin's weight-16
+challenges, each with a branchy modular add/sub and a canonical write. The
+gather walks each output coefficient once, sums its sixteen signed reads in an
+`i64`, and reduces once, with the accumulator carried across blocks.
+
+It is **22.4% slower**: 24.56 → 30.07 ns/coeff, agreeing with the scatter on
+all 8192 outputs. The card projected 2–4× and its kill gate was "reject if the
+short rows move < 5%"; they moved the wrong way.
+
+The reason is locality, and it is the useful part. The scatter's inner loop is
+sequential in *both* streams — it reads `s[i]` and writes `acc[(k+i) mod n]` as
+`i` advances — and skips zero digits. The gather reads `s[w−k]` for sixteen
+different `k` per output: sixteen scattered positions per coefficient, plus a
+64-bit multiply per tap where the magnitude-1 case of the scatter is a plain
+add. **The pass structure was not the cost.**
+
+### What the three rejections have in common
+
+Each card projected from an operation count and each was reversed by a
+measurement of the machine: shifts counted as divisions, a hot path that was
+not hot, a pass structure that was not the cost, and a butterfly whose −30%
+became −16.8% at its caller. All four prototypes live in
+`tests/chain_semantics.rs` with their equality assertions, so the next person
+to have any of these ideas re-runs a test instead of re-deriving the argument.
