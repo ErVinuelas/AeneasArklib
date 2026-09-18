@@ -406,16 +406,16 @@ fn dense_eval(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
     };
     let wl = eq(xl);
     let wh = eq(xh);
-    let maskl = (1usize << xl.len()) - 1;
-    let maskh = (1usize << xh.len()) - 1;
+    let low_mask = (1usize << xl.len()) - 1;
+    let high_mask = (1usize << xh.len()) - 1;
 
     let mut acc = Rq::zero();
     for (i, f) in blocks.iter().enumerate() {
         let mut block = Rq::zero();
         for j in 0..f.len() {
-            block = block.add(&f.get(j).mul(&wh[j & maskh]));
+            block = block.add(&f.get(j).mul(&wh[j & high_mask]));
         }
-        acc = acc.add(&block.mul(&wl[i & maskl]));
+        acc = acc.add(&block.mul(&wl[i & low_mask]));
     }
     acc
 }
@@ -452,7 +452,7 @@ fn dense_eval_agrees_with_the_nested_form() {
         acc
     }
 
-    let mut r = Lcg::new(0xDE_5E_0001);
+    let mut r = Lcg::new(0xDE5E_0001);
     // (blocks, rows, |xl|, |xh|) -- the last two straddle `rows` vs `2^|xh|`
     for &(nb, rows, nl, nh) in &[(1usize, 1usize, 1usize, 1usize), (4, 8, 2, 3),
                                  (3, 8, 2, 3), (5, 9, 3, 3), (2, 16, 1, 2)] {
@@ -512,12 +512,15 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     // Printing only the cumulative figure here made these lines read exactly
     // like the per-stage deltas the profile body below reports -- which is how
     // 23 minutes of `dense_eval` were once read as prover time.
-    let mut last = std::time::Instant::now();
+    // A `Cell` rather than `let mut`: the macro re-stamps it after every
+    // line, and the stamp after the *last* line is a write nothing reads,
+    // which `unused_assignments` rightly flags on a plain variable.
+    let last = std::cell::Cell::new(std::time::Instant::now());
     macro_rules! stage {
         ($($arg:tt)*) => {{
-            eprintln!("[{:>9.1?}] +{:>9.1?}  {}", t0.elapsed(), last.elapsed(),
+            eprintln!("[{:>9.1?}] +{:>9.1?}  {}", t0.elapsed(), last.get().elapsed(),
                 format_args!($($arg)*));
-            last = std::time::Instant::now();
+            last.set(std::time::Instant::now());
         }};
     }
     let mut r = Lcg::new(0xC0A1_0050);
