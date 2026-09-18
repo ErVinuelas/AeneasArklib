@@ -338,16 +338,35 @@ fn an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only() {
 
 // --- the acceptance test ----------------------------------------------------
 
-/// A short challenge: one ring element with coefficients in `{-1, 0, 1}`. The
-/// wire's `c` is drawn from a short set so that `z = Σ cⱼ ŝⱼ` stays inside the
-/// bounded decomposition's range (`Z_BOUND`); a full random `Rq` would put `z`
-/// far outside it and the honest run would rightly reject.
-fn ternary_rq(r: &mut Lcg) -> Rq {
+/// A **protocol-valid** challenge: `ShortChallenge Φ ω` at `ω = params::OMEGA`,
+/// i.e. centred `ℓ₁` norm at most 16.
+///
+/// What this replaces filled all `RING_DEGREE` coefficients from `{-1, 0, 1}`
+/// and called itself short. Its `ℓ₁` norm is in the hundreds, so
+/// `ring::classify_short` returns `None` and `honest_z` runs its **dense
+/// fallback** -- a generic `Rq::mul` per entry. The profile of
+/// 2026-09-18 measured `honest_compute_resp` at 3201.8 s for that reason where
+/// the protocol path is ~320 s, a 13x inflation, and the two bench rows
+/// (`quadeval/honest_z_short` 214 ms against `honest_z_dense` 2.84 s per block)
+/// price the gap exactly.
+///
+/// Same shape as `benches/quadeval.rs`'s `short_challenge` so that the profile
+/// and the bench rows measure the same path: `weight / mag` terms of magnitude
+/// `mag` and alternating sign, spread by a stride coprime to the degree so some
+/// of them wrap under any shift.
+fn short_challenge_rq(index: usize, weight: u64, mag: u64) -> Rq {
+    let degree = hachi::params::RING_DEGREE;
     let q = hachi::params::Q;
-    let mut coeffs: Vec<cpoly::Fp> = Vec::new();
-    for _ in 0..hachi::params::RING_DEGREE {
-        let t = r.next_u64() % 3;
-        coeffs.push(cpoly::Fp::new(if t == 2 { q - 1 } else { t }));
+    assert!(weight <= hachi::params::OMEGA, "a challenge above the ω budget is not short");
+    let mut coeffs: Vec<cpoly::Fp> = Vec::with_capacity(degree);
+    for _ in 0..degree {
+        coeffs.push(cpoly::Fp::new(0));
+    }
+    let terms = (weight / mag) as usize;
+    for t in 0..terms {
+        let at = (index * 31 + t * 97 + 13) % degree;
+        let word = if t % 2 == 0 { mag } else { q - mag };
+        coeffs[at] = cpoly::Fp::new(word);
     }
     Rq::from_coeffs(&coeffs)
 }
@@ -361,26 +380,92 @@ fn ternary_rq(r: &mut Lcg) -> Rq {
 /// At one block the `xl` product is empty and this is the original single-block
 /// evaluation.
 fn dense_eval(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
+    // `y = Σᵢ wl(i) · Σⱼ Mᵢⱼ · wh(j)`, with `wl(i) = Π_{b ∈ bits(i)} xl[b]` and
+    // likewise `wh`. The nested form this replaces recomputed each of those
+    // products from scratch for every `(i, j)` -- `blocks · rows · popcount(j)`
+    // ring multiplications, 5.2 MILLION at the pin, measured at **1860 s**,
+    // more than the entire honest prover. Computing them once leaves
+    // `blocks · rows` multiplications, about a fifth of that.
+    //
+    // The tables are the standard eq-tilde build: `2ⁿ − 1` multiplications for
+    // `2ⁿ` entries. Bit order is `(k >> b) & 1`, matching `eval_direct` in
+    // `quadeval_semantics.rs`, which is where this function's convention comes
+    // from; an index past `2ⁿ` reads the low `n` bits, exactly as the nested
+    // loop did. `dense_eval_agrees_with_the_nested_form` is the oracle.
+    let eq = |x: &PolyVec| -> Vec<Rq> {
+        let n = x.len();
+        let mut t: Vec<Rq> = Vec::with_capacity(1usize << n);
+        t.push(Rq::one());
+        for b in 0..n {
+            for j in 0..(1usize << b) {
+                let v = t[j].mul(x.get(b));
+                t.push(v);
+            }
+        }
+        t
+    };
+    let wl = eq(xl);
+    let wh = eq(xh);
+    let maskl = (1usize << xl.len()) - 1;
+    let maskh = (1usize << xh.len()) - 1;
+
     let mut acc = Rq::zero();
     for (i, f) in blocks.iter().enumerate() {
         let mut block = Rq::zero();
         for j in 0..f.len() {
-            let mut term = f.get(j).copy();
-            for b in 0..xh.len() {
-                if (j >> b) & 1 == 1 {
-                    term = term.mul(xh.get(b));
-                }
-            }
-            block = block.add(&term);
+            block = block.add(&f.get(j).mul(&wh[j & maskh]));
         }
-        for b in 0..xl.len() {
-            if (i >> b) & 1 == 1 {
-                block = block.mul(xl.get(b));
-            }
-        }
-        acc = acc.add(&block);
+        acc = acc.add(&block.mul(&wl[i & maskl]));
     }
     acc
+}
+
+/// `dense_eval` still computes what the nested form computed.
+///
+/// The reference below *is* the old implementation, written out so the two
+/// cannot drift together. Ring arithmetic here is exact, so the rewrite --
+/// which only reassociates and shares products -- must agree bit for bit.
+/// Several shapes, including one where the block width exceeds `2^|xh|`, which
+/// is the case the index masking exists for and the pin never exercises.
+#[test]
+fn dense_eval_agrees_with_the_nested_form() {
+    fn nested(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
+        let mut acc = Rq::zero();
+        for (i, f) in blocks.iter().enumerate() {
+            let mut block = Rq::zero();
+            for j in 0..f.len() {
+                let mut term = f.get(j).copy();
+                for b in 0..xh.len() {
+                    if (j >> b) & 1 == 1 {
+                        term = term.mul(xh.get(b));
+                    }
+                }
+                block = block.add(&term);
+            }
+            for b in 0..xl.len() {
+                if (i >> b) & 1 == 1 {
+                    block = block.mul(xl.get(b));
+                }
+            }
+            acc = acc.add(&block);
+        }
+        acc
+    }
+
+    let mut r = Lcg::new(0xDE_5E_0001);
+    // (blocks, rows, |xl|, |xh|) -- the last two straddle `rows` vs `2^|xh|`
+    for &(nb, rows, nl, nh) in &[(1usize, 1usize, 1usize, 1usize), (4, 8, 2, 3),
+                                 (3, 8, 2, 3), (5, 9, 3, 3), (2, 16, 1, 2)] {
+        let m: Vec<PolyVec> = (0..nb).map(|_| r.next_poly_vec(rows)).collect();
+        let xl = r.next_poly_vec(nl);
+        let xh = r.next_poly_vec(nh);
+        let want = nested(&m, &xl, &xh);
+        let got = dense_eval(&m, &xl, &xh);
+        assert!(
+            got.equals(&want),
+            "dense_eval disagrees at blocks={nb} rows={rows} |xl|={nl} |xh|={nh}"
+        );
+    }
 }
 
 /// The number of message blocks the pin-shaped runs use: `HACHI_CHAIN_BLOCKS`
@@ -479,10 +564,14 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let stmt = hachi::quadeval::to_quad_eval_statement(&poly_stmt);
     stage!("statement built");
 
-    // the wire's challenges: one short ring element per block (`honest_z`
-    // folds block `i` against `c.get(i)`; the 64-block run of 2026-09-15 found
-    // this vector sized for one block)
-    let c = PolyVec::new((0..blocks).map(|_| ternary_rq(&mut r)).collect());
+    // the wire's challenges: one SHORT ring element per block (`honest_z` folds
+    // block `i` against `c.get(i)`; the 64-block run of 2026-09-15 found this
+    // vector mis-*sized* and fixed the size -- nobody checked its shortness,
+    // so every profile before 2026-09-18 measured `honest_z`'s dense fallback
+    // rather than the protocol path)
+    let c = PolyVec::new(
+        (0..blocks).map(|i| short_challenge_rq(i, hachi::params::OMEGA, 1)).collect(),
+    );
     let alpha = ext4(&mut r);
     let tau0: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
     let tau1: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
