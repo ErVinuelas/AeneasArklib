@@ -960,3 +960,150 @@ fn the_honest_chain_profile() {
     eprintln!("[{:>9.1?}] profile done", t0.elapsed());
     assert!(ok, "the honest chain must verify");
 }
+
+/// **Where the commitment's minutes go, per block and per coefficient**
+/// (Stage 6 card 6, the instrument candidate T11's accept needs).
+///
+/// The commitment is 541 s at the pin, 46% of the honest prover and by a wide
+/// margin the largest remaining item. Until now its split into *decomposition*
+/// and *prepared product* was an inference from the `gadget/*_decompose/1024`
+/// micro-row, and T11's accept rule is stated on the phase -- ≤ 5 ns per
+/// coefficient, kill above 15 -- so the phase is what has to be measured.
+///
+/// This replays the two per-block loop bodies verbatim, from
+/// `commit::commit_streamed_32` and `quadeval::honest_z_from_raw_32`, with a
+/// clock around each piece. It is deliberately *outside* the crate: a timer
+/// inside `commit_streamed` would extract, and nothing under `hachi/src` may
+/// carry instrumentation.
+///
+/// "Per coefficient" counts the *input* coefficients the pass consumes, which
+/// is `MESSAGE_ROWS × RING_DEGREE` per block, because that is the unit T11's
+/// target is quoted in. The digit count is eight times larger.
+#[test]
+#[ignore = "pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
+fn the_commitment_and_z_pass_split_per_block() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{GADGET_DIGITS, INNER_ROWS, MESSAGE_ROWS, OMEGA, RING_DEGREE};
+    let blocks: usize = std::env::var("HACHI_SPLIT_BLOCKS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(4);
+    let mut r = Lcg::new(0xC0A1_0060);
+    let coeffs_per_block: u128 = (MESSAGE_ROWS * RING_DEGREE) as u128;
+
+    let inner = hachi::commit::PublicParams::new(
+        r.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS),
+        r.next_poly_matrix(1, blocks * INNER_ROWS * GADGET_DIGITS),
+    );
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(MESSAGE_ROWS))).collect();
+    let c = PolyVec::new(
+        (0..blocks).map(|i| short_challenge_rq(i, OMEGA, 1)).collect(),
+    );
+
+    // ---- the commitment pass, `commit_streamed_32`'s loop body ----
+    let prep = inner.inner_matrix().prepare_digits();
+    let (mut t_expand, mut t_dec, mut t_apply, mut t_dec2) = (
+        std::time::Duration::ZERO,
+        std::time::Duration::ZERO,
+        std::time::Duration::ZERO,
+        std::time::Duration::ZERO,
+    );
+    for b in raw.iter() {
+        let c0 = std::time::Instant::now();
+        let block = b.expand();
+        t_expand += c0.elapsed();
+
+        let c1 = std::time::Instant::now();
+        let s = hachi::gadget::gadget_decompose(&block);
+        t_dec += c1.elapsed();
+
+        let c2 = std::time::Instant::now();
+        let innerv = prep.apply_digits(&s);
+        t_apply += c2.elapsed();
+
+        let c3 = std::time::Instant::now();
+        let ts = hachi::gadget::gadget_decompose(&innerv);
+        t_dec2 += c3.elapsed();
+        std::hint::black_box(ts.len());
+    }
+
+    // ---- the z pass, `honest_z_from_raw_32`'s loop body ----
+    let width = MESSAGE_ROWS * GADGET_DIGITS;
+    let mut acc: Vec<Rq> = (0..width).map(|_| Rq::zero()).collect();
+    let (mut z_expand, mut z_dec, mut z_mul) =
+        (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+    let mut short_blocks = 0usize;
+    for (i, b) in raw.iter().enumerate() {
+        let c0 = std::time::Instant::now();
+        let block = b.expand();
+        z_expand += c0.elapsed();
+
+        let c1 = std::time::Instant::now();
+        let s = hachi::gadget::gadget_decompose(&block);
+        z_dec += c1.elapsed();
+
+        let c2 = std::time::Instant::now();
+        match hachi::ring::classify_short(c.get(i)) {
+            Some(desc) => {
+                short_blocks += 1;
+                for j in 0..width {
+                    hachi::ring::mul_short_add_into(&desc, s.get(j), &mut acc[j]);
+                }
+            }
+            None => {
+                let scaled = s.scalar_mul(c.get(i));
+                for j in 0..width {
+                    acc[j] = acc[j].add(scaled.get(j));
+                }
+            }
+        }
+        z_mul += c2.elapsed();
+    }
+    std::hint::black_box(acc.len());
+
+    let per = |d: std::time::Duration| -> f64 {
+        d.as_nanos() as f64 / (coeffs_per_block * blocks as u128) as f64
+    };
+    let share = |d: std::time::Duration, tot: std::time::Duration| -> f64 {
+        100.0 * d.as_secs_f64() / tot.as_secs_f64()
+    };
+    let commit_tot = t_expand + t_dec + t_apply + t_dec2;
+    let z_tot = z_expand + z_dec + z_mul;
+
+    eprintln!("[split] blocks = {blocks}, {coeffs_per_block} input coefficients per block");
+    eprintln!("[split] --- the commitment pass (commit_streamed_32's loop body) ---");
+    for (name, d) in [
+        ("expand (u32 -> Rq)", t_expand),
+        ("gadget_decompose (message)", t_dec),
+        ("apply_digits (prepared product)", t_apply),
+        ("gadget_decompose (inner)", t_dec2),
+    ] {
+        eprintln!(
+            "[split]   {name:34} {:>9.2?}  {:>5.1}%  {:>8.2} ns/coeff",
+            d,
+            share(d, commit_tot),
+            per(d)
+        );
+    }
+    eprintln!("[split]   {:34} {commit_tot:>9.2?}         {:>8.2} ns/coeff", "TOTAL", per(commit_tot));
+    eprintln!("[split] --- the z pass (honest_z_from_raw_32's loop body) ---");
+    eprintln!("[split]   {short_blocks}/{blocks} blocks took the SHORT path");
+    for (name, d) in [
+        ("expand (u32 -> Rq)", z_expand),
+        ("gadget_decompose (rebuild)", z_dec),
+        ("short multiply + accumulate", z_mul),
+    ] {
+        eprintln!(
+            "[split]   {name:34} {:>9.2?}  {:>5.1}%  {:>8.2} ns/coeff",
+            d,
+            share(d, z_tot),
+            per(d)
+        );
+    }
+    eprintln!("[split]   {:34} {z_tot:>9.2?}         {:>8.2} ns/coeff", "TOTAL", per(z_tot));
+    eprintln!(
+        "[split] T11 reads on `gadget_decompose`: {:.2} ns/coeff (target <= 5, kill > 15)",
+        per(t_dec)
+    );
+}

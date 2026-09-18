@@ -8032,3 +8032,75 @@ stage, thirty times the contamination, so run 1's *conclusion* was never in
 doubt; its *figures* were, which is why run 2 was taken clean. Third time this
 session that touching the machine during a measurement has cost a run, and the
 first time the instrument caught it by itself.
+
+## Card 6: the per-block split, and what it does to the card order (2026-09-18)
+
+The commitment is 541 s at the pin, 46% of the honest prover and by a wide
+margin the largest remaining item. Its split into *decomposition* and
+*prepared product* had never been measured — it was an inference from the
+`gadget/*_decompose/1024` micro-row — and candidate T11's accept rule is stated
+on the phase (≤ 5 ns per coefficient, kill above 15), so the phase had to be
+instrumented before T11 could be judged. That is card 6, and it is test-side by
+necessity: a timer inside `commit_streamed` would extract, and nothing under
+`hachi/src` may carry instrumentation.
+
+`the_commitment_and_z_pass_split_per_block` replays the two per-block loop
+bodies verbatim and clocks each piece. At four blocks:
+
+| the commitment pass | share | ns/coeff |
+|---|---|---|
+| `expand` (u32 → `Rq`) | 0.2% | 0.98 |
+| `gadget_decompose` (message) | **5.8%** | 29.68 |
+| **`apply_digits` (the prepared product)** | **94.0%** | **485.06** |
+| `gadget_decompose` (inner) | 0.0% | 0.03 |
+
+| the z pass | share | ns/coeff |
+|---|---|---|
+| `expand` | 1.4% | 3.00 |
+| `gadget_decompose` (rebuild) | 18.8% | 40.34 |
+| short multiply + accumulate | 79.8% | 170.88 |
+
+It is calibrated against the phase it is supposed to explain, which is the
+check that makes it worth trusting: 540 ms per block × 1024 = 553 s against the
+measured 541 s commitment, and 225 ms × 1024 = 230 s against the 240 s response
+stage. Both within 2%.
+
+### T11 was mis-priced by a factor of ten
+
+The card projected "decomposition ≈ 700 s → ≈ 80–170 s". Measured, decomposition
+is **31 s in the commitment and 43 s in the z pass — 74 s**, 6.2% of the prover.
+A *perfect* decomposer, free, saves 74 s. At T11's own target of 5 ns/coeff
+against the measured 30–40, it saves about 62 s: **5.2%**.
+
+That is not nothing, and it is above the ~3% stop threshold, so T11 survives —
+but it is not the top card and never was. It was ranked first on a number that
+had never been measured, which is exactly the failure mode plan rule 9 exists to
+catch and exactly why card 6 was placed before card 7.
+
+### The real target is the NTT, and the arithmetic is unambiguous
+
+`apply_digits` is 94% of the commitment, ≈ 520 s, ≈ 43% of the prover. Where it
+goes is not in doubt:
+
+```
+per block: 8192 dot terms × 2 primes × one forward NTT of length 1024 each
+         = 16 384 NTTs = 167 772 160 butterflies
+measured : 508 ms per block → 3.03 ns per butterfly
+at scale : 1.72 × 10¹¹ butterflies, 520 s
+```
+
+The forward transform of each digit operand is inherent to the dot product —
+the *left* operand is prepared once (that is what T19 and T25 bought), but the
+right operand is a different digit vector per term, so it must be transformed.
+There is no redundancy left to remove at this level. The allocations
+`dot_prep_chunk_mod_p` makes per term (two 8 KiB `Vec<u64>`, 32 768 per block)
+come to ~3.3 ms, **0.6%** — worth knowing, not worth a candidate.
+
+So the commitment is a butterfly-rate problem, and the only lever left is the
+butterfly itself. That is card 8, the `u32` butterfly probe, which was ranked
+eighth. At 3.03 ns per butterfly on `u64`, a `u32` butterfly that reached half
+that would take ≈ 260 s off the prover: **22%**, four times T11's ceiling.
+
+Card 6 cost one test and found that the seventh card is worth a fifth of what
+its card claimed and the eighth is worth four times. That is the whole argument
+for measuring an instrument's target before ranking on it.
