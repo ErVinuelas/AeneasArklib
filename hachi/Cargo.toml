@@ -241,6 +241,21 @@ needless_range_loop = "allow"
 # `saturating_sub` has no Aeneas model, so it would arrive in
 # `lean/Generated.lean` as an `axiom` and take the case split with it.
 implicit_saturating_sub = "allow"
+# `vec_init_then_push` wants `vec![a]` where the code says `Vec::new()` + `push`.
+# The list form of `vec!` has no Aeneas model (only the repeat form `vec![x; n]`
+# does -- the `aeneas-extract` ceiling table), so the push is the modelled shape.
+vec_init_then_push = "allow"
+# `cast_possible_truncation` wants `u64::try_from(x)` where the code says
+# `x as u64` on a `u128` already reduced below `2^64`. The cast extracts as
+# `UScalar.cast .U64`, whose truncation the spec reasons about directly;
+# `TryFrom` is a trait call with an `Option` to step through, and the proof would
+# have to show it is `Some` before saying anything about the value.
+cast_possible_truncation = "allow"
+# `single_match_else` wants `if let Some(d) = … { } else { }` where the code says
+# `match … { Some(d) => …, None => … }`. Same MIR, but the two named arms are the
+# two cases the equivalence proof splits on (the short fast path and the generic
+# fallback), and the spec reads next to a `match` that names both.
+single_match_else = "allow"
 
 # Naming and documentation opinions this crate does not share.
 #
