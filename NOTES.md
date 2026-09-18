@@ -8230,3 +8230,89 @@ not hot, a pass structure that was not the cost, and a butterfly whose −30%
 became −16.8% at its caller. All four prototypes live in
 `tests/chain_semantics.rs` with their equality assertions, so the next person
 to have any of these ideas re-runs a test instead of re-deriving the argument.
+
+# Stage 6 close-out (2026-09-18)
+
+## What the session did to the pinned instance
+
+Measured end to end at `BLOCKS = 1024`, quiet machine, every run exit 0 with
+`chain_verify = true`, `VmHWM` read in-process at every stage boundary:
+
+| | baseline | after | |
+|---|---|---|---|
+| prover, total | 1267.8 s | **1186.7 s** | −6.4% |
+| peak resident | 12 573 MiB | **5 453 MiB** | **−56.6%** |
+| `honest_compute_resp` + `stack` | 312.5 s | 240.2 s | −23.1% |
+| raw message resident | 8 448 MiB | 4 360 MiB, then dropped before R^lin | |
+| verifier (`chain_verify`) | 28.4 s | 28.9 s | flat |
+
+Two candidates did that. **T29** made the raw message `u32` words, which halved
+the one input the prover holds for the whole protocol and, unexpectedly, made
+every single-pass stage slightly *faster* — halving the input buys more in DRAM
+traffic than 2^30 added `Fp::new` calls cost. **T28** noticed that the carrier
+decomposition was computed three times per honest run and made it once, which
+took 98.5 s off the response stage and, because `chain_open` then stopped
+reading the message at all, ended the message's lifetime before the R^lin
+assembly — so the matrix reuses its pages, the peak stops moving when it is
+built, and the assembly itself fell from 1.8 s to 407 ms.
+
+## What the session did to the queue
+
+Card 6 measured what every remaining card was ranked on, and the ranking did
+not survive it. The commitment is 94% `apply_digits` and 5.8% decomposition,
+not the other way round.
+
+| card | priced at | measured | disposition |
+|---|---|---|---|
+| T29, `u32` carrier | −4 GiB | −4 096 MiB | **landed** |
+| T28, shared carrier | −7% | −7.5% | **landed** |
+| T1b, dense R^lin | −2.2 GiB | peak no longer moves | **retired** |
+| T11, decomposer kernel | ~5.2% | 0.6%, gate fires | **rejected** |
+| T25/C2, `u32` butterfly | 22% → 13% | **7.3%**, largest proof in the queue | **rejected** |
+| T17 Ch. 3, gather | 2–4× | **+22% slower** | **rejected** |
+| T1a, lift high half | ~3% | prototypes slower, unexplained | **deferred** |
+| T30, balanced committer | — | +2.9% to switch | **assessed, decision owed** |
+
+Four cards in a row projected from an operation count and were reversed by a
+measurement of the machine: shifts counted as divisions, a hot path that was
+not hot, a pass structure that was not the cost, a butterfly whose −30% became
+−16.8% at its caller. Every one was prototyped test-side, asserted equal to the
+code it would replace, and rejected **without touching `hachi/src` and without
+a line of proof**. The prototypes are all still in `tests/chain_semantics.rs`
+with their equality assertions, so the next person to have any of these ideas
+re-runs a test instead of re-deriving the argument.
+
+## Is the stop condition met?
+
+Not quite, and where it fails is worth being exact about.
+
+* *Cards 1–9 landed or rejected with rows* — **yes**, all nine have ledger rows.
+* *Pin profile on a quiet machine* — **yes**, four runs, and the instrument now
+  has a control it did not have: a candidate that changes one phase leaves the
+  others as controls, which is what caught a contaminated run at +2.9% on the
+  untouched commitment stage.
+* *No open card worth more than ~3%* — **the rounds are 18.0%** (214 s) and are
+  deferred only by the goal's own 25% rule, and **T1a is at 3.0%**. Nothing
+  else measured is above the line.
+
+So the honest statement is that the queue is exhausted *of cards that are worth
+their proof*, not that nothing is left. The two things above the line are the
+sumcheck rounds, which the goal explicitly deferred, and a lift candidate whose
+ceiling sits exactly on the threshold.
+
+## What is still owed
+
+Unchanged by this session and still real: the composed chain bench row at
+`m₀ = 26` (closes I7), the scaling curve at 64/128/1024 blocks with per-phase
+peak RSS, the un-ignore ceremony (19 of 27 sites), and the compute-bound
+profile control — which this session diagnosed rather than delivered: the
+existing control is allocation-bound and was reading its own allocator history,
+which is why it read +17.2% at 12.5 GiB and +1.3% at 8.5 GiB on the same
+machine with the same code.
+
+And one decision that is not a performance question: **the chain test commits
+with the unsigned decomposer** although Decision 4 makes balanced the public
+Hachi API. Switching costs +2.9% of the prover today, or about +0.4% if T11's
+balanced kernel (measured, −41.8%, worthless on its own because the balanced
+decomposer is not hot) lands with it. That is the one card left whose answer
+changes what is being measured rather than how fast it is.

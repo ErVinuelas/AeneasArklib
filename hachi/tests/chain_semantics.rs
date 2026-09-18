@@ -1655,3 +1655,169 @@ fn the_gather_form_against_its_kill_gate() {
     eprintln!("[t17] the gather agrees with the scatter on all {width} outputs");
     eprintln!("[t17] kill gate: reject if the short path moves < 5%");
 }
+
+// ---------------------------------------------------------------------------
+// Card 10 / T1a: the lift's high half, prototyped before it is proved
+// ---------------------------------------------------------------------------
+//
+// The lifted witness is 70.6 s at the pin, 5.9% of the prover, and it is
+// essentially all `c_row_sum`: five rows, each a sum of `long_mul`s over the
+// nonzero entries of `M`, at `O(N^2)` per product.
+//
+// `div_by_modulus` reads ONLY the high half. Its loop is
+// `quot[k] = rem[k + n]` for `k` from `n-2` down to 0; the leads run over
+// `[n, 2n-2]` and the writes it makes (`rem[k] -= c`) all land below `n`, so
+// the two ranges never meet. `c_quotient` subtracts `y` from the low half
+// only. So the quotient IS the high half of the product sum, with no
+// adjustment at all -- and the low half of every `long_mul`, which is half the
+// schoolbook work, is computed and discarded.
+
+/// `c_quotient`'s value, computing only the half of each product that survives.
+fn c_quotient_high_half(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpoly::field::Fp> {
+    let n = hachi::params::RING_DEGREE;
+    let mut hi: Vec<cpoly::field::Fp> = vec![cpoly::field::Fp::new(0); n];
+    let mut j = 0usize;
+    while j < cols {
+        let a = m_row.get(j);
+        if !a.is_zero() {
+            let b = z.get(j);
+            // coefficients n ..= 2n-2 of a*b, which are quot[0 ..= n-2]
+            let mut t = n;
+            while t < 2 * n - 1 {
+                let mut acc = cpoly::field::Fp::new(0);
+                let mut u = t - n + 1; // u + v = t with both < n
+                while u < n {
+                    acc = acc + a.coeff(u) * b.coeff(t - u);
+                    u += 1;
+                }
+                hi[t - n] = hi[t - n] + acc;
+                t += 1;
+            }
+        }
+        j += 1;
+    }
+    hi
+}
+
+
+/// The same value, traversed the way `long_mul` traverses: `u` ascending, `v`
+/// ascending, writing only where `u + v >= n`. Same triangle, natural order.
+fn c_quotient_high_half_v2(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpoly::field::Fp> {
+    let n = hachi::params::RING_DEGREE;
+    let mut hi: Vec<cpoly::field::Fp> = vec![cpoly::field::Fp::new(0); n];
+    let mut j = 0usize;
+    while j < cols {
+        let a = m_row.get(j);
+        if !a.is_zero() {
+            let b = z.get(j);
+            let mut u = 1usize; // u = 0 contributes nothing to the high half
+            while u < n {
+                let au = a.coeff(u);
+                if au.to_u64() != 0 {
+                    let mut v = n - u;
+                    while v < n {
+                        hi[u + v - n] = hi[u + v - n] + au * b.coeff(v);
+                        v += 1;
+                    }
+                }
+                u += 1;
+            }
+        }
+        j += 1;
+    }
+    hi
+}
+
+
+/// The FAIR high-half prototype: `long_mul`'s own shape -- the antidiagonal
+/// with a `u128` register accumulator and one reduction per output
+/// coefficient -- restricted to the half that survives `div_by_modulus`.
+///
+/// The first two attempts here were not fair and are kept in the history as
+/// the mistake they were: they accumulated in `Fp`, paying a modular reduction
+/// per term, and so compared half the products with a reduction each against
+/// all the products with one reduction per output. That is a comparison of
+/// accumulator strategies, not of triangles.
+fn c_quotient_high_half_v3(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpoly::field::Fp> {
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q as u128;
+    let mut hi: Vec<cpoly::field::Fp> = vec![cpoly::field::Fp::new(0); n];
+    let mut j = 0usize;
+    while j < cols {
+        let a = m_row.get(j);
+        if !a.is_zero() {
+            let b = z.get(j);
+            let mut k = n;
+            while k < 2 * n - 1 {
+                let lo = k + 1 - n;
+                let mut acc: u128 = 0;
+                let mut i = lo;
+                while i < n {
+                    acc += (a.coeff(i).to_u64() as u128) * (b.coeff(k - i).to_u64() as u128);
+                    i += 1;
+                }
+                hi[k - n] = hi[k - n] + cpoly::field::Fp::new((acc % q) as u64);
+                k += 1;
+            }
+        }
+        j += 1;
+    }
+    hi
+}
+
+/// **Card 10's price, measured rather than counted.**
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_lift_high_half_against_the_full_product() {
+    use hachi::ringswitch::{c_quotient, RlinStatement};
+    let cols: usize = std::env::var("HACHI_T1_COLS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(2048);
+    let mut r = Lcg::new(0xC0A1_00A0);
+    // a row with the sparsity `rlin_stmt` actually produces: 43% nonzero
+    let mut entries: Vec<Rq> = Vec::with_capacity(cols);
+    for j in 0..cols {
+        entries.push(if j % 100 < 43 { r.next_poly_vec(1).get(0).copy() } else { Rq::zero() });
+    }
+    let m_row = PolyVec::new(entries);
+    let z = r.next_poly_vec(cols);
+    let yv = PolyVec::new(vec![Rq::zero()]);
+    let s = RlinStatement::new(PolyMatrix::new(vec![m_row.copy()]), yv, 15);
+
+    let t0 = std::time::Instant::now();
+    let want = c_quotient(&s, &z, 0);
+    let d_full = t0.elapsed();
+
+    let t1 = std::time::Instant::now();
+    let got = c_quotient_high_half(&m_row, &z, cols);
+    let d_half = t1.elapsed();
+
+    let n = hachi::params::RING_DEGREE;
+    for k in 0..n - 1 {
+        assert!(
+            got[k].to_u64() == want.coeff(k).to_u64(),
+            "the high-half lift differs from c_quotient at {k}"
+        );
+    }
+    let t2 = std::time::Instant::now();
+    let got2 = c_quotient_high_half_v2(&m_row, &z, cols);
+    let d_half2 = t2.elapsed();
+    for k in 0..n - 1 {
+        assert!(got2[k].to_u64() == want.coeff(k).to_u64(), "v2 differs at {k}");
+    }
+    let t3 = std::time::Instant::now();
+    let got3 = c_quotient_high_half_v3(&m_row, &z, cols);
+    let d_half3 = t3.elapsed();
+    for k in 0..n - 1 {
+        assert!(got3[k].to_u64() == want.coeff(k).to_u64(), "v3 differs at {k}");
+    }
+    eprintln!("[t1a] v3 (fair: u128 accumulator, as long_mul does) {:>8.2?} ({:+.1}%)",
+        d_half3, 100.0 * (d_half3.as_secs_f64() / d_full.as_secs_f64() - 1.0));
+    eprintln!(
+        "[t1a] cols = {cols} (43% nonzero)   full {:>8.2?}   high half {:>8.2?} ({:+.1}%)   v2 {:>8.2?} ({:+.1}%)",
+        d_full, d_half,
+        100.0 * (d_half.as_secs_f64() / d_full.as_secs_f64() - 1.0),
+        d_half2,
+        100.0 * (d_half2.as_secs_f64() / d_full.as_secs_f64() - 1.0)
+    );
+    eprintln!("[t1a] the high half agrees with c_quotient on every quotient coefficient");
+}
