@@ -119,6 +119,36 @@ jobs:
       - name: Make room on the runner
         run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
 
+      # hachi/lakefile.lean requires the Aeneas backend from a `file://` URL: the
+      # 4.33 port is a sibling checkout on the maintainer's machine (the
+      # `require aeneas` comment there says why). The runner has no such
+      # directory, so stand one in at the very same path -- a bare clone of the
+      # public fork that carries the same commit. Lake then clones from the URL
+      # the manifest names, records it verbatim (its "URL has changed" check
+      # compares the recorded remote against the manifest and re-clones on any
+      # mismatch, which rules out a git `insteadOf` rewrite), and checks out the
+      # pinned rev. Nothing in the lakefile or the manifest moves, and the pin
+      # stays the rev: if the fork ever stops serving it, the `cat-file` below
+      # fails before Lake runs, with the missing commit in the message.
+      - name: Stand in for the local aeneas checkout
+        env:
+          AENEAS_MIRROR: https://github.com/ErVinuelas/aeneas.git
+        run: |
+          url=$(jq -r '.packages[] | select(.name=="aeneas") | .url' hachi/lake-manifest.json)
+          rev=$(jq -r '.packages[] | select(.name=="aeneas") | .rev' hachi/lake-manifest.json)
+          case "$url" in
+            file://*) dir=${url#file://} ;;
+            *) echo "aeneas is no longer a file:// require ($url); drop this step." >&2; exit 1 ;;
+          esac
+          sudo mkdir -p "$dir"
+          sudo chown "$(id -u):$(id -g)" "$dir"
+          git clone --quiet --bare "$AENEAS_MIRROR" "$dir"
+          if ! git -C "$dir" cat-file -e "$rev^{commit}"; then
+            echo "error: $AENEAS_MIRROR does not serve the pinned aeneas rev $rev" >&2
+            exit 1
+          fi
+          echo "$url stands in for $AENEAS_MIRROR @ $rev"
+
       - name: Cache elan
         uses: actions/cache@v4
         with:
