@@ -1400,6 +1400,7 @@ pub fn honest_compute_resp_from_raw_32(
     QuadEvalResponse::new(carrier_dec, inner, z_dec)
 }
 
+// @genesis 08d32c3 2026-09-18 — quadeval::honest_compute_v_from_decomp
 // ---------------------------------------------------------------------------
 // FROZEN 2026-09-18 -- candidate T28, the carrier decomposition shared
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
