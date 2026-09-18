@@ -98,7 +98,7 @@ use alloc::vec::Vec;
 
 use cpoly::Ext4;
 
-use crate::linalg::{PolyMatrix, PolyVec, RawVec32};
+use crate::linalg::{PolyMatrix, PolyVec};
 use crate::quadeval::{PolyEvalStatement, PublicParamsD};
 use crate::ringswitch::LiftedWitness;
 use crate::sumcheck::{NestedZeroCheckStmt, RoundMsg, RoundStatement};
@@ -252,7 +252,7 @@ pub fn chain_open(
     pp: &PublicParamsD,
     d_key: &PolyMatrix,
     poly_stmt: &PolyEvalStatement,
-    raw_message: &Vec<RawVec32>,
+    carrier_dec: &PolyVec,
     c: &PolyVec,
     w: &LiftedWitness,
     alpha: Ext4,
@@ -271,11 +271,15 @@ pub fn chain_open(
 
     // row 1, then row 2's message: the carrier commitment.
     let stmt = crate::quadeval::to_quad_eval_statement(poly_stmt);
-    // The RAW message, not the decomposed one: `honest_compute_v_from_raw` needs
-    // no decomposition at all (the gadget round trip inside `carrier_entry`
-    // cancels against it), so the honest prover never builds the 68.7 GiB
-    // `Decomp.message`. See `quadeval::carrier_from_raw`.
-    let v: PolyVec = crate::quadeval::honest_compute_v_from_raw_32(pp, &stmt, raw_message);
+    // The carrier decomposition arrives computed (candidate T28). `v = D · ŵ`
+    // and the response's carrier slot are the SAME `ŵ`, and at the pin it costs
+    // 98.7 s, so the composed prover takes it rather than paying for it a
+    // second time. The message itself is no longer read here at all -- the
+    // decomposition is built from the RAW blocks by
+    // `quadeval::carrier_decomp_from_raw_32`, which needs no gadget arithmetic
+    // (the round trip inside `carrier_entry` cancels against it), so the honest
+    // prover still never builds the 68.7 GiB `Decomp.message`.
+    let v: PolyVec = crate::quadeval::honest_compute_v_from_decomp(pp.d_matrix(), carrier_dec);
 
     // row 3, the statement the rounds are computed against.
     let rlin = crate::quadeval::rlin_stmt(

@@ -1,0 +1,42 @@
+# Pin profile at BLOCKS = 1024, card 3 instrumentation: VmHWM AND VmRSS
+#   at every stage boundary, dense_eval hoisted OUT of the timed region,
+#   and the dead raw message dropped before the profile body (the
+#   2026-09-18 run was OOM-killed at 16.93 GiB holding 8 GiB nobody read).
+# Label: T28: the carrier decomposition computed ONCE and shared by v and the response; chain_open takes it instead of the message, so the raw message dies inside the fixture
+# quiet: idle=99% sustained over 3 samples
+# started 2026-09-18T17:22:12+02:00 load 2.85 2.08 1.50 1/1906 1550782
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 504.0ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   377.9s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   935.0s] +   551.3s  peak   4599 live   4472 MiB  committed 1024 block(s)
+[   935.7s] +  736.6ms  peak   4599 live   4472 MiB  statement built
+[  1036.2s] +   100.5s  peak   4599 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[  1037.4s] +     1.3s  peak   4599 live   4497 MiB  honest_compute_v_from_decomp
+[  1280.3s] +   242.9s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[  1282.2s] +     1.8s  peak   8540 live   8539 MiB  R^lin statement assembled: 5 x 57344
+[  1282.2s] +   50.0ns  peak   8540 live   8539 MiB  M zeta = y SKIPPED (not prover work)
+[  1352.9s] +    70.8s  peak   8541 live   8541 MiB  lifted witness built, lift width 57384
+[  1353.0s] ---------  peak   8540 live   8532 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 415.5ms
+[profile] lift_commit: 17.9s
+[profile] c_w_table_mle at 2^26: 805.9ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 11.2s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 213.8s
+[profile] honest_compute_y: 2.5s
+[profile] verifier: rlin_stmt + statement thread: 405.2ms
+[profile] verifier: round_verify_loop (26 rounds): 40.9µs
+[profile] verifier: final_check = true: 6.5s
+[profile] verifier: end_piece_check = true: 20.4s
+[profile] chain_verify (whole) = true: 28.0s
+[profile] control (frozen genesis PolyVec::zeros x50): 534.3ms
+[profile] control spread within run: +6.0%  (recenter cross-run deltas by the level)
+[  1656.3s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 1656.75s
+
+# exit 0 at 2026-09-18T17:49:49+02:00

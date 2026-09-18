@@ -225,11 +225,15 @@ fn run(cm: &Common, tr: &Transcript) -> bool {
 
 fn open(cm: &Common, raw: &Vec<RawVec32>) -> Transcript {
     let s = &TOY;
+    // the carrier decomposition, once (candidate T28): `chain_open` takes it
+    // rather than rebuilding it for `v`
+    let stmt = hachi::quadeval::to_quad_eval_statement(&cm.poly_stmt);
+    let carrier_dec = hachi::quadeval::carrier_decomp_from_raw_32(stmt.avec(), raw);
     let (v, t, msgs, y_prime) = chain_open(
         &cm.pp,
         &cm.d_key,
         &cm.poly_stmt,
-        raw,
+        &carrier_dec,
         &cm.c,
         &cm.w,
         cm.alpha,
@@ -490,7 +494,7 @@ struct PinInstance {
     pp: PublicParamsD,
     d_key: PolyMatrix,
     poly_stmt: PolyEvalStatement,
-    raw: Vec<RawVec32>,
+    carrier_dec: PolyVec,
     c: PolyVec,
     w: LiftedWitness,
     v: PolyVec,
@@ -628,13 +632,27 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let tau1: Vec<Ext4> = (0..m1).map(|_| ext4(&mut r)).collect();
     let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
 
-    // the honest QuadEval side: `v`, the response, its stacking
-    let v = hachi::quadeval::honest_compute_v_from_raw_32(&pp, &stmt, &raw);
-    stage!("honest_compute_v_from_raw");
+    // the honest QuadEval side: the carrier decomposition ONCE (candidate T28),
+    // then `v = D w-hat` and the response from it, then the stacking. Before
+    // T28 this stage computed the carrier three times at the pin -- here, in
+    // the response, and again inside `chain_open` -- at 98.7 s each.
+    let carrier_dec = hachi::quadeval::carrier_decomp_from_raw_32(stmt.avec(), &raw);
+    stage!("carrier_decomp_from_raw (shared by v and the response)");
+    let v = hachi::quadeval::honest_compute_v_from_decomp(pp.d_matrix(), &carrier_dec);
+    stage!("honest_compute_v_from_decomp");
     let resp =
-        hachi::quadeval::honest_compute_resp_from_raw_32(&stmt, &raw, &inner_decomp, &c);
+        hachi::quadeval::honest_compute_resp_from_raw_32(&carrier_dec, &raw, &inner_decomp, &c);
     let zeta = hachi::quadeval::stack(&resp);
     stage!("honest_compute_resp + stack");
+    // The message is DEAD here, and this is the earliest it ever has been.
+    // Its three readers are the commitment, the carrier decomposition and
+    // `honest_z` -- all above -- and since candidate T28 `chain_open` takes the
+    // decomposition instead of the message, so nothing below reads it either.
+    // It is dropped rather than left to `pin_instance`'s scope because the
+    // R^lin assembly happens in between, and 4.3 GiB of dead message underneath
+    // a 3.0 GiB matrix is what set the peak.
+    drop(raw);
+    stage!("raw message dropped (dead from here: T28 removed its last reader)");
     let rlin = hachi::quadeval::rlin_stmt(
         &pp,
         &stmt,
@@ -674,7 +692,7 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let d_key = r.next_poly_matrix(1, lift_cols);
     stage!("lifted witness built, lift width {lift_cols}");
 
-    PinInstance { pp, d_key, poly_stmt, raw, c, w, v, alpha, tau0, tau1, challenges }
+    PinInstance { pp, d_key, poly_stmt, carrier_dec, c, w, v, alpha, tau0, tau1, challenges }
 }
 
 
@@ -724,7 +742,7 @@ fn the_honest_chain_verifies() {
         &inst.pp,
         &inst.d_key,
         &inst.poly_stmt,
-        &inst.raw,
+        &inst.carrier_dec,
         &inst.c,
         &inst.w,
         inst.alpha,
@@ -841,21 +859,21 @@ fn the_honest_chain_profile() {
     let m0 = hachi::params::M_ZERO;
     let ctl_before = profile_control(50);
     eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_before:.1?}");
-    let mut inst = pin_instance(blocks, &t0, false);
-    // The verifier never reads the raw message, and neither does anything below
-    // -- `inst.raw` is dead the moment `pin_instance` returns, yet it is 8 GiB
-    // at the pin and was held live through the whole profile body. That is what
-    // the 2026-09-18 run died of: the OOM killer took it at 16.93 GiB inside
+    // The raw message is gone before this point, and no longer by an explicit
+    // `drop`: candidate T28 gave `chain_open` the carrier decomposition instead
+    // of the message, so nothing after `pin_instance` reads the message and its
+    // lifetime ends inside the fixture. It used to be held live through the
+    // whole profile body -- 8 GiB before T29, 4.3 after -- which is what the
+    // 2026-09-18 run died of, the OOM killer taking it at 16.93 GiB inside
     // `chain_verify (whole)`, which rebuilds the R^lin matrix and both 2^26
-    // tables on top of a raw message nobody was going to read.
-    drop(std::mem::take(&mut inst.raw));
+    // tables on top of a message nobody was going to read.
+    let inst = pin_instance(blocks, &t0, false);
     eprintln!(
-        "[{:>9.1?}] ---------  peak {:>6} live {:>6} MiB  raw message dropped (dead here)",
+        "[{:>9.1?}] ---------  peak {:>6} live {:>6} MiB  raw message already dead (T28)",
         t0.elapsed(),
         peak_rss_mib(),
         live_rss_mib()
     );
-    let inst = inst;
     let stmt = hachi::quadeval::to_quad_eval_statement(&inst.poly_stmt);
 
     let t1 = Instant::now();

@@ -912,12 +912,12 @@ example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
   chain.chain_verify pp d_key poly_stmt v c t alpha tau0 tau1 msgs challenges y_prime w
     gamma b mr md ir idg zd
 example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
-    (poly_stmt : quadeval.PolyEvalStatement) (message : alloc.vec.Vec linalg.RawVec32)
+    (poly_stmt : quadeval.PolyEvalStatement) (carrier_dec : linalg.PolyVec)
     (c : linalg.PolyVec) (w : ringswitch.LiftedWitness) (alpha : cpoly.field.Ext4)
     (tau0 tau1 challenges : alloc.vec.Vec cpoly.field.Ext4) (gamma : Std.U64)
     (b mr md ir idg zd : Std.Usize) :
     Result (linalg.PolyVec × linalg.PolyVec × alloc.vec.Vec sumcheck.RoundMsg × cpoly.field.Ext4) :=
-  chain.chain_open pp d_key poly_stmt message c w alpha tau0 tau1 challenges gamma
+  chain.chain_open pp d_key poly_stmt carrier_dec c w alpha tau0 tau1 challenges gamma
     b mr md ir idg zd
 
 -- The commitment layer. `verify_weak` returning a `Bool` inside `Result` is the
@@ -1500,13 +1500,38 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_eq
 #print axioms HachiEquiv.Raw32.honest_z_from_raw_32_loop1_eq
 #print axioms HachiEquiv.Raw32.honest_z_from_raw_32_eq
-#print axioms HachiEquiv.Raw32.honest_compute_resp_from_raw_32_eq
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_32_spec
+-- Candidate T28: the carrier decomposition computed ONCE. `ŵ = G⁻¹(a · raw)`
+-- is what `v = D ŵ` needs and it is also the response's carrier slot, and both
+-- were computing it -- 98.7 s each at the pin, measured on the profile, and a
+-- third time inside `chain_open`, which recomputed `v`. Now the caller computes
+-- it once and hands it to both; `chain_open` takes it and reads the message not
+-- at all.
+--
+-- What moves in the statements is a PREMISE, never a conclusion: from "`raw`
+-- decomposes to `wo.message`" to "`carrier_dec` IS the carrier decomposition of
+-- `wo.message`". `carrier_decomp_from_raw_32_spec` turns the first into the
+-- second, so composing the two recovers the old hypotheses exactly and nothing
+-- is weakened. `honest_compute_resp_from_raw_32_spec` in fact loses a
+-- hypothesis, `RepStmt stmt ss`: the only thing the response used the statement
+-- for was the carrier it no longer computes.
+--
+-- One casualty, recorded rather than hidden: T29's
+-- `honest_compute_resp_from_raw_32_eq` is GONE. It said that item was its `_64`
+-- original on a re-carriered message, and that stopped being true the moment
+-- the item took the decomposition instead of computing it -- the statement no
+-- longer typechecks. Its specification is now proved directly, from
+-- `honest_z_from_raw_32_eq` (still exactly T29's shape) plus the supplied
+-- decomposition. The lesson is that an equality-to-the-old-item proof is only
+-- as durable as the signature it is stated at, which is the price of inheriting
+-- a specification instead of re-deriving it.
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_decomp_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_decomp_honest
 
 -- The honest lift prover (`lean/LiftProver.lean`), the chain's last item to be
 -- translated and Stage 4's last proof debt, paid 2026-09-11: the unreduced row sum against

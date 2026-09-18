@@ -288,8 +288,7 @@ represents), `lift_commit_spec`'s, `honest_round_messages_spec`'s and
 `honest_compute_y_spec`'s, with the width bound discharged by `rlin_dims_fit`. -/
 theorem chain_open_spec {M m₁ dRows : ℕ}
     (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
-    (poly_stmt : quadeval.PolyEvalStatement)
-    (raw32 : alloc.vec.Vec linalg.RawVec32) (raw : alloc.vec.Vec linalg.PolyVec)
+    (poly_stmt : quadeval.PolyEvalStatement) (carrier_dec : linalg.PolyVec)
     (c : linalg.PolyVec) (w : ringswitch.LiftedWitness) (alpha : cpoly.field.Ext4)
     (tau0 tau1 challenges : alloc.vec.Vec cpoly.field.Ext4) (gamma : Std.U64)
     (b mr md ir idg zd : Std.Usize)
@@ -298,14 +297,16 @@ theorem chain_open_spec {M m₁ dRows : ℕ}
     (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
     (sw : InnerOuter.LiftedWitness Φ μR nR)
     (hpp : RepParamsD pp sp) (hps : RepPolyEval poly_stmt ps)
-    -- the RAW blocks now: `chain_open` decomposes internally, so the honest
-    -- prover never holds `Decomp.message` -- and holds them as `u32` words, so
-    -- `raw` is the message `raw32` denotes rather than a second input
-    (hex : Raw32.ExpandsTo raw32 raw)
-    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ Scheme.dd
-            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
-          = wo.message)
-    (hWm : WfBlocks (2 ^ 10) (2 ^ 10) raw)
+    -- The carrier decomposition, not the message (candidate T28). `v = D w-hat`
+    -- and the response's carrier slot are the same `w-hat`, so the composed
+    -- prover takes it rather than computing it a second time -- and then reads
+    -- the message not at all. The premise that used to tie `raw` to
+    -- `wo.message` is now the one that ties `carrier_dec` to it, and
+    -- `carrier_decomp_from_raw_32_spec` turns the former into the latter, so
+    -- composing the two recovers this theorem's old hypotheses exactly.
+    (hWcd : WfVec (2 ^ 10 * 8) carrier_dec)
+    (hcd : toVec (k := 2 ^ 10 * 8) carrier_dec
+      = Hachi.carrierDecomp Φ ddBal (InnerOuter.toQuadEvalStatement Φ ps).avec wo.message)
     (hc : WfVec (2 ^ 10) c)
     (hcn : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
     (hw : RepLiftedWitness w sw) (ha : Reduced alpha)
@@ -313,7 +314,7 @@ theorem chain_open_spec {M m₁ dRows : ℕ}
     (hD : WfMat dRows (μR + nR * 8) d_key) (hm0 : 2 ^ (M + 1) ≤ Usize.max)
     (hb : b.val = 2 ^ 10) (hmr : mr.val = 2 ^ 10) (hmd : md.val = 8)
     (hir : ir.val = 1) (hidg : idg.val = 8) (hzd : zd.val = 5) :
-    chain.chain_open pp d_key poly_stmt raw32 c w alpha tau0 tau1 challenges gamma
+    chain.chain_open pp d_key poly_stmt carrier_dec c w alpha tau0 tau1 challenges gamma
         b mr md ir idg zd
       ⦃ out =>
         let ss := InnerOuter.toQuadEvalStatement Φ ps
@@ -333,8 +334,10 @@ theorem chain_open_spec {M m₁ dRows : ℕ}
   have hm0v : (alloc.vec.Vec.len tau0).val = M + 1 := by simpa using h0.1
   rw [chain.chain_open]
   step with to_quad_eval_statement_spec poly_stmt ps hps as ⟨stmt, hstmt⟩
-  step with honest_compute_v_from_raw_32_spec pp stmt raw32 raw sp
-    (InnerOuter.toQuadEvalStatement Φ ps) wo hex hpp hstmt hm hWm as ⟨v, hvW, hvV⟩
+  -- `pp.d_matrix()` goes through the accessor, which is `ok` on the field
+  simp only [quadeval.PublicParamsD.impl.d_matrix, bind_tc_ok]
+  step with honest_compute_v_from_decomp_honest pp carrier_dec sp
+    (InnerOuter.toQuadEvalStatement Φ ps) wo hpp hWcd hcd as ⟨v, hvW, hvV⟩
   step with rlin_stmt_spec pp stmt v c gamma b mr md ir idg zd sp
     (InnerOuter.toQuadEvalStatement Φ ps) hpp hstmt hvW hc hcn hb hmr hmd hir hidg hzd
     as ⟨rlin, hrlin⟩

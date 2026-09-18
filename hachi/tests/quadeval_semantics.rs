@@ -956,3 +956,60 @@ fn carrier_from_raw_agrees_with_carrier() {
         assert!(got.get(i).equals(want.get(i)), "streamed carrier differs at block {i}");
     }
 }
+
+/// **Sharing the carrier decomposition changes nothing** (candidate T28).
+///
+/// `honest_compute_v_from_raw_32` computed `ŵ = G⁻¹(a · raw)` internally and
+/// `honest_compute_resp_from_raw_32` computed it again; at the pin that second
+/// pass cost 98.7 s. Now the caller computes it once and hands it to both. The
+/// two things that could go wrong are an operand mix-up (`ŵ` is the *balanced*
+/// decomposition of the carrier, not the unsigned one, and the two are
+/// different vectors) and an aliasing mistake in the copy the response takes.
+/// So this compares the shared path against the old self-contained one, on both
+/// outputs, at a width where a swapped decomposition would show.
+#[test]
+fn sharing_the_carrier_decomposition_leaves_v_and_the_response_unchanged() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS};
+    let mut rng = support::Lcg::new(0x7283);
+    let blocks = 3usize;
+    let raw: Vec<RawVec32> = (0..blocks)
+        .map(|_| RawVec32::compact(&rng.next_poly_vec(MESSAGE_ROWS)))
+        .collect();
+    let a = rng.next_poly_vec(MESSAGE_ROWS);
+    let d_matrix = rng.next_poly_matrix(1, MESSAGE_ROWS * GADGET_DIGITS);
+    let c = rng.next_poly_vec(blocks);
+    let inner_decomp: Vec<hachi::linalg::PolyVec> =
+        (0..blocks).map(|_| rng.next_poly_vec(GADGET_DIGITS)).collect();
+
+    // the shared value, computed once
+    let carrier_dec = hachi::quadeval::carrier_decomp_from_raw_32(&a, &raw);
+
+    // `v`: through the shared value, against `carrier_commit_from_raw_32`,
+    // which is the self-contained path the composed prover used before
+    let v_shared = hachi::quadeval::honest_compute_v_from_decomp(&d_matrix, &carrier_dec);
+    let v_alone = hachi::quadeval::carrier_commit_from_raw_32(&d_matrix, &a, &raw);
+    assert_eq!(v_shared.len(), v_alone.len(), "v has the same width either way");
+    for i in 0..v_alone.len() {
+        assert!(v_shared.get(i).equals(v_alone.get(i)), "v differs at {i}");
+    }
+
+    // the response's carrier slot is that same vector, verbatim
+    let resp = hachi::quadeval::honest_compute_resp_from_raw_32(
+        &carrier_dec,
+        &raw,
+        &inner_decomp,
+        &c,
+    );
+    assert_eq!(
+        resp.carrier_dec().len(),
+        carrier_dec.len(),
+        "the response's carrier slot has the shared value's width"
+    );
+    for i in 0..carrier_dec.len() {
+        assert!(
+            resp.carrier_dec().get(i).equals(carrier_dec.get(i)),
+            "the response's carrier slot differs from the shared value at {i}"
+        );
+    }
+}

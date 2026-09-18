@@ -7931,3 +7931,104 @@ indexing step as its own `have` so the rewrite cannot escape it. The second:
 `congr 1` on a `do`-block is fragile, and the loop calls sit under binders, so
 a plain `rw` cannot reach them; the robust shape is a `have hL : ∀ prep, …`
 followed by `simp only [hL]`, which rewrites under the binder.
+
+## Candidate T28: one carrier decomposition, not three (2026-09-18)
+
+`ŵ = G⁻¹(a · raw)` is the carrier decomposition. `v = D ŵ` needs it, and it is
+also the response's carrier slot — the same vector, in the same prover session,
+computed from the same message. Both computed it. And `chain_open` recomputed
+`v`, so at the pin the honest prover paid for it **three times**.
+
+The profile had been showing this all along and I had read it as two stages
+rather than as one value:
+
+```
+[   1036.2s] +   100.5s   carrier_decomp_from_raw (shared by v and the response)
+[   1037.4s] +     1.3s   honest_compute_v_from_decomp
+```
+
+That is the old `honest_compute_v_from_raw` stage, 98.7 s, split into its two
+parts: the carrier at 100.5 s and the matrix-vector product at 1.3 s. 99% of
+"computing `v`" was computing something the response was about to compute again.
+
+### The shape
+
+`quadeval::honest_compute_v_from_decomp(d_matrix, carrier_dec)` is
+`mat_vec_mul` and nothing else; `honest_compute_resp_from_raw_32` takes
+`carrier_dec` instead of computing it; `chain_open` takes it too, in place of
+the message. None of these three carries a criterion row or appears in a
+`define_cases!` body, so unlike T29 they could all change **in place** — no
+`_alongside` duplication. The check that made that safe is worth naming,
+because it is the same check that forced T29's shape and it is cheap to run:
+grep the bench bodies for the item, not just the case list.
+
+A consequence, not a side effect: `chain_open` no longer reads the message at
+all. Its last reader is the response, and the message is 4.3 GiB.
+
+### What it cost to prove
+
+What moves in the statements is a **premise, never a conclusion**: from "`raw`
+decomposes to `wo.message`" to "`carrier_dec` IS the carrier decomposition of
+`wo.message`". `carrier_decomp_from_raw_32_spec` turns the first into the
+second, so composing the two recovers the old hypotheses exactly — which is the
+argument that this is a scheduling change and not a protocol one.
+`honest_compute_resp_from_raw_32_spec` in fact *loses* a hypothesis,
+`RepStmt stmt ss`: the only thing the response ever used the statement for was
+the carrier it no longer computes.
+
+One casualty, and it is the interesting part. T29's
+`honest_compute_resp_from_raw_32_eq` is **gone**. It said that item was its
+`_64` original on a re-carriered message, and that stopped being true the moment
+the item took the decomposition instead of computing it — the statement does not
+even typecheck any more. The specification is now proved directly, from
+`honest_z_from_raw_32_eq` (still exactly T29's shape) plus the supplied
+decomposition. The lesson: an equality-to-the-old-item proof is only as durable
+as the signature it is stated at. That is the price of inheriting a
+specification rather than re-deriving it, and it is worth paying — T29's eight
+equalities cost a fraction of what re-deriving eight consumers would have — but
+the price is real and this is what it looks like.
+
+### What it bought
+
+| stage | T29 | T28 | Δ |
+|---|---|---|---|
+| commitment — **untouched by T28, so a control** | 535.6 s | 541.0 s | +1.0% |
+| the old `v` stage, now split in two | 98.7 s | 98.2 + 1.3 s | +0.8% |
+| `honest_compute_resp` + `stack` | 338.7 s | **240.2 s** | **−29.1%** |
+| R^lin assembly | 1.8 s | **407 ms** | −77% |
+| 26 rounds | 216.1 s | 214.0 s | −1.0% |
+| `chain_verify` (whole) | 28.0 s | 28.9 s | +3.2% |
+| **prover total** | 1282.3 s | **1186.7 s** | **−7.5%** |
+| **peak `VmHWM`** | 8477 MiB | **5453 MiB** | **−3024 MiB, −35.7%** |
+
+Two of those deserve a word.
+
+The **R^lin assembly fell 1.8 s → 407 ms** without being touched. It is the
+same 3.0 GiB of matrix; what changed is that the message's pages were freed
+moments earlier, so the allocator hands them back instead of faulting in three
+gigabytes of new ones. Four times faster for a reason that has nothing to do
+with the code, and a reminder that at this scale the page table is part of the
+measurement.
+
+And **the profile now has a control.** Plan rule 9 says it has none — but a
+candidate that changes one phase leaves every other phase as a control, and the
+commitment stage moved +1.0% between these two runs. That is not a general fix
+(a candidate touching everything still has nothing) and it does not discharge
+the owed compute-bound control, but it is the first thing to read on any
+partial candidate, and it is free.
+
+Cumulative across T29 and T28 against the Stage 6 baseline: prover
+1267.8 → 1186.7 s, and peak **12573 → 5453 MiB, −56.6%**.
+
+### A process failure, recorded
+
+Run 1 of the T28 profile is **mildly contaminated**: I ran `make build` while it
+was in flight, which the ground rules forbid for exactly this reason. It is
+detectable rather than a matter of trust, because T28 does not touch the
+commitment stage, so that stage is a built-in control — it read **551.3 s
+against 535.6 s, +2.9%**, and the end-of-run control spread was +6.0% against
++1.3% on the clean T29 run. The effect being measured is ~96 s on a ~340 s
+stage, thirty times the contamination, so run 1's *conclusion* was never in
+doubt; its *figures* were, which is why run 2 was taken clean. Third time this
+session that touching the machine during a measurement has cost a run, and the
+first time the instrument caught it by itself.

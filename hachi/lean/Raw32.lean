@@ -610,25 +610,17 @@ theorem honest_z_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
   rw [quadeval.honest_z_from_raw_32, quadeval.honest_z_from_raw, hex.len_eq]
   simp only [honest_z_loop0_eq, hL]
 
-theorem honest_compute_resp_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
-    {raw : alloc.vec.Vec linalg.PolyVec} (stmt : quadeval.QuadEvalStatement)
-    (inner_decomp : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
-    (hex : ExpandsTo raw32 raw) :
-    quadeval.honest_compute_resp_from_raw_32 stmt raw32 inner_decomp c
-      = quadeval.honest_compute_resp_from_raw stmt raw inner_decomp c := by
-  have hD : ∀ pv : linalg.PolyVec,
-      quadeval.carrier_decomp_from_raw_32 pv raw32
-        = quadeval.carrier_decomp_from_raw pv raw :=
-    fun pv => carrier_decomp_from_raw_32_eq pv hex
-  rw [quadeval.honest_compute_resp_from_raw_32, quadeval.honest_compute_resp_from_raw]
-  simp only [hD, honest_z_from_raw_32_eq c hex, resp_inner_loop_eq]
+-- `honest_compute_resp_from_raw_32_eq` lived here until candidate T28 changed
+-- that item's signature: it now takes the carrier decomposition instead of
+-- computing it, so it is no longer the `_64` item on a re-carriered message and
+-- the equality no longer even typechecks. Its specification is proved directly
+-- in `QuadEvalProtocol.lean`, from `honest_z_from_raw_32_eq` -- which is still
+-- exactly this shape -- plus the supplied decomposition.
+/-! ## The inherited specification
 
-/-! ## The inherited specifications
-
-Each is its `_64` original's statement, with `ExpandsTo` naming the message the
-compact carrier holds. The proof is the equality above composed with the
-original -- so these are not new claims about the arithmetic, they are the old
-claims, reached through a different carrier. -/
+`commit_streamed_32`'s, composed from the equality above and the original. The
+other six consumers' are in `QuadEvalProtocol.lean`, beside the specifications
+they inherit. -/
 
 /-- **`commit_streamed_32` commits the message its words denote.** -/
 theorem commit_streamed_32_spec (pp : commit.PublicParams)

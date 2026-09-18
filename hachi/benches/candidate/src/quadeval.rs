@@ -518,14 +518,35 @@ pub fn honest_compute_v_from_raw_32(
     carrier_commit_from_raw_32(pp.d_matrix(), stmt.avec(), raw)
 }
 
-/// [`honest_compute_resp_from_raw`] over the compact raw carrier.
+/// `v = D · ŵ` from a carrier decomposition computed **once** (candidate T28).
+///
+/// [`honest_compute_v_from_raw_32`] and [`honest_compute_resp_from_raw_32`] both
+/// need `ŵ = G⁻¹(a · raw)`, and at the paper's parameters that carrier costs
+/// **98.7 s** measured on the pin profile. Computing it in each of them paid it
+/// twice. This item is the second half of the split: the caller computes `ŵ`
+/// once with [`carrier_decomp_from_raw_32`] and hands it to both.
+///
+/// `ŵ` is a private prover intermediate -- 8192 `Rq` = 64 MiB at the pin, held
+/// across the two calls. It never reaches the wire, so the transcript is
+/// unchanged, which is why this is a scheduling change and not a protocol one.
+pub fn honest_compute_v_from_decomp(d_matrix: &PolyMatrix, carrier_dec: &PolyVec) -> PolyVec {
+    d_matrix.mat_vec_mul(carrier_dec)
+}
+
+/// [`honest_compute_resp_from_raw`] over the compact raw carrier, with the
+/// carrier decomposition supplied rather than recomputed (candidate T28).
+///
+/// `carrier_dec` is `ŵ = G⁻¹(a · raw)`, which the caller already needs for
+/// `v` -- see [`honest_compute_v_from_decomp`]. It arrives as an argument
+/// because computing it here as well cost a second 98.7 s pass over the
+/// message at the pin. `raw` is still read, for `honest_z`.
 pub fn honest_compute_resp_from_raw_32(
-    stmt: &QuadEvalStatement,
+    carrier_dec: &PolyVec,
     raw: &Vec<linalg::RawVec32>,
     inner_decomp: &Vec<PolyVec>,
     c: &PolyVec,
 ) -> QuadEvalResponse {
-    let carrier_dec: PolyVec = carrier_decomp_from_raw_32(stmt.avec(), raw);
+    let carrier_dec: PolyVec = carrier_dec.copy();
     let z: PolyVec = honest_z_from_raw_32(raw, c);
     let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
     let mut inner: Vec<PolyVec> = Vec::new();

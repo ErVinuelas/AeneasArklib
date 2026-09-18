@@ -1883,27 +1883,94 @@ theorem honest_compute_v_from_raw_32_spec (pp : quadeval.PublicParamsD)
   rw [Raw32.honest_compute_v_from_raw_32_eq pp stmt hex]
   exact honest_compute_v_from_raw_spec pp stmt raw sp ss wo hpp hst hm hWraw
 
-/-- **`honest_compute_resp_from_raw_32` computes `honestComputeResp`.** -/
-theorem honest_compute_resp_from_raw_32_spec (stmt : quadeval.QuadEvalStatement)
+/-! ### The carrier decomposition, computed once (candidate T28)
+
+`honest_compute_v_from_raw_32` computed `ŵ = G⁻¹(a · raw)` and
+`honest_compute_resp_from_raw_32` computed it again; at the pin that second pass
+is 98.7 s. Both now take it. The specifications below are what makes that a
+scheduling change rather than a protocol one: the *conclusions* are the ones
+above, and what moves is a premise -- from "`raw` decomposes to `wo.message`" to
+"`carrier_dec` IS the carrier decomposition of `wo.message`", which
+`carrier_decomp_from_raw_32_spec` discharges from the former. Nothing is
+weakened: composing the two recovers the old premise set exactly. -/
+
+/-- `honest_compute_v_from_decomp` is the matrix-vector product, and nothing
+else -- which is the content of the split. -/
+theorem honest_compute_v_from_decomp_spec (d_matrix : linalg.PolyMatrix)
+    (carrier_dec : linalg.PolyVec) (hWd : WfMat 1 (2 ^ 10 * 8) d_matrix)
+    (hWc : WfVec (2 ^ 10 * 8) carrier_dec) :
+    quadeval.honest_compute_v_from_decomp d_matrix carrier_dec
+      ⦃ out => WfVec 1 out ∧ toVec (k := 1) out
+        = ArkLib.Lattices.matVecMul
+            (toMat (rows := 1) (cols := 2 ^ 10 * 8) d_matrix)
+            (toVec (k := 2 ^ 10 * 8) carrier_dec) ⦄ := by
+  rw [quadeval.honest_compute_v_from_decomp]
+  exact mat_vec_mul_spec (rows := 1) (cols := 2 ^ 10 * 8) d_matrix carrier_dec hWd hWc
+
+/-- **and at the carrier decomposition it is `honestComputeV`** -- the round-0
+message, unchanged, from a value the prover already had. This is what
+`chain_open` steps through. -/
+theorem honest_compute_v_from_decomp_honest (pp : quadeval.PublicParamsD)
+    (carrier_dec : linalg.PolyVec)
+    (sp : Hachi.PublicParamsD Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hpp : RepParamsD pp sp) (hWc : WfVec (2 ^ 10 * 8) carrier_dec)
+    (hcd : toVec (k := 2 ^ 10 * 8) carrier_dec
+      = Hachi.carrierDecomp Φ ddBal ss.avec wo.message) :
+    quadeval.honest_compute_v_from_decomp pp.d_matrix carrier_dec
+      ⦃ out => WfVec 1 out ∧
+        toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
+  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
+  apply spec_mono (honest_compute_v_from_decomp_spec pp.d_matrix carrier_dec hWpd hWc)
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hcd, hpd, InnerOuter.honestComputeV, Hachi.carrierCommit, Simple.commit]
+
+/-- **`honest_compute_resp_from_raw_32` computes `honestComputeResp`** -- with
+the carrier decomposition supplied. `honest_compute_resp_from_raw_spec`'s
+conclusion word for word; `stmt` has left the statement entirely, because the
+only thing the response used it for was the carrier it no longer computes. -/
+theorem honest_compute_resp_from_raw_32_spec (carrier_dec : linalg.PolyVec)
     (raw32 : alloc.vec.Vec linalg.RawVec32)
     (raw inner_decomp : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
     (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
     (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
     (hex : Raw32.ExpandsTo raw32 raw)
     (hc : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
-    (hst : RepStmt stmt ss)
+    (hWcd : WfVec (2 ^ 10 * 8) carrier_dec)
+    (hcd : toVec (k := 2 ^ 10 * 8) carrier_dec
+      = Hachi.carrierDecomp Φ ddBal ss.avec wo.message)
     (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
             (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
           = wo.message)
     (hi : toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner_decomp = wo.innerDecomp)
     (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw)
     (hWi : WfBlocks (2 ^ 10) (1 * 8) inner_decomp) (hWc : WfVec (2 ^ 10) c) :
-    quadeval.honest_compute_resp_from_raw_32 stmt raw32 inner_decomp c
+    quadeval.honest_compute_resp_from_raw_32 carrier_dec raw32 inner_decomp c
       ⦃ out => RepResp out
         (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
-  rw [Raw32.honest_compute_resp_from_raw_32_eq stmt inner_decomp c hex]
-  exact honest_compute_resp_from_raw_spec stmt raw inner_decomp c ss wo hc hst hm hi
-    hWraw hWi hWc
+  rw [quadeval.honest_compute_resp_from_raw_32]
+  step with poly_vec_copy_spec (k := 2 ^ 10 * 8) carrier_dec hWcd as ⟨cdec, hCwf, hCval⟩
+  step with honest_z_from_raw_32_spec raw32 raw c wo hex hc hm hWraw hWc as ⟨zz, hZwf, hZval⟩
+  step with QuadEval.bounded_z_gadget_decompose_spec (rows := 2 ^ 10 * 8) zz hZwf (by scalar_tac)
+    as ⟨zdec, hDwf, hDval⟩
+  rw [Raw32.resp_inner_loop_eq]
+  step with honest_compute_resp_from_raw_loop_spec (blocks := 2 ^ 10) (width := 1 * 8)
+    inner_decomp (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWi (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro j hj; simp at hj)
+    as ⟨inner, hIlen, hIwf, hIval⟩
+  rw [quadeval.QuadEvalResponse.new, WP.spec_ok]
+  refine ⟨hCwf, ⟨hIlen, hIwf⟩, hDwf, ?_, ?_, ?_⟩
+  · show toVec (k := 2 ^ 10 * 8) cdec = Hachi.carrierDecomp Φ ddBal ss.avec wo.message
+    rw [hCval, hcd]
+  · show toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner = wo.innerDecomp
+    rw [← hi]
+    funext j
+    exact hIval j.val j.isLt
+  · show toVec (k := 2 ^ 10 * 8 * 5) zdec
+      = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
+    rw [hDval, hZval, Hachi.zDecompBounded]
 
 /-! ## The two output relations
 
