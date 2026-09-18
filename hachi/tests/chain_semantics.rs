@@ -422,6 +422,19 @@ struct PinInstance {
 /// ("Correction: 144 s of the \"chain\" profile is a test assertion").
 #[allow(clippy::too_many_lines)]
 fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> PinInstance {
+    // Two clocks, deliberately: `t0` is cumulative, so a run that takes an hour
+    // shows progress, and `last` is per stage, so a line can be *attributed*.
+    // Printing only the cumulative figure here made these lines read exactly
+    // like the per-stage deltas the profile body below reports -- which is how
+    // 23 minutes of `dense_eval` were once read as prover time.
+    let mut last = std::time::Instant::now();
+    macro_rules! stage {
+        ($($arg:tt)*) => {{
+            eprintln!("[{:>9.1?}] +{:>9.1?}  {}", t0.elapsed(), last.elapsed(),
+                format_args!($($arg)*));
+            last = std::time::Instant::now();
+        }};
+    }
     let mut r = Lcg::new(0xC0A1_0050);
     let message_rows = hachi::params::MESSAGE_ROWS;
     let message_digits = hachi::params::GADGET_DIGITS;
@@ -447,15 +460,24 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     // `honest_compute_resp_from_raw` both work from `raw`.
     let (u, inner_decomp) = hachi::commit::commit_streamed(&inner, &raw);
     let pp = PublicParamsD::new(inner, d_matrix);
-    eprintln!("[{:>9.1?}] committed {blocks} block(s)", t0.elapsed());
+    stage!("committed {blocks} block(s)");
 
-    // the claim: a true evaluation at a drawn point
+    // the claim: a true evaluation at a drawn point.
+    //
+    // `dense_eval` is SCAFFOLDING and gets its own line for that reason: it is
+    // the test evaluating the message polynomial itself so that the statement
+    // it hands the prover is a true one, `blocks * rows * popcount(j)` ring
+    // multiplications -- about 5.2 MILLION `Rq::mul` at the pin. No prover
+    // optimization touches it, and bundling it into a prover milestone is the
+    // same defect as the `M zeta = y` assertion this function's docstring
+    // records, which was fixed by gating rather than by labelling.
     let xl = r.next_poly_vec(XL_VARS);
     let xh = r.next_poly_vec(XH_VARS);
     let y = dense_eval(&raw, &xl, &xh);
+    stage!("dense_eval (TEST SCAFFOLDING, not prover work)");
     let poly_stmt = PolyEvalStatement::new(u, xl, xh, y);
     let stmt = hachi::quadeval::to_quad_eval_statement(&poly_stmt);
-    eprintln!("[{:>9.1?}] statement built", t0.elapsed());
+    stage!("statement built");
 
     // the wire's challenges: one short ring element per block (`honest_z`
     // folds block `i` against `c.get(i)`; the 64-block run of 2026-09-15 found
@@ -468,11 +490,11 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
 
     // the honest QuadEval side: `v`, the response, its stacking
     let v = hachi::quadeval::honest_compute_v_from_raw(&pp, &stmt, &raw);
-    eprintln!("[{:>9.1?}] honest_compute_v_from_raw done", t0.elapsed());
+    stage!("honest_compute_v_from_raw");
     let resp =
         hachi::quadeval::honest_compute_resp_from_raw(&stmt, &raw, &inner_decomp, &c);
     let zeta = hachi::quadeval::stack(&resp);
-    eprintln!("[{:>9.1?}] honest_compute_resp + stack done", t0.elapsed());
+    stage!("honest_compute_resp + stack");
     let rlin = hachi::quadeval::rlin_stmt(
         &pp,
         &stmt,
@@ -487,12 +509,7 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
         z_digits,
     );
     assert_eq!(zeta.len(), rlin.m().cols(), "the stacked witness has rlinCols entries");
-    eprintln!(
-        "[{:>9.1?}] R^lin statement assembled: {} x {}",
-        t0.elapsed(),
-        rlin.m().rows(),
-        rlin.m().cols()
-    );
+    stage!("R^lin statement assembled: {} x {}", rlin.m().rows(), rlin.m().cols());
 
     // relOut ⇒ rlin: the stacked honest response solves the assembled system
     if check_relout {
@@ -500,9 +517,9 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
             rlin.m().mat_vec_mul(&zeta).equals(rlin.yvec()),
             "the honest stacked response must solve the assembled R^lin system"
         );
-        eprintln!("[{:>9.1?}] M zeta = y holds", t0.elapsed());
+        stage!("M zeta = y holds (TEST ASSERTION, not prover work)");
     } else {
-        eprintln!("[{:>9.1?}] M zeta = y SKIPPED (not protocol work)", t0.elapsed());
+        stage!("M zeta = y SKIPPED (not prover work)");
     }
 
     // the honest lift: `w = (zeta, rho)` by synthetic division
@@ -515,7 +532,7 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
         "the cube must cover the lifted witness (hcov)"
     );
     let d_key = r.next_poly_matrix(1, lift_cols);
-    eprintln!("[{:>9.1?}] lifted witness built, lift width {lift_cols}", t0.elapsed());
+    stage!("lifted witness built, lift width {lift_cols}");
 
     PinInstance { pp, d_key, poly_stmt, raw, c, w, v, alpha, tau0, tau1, challenges }
 }

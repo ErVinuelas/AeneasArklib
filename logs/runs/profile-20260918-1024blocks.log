@@ -1,0 +1,58 @@
+# Phase D reprofile, second attempt: 1024 blocks, with the attribution fixed.
+# pin_instance now prints cumulative AND per-stage, and dense_eval has its
+#   own line labelled as scaffolding -- the defect that made the 09-17
+#   attempt unreadable (23 min of dense_eval read as prover time).
+# The 2-block run of the fixed profile (360 s total) already gives the
+#   split: block-linear ~1290 s extrapolated to 1024, fixed ~295 s, so
+#   block-linear is ~81% and the rounds are 221 s and NOT the majority.
+#   This run is to confirm that extrapolation at the real instance.
+# Expect dense_eval ~1950 s of the wall clock: scaffolding, subtract it.
+# quiet: idle=96%
+# started 2026-09-18T10:29:31+02:00
+warning: value assigned to `last` is never read
+   --> tests/chain_semantics.rs:435:13
+    |
+435 |             last = std::time::Instant::now();
+    |             ^^^^
+...
+535 |     stage!("lifted witness built, lift width {lift_cols}");
+    |     ------------------------------------------------------ in this macro invocation
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+    = note: this warning originates in the macro `stage` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `hachi` (test "chain_semantics") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 596.2ms
+test the_honest_chain_profile has been running for over 60 seconds
+[   566.0s] +   565.4s  committed 1024 block(s)
+[  2426.3s] +  1860.3s  dense_eval (TEST SCAFFOLDING, not prover work)
+[  2427.0s] +  703.1ms  statement built
+[  2526.4s] +    99.4s  honest_compute_v_from_raw
+[  5728.1s] +  3201.8s  honest_compute_resp + stack
+[  5730.3s] +     2.2s  R^lin statement assembled: 5 x 57344
+[  5730.3s] +   80.0ns  M zeta = y SKIPPED (not prover work)
+[  5832.8s] +   102.5s  lifted witness built, lift width 57384
+[profile] rlin_stmt (verifier assembles it too): 602.5ms
+[profile] lift_commit: 24.5s
+[profile] c_w_table_mle at 2^26: 983.9ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 18.0s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 296.3s
+[profile] honest_compute_y: 3.8s
+[profile] verifier: rlin_stmt + statement thread: 584.1ms
+[profile] verifier: round_verify_loop (26 rounds): 76.8µs
+[profile] verifier: final_check = true: 8.0s
+[profile] verifier: end_piece_check = true: 26.7s
+[profile] chain_verify (whole) = true: 36.7s
+[profile] control (frozen genesis PolyVec::zeros x50): 642.9ms
+[profile] control spread within run: +7.8%  (recenter cross-run deltas by the level)
+[  6251.0s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6251.86s
+
+# exit 0 at 2026-09-18T12:13:43+02:00
