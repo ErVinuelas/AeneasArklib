@@ -7762,3 +7762,172 @@ and can be 16 shifted adds instead of a ring product. The plan's "~64×" is
 `1024/16`, i.e. against the *schoolbook*; post-NTT the comparison is 16 shifted
 adds against ~92 000 butterflies, which is still large but is a different
 number and is not quoted here because it has not been measured.
+
+## Candidate T29: the raw message as `u32` words, and the two lemmas nobody needed before (2026-09-18)
+
+The raw message is the one input the honest prover keeps resident for the whole
+protocol. At the paper's parameters it is `BLOCKS · MESSAGE_ROWS · RING_DEGREE`
+field elements = 2^30 of them, and `Fp` is a `u64`, so **8 GiB** — measured, not
+computed: the baseline pin profile reads `peak 8448 MiB` at the first stage
+boundary, and 8448 − 8192 = 256 MiB is the `Vec` headers of 2^20 `Rq`s plus
+allocator rounding.
+
+It does not need to be a `u64`. Every coefficient of a well-formed `Rq` is a
+canonical residue below `q = 2^32 − 99`, so a `u32` holds it **exactly**. That
+is the whole idea, and the interesting part is what it costs.
+
+### The measurement, and what it did not cost
+
+At the same stage boundary, same instrumentation, same block count, quiet
+machine, control 500.6 ms against the baseline's 496.8 ms:
+
+| stage | baseline | T29 | Δ time | peak MiB |
+|---|---|---|---|---|
+| `dense_eval` (scaffolding, untimed) | 369.5 s | 366.3 s | −0.9% | 8448 → **4360** |
+| commitment, 1024 blocks | 545.4 s | 535.6 s | **−1.8%** | 8688 → 4600 |
+| statement built | 704.4 ms | 701.1 ms | −0.5% | |
+| `honest_compute_v_from_raw` | 99.4 s | 98.7 s | −0.7% | 8688 → 4600 |
+| `honest_compute_resp` + `stack` | 312.5 s | 338.7 s | **+8.4%** | 9485 → 5389 |
+| R^lin assembled | 1.9 s | 1.8 s | | 12572 → 8475 |
+| lifted witness | 70.6 s | 70.4 s | −0.3% | 12573 → **8477** |
+| `lift_commit` | 18.0 s | 17.9 s | −0.6% | |
+| 26 rounds | 216.7 s | 216.1 s | −0.3% | |
+| `chain_verify` (whole) | 28.4 s | 28.0 s | −1.4% | |
+| **peak `VmHWM`** | **12573 MiB** | **8477 MiB** | | **−4096 MiB, −32.6%** |
+| control spread within run | +17.2% | **+1.3%** | | |
+
+−4096 MiB, exactly the halving. Both runs exit 0 with `chain_verify = true`, on
+a quiet machine, controls 496.8 and 500.6 ms.
+
+Three of those numbers are worth more than the headline.
+
+**The commitment got *faster*.** It now expands every block before decomposing
+it — 2^30 `Fp::new` calls it did not make before — and still came in 1.8% under
+the baseline, because its input is half the bytes. At this scale the DRAM
+traffic it saves is worth more than the modular reductions it adds. The same
+holds for `dense_eval`, `honest_compute_v`, the rounds and the verifier: every
+other stage is flat or slightly better.
+
+**`honest_compute_resp` is 8.4% slower**, and it is the one stage that is. The
+reason is structural, not incidental: it makes *two* full passes over the
+message — `carrier_decomp_from_raw_32` and `honest_z_from_raw_32` — so it pays
+the expansion twice, and neither pass is as heavy per block as the commitment's
+decompose-and-apply. Net effect on the prover is +2.1% against −32.6% peak. It
+is recorded rather than optimized here because **T28 deletes one of those two
+passes** (the carrier decomposition is computed twice at the pin, once for `v`
+and once for the response, 99.4 s of pure duplication) — the regression sits
+exactly where the next card operates.
+
+**The control spread fell from +17.2% to +1.3%.** Same instrument, same
+machine, same control (`PolyVec::zeros × 50`, measured before and after the
+protocol), and the only difference is that the process now peaks at 8.5 GiB
+instead of 12.5. That is as close to a controlled experiment as this profile
+will ever get, and it settles a question the baseline run had left open: the
+17.2% was the control reading its own allocator history, not the machine being
+noisy. Stage figures had already reproduced across runs to 0.05%, which was the
+first clue; this is the confirmation. The § 5 compute-bound control is a
+correctness fix to the instrument, not a nicety.
+
+### Nothing computes in the compact representation
+
+`RawRq32::expand` is the only way out of it, and each `_32` consumer expands one
+block per iteration and drops it. `Rq(Vec<Fp>)` is not replaced anywhere else —
+this is a carrier for the *message*, not a change of the ring's representation,
+and the docstring says so because the next reader's first instinct will be to
+push it further.
+
+Two shapes were forced rather than chosen:
+
+* **`_32` alongside, not in place.** `commit_streamed`, `honest_z_from_raw` and
+  `carrier_from_raw` all carry criterion rows, and `define_cases!` instantiates
+  one bench body against three crates, so a benched item's signature cannot
+  change. Seven consumers are also genesis-frozen. So the `_32` items are
+  additions and the `_64` items stay.
+* **`chain_open` changes in place**, because it is *excluded* from benching
+  (`benches/exclusions.toml`) and therefore has no row pinning its signature.
+  The alternative, a `chain_open_32`, would have duplicated the composed honest
+  prover and owed a second spec for no gain.
+
+And one thing the work order had missed: adding the items is not the change.
+Nothing called them. The delta only reaches the peak when the *fixture* holds
+the compact form — compacting one block at a time, so the wide form is never
+built at all — and when `chain_open` takes it, because that is what the
+acceptance test routes through.
+
+### The proof: an equality, not a re-derivation
+
+The `_32` and `_64` loop bodies differ by exactly one inserted
+`let block ← RawVec32.expand rv`; the inner loops are byte-identical. So each
+`_32` item is proved **equal to the item it replaces**, on the message its words
+denote (`Raw32.ExpandsTo`), and its specification is the original's — inherited.
+Composed with the `_64` spec it gives the same conclusion in the same
+vocabulary, and it is the honest shape, because "the compact carrier changes
+nothing" is what the change asserts. No arithmetic appears in any of the eight
+equality proofs, which is the point.
+
+Two general tools made that cheap, and both are worth keeping:
+
+* `eq_ok_of_spec` — **a deterministic postcondition is an equation.** `theta`
+  sends `fail` and `div` to `False`, so `m ⦃ fun z => z = a ⦄` already rules
+  both out and gives `m = ok a`. This is what lets a proof *rewrite* with
+  extracted functions instead of stepping through them, and it turns every
+  existing `@[step]` spec into an equation on demand.
+* `loop_congr` — `loop` is an ordinary `def` of its body and its initial state,
+  so bodies equal pointwise give equal loops. It is `congrArg` wearing a hat,
+  and it replaces an induction with a `funext` and a case split on the guard.
+
+### What was genuinely new: two representation-level lemmas
+
+The losslessness claim — `expand ∘ compact = id` — is an equality of extracted
+*values*, and that is a strictly stronger thing than the equality of
+denotations every other proof in this repository needs. Two facts had to be
+proved that the arithmetic had never asked for:
+
+* **`from_coeffs_id`**: on an input already of the ring's own length,
+  `Rq::from_coeffs` is the *identity*. `Ring.lean`'s `from_coeffs_spec` says
+  only that the `coeffK`s agree, which is all any arithmetic wants; the round
+  trip needs the list back unchanged, and gets it because the loop pushes the
+  input's entries verbatim.
+* **`fp_new_id`**: `Fp::new` is the identity on a word already reduced.
+  `fp_new_spec` says the result is `Red` and denotes `v`; the round trip needs
+  `v % P = v`.
+
+### The side condition is one the operands already carried
+
+The narrowing in `compact` is **fallible in the extracted model** —
+`lift (UScalar.cast .U32 …)`, which was the ceiling-probe finding — and its
+side condition is `x.val ≤ UScalar.max .U32`. The coefficient is reduced, so
+`x.val < q = 2^32 − 99 < 2^32`: the condition is exactly `Field.Red`, which
+every `Wf` operand carries already. That is what makes the carrier admissible
+under the "totality over preconditions" rule. No statement was weakened to
+accept it, and no new hypothesis appears on any inherited spec except
+`ExpandsTo`, which names the message rather than constraining it — `expand` is
+total, so such a message always exists, and `rawvec32_round_trip` produces it
+for a compacted one.
+
+The widening in `expand` is fallible in the model too (`lift`, not `ok`), which
+corrects the ceiling table's earlier row: a widening cast is `lift` here, and
+`UScalar.cast_inBounds_spec` discharges it from the source type's own bound.
+
+### What it cost to prove
+
+`lean/Raw32.lean`, 640 lines: 24 theorems, `make build` green, zero `sorry`,
+zero new axioms, and every one of the 24 depends on exactly
+`[propext, Classical.choice, Quot.sound]`. The extraction is unchanged-stable
+(`make extract` reports `unchanged` on a re-run) with 0 `axiom` lines, and every
+new loop state is a 2-tuple.
+
+The eight equality proofs contain no arithmetic at all — each is: discharge the
+two indexes, rewrite the one `expand` with the `ExpandsTo` hypothesis, and let
+the identical remainder close by reflexivity. `chain_open_spec` changed by three
+lines: one parameter, one hypothesis, one swapped `step`. Its conclusion did not
+move, which is the seventh time in Stage 6 that an implementation changed
+without its specification changing.
+
+Two mistakes worth recording, because both are about *scoping a rewrite*. The
+first: `rw [← hl1]` to turn an index into a list length also rewrote the index
+on the right-hand side, where it had no business — the fix is to prove the
+indexing step as its own `have` so the rewrite cannot escape it. The second:
+`congr 1` on a `do`-block is fragile, and the loop calls sit under binders, so
+a plain `rw` cannot reach them; the robust shape is a `have hL : ∀ prep, …`
+followed by `simp only [hL]`, which rewrites under the binder.

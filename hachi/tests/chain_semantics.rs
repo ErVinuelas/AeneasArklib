@@ -66,7 +66,7 @@ mod support;
 
 use cpoly::Ext4;
 use hachi::chain::{chain_open, chain_verify};
-use hachi::linalg::{PolyMatrix, PolyVec};
+use hachi::linalg::{PolyMatrix, PolyVec, RawVec32};
 use hachi::params::CHAIN_GAMMA;
 use hachi::quadeval::{PolyEvalStatement, PublicParamsD};
 use hachi::ring::Rq;
@@ -223,7 +223,7 @@ fn run(cm: &Common, tr: &Transcript) -> bool {
     )
 }
 
-fn open(cm: &Common, raw: &Vec<PolyVec>) -> Transcript {
+fn open(cm: &Common, raw: &Vec<RawVec32>) -> Transcript {
     let s = &TOY;
     let (v, t, msgs, y_prime) = chain_open(
         &cm.pp,
@@ -271,8 +271,8 @@ fn chain_open_produces_the_messages_the_verifier_reads() {
     let cm = common(0xC0A1_0030);
     let mut r = Lcg::new(0xC0A1_0031);
     // the RAW width: `chain_open` decomposes internally now
-    let raw: Vec<PolyVec> = (0..s.blocks)
-        .map(|_| r.next_poly_vec(s.message_rows))
+    let raw: Vec<RawVec32> = (0..s.blocks)
+        .map(|_| RawVec32::compact(&r.next_poly_vec(s.message_rows)))
         .collect();
 
     let tr = open(&cm, &raw);
@@ -310,8 +310,8 @@ fn an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only() {
     let s = &TOY;
     let cm = common(0xC0A1_0040);
     let mut r = Lcg::new(0xC0A1_0041);
-    let raw: Vec<PolyVec> = (0..s.blocks)
-        .map(|_| r.next_poly_vec(s.message_rows))
+    let raw: Vec<RawVec32> = (0..s.blocks)
+        .map(|_| RawVec32::compact(&r.next_poly_vec(s.message_rows)))
         .collect();
     let tr = open(&cm, &raw);
 
@@ -379,7 +379,7 @@ fn short_challenge_rq(index: usize, weight: u64, mag: u64) -> Rq {
 /// taken from `to_quad_eval_statement`'s bases, so the bridge is under test too.
 /// At one block the `xl` product is empty and this is the original single-block
 /// evaluation.
-fn dense_eval(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
+fn dense_eval(blocks: &[RawVec32], xl: &PolyVec, xh: &PolyVec) -> Rq {
     // `y = Σᵢ wl(i) · Σⱼ Mᵢⱼ · wh(j)`, with `wl(i) = Π_{b ∈ bits(i)} xl[b]` and
     // likewise `wh`. The nested form this replaces recomputed each of those
     // products from scratch for every `(i, j)` -- `blocks · rows · popcount(j)`
@@ -410,7 +410,10 @@ fn dense_eval(blocks: &[PolyVec], xl: &PolyVec, xh: &PolyVec) -> Rq {
     let high_mask = (1usize << xh.len()) - 1;
 
     let mut acc = Rq::zero();
-    for (i, f) in blocks.iter().enumerate() {
+    for i in 0..blocks.len() {
+        // one block expanded, read, and dropped: the scaffolding does not get
+        // to hold the 8 GiB form the prover no longer holds either
+        let f: PolyVec = blocks[i].expand();
         let mut block = Rq::zero();
         for j in 0..f.len() {
             block = block.add(&f.get(j).mul(&wh[j & high_mask]));
@@ -460,7 +463,10 @@ fn dense_eval_agrees_with_the_nested_form() {
         let xl = r.next_poly_vec(nl);
         let xh = r.next_poly_vec(nh);
         let want = nested(&m, &xl, &xh);
-        let got = dense_eval(&m, &xl, &xh);
+        // compacted for the call under test, so the `u32` round trip is inside
+        // the comparison rather than assumed alongside it
+        let mc: Vec<RawVec32> = m.iter().map(RawVec32::compact).collect();
+        let got = dense_eval(&mc, &xl, &xh);
         assert!(
             got.equals(&want),
             "dense_eval disagrees at blocks={nb} rows={rows} |xl|={nl} |xh|={nh}"
@@ -484,7 +490,7 @@ struct PinInstance {
     pp: PublicParamsD,
     d_key: PolyMatrix,
     poly_stmt: PolyEvalStatement,
-    raw: Vec<PolyVec>,
+    raw: Vec<RawVec32>,
     c: PolyVec,
     w: LiftedWitness,
     v: PolyVec,
@@ -505,6 +511,36 @@ struct PinInstance {
 /// `the_honest_chain_verifies`, and that test still runs it; the profile's job
 /// is to time protocol phases. Recorded as owed in NOTES 2026-09-16
 /// ("Correction: 144 s of the \"chain\" profile is a test assertion").
+/// The kernel's own high-water mark for this process, in MiB.
+///
+/// `/usr/bin/time` is not installed on this machine, and a peak has to be read
+/// from inside the process anyway. `VmHWM` is monotone, so a per-stage line
+/// reports the high-water mark *as of* that boundary, which is what a wall
+/// claim needs: the maximum over the run is the last one.
+fn rss_mib(field: &str) -> u64 {
+    let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix(field) {
+            let kib: u64 = rest.trim().trim_end_matches(" kB").trim().parse().unwrap_or(0);
+            return kib / 1024;
+        }
+    }
+    0
+}
+
+/// The high-water mark: monotone, so a stage line reports the peak *as of* that
+/// boundary and the last line is the peak over the run. This is the figure a
+/// wall claim is made against.
+fn peak_rss_mib() -> u64 {
+    rss_mib("VmHWM:")
+}
+
+/// The live resident set. Reported beside the peak because the peak cannot go
+/// down: without it, freeing 8 GiB is invisible in the trace.
+fn live_rss_mib() -> u64 {
+    rss_mib("VmRSS:")
+}
+
 #[allow(clippy::too_many_lines)]
 fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> PinInstance {
     // Two clocks, deliberately: `t0` is cumulative, so a run that takes an hour
@@ -518,7 +554,8 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let last = std::cell::Cell::new(std::time::Instant::now());
     macro_rules! stage {
         ($($arg:tt)*) => {{
-            eprintln!("[{:>9.1?}] +{:>9.1?}  {}", t0.elapsed(), last.get().elapsed(),
+            eprintln!("[{:>9.1?}] +{:>9.1?}  peak {:>6} live {:>6} MiB  {}",
+                t0.elapsed(), last.get().elapsed(), peak_rss_mib(), live_rss_mib(),
                 format_args!($($arg)*));
             last.set(std::time::Instant::now());
         }};
@@ -542,27 +579,38 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let d_matrix = r.next_poly_matrix(1, cw);
 
     // the message: `blocks` blocks of `message_rows` coefficients, committed
-    let raw: Vec<PolyVec> = (0..blocks).map(|_| r.next_poly_vec(message_rows)).collect();
+    // Compacted one block at a time (T29): the `Vec<PolyVec>` form is 8 GiB at
+    // the pin and is never built -- `r.next_poly_vec` output lives for exactly
+    // as long as `RawVec32::compact` needs to read it.
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(message_rows))).collect();
     // the STREAMED committer: the 68.7 GiB `Decomp.message` is never built, and
     // nothing below needs it -- `honest_compute_v_from_raw` and
     // `honest_compute_resp_from_raw` both work from `raw`.
-    let (u, inner_decomp) = hachi::commit::commit_streamed(&inner, &raw);
-    let pp = PublicParamsD::new(inner, d_matrix);
-    stage!("committed {blocks} block(s)");
-
-    // the claim: a true evaluation at a drawn point.
+    // The claim, computed BEFORE the timed region and reported outside it.
     //
-    // `dense_eval` is SCAFFOLDING and gets its own line for that reason: it is
-    // the test evaluating the message polynomial itself so that the statement
-    // it hands the prover is a true one, `blocks * rows * popcount(j)` ring
-    // multiplications -- about 5.2 MILLION `Rq::mul` at the pin. No prover
-    // optimization touches it, and bundling it into a prover milestone is the
-    // same defect as the `M zeta = y` assertion this function's docstring
-    // records, which was fixed by gating rather than by labelling.
+    // `dense_eval` is scaffolding: the test evaluating the message polynomial
+    // itself so that the statement handed to the prover is a true one. It needs
+    // only `raw`, not the commitment, so it is hoisted above the clock and the
+    // stage stamp is reset after it -- it is now outside the timed region
+    // rather than merely labelled inside it. Same defect class as the
+    // `M zeta = y` assertion this docstring records, and now the same remedy.
+    let untimed = std::time::Instant::now();
     let xl = r.next_poly_vec(XL_VARS);
     let xh = r.next_poly_vec(XH_VARS);
     let y = dense_eval(&raw, &xl, &xh);
-    stage!("dense_eval (TEST SCAFFOLDING, not prover work)");
+    eprintln!(
+        "[  untimed ] +{:>9.1?}  peak {:>6} live {:>6} MiB  dense_eval (SCAFFOLDING, outside the timed region)",
+        untimed.elapsed(),
+        peak_rss_mib(),
+        live_rss_mib()
+    );
+    last.set(std::time::Instant::now());
+
+    let (u, inner_decomp) = hachi::commit::commit_streamed_32(&inner, &raw);
+    let pp = PublicParamsD::new(inner, d_matrix);
+    stage!("committed {blocks} block(s)");
+
     let poly_stmt = PolyEvalStatement::new(u, xl, xh, y);
     let stmt = hachi::quadeval::to_quad_eval_statement(&poly_stmt);
     stage!("statement built");
@@ -581,10 +629,10 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     let challenges: Vec<Ext4> = (0..m0).map(|_| ext4(&mut r)).collect();
 
     // the honest QuadEval side: `v`, the response, its stacking
-    let v = hachi::quadeval::honest_compute_v_from_raw(&pp, &stmt, &raw);
+    let v = hachi::quadeval::honest_compute_v_from_raw_32(&pp, &stmt, &raw);
     stage!("honest_compute_v_from_raw");
     let resp =
-        hachi::quadeval::honest_compute_resp_from_raw(&stmt, &raw, &inner_decomp, &c);
+        hachi::quadeval::honest_compute_resp_from_raw_32(&stmt, &raw, &inner_decomp, &c);
     let zeta = hachi::quadeval::stack(&resp);
     stage!("honest_compute_resp + stack");
     let rlin = hachi::quadeval::rlin_stmt(
@@ -793,7 +841,21 @@ fn the_honest_chain_profile() {
     let m0 = hachi::params::M_ZERO;
     let ctl_before = profile_control(50);
     eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_before:.1?}");
-    let inst = pin_instance(blocks, &t0, false);
+    let mut inst = pin_instance(blocks, &t0, false);
+    // The verifier never reads the raw message, and neither does anything below
+    // -- `inst.raw` is dead the moment `pin_instance` returns, yet it is 8 GiB
+    // at the pin and was held live through the whole profile body. That is what
+    // the 2026-09-18 run died of: the OOM killer took it at 16.93 GiB inside
+    // `chain_verify (whole)`, which rebuilds the R^lin matrix and both 2^26
+    // tables on top of a raw message nobody was going to read.
+    drop(std::mem::take(&mut inst.raw));
+    eprintln!(
+        "[{:>9.1?}] ---------  peak {:>6} live {:>6} MiB  raw message dropped (dead here)",
+        t0.elapsed(),
+        peak_rss_mib(),
+        live_rss_mib()
+    );
+    let inst = inst;
     let stmt = hachi::quadeval::to_quad_eval_statement(&inst.poly_stmt);
 
     let t1 = Instant::now();

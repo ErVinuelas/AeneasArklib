@@ -98,7 +98,7 @@ use alloc::vec::Vec;
 
 use cpoly::Ext4;
 
-use crate::linalg::{PolyMatrix, PolyVec};
+use crate::linalg::{PolyMatrix, PolyVec, RawVec32};
 use crate::quadeval::{PolyEvalStatement, PublicParamsD};
 use crate::ringswitch::LiftedWitness;
 use crate::sumcheck::{NestedZeroCheckStmt, RoundMsg, RoundStatement};
@@ -252,7 +252,7 @@ pub fn chain_open(
     pp: &PublicParamsD,
     d_key: &PolyMatrix,
     poly_stmt: &PolyEvalStatement,
-    raw_message: &Vec<PolyVec>,
+    raw_message: &Vec<RawVec32>,
     c: &PolyVec,
     w: &LiftedWitness,
     alpha: Ext4,
@@ -275,7 +275,7 @@ pub fn chain_open(
     // no decomposition at all (the gadget round trip inside `carrier_entry`
     // cancels against it), so the honest prover never builds the 68.7 GiB
     // `Decomp.message`. See `quadeval::carrier_from_raw`.
-    let v: PolyVec = crate::quadeval::honest_compute_v_from_raw(pp, &stmt, raw_message);
+    let v: PolyVec = crate::quadeval::honest_compute_v_from_raw_32(pp, &stmt, raw_message);
 
     // row 3, the statement the rounds are computed against.
     let rlin = crate::quadeval::rlin_stmt(

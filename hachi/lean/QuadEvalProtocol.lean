@@ -57,6 +57,7 @@ once: `innerRows = 1`, `messageRows = 2^10 = 1024`, `messageDigits = 8`,
 never goals.
 -/
 import QuadEval
+import Raw32
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -1795,7 +1796,117 @@ theorem honest_compute_resp_from_raw_spec (stmt : quadeval.QuadEvalStatement)
       = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
     rw [hDval, hZval, Hachi.zDecompBounded]
 
+
+/-! ## The compact raw carrier
+
+`Raw32.lean` proves each `_32` consumer *equal* to the item above it on the
+message its words denote, so each specification here is the corresponding one
+above, inherited. The carrier halves the resident raw message -- 8448 MiB to
+4360 MiB, measured at the pin -- and changes no value. -/
+
+/-- **`carrier_from_raw_32` is `carrier` at the message its words denote.** -/
+theorem carrier_from_raw_32_spec {rows blocks : ℕ} (a : linalg.PolyVec)
+    (raw32 : alloc.vec.Vec linalg.RawVec32) (raw : alloc.vec.Vec linalg.PolyVec)
+    (hex : Raw32.ExpandsTo raw32 raw) (ha : WfVec rows a)
+    (hraw : WfBlocks blocks rows raw) (hmax : rows * N ≤ Std.Usize.max) :
+    quadeval.carrier_from_raw_32 a raw32
+      ⦃ out => WfVec blocks out ∧ toVec (k := blocks) out
+        = Hachi.carrier Φ (16 : ZMod q) (toVec (k := rows) a)
+            (fun i : Fin blocks => gadgetDecompose Φ dd
+              (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [Raw32.carrier_from_raw_32_eq a hex]
+  exact carrier_from_raw_spec (rows := rows) (blocks := blocks) a raw ha hraw hmax
+
+/-- The raw-message carrier decomposition, over the compact carrier. -/
+theorem carrier_decomp_from_raw_32_spec (a : linalg.PolyVec)
+    (raw32 : alloc.vec.Vec linalg.RawVec32) (raw : alloc.vec.Vec linalg.PolyVec)
+    (hex : Raw32.ExpandsTo raw32 raw)
+    (hWa : WfVec (2 ^ 10) a) (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.carrier_decomp_from_raw_32 a raw32
+      ⦃ out => WfVec (2 ^ 10 * 8) out ∧
+        toVec (k := 2 ^ 10 * 8) out
+          = Hachi.carrierDecomp Φ ddBal (toVec (k := 2 ^ 10) a)
+              (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+                (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [Raw32.carrier_decomp_from_raw_32_eq a hex]
+  exact carrier_decomp_from_raw_spec a raw hWa hWraw
+
+/-- The raw-message carrier commitment, over the compact carrier. -/
+theorem carrier_commit_from_raw_32_spec (d_matrix : linalg.PolyMatrix) (a : linalg.PolyVec)
+    (raw32 : alloc.vec.Vec linalg.RawVec32) (raw : alloc.vec.Vec linalg.PolyVec)
+    (hex : Raw32.ExpandsTo raw32 raw)
+    (hWd : WfMat 1 (2 ^ 10 * 8) d_matrix) (hWa : WfVec (2 ^ 10) a)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.carrier_commit_from_raw_32 d_matrix a raw32
+      ⦃ out => WfVec 1 out ∧
+        toVec (k := 1) out
+          = Hachi.carrierCommit Φ (toMat (rows := 1) (cols := 2 ^ 10 * 8) d_matrix) ddBal
+              (toVec (k := 2 ^ 10) a)
+              (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+                (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [Raw32.carrier_commit_from_raw_32_eq d_matrix a hex]
+  exact carrier_commit_from_raw_spec d_matrix a raw hWd hWa hWraw
+
+/-- **`honest_z_from_raw_32` computes `honestZ`.** -/
+theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
+    (raw : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hex : Raw32.ExpandsTo raw32 raw)
+    (hc : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) (hWc : WfVec (2 ^ 10) c) :
+    quadeval.honest_z_from_raw_32 raw32 c
+      ⦃ out => WfVec (2 ^ 10 * 8) out ∧
+        toVec (k := 2 ^ 10 * 8) out = InnerOuter.honestZ Φ wo (toChals c hc) ⦄ := by
+  rw [Raw32.honest_z_from_raw_32_eq c hex]
+  exact honest_z_from_raw_spec raw c wo hc hm hWraw hWc
+
+/-- **`honest_compute_v_from_raw_32` computes `honestComputeV`** -- what
+`chain_open` calls, over the carrier the prover actually holds. -/
+theorem honest_compute_v_from_raw_32_spec (pp : quadeval.PublicParamsD)
+    (stmt : quadeval.QuadEvalStatement) (raw32 : alloc.vec.Vec linalg.RawVec32)
+    (raw : alloc.vec.Vec linalg.PolyVec)
+    (sp : Hachi.PublicParamsD Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hex : Raw32.ExpandsTo raw32 raw)
+    (hpp : RepParamsD pp sp) (hst : RepStmt stmt ss)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
+    quadeval.honest_compute_v_from_raw_32 pp stmt raw32
+      ⦃ out => WfVec 1 out ∧
+        toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
+  rw [Raw32.honest_compute_v_from_raw_32_eq pp stmt hex]
+  exact honest_compute_v_from_raw_spec pp stmt raw sp ss wo hpp hst hm hWraw
+
+/-- **`honest_compute_resp_from_raw_32` computes `honestComputeResp`.** -/
+theorem honest_compute_resp_from_raw_32_spec (stmt : quadeval.QuadEvalStatement)
+    (raw32 : alloc.vec.Vec linalg.RawVec32)
+    (raw inner_decomp : alloc.vec.Vec linalg.PolyVec) (c : linalg.PolyVec)
+    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
+    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
+    (hex : Raw32.ExpandsTo raw32 raw)
+    (hc : ∀ i : Fin (2 ^ 10), Rq.l1Norm Φ (toVec (k := 2 ^ 10) c i) ≤ 16)
+    (hst : RepStmt stmt ss)
+    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
+            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
+          = wo.message)
+    (hi : toBlocks (blocks := 2 ^ 10) (width := 1 * 8) inner_decomp = wo.innerDecomp)
+    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw)
+    (hWi : WfBlocks (2 ^ 10) (1 * 8) inner_decomp) (hWc : WfVec (2 ^ 10) c) :
+    quadeval.honest_compute_resp_from_raw_32 stmt raw32 inner_decomp c
+      ⦃ out => RepResp out
+        (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
+  rw [Raw32.honest_compute_resp_from_raw_32_eq stmt inner_decomp c hex]
+  exact honest_compute_resp_from_raw_spec stmt raw inner_decomp c ss wo hc hst hm hi
+    hWraw hWi hWc
+
 /-! ## The two output relations
+
 
 Both are decision procedures for specification `Set`s, so both are iffs. -/
 

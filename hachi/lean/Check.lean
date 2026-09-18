@@ -912,7 +912,7 @@ example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
   chain.chain_verify pp d_key poly_stmt v c t alpha tau0 tau1 msgs challenges y_prime w
     gamma b mr md ir idg zd
 example (pp : quadeval.PublicParamsD) (d_key : linalg.PolyMatrix)
-    (poly_stmt : quadeval.PolyEvalStatement) (message : alloc.vec.Vec linalg.PolyVec)
+    (poly_stmt : quadeval.PolyEvalStatement) (message : alloc.vec.Vec linalg.RawVec32)
     (c : linalg.PolyVec) (w : ringswitch.LiftedWitness) (alpha : cpoly.field.Ext4)
     (tau0 tau1 challenges : alloc.vec.Vec cpoly.field.Ext4) (gamma : Std.U64)
     (b mr md ir idg zd : Std.Usize) :
@@ -1451,6 +1451,62 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- link specs; kernel-clean once `Sumcheck.lean` closed.
 #print axioms HachiEquiv.Chain.chain_verify_spec
 #print axioms HachiEquiv.Chain.chain_open_spec
+-- Candidate T29: the raw message as `u32` WORDS. Every coefficient of a
+-- well-formed `Rq` is a canonical residue below `q = 2^32 - 99`, so a `u32`
+-- holds it exactly -- and the raw message is the one input the prover keeps
+-- resident for the whole protocol. Measured at the pin: the peak fell from
+-- 8448 MiB to 4360 MiB at the same stage boundary, and `dense_eval`, which now
+-- expands one block at a time, cost 366.3 s against 369.5 s.
+--
+-- The narrowing in `RawRq32::compact` is FALLIBLE in the extracted model --
+-- `lift (UScalar.cast .U32 …)` -- and its side condition is exactly
+-- `Field.Red`, which every `Wf` operand already carries. That is what makes
+-- the carrier admissible: it costs no new precondition, so no statement below
+-- was weakened to accept it.
+--
+-- Two claims, and the split between them is the design:
+--
+--  * `rawrq32_round_trip` / `rawvec32_round_trip` -- losslessness, as an
+--    equality of extracted VALUES, not of denotations. It needed two
+--    representation-level facts the arithmetic had never asked for:
+--    `from_coeffs_id` (on an input of the ring's own length the function is the
+--    identity, because its loop pushes the entries verbatim) and `fp_new_id`
+--    (`Fp::new` is the identity on a word already reduced).
+--
+--  * each `_32` consumer is proved EQUAL to the item it replaces, on the
+--    message its words denote, and its specification is then the original's --
+--    inherited, not re-derived. Composed with the `_64` spec it yields the same
+--    conclusion in the same vocabulary, and it is the honest shape, because
+--    "the compact carrier changes nothing" is what the change asserts. The two
+--    tools are `eq_ok_of_spec` (a deterministic postcondition IS an equation,
+--    since `theta` sends `fail` and `div` to `False`) and `loop_congr` (`loop`
+--    is an ordinary function of its body). The `_32` and `_64` loop bodies
+--    differ by one inserted `expand` and the inner loops are byte-identical,
+--    so the pointwise body equality is the entire content.
+#print axioms HachiEquiv.Raw32.eq_ok_of_spec
+#print axioms HachiEquiv.Raw32.loop_congr
+#print axioms HachiEquiv.Raw32.fp_new_id
+#print axioms HachiEquiv.Raw32.from_coeffs_id
+#print axioms HachiEquiv.Raw32.compact_loop_spec
+#print axioms HachiEquiv.Raw32.expand_loop_rep
+#print axioms HachiEquiv.Raw32.rawrq32_round_trip
+#print axioms HachiEquiv.Raw32.rawvec32_compact_loop_spec
+#print axioms HachiEquiv.Raw32.rawvec32_round_trip
+#print axioms HachiEquiv.Raw32.rawvec32_expand_eq
+#print axioms HachiEquiv.Raw32.commit_streamed_32_loop_eq
+#print axioms HachiEquiv.Raw32.commit_streamed_32_eq
+#print axioms HachiEquiv.Raw32.commit_streamed_32_spec
+#print axioms HachiEquiv.Raw32.carrier_from_raw_32_loop_eq
+#print axioms HachiEquiv.Raw32.carrier_from_raw_32_eq
+#print axioms HachiEquiv.Raw32.honest_z_from_raw_32_loop1_eq
+#print axioms HachiEquiv.Raw32.honest_z_from_raw_32_eq
+#print axioms HachiEquiv.Raw32.honest_compute_resp_from_raw_32_eq
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_from_raw_32_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_32_spec
+#print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_32_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_32_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_32_spec
 
 -- The honest lift prover (`lean/LiftProver.lean`), the chain's last item to be
 -- translated and Stage 4's last proof debt, paid 2026-09-11: the unreduced row sum against

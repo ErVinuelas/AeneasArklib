@@ -1290,3 +1290,106 @@ pub fn honest_compute_resp_from_raw(
     }
     QuadEvalResponse::new(carrier_dec, inner, z_dec)
 }
+
+// ---------------------------------------------------------------------------
+// FROZEN 2026-09-18 -- candidate T29, the compact raw-message carrier
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`honest_z_from_raw`] over the compact raw carrier.
+pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec {
+    let blocks: usize = raw.len();
+    let width: usize = params::MESSAGE_ROWS * params::GADGET_DIGITS;
+    let mut acc: Vec<Rq> = Vec::with_capacity(width);
+    let mut z: usize = 0;
+    while z < width {
+        acc.push(Rq::zero());
+        z += 1;
+    }
+    let mut i: usize = 0;
+    while i < blocks {
+        let block: PolyVec = raw[i].expand();
+        let s: PolyVec = gadget::gadget_decompose(&block);
+        let ci: &Rq = c.get(i);
+        match crate::ring::classify_short(ci) {
+            Some(desc) => {
+                let mut j: usize = 0;
+                while j < width {
+                    crate::ring::mul_short_add_into(&desc, s.get(j), &mut acc[j]);
+                    j += 1;
+                }
+            }
+            None => {
+                let scaled: PolyVec = s.scalar_mul(ci);
+                let mut j: usize = 0;
+                while j < width {
+                    acc[j] = acc[j].add(scaled.get(j));
+                    j += 1;
+                }
+            }
+        }
+        i += 1;
+    }
+    PolyVec::new(acc)
+}
+
+/// [`carrier_from_raw`] over the compact raw carrier.
+pub fn carrier_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec {
+    let blocks: usize = raw.len();
+    let mut rows: Vec<PolyVec> = Vec::new();
+    rows.push(a.copy());
+    let am: PolyMatrix = PolyMatrix::new(rows);
+    let prep: crate::linalg::PreparedMatrix = am.prepare();
+    let mut out: Vec<Rq> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        let block: PolyVec = raw[i].expand();
+        let r: PolyVec = prep.apply(&block);
+        out.push(r.get(0).copy());
+        i += 1;
+    }
+    PolyVec::new(out)
+}
+
+/// [`carrier_decomp_from_raw`] over the compact raw carrier.
+pub fn carrier_decomp_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec {
+    let w: PolyVec = carrier_from_raw_32(a, raw);
+    gadget::balanced_gadget_decompose(&w)
+}
+
+/// [`carrier_commit_from_raw`] over the compact raw carrier.
+pub fn carrier_commit_from_raw_32(
+    d_matrix: &PolyMatrix,
+    a: &PolyVec,
+    raw: &Vec<linalg::RawVec32>,
+) -> PolyVec {
+    let what: PolyVec = carrier_decomp_from_raw_32(a, raw);
+    d_matrix.mat_vec_mul(&what)
+}
+
+/// [`honest_compute_v_from_raw`] over the compact raw carrier.
+pub fn honest_compute_v_from_raw_32(
+    pp: &PublicParamsD,
+    stmt: &QuadEvalStatement,
+    raw: &Vec<linalg::RawVec32>,
+) -> PolyVec {
+    carrier_commit_from_raw_32(pp.d_matrix(), stmt.avec(), raw)
+}
+
+/// [`honest_compute_resp_from_raw`] over the compact raw carrier.
+pub fn honest_compute_resp_from_raw_32(
+    stmt: &QuadEvalStatement,
+    raw: &Vec<linalg::RawVec32>,
+    inner_decomp: &Vec<PolyVec>,
+    c: &PolyVec,
+) -> QuadEvalResponse {
+    let carrier_dec: PolyVec = carrier_decomp_from_raw_32(stmt.avec(), raw);
+    let z: PolyVec = honest_z_from_raw_32(raw, c);
+    let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
+    let mut inner: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < inner_decomp.len() {
+        inner.push(inner_decomp[i].copy());
+        i += 1;
+    }
+    QuadEvalResponse::new(carrier_dec, inner, z_dec)
+}

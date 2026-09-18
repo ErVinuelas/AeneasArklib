@@ -287,6 +287,45 @@ pub fn flatten_blocks(blocks: &Vec<PolyVec>) -> PolyVec {
 }
 
 // ---------------------------------------------------------------------------
+// The compact raw carrier, per block
+// ---------------------------------------------------------------------------
+
+/// One message block held in [`crate::ring::RawRq32`]s: half the bytes of a
+/// [`PolyVec`].
+///
+/// The raw message is `Vec<RawVec32>`, and a consumer expands one block --
+/// `MESSAGE_ROWS` elements, 8 MiB at the pin -- for the length of one loop
+/// iteration. See `RawRq32` for why the representation exists and why nothing
+/// computes in it.
+pub struct RawVec32(Vec<crate::ring::RawRq32>);
+
+impl RawVec32 {
+    /// Compact a vector of reduced ring elements.
+    pub fn compact(v: &PolyVec) -> RawVec32 {
+        let n: usize = v.0.len();
+        let mut out: Vec<crate::ring::RawRq32> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::RawRq32::compact(&v.0[i]));
+            i += 1;
+        }
+        RawVec32(out)
+    }
+
+    /// The vector back.
+    pub fn expand(&self) -> PolyVec {
+        let n: usize = self.0.len();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            out.push(self.0[i].expand());
+            i += 1;
+        }
+        PolyVec(out)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // A prepared matrix
 // ---------------------------------------------------------------------------
 

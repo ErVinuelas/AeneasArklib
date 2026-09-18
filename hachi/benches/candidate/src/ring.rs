@@ -659,6 +659,52 @@ pub fn dot_fused(a: &Vec<Rq>, b: &Vec<Rq>, n: usize) -> Rq {
 }
 
 // ---------------------------------------------------------------------------
+// The compact raw carrier
+// ---------------------------------------------------------------------------
+
+/// A ring element held as `u32` words: half the bytes of [`Rq`].
+///
+/// Every coefficient of a well-formed `Rq` is a canonical residue below
+/// `q = 2^32 - 99`, so it fits a `u32` exactly. This carrier exists for the
+/// **raw message only** -- `BLOCKS * MESSAGE_ROWS * RING_DEGREE * 8 B` = 8 GiB
+/// at the paper's parameters, about half the measured peak -- and
+/// `Rq(Vec<Fp>)` is not replaced anywhere else. Nothing computes in this
+/// representation: [`RawRq32::expand`] is the only way out of it, and every
+/// consumer expands one block at a time.
+///
+/// The narrowing in [`RawRq32::compact`] is *fallible in the extracted model*
+/// (`lift (UScalar.cast .U32 ...)`, measured in `probe-t29/`), and its side
+/// condition is exactly `Field.Red` -- which every `Wf` operand already
+/// carries, so it costs no new precondition. The widening in `expand` is pure.
+pub struct RawRq32(Vec<u32>);
+
+impl RawRq32 {
+    /// Compact a reduced ring element. Total: `Rq::coeff` reads `0` past the end.
+    pub fn compact(a: &Rq) -> RawRq32 {
+        let n: usize = params::RING_DEGREE;
+        let mut words: Vec<u32> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            words.push(a.coeff(i).to_u64() as u32);
+            i += 1;
+        }
+        RawRq32(words)
+    }
+
+    /// The ring element back. Total: `Rq::from_coeffs` pads and truncates.
+    pub fn expand(&self) -> Rq {
+        let n: usize = self.0.len();
+        let mut cs: Vec<Fp> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            cs.push(Fp::new(self.0[i] as u64));
+            i += 1;
+        }
+        Rq::from_coeffs(&cs)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // A prepared left operand
 // ---------------------------------------------------------------------------
 

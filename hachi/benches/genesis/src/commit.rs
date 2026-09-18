@@ -598,3 +598,34 @@ pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<Pol
     let u: PolyVec = pp.outer_matrix().mat_vec_mul(&flat);
     (u, ts)
 }
+
+// ---------------------------------------------------------------------------
+// FROZEN 2026-09-18 -- candidate T29, the compact raw-message carrier
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`commit_streamed`] over the compact raw carrier.
+///
+/// Identical arithmetic; the message arrives in `u32` words and one block is
+/// expanded per iteration, so the resident raw state is 4 GiB rather than 8 at
+/// the paper's parameters plus one 8 MiB block. A separate item rather than a
+/// changed signature because `commit_streamed` carries a criterion row, and
+/// `define_cases!` pins a benched item's signature.
+pub fn commit_streamed_32(
+    pp: &PublicParams,
+    m: &Vec<linalg::RawVec32>,
+) -> (PolyVec, Vec<PolyVec>) {
+    let blocks: usize = m.len();
+    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
+    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut i: usize = 0;
+    while i < blocks {
+        let block: PolyVec = m[i].expand();
+        let s: PolyVec = gadget::gadget_decompose(&block);
+        let inner: PolyVec = prep.apply_digits(&s);
+        ts.push(gadget::gadget_decompose(&inner));
+        i += 1;
+    }
+    let flat: PolyVec = linalg::flatten_blocks(&ts);
+    let u: PolyVec = pp.outer_matrix().mat_vec_mul(&flat);
+    (u, ts)
+}

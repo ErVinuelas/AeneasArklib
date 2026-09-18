@@ -1,0 +1,54 @@
+# Phase D reprofile, second attempt: 1024 blocks, with the attribution fixed.
+# pin_instance now prints cumulative AND per-stage, and dense_eval has its
+#   own line labelled as scaffolding -- the defect that made the 09-17
+#   attempt unreadable (23 min of dense_eval read as prover time).
+# The 2-block run of the fixed profile (360 s total) already gives the
+#   split: block-linear ~1290 s extrapolated to 1024, fixed ~295 s, so
+#   block-linear is ~81% and the rounds are 221 s and NOT the majority.
+#   This run is to confirm that extrapolation at the real instance.
+# Expect dense_eval ~1950 s of the wall clock: scaffolding, subtract it.
+# quiet: idle=99%
+# started 2026-09-18T13:00:09+02:00
+warning: value assigned to `last` is never read
+   --> tests/chain_semantics.rs:520:13
+    |
+520 |             last = std::time::Instant::now();
+    |             ^^^^
+...
+624 |     stage!("lifted witness built, lift width {lift_cols}");
+    |     ------------------------------------------------------ in this macro invocation
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+    = note: this warning originates in the macro `stage` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: `hachi` (test "chain_semantics") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.03s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 882.0ms
+test the_honest_chain_profile has been running for over 60 seconds
+[   640.2s] +   639.3s  committed 1024 block(s)
+[  1068.2s] +   428.0s  dense_eval (TEST SCAFFOLDING, not prover work)
+[  1069.0s] +  811.5ms  statement built
+[  1183.1s] +   114.1s  honest_compute_v_from_raw
+[  1552.8s] +   369.6s  honest_compute_resp + stack
+[  1555.2s] +     2.4s  R^lin statement assembled: 5 x 57344
+[  1555.2s] +   80.0ns  M zeta = y SKIPPED (not prover work)
+[  1649.3s] +    94.1s  lifted witness built, lift width 57384
+[profile] rlin_stmt (verifier assembles it too): 499.1ms
+[profile] lift_commit: 24.4s
+[profile] c_w_table_mle at 2^26: 1.0s (67108864 entries)
+[profile] alpha_public_table at 2^26: 15.0s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 291.8s
+[profile] honest_compute_y: 3.3s
+[profile] verifier: rlin_stmt + statement thread: 497.9ms
+[profile] verifier: round_verify_loop (26 rounds): 67.8µs
+[profile] verifier: final_check = true: 8.9s
+[profile] verifier: end_piece_check = true: 27.7s
+error: test failed, to rerun pass `--test chain_semantics`
+
+Caused by:
+  process didn't exit successfully: `/home/pablo/Documents/internship-eth/AeneasArklib/hachi/target/release/deps/chain_semantics-d8b42317af48628a --ignored --nocapture the_honest_chain_profile` (signal: 9, SIGKILL: kill)
+# exit 101 at 2026-09-18T13:34:33+02:00

@@ -947,3 +947,49 @@ fn the_bounded_dot_survives_its_worst_case() {
     let expected = hachi::ring::dot_fused(&a, &b, n);
     assert!(got.equals(&expected), "bounded dot wrong at the worst case");
 }
+
+
+/// `expand ∘ compact` is the identity on reduced ring elements.
+///
+/// The whole of T29 rests on this: a canonical residue is below
+/// `q = 2^32 - 99`, so the `u32` narrowing loses nothing. The boundary cases
+/// are what the test is for -- `q - 1` is the largest value that must survive,
+/// and it is 12 bits short of `u32::MAX`, so a wrong mask or a signed cast
+/// would show here and nowhere else.
+#[test]
+fn the_compact_raw_carrier_round_trips() {
+    let mut rng = Lcg::new(0x2A_32_0001);
+    let q = hachi::params::Q;
+
+    let mut cases: Vec<hachi::ring::Rq> = Vec::new();
+    cases.push(hachi::ring::Rq::zero());
+    cases.push(hachi::ring::Rq::one());
+    // every boundary a narrowing could get wrong, in one element
+    cases.push(rq_from_u64s(&[0, 1, q - 1, q - 2, q / 2, 0xFFFF_FFFF % q, 0x8000_0000 % q]));
+    for _ in 0..8 {
+        let mut cs = Vec::with_capacity(RING_DEGREE);
+        for _ in 0..RING_DEGREE {
+            cs.push(rng.next_u64() % q);
+        }
+        cases.push(rq_from_u64s(&cs));
+    }
+
+    for (n, a) in cases.iter().enumerate() {
+        let back = hachi::ring::RawRq32::compact(a).expand();
+        assert!(back.equals(a), "the compact raw carrier lost case {n}");
+    }
+}
+
+/// The same, one level up, and at a width that is not `RING_DEGREE`.
+#[test]
+fn the_compact_raw_block_round_trips() {
+    let mut rng = Lcg::new(0x2A_32_0002);
+    for &k in &[1usize, 2, 17, 64] {
+        let v = rng.next_poly_vec(k);
+        let back = hachi::linalg::RawVec32::compact(&v).expand();
+        assert_eq!(back.len(), v.len(), "width changed at k = {k}");
+        for i in 0..k {
+            assert!(back.get(i).equals(v.get(i)), "block lost entry {i} at k = {k}");
+        }
+    }
+}
