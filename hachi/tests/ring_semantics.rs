@@ -631,7 +631,7 @@ fn short_multiplication_agrees_with_the_generic_one() {
 
     // dense ternary, the shape the acceptance test draws: must decline
     let mut c = vec![0u64; RING_DEGREE];
-    for e in c.iter_mut() {
+    for e in &mut c {
         let t = rng.next_u64() % 3;
         *e = if t == 2 { q - 1 } else { t };
     }

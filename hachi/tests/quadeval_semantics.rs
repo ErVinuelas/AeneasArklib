@@ -906,7 +906,7 @@ fn honest_z_from_raw_agrees_with_honest_z() {
     let raw: Vec<hachi::linalg::PolyVec> =
         (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
     let decomposed: Vec<hachi::linalg::PolyVec> =
-        raw.iter().map(|b| hachi::gadget::gadget_decompose(b)).collect();
+        raw.iter().map(hachi::gadget::gadget_decompose).collect();
     assert_eq!(decomposed[0].len(), MESSAGE_ROWS * GADGET_DIGITS);
 
     // a protocol-valid short challenge, and a dense one for the fallback branch
@@ -946,7 +946,7 @@ fn carrier_from_raw_agrees_with_carrier() {
     let raw: Vec<hachi::linalg::PolyVec> =
         (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
     let decomposed: Vec<hachi::linalg::PolyVec> =
-        raw.iter().map(|b| hachi::gadget::gadget_decompose(b)).collect();
+        raw.iter().map(hachi::gadget::gadget_decompose).collect();
     let a = rng.next_poly_vec(MESSAGE_ROWS);
 
     let want = hachi::quadeval::carrier(&a, &decomposed);

@@ -80,7 +80,12 @@ macro_rules! define_cases {
             /// 16 units can be sixteen `±1`s or one `±16`, and the multiplier
             /// applies magnitude by repeated addition, so the two have the same
             /// total pass count but different loop structure.
-            fn short_challenge(seed: u64, weight: u64, mag: u64) -> Rq {
+            ///
+            /// The seed is accepted for the helpers' seed-first convention and
+            /// ignored: the placement below is deterministic on purpose, so
+            /// that the loop shape (the wrap-around terms) is fixed by
+            /// `weight` and `mag` alone, and not by entropy.
+            fn short_challenge(_seed: u64, weight: u64, mag: u64) -> Rq {
                 let degree = hc::params::RING_DEGREE;
                 let q = hc::params::Q;
                 let mut coeffs = Vec::with_capacity(degree);
