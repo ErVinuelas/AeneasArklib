@@ -8316,3 +8316,83 @@ Hachi API. Switching costs +2.9% of the prover today, or about +0.4% if T11's
 balanced kernel (measured, −41.8%, worthless on its own because the balanced
 decomposer is not hot) lands with it. That is the one card left whose answer
 changes what is being measured rather than how fast it is.
+
+## The close-out was premature: finishing the map (2026-09-18)
+
+"Aren't there more optimizations?" was the right question. Three things in the
+close-out above were wrong or unfinished, and fixing them completes the map
+rather than extending the queue.
+
+### 1. Card 9 conflated two changes; the other one is also slower
+
+The gather changed the traversal order *and* the accumulator. Rejecting both
+because the gather lost was sloppy. Keeping the scatter's sequential order and
+changing only the accumulator to `i64`: **+12.6%, also slower**. At the pin
+every challenge has magnitude 1, so the scatter's "m passes per term" is one
+pass of a compare-and-subtract, and the `i64` form adds a multiply per element
+for nothing. Both halves now measured separately; card 9 is properly closed.
+
+### 2. C2 was under-priced, and the bundle hypothesis is dead
+
+Card 8 priced the `u32` retype against `apply_digits` alone. But
+`carrier_from_raw` is transform-bound too, *at the same rate* — its NTT count
+ratio 0.188 predicts its measured time ratio 0.193 — so the transform layer is
+**607 s, 51% of the prover**, and C2 is worth **−8.6%**, not the −7.3%
+recorded. That is the one number in the close-out that was wrong.
+
+The more interesting question was whether the ~1186-line transform-layer proof
+is a *fixed* cost that should be amortised over several transform
+optimisations at once, which would have changed the verdict. One diagnostic
+settled it: the butterfly with its multiply **and reduction removed entirely** —
+same loads, stores, adds, subs, dependencies — is only **17% faster**
+(1.823 → 1.515 ns).
+
+So the butterfly is **data-movement bound, not multiply bound**, and every
+strategy that attacks the multiply is capped at 17% of it:
+
+* Shoup, measured: **2.195 ns, worse than plain `u32`'s 1.823** — the
+  compiler's Barrett is already a single 64×64 high multiply for a 30-bit
+  prime, so Shoup only adds instructions;
+* radix-4's ~25% fewer multiplies: capped at ~4%.
+
+There is nothing to amortise the proof over. `u32` helped precisely because it
+halves the *data*, and there is no `u16` to go to — the residues are 30 bits.
+
+### 3. The rounds were deferred by a rule; measuring them retires them
+
+18% of the prover had never been looked inside. Measured:
+
+| phase | | |
+|---|---|---|
+| `honest_compute_g` | 205.40 s | **99.4%** |
+| `eval_mle_layer` | 1.34 s | 0.6% |
+| `round_out`, `alpha_split_fold` | 28 µs, 878 µs | 0.0% |
+
+Per round: 0 → 51.67 s, 1 → **77.21 s**, 2 → 38.52, 3 → 19.26, 4 → 9.65. Round
+1 costs *more* than round 0 and the tail halves cleanly from it, because round
+0 folds a base-field table and everything after it folds `Ext4` — four times
+the width and a far dearer multiply. The geometric tail from round 1 is 154 s
+of the 206.
+
+And `honest_compute_g`'s inner step is already optimal: 87% of its 184
+base-multiply units is `range_product`, which **candidate T2a already made
+Paterson–Stockmeyer**. The measured 140 ns per step is exactly its ~9 general
+`Ext4` multiplies. What remains of the plan's T2 — incremental nodes
+(`folded(t+1) = folded(t) + (hi−lo)`, which removes 8 of 184 units) and the
+loop interchange (which saves loads, not multiplies) — is **~1–2% of the
+prover**. The 25% rule deferred the rounds; the measurement retires them, which
+is a better reason.
+
+### The map, complete
+
+| block | share | disposition |
+|---|---|---|
+| transforms (`apply_digits` + `carrier_from_raw`) | **51%** | `u32` retype, **−8.6%**, ~1186 lines of proof — the only open item above 3% |
+| rounds | 18% | 99.4% `honest_compute_g`; T2a already took it; ~1–2% left |
+| short multiply | 16% | both reorderings measured slower |
+| lift | 7.5% | 3.0% ceiling, prototypes unexplained |
+| decomposition | 6% | gate fires, 0.6% |
+
+**One open item above the threshold, and it is a proof-cost decision, not a
+discovery problem.** Everything else in the prover has now been measured from
+the inside.

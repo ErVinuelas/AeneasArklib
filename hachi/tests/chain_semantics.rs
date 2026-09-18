@@ -1591,6 +1591,40 @@ fn mul_short_add_into_gather(d: &Desc, s: &Rq, acc: &mut Vec<i64>) {
     }
 }
 
+
+/// The accumulator change WITHOUT the traversal change: keep the scatter's
+/// sequential order, drop the modular arithmetic.
+///
+/// Card 9 changed both at once and rejected both when the gather lost on
+/// locality. They are independent: the scatter already reads `s[i]` and writes
+/// `acc[(k+i) mod n]` as `i` advances, which is the good pattern; what it pays
+/// per element is a branchy modular add/sub and a canonical `Fp::new` write,
+/// sixteen times per coefficient at the pin's weight-16 challenges. Here the
+/// accumulator is `i64`, the magnitude multiplies once instead of driving `m`
+/// passes, and the reduction happens once per coefficient at the very end.
+fn mul_short_add_into_i64(d: &Desc, s: &Rq, acc: &mut Vec<i64>) {
+    let n = hachi::params::RING_DEGREE;
+    let terms = d.idx.len();
+    let mut t = 0usize;
+    while t < terms {
+        let k = d.idx[t];
+        let m = d.mag[t] as i64;
+        let neg = d.neg[t];
+        let mut i = 0usize;
+        while i < n {
+            let sv = s.coeff(i).to_u64() as i64;
+            if sv != 0 {
+                let pos = k + i;
+                let (w, wrapped) = if pos >= n { (pos - n, true) } else { (pos, false) };
+                let c = m * sv;
+                if neg != wrapped { acc[w] -= c; } else { acc[w] += c; }
+            }
+            i += 1;
+        }
+        t += 1;
+    }
+}
+
 /// **Card 9's kill gate: if the short rows move < 5%, the pass structure was
 /// not the cost.** The `i64` accumulator carries across blocks, as the card's
 /// strong form specifies, and is reduced to `Fp` once at the end.
@@ -1645,6 +1679,35 @@ fn the_gather_form_against_its_kill_gate() {
     for j in 0..width {
         assert!(out_g[j].equals(&acc_s[j]), "the gather differs from the scatter at {j}");
     }
+
+    // --- the scatter, with an i64 accumulator: the OTHER half of card 9 ---
+    let t2 = std::time::Instant::now();
+    let mut acc_i: Vec<Vec<i64>> = (0..width).map(|_| vec![0i64; RING_DEGREE]).collect();
+    for (i, s) in digits.iter().enumerate() {
+        let d = classify_here(c.get(i)).expect("weight-16 challenge is short");
+        for j in 0..width {
+            mul_short_add_into_i64(&d, s.get(j), &mut acc_i[j]);
+        }
+    }
+    let mut out_i: Vec<Rq> = Vec::with_capacity(width);
+    for a in acc_i.iter() {
+        let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(RING_DEGREE);
+        for &v in a.iter() {
+            let m = v % q;
+            coeffs.push(cpoly::field::Fp::new(if m < 0 { (m + q) as u64 } else { m as u64 }));
+        }
+        out_i.push(Rq::from_coeffs(&coeffs));
+    }
+    let d_scatter_i64 = t2.elapsed();
+    for j in 0..width {
+        assert!(out_i[j].equals(&acc_s[j]), "the i64 scatter differs from the scatter at {j}");
+    }
+    eprintln!(
+        "[t17] scatter+i64 {:>8.2?} ({:>6.2} ns/coeff)  {:+.1}%   <-- the accumulator alone",
+        d_scatter_i64,
+        d_scatter_i64.as_nanos() as f64 / (width * RING_DEGREE * blocks) as f64,
+        100.0 * (d_scatter_i64.as_secs_f64() / d_scatter.as_secs_f64() - 1.0)
+    );
     let coeffs = (width * RING_DEGREE * blocks) as f64;
     eprintln!(
         "[t17] scatter {:>8.2?} ({:>6.2} ns/coeff)   gather {:>8.2?} ({:>6.2} ns/coeff)   {:+.1}%",
@@ -1820,4 +1883,98 @@ fn the_lift_high_half_against_the_full_product() {
         100.0 * (d_half2.as_secs_f64() / d_full.as_secs_f64() - 1.0)
     );
     eprintln!("[t1a] the high half agrees with c_quotient on every quotient coefficient");
+}
+
+/// **The rounds, split per phase** — the one block of the prover nobody had
+/// looked inside.
+///
+/// `honest_round_messages` is 214 s at the pin, 18% of the prover, and it was
+/// deferred by instruction (the goal's 25% rule) rather than by measurement.
+/// This is card 6's method applied to it: replay the loop body verbatim and
+/// clock each piece. The work halves every round — round 0 walks `2^m₀`
+/// entries, round 1 walks `2^(m₀−1)` — so the totals are dominated by the
+/// first few, and the per-round numbers are printed for the first five.
+#[test]
+#[ignore = "pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
+fn the_rounds_split_per_phase() {
+    let blocks: usize = std::env::var("HACHI_CHAIN_BLOCKS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(1024);
+    let t0 = std::time::Instant::now();
+    let inst = pin_instance(blocks, &t0, false);
+    let stmt = hachi::quadeval::to_quad_eval_statement(&inst.poly_stmt);
+    let m0 = hachi::params::M_ZERO;
+    let rlin = hachi::quadeval::rlin_stmt(
+        &inst.pp, &stmt, &inst.v, &inst.c, CHAIN_GAMMA, blocks,
+        hachi::params::MESSAGE_ROWS, hachi::params::GADGET_DIGITS,
+        hachi::params::INNER_ROWS, hachi::params::GADGET_DIGITS,
+        hachi::params::Z_DIGITS,
+    );
+    let t = hachi::ringswitch::lift_commit(&inst.d_key, &inst.w);
+    let zc = hachi::sumcheck::NestedZeroCheckStmt::new(
+        rlin, t.copy(), inst.alpha, inst.tau0.clone(), inst.tau1.clone(),
+    );
+    let opened = hachi::sumcheck::nested_to_round_statement(zc);
+
+    // setup, outside the loop
+    let s0 = std::time::Instant::now();
+    let mut low = hachi::sumcheck::alpha_split_low(opened.zc().alpha(), m0);
+    let d_low = s0.elapsed();
+    let s1 = std::time::Instant::now();
+    let mut high = hachi::sumcheck::alpha_split_high(
+        opened.zc().rlin(), opened.zc().alpha(), opened.zc().tau1(), m0);
+    let d_high = s1.elapsed();
+    let s2 = std::time::Instant::now();
+    let w_fp = hachi::zerocheck::c_w_table_fp(&inst.w, m0);
+    let d_wfp = s2.elapsed();
+
+    let mut current = opened;
+    let (mut t_g, mut t_out, mut t_mle, mut t_fold) = (
+        std::time::Duration::ZERO, std::time::Duration::ZERO,
+        std::time::Duration::ZERO, std::time::Duration::ZERO);
+
+    let a0 = inst.challenges[0];
+    let c0 = std::time::Instant::now();
+    let g0 = hachi::sumcheck::honest_compute_g_base_split(&current, &w_fp, &low, &high);
+    t_g += c0.elapsed();
+    let c1 = std::time::Instant::now();
+    current = hachi::sumcheck::round_out(current, &g0, a0);
+    t_out += c1.elapsed();
+    let c2 = std::time::Instant::now();
+    let mut w_tab = hachi::sumcheck::eval_mle_layer_base(&w_fp, a0);
+    t_mle += c2.elapsed();
+    let c3 = std::time::Instant::now();
+    let f0 = hachi::sumcheck::alpha_split_fold(low, high, a0);
+    t_fold += c3.elapsed();
+    low = f0.0; high = f0.1;
+    eprintln!("[rounds] round  0: g {:>8.2?}  out {:>8.2?}  mle {:>8.2?}  fold {:>8.2?}",
+        c0.elapsed(), c1.elapsed(), c2.elapsed(), c3.elapsed());
+
+    for i in 1..m0 {
+        let a = inst.challenges[i];
+        let b0 = std::time::Instant::now();
+        let g = hachi::sumcheck::honest_compute_g_split(&current, &w_tab, &low, &high, i);
+        let dg = b0.elapsed(); t_g += dg;
+        let b1 = std::time::Instant::now();
+        current = hachi::sumcheck::round_out(current, &g, a);
+        let dout = b1.elapsed(); t_out += dout;
+        let b2 = std::time::Instant::now();
+        w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a);
+        let dmle = b2.elapsed(); t_mle += dmle;
+        let b3 = std::time::Instant::now();
+        let f = hachi::sumcheck::alpha_split_fold(low, high, a);
+        let dfold = b3.elapsed(); t_fold += dfold;
+        low = f.0; high = f.1;
+        if i < 5 {
+            eprintln!("[rounds] round {i:2}: g {dg:>8.2?}  out {dout:>8.2?}  mle {dmle:>8.2?}  fold {dfold:>8.2?}");
+        }
+    }
+
+    let tot = t_g + t_out + t_mle + t_fold;
+    eprintln!("[rounds] setup: alpha_split_low {d_low:>8.2?}  alpha_split_high {d_high:>8.2?}  c_w_table_fp {d_wfp:>8.2?}");
+    for (name, d) in [("honest_compute_g", t_g), ("round_out", t_out),
+                      ("eval_mle_layer", t_mle), ("alpha_split_fold", t_fold)] {
+        eprintln!("[rounds]   {name:20} {:>9.2?}   {:>5.1}%", d,
+            100.0 * d.as_secs_f64() / tot.as_secs_f64());
+    }
+    eprintln!("[rounds]   {:20} {tot:>9.2?}", "LOOP TOTAL");
 }

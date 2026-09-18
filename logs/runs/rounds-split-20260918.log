@@ -1,0 +1,47 @@
+# The rounds split per phase: honest_round_messages is 214 s at the pin,
+#   18% of the prover, and was deferred by instruction rather than by
+#   measurement. Card 6's method applied to it.
+# quiet: idle=99%
+# started 2026-09-18T23:25:44+02:00
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1486:9
+     |
+1486 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: `hachi` (test "chain_semantics") generated 1 warning (run `cargo fix --test "chain_semantics"` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+test the_rounds_split_per_phase has been running for over 60 seconds
+[  untimed ] +   372.1s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   913.5s] +   536.1s  peak   4600 live   4472 MiB  committed 1024 block(s)
+[   914.2s] +  697.7ms  peak   4600 live   4472 MiB  statement built
+[  1011.5s] +    97.3s  peak   4600 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[  1012.8s] +     1.3s  peak   4600 live   4497 MiB  honest_compute_v_from_decomp
+[  1254.2s] +   241.5s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[  1254.3s] +   20.2ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[  1254.7s] +  411.9ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[  1254.7s] +   80.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[  1325.2s] +    70.5s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[rounds] round  0: g   51.67s  out 518.64ms  mle 518.63ms  fold  17.00µs
+[rounds] round  1: g   77.21s  out   2.52µs  mle 410.75ms  fold  16.46µs
+[rounds] round  2: g   38.52s  out   1.85µs  mle 212.00ms  fold  14.51µs
+[rounds] round  3: g   19.26s  out   1.65µs  mle 111.88ms  fold  10.38µs
+[rounds] round  4: g    9.65s  out   3.37µs  mle  57.24ms  fold  10.00µs
+[rounds] setup: alpha_split_low  15.11µs  alpha_split_high    6.53s  c_w_table_fp 267.03ms
+[rounds]   honest_compute_g       205.40s    99.4%
+[rounds]   round_out              27.70µs     0.0%
+[rounds]   eval_mle_layer           1.34s     0.6%
+[rounds]   alpha_split_fold      878.07µs     0.0%
+[rounds]   LOOP TOTAL             206.74s
+test the_rounds_split_per_phase ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 1560.40s
+
+# exit 0 at 2026-09-18T23:51:45+02:00
