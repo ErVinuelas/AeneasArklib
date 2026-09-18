@@ -905,6 +905,7 @@ pub fn dot_prepared_digits(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
 // The compact raw carrier
 // ---------------------------------------------------------------------------
 
+// @genesis af3f7d5 2026-09-18 — ring::RawRq32
 /// A ring element held as `u32` words: half the bytes of [`Rq`].
 ///
 /// Every coefficient of a well-formed `Rq` is a canonical residue below
@@ -922,6 +923,7 @@ pub fn dot_prepared_digits(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
 pub struct RawRq32(Vec<u32>);
 
 impl RawRq32 {
+    // @genesis af3f7d5 2026-09-18 — ring::RawRq32::compact
     /// Compact a reduced ring element. Total: `Rq::coeff` reads `0` past the end.
     pub fn compact(a: &Rq) -> RawRq32 {
         let n: usize = params::RING_DEGREE;
@@ -934,6 +936,7 @@ impl RawRq32 {
         RawRq32(words)
     }
 
+    // @genesis af3f7d5 2026-09-18 — ring::RawRq32::expand
     /// The ring element back. Total: `Rq::from_coeffs` pads and truncates.
     pub fn expand(&self) -> Rq {
         let n: usize = self.0.len();

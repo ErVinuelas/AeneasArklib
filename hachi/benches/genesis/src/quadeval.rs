@@ -1291,6 +1291,7 @@ pub fn honest_compute_resp_from_raw(
     QuadEvalResponse::new(carrier_dec, inner, z_dec)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::honest_z_from_raw_32
 // ---------------------------------------------------------------------------
 // FROZEN 2026-09-18 -- candidate T29, the compact raw-message carrier
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
@@ -1332,6 +1333,7 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
     PolyVec::new(acc)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::carrier_from_raw_32
 /// [`carrier_from_raw`] over the compact raw carrier.
 pub fn carrier_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec {
     let blocks: usize = raw.len();
@@ -1350,12 +1352,14 @@ pub fn carrier_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec 
     PolyVec::new(out)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::carrier_decomp_from_raw_32
 /// [`carrier_decomp_from_raw`] over the compact raw carrier.
 pub fn carrier_decomp_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec {
     let w: PolyVec = carrier_from_raw_32(a, raw);
     gadget::balanced_gadget_decompose(&w)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::carrier_commit_from_raw_32
 /// [`carrier_commit_from_raw`] over the compact raw carrier.
 pub fn carrier_commit_from_raw_32(
     d_matrix: &PolyMatrix,
@@ -1366,6 +1370,7 @@ pub fn carrier_commit_from_raw_32(
     d_matrix.mat_vec_mul(&what)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::honest_compute_v_from_raw_32
 /// [`honest_compute_v_from_raw`] over the compact raw carrier.
 pub fn honest_compute_v_from_raw_32(
     pp: &PublicParamsD,
@@ -1375,6 +1380,7 @@ pub fn honest_compute_v_from_raw_32(
     carrier_commit_from_raw_32(pp.d_matrix(), stmt.avec(), raw)
 }
 
+// @genesis af3f7d5 2026-09-18 — quadeval::honest_compute_resp_from_raw_32
 /// [`honest_compute_resp_from_raw`] over the compact raw carrier.
 pub fn honest_compute_resp_from_raw_32(
     stmt: &QuadEvalStatement,

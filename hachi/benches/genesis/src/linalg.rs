@@ -426,6 +426,7 @@ impl PreparedMatrix {
 // The compact raw carrier, per block
 // ---------------------------------------------------------------------------
 
+// @genesis af3f7d5 2026-09-18 — linalg::RawVec32
 /// One message block held in [`crate::ring::RawRq32`]s: half the bytes of a
 /// [`PolyVec`].
 ///
@@ -436,6 +437,7 @@ impl PreparedMatrix {
 pub struct RawVec32(Vec<crate::ring::RawRq32>);
 
 impl RawVec32 {
+    // @genesis af3f7d5 2026-09-18 — linalg::RawVec32::compact
     /// Compact a vector of reduced ring elements.
     pub fn compact(v: &PolyVec) -> RawVec32 {
         let n: usize = v.0.len();
@@ -448,6 +450,7 @@ impl RawVec32 {
         RawVec32(out)
     }
 
+    // @genesis af3f7d5 2026-09-18 — linalg::RawVec32::expand
     /// The vector back.
     pub fn expand(&self) -> PolyVec {
         let n: usize = self.0.len();

@@ -599,6 +599,7 @@ pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<Pol
     (u, ts)
 }
 
+// @genesis af3f7d5 2026-09-18 — commit::commit_streamed_32
 // ---------------------------------------------------------------------------
 // FROZEN 2026-09-18 -- candidate T29, the compact raw-message carrier
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
