@@ -8104,3 +8104,63 @@ that would take ≈ 260 s off the prover: **22%**, four times T11's ceiling.
 Card 6 cost one test and found that the seventh card is worth a fifth of what
 its card claimed and the eighth is worth four times. That is the whole argument
 for measuring an instrument's target before ranking on it.
+
+## Card 8: the u32 butterfly, and three estimates of the same thing (2026-09-18)
+
+Card 6 left the commitment's 520 s of `apply_digits` as the largest remaining
+item and the butterfly as its only lever. Card 8 is the probe that was supposed
+to decide it, and it decided it — against, on cost, after two measurements that
+each halved the previous estimate.
+
+**Gate A**, a scratch crate in the admissible shape at the real prime and
+`N = 1024`, correctness-checked against the `u64` transform before any timing:
+
+| variant | ns/butterfly |
+|---|---|
+| `u64`, this crate's shape | 2.541 / 2.632 |
+| `u64` + entry asserts | 2.660 / 2.674 |
+| `u32` storage, widened | 2.150 / 2.126 |
+| **`u32` + entry asserts** | **1.814 / 1.817** |
+
+−30%, reproducible. Two things there were not in the card. The win is **not
+vectorisation** — 8 `pmuludq`, 8 `paddd` and 2 `psubd` in the whole binary,
+which cannot be a 1024-point NTT run 80 000 times; it is narrower loads and
+stores and 32-bit ALU, and the strided twiddle load plus the `cmov` for the
+conditional subtract are what keep LLVM from packing it. So the plan's C4
+footnote, "only if the compiler result invites it", is **not invited**. And
+entry asserts are not free in the direction one assumes: they pay 13% on `u32`
+and *cost* 3% on `u64`.
+
+**Gate B** asked the only question that decides anything: what does that do to
+`apply_digits`? A faithful `u32` replica of the whole path — same chunking, two
+primes, Garner, the scaled `boff` — asserted equal to the real product on every
+block, gave **478.75 → 398.20 ns/coeff, −16.8%**. On the prover, ≈ 520 s →
+≈ 433 s: **−7.3%**.
+
+The gap between −30% and −16.8% is the finding. Butterflies are **~56%** of
+`apply_digits`; the twist, `mac_into`, the inverse transform, Garner and the
+boundary conversions are the rest, and none of them moves.
+
+### Rejected, and why that is the right answer
+
+C2 — the retype — costs **~1186 lines**: every `AuxTransform` spec is stated
+over `Vec Std.U64`, so it restates the whole transform layer and `make build`
+stays red until it is finished. Against that, T11 is 5.2% of the prover for a
+low-to-medium proof. Per unit of proof T11 is the better card, and Gate B's own
+wording is "adopt only on a major caller-level win; a fast butterfly with a
+mediocre commit means the bottleneck is elsewhere — find it". 7.3% for the
+largest proof in the queue is not major, and the bottleneck is now found: the
+44% of `apply_digits` that is not butterflies.
+
+It reopens on either of two conditions, both recorded in the ledger row: the
+non-butterfly 44% is attacked first and butterflies become the clear majority
+of a smaller `apply_digits`; or the transform layer gets restated for some
+other reason, at which point C2 rides along for free.
+
+### The estimate chain, kept because it is the lesson
+
+This card was priced at **22%** from arithmetic (butterflies × 3.03 ns), **13%**
+from the primitive probe, and **7.3%** at the caller. Each step lost about half,
+and each step was a legitimate inference from the one before. Nothing under
+`hachi/src` was changed at any point, so the cost of finding out was one scratch
+crate and one test — which is exactly the trade Gate A and Gate B exist to make.

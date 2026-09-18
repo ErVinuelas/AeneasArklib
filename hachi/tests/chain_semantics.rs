@@ -1107,3 +1107,228 @@ fn the_commitment_and_z_pass_split_per_block() {
         per(t_dec)
     );
 }
+
+// ---------------------------------------------------------------------------
+// Card 8 / T25 Gate B: the `u32` transform, measured at the CALLER
+// ---------------------------------------------------------------------------
+//
+// Gate A (scratchpad `probe-u32ntt`) measured the butterfly at 2.59 ns on
+// `u64` and 1.82 ns on `u32` with entry asserts, −30%, correctness-checked.
+// Gate B asks the only question that matters: what does that do to
+// `apply_digits`, which is 94% of the commitment and 43% of the prover?
+//
+// This is a faithful REPLICA of the `apply_digits` path with `u32` transform
+// words, living in the test rather than in `hachi/src`. That is deliberate:
+// every `AuxTransform` spec is stated over `Vec Std.U64`, so retyping the
+// transform layer breaks ~1186 lines of Lean the moment it lands, and
+// `make build` is a hard gate. The goal's rule is that the caller-level gain
+// comes first and the proof second, so the measurement is taken without
+// touching the verified crate at all. `the_u32_replica_agrees_with_apply_digits`
+// is what makes the replica evidence rather than decoration.
+
+const U32_BARRETT_SCALE: u128 = 18_446_744_073_709_551_616;
+
+#[inline]
+fn r32(x: u64, p: u32, m: u64) -> u32 {
+    let wide: u128 = (x as u128) * (m as u128);
+    let qh: u64 = (wide / U32_BARRETT_SCALE) as u64;
+    let r: u64 = x - qh * (p as u64);
+    if r >= p as u64 { (r - p as u64) as u32 } else { r as u32 }
+}
+#[inline]
+fn m32(a: u32, b: u32, p: u32, m: u64) -> u32 { r32((a as u64) * (b as u64), p, m) }
+#[inline]
+fn a32(a: u32, b: u32, p: u32) -> u32 { let s = a + b; if s >= p { s - p } else { s } }
+#[inline]
+fn s32(a: u32, b: u32, p: u32) -> u32 { if a >= b { a - b } else { a + p - b } }
+
+fn psi_table32(psi: u64, p: u32, m: u64) -> Vec<u32> {
+    let n = hachi::params::RING_DEGREE;
+    let mut out = Vec::with_capacity(n);
+    let mut cur: u32 = 1;
+    for _ in 0..n { out.push(cur); cur = m32(cur, psi as u32, p, m); }
+    out
+}
+
+fn dif32(src: &[u32], dst: &mut [u32], len: usize, tw: &[u32], p: u32, m: u64) {
+    let n = hachi::params::RING_DEGREE;
+    assert!(src.len() == n && dst.len() == n && tw.len() == n);
+    let half = len / 2;
+    let step = 2 * (n / len);
+    let mut start = 0usize;
+    while start < n {
+        let mut j = 0usize;
+        while j < half { dst[start + j] = a32(src[start + j], src[start + j + half], p); j += 1; }
+        let (mut i, mut e) = (0usize, 0usize);
+        while i < half {
+            let d = s32(src[start + i], src[start + i + half], p);
+            dst[start + half + i] = m32(d, tw[e], p, m);
+            i += 1; e += step;
+        }
+        start += len;
+    }
+}
+
+fn fwd32(mut cur: Vec<u32>, mut tmp: Vec<u32>, tw: &[u32], p: u32, m: u64) -> (Vec<u32>, Vec<u32>) {
+    let mut len = hachi::params::RING_DEGREE;
+    while len > 1 {
+        dif32(&cur, &mut tmp, len, tw, p, m);
+        std::mem::swap(&mut cur, &mut tmp);
+        len /= 2;
+    }
+    (cur, tmp)
+}
+
+/// `prepare_digits` for one row, as `u32` forward tables under the two
+/// digit-path primes.
+fn prepare_row32(row: &PolyVec) -> (Vec<u32>, Vec<u32>) {
+    let n = hachi::params::RING_DEGREE;
+    let (p1, m1) = (hachi::ntt::AUX_P1 as u32, hachi::ntt::AUX_M1);
+    let (p2, m2) = (hachi::ntt::AUX_P2 as u32, hachi::ntt::AUX_M2);
+    let t1 = psi_table32(hachi::ntt::AUX_PSI1, p1, m1);
+    let t2 = psi_table32(hachi::ntt::AUX_PSI2, p2, m2);
+    let (mut f1, mut f2) = (Vec::new(), Vec::new());
+    for j in 0..row.len() {
+        for (p, m, t, out) in [(p1, m1, &t1, &mut f1), (p2, m2, &t2, &mut f2)] {
+            let mut w: Vec<u32> = Vec::with_capacity(n);
+            for u in 0..n { w.push(r32(row.get(j).coeff(u).to_u64(), p, m)); }
+            for u in 0..n { w[u] = m32(w[u], t[u], p, m); }
+            let (f, _) = fwd32(w, vec![0u32; n], t, p, m);
+            out.extend_from_slice(&f);
+        }
+    }
+    (f1, f2)
+}
+
+/// `dot_prepared_digits` over `u32` words: the same chunking, the same two
+/// primes, the same Garner reconstruction.
+fn dot_prepared_digits32(f1: &[u32], f2: &[u32], b: &PolyVec, n_terms: usize) -> Rq {
+    let n = hachi::params::RING_DEGREE;
+    let qw = hachi::params::Q;
+    let (p1, m1) = (hachi::ntt::AUX_P1 as u32, hachi::ntt::AUX_M1);
+    let (p2, m2) = (hachi::ntt::AUX_P2 as u32, hachi::ntt::AUX_M2);
+    let t1 = psi_table32(hachi::ntt::AUX_PSI1, p1, m1);
+    let t2 = psi_table32(hachi::ntt::AUX_PSI2, p2, m2);
+    let mut acc = Rq::zero();
+    let mut start = 0usize;
+    while start < n_terms {
+        let take = std::cmp::min(hachi::ring::DOT_CHUNK_D, n_terms - start);
+        let end = start + take;
+        let mut r = [vec![0u32; n], vec![0u32; n]];
+        for (k, (p, m, t, f, doff)) in [
+            (p1, m1, &t1, f1, hachi::ntt::AUX_DOFF1),
+            (p2, m2, &t2, f2, hachi::ntt::AUX_DOFF2),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut a = vec![0u32; n];
+            let mut scratch = vec![0u32; n];
+            for j in start..end {
+                let mut w: Vec<u32> = Vec::with_capacity(n);
+                for u in 0..n { w.push(r32(b.get(j).coeff(u).to_u64(), p, m)); }
+                for u in 0..n { w[u] = m32(w[u], t[u], p, m); }
+                let (fb, sc) = fwd32(w, scratch, t, p, m);
+                scratch = sc;
+                for u in 0..n { a[u] = a32(a[u], m32(f[j * n + u], fb[u], p, m), p); }
+            }
+            // inverse transform + untwist, as `dot_prep_chunk_mod_p` does
+            let it = {
+                let inv = if k == 0 { hachi::ntt::AUX_PSIINV1 } else { hachi::ntt::AUX_PSIINV2 };
+                psi_table32(inv, p, m)
+            };
+            let ninv = if k == 0 { hachi::ntt::AUX_NINV1 } else { hachi::ntt::AUX_NINV2 };
+            let mut cur = a;
+            let mut tmp = vec![0u32; n];
+            let mut len = 2usize;
+            while len <= n {
+                // dit stage, inverse of dif at the same len
+                let half = len / 2;
+                let step = 2 * (n / len);
+                let mut st = 0usize;
+                while st < n {
+                    let (mut j, mut e) = (0usize, 0usize);
+                    while j < half {
+                        let u = cur[st + j];
+                        let v = m32(cur[st + j + half], it[e], p, m);
+                        tmp[st + j] = a32(u, v, p);
+                        tmp[st + j + half] = s32(u, v, p);
+                        j += 1; e += step;
+                    }
+                    st += len;
+                }
+                std::mem::swap(&mut cur, &mut tmp);
+                len *= 2;
+            }
+            // `boff` is scaled by the chunk's term count, exactly as
+            // `dot_prep_chunk_mod_p` does: one offset per term was folded in.
+            let scaled = m32(doff as u32, ((end - start) as u64 % p as u64) as u32, p, m);
+            for u in 0..n {
+                let uu = m32(cur[u], it[u], p, m);
+                r[k][u] = a32(m32(uu, ninv as u32, p, m), scaled, p);
+            }
+        }
+        let mut out: Vec<cpoly::field::Fp> = Vec::with_capacity(n);
+        for t in 0..n {
+            out.push(cpoly::field::Fp::new(
+                hachi::ntt::garner2(r[0][t] as u64, r[1][t] as u64) % qw,
+            ));
+        }
+        acc = acc.add(&Rq::from_coeffs(&out));
+        start = end;
+    }
+    acc
+}
+
+/// **Gate B.** `apply_digits` with `u32` transform words, timed against the
+/// `u64` path it would replace, at pin width.
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_u32_transform_at_the_caller() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, RING_DEGREE};
+    let blocks: usize = std::env::var("HACHI_U32_BLOCKS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(2);
+    let mut r = Lcg::new(0xC0A1_0070);
+    let cols = MESSAGE_ROWS * GADGET_DIGITS;
+    let a_row = r.next_poly_vec(cols);
+    let am = PolyMatrix::new(vec![a_row.copy()]);
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(MESSAGE_ROWS))).collect();
+
+    let prep64 = am.prepare_digits();
+    let tp = std::time::Instant::now();
+    let (f1, f2) = prepare_row32(&a_row);
+    let prep32_time = tp.elapsed();
+
+    let (mut t64, mut t32) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+    let mut agree = true;
+    for b in raw.iter() {
+        let s = hachi::gadget::gadget_decompose(&b.expand());
+
+        let c0 = std::time::Instant::now();
+        let got64 = prep64.apply_digits(&s);
+        t64 += c0.elapsed();
+
+        let c1 = std::time::Instant::now();
+        let got32 = dot_prepared_digits32(&f1, &f2, &s, cols);
+        t32 += c1.elapsed();
+
+        agree &= got64.get(0).equals(&got32);
+    }
+    assert!(agree, "the u32 replica computes a different product -- the timing below is meaningless");
+
+    let coeffs = (MESSAGE_ROWS * RING_DEGREE * blocks) as f64;
+    eprintln!("[u32] blocks = {blocks}, prepare (u32, once) {prep32_time:.2?}");
+    eprintln!(
+        "[u32] apply_digits  u64 {:>9.2?} ({:>7.2} ns/coeff)   u32 {:>9.2?} ({:>7.2} ns/coeff)   {:+.1}%",
+        t64,
+        t64.as_nanos() as f64 / coeffs,
+        t32,
+        t32.as_nanos() as f64 / coeffs,
+        100.0 * (t32.as_secs_f64() / t64.as_secs_f64() - 1.0)
+    );
+    eprintln!("[u32] the replica agrees with apply_digits on every block: {agree}");
+}
