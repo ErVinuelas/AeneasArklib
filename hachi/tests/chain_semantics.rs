@@ -835,6 +835,47 @@ fn profile_control(reps: usize) -> std::time::Duration {
     t.elapsed()
 }
 
+/// **The compute-bound control**, and the one to believe.
+///
+/// [`profile_control`] allocates and frees a `8192 x 1024` `PolyVec` per rep --
+/// 64 MiB of churn a rep, 3.2 GiB over a reading -- so what it times is the
+/// allocator's state, not the machine's speed. That is not a hypothesis: the
+/// same code read **+17.2% at 12.5 GiB of live heap and +1.3% at 8.5 GiB** on
+/// this machine, and `NOTES.md` § "What is still owed" has carried "the
+/// compute-bound profile control" as a diagnosed-but-undelivered item since.
+/// It came due on 2026-09-19, when the last profile of the day read a +14.3%
+/// spread where the five before it read +1.5 to +7.0% -- leaving no way to
+/// tell a noisy run from a noisy instrument.
+///
+/// This one is a **dependent chain** of the frozen genesis range factor over a
+/// single `Fp`: sixteen multiplies and as many subtractions per call, each
+/// call's input the previous call's output, no allocation, no memory traffic,
+/// a working set of three registers. It reads core frequency and nothing else,
+/// which is the drift that actually moves a laptop's numbers between runs.
+///
+/// Taken from `hachi_genesis` for the reason [`profile_control`] is:
+/// `make check-genesis` pins that copy to git, so a champion landing in
+/// `hachi/src` cannot move the control under us.
+///
+/// The seed is chosen off the vanishing set. `range_product_base` is
+/// `c·∏_{j=1..15}(c² − j²)`, so any `c` in `{0, ±1, …, ±15}` maps to `0` and
+/// the chain sticks there -- harmless for timing, since a multiply by zero
+/// costs what any other multiply costs, but it would make the reported value
+/// uninformative. `1_234_567` is not in that set and its orbit does not reach
+/// it.
+///
+/// Both controls are reported for now. The old one keeps this run comparable
+/// with the six profiles of 2026-09-19; the new one is the one to recenter by.
+fn profile_control_cpu(reps: usize) -> (std::time::Duration, u64) {
+    let mut x = cpoly::field::Fp::new(1_234_567);
+    let t = std::time::Instant::now();
+    for _ in 0..reps {
+        x = hachi_genesis::zerocheck::range_product_base(x);
+    }
+    let d = t.elapsed();
+    (d, std::hint::black_box(x).to_u64())
+}
+
 /// **Where the honest prover's minutes go.** The same instance as
 /// [`the_honest_chain_verifies`], with `chain_open`'s composition replayed piece
 /// by piece and each piece timed: the lift commitment, the `2^m₀` witness table,
@@ -857,8 +898,13 @@ fn the_honest_chain_profile() {
     let inner_digits = hachi::params::GADGET_DIGITS;
     let z_digits = hachi::params::Z_DIGITS;
     let m0 = hachi::params::M_ZERO;
+    const CTL_CPU_REPS: usize = 2_000_000;
+    let (ctl_cpu_before, ctl_x0) = profile_control_cpu(CTL_CPU_REPS);
+    eprintln!("[profile] control CPU (frozen genesis range_product_base x{CTL_CPU_REPS}): \
+               {ctl_cpu_before:.1?} = {:.2} ns/call",
+        1e9 * ctl_cpu_before.as_secs_f64() / CTL_CPU_REPS as f64);
     let ctl_before = profile_control(50);
-    eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_before:.1?}");
+    eprintln!("[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): {ctl_before:.1?}");
     // The raw message is gone before this point, and no longer by an explicit
     // `drop`: candidate T28 gave `chain_open` the carrier decomposition instead
     // of the message, so nothing after `pin_instance` reads the message and its
@@ -951,12 +997,23 @@ fn the_honest_chain_profile() {
         message_digits, inner_rows, inner_digits, z_digits,
     );
     eprintln!("[profile] chain_verify (whole) = {ok}: {:.1?}", t11.elapsed());
+    let (ctl_cpu_after, ctl_x1) = profile_control_cpu(CTL_CPU_REPS);
+    eprintln!("[profile] control CPU (frozen genesis range_product_base x{CTL_CPU_REPS}): \
+               {ctl_cpu_after:.1?} = {:.2} ns/call",
+        1e9 * ctl_cpu_after.as_secs_f64() / CTL_CPU_REPS as f64);
     let ctl_after = profile_control(50);
-    eprintln!("[profile] control (frozen genesis PolyVec::zeros x50): {ctl_after:.1?}");
+    eprintln!("[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): {ctl_after:.1?}");
     eprintln!(
-        "[profile] control spread within run: {:+.1}%  (recenter cross-run deltas by the level)",
+        "[profile] control CPU spread within run: {:+.1}%  (recenter cross-run deltas by THIS)",
+        100.0 * (ctl_cpu_after.as_secs_f64() / ctl_cpu_before.as_secs_f64() - 1.0)
+    );
+    eprintln!(
+        "[profile] control alloc spread within run: {:+.1}%  (legacy, allocation-bound)",
         100.0 * (ctl_after.as_secs_f64() / ctl_before.as_secs_f64() - 1.0)
     );
+    // the chain is deterministic, so both readings must land on the same value;
+    // a mismatch would mean the control was optimised away between them
+    assert_eq!(ctl_x0, ctl_x1, "the control chain is not deterministic");
     eprintln!("[{:>9.1?}] profile done", t0.elapsed());
     assert!(ok, "the honest chain must verify");
 }
@@ -3519,7 +3576,6 @@ fn the_taylor_shift_at_round_zero() {
     use std::time::Instant;
     let tab = t3_shift_table();
     let mut r = Lcg::new(0x7A1_0BA5);
-    let q = hachi::params::Q;
 
     for half in [1usize, 2, 3, 17, 64] {
         let w: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
