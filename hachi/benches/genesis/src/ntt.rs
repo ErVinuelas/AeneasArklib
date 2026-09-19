@@ -630,7 +630,7 @@ pub fn garner2(r1: u64, r2: u64) -> u64 {
 // The Goldilocks lane
 // ---------------------------------------------------------------------------
 
-// @genesis 57b79e7 2026-09-19 — ntt::GOLD_P
+// @genesis b54235e 2026-09-19 — ntt::GOLD_P
 /// The Goldilocks prime `2^64 − 2^32 + 1` (candidate T27).
 ///
 /// An **auxiliary** prime, exactly as [`AUX_P1`]–[`AUX_P3`] are: the protocol
@@ -648,17 +648,17 @@ pub fn garner2(r1: u64, r2: u64) -> u64 {
 /// **−66.9%**, on `apply_digits` at the pin.
 pub const GOLD_P: u64 = 18_446_744_069_414_584_321;
 
-// @genesis 57b79e7 2026-09-19 — ntt::GOLD_PSI
+// @genesis b54235e 2026-09-19 — ntt::GOLD_PSI
 /// A root of exact order `2 · NTT_LEN` mod [`GOLD_P`] (`7^((p−1)/2048)`).
 pub const GOLD_PSI: u64 = 455_906_449_640_507_599;
-// @genesis 57b79e7 2026-09-19 — ntt::GOLD_PSIINV
+// @genesis b54235e 2026-09-19 — ntt::GOLD_PSIINV
 /// The inverse of [`GOLD_PSI`] mod [`GOLD_P`].
 pub const GOLD_PSIINV: u64 = 8_548_973_421_900_915_981;
-// @genesis 57b79e7 2026-09-19 — ntt::GOLD_NINV
+// @genesis b54235e 2026-09-19 — ntt::GOLD_NINV
 /// The inverse of [`NTT_LEN`] mod [`GOLD_P`].
 pub const GOLD_NINV: u64 = 18_428_729_670_909_296_641;
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_add
+// @genesis b54235e 2026-09-19 — ntt::gold_add
 /// `a + b mod p`, for `a, b < GOLD_P`.
 ///
 /// The sum can reach `2^65`, so it is formed in a `u128`. The obvious
@@ -676,7 +676,7 @@ pub fn gold_add(a: u64, b: u64) -> u64 {
     }
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_sub
+// @genesis b54235e 2026-09-19 — ntt::gold_sub
 /// `a − b mod p`, for `a, b < GOLD_P`.
 pub fn gold_sub(a: u64, b: u64) -> u64 {
     if a >= b {
@@ -687,7 +687,7 @@ pub fn gold_sub(a: u64, b: u64) -> u64 {
     }
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_reduce
+// @genesis b54235e 2026-09-19 — ntt::gold_reduce
 /// `x mod GOLD_P` for a full 128-bit product.
 ///
 /// `2^64 ≡ 2^32 − 1 (mod p)` is exact, so the fold is two shifts, a mask, one
@@ -704,13 +704,13 @@ pub fn gold_reduce(x: u128) -> u64 {
     gold_add(gold_sub(lo, hi_hi), m)
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_mul
+// @genesis b54235e 2026-09-19 — ntt::gold_mul
 /// `a · b mod GOLD_P`.
 pub fn gold_mul(a: u64, b: u64) -> u64 {
     gold_reduce((a as u128) * (b as u128))
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_psi_table
+// @genesis b54235e 2026-09-19 — ntt::gold_psi_table
 /// Powers of `psi` mod [`GOLD_P`], `NTT_LEN` of them.
 pub fn gold_psi_table(psi: u64) -> Vec<u64> {
     let n: usize = NTT_LEN;
@@ -725,7 +725,7 @@ pub fn gold_psi_table(psi: u64) -> Vec<u64> {
     out
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_twist
+// @genesis b54235e 2026-09-19 — ntt::gold_twist
 /// The twist: `out[t] = (v[t] mod p) · ψ^t mod p`, in the Goldilocks lane.
 ///
 /// `v[t] < Q < GOLD_P`, so the entry needs no reduction before the multiply.
@@ -740,7 +740,7 @@ pub fn gold_twist(v: &Vec<u64>, pt: &Vec<u64>) -> Vec<u64> {
     out
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_dif_stage
+// @genesis b54235e 2026-09-19 — ntt::gold_dif_stage
 /// One decimation-in-frequency stage in the Goldilocks lane.
 pub fn gold_dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
     let n: usize = NTT_LEN;
@@ -766,7 +766,7 @@ pub fn gold_dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
     dst
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_dit_stage
+// @genesis b54235e 2026-09-19 — ntt::gold_dit_stage
 /// One decimation-in-time stage in the Goldilocks lane.
 pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
     let n: usize = NTT_LEN;
@@ -795,7 +795,7 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
     dst
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_forward
+// @genesis b54235e 2026-09-19 — ntt::gold_forward
 /// The forward transform in the Goldilocks lane.
 pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
     let mut cur: Vec<u64> = cur0;
@@ -810,7 +810,7 @@ pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>,
     (cur, tmp)
 }
 
-// @genesis 57b79e7 2026-09-19 — ntt::gold_inverse
+// @genesis b54235e 2026-09-19 — ntt::gold_inverse
 /// The inverse transform in the Goldilocks lane, up to the factor `N`.
 pub fn gold_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
     let mut cur: Vec<u64> = cur0;
@@ -825,12 +825,12 @@ pub fn gold_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>,
     (cur, tmp)
 }
 
-// @genesis 611f9fc 2026-09-19 — ntt::GOLD_DOFF
+// @genesis 64721ad 2026-09-19 — ntt::GOLD_DOFF
 /// `BOUND_D = N · q · GADGET_BASE`, the per-term offset of the digit path,
 /// which is already below [`GOLD_P`] so it needs no reduction.
 pub const GOLD_DOFF: u64 = 70_368_742_555_648;
 
-// @genesis 611f9fc 2026-09-19 — ntt::gold_untwist_off
+// @genesis 64721ad 2026-09-19 — ntt::gold_untwist_off
 /// The untwist, with the digit path's offset — the Goldilocks counterpart of
 /// [`untwist`] at [`AUX_DOFF1`].
 ///

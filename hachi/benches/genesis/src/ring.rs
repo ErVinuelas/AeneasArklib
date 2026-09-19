@@ -950,7 +950,7 @@ impl RawRq32 {
     }
 }
 
-// @genesis 57b79e7 2026-09-19 — ring::PreparedVecG
+// @genesis b54235e 2026-09-19 — ring::PreparedVecG
 /// A left operand prepared in the **single Goldilocks lane** (candidate T27).
 ///
 /// One forward table where [`PreparedVec`] holds two or three, so the prepared
@@ -968,7 +968,7 @@ impl PreparedVecG {
     }
 }
 
-// @genesis b23b9e6 2026-09-19 — ring::prepare_one_gold
+// @genesis d608824 2026-09-19 — ring::prepare_one_gold
 /// Forward-transform every entry of `a` in the Goldilocks lane.
 pub fn prepare_one_gold(a: &Vec<Rq>, n: usize) -> Vec<u64> {
     let deg: usize = params::RING_DEGREE;
@@ -995,14 +995,14 @@ pub fn prepare_one_gold(a: &Vec<Rq>, n: usize) -> Vec<u64> {
     out
 }
 
-// @genesis 57b79e7 2026-09-19 — ring::prepare_vec_gold
+// @genesis b54235e 2026-09-19 — ring::prepare_vec_gold
 /// Prepare a left operand in the single Goldilocks lane.
 pub fn prepare_vec_gold(a: &Vec<Rq>, n: usize) -> PreparedVecG {
     let fwd: Vec<u64> = prepare_one_gold(a, n);
     PreparedVecG { len: n, fwd }
 }
 
-// @genesis b23b9e6 2026-09-19 — ring::dot_prepared_digits_gold
+// @genesis d608824 2026-09-19 — ring::dot_prepared_digits_gold
 /// `Σⱼ a[j] · b[j]` with `a` prepared and `b`'s coefficients bounded by
 /// [`params::GADGET_BASE`], in **one** Goldilocks lane (candidate T27).
 ///
@@ -1057,7 +1057,7 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
     Rq(out)
 }
 
-// @genesis 57b79e7 2026-09-19 — ring::mac_into_gold
+// @genesis b54235e 2026-09-19 — ring::mac_into_gold
 /// `acc[k] += af[k] · bf[k]` in the Goldilocks lane, the counterpart of
 /// [`mac_into`].
 pub fn mac_into_gold(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize) -> Vec<u64> {

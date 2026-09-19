@@ -465,7 +465,7 @@ impl RawVec32 {
 }
 
 
-// @genesis 57b79e7 2026-09-19 — linalg::PreparedMatrixG
+// @genesis b54235e 2026-09-19 — linalg::PreparedMatrixG
 /// A matrix prepared in the single Goldilocks lane (candidate T27).
 pub struct PreparedMatrixG {
     rows: Vec<crate::ring::PreparedVecG>,
@@ -473,7 +473,7 @@ pub struct PreparedMatrixG {
 }
 
 impl PolyMatrix {
-    // @genesis 57b79e7 2026-09-19 — linalg::PolyMatrix::prepare_digits_gold
+    // @genesis b54235e 2026-09-19 — linalg::PolyMatrix::prepare_digits_gold
     /// Prepare every row in the Goldilocks lane, for the digit path.
     pub fn prepare_digits_gold(&self) -> PreparedMatrixG {
         let n: usize = self.0.len();
@@ -495,7 +495,7 @@ impl PreparedMatrixG {
         self.rows.len()
     }
 
-    // @genesis 57b79e7 2026-09-19 — linalg::PreparedMatrixG::apply_digits_gold
+    // @genesis b54235e 2026-09-19 — linalg::PreparedMatrixG::apply_digits_gold
     /// `M · v` with every row prepared, in one Goldilocks lane.
     pub fn apply_digits_gold(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.rows.len();
