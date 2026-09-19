@@ -2,6 +2,7 @@ import Generated
 import Field
 import Ext
 import Ring
+import AuxGold
 import RqBridge
 import Scheme
 import EvalSplit
@@ -1483,6 +1484,31 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 --    is an ordinary function of its body). The `_32` and `_64` loop bodies
 --    differ by one inserted `expand` and the inner loops are byte-identical,
 --    so the pointwise body equality is the entire content.
+-- Candidate T27's arithmetic layer. `AuxArith`'s theorems are generic in
+-- `(p, m)` but `Magic` REQUIRES `p < 2^32` -- its own docstring says that is
+-- what keeps a product of two residues inside a `u64` -- so a 64-bit auxiliary
+-- prime cannot instantiate it and the arithmetic starts again. What it does
+-- NOT need is Barrett: `2^64 = 2^32 - 1 (mod p)` is exact, so the reduction
+-- has no floor, no magic constant and no error term, and its proof is shorter
+-- than `aux_reduce_spec`'s rather than longer.
+--
+-- Two things in these statements are worth reading twice. `gold_reduce_spec`
+-- and `gold_mul_spec` have NO precondition -- they are exact for every `u128`
+-- and every pair of words -- because the reduction's single conditional
+-- subtract is enough by a margin of exactly two: `t <= 2^64 - 1` and
+-- `m <= (2^32 - 1)^2` give `t + m <= 2p - 2`. And `gold_add_bounded` is stated
+-- at `a + b < 2p` rather than at two reduced operands, because the reduction's
+-- own call sites do not have reduced operands and demanding them would be a
+-- lie about the code.
+#print axioms HachiEquiv.AuxGold.GOLD_P_val
+#print axioms HachiEquiv.AuxGold.cast_trunc_spec
+#print axioms HachiEquiv.AuxGold.pow96_succ
+#print axioms HachiEquiv.AuxGold.gold_add_bounded
+#print axioms HachiEquiv.AuxGold.gold_add_spec
+#print axioms HachiEquiv.AuxGold.gold_sub_bounded
+#print axioms HachiEquiv.AuxGold.gold_sub_spec
+#print axioms HachiEquiv.AuxGold.gold_reduce_spec
+#print axioms HachiEquiv.AuxGold.gold_mul_spec
 #print axioms HachiEquiv.Raw32.eq_ok_of_spec
 #print axioms HachiEquiv.Raw32.loop_congr
 #print axioms HachiEquiv.Raw32.fp_new_id
