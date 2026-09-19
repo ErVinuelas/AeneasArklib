@@ -9150,3 +9150,83 @@ Four candidates, all proved, peak unchanged at 5453 MiB throughout. The map at
 | `carrier_from_raw` + decompose | 98.1 | 14.8% | the general path, gated at ≈ −5.3% |
 | lifted witness | 35.9 | 5.4% | T1a took it −43.7% |
 | `lift_commit` | 18.0 | 2.7% | |
+
+## T3 at round 0, landed: the last card on the list (2026-09-19)
+
+Owed since T3 landed, when I scoped the card to the `Ext4` path and said I
+would assess round 0 afterwards. Round 0 runs `round_poly_zero_base` over
+`2^(m₀−1)` pairs — **half of every pair the protocol evaluates** — and it is
+the cheap half, because `w̃` is still in the base field: `lo`, `Δ` and all
+their powers stay in `ZMod q` and only the final `eq[y] · c_m` crosses into
+the extension.
+
+| | ns/pair |
+|---|---|
+| 33-node interpolation, base | 1341.54 |
+| Taylor shift, base | **687.87 (−48.7%)** |
+
+`round_poly_zero_base` has no bench row of its own, so it is judged on the
+caller it dominates by arithmetic — the 2026-09-14 rule. Two runs on
+`sumcheck/honest_round_messages`: **−17.4%** and **−20.0%**, with
+`sumcheck/round_poly_zero` carried in both runs as the control that must *not*
+move: +0.4% and −2.7%, noise in both. This card does not touch the `Ext4`
+path and the row says so.
+
+At the pin, against the T33 profile:
+
+| | T33 | T3-base | |
+|---|---|---|---|
+| commitment | 200.0 s | 200.0 s | 0.0% |
+| `carrier_decomp_from_raw` | 98.1 s | 97.7 s | −0.4% |
+| `honest_compute_resp` | 154.1 s | 154.4 s | +0.2% |
+| lifted witness | 35.9 s | 37.6 s | +4.7% |
+| **`honest_round_messages`** | **153.8 s** | **133.8 s** | **−13.0%** |
+| **prover** | **663.7 s** | **645.3 s** | **−2.8%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+Projected −3.3%, measured −2.8%.
+
+The proof is the smallest of the five, and for the reason the card predicted:
+`round_poly_zero_base_spec`'s statement does not move, the algebra is the same
+shift, and `AuxShift` already carries all of it. The only new content is that
+the coefficient is computed in `ZMod q` and embedded — and `φF` is a ring
+homomorphism, so `shiftCoeffK_phi` moves it across in one line. Five loop
+specs and two definitions; `applied`, `shiftCoeff` and `rangeProduct_shift`
+are reused untouched.
+
+## The session's total, and the one card that is left
+
+| | prover | |
+|---|---|---|
+| start (after T12) | 1170.8 s | |
+| **T27** one Goldilocks lane for the digit path | 845.3 s | −27.8% |
+| **T3** Taylor-shift round polynomial | 788.0 s | −6.8% |
+| **T1a** the lift's quotient is the high half | 755.4 s | −4.1% |
+| **T33** the short multiply's deferred reduction | 663.7 s | −12.1% |
+| **T3 at round 0** | **645.3 s** | −2.8% |
+| | | **−44.9% together** |
+
+Five candidates, every one proved with its statement unmoved, `make build`
+green with no `sorry` and zero axioms in `Generated.lean` throughout, peak
+resident unchanged at 5453 MiB. The map at 645.3 s:
+
+| block | s | share | disposition |
+|---|---|---|---|
+| commitment | 200.0 | 31.0% | ~84% `apply_digits_gold`; T27 took it −62% |
+| `honest_compute_resp` | 154.4 | 23.9% | T33 took it −35.9% |
+| rounds | 133.8 | 20.7% | T3 took the `Ext4` path −27.7% and round 0 −13.0% |
+| `carrier_from_raw` + decompose | 97.7 | 15.1% | **the one card left** |
+| lifted witness | 37.6 | 5.8% | T1a took it −43.7% |
+| `lift_commit` | 18.0 | 2.8% | |
+
+**The one card left** is the general (non-digit) transform path. Two 64-bit
+lanes beat three 31-bit ones by a measured **43.9%** — a 64-bit Montgomery
+butterfly costs 1.787 ns, not the ~4 ns I projected — which on the ~90 s of
+`carrier_from_raw` that is butterflies is about **−40 s, −6.2% of a 645.3 s
+prover**. It is gated, priced and not started: an `AuxGold`-sized arithmetic
+layer for the second prime, a second transform layer, a two-prime CRT in
+`u128`, and Montgomery form is a **representation change**, which `lean-opt`
+classes as a gated proposal rather than a champion because the carrier's
+meaning moves by a factor `R`. Estimated 2500–3500 lines. That is a scope
+decision, not a measurement question, and it is the only thing in the prover
+above the line that has not been either landed or closed with numbers.

@@ -1,0 +1,82 @@
+# T3-at-round-0 at the pin, 2026-09-19T21:18:00+02:00, HEAD 2bafd96
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:578:4
+    |
+578 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: `hachi` (lib) generated 1 warning
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1510:9
+     |
+1510 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2333:9
+     |
+2333 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3270:9
+     |
+3270 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3390:9
+     |
+3390 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics"` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 2.53s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 505.0ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   368.5s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   574.2s] +   200.0s  peak   4536 live   4473 MiB  committed 1024 block(s)
+[   574.9s] +  700.0ms  peak   4536 live   4473 MiB  statement built
+[   672.6s] +    97.7s  peak   4536 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   673.9s] +     1.3s  peak   4536 live   4497 MiB  honest_compute_v_from_decomp
+[   828.3s] +   154.4s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   828.3s] +   16.2ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   828.7s] +  405.2ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   828.7s] +   70.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   866.2s] +    37.6s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   866.3s] ---------  peak   5453 live   5059 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 404.4ms
+[profile] lift_commit: 18.0s
+[profile] c_w_table_mle at 2^26: 209.8ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 10.6s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 133.8s
+[profile] honest_compute_y: 1.2s
+[profile] verifier: rlin_stmt + statement thread: 418.9ms
+[profile] verifier: round_verify_loop (26 rounds): 41.2µs
+[profile] verifier: final_check = true: 6.5s
+[profile] verifier: end_piece_check = true: 19.2s
+[profile] chain_verify (whole) = true: 27.6s
+[profile] control (frozen genesis PolyVec::zeros x50): 577.2ms
+[profile] control spread within run: +14.3%  (recenter cross-run deltas by the level)
+[  1085.5s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 1085.89s
+
+# exit 0 at 2026-09-19T21:36:08+02:00
