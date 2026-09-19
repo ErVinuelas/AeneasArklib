@@ -2735,3 +2735,198 @@ fn the_taylor_shift_with_an_in_place_accumulator() {
     eprintln!("[T3] rounds 1..25 at the pin: {:.1} s -> {:.1} s",
         t_now / n * pi, t_ip / n * pi);
 }
+
+/// `long_mul`'s body **verbatim**, with the output loop started at `n` instead
+/// of `0`: the high half of the product, in a fresh `2N−1`-shaped walk.
+fn t1a_long_mul_high(a: &Rq, b: &Rq) -> Vec<cpoly::field::Fp> {
+    let n: usize = hachi::params::RING_DEGREE;
+    let width: usize = 2 * n - 1;
+    let q: u128 = hachi::params::Q as u128;
+    let mut out: Vec<cpoly::field::Fp> = Vec::with_capacity(n - 1);
+    let mut k: usize = n;
+    while k < width {
+        let lo: usize = if k + 1 > n { k + 1 - n } else { 0 };
+        let hi: usize = if k + 1 < n { k + 1 } else { n };
+        let mut acc: u128 = 0;
+        let mut i: usize = lo;
+        while i < hi {
+            let ai: u128 = a.coeff(i).to_u64() as u128;
+            let bj: u128 = b.coeff(k - i).to_u64() as u128;
+            acc = acc + ai * bj;
+            i += 1;
+        }
+        out.push(cpoly::field::Fp::new((acc % q) as u64));
+        k += 1;
+    }
+    out
+}
+
+/// `c_row_sum`'s shape with [`t1a_long_mul_high`] in place of `long_mul`: the
+/// same per-entry `Vec` and the same accumulate loop, over `N−1` slots instead
+/// of `2N−1`.
+fn t1a_row_sum_high(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpoly::field::Fp> {
+    let n: usize = hachi::params::RING_DEGREE;
+    let mut acc: Vec<cpoly::field::Fp> = vec![cpoly::field::Fp::ZERO; n - 1];
+    let mut j: usize = 0;
+    while j < cols {
+        let mij = m_row.get(j);
+        if !mij.is_zero() {
+            let prod = t1a_long_mul_high(mij, z.get(j));
+            let mut t: usize = 0;
+            while t < n - 1 {
+                acc[t] = acc[t] + prod[t];
+                t += 1;
+            }
+        }
+        j += 1;
+    }
+    acc
+}
+
+/// **Card T1a's diagnostic.** Why is half the work slower?
+///
+/// The three earlier prototypes all restructured the *triangle* — a different
+/// traversal, a different accumulator, a different output shape — and all three
+/// lost. This one changes exactly one thing: `long_mul`'s output loop starts at
+/// `n` instead of `0`. Same body, same bounds arithmetic, same `u128` register
+/// accumulator, same `push`, same per-entry `Vec` and accumulate loop in the
+/// caller. If *this* is not about half of `c_quotient`, the cost is not in the
+/// multiplications at all and the card is dead on arithmetic grounds rather
+/// than on a compiler accident.
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_lift_high_half_diagnostic() {
+    use hachi::ringswitch::{c_quotient, RlinStatement};
+    use std::time::Instant;
+    let cols: usize = std::env::var("HACHI_T1_COLS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(2048);
+    let mut r = Lcg::new(0xC0A1_00B0);
+    let mut entries: Vec<Rq> = Vec::with_capacity(cols);
+    for j in 0..cols {
+        entries.push(if j % 100 < 43 { r.next_poly_vec(1).get(0).copy() } else { Rq::zero() });
+    }
+    let m_row = PolyVec::new(entries);
+    let z = r.next_poly_vec(cols);
+    let yv = PolyVec::new(vec![Rq::zero()]);
+    let s = RlinStatement::new(PolyMatrix::new(vec![m_row.copy()]), yv, 15);
+    let n = hachi::params::RING_DEGREE;
+
+    // correctness first
+    let want = c_quotient(&s, &z, 0);
+    let got = t1a_row_sum_high(&m_row, &z, cols);
+    for k in 0..n - 1 {
+        assert!(got[k].to_u64() == want.coeff(k).to_u64(), "high half differs at {k}");
+    }
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        f();
+        let mut b = f64::MAX;
+        for _ in 0..5 {
+            let t = Instant::now();
+            f();
+            b = b.min(t.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let t_full = best(Box::new(|| { std::hint::black_box(c_quotient(&s, &z, 0)); }));
+    let t_high = best(Box::new(|| { std::hint::black_box(t1a_row_sum_high(&m_row, &z, cols)); }));
+    eprintln!("[t1a] cols = {cols} (43% nonzero)");
+    eprintln!("[t1a] c_quotient (full product)      {:>9.2} ms", 1e3 * t_full);
+    eprintln!("[t1a] long_mul's own shape, high half {:>8.2} ms  ({:+.1}%)",
+        1e3 * t_high, 100.0 * (t_high - t_full) / t_full);
+    eprintln!("[t1a] the high half agrees with c_quotient on every quotient coefficient");
+}
+
+/// `long_mul` copied verbatim (it is private), for a like-for-like comparison
+/// against [`t1a_long_mul_high`].
+fn t1a_long_mul_full(a: &Rq, b: &Rq) -> Vec<cpoly::field::Fp> {
+    let n: usize = hachi::params::RING_DEGREE;
+    let width: usize = 2 * n - 1;
+    let q: u128 = hachi::params::Q as u128;
+    let mut out: Vec<cpoly::field::Fp> = Vec::with_capacity(width);
+    let mut k: usize = 0;
+    while k < width {
+        let lo: usize = if k + 1 > n { k + 1 - n } else { 0 };
+        let hi: usize = if k + 1 < n { k + 1 } else { n };
+        let mut acc: u128 = 0;
+        let mut i: usize = lo;
+        while i < hi {
+            let ai: u128 = a.coeff(i).to_u64() as u128;
+            let bj: u128 = b.coeff(k - i).to_u64() as u128;
+            acc = acc + ai * bj;
+            i += 1;
+        }
+        out.push(cpoly::field::Fp::new((acc % q) as u64));
+        k += 1;
+    }
+    out
+}
+
+/// The high half again, but with the inner loop walking **`b` forwards** —
+/// `out[u + v − n] += a[u]·b[v]` reassociated so that the index that moves in
+/// the inner loop is `i` on `a` and `k − i` on `b`, exactly as the full one
+/// does, but with the antidiagonal indexed from its own end.
+fn t1a_long_mul_high_rev(a: &Rq, b: &Rq) -> Vec<cpoly::field::Fp> {
+    let n: usize = hachi::params::RING_DEGREE;
+    let q: u128 = hachi::params::Q as u128;
+    let mut out: Vec<cpoly::field::Fp> = Vec::with_capacity(n - 1);
+    let mut d: usize = 1;
+    while d < n {
+        // k = 2n - 1 - d, so the antidiagonal has `d` terms, i from n-d to n-1
+        let k: usize = 2 * n - 1 - d;
+        let mut acc: u128 = 0;
+        let mut i: usize = n - d;
+        while i < n {
+            let ai: u128 = a.coeff(i).to_u64() as u128;
+            let bj: u128 = b.coeff(k - i).to_u64() as u128;
+            acc = acc + ai * bj;
+            i += 1;
+        }
+        out.push(cpoly::field::Fp::new((acc % q) as u64));
+        d += 1;
+    }
+    out
+}
+
+/// **Card T1a, the single-product diagnostic.** One `long_mul` against one
+/// high half, nothing else in the loop.
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_lift_single_product_diagnostic() {
+    use std::time::Instant;
+    let mut r = Lcg::new(0xC0A1_00C0);
+    let a = r.next_poly_vec(1).get(0).copy();
+    let b = r.next_poly_vec(1).get(0).copy();
+    let n = hachi::params::RING_DEGREE;
+    let full = t1a_long_mul_full(&a, &b);
+    let high = t1a_long_mul_high(&a, &b);
+    let rev = t1a_long_mul_high_rev(&a, &b);
+    for k in 0..n - 1 {
+        assert_eq!(full[n + k].to_u64(), high[k].to_u64(), "high differs at {k}");
+        // `rev` emits the antidiagonals in the opposite order
+        assert_eq!(full[2 * n - 2 - k].to_u64(), rev[k].to_u64(), "rev differs at {k}");
+    }
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..20 { f(); }
+        let mut bb = f64::MAX;
+        for _ in 0..20 {
+            let t = Instant::now();
+            f();
+            bb = bb.min(t.elapsed().as_secs_f64());
+        }
+        bb
+    };
+    let tf = best(Box::new(|| { std::hint::black_box(t1a_long_mul_full(&a, &b)); }));
+    let th = best(Box::new(|| { std::hint::black_box(t1a_long_mul_high(&a, &b)); }));
+    let tr = best(Box::new(|| { std::hint::black_box(t1a_long_mul_high_rev(&a, &b)); }));
+    // N² and N(N−1)/2 multiply-accumulate steps respectively
+    let steps_f = (n * n) as f64;
+    let steps_h = (n * (n - 1) / 2) as f64;
+    eprintln!("[t1a] one product, N = {n}");
+    eprintln!("[t1a]   full  {:>8.2} µs over {:.0} steps = {:.3} ns/step",
+        1e6 * tf, steps_f, 1e9 * tf / steps_f);
+    eprintln!("[t1a]   high  {:>8.2} µs over {:.0} steps = {:.3} ns/step  ({:+.1}% of full)",
+        1e6 * th, steps_h, 1e9 * th / steps_h, 100.0 * (th - tf) / tf);
+    eprintln!("[t1a]   rev   {:>8.2} µs over {:.0} steps = {:.3} ns/step  ({:+.1}% of full)",
+        1e6 * tr, steps_h, 1e9 * tr / steps_h, 100.0 * (tr - tf) / tf);
+}

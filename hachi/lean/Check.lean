@@ -1585,6 +1585,19 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.LiftProver.div_by_modulus_spec
 #print axioms HachiEquiv.LiftProver.c_row_sum_spec
 #print axioms HachiEquiv.LiftProver.c_quotient_spec
+-- Candidate T1a (Stage 6) -- the lift's HIGH HALF. `div_by_modulus` reads only
+-- coefficients `N … 2N−2` of the defect, and the `y` subtraction touches only
+-- those below `N`, so the quotient IS the high half of `cRowSum` and the low
+-- half of every `long_mul` was computed, reduced, accumulated over `2N−1`
+-- slots, copied and discarded. `c_quotient_spec`'s STATEMENT does not move;
+-- what disappears from the proof is the subtraction loop and the division
+-- loop, and what replaces them is `divByMonic_of_high`.
+#print axioms HachiEquiv.LiftProver.mul_coeff_of_high
+#print axioms HachiEquiv.LiftProver.cRowSum_coeff_of_high
+#print axioms HachiEquiv.LiftProver.divByMonic_of_high
+#print axioms HachiEquiv.LiftProver.long_mul_high_spec
+#print axioms HachiEquiv.LiftProver.c_row_sum_high_spec
+#print axioms HachiEquiv.LiftProver.c_quotient_copy_loop_spec
 #print axioms HachiEquiv.LiftProver.honest_lift_witness_spec
 
 -- The optimized variants (`lean/Opt.lean`): each `opt_eq_spec` equates a

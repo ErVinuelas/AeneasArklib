@@ -495,6 +495,385 @@ theorem long_mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
     · rw [if_pos hle, coeffK_of_ge (v := b) (k := k - t) (by rw [hb.1]; omega), mul_zero]
     · rw [if_neg hle]
 
+/-! ### The high half (Stage 6 candidate T1a)
+
+`div_by_modulus` reads only coefficients `N … 2N − 2` of the defect, and the
+`y` subtraction touches only those below `N`. So the quotient is the **high
+half of `cRowSum`**, and the low half of every `long_mul` — half the schoolbook
+work — was computed and discarded. `long_mul_high` and `c_row_sum_high`
+compute only what survives.
+
+The three specs below are the `long_mul` / `c_row_sum` ones with the output
+index shifted by `N`: `out[s]` is coefficient `N + s`. The antidiagonal
+arithmetic is unchanged and reuses `longSum`, `longSum_cast` and
+`coeff_toRq_mul_unreduced` verbatim — for `k ≥ N` the clip is exactly
+`lo = k + 1 − N`, `hi = N`, which is what those lemmas already take. -/
+
+/-- `long_mul_high`'s inner loop: the clipped antidiagonal, for `k ≥ N`. -/
+theorem long_mul_high_loop0_loop0_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b)
+    (n k : Std.Usize) (acc : Std.U128) (i : Std.Usize) (lo : ℕ)
+    (hn : n.val = N) (hlo : lo ≤ i.val) (hik : i.val ≤ n.val)
+    (hkN : N ≤ k.val) (hlov : lo = k.val + 1 - N)
+    (hacc : acc.val = longSum a b k.val lo i.val) :
+    ringswitch.long_mul_high_loop0_loop0 a b n k acc i
+      ⦃ z => z.val = longSum a b k.val lo n.val ⦄ := by
+  rw [ringswitch.long_mul_high_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => lo ≤ s.2.val ∧ s.2.val ≤ n.val ∧ s.1.val = longSum a b k.val lo s.2.val)
+  · rintro ⟨sa, si⟩ ⟨hlo1, hle1, hval1⟩
+    dsimp only at hlo1 hle1 hval1
+    simp only [ringswitch.long_mul_high_loop0_loop0.body]
+    by_cases hlt : si < n
+    · rw [if_pos hlt]
+      have hsiN : si.val < N := by rw [← hn]; scalar_tac
+      have hsik : si.val ≤ k.val := by omega
+      have hkiN : k.val - si.val < N := by omega
+      step with coeff_word a ha si as ⟨f, _hRf, hfv⟩
+      step with to_u64_id f as ⟨w, hw⟩
+      have haiv : w.val = wordN a si.val := by rw [hw, hfv]
+      have hcast : lift (UScalar.cast .U128 w) ⦃ y => y.val = w.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 w (by scalar_tac)
+      step with hcast as ⟨ai, hai⟩
+      step as ⟨d, hd⟩
+      step with coeff_word b hb d as ⟨g, _hRg, hgv⟩
+      step with to_u64_id g as ⟨w2, hw2⟩
+      have hbjv : w2.val = wordN b (k.val - si.val) := by rw [hw2, hgv, hd]
+      have hcast2 : lift (UScalar.cast .U128 w2) ⦃ y => y.val = w2.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 w2 (by scalar_tac)
+      step with hcast2 as ⟨bj, hbj⟩
+      have hbnd : sa.val + ai.val * bj.val ≤ Std.U128.max := by
+        have hprod : ai.val * bj.val ≤ q * q := by
+          rw [hai, hbj, haiv, hbjv]
+          exact Nat.mul_le_mul (Nat.le_of_lt (wordN_lt ha _)) (Nat.le_of_lt (wordN_lt hb _))
+        have hone : sa.val ≤ (N - 1) * (q * q) := by
+          rw [hval1]
+          exact le_trans (longSum_le ha hb k.val lo si.val)
+            (Nat.mul_le_mul_right _ (by omega))
+        have := accBound
+        calc sa.val + ai.val * bj.val ≤ (N - 1) * (q * q) + q * q :=
+              Nat.add_le_add hone hprod
+          _ = N * (q * q) := by
+              have hN1 : N - 1 + 1 = N := by omega
+              calc (N - 1) * (q * q) + q * q = ((N - 1) + 1) * (q * q) := by ring
+                _ = N * (q * q) := by rw [hN1]
+          _ ≤ Std.U128.max := Nat.le_of_lt this
+      step as ⟨t, ht⟩
+      step as ⟨sa2, hsa2⟩
+      step as ⟨si2, hsi2⟩
+      refine ⟨by scalar_tac, by scalar_tac, ?_, by scalar_tac⟩
+      rw [hsa2, ht, hai, hbj, haiv, hbjv, hval1, hsi2,
+        longSum_succ a b k.val lo si.val hlo1]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : si.val = n.val := by scalar_tac
+      rw [hval1, heq]
+  · exact ⟨hlo, hik, hacc⟩
+
+/-- `long_mul_high`'s output loop: coefficient `N + s` at slot `s`. -/
+theorem long_mul_high_loop0_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b)
+    (n width : Std.Usize) (qw : Std.U128) (out : alloc.vec.Vec cpoly.field.Fp)
+    (k : Std.Usize) (hn : n.val = N) (hw : width.val = 2 * N - 1) (hq : qw.val = q)
+    (hkN : N ≤ k.val) (hk : k.val ≤ width.val) (hlen : out.val.length = k.val - N)
+    (hred : ∀ x ∈ out.val, Red x)
+    (hcoeff : ∀ s, s < k.val - N → coeffK out s
+      = ∑ t ∈ Finset.range N, if t ≤ N + s then coeffK a t * coeffK b (N + s - t) else 0) :
+    ringswitch.long_mul_high_loop0 a b n width qw out k
+      ⦃ z => z.val.length = N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
+        ∀ s, s < N - 1 → coeffK z s
+          = ∑ t ∈ Finset.range N,
+              if t ≤ N + s then coeffK a t * coeffK b (N + s - t) else 0 ⦄ := by
+  rw [ringswitch.long_mul_high_loop0]
+  apply loop.spec_decr_nat (fun s => width.val - s.2.val)
+    (fun s => N ≤ s.2.val ∧ s.2.val ≤ width.val ∧ s.1.val.length = s.2.val - N ∧
+      (∀ x ∈ s.1.val, Red x) ∧
+      ∀ u, u < s.2.val - N → coeffK s.1 u
+        = ∑ t ∈ Finset.range N,
+            if t ≤ N + u then coeffK a t * coeffK b (N + u - t) else 0)
+  · rintro ⟨so, sk⟩ ⟨hkN1, hk1, hlen1, hred1, hc1⟩
+    dsimp only at hkN1 hk1 hlen1 hred1 hc1
+    simp only [ringswitch.long_mul_high_loop0.body]
+    by_cases hlt : sk < width
+    · rw [if_pos hlt]
+      have hqpos : 0 < q := by norm_num [q]
+      have hskb : sk.val < 2 * N - 1 := by rw [← hw]; scalar_tac
+      step as ⟨kp1, hkp1⟩
+      step as ⟨lo, hlo⟩
+      have hlov : lo.val = sk.val + 1 - N := by rw [hlo, hkp1, hn]
+      step with long_mul_high_loop0_loop0_spec a b ha hb n sk 0#u128 lo lo.val
+        hn (by simp) (by rw [hn]; omega) hkN1 hlov (by simp [longSum_self])
+        as ⟨acc, hacc⟩
+      step as ⟨m, hm⟩
+      have hcast : lift (UScalar.cast .U64 m) ⦃ y => y.val = m.val ⦄ :=
+        UScalar.cast_inBounds_spec .U64 m (by
+          rw [hm, hq]
+          have hb1 : acc.val % q < q := Nat.mod_lt _ hqpos
+          have hb2 : q ≤ UScalar.max UScalarTy.U64 := by
+            simp only [q, UScalar.max, UScalarTy.numBits]; norm_num
+          omega)
+      step with hcast as ⟨wd, hwd⟩
+      step with fp_new_spec wd as ⟨f, hRf, hfv⟩
+      step as ⟨so2, hso2⟩
+      step as ⟨sk2, hsk2⟩
+      refine ⟨by omega, by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hso2, hsk2, List.length_append, hlen1]; simp; omega
+      · intro x hx
+        rw [hso2] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hred1 x h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro u hu
+        rw [hsk2] at hu
+        rcases Nat.lt_or_ge u (sk.val - N) with hult | huge
+        · rw [coeffK, hso2, getD_append_lt _ _ _ (by omega)]
+          exact hc1 u hult
+        · have hueq : u = so.val.length := by omega
+          have hukv : N + u = sk.val := by omega
+          have hback : N + (sk.val - N) = sk.val := by omega
+          rw [coeffK, hueq, hso2, getD_append_eq _ _ _, hfv, hwd, hm, hq, hacc,
+            ZMod.natCast_mod, hlen1, hback, hn]
+          exact longSum_cast ha hb (by rw [hlov, if_pos (by omega)])
+            (by rw [if_neg (by omega)])
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : sk.val = width.val := by scalar_tac
+      refine ⟨by rw [hlen1, heq, hw]; omega, hred1, ?_⟩
+      intro s hs
+      exact hc1 s (by rw [heq, hw]; omega)
+  · exact ⟨hkN, hk, hlen, hred, hcoeff⟩
+
+/-- **`long_mul_high` is the high half of the product**: `N − 1` words, and
+`out[s]` is coefficient `N + s` of `a · b` in `Zq[X]`. -/
+theorem long_mul_high_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
+    ringswitch.long_mul_high a b
+      ⦃ out => WfWords (N - 1) out ∧
+        ∀ s, s < N - 1 → coeffK out s = ((toRq a).1 * (toRq b).1).coeff (N + s) ⦄ := by
+  rw [ringswitch.long_mul_high]
+  step as ⟨i, hi⟩
+  step as ⟨width, hwidth⟩
+  have hwv : width.val = 2 * N - 1 := by scalar_tac
+  have hcast : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q
+      (by rw [params_Q_val]; norm_num [q, U128.max, U128.numBits])
+  step with hcast as ⟨qw, hqw⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  apply spec_mono (long_mul_high_loop0_spec a b ha hb params.RING_DEGREE width qw
+    (alloc.vec.Vec.new cpoly.field.Fp) params.RING_DEGREE params_RING_DEGREE_val hwv
+    (by rw [hqw]; exact params_Q_val) (by rw [params_RING_DEGREE_val])
+    (by rw [params_RING_DEGREE_val, hwv]; omega)
+    (by rw [params_RING_DEGREE_val]; simp) (by intro x hx; simp at hx)
+    (by intro s hs; rw [params_RING_DEGREE_val] at hs; omega))
+  rintro z ⟨hzl, hzr, hzc⟩
+  refine ⟨⟨hzl, hzr⟩, fun s hs => ?_⟩
+  rw [hzc s hs, coeff_toRq_mul_unreduced a b ha hb (N + s)]
+
+/-! ### `c_row_sum_high` -/
+
+/-- The zero-fill of `c_row_sum_high`: `N − 1` zero words. -/
+theorem c_row_sum_high_zero_loop_spec (n : Std.Usize) (hn : n.val = N)
+    (acc : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) (hk : k.val ≤ N - 1)
+    (hacc : acc.val = List.replicate k.val cpoly.field.Fp.ZERO) :
+    ringswitch.c_row_sum_high_loop0 n acc k
+      ⦃ z => z.val = List.replicate (N - 1) cpoly.field.Fp.ZERO ⦄ := by
+  rw [ringswitch.c_row_sum_high_loop0]
+  apply loop.spec_decr_nat (fun s => N - 1 - s.2.val)
+    (fun s => s.2.val ≤ N - 1 ∧ s.1.val = List.replicate s.2.val cpoly.field.Fp.ZERO)
+  · rintro ⟨o1, i1⟩ ⟨hi1, ho1⟩
+    dsimp only at hi1 ho1
+    simp only [ringswitch.c_row_sum_high_loop0.body]
+    step as ⟨nm1, hnm1⟩
+    have hnm1v : nm1.val = N - 1 := by rw [hnm1, hn]
+    by_cases hlt : i1 < nm1
+    · rw [if_pos hlt]
+      have hlen : o1.val.length = i1.val := by rw [ho1, List.length_replicate]
+      have hib : i1.val < N - 1 := by have := hlt; scalar_tac
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by omega, ?_, by omega⟩
+      rw [ho2, hi2, ho1, List.replicate_succ']
+    · rw [if_neg hlt, WP.spec_ok]
+      show o1.val = List.replicate (N - 1) cpoly.field.Fp.ZERO
+      have heq : i1.val = N - 1 := by scalar_tac
+      rw [ho1, heq]
+  · exact ⟨hk, hacc⟩
+
+/-- The accumulation loop of `c_row_sum_high`, over `N − 1` slots. -/
+theorem c_row_sum_high_add_loop_spec (n : Std.Usize) (hn : n.val = N)
+    (acc prod : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize) (g : ℕ → ZMod q)
+    (hal : acc.val.length = N - 1) (har : ∀ x ∈ acc.val, Red x)
+    (hpl : prod.val.length = N - 1) (hpr : ∀ x ∈ prod.val, Red x)
+    (ht : t.val ≤ N - 1)
+    (hbase : ∀ s, s < N - 1 →
+      coeffK acc s = g s + (if s < t.val then coeffK prod s else 0)) :
+    ringswitch.c_row_sum_high_loop1_loop0 n acc prod t
+      ⦃ z => z.val.length = N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
+        ∀ s, s < N - 1 → coeffK z s = g s + coeffK prod s ⦄ := by
+  rw [ringswitch.c_row_sum_high_loop1_loop0]
+  apply loop.spec_decr_nat (fun st => N - 1 - st.2.val)
+    (fun st => st.2.val ≤ N - 1 ∧ st.1.val.length = N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
+      ∀ s, s < N - 1 → coeffK st.1 s = g s + (if s < st.2.val then coeffK prod s else 0))
+  · rintro ⟨a1, t1⟩ ⟨ht1, hl1, hr1, hc1⟩
+    dsimp only at ht1 hl1 hr1 hc1
+    simp only [ringswitch.c_row_sum_high_loop1_loop0.body]
+    step as ⟨nm1, hnm1⟩
+    have hnm1v : nm1.val = N - 1 := by rw [hnm1, hn]
+    by_cases hlt : t1 < nm1
+    · rw [if_pos hlt]
+      have ht1b : t1.val < N - 1 := by scalar_tac
+      have hta : t1.val < a1.val.length := by rw [hl1]; omega
+      have htp : t1.val < prod.val.length := by rw [hpl]; omega
+      step as ⟨fa, hfa⟩
+      have hRfa : Red fa := by rw [hfa]; exact hr1 _ (List.getElem_mem hta)
+      step as ⟨fp, hfp⟩
+      have hRfp : Red fp := by rw [hfp]; exact hpr _ (List.getElem_mem htp)
+      step with HachiEquiv.Field.fp_add_spec fa fp hRfa hRfp as ⟨f2, hRf2, hf2⟩
+      step as ⟨xa, backa, hxa, hbacka⟩
+      step as ⟨t2, ht2⟩
+      have hwset : (backa f2).val = a1.val.set t1.val f2 := by rw [hbacka]; simp
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hwset, List.length_set, hl1]
+      · exact Red_set hwset hr1 hRf2
+      · intro s hs
+        by_cases hsq : s = t1.val
+        · subst hsq
+          rw [coeffK_set_eq hwset hta, hf2, hfa, hfp, ← coeffK_of_lt hta,
+            ← coeffK_of_lt htp, hc1 t1.val hs, ht2, if_neg (by omega), if_pos (by omega),
+            add_zero]
+        · rw [coeffK_set_ne hwset hsq, hc1 s hs, ht2]
+          congr 1
+          by_cases hsl : s < t1.val
+          · rw [if_pos hsl, if_pos (by omega)]
+          · rw [if_neg hsl, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : t1.val = N - 1 := by scalar_tac
+      refine ⟨hl1, hr1, ?_⟩
+      intro s hs
+      rw [hc1 s hs, heq, if_pos hs]
+  · exact ⟨ht, hal, har, hbase⟩
+
+/-- The column loop of `c_row_sum_high`. -/
+theorem c_row_sum_high_col_loop_spec {μ : ℕ} (z row : linalg.PolyVec)
+    (n cols : Std.Usize) (hn : n.val = N) (hcols : cols.val = μ)
+    (hz : WfVec μ z) (hrow : WfVec μ row) (acc : alloc.vec.Vec cpoly.field.Fp)
+    (j : Std.Usize) (hal : acc.val.length = N - 1) (har : ∀ x ∈ acc.val, Red x)
+    (hj : j.val ≤ μ)
+    (hbase : ∀ s, s < N - 1 → coeffK acc s
+      = (∑ t ∈ Finset.range j.val,
+          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s)) :
+    ringswitch.c_row_sum_high_loop1 z n cols row acc j
+      ⦃ out => WfWords (N - 1) out ∧
+        ∀ s, s < N - 1 → coeffK out s
+          = (∑ t ∈ Finset.range μ,
+              (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+                * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s) ⦄ := by
+  rw [ringswitch.c_row_sum_high_loop1]
+  apply loop.spec_decr_nat (fun st => μ - st.2.val)
+    (fun st => st.2.val ≤ μ ∧ st.1.val.length = N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
+      ∀ s, s < N - 1 → coeffK st.1 s
+        = (∑ t ∈ Finset.range st.2.val,
+            (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+              * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s))
+  · rintro ⟨a1, j1⟩ ⟨hj1, hl1, hr1, hc1⟩
+    dsimp only at hj1 hl1 hr1 hc1
+    simp only [ringswitch.c_row_sum_high_loop1.body]
+    by_cases hlt : j1 < cols
+    · rw [if_pos hlt]
+      have hjm : j1.val < μ := by rw [← hcols]; scalar_tac
+      have hjr : j1.val < row.val.length := by rw [hrow.1]; exact hjm
+      have hjz : j1.val < z.val.length := by rw [hz.1]; exact hjm
+      simp only [linalg.PolyVec.get]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hjr)
+      step with RqBridge.is_zero_spec r hWr as ⟨bz, hbz⟩
+      by_cases hzero : bz = true
+      · rw [if_pos hzero]
+        step as ⟨j2, hj2⟩
+        refine ⟨by scalar_tac, hl1, hr1, ?_, by scalar_tac⟩
+        intro s hs
+        have hz0 : toRq r = 0 := hbz.1 hzero
+        rw [hc1 s hs, hj2, Finset.sum_range_succ,
+          List.getD_eq_getElem _ _ hjr, ← hr, hz0]
+        simp
+      rw [if_neg hzero]
+      step as ⟨r1, hr1'⟩
+      have hWr1 : Wf r1 := by rw [hr1']; exact hz.2 _ (List.getElem_mem hjz)
+      step with long_mul_high_spec r r1 hWr hWr1 as ⟨prod, hWprod, hprod⟩
+      step with c_row_sum_high_add_loop_spec n hn a1 prod 0#usize
+        (fun s => (∑ t ∈ Finset.range j1.val,
+          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s))
+        hl1 hr1 hWprod.1 hWprod.2 (by simp)
+        (by intro s hs; rw [hc1 s hs]; simp)
+        as ⟨a2, hl2, hr2, hc2⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, hl2, hr2, ?_, by scalar_tac⟩
+      intro s hs
+      rw [hc2 s hs, hj2, Finset.sum_range_succ, cpoly_coeff_add,
+        hprod s hs, hr, hr1',
+        List.getD_eq_getElem _ _ hjr, List.getD_eq_getElem _ _ hjz]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = μ := by rw [← hcols]; scalar_tac
+      exact ⟨⟨hl1, hr1⟩, fun s hs => by rw [hc1 s hs, heq]⟩
+  · exact ⟨hj, hal, har, hbase⟩
+
+/-- **`c_row_sum_high` is `cRowSum`'s high half**: `N − 1` words, `out[s]` the
+coefficient `N + s`. -/
+theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.PolyVec)
+    (i : Std.Usize) (rs : InnerOuter.RlinStatement Φ n μ)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (hz : WfVec μ z) (hi : i.val < n) :
+    ringswitch.c_row_sum_high s z i
+      ⦃ out => WfWords (N - 1) out ∧
+        ∀ t, t < N - 1 → coeffK out t
+          = (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩).coeff (N + t) ⦄ := by
+  obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
+  rw [ringswitch.c_row_sum_high]
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with poly_matrix_cols_spec (rows := n) (cols := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
+  have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
+  simp only [linalg.PolyMatrix.row]
+  step as ⟨row, hrow⟩
+  have hWrow : WfVec μ row := by rw [hrow]; exact hWm.2 _ (List.getElem_mem hrowlt)
+  step with c_row_sum_high_zero_loop_spec params.RING_DEGREE params_RING_DEGREE_val
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (by simp) (by simp) as ⟨acc, hacc⟩
+  have hal : acc.val.length = N - 1 := by rw [hacc, List.length_replicate]
+  have har : ∀ x ∈ acc.val, Red x := by
+    intro x hx
+    rw [hacc] at hx
+    rw [List.eq_of_mem_replicate hx]
+    exact Red_zero
+  apply spec_mono (c_row_sum_high_col_loop_spec (μ := μ) z row params.RING_DEGREE cols
+    params_RING_DEGREE_val hcols hz hWrow acc 0#usize hal har (by simp)
+    (by
+      intro t ht
+      have : coeffK acc t = 0 := by
+        unfold coeffK
+        rw [hacc, List.getD_eq_getElem _ _ (by rw [List.length_replicate]; omega),
+          List.getElem_replicate]
+        simp [toK, cpoly.field.Fp.ZERO]
+      rw [this, show ((0#usize : Std.Usize).val) = 0 from rfl, Finset.range_zero,
+        Finset.sum_empty, CPolynomial.coeff_zero]))
+  rintro out ⟨hWout, hval⟩
+  have hsum : (∑ t ∈ Finset.range μ,
+      (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+        * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1)
+      = InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩ := by
+    rw [InnerOuter.cRowSum,
+      ← Fin.sum_univ_eq_sum_range (fun t =>
+        (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+          * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1) μ]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    have hentry : rs.M ⟨i.val, hi⟩ j
+        = toRq (row.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp)) := by
+      rw [← hmeq, toMat_apply]
+      show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD j.val
+        (alloc.vec.Vec.new cpoly.field.Fp)) = _
+      rw [List.getD_eq_getElem _ _ hrowlt, ← hrow]
+    rw [hentry]
+    rfl
+  exact ⟨hWout, fun t ht => by rw [hval t ht, hsum]⟩
+
 /-! ### `div_by_modulus` -/
 
 /-- The copy loop of `div_by_modulus`. -/
@@ -925,104 +1304,185 @@ theorem c_row_sum_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.P
   rw [hentry]
   rfl
 
-/-- The subtraction loop of `c_quotient`: the canonical representative of `yᵢ`
-taken off the low `N` slots of the row sum. -/
-theorem c_quotient_sub_loop_spec (n : Std.Usize) (hn : n.val = N)
-    (defect : alloc.vec.Vec cpoly.field.Fp) (y : ring.Rq) (hy : Wf y) (k : Std.Usize)
-    (g : ℕ → ZMod q)
-    (hdl : defect.val.length = 2 * N - 1) (hdr : ∀ x ∈ defect.val, Red x) (hk : k.val ≤ N)
-    (hbase : ∀ s, coeffK defect s = g s - (if s < k.val then coeffK y s else 0)) :
-    ringswitch.c_quotient_loop n defect y k
-      ⦃ out => out.val.length = 2 * N - 1 ∧ (∀ x ∈ out.val, Red x) ∧
-        ∀ s, coeffK out s = g s - coeffK y s ⦄ := by
+/-! ### `c_quotient`, from the high half -/
+
+/-- The product of two reduced representatives vanishes past degree `2N − 2`:
+each factor is zero at and beyond `N`, so every term of the antidiagonal at
+`m ≥ 2N − 1` has a zero factor. -/
+theorem mul_coeff_of_high (a b : Rq Φ) {m : ℕ} (hm : 2 * N - 1 ≤ m) :
+    (a.1 * b.1).coeff m = 0 := by
+  rw [CPolynomial.coeff_toPoly, CPolynomial.toPoly_mul, Polynomial.coeff_mul]
+  refine Finset.sum_eq_zero (fun x hx => ?_)
+  have hxsum : x.1 + x.2 = m := by
+    simpa using Finset.mem_antidiagonal.mp hx
+  simp only [← CPolynomial.coeff_toPoly]
+  rcases Nat.lt_or_ge x.1 N with h1 | h1
+  · rw [Rq.coeff_eq_zero_of_natDegree_le Φ b
+      (by rw [RqBridge.phi_natDegree]; omega), mul_zero]
+  · rw [Rq.coeff_eq_zero_of_natDegree_le Φ a
+      (by rw [RqBridge.phi_natDegree]; omega), zero_mul]
+
+/-- `cRowSum` vanishes past degree `2N − 2`: it is a sum of such products. -/
+theorem cRowSum_coeff_of_high {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ n μ)
+    (zv : ArkLib.Lattices.PolyVec (Rq Φ) μ) (i : Fin n) {m : ℕ} (hm : 2 * N - 1 ≤ m) :
+    (InnerOuter.cRowSum Φ rs zv i).coeff m = 0 := by
+  rw [InnerOuter.cRowSum, cpoly_coeff_sum]
+  exact Finset.sum_eq_zero (fun j _ => mul_coeff_of_high _ _ hm)
+
+/-- **The quotient is the high half**, at the polynomial level:
+[`toCPolyK_eq_divByMonic`]'s argument with the dividend an arbitrary
+`CPolynomial` rather than a word vector. -/
+theorem divByMonic_of_high (P Q : CPolynomial (ZMod q))
+    (hP : ∀ m, 2 * N - 1 ≤ m → P.coeff m = 0)
+    (hQ : ∀ m, Q.coeff m = if m < N - 1 then P.coeff (N + m) else 0) :
+    Q = P.divByMonic Φ.φ := by
+  apply CPolynomial.toPolyLinearEquiv.injective
+  rw [CPolynomial.toPolyLinearEquiv_apply, CPolynomial.toPolyLinearEquiv_apply,
+    CPolynomial.divByMonic_toPoly_eq_divByMonic _ _ (InnerOuter.cModulus_monic Φ), phi_toPoly]
+  have hgdeg : ((Polynomial.X : Polynomial (ZMod q)) ^ N + 1).degree = (N : WithBot ℕ) := by
+    rw [← Polynomial.C_1]
+    exact Polynomial.degree_X_pow_add_C (by norm_num) 1
+  have hPc : ∀ m, P.toPoly.coeff m = P.coeff m := fun m => (CPolynomial.coeff_toPoly _ _).symm
+  have hQc : ∀ m, Q.toPoly.coeff m = if m < N - 1 then P.coeff (N + m) else 0 := by
+    intro m; rw [← CPolynomial.coeff_toPoly, hQ]
+  have hgQ : ∀ m : ℕ, N ≤ m →
+      (((Polynomial.X : Polynomial (ZMod q)) ^ N + 1) * Q.toPoly).coeff m = P.coeff m := by
+    intro m hm
+    have hexp : ((Polynomial.X : Polynomial (ZMod q)) ^ N + 1) * Q.toPoly
+        = Q.toPoly * Polynomial.X ^ N + Q.toPoly := by
+      rw [add_mul, one_mul, mul_comm ((Polynomial.X : Polynomial (ZMod q)) ^ N)]
+    rw [hexp, Polynomial.coeff_add, Polynomial.coeff_mul_X_pow', if_pos hm, hQc, hQc]
+    by_cases h1 : m - N < N - 1
+    · rw [if_pos h1, if_neg (by omega : ¬ m < N - 1), show N + (m - N) = m by omega, add_zero]
+    · rw [if_neg h1, if_neg (by omega : ¬ m < N - 1), hP m (by omega), add_zero]
+  refine (divByMonic_X_pow_add_one_eq (d := N) (by norm_num) _ _ ?_).symm
+  rw [hgdeg, Polynomial.degree_lt_iff_coeff_zero]
+  intro m hm
+  have hmN : N ≤ m := by exact_mod_cast hm
+  rw [Polynomial.coeff_sub, hPc, hgQ m hmN, sub_self]
+
+/-- The copy loop of `c_quotient`: `N − 1` words out of the high half. -/
+theorem c_quotient_copy_loop_spec (n : Std.Usize) (hn : n.val = N)
+    (hiv quot : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize)
+    (hhl : hiv.val.length = N - 1) (hhr : ∀ x ∈ hiv.val, Red x)
+    (hk : k.val ≤ N - 1) (hql : quot.val.length = k.val) (hqr : ∀ x ∈ quot.val, Red x)
+    (hqv : ∀ u, u < k.val → coeffK quot u = coeffK hiv u) :
+    ringswitch.c_quotient_loop n hiv quot k
+      ⦃ z => z.val.length = N - 1 ∧ (∀ x ∈ z.val, Red x) ∧
+          ∀ u, u < N - 1 → coeffK z u = coeffK hiv u ⦄ := by
   rw [ringswitch.c_quotient_loop]
-  apply loop.spec_decr_nat (fun st => N - st.2.val)
-    (fun st => st.2.val ≤ N ∧ st.1.val.length = 2 * N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      ∀ s, coeffK st.1 s = g s - (if s < st.2.val then coeffK y s else 0))
-  · rintro ⟨d1, k1⟩ ⟨hk1, hl1, hr1, hc1⟩
-    dsimp only at hk1 hl1 hr1 hc1
+  apply loop.spec_decr_nat (fun st => N - 1 - st.2.val)
+    (fun st => st.2.val ≤ N - 1 ∧ st.1.val.length = st.2.val ∧ (∀ x ∈ st.1.val, Red x) ∧
+      ∀ u, u < st.2.val → coeffK st.1 u = coeffK hiv u)
+  · rintro ⟨q1, k1⟩ ⟨hk1, hl1, hr1, hv1⟩
+    dsimp only at hk1 hl1 hr1 hv1
     simp only [ringswitch.c_quotient_loop.body]
-    by_cases hlt : k1 < n
+    step as ⟨nm1, hnm1⟩
+    have hnm1v : nm1.val = N - 1 := by rw [hnm1, hn]
+    by_cases hlt : k1 < nm1
     · rw [if_pos hlt]
-      have hk1N : k1.val < N := by rw [← hn]; scalar_tac
-      have hkd : k1.val < d1.val.length := by rw [hl1]; omega
+      have hk1b : k1.val < N - 1 := by scalar_tac
+      have hkh : k1.val < hiv.val.length := by rw [hhl]; exact hk1b
+      have hmax : q1.val.length < Std.Usize.max := by rw [hl1]; scalar_tac
       step as ⟨f, hf⟩
-      have hRf : Red f := by rw [hf]; exact hr1 _ (List.getElem_mem hkd)
-      step with HachiEquiv.Ring.coeff_spec y k1 hy as ⟨fy, hRfy, hfy⟩
-      step with HachiEquiv.Field.fp_sub_spec f fy hRf hRfy as ⟨f2, hRf2, hf2⟩
-      step as ⟨xd, backd, hxd, hbackd⟩
+      have hRf : Red f := by rw [hf]; exact hhr _ (List.getElem_mem hkh)
+      step as ⟨q2, hq2⟩
       step as ⟨k2, hk2⟩
-      have hwset : (backd f2).val = d1.val.set k1.val f2 := by rw [hbackd]; simp
-      refine ⟨by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hwset, List.length_set, hl1]
-      · exact Red_set hwset hr1 hRf2
-      · intro s
-        by_cases hs : s = k1.val
-        · subst hs
-          rw [coeffK_set_eq hwset hkd, hf2, hf, hfy, ← coeffK_of_lt hkd, hc1 k1.val, hk2,
-            if_neg (by omega), if_pos (by omega), sub_zero]
-        · rw [coeffK_set_ne hwset hs, hc1 s, hk2]
-          congr 1
-          by_cases hsl : s < k1.val
-          · rw [if_pos hsl, if_pos (by omega)]
-          · rw [if_neg hsl, if_neg (by omega)]
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hq2, hk2, List.length_append, hl1]; simp
+      · intro x hx
+        rw [hq2] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hr1 x h
+        · rw [List.mem_singleton.mp h]; exact hRf
+      · intro u hu
+        rw [hk2] at hu
+        rcases Nat.lt_or_ge u k1.val with hult | huge
+        · rw [coeffK, hq2, getD_append_lt _ _ _ (by omega)]
+          exact hv1 u hult
+        · have hueq : u = q1.val.length := by omega
+          rw [coeffK, hueq, hq2, getD_append_eq, hf, hl1, ← coeffK_of_lt hkh]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : k1.val = N := by rw [← hn]; scalar_tac
-      refine ⟨hl1, hr1, ?_⟩
-      intro s
-      rw [hc1 s, heq]
-      by_cases hs : s < N
-      · rw [if_pos hs]
-      · rw [if_neg hs, coeffK_of_ge (v := y) (by rw [hy.1]; omega)]
-  · exact ⟨hk, hdl, hdr, hbase⟩
+      have heq : k1.val = N - 1 := by scalar_tac
+      exact ⟨by rw [hl1, heq], hr1, fun u hu => hv1 u (by rw [heq]; exact hu)⟩
+  · exact ⟨hk, hql, hqr, hqv⟩
 
-/-- `c_quotient` computes `cQuotient` (`RingSwitch/ComputableWitness.lean:65`):
-the row defect divided by the modulus, as a quotient row. -/
+/-- **`c_quotient` computes `cQuotient`**, from the high half alone
+(Stage 6 candidate T1a).
+
+The statement is the one the dividing version had, word for word. What changed
+is that neither the `y` subtraction nor the division loop runs: `y` has degree
+below `N` so it does not reach the high half, and the quotient's coefficient
+`k` is the dividend's `N + k` ([`divByMonic_of_high`]). The low half of every
+`long_mul` is therefore never computed. -/
 theorem c_quotient_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.PolyVec)
     (i : Std.Usize) (rs : InnerOuter.RlinStatement Φ n μ)
     (hs : RepRlin (n := n) (μ := μ) s rs) (hz : WfVec μ z) (hi : i.val < n) :
     ringswitch.c_quotient s z i
       ⦃ out => Wf out ∧ toQuotientRow out = InnerOuter.cQuotient Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩ ⦄ := by
-  have hWy : WfVec n s.yvec := hs.2.1
-  have hyeq : toVec (k := n) s.yvec = rs.yvec := hs.2.2.2.1
   rw [ringswitch.c_quotient]
-  step with c_row_sum_spec s z i rs hs hz hi as ⟨defect, hWdefect, hdefect⟩
-  simp only [ringswitch.RlinStatement.impl.yvec, linalg.PolyVec.get, bind_tc_ok]
-  have hyi : i.val < s.yvec.val.length := by rw [hWy.1]; exact hi
-  step as ⟨y, hy⟩
-  have hWyi : Wf y := by rw [hy]; exact hWy.2 _ (List.getElem_mem hyi)
-  step with c_quotient_sub_loop_spec params.RING_DEGREE (by simp) defect y hWyi 0#usize
-    (fun s' => (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩).coeff s')
-    hWdefect.1 hWdefect.2 (by simp)
-    (by
-      intro s'
-      rw [← toCPolyK_coeff_eq_coeffK, hdefect, show ((0#usize : Std.Usize).val) = 0 from rfl,
-        if_neg (by omega), sub_zero])
-    as ⟨defect1, hl1, hr1, hc1⟩
-  step with div_by_modulus_spec defect1 ⟨hl1, hr1⟩ as ⟨quot, hWquot, hquot⟩
+  step with c_row_sum_high_spec s z i rs hs hz hi as ⟨hiv, hWhi, hhv⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  step with c_quotient_copy_loop_spec params.RING_DEGREE params_RING_DEGREE_val hiv
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hWhi.1 hWhi.2 (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro u hu; simp at hu)
+    as ⟨quot1, hq1l, hq1r, hq1v⟩
+  have hmax : quot1.val.length < Std.Usize.max := by
+    rw [hq1l]; have := usize_max_ge'; norm_num [N]; omega
+  step as ⟨quot2, hq2⟩
+  have hNpos : 1 ≤ N := by norm_num [N]
+  have hq2l : quot2.val.length = N := by
+    rw [hq2, List.length_append, hq1l]
+    simp only [List.length_singleton]
+    omega
+  have hq2r : ∀ x ∈ quot2.val, Red x := by
+    intro x hx
+    rw [hq2] at hx
+    rcases List.mem_append.mp hx with h | h
+    · exact hq1r x h
+    · rw [List.mem_singleton.mp h]; exact Red_zero
+  have hq2v : ∀ u, coeffK quot2 u
+      = if u < N - 1
+        then (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩).coeff (N + u) else 0 := by
+    intro u
+    by_cases hu : u < N - 1
+    · rw [if_pos hu, coeffK, hq2, getD_append_lt _ _ _ (by rw [hq1l]; exact hu),
+        ← coeffK, hq1v u hu, hhv u hu]
+    · rw [if_neg hu]
+      rcases Nat.lt_or_ge u N with hlt | hge
+      · have hueq : u = quot1.val.length := by rw [hq1l]; omega
+        rw [coeffK, hueq, hq2, getD_append_eq]
+        simp [toK, cpoly.field.Fp.ZERO]
+      · rw [coeffK_of_ge (by rw [hq2l]; exact hge)]
   rw [ringswitch.QuotientRow.new]
   simp only [bind_ok_id]
-  apply spec_mono (HachiEquiv.Ring.from_coeffs_spec quot hWquot.2)
+  apply spec_mono (HachiEquiv.Ring.from_coeffs_spec quot2 hq2r)
   rintro out ⟨hWout, hcoef⟩
   refine ⟨hWout, ?_⟩
-  have hoq : toCPolyK out = toCPolyK quot := by
+  have hoq : toCPolyK out = toCPolyK quot2 := by
     refine toCPolyK_eq_of_coeffK fun k => ?_
     rw [toCPolyK_coeff_eq_coeffK]
     by_cases hk : k < N
     · exact hcoef k hk
     · rw [coeffK_of_ge (v := out) (by rw [hWout.1]; omega),
-        coeffK_of_ge (v := quot) (by rw [hWquot.1]; omega)]
-  rw [toQuotientRow_eq_toCPolyK hWout, hoq, hquot, InnerOuter.cQuotient]
-  congr 1
-  refine toCPolyK_eq_of_coeffK fun k => ?_
-  rw [hc1 k, cpoly_coeff_sub]
-  congr 1
-  have hyv : rs.yvec ⟨i.val, hi⟩ = toRq y := by
-    rw [← hyeq]
-    show toRq (s.yvec.val.getD i.val (alloc.vec.Vec.new cpoly.field.Fp)) = toRq y
-    rw [List.getD_eq_getElem _ _ hyi, ← hy]
-  rw [hyv, toRq_coeff_eq_coeffK hWyi]
+        coeffK_of_ge (v := quot2) (by rw [hq2l]; omega)]
+  rw [toQuotientRow_eq_toCPolyK hWout, hoq, InnerOuter.cQuotient]
+  -- the `y` subtraction never reached the high half
+  have hyhigh : ∀ m, 2 * N - 1 ≤ m →
+      (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩ - (rs.yvec ⟨i.val, hi⟩).1).coeff m
+        = 0 := by
+    intro m hm
+    have hy : ((rs.yvec ⟨i.val, hi⟩).1).coeff m = 0 :=
+      Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [RqBridge.phi_natDegree]; omega)
+    rw [cpoly_coeff_sub, cRowSum_coeff_of_high rs _ _ hm, hy, sub_zero]
+  refine divByMonic_of_high _ _ hyhigh (fun m => ?_)
+  rw [toCPolyK_coeff_eq_coeffK, hq2v m]
+  by_cases hm : m < N - 1
+  · have hy : ((rs.yvec ⟨i.val, hi⟩).1).coeff (N + m) = 0 :=
+      Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [RqBridge.phi_natDegree]; omega)
+    rw [if_pos hm, if_pos hm, cpoly_coeff_sub, hy, sub_zero]
+  · rw [if_neg hm, if_neg hm]
 
 theorem honest_lift_witness_loop_spec {n μ : ℕ}
     (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (rows : Std.Usize)

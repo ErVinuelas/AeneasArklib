@@ -556,3 +556,71 @@ fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
     }
     acc
 }
+
+/// The **high half** of [`long_mul`]: coefficients `N … 2N − 2` of `a · b`,
+/// which are the only ones [`div_by_modulus`] reads (Stage 6 candidate T1a).
+///
+/// [`long_mul`]'s body with the output loop started at `N` instead of `0`. The
+/// antidiagonal `i + j = k` for `k ≥ N` is clipped on both sides — `i` runs
+/// from `k + 1 − N` to `N` — so the term count is `N(N−1)/2`, exactly half of
+/// the full product's `N²`, and the accumulator is the same `u128` register
+/// with one reduction per output coefficient.
+///
+/// `N − 1` coefficients, in increasing degree: `out[t]` is coefficient
+/// `N + t`.
+fn long_mul_high(a: &Rq, b: &Rq) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let width: usize = 2 * n - 1;
+    let q: u128 = params::Q as u128;
+    let mut out: Vec<Fp> = Vec::with_capacity(n);
+    let mut k: usize = n;
+    while k < width {
+        let lo: usize = k + 1 - n;
+        let mut acc: u128 = 0;
+        let mut i: usize = lo;
+        while i < n {
+            let ai: u128 = a.coeff(i).to_u64() as u128;
+            let bj: u128 = b.coeff(k - i).to_u64() as u128;
+            acc = acc + ai * bj;
+            i += 1;
+        }
+        out.push(Fp::new((acc % q) as u64));
+        k += 1;
+    }
+    out
+}
+
+/// The high half of [`c_row_sum`]: coefficients `N … 2N − 2` of `Σⱼ Mᵢⱼ·zⱼ`
+/// (Stage 6 candidate T1a).
+///
+/// [`c_row_sum`]'s shape with [`long_mul_high`] in place of [`long_mul`] and
+/// an `N − 1`-wide accumulator in place of the `2N − 1`-wide one. The zero
+/// test is candidate T1a1's and is kept for the same reason.
+///
+/// Private: a helper of [`c_quotient`] alone, measured through it, exactly as
+/// [`div_by_modulus`] is.
+fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let cols: usize = s.m().cols();
+    let row: &PolyVec = s.m().row(i);
+    let mut acc: Vec<Fp> = Vec::new();
+    let mut k: usize = 0;
+    while k < n - 1 {
+        acc.push(Fp::ZERO);
+        k += 1;
+    }
+    let mut j: usize = 0;
+    while j < cols {
+        let mij: &Rq = row.get(j);
+        if !mij.is_zero() {
+            let prod: Vec<Fp> = long_mul_high(mij, z.get(j));
+            let mut t: usize = 0;
+            while t < n - 1 {
+                acc[t] = acc[t] + prod[t];
+                t += 1;
+            }
+        }
+        j += 1;
+    }
+    acc
+}
