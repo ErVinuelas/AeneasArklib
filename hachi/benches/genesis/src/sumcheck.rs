@@ -1346,6 +1346,7 @@ pub fn honest_compute_g_base_split(
 }
 
 
+// @genesis dd3386a 2026-09-19 — sumcheck::shift_powers
 /// `1, x, x², …, x^{2b−1}`: the powers a Taylor shift contracts against
 /// (Stage 6 candidate T3).
 ///
@@ -1366,6 +1367,7 @@ pub fn shift_powers(x: Ext4) -> Vec<Ext4> {
     out
 }
 
+// @genesis dd3386a 2026-09-19 — sumcheck::shift_inner
 /// `S_m = Σ_{k ≥ m} p_k · C(k, m) · lo^{k−m}`, the inner sum of the Taylor
 /// shift at coefficient `m` (Stage 6 candidate T3).
 ///
@@ -1392,6 +1394,7 @@ pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
     s
 }
 
+// @genesis dd3386a 2026-09-19 — sumcheck::shift_accum
 /// One pair's contribution to the shifted coefficients: `acc[m] += e · Δ^m · S_m`
 /// (Stage 6 candidate T3).
 ///

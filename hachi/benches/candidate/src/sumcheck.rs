@@ -248,15 +248,118 @@ pub fn round_values_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     out
 }
 
-/// The range summand as a polynomial: its node values, interpolated
-/// (spec: `computableRoundPoly Φ … (sumcheckPolyZero …) i cs`).
+/// `1, x, x², …, x^{2b−1}`: the powers a Taylor shift contracts against
+/// (Stage 6 candidate T3).
+///
+/// [`params::SHIFT_DEG`] entries, so the last is `x^{2b−1}` — the degree of
+/// `P_b`. A doubling-free straight walk: each entry is the previous one times
+/// `x`, which is `2b − 1` multiplications and not `2b` because the first is
+/// `1`.
+pub fn shift_powers(x: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut out: Vec<Ext4> = Vec::with_capacity(n);
+    let mut cur: Ext4 = Ext4::ONE;
+    let mut k: usize = 0;
+    while k < n {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+/// `S_m = Σ_{k ≥ m} p_k · C(k, m) · lo^{k−m}`, the inner sum of the Taylor
+/// shift at coefficient `m` (Stage 6 candidate T3).
+///
+/// Only odd `k` contribute, because `P_b` is odd, so the loop walks the rows of
+/// [`params::SHIFT_T`] rather than the degrees. It starts at `j = m / 2`, and
+/// `k = 2·(m / 2) + 1 ≥ m` for every `m` — even `m` gives `k = m + 1`, odd `m`
+/// gives `k = m` — so `k − m` never underflows and no entry with `m > k` is
+/// ever read.
+///
+/// Every product here is `Fp × Ext4`, the mixed impl: four base
+/// multiplications each, against nineteen for a quartic one. That is what makes
+/// the ~`b²/2` terms of this sum cheaper than the `2b + 1` range-factor
+/// evaluations they replace.
+pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
+    let rows: usize = params::SHIFT_ROWS;
+    let deg: usize = params::SHIFT_DEG;
+    let mut s: Ext4 = Ext4::ZERO;
+    let mut j: usize = m / 2;
+    while j < rows {
+        let k: usize = 2 * j + 1;
+        s = s + Fp::new(params::SHIFT_T[j * deg + m]) * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+/// One pair's contribution to the shifted coefficients: `acc[m] += e · Δ^m · S_m`
+/// (Stage 6 candidate T3).
+///
+/// `Δ^m` is carried as a running scalar rather than a second power table,
+/// because the `m` loop visits the powers in order; only `lo`'s powers are read
+/// out of order (at `k − m`) and so have to be stored.
+///
+/// The accumulator is taken by value and written through `IndexMut`, the shape
+/// `Rq::mul`'s accumulator already uses.
+pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut dpow: Ext4 = Ext4::ONE;
+    let mut m: usize = 0;
+    while m < n {
+        let s: Ext4 = shift_inner(lop, m);
+        acc[m] = acc[m] + e * (dpow * s);
+        dpow = dpow * d;
+        m += 1;
+    }
+    acc
+}
+
+/// The range summand as a polynomial (spec:
+/// `computableRoundPoly Φ … (sumcheckPolyZero …) i cs`).
 ///
 /// Mirrors `computableRoundPoly` at the `sumcheckPolyZero` summand, less its
 /// `cEqualityPolynomial` factor ([`round_value_zero`]).
+///
+/// **By Taylor shift, not by interpolation** (Stage 6 candidate T3). The fold
+/// is affine in the node — `W(T, y) = lo + Δ·T` with `Δ = hi − lo` — so
+/// `P_b(W(T, y))` is `P_b` shifted, and the binomial theorem gives its
+/// coefficients directly:
+///
+/// ```text
+///   Σ_y eq[y] · P_b(lo_y + Δ_y T) = Σ_m ( Σ_y eq[y] · Δ_y^m · S_m(lo_y) ) T^m
+/// ```
+///
+/// where `S_m` is [`shift_inner`]. The `2b + 1` node evaluations and the
+/// Lagrange interpolation that turned them back into coefficients both
+/// disappear; what replaces them is `2b − 1` powers of `lo`, `2b − 1` of `Δ`
+/// and the `b²/2` mixed products of [`shift_inner`]. Measured on the pin's
+/// shapes: **−43.2%** per pair.
+///
+/// The output still has [`params::ROUND_NODES`] coefficients, with the last one
+/// zero — `P_b` has degree `2b − 1`, so the `2b`-th coefficient of the shift is
+/// zero and the `(2b+1)`-th does not exist. That length is what
+/// `round_poly_zero_spec` states and it does not move.
 pub fn round_poly_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> UnivariatePoly {
-    let values: Vec<Ext4> = round_values_zero(w, eq);
-    let weights: Vec<Fp> = round_node_weights();
-    interpolate(&values, &weights)
+    let half: usize = eq.len();
+    let n: usize = params::SHIFT_DEG;
+    let mut acc: Vec<Ext4> = Vec::with_capacity(params::ROUND_NODES);
+    let mut i: usize = 0;
+    while i < n {
+        acc.push(Ext4::ZERO);
+        i += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Ext4 = w[2 * y];
+        let hi: Ext4 = w[2 * y + 1];
+        let lop: Vec<Ext4> = shift_powers(lo);
+        acc = shift_accum(acc, &lop, hi - lo, eq[y]);
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    UnivariatePoly::from_coeffs(acc)
 }
 
 /// `2^vars`, by doubling.

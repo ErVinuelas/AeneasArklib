@@ -632,6 +632,7 @@ pub const RANGE_Q_COEFFS: [u64; 16] = [
 ];
 
 
+// @genesis dd3386a 2026-09-19 — params::SHIFT_DEG
 /// The number of coefficients of `P_b`: `2b = 32`, one per degree `0 … 2b − 1`.
 ///
 /// `P_b` has degree `2b − 1 = 31`, so a Taylor shift of it has `32`
@@ -640,6 +641,7 @@ pub const RANGE_Q_COEFFS: [u64; 16] = [
 /// both against [`GADGET_BASE`].
 pub const SHIFT_DEG: usize = 32;
 
+// @genesis dd3386a 2026-09-19 — params::SHIFT_ROWS
 /// The number of **nonzero** coefficients of `P_b`: `b = 16`.
 ///
 /// `P_b(v) = v · Q(v²)` is odd, so `p_k = 0` for even `k` and the `b` nonzero
@@ -647,6 +649,7 @@ pub const SHIFT_DEG: usize = 32;
 /// such `k` rather than one per degree, which halves it.
 pub const SHIFT_ROWS: usize = 16;
 
+// @genesis dd3386a 2026-09-19 — params::SHIFT_T_LEN
 /// [`SHIFT_T`]'s length, `SHIFT_ROWS · SHIFT_DEG`.
 ///
 /// A literal for the reason [`ROUND_NODES`] is: a product is a `Result` in the
@@ -654,6 +657,7 @@ pub const SHIFT_ROWS: usize = 16;
 /// `params_semantics::shift_t_is_the_binomial_table`.
 pub const SHIFT_T_LEN: usize = 512;
 
+// @genesis dd3386a 2026-09-19 — params::SHIFT_T
 /// The Taylor-shift table `T[j][m] = p_{2j+1} · C(2j+1, m)`, flattened to
 /// `j · SHIFT_DEG + m` (Stage 6 candidate T3).
 ///
