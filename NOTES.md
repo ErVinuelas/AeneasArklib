@@ -8607,16 +8607,28 @@ Then the pin, against the T12/THP profile that preceded it (control spread
 | `carrier_decomp_from_raw` | 96.8 s | 97.8 s | +1.0% |
 | `honest_compute_resp` | 241.2 s | 240.6 s | −0.2% |
 | lifted witness | 70.5 s | 70.5 s | 0.0% |
+| `honest_round_messages` | 212.1 s | 214.8 s | +1.3% |
 | `c_w_table_mle` at 2^26 | 377.8 ms | 223.2 ms | −40.9% |
 | `chain_verify` | 28.0 s | 28.5 s | +1.8% |
-| **prover** | **1310.1 s** | **983.4 s** | **−24.9%** |
+| **prover** | **1170.8 s** | **845.3 s** | **−27.8%** |
 | peak RSS | 5453 MiB | 5453 MiB | 0 |
 
-Projected −27.6%, measured −24.9%. The stages that did not move are the ones
+Projected −27.6%, measured −27.8%. The stages that did not move are the ones
 that were never in the commitment pass, which is the shape a correct scope
 claim has. Peak is unchanged: one lane holds one table where two held two, but
 the tables are transient and the 5453 MiB peak is set by
 `honest_compute_resp`, not by preparation.
+
+**The prover figure is not the profile's last cumulative timestamp**, and
+writing it down that way once here cost a wrong number (`1310.1 → 983.4 s`,
+−24.9%) that the table above now corrects. The log's running clock includes
+`dense_eval`, which is 367 s of **test scaffolding** — it builds the statement
+the prover is then handed — and the line says so. The prover is the sum of the
+timed stages *excluding* that, plus `lift_commit`, `c_w_table_mle`,
+`honest_round_messages` and `honest_compute_y`, and *excluding*
+`alpha_public_table`, which is public precomputation. That formula reproduces
+the 1170.4 s this file published for T12 to within 0.4 s, which is how it was
+recovered.
 
 **The card's own earlier figure was wrong twice over and both corrections are
 recorded.** Gate A first read −3% on the butterfly using
@@ -8664,3 +8676,145 @@ choice removed about 200 lines of proof that a centred lift would have needed.
   already did.
 * **`overflowing_add`/`overflowing_sub`** are not modelled; `checked_add` +
   `match` is, and is 3× slower than the `u128` intermediate.
+
+
+## Candidate T3: the round polynomial by Taylor shift, −6.8% more (2026-09-19)
+
+With T27 landed the commitment is 199 s and `honest_round_messages` is
+**214.8 s — the largest single phase left**, and 99.4% of the round loop is
+`honest_compute_g`. T3 was the only card aimed at it, priced at a week, and
+carried a hard gate.
+
+### The gate, and why it is now moot
+
+The card said: do not start the Lean proof until the S / `bZero` question is
+resolved *or explicitly deferred*, because an approved parameter change alters
+the polynomial degree, the node count and the constant tables. It is hereby
+**explicitly deferred**, on a ground the card did not have: this session's hard
+limits forbid changing any protocol parameter, so `bZero = 16` is the only
+admissible instantiation and the rework risk is a project risk rather than a
+correctness one. If `bZero` ever moves, `SHIFT_DEG`, `SHIFT_ROWS` and all 512
+entries of `SHIFT_T` move with `RANGE_Q_COEFFS` — and
+`params_semantics::shift_t_is_the_binomial_table` derives its shape from
+`GADGET_BASE` precisely so that it is what says so.
+
+### The idea
+
+The multilinear fold is **affine in the node**:
+
+```text
+  W(T, y) = (1 − T)·lo_y + T·hi_y = lo_y + Δ_y·T,     Δ_y = hi_y − lo_y
+```
+
+so `P_b(W(T, y))` is `P_b` Taylor-shifted, and the binomial theorem writes its
+coefficients down in one pass:
+
+```text
+  Σ_y eq[y]·P_b(lo_y + Δ_y T) = Σ_m ( Σ_y eq[y]·Δ_y^m·S_m(lo_y) ) T^m
+  S_m(lo) = Σ_{k ≥ m} p_k · C(k, m) · lo^{k−m}
+```
+
+Both the `2b + 1 = 33` node evaluations and the Lagrange interpolation that
+turned them back into coefficients disappear. What replaces them is `2b − 1`
+powers of `lo`, a running `Δ^m`, and the `b²/2 ≈ 272` products of `S_m`.
+
+Two things make that cheap, and they are the same two facts:
+
+* `P_b` is **odd** — `P_b(v) = v·Q(v²)` — so only `b = 16` of the `2b = 32`
+  coefficients `p_k` are nonzero, `S_m` runs over `k = 2j + 1`, and
+  `params::SHIFT_T` has 16 rows rather than 32;
+* `p_k · C(k, m)` is a **constant**, so every product in `S_m` is the mixed
+  `Fp × Ext4` impl: four base multiplications, against nineteen for a quartic
+  one.
+
+### Three prototypes, because the accumulator's shape cost a fifth of the win
+
+| form | ns/pair | vs the 33-node path |
+|---|---|---|
+| 33-node interpolation (champion) | 4331.80 | — |
+| Taylor, scratch buffers hoisted out of the pair loop | 2080.91 | **−52.0%** |
+| Taylor, accumulator rebuilt by `push` each pair | 2669.94 | −38.4% |
+| Taylor, accumulator written in place, `Δ^m` a running scalar | 2465.66 | **−43.2%** |
+
+The hoisted form is not what this crate is written like, and the rebuilt one
+pays three `Vec`s per pair against 33.5 million pairs. The in-place
+accumulator — `IndexMut` write-back, the shape `Rq::mul` already uses and the
+ceiling table already has — recovers half of that gap, and `Δ^m` as a running
+scalar removes a whole power table. Measuring the *admissible* shape rather
+than the convenient one is the same discipline that reversed four cards in a
+row; here it moved the answer by 5 points.
+
+One thing the prototype pass also settled: **round 0 is half of every pair the
+protocol evaluates** (`2^25` of `2^26`) and is the *cheap* one — 1340 ns/pair
+against 4331 — because `w̃` is still in the base field there. It runs
+`round_poly_zero_base`, which this card does **not** change. A projection using
+one per-pair number for both would have been wrong by that ratio, so this card
+claims rounds 1–25 only.
+
+### The measurement
+
+`round_poly_zero` is a **single-row target**, so the loop's local strengthening
+applies: two independent `CANDIDATE=1` runs, both `faster`, never subtracted
+across runs.
+
+| run | now | candidate | `cand vs now` (recentered) | bias |
+|---|---|---|---|---|
+| `20260919T1440+0200-b5688ed7` | 4.74 ms | 2.37 ms | **−50.6%** | 4.2% |
+| `20260919T1450+0200-b5688ed7` | 4.73 ms | 2.37 ms | **−50.4%** | 2.4% |
+
+At the pin, against the T27 profile:
+
+| | T27 | T3 | |
+|---|---|---|---|
+| commitment, 1024 blocks | 199.4 s | 200.6 s | +0.6% |
+| `carrier_decomp_from_raw` | 97.8 s | 97.3 s | −0.5% |
+| `honest_compute_resp` | 240.6 s | 240.0 s | −0.2% |
+| lifted witness | 70.5 s | 71.0 s | +0.7% |
+| **`honest_round_messages`** | **214.8 s** | **155.2 s** | **−27.7%** |
+| `chain_verify` | 28.5 s | 27.5 s | −3.5% |
+| **prover** | **845.3 s** | **788.0 s** | **−6.8%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+Every untouched stage is a control and every one of them held. The round phase
+moved −27.7% where the bench row moved −50.4%, and the two are consistent:
+`honest_round_messages` also contains `round_poly_zero_base` (round 0,
+unchanged), the alpha side, and its own two tables.
+
+### The proof was a third of what the card priced
+
+`lean/AuxShift.lean`, about 470 lines. The card priced step (ii) as needing
+Lagrange uniqueness out of CompPoly's `LagrangeArray` — a polynomial of degree
+`≤ 32` is determined by its values at 33 nodes. **It does not need that**, and
+the reason is a fact about how `round_poly_zero_spec` was already phrased: its
+conclusion is about **evaluations**, `∀ x, eval x (toUni out) = rangeSumZero …
+x`, not about the coefficient vector. So the shift only has to evaluate to the
+right thing, and that is the binomial theorem and nothing else. The
+interpolating proof needed uniqueness because it was arriving at the
+coefficients from the values; this one starts at the coefficients.
+
+The parts:
+
+* `st_nat` — all **512** table entries in one `decide +kernel`, as a
+  computation in `ℕ`. A wrong entry fails its own decision and cannot be
+  absorbed by the algebra, which is `rangeQ_eq_prod`'s discipline at a bigger
+  table. `st` is then sealed `irreducible`, because `whnf` walking 512 literals
+  is a heartbeat timeout in every lemma below it.
+* `rangeProduct_eq_sum` — `P_b` in coefficient form, which is also the precise
+  sense in which it is odd: the sum has no even power in it.
+* `rangeProduct_shift` — the shift, by `add_pow` and a sum swap.
+* five loop specs, and the headline re-proved.
+
+`round_poly_zero_spec`'s **statement does not move**: 33 coefficients, reduced,
+and the interpolant is `rangeSumZero` everywhere. The 33rd coefficient is still
+zero — it is now the explicit `ZERO` the code pushes after the 32 the shift
+produces, rather than the interpolation's leftover, which is the same
+arithmetic fingerprint of the missing free factor arrived at from the other
+side.
+
+Two tests carry the table on the Rust side, and they catch different things:
+`shift_t_is_the_binomial_table` rebuilds every entry from `RANGE_Q_COEFFS` and
+Pascal's triangle, and `the_shift_table_reproduces_the_range_polynomial`
+compares the shifted coefficients against `range_product_base` at every node. A
+transposed index survives the first and not the second — which is not
+hypothetical: the prototype had exactly that bug, indexing the table by the row
+number where it wanted the degree.
