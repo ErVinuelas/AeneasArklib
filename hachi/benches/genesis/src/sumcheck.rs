@@ -1418,6 +1418,7 @@ pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec
 }
 
 
+// @genesis c8f427b 2026-09-19 — sumcheck::shift_powers_base
 /// [`shift_powers`] in the base field: `1, x, …, x^{2b−1}` as `Fp`.
 pub fn shift_powers_base(x: Fp) -> Vec<Fp> {
     let n: usize = params::SHIFT_DEG;
@@ -1432,6 +1433,7 @@ pub fn shift_powers_base(x: Fp) -> Vec<Fp> {
     out
 }
 
+// @genesis c8f427b 2026-09-19 — sumcheck::shift_inner_base
 /// [`shift_inner`] in the base field: every product is `Fp × Fp`.
 pub fn shift_inner_base(lop: &Vec<Fp>, m: usize) -> Fp {
     let rows: usize = params::SHIFT_ROWS;
@@ -1446,6 +1448,7 @@ pub fn shift_inner_base(lop: &Vec<Fp>, m: usize) -> Fp {
     s
 }
 
+// @genesis c8f427b 2026-09-19 — sumcheck::shift_accum_base
 /// [`shift_accum`] with a base-field `lo` and `Δ`: only the final `eq[y] · c_m`
 /// is a mixed product, and there is exactly one of those per coefficient.
 pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Vec<Ext4> {

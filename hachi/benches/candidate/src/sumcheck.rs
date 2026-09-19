@@ -605,9 +605,75 @@ pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
 /// The range summand as a polynomial at round 0: [`round_values_zero_base`]
 /// interpolated with the same weights [`round_poly_zero`] uses.
 pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
-    let values: Vec<Ext4> = round_values_zero_base(w, eq);
-    let weights: Vec<Fp> = round_node_weights();
-    interpolate(&values, &weights)
+    // [`round_poly_zero`]'s Taylor shift, with `w̃` still in the base field
+    // (Stage 6 candidate T3, round 0). Round 0 walks `2^m₀ / 2` pairs --
+    // **half of every pair the protocol evaluates** -- and it is the cheap
+    // half, because `lo`, `Δ` and every power of them stay in `Fp` and only
+    // the final `eq[y] · c_m` crosses into `Ext4`. Measured: **−48.7%** per
+    // pair, 45.0 s → 23.1 s at the pin.
+    let half: usize = eq.len();
+    let n: usize = params::SHIFT_DEG;
+    let mut acc: Vec<Ext4> = Vec::with_capacity(params::ROUND_NODES);
+    let mut i: usize = 0;
+    while i < n {
+        acc.push(Ext4::ZERO);
+        i += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let lop: Vec<Fp> = shift_powers_base(lo);
+        acc = shift_accum_base(acc, &lop, hi - lo, eq[y]);
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    UnivariatePoly::from_coeffs(acc)
+}
+
+/// [`shift_powers`] in the base field: `1, x, …, x^{2b−1}` as `Fp`.
+pub fn shift_powers_base(x: Fp) -> Vec<Fp> {
+    let n: usize = params::SHIFT_DEG;
+    let mut out: Vec<Fp> = Vec::with_capacity(n);
+    let mut cur: Fp = Fp::ONE;
+    let mut k: usize = 0;
+    while k < n {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+/// [`shift_inner`] in the base field: every product is `Fp × Fp`.
+pub fn shift_inner_base(lop: &Vec<Fp>, m: usize) -> Fp {
+    let rows: usize = params::SHIFT_ROWS;
+    let deg: usize = params::SHIFT_DEG;
+    let mut s: Fp = Fp::ZERO;
+    let mut j: usize = m / 2;
+    while j < rows {
+        let k: usize = 2 * j + 1;
+        s = s + Fp::new(params::SHIFT_T[j * deg + m]) * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+/// [`shift_accum`] with a base-field `lo` and `Δ`: only the final `eq[y] · c_m`
+/// is a mixed product, and there is exactly one of those per coefficient.
+pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut dpow: Fp = Fp::ONE;
+    let mut m: usize = 0;
+    while m < n {
+        let s: Fp = shift_inner_base(lop, m);
+        let cur: Ext4 = acc[m];
+        let nv: Ext4 = cur + (dpow * s) * e;
+        acc[m] = nv;
+        dpow = dpow * d;
+        m += 1;
+    }
+    acc
 }
 
 /// One node's worth of the linear summand at round 0: the `w̃` fold in the base
