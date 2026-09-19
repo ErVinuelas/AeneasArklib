@@ -3071,3 +3071,381 @@ fn the_general_path_lane_count_gate() {
     eprintln!("[lanes] Goldilocks + Montgomery    {:>6.3} ns  ({:+.1}%)",
         per(tg) + per(tm), 100.0 * ((per(tg) + per(tm)) / (3.0 * per(t31)) - 1.0));
 }
+
+// ---------------------------------------------------------------------------
+// The short multiply: is the per-term reduction the cost?
+// ---------------------------------------------------------------------------
+//
+// `honest_compute_resp` is 240.5 s of a 755.4 s prover and 79.8% of it is
+// `mul_short_add_into` -- about 190 s, 25% of the prover, the single largest
+// item left. Card 9 measured two REORDERINGS of it (a gather, +22.4%; a
+// scatter with an i64 accumulator and a multiply per element, +12.6%) and both
+// lost, and the conclusion drawn was "the pass structure was not the cost".
+// That is right, and it is not the same as "there is nothing here".
+//
+// What the inner step actually does per term is a branchy modular add/sub and
+// then `Fp::new(nv)` -- and `nv` is ALREADY reduced by construction, so that
+// is a redundant `% P`. The operand is a gadget digit (`< 16`) and the
+// accumulator runs over 1024 blocks of `l1(c) <= OMEGA = 16`, so the whole sum
+// is at most `1024 * 16 * 15 = 245 760`: it fits a `u64` with room to spare,
+// and the reduction can be deferred to one pass at the end.
+//
+// Unsigned, with the offset trick `offConvSumD` already uses twice in this
+// tree: a subtraction contributes `q - sv` instead of `-sv`, so the
+// accumulator only ever grows and its value mod `q` is the answer. Bound
+// `1024 * 16 * q = 7.0e13`, comfortably inside `u64`.
+//
+// BOTH sides below are test-side copies, per the rule the T1a prototypes
+// bought: a copy against the real item is not a measurement.
+
+/// `ring::mul_short_add_into`, copied verbatim.
+fn t33_scatter_mod(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
+                   s: &[u64], acc: &mut [u64]) {
+    let n: usize = hachi::params::RING_DEGREE;
+    let q: u64 = hachi::params::Q;
+    let terms: usize = desc_idx.len();
+    let mut t: usize = 0;
+    while t < terms {
+        let k: usize = desc_idx[t];
+        let m: u64 = desc_mag[t];
+        let negt: bool = desc_neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            let mut i: usize = 0;
+            while i < n {
+                let sv: u64 = s[i];
+                if sv != 0 {
+                    let pos: usize = k + i;
+                    let w: usize = if pos >= n { pos - n } else { pos };
+                    let wrapped: bool = pos >= n;
+                    let sub: bool = negt != wrapped;
+                    let cur: u64 = acc[w];
+                    let nv: u64 = if sub {
+                        if cur >= sv { cur - sv } else { cur + q - sv }
+                    } else {
+                        let sum: u64 = cur + sv;
+                        if sum >= q { sum - q } else { sum }
+                    };
+                    // `Fp::new`, which is `% P` -- on a value already reduced
+                    acc[w] = nv % q;
+                }
+                i += 1;
+            }
+            pass += 1;
+        }
+        t += 1;
+    }
+}
+
+/// The same value, accumulated **unreduced** with the `q`-offset for signs.
+fn t33_scatter_off(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
+                   s: &[u64], acc: &mut [u64]) {
+    let n: usize = hachi::params::RING_DEGREE;
+    let q: u64 = hachi::params::Q;
+    let terms: usize = desc_idx.len();
+    let mut t: usize = 0;
+    while t < terms {
+        let k: usize = desc_idx[t];
+        let m: u64 = desc_mag[t];
+        let negt: bool = desc_neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            let mut i: usize = 0;
+            while i < n {
+                let sv: u64 = s[i];
+                let pos: usize = k + i;
+                let w: usize = if pos >= n { pos - n } else { pos };
+                let sub: bool = negt != (pos >= n);
+                acc[w] += if sub { q - sv } else { sv };
+                i += 1;
+            }
+            pass += 1;
+        }
+        t += 1;
+    }
+}
+
+/// **The short multiply's gate.**
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_short_multiply_deferred_reduction_gate() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q;
+    let omega = hachi::params::OMEGA as usize;
+    let mut r = Lcg::new(0x5401_7ED0);
+    // a weight-OMEGA +/-1 challenge, as `classify_short` sees one at the pin
+    let mut idx: Vec<usize> = Vec::new();
+    let mut mag: Vec<u64> = Vec::new();
+    let mut neg: Vec<bool> = Vec::new();
+    let mut used = vec![false; n];
+    while idx.len() < omega {
+        let k = (r.next_u64() as usize) % n;
+        if !used[k] {
+            used[k] = true;
+            idx.push(k);
+            mag.push(1);
+            neg.push(r.next_u64() & 1 == 1);
+        }
+    }
+    // one block's digits: `gadget_decompose` output, so every word is < 16
+    let s: Vec<u64> = (0..n).map(|_| r.next_u64() % hachi::params::GADGET_BASE).collect();
+
+    // correctness: the offset accumulator reduces to the reduced one, over
+    // enough blocks that the offset has really piled up
+    let blocks = 64usize;
+    let mut a_mod = vec![0u64; n];
+    let mut a_off = vec![0u64; n];
+    for _ in 0..blocks {
+        t33_scatter_mod(&idx, &mag, &neg, &s, &mut a_mod);
+        t33_scatter_off(&idx, &mag, &neg, &s, &mut a_off);
+    }
+    for w in 0..n {
+        assert_eq!(a_mod[w], a_off[w] % q, "the offset accumulator differs at {w}");
+    }
+    let peak = a_off.iter().copied().max().unwrap();
+    eprintln!("[t33] agree over {blocks} blocks; peak raw accumulator {peak} \
+               (u64 holds 1.8e19, and 1024 blocks reach {:.1e})",
+        (peak as f64) * 1024.0 / blocks as f64);
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..3 { f(); }
+        let mut bb = f64::MAX;
+        for _ in 0..7 {
+            let t = Instant::now();
+            f();
+            bb = bb.min(t.elapsed().as_secs_f64());
+        }
+        bb
+    };
+    let reps = 64usize;
+    let mut a1 = vec![0u64; n];
+    let mut a2 = vec![0u64; n];
+    let tmod = best(Box::new(|| {
+        for _ in 0..reps { t33_scatter_mod(&idx, &mag, &neg, &s, &mut a1); }
+    }));
+    let toff = best(Box::new(|| {
+        for _ in 0..reps { t33_scatter_off(&idx, &mag, &neg, &s, &mut a2); }
+    }));
+    let steps = (reps * omega * n) as f64;
+    eprintln!("[t33] reduce-per-term   {:>6.3} ns/step", 1e9 * tmod / steps);
+    eprintln!("[t33] deferred, offset  {:>6.3} ns/step  ({:+.1}%)",
+        1e9 * toff / steps, 100.0 * (toff - tmod) / tmod);
+    eprintln!("[t33] short multiply is ~190 s of a 755.4 s prover, so that is \
+               {:+.1}% of the prover", 100.0 * 190.0 * (toff - tmod) / tmod / 755.4);
+}
+
+/// The **per-call** version: seed a `u64` buffer from the accumulator, scatter
+/// the `l1(c) <= OMEGA` passes into it unreduced, reduce once at the end.
+///
+/// Deferring across all 1024 blocks would amortise the seed and the reduction
+/// to nothing, but it changes the caller's carrier to 8192 buffers of 1024
+/// `u64` (64 MiB) and moves `honest_z_from_raw`'s specification. Deferring
+/// within one call changes no carrier at all and pays `2N` extra operations
+/// per `OMEGA·N` of work -- about 12% on paper. Which of those two the win
+/// survives is the whole question, and it is measured, not argued.
+fn t33_percall(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
+               s: &[u64], acc: &[u64], buf: &mut [u64], out: &mut [u64]) {
+    let n: usize = hachi::params::RING_DEGREE;
+    let q: u64 = hachi::params::Q;
+    let mut z: usize = 0;
+    while z < n {
+        buf[z] = acc[z];
+        z += 1;
+    }
+    t33_scatter_off(desc_idx, desc_mag, desc_neg, s, buf);
+    let mut w: usize = 0;
+    while w < n {
+        out[w] = buf[w] % q;
+        w += 1;
+    }
+}
+
+/// **The short multiply's second gate**: does the cheap version keep the win?
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_short_multiply_per_call_gate() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q;
+    let omega = hachi::params::OMEGA as usize;
+    let mut r = Lcg::new(0x5401_7EE0);
+    let mut idx: Vec<usize> = Vec::new();
+    let mut mag: Vec<u64> = Vec::new();
+    let mut neg: Vec<bool> = Vec::new();
+    let mut used = vec![false; n];
+    while idx.len() < omega {
+        let k = (r.next_u64() as usize) % n;
+        if !used[k] { used[k] = true; idx.push(k); mag.push(1); neg.push(r.next_u64() & 1 == 1); }
+    }
+    let s: Vec<u64> = (0..n).map(|_| r.next_u64() % hachi::params::GADGET_BASE).collect();
+
+    // correctness of the per-call form against the reduce-per-term one
+    let mut a_mod = vec![0u64; n];
+    let mut a_cur = vec![0u64; n];
+    let mut buf = vec![0u64; n];
+    let mut out = vec![0u64; n];
+    for _ in 0..8 {
+        t33_scatter_mod(&idx, &mag, &neg, &s, &mut a_mod);
+        t33_percall(&idx, &mag, &neg, &s, &a_cur, &mut buf, &mut out);
+        a_cur.copy_from_slice(&out);
+    }
+    for w in 0..n {
+        assert_eq!(a_mod[w], a_cur[w], "the per-call form differs at {w}");
+    }
+    eprintln!("[t33] the per-call form agrees with the reduce-per-term one");
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..3 { f(); }
+        let mut bb = f64::MAX;
+        for _ in 0..7 {
+            let t = Instant::now();
+            f();
+            bb = bb.min(t.elapsed().as_secs_f64());
+        }
+        bb
+    };
+    let reps = 64usize;
+    let mut a1 = vec![0u64; n];
+    let mut a2 = vec![0u64; n];
+    let mut a3 = vec![0u64; n];
+    let mut b3 = vec![0u64; n];
+    let mut o3 = vec![0u64; n];
+    let tmod = best(Box::new(|| {
+        for _ in 0..reps { t33_scatter_mod(&idx, &mag, &neg, &s, &mut a1); }
+    }));
+    let toff = best(Box::new(|| {
+        for _ in 0..reps { t33_scatter_off(&idx, &mag, &neg, &s, &mut a2); }
+    }));
+    let tpc = best(Box::new(|| {
+        for _ in 0..reps {
+            t33_percall(&idx, &mag, &neg, &s, &a3, &mut b3, &mut o3);
+            a3.copy_from_slice(&o3);
+        }
+    }));
+    let steps = (reps * omega * n) as f64;
+    let p = |t: f64| 1e9 * t / steps;
+    eprintln!("[t33] reduce-per-term (champion) {:>6.3} ns/step", p(tmod));
+    eprintln!("[t33] deferred across blocks     {:>6.3} ns/step  ({:+.1}%)",
+        p(toff), 100.0 * (toff - tmod) / tmod);
+    eprintln!("[t33] deferred within one call   {:>6.3} ns/step  ({:+.1}%)",
+        p(tpc), 100.0 * (tpc - tmod) / tmod);
+    for (name, t) in [("across blocks", toff), ("within one call", tpc)] {
+        eprintln!("[t33]   {name:16} => {:+.1}% of a 755.4 s prover",
+            100.0 * 190.0 * (t - tmod) / tmod / 755.4);
+    }
+}
+
+/// The per-call form with a **`u128`** buffer.
+///
+/// `u64` would need `Σ mag ≤ OMEGA` as a hypothesis on the description, and
+/// `mul_short_add_into_spec` does not have one: it takes `ShortMul`
+/// abstractly, and the extracted `+` is checked, so without a bound the model
+/// can `fail`. `u128` removes the question — `buf ≤ q + N·q·q = 1.9e22`
+/// unconditionally — at the price of doubling the buffer's memory traffic on
+/// a step that is data-movement bound. Which of those two wins is measured.
+fn t33_percall_u128(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
+                    s: &[u64], acc: &[u64], buf: &mut [u128], out: &mut [u64]) {
+    let n: usize = hachi::params::RING_DEGREE;
+    let q: u64 = hachi::params::Q;
+    let mut z: usize = 0;
+    while z < n {
+        buf[z] = acc[z] as u128;
+        z += 1;
+    }
+    let terms: usize = desc_idx.len();
+    let mut t: usize = 0;
+    while t < terms {
+        let k: usize = desc_idx[t];
+        let m: u64 = desc_mag[t];
+        let negt: bool = desc_neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            let mut i: usize = 0;
+            while i < n {
+                let sv: u64 = s[i];
+                let pos: usize = k + i;
+                let w: usize = if pos >= n { pos - n } else { pos };
+                let sub: bool = negt != (pos >= n);
+                buf[w] += if sub { (q - sv) as u128 } else { sv as u128 };
+                i += 1;
+            }
+            pass += 1;
+        }
+        t += 1;
+    }
+    let mut w: usize = 0;
+    while w < n {
+        out[w] = (buf[w] % (q as u128)) as u64;
+        w += 1;
+    }
+}
+
+/// **The short multiply's third gate**: `u64` + a precondition, or `u128` and none?
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_short_multiply_u128_gate() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q;
+    let omega = hachi::params::OMEGA as usize;
+    let mut r = Lcg::new(0x5401_7EF0);
+    let mut idx: Vec<usize> = Vec::new();
+    let mut mag: Vec<u64> = Vec::new();
+    let mut neg: Vec<bool> = Vec::new();
+    let mut used = vec![false; n];
+    while idx.len() < omega {
+        let k = (r.next_u64() as usize) % n;
+        if !used[k] { used[k] = true; idx.push(k); mag.push(1); neg.push(r.next_u64() & 1 == 1); }
+    }
+    let s: Vec<u64> = (0..n).map(|_| r.next_u64() % hachi::params::GADGET_BASE).collect();
+
+    let mut a_mod = vec![0u64; n];
+    let mut a_cur = vec![0u64; n];
+    let mut b128 = vec![0u128; n];
+    let mut out = vec![0u64; n];
+    for _ in 0..8 {
+        t33_scatter_mod(&idx, &mag, &neg, &s, &mut a_mod);
+        t33_percall_u128(&idx, &mag, &neg, &s, &a_cur, &mut b128, &mut out);
+        a_cur.copy_from_slice(&out);
+    }
+    for w in 0..n { assert_eq!(a_mod[w], a_cur[w], "the u128 form differs at {w}"); }
+    eprintln!("[t33] the u128 per-call form agrees with the reduce-per-term one");
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..3 { f(); }
+        let mut bb = f64::MAX;
+        for _ in 0..7 {
+            let t = Instant::now();
+            f();
+            bb = bb.min(t.elapsed().as_secs_f64());
+        }
+        bb
+    };
+    let reps = 64usize;
+    let mut a1 = vec![0u64; n];
+    let (mut a2, mut b2, mut o2) = (vec![0u64; n], vec![0u64; n], vec![0u64; n]);
+    let (mut a3, mut b3, mut o3) = (vec![0u64; n], vec![0u128; n], vec![0u64; n]);
+    let tmod = best(Box::new(|| {
+        for _ in 0..reps { t33_scatter_mod(&idx, &mag, &neg, &s, &mut a1); }
+    }));
+    let t64 = best(Box::new(|| {
+        for _ in 0..reps { t33_percall(&idx, &mag, &neg, &s, &a2, &mut b2, &mut o2);
+                           a2.copy_from_slice(&o2); }
+    }));
+    let t128 = best(Box::new(|| {
+        for _ in 0..reps { t33_percall_u128(&idx, &mag, &neg, &s, &a3, &mut b3, &mut o3);
+                           a3.copy_from_slice(&o3); }
+    }));
+    let steps = (reps * omega * n) as f64;
+    let p = |t: f64| 1e9 * t / steps;
+    eprintln!("[t33] reduce-per-term (champion)  {:>6.3} ns/step", p(tmod));
+    eprintln!("[t33] per-call, u64  buffer       {:>6.3} ns/step  ({:+.1}%)  needs Sum(mag) <= OMEGA",
+        p(t64), 100.0 * (t64 - tmod) / tmod);
+    eprintln!("[t33] per-call, u128 buffer       {:>6.3} ns/step  ({:+.1}%)  needs nothing",
+        p(t128), 100.0 * (t128 - tmod) / tmod);
+    for (name, t) in [("u64", t64), ("u128", t128)] {
+        eprintln!("[t33]   {name:5} => {:+.1}% of a 755.4 s prover",
+            100.0 * 190.0 * (t - tmod) / tmod / 755.4);
+    }
+}

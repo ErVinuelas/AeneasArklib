@@ -8975,3 +8975,111 @@ It is recorded as a gate result and a price, not started. It also corrects
 T27's card, which called the general path's lane reduction "a smaller and
 separate win": it is smaller only because the phase is smaller, not because
 the rate is.
+
+## "Aren't there more optimizations?" — asked again, and again the answer was yes (2026-09-19)
+
+The 2026-09-18 close-out was premature and the 2026-09-19 one was too. Asked
+the same question a third time, the map at 755.4 s turned up **three** items,
+two of them things I had left on the table rather than closed.
+
+### 1. The short multiply's reduction was redundant — the largest item left
+
+`honest_compute_resp` is 240.5 s, 31.8% of the prover, and 79.8% of it is
+`mul_short_add_into` — about 190 s, **25% of the prover**, the biggest single
+thing in it. Card 9 had measured two *reorderings* of that loop (a gather,
++22.4%; a scatter with an `i64` accumulator and a multiply per element,
++12.6%) and concluded "the pass structure was not the cost". That conclusion
+is correct and it is **not** the same as "there is nothing here".
+
+What the inner step actually did per term was a branchy modular add/sub and
+then `Fp::new(nv)` — and `nv` was already in `[0, q)` by construction. A `% Q`
+for nothing, on the hottest loop in the prover.
+
+The operand is a gadget digit (`< 16`) and the accumulator runs over 1024
+blocks of `ℓ1(c) ≤ OMEGA = 16`, so the whole sum is at most `245 760`: the
+reduction can be deferred, with a subtraction contributing `q − sv` instead of
+`−sv` so the buffer only ever grows — the `offConvSumD` offset trick, third
+use in this tree.
+
+| form | ns/step | |
+|---|---|---|
+| reduce per term (champion) | 1.244 | — |
+| deferred across all blocks | 0.760 | −38.5% |
+| deferred within one call, `u64` | 0.813 | **−34.6%** |
+| deferred within one call, `u128` | 1.037 | −16.6% |
+
+Deferring across blocks wins 1.2 more points and costs 8192 buffers of 1024
+`u64` and a moved `honest_z_from_raw` specification — not worth it. The `u128`
+buffer needs **no precondition** (`buf ≤ q + N·q·q` unconditionally) but
+halves the win, because the step is data-movement bound and the buffer doubles.
+
+The `u64` form would need `Σ mag ≤ OMEGA` as a hypothesis on
+`mul_short_add_into_spec`, which takes `ShortMul` abstractly — a **new
+value-level precondition**, which `lean-opt` gates. Both can be had at once:
+reduce every `SHORT_CHUNK = 32` passes, so a slot never exceeds
+`(SHORT_CHUNK + 1)·q = 1.4 × 10¹¹` *for any description*, and since
+`32 > OMEGA` the inner reduction never fires at the pin. Unconditional
+totality, full speed, no new hypothesis.
+
+At the caller it is better than the isolated step predicted, because the
+`sv != 0` test and the per-term `Fp::new` both go away:
+
+| case | run 1 | run 2 |
+|---|---|---|
+| `quadeval/honest_z_from_raw/1` | −42.0% | −41.1% |
+| `quadeval/honest_z_short/1` | −41.4% | −41.1% |
+| `quadeval/honest_z_short_heavy/1` | −42.5% | −42.1% |
+
+Six `faster` verdicts, biases 3.9% and 1.7%, both runs usable. **Accepted, and
+not landed**: the Rust is written and extracts clean (zero axioms,
+deterministic, all 230 tests pass) but the Lean is in progress, so by the
+loop's own rule it is not on main. It is in a `git stash` entry (`T33 WIP`)
+with a patch copy in the session scratchpad, and the ledger row says so.
+
+A third run was started and then **discarded**: I restored the tree while it
+was still running, which corrupts the slot fingerprint. That is the fourth
+time in this project that touching the machine mid-measurement cost a run, and
+the first time it was caught before the number was used.
+
+### Three new ceiling rows, all from one function
+
+`short_pass_off` is eleven lines and cost three extraction aborts:
+
+* `v[i] = v[i] + x` **in one expression** on a `Vec<u64>` is an unmodelled
+  binary operation. Read the slot into a `let` first. It works unchanged for
+  `Vec<Ext4>` — `AuxShift.shift_accum` does exactly that — so the trigger is
+  the **scalar** element type.
+* `let b3: bool = b1 != b2` is unmodelled when rustc can lower the combination
+  to a *select*, which it does when both arms are a single arithmetic
+  expression. `if b1 != b2 { … }` is fine, and is what the old body used.
+* And a proof-side one: an `if` condition that appears **twice** in a body
+  needs `simp only [if_pos h]`, not `rw`, which rewrites only the first.
+
+### 2. T3 at round 0 — owed, not done
+
+Round 0 runs `round_poly_zero_base` over `2^25` pairs, **half of every pair the
+protocol evaluates**, and T3 did not touch it: I scoped the card to the `Ext4`
+path and said I would assess round 0 afterwards, and then did not. The base
+Taylor shift measured **1340 → 611 ns/pair** on the hoisted prototype, which is
+about 45 s → 25 s, **≈ −2.6% of the prover**. The proof machinery is landed —
+`AuxShift` is generic in everything but the field — so this is a substitution
+of the kind `round_value_zero_base` already is of `round_value_zero`.
+
+### 3. The general path's lane count — gated, priced, not started
+
+Unchanged from this morning's entry: two 64-bit lanes beat three 31-bit ones by
+a measured 43.9%, worth ≈ −5.3%, against 2500–3500 lines including a Montgomery
+representation change.
+
+### Where that leaves it
+
+| | prover | proved and landed |
+|---|---|---|
+| after T12 | 1170.8 s | — |
+| T27, T3, T1a | **755.4 s** | **yes** |
+| + T33 (short multiply) | ≈ 675 s | measured, proof in progress |
+| + T3 at round 0 | ≈ 655 s | owed |
+| + the general path | ≈ 615 s | gated, priced, not started |
+
+The first line of that table is the honest status; the rest is a queue with
+numbers on it, which is the useful thing to leave behind.
