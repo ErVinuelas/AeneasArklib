@@ -8550,3 +8550,117 @@ What is owed: `AuxCode` (537 lines) and `AuxTransform` (1186) redone against a
 `(pw, mw)`, but `Magic` **requires `p < 2^32`** — its own docstring says that
 is what keeps a product of two residues inside a `u64` — so Goldilocks cannot
 instantiate the existing layer. About 1700 lines, against −27.6%.
+## Candidate T27: one Goldilocks lane, measured at −24.9% of the prover (2026-09-19)
+
+The largest single item in the backlog, and the one that had been sitting
+behind a `research` label because the card read as blocked on the protocol
+modulus. It is not: `q = 2^32 − 99` is pinned and is not touched. `AUX_P1/P2/P3`
+are an *implementation device* — they exist precisely because `q` is not
+NTT-friendly — and T27 replaces those and nothing else.
+
+### What landed
+
+`GOLD_P = 2^64 − 2^32 + 1`. The property that makes it worth the trouble is
+`2^64 ≡ 2^32 − 1 (mod GOLD_P)`, **exactly**: a 128-bit product folds down with
+shifts, a mask and one `wrapping_mul` by `0xFFFFFFFF`. No Barrett, no magic
+constant, no `Magic p m` obligation — which is just as well, because `Magic`
+*requires* `p < 2^32` ("what keeps a product of two residues inside a `u64`"),
+so Goldilocks could never have instantiated `AuxArith` at all. It needed its
+own arithmetic layer.
+
+The lane count is the win, not the butterfly. In the extraction-admissible
+shape a Goldilocks butterfly costs **2.787 ns against the 30-bit lane's 2.436**
+— *worse* by 14%. What the lane deletes is everything else: the second lane's
+twist, mac, forward, inverse and untwist, the four-chunk split
+(`DOT_CHUNK_D = 2048`), and the Garner reconstruction entirely. One lane covers
+the whole 8192-term row because `2·L·BOUND_D = 1.153 × 10¹⁸` sits 16× inside
+`1.845 × 10¹⁹`.
+
+`commit::{generate_decomps, commit_streamed, commit_streamed_32}` now prepare
+and apply in that lane. The two-prime path stays in the tree, benched and
+frozen: the general (non-digit) case still needs it, since `N·q² = 1.889 × 10²²`
+does not fit one lane.
+
+### The measurement
+
+Accept run `20260919T1333+0200-f6fa70f1`, both rows faster, A/B bias 3.1%,
+usable. Neither row is in the certified 100 ns – 2 µs unresolved band.
+
+| case | now | candidate | `cand vs now` (recentered) |
+|---|---|---|---|
+| `commit/commit_streamed/4` | 2.64 s | 966 ms | **−63.7%** |
+| `commit/generate_decomps/4` | 2.68 s | 1.02 s | **−62.3%** |
+
+The A/B was run **inverted in place**: the champion had already landed in
+`hachi/src`, so `hachi/src` was checked out at `08d32c3` (pre-T27) for the run
+and the slot held the Goldilocks code. `now` is therefore the two-prime path
+and `candidate` the Goldilocks one — the conventional reading of the columns.
+Nothing about the within-run comparison changes; the tree was restored from
+`HEAD` immediately afterwards and `make bench-check` is green.
+
+Then the pin, against the T12/THP profile that preceded it (control spread
++5.3% then, +7.0% now):
+
+| | T12 base | T27 | |
+|---|---|---|---|
+| commitment, 1024 blocks | 527.3 s | **199.4 s** | **−62.2%** |
+| `carrier_decomp_from_raw` | 96.8 s | 97.8 s | +1.0% |
+| `honest_compute_resp` | 241.2 s | 240.6 s | −0.2% |
+| lifted witness | 70.5 s | 70.5 s | 0.0% |
+| `c_w_table_mle` at 2^26 | 377.8 ms | 223.2 ms | −40.9% |
+| `chain_verify` | 28.0 s | 28.5 s | +1.8% |
+| **prover** | **1310.1 s** | **983.4 s** | **−24.9%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+Projected −27.6%, measured −24.9%. The stages that did not move are the ones
+that were never in the commitment pass, which is the shape a correct scope
+claim has. Peak is unchanged: one lane holds one table where two held two, but
+the tables are transient and the 5453 MiB peak is set by
+`honest_compute_resp`, not by preparation.
+
+**The card's own earlier figure was wrong twice over and both corrections are
+recorded.** Gate A first read −3% on the butterfly using
+`overflowing_add`/`overflowing_sub`, which are **not in the extraction ceiling
+table**; re-measured in admissible shapes it is +14%. And `checked_add` +
+`match` on the `Option`, which *is* in the table, is **3× worse** (7.995 ns)
+because the `Option` match defeats the carry-flag path. The `u128` intermediate
+is the right admissible form. Checking the ceiling *before* costing the proof
+is the whole point of that table.
+
+### The proof
+
+About 2500 lines, in four layers, all by hand:
+
+* `AuxGold.lean` (306) — `gold_add/sub/reduce/mul`. The two headline specs,
+  `gold_reduce_spec` and `gold_mul_spec`, have **no precondition**: the margin
+  is exactly 2 (`t ≤ 2^64−1`, `m ≤ (2^32−1)²`, so `t + m ≤ 2p − 2`).
+* `AuxGoldCode.lean` (353) — the DIF stage.
+* `AuxGoldTransform.lean` (912) — psi table, twist, DIT stage, forward,
+  inverse. `tw_agree'` had to be generalised from `Std.U64` to raw `ℕ`.
+* `AuxGoldDot.lean` (~1040) — mac, terms, untwist-with-offset, the output
+  loop, `gold_dot_spec`, and the preparation's three loops.
+
+Above them `RqBridge.dot_prepared_digits_gold_spec` and
+`Scheme.{prepare_digits_gold_spec, apply_digits_gold_spec}`, whose conclusion
+is `mat_vec_mul_spec`'s **word for word**. `AuxCode`/`AuxTransform`'s
+vocabulary (`wordAt`, `Canon p`, `difWord p`, `resK p`, …) was already
+prime-generic, so that part was a substitution rather than a rewrite.
+
+The one hypothesis the Goldilocks statements carry that the two-prime ones do
+not is `cols ≤ 8192` — the width at which a single lane still carries the
+offset sum exactly. At the pin `cols` is 8192 on the nose.
+
+The offset is the cheap trick that paid for itself twice. Instead of a centred
+lift, `gold_untwist_off` adds `BOUND_D · n` before reducing; `BOUND_D =
+1024 · (q · 16) = 70368742555648` is a multiple of `q`, so `offConvSumD_cast_q`
+makes the offset *vanish* mod `q` and the reconstruction is a plain `%`. That
+choice removed about 200 lines of proof that a centred lift would have needed.
+
+### Two new ceiling rows
+
+* **Indexing a tuple field inside a loop** — `fwb.0[k]` where `fwb : (Vec, Vec)`
+  crashes the extraction outright: `Not an open binder or an ignored pattern`.
+  Bind the parts out above the loop and pass a slice, as `dot_prep_chunk_mod_p`
+  already did.
+* **`overflowing_add`/`overflowing_sub`** are not modelled; `checked_add` +
+  `match` is, and is 3× slower than the `u128` intermediate.

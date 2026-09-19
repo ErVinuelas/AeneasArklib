@@ -1,0 +1,51 @@
+# T27 (Goldilocks lane) at the pin, 2026-09-19T13:52:32+02:00, HEAD 72017a7
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1510:9
+     |
+1510 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: `hachi` (test "chain_semantics") generated 1 warning (run `cargo fix --test "chain_semantics"` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 2.07s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 503.5ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   367.0s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   572.2s] +   199.4s  peak   4536 live   4473 MiB  committed 1024 block(s)
+[   572.9s] +  709.4ms  peak   4536 live   4473 MiB  statement built
+[   670.7s] +    97.8s  peak   4536 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   671.9s] +     1.3s  peak   4536 live   4497 MiB  honest_compute_v_from_decomp
+[   912.5s] +   240.6s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   912.5s] +   15.9ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   912.9s] +  404.6ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   912.9s] +   60.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   983.4s] +    70.5s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   983.5s] ---------  peak   5453 live   5059 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 420.7ms
+[profile] lift_commit: 17.9s
+[profile] c_w_table_mle at 2^26: 223.2ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 10.6s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 214.8s
+[profile] honest_compute_y: 1.6s
+[profile] verifier: rlin_stmt + statement thread: 399.6ms
+[profile] verifier: round_verify_loop (26 rounds): 40.9µs
+[profile] verifier: final_check = true: 6.6s
+[profile] verifier: end_piece_check = true: 19.8s
+[profile] chain_verify (whole) = true: 28.5s
+[profile] control (frozen genesis PolyVec::zeros x50): 538.9ms
+[profile] control spread within run: +7.0%  (recenter cross-run deltas by the level)
+[  1285.6s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1285.94s
+
+# exit 0 at 2026-09-19T14:14:00+02:00
