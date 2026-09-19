@@ -1798,9 +1798,27 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.AuxShort.classify_short_loop_spec
 #print axioms HachiEquiv.AuxShort.classify_short_spec
 #print axioms HachiEquiv.AuxShort.write_invariant_fp
-#print axioms HachiEquiv.AuxShort.inner_add_spec
-#print axioms HachiEquiv.AuxShort.pass_add_spec
-#print axioms HachiEquiv.AuxShort.terms_add_spec
+-- Candidate T33 (Stage 6) -- the DEFERRED reduction. The short multiply's
+-- inner step finished with `Fp::new` on a value the branchy add/sub had
+-- already put in [0, q): a `% Q` for nothing, on the hottest loop in the
+-- prover. It now scatters into an unreduced `u64` buffer with a negative
+-- contribution added as `q - sv`, and reduces once per call.
+-- `mul_short_add_into_spec`'s STATEMENT does not move. The pure layer
+-- (`applied`, `passed`, `termsSum`, `contribW`) is reused unchanged, because
+-- the VALUE did not change -- only the carrier. What is new is `offStep` at
+-- the word level and a bound invariant, and the bound holds for ANY
+-- description because the buffer is reduced every `SHORT_CHUNK = 32 > OMEGA`
+-- passes: no new value-level precondition, and at the pin the inner reduction
+-- never fires. The three `*_add_spec` theorems this replaces are gone with
+-- their Aeneas loop constants.
+#print axioms HachiEquiv.AuxShort.offStep_cast
+#print axioms HachiEquiv.AuxShort.bnd_le
+#print axioms HachiEquiv.AuxShort.short_pass_off_spec
+#print axioms HachiEquiv.AuxShort.short_reduce_buf_spec
+#print axioms HachiEquiv.AuxShort.short_chunk_loop_spec
+#print axioms HachiEquiv.AuxShort.short_terms_loop_spec
+#print axioms HachiEquiv.AuxShort.short_seed_loop_spec
+#print axioms HachiEquiv.AuxShort.short_write_loop_spec
 #print axioms HachiEquiv.AuxShort.mul_short_add_into_spec
 #print axioms HachiEquiv.RqBridge.mul_short_desc_spec
 #print axioms HachiEquiv.RqBridge.mul_short_add_into_spec

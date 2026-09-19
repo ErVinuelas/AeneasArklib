@@ -508,9 +508,29 @@ pub fn mul_short_desc(desc: &ShortMul, s: &Rq) -> Rq {
 /// Writes through `&mut Rq`'s own storage rather than a `set_coeff` method,
 /// which this module may do and no other may.
 pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
+    // **The per-term reduction was redundant** (Stage 6 candidate T33).
+    //
+    // The inner step used to finish with `Fp::new(nv)` on an `nv` the branchy
+    // add/sub had already put in `[0, q)`: a `% Q` for nothing, on the hottest
+    // loop in the prover. What replaces it is an unreduced `u64` buffer, with
+    // a subtraction contributing `q - sv` instead of `-sv` so the accumulator
+    // only ever grows and its value mod `q` is the answer -- the offset trick
+    // `AuxFused.offConvSumD` already uses twice in this tree.
+    //
+    // A slot grows by at most `q` per pass, so [`params::SHORT_CHUNK`] passes
+    // between reductions keep it below `(SHORT_CHUNK + 1)·q`, unconditionally
+    // and for any description. At the pin `Σ mag ≤ OMEGA = 16 < 32`, so the
+    // inner reduction never fires and the whole call is one deferred pass.
     let n: usize = params::RING_DEGREE;
-    let q: u64 = params::Q;
+    let chunk: u64 = params::SHORT_CHUNK;
+    let mut buf: Vec<u64> = Vec::with_capacity(n);
+    let mut z: usize = 0;
+    while z < n {
+        buf.push(acc.0[z].to_u64());
+        z += 1;
+    }
     let terms: usize = desc.idx.len();
+    let mut left: u64 = chunk;
     let mut t: usize = 0;
     while t < terms {
         let k: usize = desc.idx[t];
@@ -518,30 +538,77 @@ pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
         let negt: bool = desc.neg[t];
         let mut pass: u64 = 0;
         while pass < m {
-            let mut i: usize = 0;
-            while i < n {
-                let sv: u64 = s.0[i].to_u64();
-                if sv != 0 {
-                    let pos: usize = k + i;
-                    // X^N = -1: crossing the boundary flips the sign
-                    let w: usize = if pos >= n { pos - n } else { pos };
-                    let wrapped: bool = pos >= n;
-                    let sub: bool = negt != wrapped;
-                    let cur: u64 = acc.0[w].to_u64();
-                    let nv: u64 = if sub {
-                        if cur >= sv { cur - sv } else { cur + q - sv }
-                    } else {
-                        let sum: u64 = cur + sv;
-                        if sum >= q { sum - q } else { sum }
-                    };
-                    acc.0[w] = Fp::new(nv);
-                }
-                i += 1;
+            buf = short_pass_off(s, k, negt, buf);
+            if left > 1 {
+                left = left - 1;
+            } else {
+                buf = short_reduce_buf(buf);
+                left = chunk;
             }
             pass += 1;
         }
         t += 1;
     }
+    let mut w: usize = 0;
+    while w < n {
+        acc.0[w] = Fp::new(buf[w]);
+        w += 1;
+    }
+}
+
+/// One signed negacyclic pass of [`mul_short_add_into`], scattered into an
+/// **unreduced** buffer (Stage 6 candidate T33).
+///
+/// `acc[(k + i) mod N] += s[i]`, with the sign flipped when the shift crosses
+/// the boundary (`X^N = -1`) and a negative contribution added as `q - s[i]`
+/// so the buffer never has to borrow. A separate item, and a single loop,
+/// because a borrowed read nested inside an accumulator-writing loop is what
+/// aeneas aborts on (`aeneas-extract`'s 2026-09-17 row).
+fn short_pass_off(s: &Rq, k: usize, negt: bool, acc: Vec<u64>) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let mut out: Vec<u64> = acc;
+    let mut i: usize = 0;
+    while i < n {
+        let sv: u64 = s.0[i].to_u64();
+        let pos: usize = k + i;
+        let w: usize = if pos >= n { pos - n } else { pos };
+        // `X^N = -1`: crossing the boundary flips the sign, and a negative
+        // contribution is added as `q - sv` so the buffer never borrows.
+        //
+        // Two shapes here are forced by the extraction, both measured
+        // 2026-09-19 (`aeneas-extract`'s ceiling table). The sign is decided
+        // by nested `if`s on the two booleans separately rather than by
+        // `negt != (pos >= n)`: with single-expression arms rustc lowers that
+        // combination to a select and leaves a `Ne` on `bool` in the MIR,
+        // which is an unmodelled binary operation. And the accumulate reads
+        // `out[w]` into a `let` before adding: `out[w] = out[w] + add` in one
+        // expression is *also* an unmodelled binary operation when the
+        // element type is a scalar.
+        let add: u64 = if pos >= n {
+            if negt { sv } else { q - sv }
+        } else {
+            if negt { q - sv } else { sv }
+        };
+        let cur: u64 = out[w];
+        let nv: u64 = cur + add;
+        out[w] = nv;
+        i += 1;
+    }
+    out
+}
+
+/// Every slot of a [`short_pass_off`] buffer, reduced mod `q`.
+fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        out.push(acc[i] % q);
+        i += 1;
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------

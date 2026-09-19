@@ -1070,3 +1070,59 @@ pub fn mac_into_gold(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize) -> V
     }
     out
 }
+
+
+/// One signed negacyclic pass of [`mul_short_add_into`], scattered into an
+/// **unreduced** buffer (Stage 6 candidate T33).
+///
+/// `acc[(k + i) mod N] += s[i]`, with the sign flipped when the shift crosses
+/// the boundary (`X^N = -1`) and a negative contribution added as `q - s[i]`
+/// so the buffer never has to borrow. A separate item, and a single loop,
+/// because a borrowed read nested inside an accumulator-writing loop is what
+/// aeneas aborts on (`aeneas-extract`'s 2026-09-17 row).
+fn short_pass_off(s: &Rq, k: usize, negt: bool, acc: Vec<u64>) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let mut out: Vec<u64> = acc;
+    let mut i: usize = 0;
+    while i < n {
+        let sv: u64 = s.0[i].to_u64();
+        let pos: usize = k + i;
+        let w: usize = if pos >= n { pos - n } else { pos };
+        // `X^N = -1`: crossing the boundary flips the sign, and a negative
+        // contribution is added as `q - sv` so the buffer never borrows.
+        //
+        // Two shapes here are forced by the extraction, both measured
+        // 2026-09-19 (`aeneas-extract`'s ceiling table). The sign is decided
+        // by nested `if`s on the two booleans separately rather than by
+        // `negt != (pos >= n)`: with single-expression arms rustc lowers that
+        // combination to a select and leaves a `Ne` on `bool` in the MIR,
+        // which is an unmodelled binary operation. And the accumulate reads
+        // `out[w]` into a `let` before adding: `out[w] = out[w] + add` in one
+        // expression is *also* an unmodelled binary operation when the
+        // element type is a scalar.
+        let add: u64 = if pos >= n {
+            if negt { sv } else { q - sv }
+        } else {
+            if negt { q - sv } else { sv }
+        };
+        let cur: u64 = out[w];
+        let nv: u64 = cur + add;
+        out[w] = nv;
+        i += 1;
+    }
+    out
+}
+
+/// Every slot of a [`short_pass_off`] buffer, reduced mod `q`.
+fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        out.push(acc[i] % q);
+        i += 1;
+    }
+    out
+}
