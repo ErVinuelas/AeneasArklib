@@ -828,6 +828,7 @@ pub const SHIFT_T: [u64; SHIFT_T_LEN] = [
 ];
 
 
+// @genesis a52d433 2026-09-19 — params::SHORT_CHUNK
 /// How many passes [`crate::ring::mul_short_add_into`] accumulates before it
 /// reduces (Stage 6 candidate T33).
 ///

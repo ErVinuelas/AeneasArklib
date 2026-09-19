@@ -1072,6 +1072,7 @@ pub fn mac_into_gold(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize) -> V
 }
 
 
+// @genesis a52d433 2026-09-19 — ring::short_pass_off
 /// One signed negacyclic pass of [`mul_short_add_into`], scattered into an
 /// **unreduced** buffer (Stage 6 candidate T33).
 ///
@@ -1114,6 +1115,7 @@ fn short_pass_off(s: &Rq, k: usize, negt: bool, acc: Vec<u64>) -> Vec<u64> {
     out
 }
 
+// @genesis a52d433 2026-09-19 — ring::short_reduce_buf
 /// Every slot of a [`short_pass_off`] buffer, reduced mod `q`.
 fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
     let n: usize = params::RING_DEGREE;

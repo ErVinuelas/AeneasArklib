@@ -344,6 +344,22 @@ pub const SHIFT_T: [u64; SHIFT_T_LEN] = [
     4495, 465, 31, 1,
 ];
 
+/// How many passes [`crate::ring::mul_short_add_into`] accumulates before it
+/// reduces (Stage 6 candidate T33).
+///
+/// The short multiply adds one signed shifted copy of its operand per pass,
+/// so a slot grows by at most `Q` per pass. Reducing every `SHORT_CHUNK`
+/// passes keeps every slot below `(SHORT_CHUNK + 1)·Q = 1.4 × 10¹¹`, which is
+/// a `u64` with eight orders of magnitude to spare — **for any description**,
+/// which is the point: the alternative was a `Σ mag ≤ OMEGA` hypothesis on
+/// `mul_short_add_into_spec`, a new value-level precondition.
+///
+/// `32 > OMEGA = 16`, so at the paper's parameters the inner reduction never
+/// fires: a `classify_short` description has `Σ mag ≤ OMEGA`, and the whole
+/// call is one deferred pass with a single reduction at the end. The constant
+/// buys unconditional totality and costs nothing at the pin.
+pub const SHORT_CHUNK: u64 = 32;
+
 /// The gadget digit count `digits`.
 ///
 /// **Pinned** by [NOZ26] Fig. 9 (`b = 16`, 8 digits), and it still discharges
