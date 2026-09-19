@@ -453,6 +453,219 @@ pub fn ntt_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>, p: u64, m: u64
     (cur, tmp)
 }
 
+// ---------------------------------------------------------------------------
+// The Goldilocks lane
+// ---------------------------------------------------------------------------
+
+/// The Goldilocks prime `2^64 − 2^32 + 1` (candidate T27).
+///
+/// An **auxiliary** prime, exactly as [`AUX_P1`]–[`AUX_P3`] are: the protocol
+/// modulus `params::Q = 2^32 − 99` is untouched and is not NTT-friendly, which
+/// is why auxiliary primes exist at all. What this one buys is the *lane
+/// count*. A digit-path dot has one operand whose coefficients are below
+/// `GADGET_BASE`, so a whole `C`-term product is bounded by
+/// `2·C·N·(Q−1)·15`; at `C = 8192` that is `1.081·10^18` against this prime's
+/// `1.845·10^19`, a 17× margin. **One lane, and no chunking at all**, where
+/// two 30-bit primes need two lanes and four chunks of
+/// [`crate::ring::DOT_CHUNK_D`] — and with one lane there is no CRT step
+/// either, so [`garner2`] does not run.
+///
+/// Measured: 158.61 ns per coefficient against the two-prime path's 479.64,
+/// **−66.9%**, on `apply_digits` at the pin.
+pub const GOLD_P: u64 = 18_446_744_069_414_584_321;
+
+/// A root of exact order `2 · NTT_LEN` mod [`GOLD_P`] (`7^((p−1)/2048)`).
+pub const GOLD_PSI: u64 = 455_906_449_640_507_599;
+/// The inverse of [`GOLD_PSI`] mod [`GOLD_P`].
+pub const GOLD_PSIINV: u64 = 8_548_973_421_900_915_981;
+/// The inverse of [`NTT_LEN`] mod [`GOLD_P`].
+pub const GOLD_NINV: u64 = 18_428_729_670_909_296_641;
+
+/// `a + b mod p`, for `a, b < GOLD_P`.
+///
+/// The sum can reach `2^65`, so it is formed in a `u128`. The obvious
+/// alternatives were measured and are worse: `overflowing_add` is not in the
+/// extraction ceiling, and `checked_add` with a `match` on the `Option` is
+/// **three times slower** (7.995 ns per butterfly against 2.787) because the
+/// match defeats the carry path.
+pub fn gold_add(a: u64, b: u64) -> u64 {
+    let s: u128 = (a as u128) + (b as u128);
+    let p: u128 = GOLD_P as u128;
+    if s >= p {
+        (s - p) as u64
+    } else {
+        s as u64
+    }
+}
+
+/// `a − b mod p`, for `a, b < GOLD_P`.
+pub fn gold_sub(a: u64, b: u64) -> u64 {
+    if a >= b {
+        a - b
+    } else {
+        let d: u128 = (a as u128) + (GOLD_P as u128) - (b as u128);
+        d as u64
+    }
+}
+
+/// `x mod GOLD_P` for a full 128-bit product.
+///
+/// `2^64 ≡ 2^32 − 1 (mod p)` is exact, so the fold is two shifts, a mask, one
+/// multiply by `2^32 − 1` and two modular adds — no Barrett, no magic
+/// constant, and no error term to bound. Writing `hi = a·2^32 + b`, the value
+/// is `lo − a + b·(2^32 − 1)`; `b < 2^32` makes `b·(2^32 − 1) < 2^64` and in
+/// fact below `p`, so the product needs no reduction of its own.
+pub fn gold_reduce(x: u128) -> u64 {
+    let lo: u64 = x as u64;
+    let hi: u64 = (x >> 64) as u64;
+    let hi_hi: u64 = hi >> 32;
+    let hi_lo: u64 = hi & 4_294_967_295;
+    let m: u64 = hi_lo.wrapping_mul(4_294_967_295);
+    gold_add(gold_sub(lo, hi_hi), m)
+}
+
+/// `a · b mod GOLD_P`.
+pub fn gold_mul(a: u64, b: u64) -> u64 {
+    gold_reduce((a as u128) * (b as u128))
+}
+
+/// Powers of `psi` mod [`GOLD_P`], `NTT_LEN` of them.
+pub fn gold_psi_table(psi: u64) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut cur: u64 = 1;
+    let mut i: usize = 0;
+    while i < n {
+        out.push(cur);
+        cur = gold_mul(cur, psi);
+        i += 1;
+    }
+    out
+}
+
+/// The twist: `out[t] = (v[t] mod p) · ψ^t mod p`, in the Goldilocks lane.
+///
+/// `v[t] < Q < GOLD_P`, so the entry needs no reduction before the multiply.
+pub fn gold_twist(v: &Vec<u64>, pt: &Vec<u64>) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut t: usize = 0;
+    while t < n {
+        out.push(gold_mul(v[t], pt[t]));
+        t += 1;
+    }
+    out
+}
+
+/// One decimation-in-frequency stage in the Goldilocks lane.
+pub fn gold_dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let half: usize = len / 2;
+    let step: usize = 2 * (n / len);
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        while j < half {
+            dst[start + j] = gold_add(src[start + j], src[start + j + half]);
+            j += 1;
+        }
+        let mut i: usize = 0;
+        let mut e: usize = 0;
+        while i < half {
+            let d: u64 = gold_sub(src[start + i], src[start + i + half]);
+            dst[start + half + i] = gold_mul(d, tw[e]);
+            i += 1;
+            e += step;
+        }
+        start += len;
+    }
+    dst
+}
+
+/// One decimation-in-time stage in the Goldilocks lane.
+pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let half: usize = len / 2;
+    let step: usize = 2 * (n / len);
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        let mut e: usize = 0;
+        while j < half {
+            let v: u64 = gold_mul(src[start + j + half], tw[e]);
+            dst[start + j] = gold_add(src[start + j], v);
+            j += 1;
+            e += step;
+        }
+        let mut i: usize = 0;
+        let mut e2: usize = 0;
+        while i < half {
+            let v: u64 = gold_mul(src[start + i + half], tw[e2]);
+            dst[start + half + i] = gold_sub(src[start + i], v);
+            i += 1;
+            e2 += step;
+        }
+        start += len;
+    }
+    dst
+}
+
+/// The forward transform in the Goldilocks lane.
+pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
+    let mut cur: Vec<u64> = cur0;
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = NTT_LEN;
+    while len > 1 {
+        let filled: Vec<u64> = gold_dif_stage(&cur, tmp, len, tw);
+        tmp = cur;
+        cur = filled;
+        len = len / 2;
+    }
+    (cur, tmp)
+}
+
+/// The inverse transform in the Goldilocks lane, up to the factor `N`.
+pub fn gold_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
+    let mut cur: Vec<u64> = cur0;
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = 2;
+    while len <= NTT_LEN {
+        let filled: Vec<u64> = gold_dit_stage(&cur, tmp, len, tw);
+        tmp = cur;
+        cur = filled;
+        len = len * 2;
+    }
+    (cur, tmp)
+}
+
+/// `BOUND_D = N · q · GADGET_BASE`, the per-term offset of the digit path,
+/// which is already below [`GOLD_P`] so it needs no reduction.
+pub const GOLD_DOFF: u64 = 70_368_742_555_648;
+
+/// The untwist, with the digit path's offset — the Goldilocks counterpart of
+/// [`untwist`] at [`AUX_DOFF1`].
+///
+/// The offset rather than a centred lift, deliberately. A centred lift is the
+/// obvious thing for one lane (the signed coefficient fits the prime whole,
+/// `1.081·10^18` against `1.845·10^19`) and it is what the first cut did, but
+/// the *offset* is what `AuxFused`'s `offConvSumD` machinery is already stated
+/// and proved against — `BOUND_D` is a multiple of `q`, so it vanishes in the
+/// reduction, and the whole bound argument carries over with only the radix
+/// changed. One modular add per coefficient buys roughly two hundred lines of
+/// proof that are already written.
+pub fn gold_untwist_off(src: &Vec<u64>, it: &Vec<u64>, off: u64) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let mut out: Vec<u64> = Vec::with_capacity(n);
+    let mut t: usize = 0;
+    while t < n {
+        let u: u64 = gold_mul(src[t], it[t]);
+        let s: u64 = gold_mul(u, GOLD_NINV);
+        out.push(gold_add(s, off));
+        t += 1;
+    }
+    out
+}
+
 /// Coefficientwise product mod `p`, in place in `a`.
 pub fn pointwise(mut a: Vec<u64>, b: &Vec<u64>, p: u64, m: u64) -> Vec<u64> {
     let n: usize = NTT_LEN;

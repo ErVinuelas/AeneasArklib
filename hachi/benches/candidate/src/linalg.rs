@@ -384,6 +384,47 @@ impl PolyMatrix {
     }
 }
 
+/// A matrix prepared in the single Goldilocks lane (candidate T27).
+pub struct PreparedMatrixG {
+    rows: Vec<crate::ring::PreparedVecG>,
+    cols: usize,
+}
+
+impl PolyMatrix {
+    /// Prepare every row in the Goldilocks lane, for the digit path.
+    pub fn prepare_digits_gold(&self) -> PreparedMatrixG {
+        let n: usize = self.0.len();
+        let c: usize = self.cols();
+        let mut rows: Vec<crate::ring::PreparedVecG> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            rows.push(crate::ring::prepare_vec_gold(&self.0[i].0, c));
+            i += 1;
+        }
+        PreparedMatrixG { rows, cols: c }
+    }
+}
+
+impl PreparedMatrixG {
+    /// The number of prepared rows.
+    pub fn rows(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// `M · v` with every row prepared, in one Goldilocks lane.
+    pub fn apply_digits_gold(&self, v: &PolyVec) -> PolyVec {
+        let n: usize = self.rows.len();
+        let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
+        let mut out: Vec<Rq> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::dot_prepared_digits_gold(&self.rows[i], &v.0, w));
+            i += 1;
+        }
+        PolyVec(out)
+    }
+}
+
 impl PreparedMatrix {
     /// The number of prepared rows.
     pub fn rows(&self) -> usize {

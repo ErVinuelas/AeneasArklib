@@ -352,17 +352,19 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     // `BLOCKS`; see `PolyMatrix::prepare` for why this is the caller's decision
     // and not `mat_vec_mul`'s.
     //
-    // Two primes rather than three, which is sound *here* and not in general:
-    // the vector `A` is applied to is `G⁻¹(mᵢ)`, whose coefficients are unsigned
-    // gadget digits, so the exact convolution fits `p1 · p2`. See
-    // `ring::dot_prepared_digits`.
-    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
+    // ONE Goldilocks lane rather than two 30-bit ones, which is sound *here*
+    // and not in general: the vector `A` is applied to is `G⁻¹(mᵢ)`, whose
+    // coefficients are unsigned gadget digits, so the exact convolution of the
+    // whole 8192-term row fits `2^64 − 2^32 + 1` with a 16× margin -- no
+    // chunking and no Garner recombination. See `ring::dot_prepared_digits_gold`
+    // and candidate T27.
+    let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
     let mut ss: Vec<PolyVec> = Vec::new();
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
-        let inner: PolyVec = prep.apply_digits(&s);
+        let inner: PolyVec = prep.apply_digits_gold(&s);
         ts.push(gadget::gadget_decompose(&inner));
         ss.push(s);
         i += 1;
@@ -413,12 +415,12 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 /// the loop is reassociated, not changed.
 pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<PolyVec>) {
     let blocks: usize = m.len();
-    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
+    let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
-        let inner: PolyVec = prep.apply_digits(&s);
+        let inner: PolyVec = prep.apply_digits_gold(&s);
         ts.push(gadget::gadget_decompose(&inner));
         i += 1;
     }
@@ -439,13 +441,13 @@ pub fn commit_streamed_32(
     m: &Vec<linalg::RawVec32>,
 ) -> (PolyVec, Vec<PolyVec>) {
     let blocks: usize = m.len();
-    let prep: linalg::PreparedMatrix = pp.inner_matrix().prepare_digits();
+    let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let block: PolyVec = m[i].expand();
         let s: PolyVec = gadget::gadget_decompose(&block);
-        let inner: PolyVec = prep.apply_digits(&s);
+        let inner: PolyVec = prep.apply_digits_gold(&s);
         ts.push(gadget::gadget_decompose(&inner));
         i += 1;
     }
