@@ -1,0 +1,54 @@
+# Pin profile at BLOCKS = 1024, card 3 instrumentation: VmHWM AND VmRSS
+#   at every stage boundary, dense_eval hoisted OUT of the timed region,
+#   and the dead raw message dropped before the profile body (the
+#   2026-09-18 run was OOM-killed at 16.93 GiB holding 8 GiB nobody read).
+# Label: T12: GLIBC_TUNABLES=glibc.malloc.hugetlb=1, transparent huge pages via madvise. Zero code, zero proof. Probe: 2 GiB table build -75%, MLE folds -21%, compute-bound pass unchanged.
+# quiet: idle=99% sustained over 3 samples
+# started 2026-09-19T11:07:40+02:00 load 0.14 0.10 0.09 1/1864 1694798
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1486:9
+     |
+1486 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: `hachi` (test "chain_semantics") generated 1 warning (run `cargo fix --test "chain_semantics"` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control (frozen genesis PolyVec::zeros x50): 504.9ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   366.2s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   899.2s] +   527.3s  peak   4600 live   4473 MiB  committed 1024 block(s)
+[   899.9s] +  700.2ms  peak   4600 live   4473 MiB  statement built
+[   996.7s] +    96.8s  peak   4600 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   997.9s] +     1.3s  peak   4600 live   4497 MiB  honest_compute_v_from_decomp
+[  1239.1s] +   241.2s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[  1239.2s] +   20.5ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[  1239.6s] +  409.9ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[  1239.6s] +   71.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[  1310.1s] +    70.5s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[  1310.1s] ---------  peak   5452 live   5059 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 406.2ms
+[profile] lift_commit: 17.8s
+[profile] c_w_table_mle at 2^26: 377.8ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 10.6s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 212.1s
+[profile] honest_compute_y: 2.3s
+[profile] verifier: rlin_stmt + statement thread: 408.4ms
+[profile] verifier: round_verify_loop (26 rounds): 43.2µs
+[profile] verifier: final_check = true: 6.5s
+[profile] verifier: end_piece_check = true: 19.7s
+[profile] chain_verify (whole) = true: 28.0s
+[profile] control (frozen genesis PolyVec::zeros x50): 531.5ms
+[profile] control spread within run: +5.3%  (recenter cross-run deltas by the level)
+[  1609.7s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 1610.01s
+
+# exit 0 at 2026-09-19T11:34:30+02:00

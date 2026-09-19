@@ -98,6 +98,7 @@ help:
 	@echo '    extract        regenerate hachi/lean/Generated.lean from hachi/src/'
 	@echo '    test           run the Rust-side semantics tests'
 	@echo '    run-bench      time every operation against its frozen first translation'
+	@echo '    run-profile    the pin-scale honest-chain profile (long; sets the huge-page tunable)'
 	@echo '    bench-check    check the frozen baseline against git, and bench coverage'
 	@echo '    bench-stamp    re-derive the @genesis stamps after freezing a function'
 	@echo '    bench-coverage report which mirrored items are benched, without failing'
@@ -471,6 +472,31 @@ run-bench: bench-toolchain
 # Build output only. Fetched dependencies (hachi/.lake/packages, ./toolchain,
 # the elan and rustup toolchains) are deliberately left alone: they are
 # expensive to re-obtain and `make setup` is what manages them.
+# --- the pin-scale runs ------------------------------------------------------
+
+# The honest chain at BLOCKS = 1024, every phase timed and VmHWM read in
+# process. Long -- about 20 minutes of prover plus 6 of test scaffolding -- and
+# it must have the machine to itself: a concurrent `lake build` cost a run on
+# 2026-09-18, detected because the commitment stage, which that candidate did
+# not touch, read +2.9%.
+#
+# GLIBC_TUNABLES is candidate T12 and the reason this is a target rather than a
+# command to remember. The system ships transparent huge pages in `madvise`
+# mode, so nothing asks for them and the process gets none; glibc 2.34+ will
+# `madvise(MADV_HUGEPAGE)` per allocation under this tunable. Measured on this
+# profile: commitment -2.5%, the 2^26 witness table -49.9%, chain_verify -3.1%,
+# prover -1.4% overall, for no code and no proof. It is NOT set for `run-bench`
+# -- the A/B is within-run so verdicts would hold either way, but the absolute
+# figures would move and the bench corpus stays comparable to its own history.
+#
+# BLOCKS overrides the instance size; the default is the paper's.
+BLOCKS ?= 1024
+run-profile:
+	@set -euo pipefail; cd $(PKG) && \
+	  GLIBC_TUNABLES=glibc.malloc.hugetlb=1 HACHI_CHAIN_BLOCKS='$(BLOCKS)' \
+	  cargo test --release --test chain_semantics -- \
+	    --ignored --nocapture the_honest_chain_profile
+
 clean:
 	@echo '==> clean'
 	@-cd $(PKG) && lake clean

@@ -8396,3 +8396,89 @@ is a better reason.
 **One open item above the threshold, and it is a proof-cost decision, not a
 discovery problem.** Everything else in the prover has now been measured from
 the inside.
+
+## The two cards the close-out missed (2026-09-19)
+
+The close-out was written against the 12-item work order. The plan has **32
+cards**, and cross-checking them turned up two with no disposition that the
+measured cost map does not bound — because neither is an arithmetic change to
+a block. One is small and free. The other is the largest item in the entire
+backlog and had been sitting behind a `research` label.
+
+### T12 — huge pages, and the map does not bound it
+
+Every other card changes the arithmetic inside a block, so the block's
+measurement caps it. T12 changes code generation and page behaviour for
+*every* block at once, so nothing caps it, and it had never been run.
+
+The system ships transparent huge pages in `madvise` mode: **zero huge pages
+were in use**, because nothing asks. glibc 2.34+ will `madvise(MADV_HUGEPAGE)`
+per allocation under `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` — an environment
+variable, no code, no extraction, no proof.
+
+A probe on the shapes the rounds walk said it was worth measuring, and said so
+in the right pattern: 2 GiB table build **685.87 → 172.63 ms (−75%)**, six MLE
+folds **1.61 → 1.27 s (−21%)**, and a compute-bound `range_product` pass
+**unchanged** (+1.3%). Memory-bound things move, compute-bound things do not.
+
+At the caller, full pin profile, control +0.3%:
+
+| | base | THP | |
+|---|---|---|---|
+| commitment | 541.0 s | 527.3 s | −2.5% |
+| `c_w_table_mle` at 2^26 | 0.75 s | 0.38 s | **−49.9%** |
+| `alpha_public_table` at 2^26 | 11.1 s | 10.6 s | −4.5% |
+| `chain_verify` | 28.9 s | 28.0 s | −3.1% |
+| `honest_compute_resp` | 240.2 s | 241.2 s | +0.4% |
+| **prover** | 1186.7 s | **1170.4 s** | **−1.4%** |
+
+The one stage that did not move is the short multiply — compute-bound, exactly
+as the probe predicted. −1.4% is below the ~3% stop threshold, but that
+threshold decides whether to spend *proof*, and here there is none: accepted as
+a run-environment setting, encoded in `make run-profile` so it cannot be
+forgotten, and deliberately **not** applied to `run-bench` so the bench corpus
+stays comparable to its own history.
+
+### T27 — one Goldilocks auxiliary prime: −30.5% of the prover
+
+The card reads as blocked, and it is not. It was filed as "research" and
+assumed to require changing the protocol modulus. **It does not touch `q`.**
+`q = 2^32 − 99` is pinned and stays exactly where it is; `AUX_P1/P2/P3` are an
+*implementation device* — they exist precisely because `q` is not
+NTT-friendly. T27 replaces those, and nothing else.
+
+The lane arithmetic, checked before writing a line of code:
+
+* **digit path** — one operand's coefficients are gadget digits `< 16`, so the
+  whole 8192-term dot needs `2·L·N·(q−1)·15 = 1.081 × 10¹⁸` against
+  Goldilocks' `1.845 × 10¹⁹`: a **17× margin**, so **one lane and no chunking
+  at all**, where two 30-bit primes need two lanes and four chunks;
+* **general path** — `N·q² = 1.889 × 10²²` does not fit one lane, so that path
+  goes 3 lanes → 2, a smaller and separate win.
+
+**Gate A**: a Goldilocks butterfly costs **2.361 ns against the current
+30-bit lane's 2.435** — the *same*, despite being 64-bit, because
+`p = 2^64 − 2^32 + 1` reduces with shifts, adds and one multiply by
+`0xFFFFFFFF`: no Barrett, no magic constant. Verified by the round trip
+(forward ∘ inverse scaled by `N⁻¹` is the identity, which is what pins the
+root's order).
+
+**Gate B**, `apply_digits`, asserted equal to the real product on every block:
+**480.13 → 138.22 ns/coeff, −71.2%.**
+
+That beats the lane count because halving the lanes removes far more than
+butterflies — the second lane's twists, macs, inverses and untwists, the
+four-chunk split, and **the Garner reconstruction entirely**. Where the `u32`
+retype only made a butterfly cheaper, this deletes a whole pipeline.
+
+On the prover: `apply_digits` **509 s → 147 s, −362 s, −30.5%**, with
+`carrier_from_raw`'s 98 s not included.
+
+**It supersedes C2 rather than stacking with it.** `u32` × 2 lanes and
+Goldilocks × 1 lane move the same bytes per coefficient; Goldilocks
+additionally halves the lane count. They are alternatives, and it is 3.5× the
+better one — so the `u32` retype should not be built.
+
+The proof is a new `AuxArith` for the Goldilocks reduction plus the transform
+layer re-instantiated: at least C2's ~1186 lines, probably more. Against
+−30.5% instead of −8.6%.

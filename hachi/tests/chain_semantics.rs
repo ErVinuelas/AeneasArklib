@@ -1978,3 +1978,223 @@ fn the_rounds_split_per_phase() {
     }
     eprintln!("[rounds]   {:20} {tot:>9.2?}", "LOOP TOTAL");
 }
+
+/// **Card T12: build-level, zero proof.** Does the process want huge pages?
+///
+/// The rounds fold a `2^m₀`-entry `Vec<Ext4>` — 2 GiB at the pin — linearly,
+/// once per round, and `alpha_public_table` builds another. A linear walk of
+/// 2 GiB through 4 KiB pages is 512 K TLB entries; through 2 MiB pages it is
+/// 1024. The system is in `madvise` mode with **zero** huge pages in use, so
+/// nothing here gets them today, and glibc 2.39 will ask for them per
+/// allocation under `GLIBC_TUNABLES=glibc.malloc.hugetlb=1` — an environment
+/// variable, no code, no proof.
+///
+/// This walks the shapes the rounds actually walk, at pin width, so the answer
+/// arrives in seconds rather than in a 26-minute profile. Run it both ways.
+#[test]
+#[ignore = "pin-width memory walk -- run with cargo test --release -- --ignored"]
+fn the_big_table_walk_under_huge_pages() {
+    use cpoly::Ext4;
+    let m0: usize = std::env::var("HACHI_T12_VARS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(hachi::params::M_ZERO);
+    let n = 1usize << m0;
+    eprintln!("[t12] table of 2^{m0} Ext4 = {} MiB", n * 32 / (1024 * 1024));
+
+    let t0 = std::time::Instant::now();
+    let mut tab: Vec<Ext4> = Vec::with_capacity(n);
+    for i in 0..n {
+        tab.push(Ext4::from_base(cpoly::field::Fp::new((i as u64) * 2_654_435_761 % 4_294_967_197)));
+    }
+    eprintln!("[t12] build           {:>9.2?}", t0.elapsed());
+
+    // the fold the rounds do between messages: halves the table each time
+    let a = Ext4::from_base(cpoly::field::Fp::new(7));
+    let t1 = std::time::Instant::now();
+    let mut cur = tab;
+    let mut folds = 0;
+    while cur.len() > 1 && folds < 6 {
+        cur = cpoly::multilinear::eval_mle_layer(&cur, a);
+        folds += 1;
+    }
+    eprintln!("[t12] {folds} eval_mle_layer folds {:>9.2?}   (first walks the whole table)", t1.elapsed());
+    std::hint::black_box(cur.len());
+
+    // the pass `round_values_zero` makes: read two entries, fold, range_product
+    let n2 = 1usize << (m0 - 2);
+    let mut w: Vec<Ext4> = Vec::with_capacity(n2);
+    for i in 0..n2 {
+        w.push(Ext4::from_base(cpoly::field::Fp::new((i as u64) % 4_294_967_197)));
+    }
+    let t2 = std::time::Instant::now();
+    let mut acc = Ext4::ZERO;
+    let mut y = 0usize;
+    while y + 1 < n2 {
+        let folded = w[y] + w[y + 1];
+        acc = acc + hachi::zerocheck::range_product(folded);
+        y += 2;
+    }
+    eprintln!("[t12] range_product pass over 2^{} {:>9.2?}  (acc {})",
+        m0 - 2, t2.elapsed(), acc == Ext4::ZERO);
+}
+
+// ---------------------------------------------------------------------------
+// T27 Gate B: one Goldilocks lane at the caller
+// ---------------------------------------------------------------------------
+//
+// Gate A measured the Goldilocks butterfly at 2.361 ns against the current
+// u64 aux butterfly's 2.435 — the same cost — while covering the whole
+// 8192-term digit dot in ONE lane where two 30-bit primes need two lanes and
+// four chunks. Halving the lanes removes whole transforms, their twists,
+// their macs, their inverses AND the Garner reconstruction, not just
+// butterflies, so unlike the u32 retype the caller win should track the lane
+// count. This measures that.
+//
+// q = 2^32 - 99 is untouched throughout: these are AUXILIARY primes.
+
+const GP: u64 = 18446744069414584321;
+const GPSI: u64 = 455906449640507599;
+const GEPI: u64 = 8548973421900915981;
+const GNINV: u64 = 18428729670909296641;
+
+#[inline] fn ga(a: u64, b: u64) -> u64 {
+    let (s, c) = a.overflowing_add(b); let mut r = s;
+    if c { r = r.wrapping_add(0xFFFF_FFFF); } if r >= GP { r -= GP; } r
+}
+#[inline] fn gs(a: u64, b: u64) -> u64 {
+    let (d, brw) = a.overflowing_sub(b); let mut r = d;
+    if brw { r = r.wrapping_sub(0xFFFF_FFFF); } r
+}
+#[inline] fn gr(x: u128) -> u64 {
+    let lo = x as u64; let hi = (x >> 64) as u64;
+    ga(gs(lo, hi >> 32), (hi & 0xFFFF_FFFF).wrapping_mul(0xFFFF_FFFF))
+}
+#[inline] fn gm(a: u64, b: u64) -> u64 { gr((a as u128) * (b as u128)) }
+
+fn gtab(psi: u64, n: usize) -> Vec<u64> {
+    let mut o = Vec::with_capacity(n); let mut c: u64 = 1;
+    for _ in 0..n { o.push(c); c = gm(c, psi); } o
+}
+fn gdif(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize) {
+    let half = len / 2; let step = 2 * (n / len); let mut st = 0usize;
+    while st < n {
+        let mut j = 0usize;
+        while j < half { dst[st + j] = ga(src[st + j], src[st + j + half]); j += 1; }
+        let (mut i, mut e) = (0usize, 0usize);
+        while i < half {
+            dst[st + half + i] = gm(gs(src[st + i], src[st + i + half]), tw[e]);
+            i += 1; e += step;
+        }
+        st += len;
+    }
+}
+fn gdit(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize) {
+    let half = len / 2; let step = 2 * (n / len); let mut st = 0usize;
+    while st < n {
+        let (mut j, mut e) = (0usize, 0usize);
+        while j < half {
+            let v = gm(src[st + j + half], tw[e]);
+            dst[st + j] = ga(src[st + j], v);
+            dst[st + half + j] = gs(src[st + j], v);
+            j += 1; e += step;
+        }
+        st += len;
+    }
+}
+fn gfwd(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize) -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 { gdif(&cur, &mut tmp, len, tw, n); std::mem::swap(&mut cur, &mut tmp); len /= 2; }
+    (cur, tmp)
+}
+fn ginv(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize) -> (Vec<u64>, Vec<u64>) {
+    let mut len = 2;
+    while len <= n { gdit(&cur, &mut tmp, len, tw, n); std::mem::swap(&mut cur, &mut tmp); len *= 2; }
+    (cur, tmp)
+}
+
+/// `prepare_digits` for one row, one Goldilocks lane.
+fn gold_prepare_row(row: &PolyVec) -> Vec<u64> {
+    let n = hachi::params::RING_DEGREE;
+    let t = gtab(GPSI, n);
+    let mut out = Vec::with_capacity(row.len() * n);
+    for j in 0..row.len() {
+        let mut w: Vec<u64> = Vec::with_capacity(n);
+        for u in 0..n { w.push(gm(row.get(j).coeff(u).to_u64(), t[u])); }
+        let (f, _) = gfwd(w, vec![0u64; n], &t, n);
+        out.extend_from_slice(&f);
+    }
+    out
+}
+
+/// `dot_prepared_digits` in ONE lane: no chunking, no Garner.
+fn gold_dot(fwd: &[u64], b: &PolyVec, terms: usize) -> Rq {
+    let n = hachi::params::RING_DEGREE;
+    let q = hachi::params::Q as i128;
+    let t = gtab(GPSI, n);
+    let ti = gtab(GEPI, n);
+    let mut acc = vec![0u64; n];
+    let mut scratch = vec![0u64; n];
+    for j in 0..terms {
+        let mut w: Vec<u64> = Vec::with_capacity(n);
+        for u in 0..n { w.push(gm(b.get(j).coeff(u).to_u64(), t[u])); }
+        let (f, sc) = gfwd(w, scratch, &t, n);
+        scratch = sc;
+        for u in 0..n { acc[u] = ga(acc[u], gm(fwd[j * n + u], f[u])); }
+    }
+    let (cur, _) = ginv(acc, scratch, &ti, n);
+    // untwist, then the CENTRED lift: one lane holds the signed value whole
+    // (|v| <= 5.4e17 against p/2 = 9.2e18), so there is nothing to reconstruct
+    let half = GP / 2;
+    let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(n);
+    for u in 0..n {
+        let r = gm(gm(cur[u], ti[u]), GNINV);
+        let v: i128 = if r > half { r as i128 - GP as i128 } else { r as i128 };
+        let m = ((v % q) + q) % q;
+        coeffs.push(cpoly::field::Fp::new(m as u64));
+    }
+    Rq::from_coeffs(&coeffs)
+}
+
+/// **T27 Gate B.**
+#[test]
+#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+fn the_goldilocks_lane_at_the_caller() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, RING_DEGREE};
+    let blocks: usize = std::env::var("HACHI_T27_BLOCKS")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(2);
+    let mut r = Lcg::new(0xC0A1_00B0);
+    let cols = MESSAGE_ROWS * GADGET_DIGITS;
+    let a_row = r.next_poly_vec(cols);
+    let am = PolyMatrix::new(vec![a_row.copy()]);
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(MESSAGE_ROWS))).collect();
+
+    let prep2 = am.prepare_digits();
+    let tp = std::time::Instant::now();
+    let gprep = gold_prepare_row(&a_row);
+    let dprep = tp.elapsed();
+
+    let (mut t2, mut t1) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+    let mut agree = true;
+    for b in raw.iter() {
+        let s = hachi::gadget::gadget_decompose(&b.expand());
+        let c0 = std::time::Instant::now();
+        let got2 = prep2.apply_digits(&s);
+        t2 += c0.elapsed();
+        let c1 = std::time::Instant::now();
+        let got1 = gold_dot(&gprep, &s, cols);
+        t1 += c1.elapsed();
+        agree &= got2.get(0).equals(&got1);
+    }
+    assert!(agree, "the Goldilocks lane computes a different product; the timing would be meaningless");
+
+    let coeffs = (MESSAGE_ROWS * RING_DEGREE * blocks) as f64;
+    eprintln!("[t27] prepare: 2 lanes of 30-bit vs 1 Goldilocks lane, {dprep:.2?} for the Goldilocks table");
+    eprintln!(
+        "[t27] apply_digits  two 30-bit lanes {:>8.2?} ({:>6.2} ns/coeff)   ONE Goldilocks lane {:>8.2?} ({:>6.2} ns/coeff)   {:+.1}%",
+        t2, t2.as_nanos() as f64 / coeffs,
+        t1, t1.as_nanos() as f64 / coeffs,
+        100.0 * (t1.as_secs_f64() / t2.as_secs_f64() - 1.0)
+    );
+    eprintln!("[t27] the Goldilocks lane agrees with apply_digits on every block: {agree}");
+}
