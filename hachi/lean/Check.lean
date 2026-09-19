@@ -1430,6 +1430,20 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.round_value_zero_spec
 #print axioms HachiEquiv.Sumcheck.round_values_zero_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
+-- Candidate T3 at ROUND 0: `round_poly_zero_base` is the same Taylor shift
+-- with `w̃` still in the base field, so `lo`, `Δ` and every power of them stay
+-- in `ZMod q` and only the final `eq[y] · c_m` crosses into the extension.
+-- Round 0 walks half of every pair the protocol evaluates and T3 left it
+-- alone. `shiftCoeffK_phi` is the whole bridge: `φF` is a ring homomorphism,
+-- so the coefficient computed in `ZMod q` embeds to the one `shiftCoeff` names.
+#print axioms HachiEquiv.AuxShift.stK_phi
+#print axioms HachiEquiv.AuxShift.shiftCoeffK_phi
+#print axioms HachiEquiv.AuxShift.shift_powers_base_spec
+#print axioms HachiEquiv.AuxShift.shift_inner_base_spec
+#print axioms HachiEquiv.AuxShift.shift_accum_base_spec
+#print axioms HachiEquiv.AuxShift.zero_fill_base_spec
+#print axioms HachiEquiv.AuxShift.pair_loop_base_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_base_spec
 #print axioms HachiEquiv.Sumcheck.eq_prefix_spec
 #print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec
 #print axioms HachiEquiv.Sumcheck.eq_free_factor_spec

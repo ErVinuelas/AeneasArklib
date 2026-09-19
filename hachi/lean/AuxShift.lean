@@ -52,7 +52,7 @@ open hachi
 
 namespace HachiEquiv.AuxShift
 
-open HachiEquiv.Field HachiEquiv.Ext HachiEquiv.ZeroCheck
+open HachiEquiv.Field HachiEquiv.Ext HachiEquiv.Ring HachiEquiv.ZeroCheck
 
 /-! ## 1. The table -/
 
@@ -552,6 +552,375 @@ theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize
         rw [hev, eqF, ← List.getD_eq_getElem (l := eq.val) (d := cpoly.field.Ext4.ZERO) hylt]
       step with shift_accum_spec a lop dd ev (loF w yy.val)
         (fun t => ∑ y' ∈ Finset.range yy.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
+        hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hal har' hav'
+        as ⟨a1, ha1l, ha1r, ha1v⟩
+      step as ⟨yy1, hyy1⟩
+      refine ⟨by omega, ha1l, ha1r, ?_, by omega⟩
+      intro t ht
+      rw [ha1v t ht, hyy1, Finset.sum_range_succ, hevv, hddval]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : yy.val = half.val := by scalar_tac
+      exact ⟨hal, har', fun t ht => by rw [hav' t ht, heq]⟩
+  · exact ⟨hy, halen, har, hav⟩
+
+
+/-- `Usize.max` is at least `2^32 - 1`; a local copy, as `AuxShort` has. -/
+private theorem usize_max_ge4' : (4294967295 : ℕ) ≤ Std.Usize.max := by
+  rw [Std.Usize.max_def]
+  rcases System.Platform.numBits_eq with h | h <;> simp [Std.Usize.numBits, h]
+
+/-! ## 5. The base-field path: round 0 (Stage 6 candidate T3, round 0)
+
+Round 0 walks `2^(m₀−1)` pairs -- **half of every pair the protocol
+evaluates** -- with `w̃` still in the base field, so `lo`, `Δ` and all their
+powers stay in `ZMod q` and only the final `eq[y] · c_m` crosses into the
+extension. The algebra is the same shift; the only new content is that the
+coefficient is computed in `ZMod q` and embedded, and `phiF` is a ring
+homomorphism, so [`shiftCoeffK_phi`] moves it across in one line. -/
+
+/-- [`st`] in the base field. -/
+def stK (j m : ℕ) : ZMod q := ((params.SHIFT_T.val.getD (j * 32 + m) 0#u64).val : ℕ)
+
+theorem stK_phi (j m : ℕ) : phiF (stK j m) = st j m := by
+  rw [stK, st, phiF_apply, ofBase_natCast]
+
+/-- [`shiftCoeff`] in the base field. -/
+def shiftCoeffK (lo d : ZMod q) (m : ℕ) : ZMod q :=
+  d ^ m * ∑ j ∈ Finset.Ico (m / 2) 16, stK j m * lo ^ (2 * j + 1 - m)
+
+theorem shiftCoeffK_phi (lo d : ZMod q) (m : ℕ) :
+    phiF (shiftCoeffK lo d m) = shiftCoeff (phiF lo) (phiF d) m := by
+  rw [shiftCoeffK, shiftCoeff, map_mul, map_pow, map_sum]
+  refine congrArg (fun t => phiF d ^ m * t) (Finset.sum_congr rfl (fun j _ => ?_))
+  rw [map_mul, map_pow, stK_phi]
+
+/-- **`shift_powers_base`.** -/
+theorem shift_powers_base_loop_spec (x : cpoly.field.Fp) (hx : Red x)
+    (out : alloc.vec.Vec cpoly.field.Fp) (cur : cpoly.field.Fp) (k : Std.Usize)
+    (hk : k.val ≤ 32) (hlen : out.val.length = k.val) (hred : ∀ a ∈ out.val, Red a)
+    (hcr : Red cur) (hcv : toK cur = toK x ^ k.val)
+    (hov : ∀ e, e < k.val → coeffK out e = toK x ^ e) :
+    sumcheck.shift_powers_base_loop x params.SHIFT_DEG out cur k
+      ⦃ z => z.val.length = 32 ∧ (∀ a ∈ z.val, Red a) ∧
+          ∀ e, e < 32 → coeffK z e = toK x ^ e ⦄ := by
+  rw [sumcheck.shift_powers_base_loop]
+  apply loop.spec_decr_nat (fun r => 32 - r.2.2.val)
+    (fun r => r.2.2.val ≤ 32 ∧ r.1.val.length = r.2.2.val ∧ (∀ a ∈ r.1.val, Red a)
+      ∧ Red r.2.1 ∧ toK r.2.1 = toK x ^ r.2.2.val
+      ∧ ∀ e, e < r.2.2.val → coeffK r.1 e = toK x ^ e)
+  · rintro ⟨o, c, kk⟩ ⟨hkk, hol, hor, hcr1, hcv1, hov1⟩
+    dsimp only at hkk hol hor hcr1 hcv1 hov1
+    simp only [sumcheck.shift_powers_base_loop.body]
+    by_cases hlt : kk < params.SHIFT_DEG
+    · rw [if_pos hlt]
+      have hklt : kk.val < 32 := by have := shift_deg_val; scalar_tac
+      have hmax : o.val.length < Std.Usize.max := by
+        rw [hol]
+        have h2 := usize_max_ge4'
+        omega
+      step as ⟨o1, ho1⟩
+      step with HachiEquiv.Field.fp_mul_spec c x hcr1 hx as ⟨c1, hc1r, hc1v⟩
+      step as ⟨kk1, hkk1⟩
+      refine ⟨by omega, ?_, ?_, hc1r, ?_, ?_, by omega⟩
+      · rw [ho1, hkk1, List.length_append, hol]; simp
+      · intro a ha
+        rw [ho1] at ha
+        rcases List.mem_append.mp ha with h | h
+        · exact hor a h
+        · rw [List.mem_singleton.mp h]; exact hcr1
+      · rw [hc1v, hcv1, hkk1, pow_succ]
+      · intro e he
+        rw [hkk1] at he
+        rcases Nat.lt_or_ge e kk.val with helt | hege
+        · unfold coeffK
+          rw [ho1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+          exact hov1 e helt
+        · have heq : e = o.val.length := by omega
+          unfold coeffK
+          rw [heq, ho1, HachiEquiv.AuxGoldTransform.getD_append_eq', hol]
+          exact hcv1
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : kk.val = 32 := by have := shift_deg_val; scalar_tac
+      exact ⟨by rw [hol, heq], hor, fun e he => hov1 e (by rw [heq]; exact he)⟩
+  · exact ⟨hk, hlen, hred, hcr, hcv, hov⟩
+
+theorem shift_powers_base_spec (x : cpoly.field.Fp) (hx : Red x) :
+    sumcheck.shift_powers_base x
+      ⦃ z => z.val.length = 32 ∧ (∀ a ∈ z.val, Red a) ∧
+          ∀ e, e < 32 → coeffK z e = toK x ^ e ⦄ := by
+  rw [sumcheck.shift_powers_base]
+  simp only [alloc.vec.Vec.with_capacity]
+  exact shift_powers_base_loop_spec x hx (alloc.vec.Vec.new cpoly.field.Fp)
+    cpoly.field.Fp.ONE 0#usize (by simp) (by simp) (by intro a ha; simp at ha)
+    HachiEquiv.Field.Red_one (by simp [HachiEquiv.Field.toK_one])
+    (by intro e he; simp at he)
+
+/-- **`shift_inner_base`** is `S_m` in `ZMod q`. -/
+theorem shift_inner_base_loop_spec (lop : alloc.vec.Vec cpoly.field.Fp)
+    (m rows deg : Std.Usize) (acc : cpoly.field.Fp) (j : Std.Usize) (X : ZMod q)
+    (hrows : rows.val = 16) (hdeg : deg.val = 32) (hm : m.val < 32)
+    (hlen : lop.val.length = 32) (hlr : ∀ a ∈ lop.val, Red a)
+    (hv : ∀ e, e < 32 → coeffK lop e = X ^ e)
+    (hj0 : m.val / 2 ≤ j.val) (hj : j.val ≤ 16) (har : Red acc)
+    (hav : toK acc = ∑ j' ∈ Finset.Ico (m.val / 2) j.val,
+             stK j' m.val * X ^ (2 * j' + 1 - m.val)) :
+    sumcheck.shift_inner_base_loop lop m rows deg acc j
+      ⦃ z => Red z ∧ toK z
+          = ∑ j' ∈ Finset.Ico (m.val / 2) 16, stK j' m.val * X ^ (2 * j' + 1 - m.val) ⦄ := by
+  rw [sumcheck.shift_inner_base_loop]
+  apply loop.spec_decr_nat (fun r => 16 - r.2.val)
+    (fun r => m.val / 2 ≤ r.2.val ∧ r.2.val ≤ 16 ∧ Red r.1
+      ∧ toK r.1 = ∑ j' ∈ Finset.Ico (m.val / 2) r.2.val,
+          stK j' m.val * X ^ (2 * j' + 1 - m.val))
+  · rintro ⟨ss, jj⟩ ⟨hj0', hjb, hsr, hsv⟩
+    dsimp only at hj0' hjb hsr hsv
+    simp only [sumcheck.shift_inner_base_loop.body]
+    by_cases hlt : jj < rows
+    · rw [if_pos hlt]
+      have hjlt : jj.val < 16 := by scalar_tac
+      have hkm : m.val ≤ 2 * jj.val + 1 := by omega
+      step as ⟨i, hi⟩
+      step as ⟨k, hk⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨i2, hi2⟩
+      have hi2v : i2.val = jj.val * 32 + m.val := by rw [hi2, hi1, hdeg]
+      have hi2b : i2.val < params.SHIFT_T.val.length := by
+        rw [hi2v, shift_t_length]; omega
+      step as ⟨i3, hi3⟩
+      step with HachiEquiv.Field.fp_new_spec i3 as ⟨f, hRf, hfv⟩
+      step as ⟨i4, hi4⟩
+      have hi4v : i4.val = 2 * jj.val + 1 - m.val := by rw [hi4, hk, hi]
+      have hi4b : i4.val < lop.val.length := by rw [hi4v, hlen]; omega
+      step as ⟨e, he⟩
+      have hRe : Red e := hlr _ (by rw [he]; exact List.getElem_mem hi4b)
+      have hev : toK e = X ^ (2 * jj.val + 1 - m.val) := by
+        rw [he, ← hi4v, ← coeffK_of_lt hi4b]
+        exact hv i4.val (by rw [hlen] at hi4b; exact hi4b)
+      step with HachiEquiv.Field.fp_mul_spec f e hRf hRe as ⟨e1, hRe1, he1v⟩
+      step with HachiEquiv.Field.fp_add_spec ss e1 hsr hRe1 as ⟨s1, hRs1, hs1v⟩
+      step as ⟨jj1, hjj1⟩
+      refine ⟨by omega, by omega, hRs1, ?_, by omega⟩
+      have hterm : toK e1 = stK jj.val m.val * X ^ (2 * jj.val + 1 - m.val) := by
+        rw [he1v, hev, hfv, hi3, stK]
+        congr 2
+        rw [← hi2v, List.getD_eq_getElem _ _ hi2b]
+      rw [hs1v, hsv, hterm, hjj1,
+        Finset.sum_Ico_succ_top (by omega : m.val / 2 ≤ jj.val)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = 16 := by scalar_tac
+      exact ⟨hsr, by rw [hsv, heq]⟩
+  · exact ⟨hj0, hj, har, hav⟩
+
+theorem shift_inner_base_spec (lop : alloc.vec.Vec cpoly.field.Fp) (m : Std.Usize)
+    (X : ZMod q) (hm : m.val < 32) (hlen : lop.val.length = 32)
+    (hlr : ∀ a ∈ lop.val, Red a)
+    (hv : ∀ e, e < 32 → coeffK lop e = X ^ e) :
+    sumcheck.shift_inner_base lop m
+      ⦃ z => Red z ∧ toK z
+          = ∑ j' ∈ Finset.Ico (m.val / 2) 16, stK j' m.val * X ^ (2 * j' + 1 - m.val) ⦄ := by
+  rw [sumcheck.shift_inner_base]
+  step as ⟨j, hj⟩
+  have hjv : j.val = m.val / 2 := by rw [hj]
+  exact shift_inner_base_loop_spec lop m params.SHIFT_ROWS params.SHIFT_DEG
+    cpoly.field.Fp.ZERO j X shift_rows_val shift_deg_val hm hlen hlr hv
+    (by omega) (by omega) HachiEquiv.Field.Red_zero
+    (by rw [HachiEquiv.Field.toK_zero, hjv]; simp)
+
+
+/-- **`shift_accum_base`**: one pair's contribution, with the base-field
+coefficient embedded exactly once per slot. -/
+theorem shift_accum_base_loop_spec (acc : alloc.vec.Vec cpoly.field.Ext4)
+    (lop : alloc.vec.Vec cpoly.field.Fp) (d : cpoly.field.Fp) (e : cpoly.field.Ext4)
+    (n : Std.Usize) (dpow : cpoly.field.Fp) (m : Std.Usize)
+    (X : ZMod q) (acc0 : ℕ → F)
+    (hn : n.val = 32) (hm : m.val ≤ 32)
+    (hlen : lop.val.length = 32) (hlr : ∀ a ∈ lop.val, Red a)
+    (hv : ∀ t, t < 32 → coeffK lop t = X ^ t)
+    (hdr : Red d) (her : Reduced e)
+    (halen : acc.val.length = 32) (har : VecReduced acc)
+    (hdpr : Red dpow) (hdpv : toK dpow = toK d ^ m.val)
+    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
+      = acc0 t + (if t < m.val then phiF (shiftCoeffK X (toK d) t) * toExt e else 0)) :
+    sumcheck.shift_accum_base_loop acc lop d e n dpow m
+      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
+            = acc0 t + phiF (shiftCoeffK X (toK d) t) * toExt e ⦄ := by
+  rw [sumcheck.shift_accum_base_loop]
+  apply loop.spec_decr_nat (fun r => 32 - r.2.2.val)
+    (fun r => r.2.2.val ≤ 32 ∧ r.1.val.length = 32 ∧ VecReduced r.1
+      ∧ Red r.2.1 ∧ toK r.2.1 = toK d ^ r.2.2.val
+      ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
+          = acc0 t + (if t < r.2.2.val then phiF (shiftCoeffK X (toK d) t) * toExt e else 0))
+  · rintro ⟨a, dp, mm⟩ ⟨hmm, hal, har', hdpr', hdpv', hav'⟩
+    dsimp only at hmm hal har' hdpr' hdpv' hav'
+    simp only [sumcheck.shift_accum_base_loop.body]
+    by_cases hlt : mm < n
+    · rw [if_pos hlt]
+      have hmlt : mm.val < 32 := by rw [← hn]; scalar_tac
+      step with shift_inner_base_spec lop mm X hmlt hlen hlr hv as ⟨sv, hRsv, hsvv⟩
+      have hab : mm.val < a.val.length := by rw [hal]; exact hmlt
+      step as ⟨cur, hcur⟩
+      have hRcur : Reduced cur := har' _ (by rw [hcur]; exact List.getElem_mem hab)
+      have hcurv : toExt cur = acc0 mm.val + 0 := by
+        rw [hcur, ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO) hab,
+          hav' mm.val hmlt, if_neg (by omega)]
+      step with HachiEquiv.Field.fp_mul_spec dp sv hdpr' hRsv as ⟨f, hRf, hfv⟩
+      step with HachiEquiv.Ext.fp_ext_mul_spec f e hRf her as ⟨e1, hRe1, he1v⟩
+      step with HachiEquiv.Ext.ext_add_spec cur e1 hRcur hRe1 as ⟨nv, hRnv, hnvv⟩
+      step as ⟨xa, back, hxa, hback⟩
+      step with HachiEquiv.Field.fp_mul_spec dp d hdpr' hdr as ⟨dp1, hRdp1, hdp1v⟩
+      step as ⟨mm1, hmm1⟩
+      have hset : back nv = a.set mm nv := by rw [hback]
+      have hnvval : toExt nv = acc0 mm.val + phiF (shiftCoeffK X (toK d) mm.val) * toExt e := by
+        have hfval : toK f = shiftCoeffK X (toK d) mm.val := by
+          rw [hfv, hdpv', hsvv, shiftCoeffK]
+        rw [hnvv, hcurv, add_zero, he1v, hfval, phiF_apply]
+      refine ⟨by omega, ?_, ?_, hRdp1, ?_, ?_, by omega⟩
+      · rw [hset, alloc.vec.Vec.set_val_eq, List.length_set, hal]
+      · intro y hy
+        rw [hset, alloc.vec.Vec.set_val_eq] at hy
+        rcases List.mem_or_eq_of_mem_set hy with h | h
+        · exact har' y h
+        · rw [h]; exact hRnv
+      · rw [hdp1v, hdpv', hmm1, pow_succ]
+      · intro t ht
+        rw [hset, alloc.vec.Vec.set_val_eq, hmm1]
+        rcases eq_or_ne t mm.val with rfl | hne
+        · rw [List.getD_eq_getElem _ _ (by rw [List.length_set, hal]; exact ht),
+            List.getElem_set_self, hnvval, if_pos (by omega)]
+        · rw [List.getD_eq_getElem _ _ (by rw [List.length_set, hal]; exact ht),
+            List.getElem_set_ne (by omega),
+            ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO)
+              (by rw [hal]; exact ht),
+            hav' t ht]
+          by_cases hc : t < mm.val
+          · rw [if_pos hc, if_pos (by omega)]
+          · rw [if_neg hc, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : mm.val = 32 := by rw [← hn]; scalar_tac
+      exact ⟨hal, har', fun t ht => by rw [hav' t ht, if_pos (by omega)]⟩
+  · exact ⟨hm, halen, har, hdpr, hdpv, hav⟩
+
+theorem shift_accum_base_spec (acc : alloc.vec.Vec cpoly.field.Ext4)
+    (lop : alloc.vec.Vec cpoly.field.Fp) (d : cpoly.field.Fp) (e : cpoly.field.Ext4)
+    (X : ZMod q) (acc0 : ℕ → F)
+    (hlen : lop.val.length = 32) (hlr : ∀ a ∈ lop.val, Red a)
+    (hv : ∀ t, t < 32 → coeffK lop t = X ^ t)
+    (hdr : Red d) (her : Reduced e)
+    (halen : acc.val.length = 32) (har : VecReduced acc)
+    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO) = acc0 t) :
+    sumcheck.shift_accum_base acc lop d e
+      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
+            = acc0 t + phiF (shiftCoeffK X (toK d) t) * toExt e ⦄ := by
+  rw [sumcheck.shift_accum_base]
+  exact shift_accum_base_loop_spec acc lop d e params.SHIFT_DEG cpoly.field.Fp.ONE
+    0#usize X acc0 shift_deg_val (by simp) hlen hlr hv hdr her halen har
+    HachiEquiv.Field.Red_one (by simp [HachiEquiv.Field.toK_one])
+    (by intro t ht; rw [hav t ht, if_neg (by simp)]; ring)
+
+/-! ### `round_poly_zero_base`'s own two loops -/
+
+theorem zero_fill_base_spec (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4)
+    (i : Std.Usize) (hn : n.val = 32) (hi : i.val ≤ 32)
+    (hlen : acc.val.length = i.val) (har : VecReduced acc)
+    (hav : ∀ t, t < i.val → toExt (acc.val.getD t cpoly.field.Ext4.ZERO) = 0) :
+    sumcheck.round_poly_zero_base_loop0 n acc i
+      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
+  rw [sumcheck.round_poly_zero_base_loop0]
+  apply loop.spec_decr_nat (fun r => 32 - r.2.val)
+    (fun r => r.2.val ≤ 32 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
+      ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = 0)
+  · rintro ⟨a, ii⟩ ⟨hii, hal, har', hav'⟩
+    dsimp only at hii hal har' hav'
+    simp only [sumcheck.round_poly_zero_base_loop0.body]
+    by_cases hlt : ii < n
+    · rw [if_pos hlt]
+      have hilt : ii.val < 32 := by rw [← hn]; scalar_tac
+      have hmax : a.val.length < Std.Usize.max := by
+        rw [hal]; have := usize_max_ge4'; omega
+      step as ⟨a1, ha1⟩
+      step as ⟨ii1, hii1⟩
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [ha1, hii1, List.length_append, hal]; simp
+      · intro y hy
+        rw [ha1] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact har' y h
+        · rw [List.mem_singleton.mp h]; exact HachiEquiv.Ext.reduced_ZERO
+      · intro t ht
+        rw [hii1] at ht
+        rcases Nat.lt_or_ge t ii.val with hc | hc
+        · rw [ha1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+          exact hav' t hc
+        · have heq : t = a.val.length := by omega
+          rw [heq, ha1, HachiEquiv.AuxGoldTransform.getD_append_eq']
+          exact HachiEquiv.Ext.toExt_ZERO
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = 32 := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hal, heq], har', fun t ht => hav' t (by rw [heq]; exact ht)⟩
+  · exact ⟨hi, hlen, har, hav⟩
+
+/-- `lo`, `Δ` and `eq[y]` for the base path. -/
+def loK (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : ZMod q := coeffK w (2 * y)
+def dK (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : ZMod q := coeffK w (2 * y + 1) - loK w y
+
+theorem pair_loop_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
+    (eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize)
+    (acc : alloc.vec.Vec cpoly.field.Ext4) (y : Std.Usize)
+    (hhalf : half.val = eq.val.length) (hwl : w.val.length = 2 * eq.val.length)
+    (hwr : ∀ a ∈ w.val, Red a) (her : VecReduced eq)
+    (hy : y.val ≤ half.val) (halen : acc.val.length = 32) (har : VecReduced acc)
+    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
+      = ∑ y' ∈ Finset.range y.val,
+          phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y') :
+    sumcheck.round_poly_zero_base_loop1 w eq half acc y
+      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
+            = ∑ y' ∈ Finset.range half.val,
+                phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y' ⦄ := by
+  rw [sumcheck.round_poly_zero_base_loop1]
+  apply loop.spec_decr_nat (fun r => half.val - r.2.val)
+    (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 32 ∧ VecReduced r.1
+      ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
+          = ∑ y' ∈ Finset.range r.2.val,
+              phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y')
+  · rintro ⟨a, yy⟩ ⟨hyy, hal, har', hav'⟩
+    dsimp only at hyy hal har' hav'
+    simp only [sumcheck.round_poly_zero_base_loop1.body]
+    by_cases hlt : yy < half
+    · rw [if_pos hlt]
+      have hylt : yy.val < eq.val.length := by rw [← hhalf]; scalar_tac
+      have hb0 : 2 * yy.val < w.val.length := by rw [hwl]; omega
+      have hb1 : 2 * yy.val + 1 < w.val.length := by rw [hwl]; omega
+      step as ⟨i, hi⟩
+      step as ⟨lo, hlo⟩
+      have hlob : i.val < w.val.length := by rw [hi]; exact hb0
+      have hRlo : Red lo := hwr _ (by rw [hlo]; exact List.getElem_mem hlob)
+      have hlov : toK lo = loK w yy.val := by
+        rw [hlo, loK, ← hi, ← coeffK_of_lt hlob]
+      step as ⟨i1, hi1⟩
+      step as ⟨hiw, hhiw⟩
+      have hhib : i1.val < w.val.length := by rw [hi1, hi]; exact hb1
+      have hRhi : Red hiw := hwr _ (by rw [hhiw]; exact List.getElem_mem hhib)
+      have hhiv : toK hiw = coeffK w (2 * yy.val + 1) := by
+        rw [hhiw, ← coeffK_of_lt hhib, hi1, hi]
+      step with shift_powers_base_spec lo hRlo as ⟨lop, hlopl, hlopr, hlopv⟩
+      step with HachiEquiv.Field.fp_sub_spec hiw lo hRhi hRlo as ⟨dd, hRdd, hddv⟩
+      have hddval : toK dd = dK w yy.val := by rw [hddv, hhiv, hlov, dK]
+      step as ⟨ev, hev⟩
+      have hRev : Reduced ev := her _ (by rw [hev]; exact List.getElem_mem hylt)
+      have hevv : toExt ev = eqF eq yy.val := by
+        rw [hev, eqF, ← List.getD_eq_getElem (l := eq.val) (d := cpoly.field.Ext4.ZERO) hylt]
+      step with shift_accum_base_spec a lop dd ev (loK w yy.val)
+        (fun t => ∑ y' ∈ Finset.range yy.val,
+          phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y')
         hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hal har' hav'
         as ⟨a1, ha1l, ha1r, ha1v⟩
       step as ⟨yy1, hyy1⟩

@@ -1416,3 +1416,49 @@ pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec
     }
     acc
 }
+
+
+/// [`shift_powers`] in the base field: `1, x, …, x^{2b−1}` as `Fp`.
+pub fn shift_powers_base(x: Fp) -> Vec<Fp> {
+    let n: usize = params::SHIFT_DEG;
+    let mut out: Vec<Fp> = Vec::with_capacity(n);
+    let mut cur: Fp = Fp::ONE;
+    let mut k: usize = 0;
+    while k < n {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+/// [`shift_inner`] in the base field: every product is `Fp × Fp`.
+pub fn shift_inner_base(lop: &Vec<Fp>, m: usize) -> Fp {
+    let rows: usize = params::SHIFT_ROWS;
+    let deg: usize = params::SHIFT_DEG;
+    let mut s: Fp = Fp::ZERO;
+    let mut j: usize = m / 2;
+    while j < rows {
+        let k: usize = 2 * j + 1;
+        s = s + Fp::new(params::SHIFT_T[j * deg + m]) * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+/// [`shift_accum`] with a base-field `lo` and `Δ`: only the final `eq[y] · c_m`
+/// is a mixed product, and there is exactly one of those per coefficient.
+pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut dpow: Fp = Fp::ONE;
+    let mut m: usize = 0;
+    while m < n {
+        let s: Fp = shift_inner_base(lop, m);
+        let cur: Ext4 = acc[m];
+        let nv: Ext4 = cur + (dpow * s) * e;
+        acc[m] = nv;
+        dpow = dpow * d;
+        m += 1;
+    }
+    acc
+}

@@ -2324,25 +2324,100 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
         ∀ x : F, CPolynomial.eval x (toUni out) =
           rangeSumZero (phiF ∘ tableFnFp (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
   rw [sumcheck.round_poly_zero_base]
-  step with round_values_zero_base_spec (k := k) w eq hw heq as ⟨values, hvlen, hvred, hvval⟩
-  step with round_node_weights_spec as ⟨weights, hwtlen, hwtred, hwtval⟩
-  obtain ⟨p, hpdeg, hpval⟩ :=
-    rangeSumZero_poly (phiF ∘ tableFnFp (m := k + 1) w) (tableFn (m := k) eq)
-  have hpt : ∀ i : Fin 33, toPoint (m := 33) values i = CPolynomial.eval ((i.val : ℕ) : F) p := by
-    intro i
-    rw [toPoint, hvval i, hpval]
-  apply spec_mono (interpolate_spec (n := 33) values weights ⟨hvlen, hvred⟩ (by omega)
-    (fun t ht => hwtred _ (by
-      rw [List.getD_eq_getElem _ _ (by omega)]
-      exact List.getElem_mem (by omega))) hwtval)
-  rintro out ⟨holen, hored, hoval⟩
-  refine ⟨holen, hored, fun x => ?_⟩
-  rw [hoval]
-  rw [interpolateArray_eval_of_degreeLE (n := 33) (d := 31) (toPoint (m := 33) values) p
-    (by norm_num) hpdeg
-    (node_ne_of_weights (fun i => toK (weights.val.getD i.val (0#u64 : cpoly.field.Fp))) hwtval)
-    hpt x]
-  rw [hpval]
+  simp only [alloc.vec.Vec.with_capacity]
+  step with HachiEquiv.AuxShift.zero_fill_base_spec params.SHIFT_DEG
+    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.AuxShift.shift_deg_val
+    (by simp) (by simp) (by intro a ha; simp at ha) (by intro t ht; simp at ht)
+    as ⟨acc1, hacl, hacr, hacv⟩
+  have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
+  have hwl : w.val.length = 2 * eq.val.length := by
+    rw [hw.1, heq.1, pow_succ]; ring
+  step with HachiEquiv.AuxShift.pair_loop_base_spec w eq (alloc.vec.Vec.len eq)
+    acc1 0#usize hhalf hwl hw.2 heq.2 (by simp) hacl hacr
+    (by intro t ht; rw [hacv t ht]; simp)
+    as ⟨acc2, ha2l, ha2r, ha2v⟩
+  have hmax : acc2.val.length < Std.Usize.max := by
+    rw [ha2l]; have := usize_max_ge'; omega
+  step as ⟨acc3, ha3⟩
+  rw [cpoly.univariate.UnivariatePoly.from_coeffs, WP.spec_ok]
+  have ha3l : acc3.val.length = 33 := by
+    rw [ha3, List.length_append, ha2l]; simp
+  refine ⟨ha3l, ?_, fun x => ?_⟩
+  · intro a ha
+    rw [ha3] at ha
+    rcases List.mem_append.mp ha with h | h
+    · exact ha2r a h
+    · rw [List.mem_singleton.mp h]; exact reduced_ZERO
+  have hco : ∀ t, t < 32 → toExt (acc3.val.getD t cpoly.field.Ext4.ZERO)
+      = ∑ y' ∈ Finset.range eq.val.length,
+          phiF (HachiEquiv.AuxShift.shiftCoeffK (HachiEquiv.AuxShift.loK w y')
+            (HachiEquiv.AuxShift.dK w y') t) * HachiEquiv.AuxShift.eqF eq y' := by
+    intro t ht
+    rw [ha3, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht),
+      ha2v t ht, hhalf]
+  have hco32 : toExt (acc3.val.getD 32 cpoly.field.Ext4.ZERO) = 0 := by
+    rw [ha3, show (32 : ℕ) = acc2.val.length by rw [ha2l],
+      HachiEquiv.AuxGoldTransform.getD_append_eq']
+    exact toExt_ZERO
+  rw [toUni_eval, toRaw_eval_eq_sum acc3 x 33 (by rw [ha3l]), Finset.sum_range_succ]
+  have hlast : (toRaw acc3).coeff 32 * x ^ 32 = 0 := by
+    rw [toRaw_coeff_of_lt acc3 (by rw [ha3l]; norm_num),
+      ← List.getD_eq_getElem (l := acc3.val) (d := cpoly.field.Ext4.ZERO)
+        (by rw [ha3l]; norm_num), hco32]
+    ring
+  rw [hlast, add_zero]
+  have hterm : ∀ t ∈ Finset.range 32, (toRaw acc3).coeff t * x ^ t
+      = ∑ y' ∈ Finset.range eq.val.length,
+          HachiEquiv.AuxShift.eqF eq y'
+            * (HachiEquiv.AuxShift.shiftCoeff
+                (phiF (HachiEquiv.AuxShift.loK w y'))
+                (phiF (HachiEquiv.AuxShift.dK w y')) t * x ^ t) := by
+    intro t ht
+    simp only [Finset.mem_range] at ht
+    rw [toRaw_coeff_of_lt acc3 (by rw [ha3l]; omega),
+      ← List.getD_eq_getElem (l := acc3.val) (d := cpoly.field.Ext4.ZERO)
+        (by rw [ha3l]; omega), hco t ht, Finset.sum_mul]
+    refine Finset.sum_congr rfl (fun y' _ => ?_)
+    rw [HachiEquiv.AuxShift.shiftCoeffK_phi]
+    ring
+  rw [Finset.sum_congr rfl hterm, Finset.sum_comm]
+  have hpair : ∀ y' ∈ Finset.range eq.val.length,
+      ∑ t ∈ Finset.range 32, HachiEquiv.AuxShift.eqF eq y'
+          * (HachiEquiv.AuxShift.shiftCoeff (phiF (HachiEquiv.AuxShift.loK w y'))
+              (phiF (HachiEquiv.AuxShift.dK w y')) t * x ^ t)
+        = HachiEquiv.AuxShift.eqF eq y'
+            * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
+                (phiF (HachiEquiv.AuxShift.loK w y')
+                  + phiF (HachiEquiv.AuxShift.dK w y') * x) := by
+    intro y' _
+    rw [← Finset.mul_sum, HachiEquiv.AuxShift.rangeProduct_shift]
+  rw [Finset.sum_congr rfl hpair, rangeSumZero]
+  have hlen : eq.val.length = 2 ^ k := heq.1
+  rw [hlen, ← Fin.sum_univ_eq_sum_range
+    (fun y' => HachiEquiv.AuxShift.eqF eq y'
+      * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
+          (phiF (HachiEquiv.AuxShift.loK w y')
+            + phiF (HachiEquiv.AuxShift.dK w y') * x)) (2 ^ k)]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  have hlo : (phiF ∘ tableFnFp (m := k + 1) w) (lo y)
+      = phiF (HachiEquiv.AuxShift.loK w y.val) := by
+    show phiF (tableFnFp (m := k + 1) w (lo y)) = _
+    rw [tableFnFp_apply, HachiEquiv.AuxShift.loK, lo]
+    rfl
+  have hhi : (phiF ∘ tableFnFp (m := k + 1) w) (hi y)
+      = phiF (HachiEquiv.AuxShift.dK w y.val) + phiF (HachiEquiv.AuxShift.loK w y.val) := by
+    show phiF (tableFnFp (m := k + 1) w (hi y)) = _
+    rw [tableFnFp_apply, HachiEquiv.AuxShift.dK, HachiEquiv.AuxShift.loK, hi,
+      ← map_add]
+    congr 1
+    show toK (w.val.getD (2 * y.val + 1) cpoly.field.Fp.ZERO) = _
+    rw [← coeffK]
+    ring
+  have hfold : fold (phiF ∘ tableFnFp (m := k + 1) w) x y
+      = phiF (HachiEquiv.AuxShift.loK w y.val)
+        + phiF (HachiEquiv.AuxShift.dK w y.val) * x := by
+    rw [fold, hlo, hhi]; ring
+  rw [hfold, tableFn_apply, HachiEquiv.AuxShift.eqF]
 
 /-! ## The equality kernel in three pieces -/
 

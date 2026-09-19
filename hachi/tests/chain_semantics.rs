@@ -3449,3 +3449,115 @@ fn the_short_multiply_u128_gate() {
             100.0 * 190.0 * (t - tmod) / tmod / 755.4);
     }
 }
+
+/// The base-field Taylor shift in the **admissible** shape: a fresh power
+/// table per pair, `Δ^m` as a running scalar, the accumulator written in
+/// place. The `Ext4` version of this measured −43.2% where the hoisted
+/// prototype measured −52.0%, so the shape is worth measuring here too rather
+/// than carrying the hoisted number across.
+fn t3b_power_table_fp(x: cpoly::field::Fp) -> Vec<cpoly::field::Fp> {
+    use cpoly::field::Fp;
+    let mut out: Vec<Fp> = Vec::with_capacity(32);
+    let mut cur: Fp = Fp::ONE;
+    let mut k: usize = 0;
+    while k < 32 {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+fn t3b_shift_inner_fp(lop: &Vec<cpoly::field::Fp>, m: usize, t: &[cpoly::field::Fp])
+    -> cpoly::field::Fp {
+    use cpoly::field::Fp;
+    let mut s: Fp = Fp::ZERO;
+    let mut j: usize = m / 2;
+    while j < 16 {
+        let k: usize = 2 * j + 1;
+        s = s + t[k * 32 + m] * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+fn round_poly_zero_base_shift(
+    w: &Vec<cpoly::field::Fp>, eq: &Vec<Ext4>, t: &[cpoly::field::Fp],
+) -> cpoly::univariate::UnivariatePoly {
+    use cpoly::field::Fp;
+    let half: usize = eq.len();
+    let mut acc: Vec<Ext4> = Vec::with_capacity(33);
+    let mut i: usize = 0;
+    while i < 32 { acc.push(Ext4::ZERO); i += 1; }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let d: Fp = hi - lo;
+        let lop: Vec<Fp> = t3b_power_table_fp(lo);
+        let e: Ext4 = eq[y];
+        let mut dpow: Fp = Fp::ONE;
+        let mut m: usize = 0;
+        while m < 32 {
+            let s: Fp = t3b_shift_inner_fp(&lop, m, t);
+            acc[m] = acc[m] + (dpow * s) * e;
+            dpow = dpow * d;
+            m += 1;
+        }
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    cpoly::univariate::UnivariatePoly::from_coeffs(acc)
+}
+
+/// **T3 at round 0.** Round 0 runs `round_poly_zero_base` over `2^25` pairs —
+/// half of every pair the protocol evaluates — and T3 did not touch it.
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_taylor_shift_at_round_zero() {
+    use cpoly::field::Fp;
+    use std::time::Instant;
+    let tab = t3_shift_table();
+    let mut r = Lcg::new(0x7A1_0BA5);
+    let q = hachi::params::Q;
+
+    for half in [1usize, 2, 3, 17, 64] {
+        let w: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
+        let eq: Vec<Ext4> = (0..half)
+            .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q))).collect();
+        let a = hachi::sumcheck::round_poly_zero_base(&w, &eq);
+        let b = round_poly_zero_base_shift(&w, &eq, &tab);
+        assert_eq!(b.coeffs().len(), 33);
+        for i in 0..33 {
+            assert_eq!(a.coeffs()[i], b.coeffs()[i], "coefficient {i} at half = {half}");
+        }
+    }
+    eprintln!("[t3b] equality: the base Taylor shift agrees, 33 coefficients, 5 widths");
+
+    let half: usize = 1 << 18;
+    let w: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
+    let eq: Vec<Ext4> = (0..half)
+        .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q))).collect();
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        f();
+        let mut b = f64::MAX;
+        for _ in 0..5 {
+            let t0 = Instant::now();
+            f();
+            b = b.min(t0.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let n = half as f64;
+    let t_now = best(Box::new(|| {
+        std::hint::black_box(hachi::sumcheck::round_poly_zero_base(&w, &eq)); }));
+    let t_sh = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_base_shift(&w, &eq, &tab)); }));
+    eprintln!("[t3b] 33-node interpolation, base  {:>8.2} ns/pair", 1e9 * t_now / n);
+    eprintln!("[t3b] Taylor shift, base           {:>8.2} ns/pair  ({:+.1}%)",
+        1e9 * t_sh / n, 100.0 * (t_sh - t_now) / t_now);
+    // round 0 is 2^25 pairs
+    let p0 = (1u64 << 25) as f64;
+    eprintln!("[t3b] round 0 at the pin: {:.1} s -> {:.1} s  ({:+.1}% of a 663.7 s prover)",
+        t_now / n * p0, t_sh / n * p0, 100.0 * (t_sh - t_now) / n * p0 / 663.7);
+}
