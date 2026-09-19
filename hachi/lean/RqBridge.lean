@@ -45,6 +45,7 @@ the half `Simple.verify` rests on.
 import Ring
 import AuxShort
 import AuxFused
+import AuxGoldDot
 import ArkLib.Commitments.Functional.Hachi.InnerOuter.Arithmetic
 -- `Nat.Prime 4294967197` is decided by norm_num's primality extension, which is not
 -- reached by the ArkLib import above; without this the instance below is unprovable
@@ -674,5 +675,40 @@ theorem dot_prepared_digits_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec 
     hbd han hbn hp1 hp2)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
+
+/-! ## The Goldilocks prepared dot
+
+The same value once more, in one 64-bit lane instead of two 31-bit ones. The
+statement is [`dot_prepared_digits_spec`] word for word; only the preparation
+predicate differs, because there is one table rather than two. -/
+
+/-- `p` holds the single Goldilocks forward transform of the first `cols`
+entries of `a`. -/
+def PrepRowG (cols : ℕ) (p : ring.PreparedVecG) (a : linalg.PolyVec) : Prop :=
+  p.len.val = cols ∧ HachiEquiv.AuxGoldDot.PrepAtG p a cols
+
+/-- The `getD` default for a `PreparedVecG` slot; never read, see [`prepJunk`]. -/
+def prepJunkG : ring.PreparedVecG :=
+  { len := 0#usize, fwd := alloc.vec.Vec.new Std.U64 }
+
+/-- **`ring::dot_prepared_digits_gold` at the `Rq` level.** -/
+theorem dot_prepared_digits_gold_spec (prep : ring.PreparedVecG)
+    (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → Wf (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → Wf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbd : DigitVec nU.val b)
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hwidth : nU.val ≤ 8192)
+    (hprep : PrepRowG nU.val prep a) :
+    ring.dot_prepared_digits_gold prep b nU
+      ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
+          toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+            * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  obtain ⟨-, hp⟩ := hprep
+  apply spec_mono (HachiEquiv.AuxGoldDot.gold_dot_spec prep a b nU haw hbw
+    hbd han hbn hwidth hp)
+  rintro z ⟨hzwf, hzval⟩
+  exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
+
 
 end HachiEquiv.RqBridge

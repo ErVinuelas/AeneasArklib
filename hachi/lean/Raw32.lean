@@ -481,7 +481,7 @@ theorem resp_inner_loop_eq (inner_decomp inner : alloc.vec.Vec linalg.PolyVec)
 /-- **`commit_streamed_32` is `commit_streamed` on the message it denotes.** -/
 theorem commit_streamed_32_loop_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
     {raw : alloc.vec.Vec linalg.PolyVec} (blocks : Std.Usize)
-    (prep : linalg.PreparedMatrix) (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (prep : linalg.PreparedMatrixG) (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
     (hex : ExpandsTo raw32 raw) (hb : blocks.val ≤ raw.val.length) :
     commit.commit_streamed_32_loop raw32 blocks prep ts i
       = commit.commit_streamed_loop raw blocks prep ts i := by
@@ -504,7 +504,7 @@ theorem commit_streamed_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
     {raw : alloc.vec.Vec linalg.PolyVec} (pp : commit.PublicParams)
     (hex : ExpandsTo raw32 raw) :
     commit.commit_streamed_32 pp raw32 = commit.commit_streamed pp raw := by
-  have hL : ∀ prep : linalg.PreparedMatrix,
+  have hL : ∀ prep : linalg.PreparedMatrixG,
       commit.commit_streamed_32_loop raw32 (alloc.vec.Vec.len raw) prep
           (alloc.vec.Vec.new linalg.PolyVec) 0#usize
         = commit.commit_streamed_loop raw (alloc.vec.Vec.len raw) prep

@@ -3,6 +3,7 @@ import Field
 import Ext
 import Ring
 import AuxGold
+import AuxGoldDot
 import RqBridge
 import Scheme
 import EvalSplit
@@ -1981,5 +1982,41 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- statement is unchanged -- the sixth Stage 6 champion to move an
 -- implementation without moving its specification.
 #print axioms HachiEquiv.QuadEvalProtocol.dot_eq_carrierEntry_of_decomp
+
+-- Candidate T27 (Stage 6) -- the GOLDILOCKS lane. `q = 2^32 - 99` is not
+-- NTT-friendly, so the prepared dot product runs in an auxiliary prime; the
+-- two-prime path uses two 31-bit primes and a Garner recombination, this one
+-- uses `GOLD_P = 2^64 - 2^32 + 1`, where `2^64 = 2^32 - 1` exactly and no
+-- Barrett reduction is needed. One lane carries the whole 8192-term sum
+-- (`2 * 8192 * BOUND_D = 1.15e18 < 1.84e19`), so there is no chunking and no
+-- Garner. Three layers: the arithmetic (AuxGold), the transform
+-- (AuxGoldCode/AuxGoldTransform) and the dot product below.
+#print axioms HachiEquiv.AuxGoldTransform.gold_psi_table_spec
+#print axioms HachiEquiv.AuxGoldTransform.gold_psi_table_cast
+#print axioms HachiEquiv.AuxGoldTransform.gold_twist_spec
+#print axioms HachiEquiv.AuxGoldCode.gold_dif_stage_spec
+#print axioms HachiEquiv.AuxGoldTransform.gold_dit_stage_spec
+#print axioms HachiEquiv.AuxGoldTransform.gold_forward_spec
+#print axioms HachiEquiv.AuxGoldTransform.gold_inverse_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_mac_into_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_twist_cast
+#print axioms HachiEquiv.AuxGoldDot.gold_terms_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_out_loop_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_untwist_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_untwist_cast
+#print axioms HachiEquiv.AuxGoldDot.gpsi_ord
+#print axioms HachiEquiv.AuxGoldDot.gpsi_inv
+#print axioms HachiEquiv.AuxGoldDot.gninv_inv
+#print axioms HachiEquiv.AuxGoldDot.gdoff_val
+#print axioms HachiEquiv.AuxGoldDot.offConvSumD_lt_GP
+#print axioms HachiEquiv.AuxGoldDot.gold_dot_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_prep_words_spec
+#print axioms HachiEquiv.AuxGoldDot.gold_prep_append_spec
+#print axioms HachiEquiv.AuxGoldDot.prepare_one_gold_spec
+#print axioms HachiEquiv.AuxGoldDot.prepare_vec_gold_spec
+#print axioms HachiEquiv.RqBridge.dot_prepared_digits_gold_spec
+#print axioms HachiEquiv.Scheme.dot_prep_digits_gold_spec
+#print axioms HachiEquiv.Scheme.prepare_digits_gold_spec
+#print axioms HachiEquiv.Scheme.apply_digits_gold_spec
 
 end HachiEquiv.Check

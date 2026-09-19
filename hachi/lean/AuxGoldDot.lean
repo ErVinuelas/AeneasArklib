@@ -407,4 +407,414 @@ theorem gold_untwist_cast (src it : alloc.vec.Vec Std.U64) (off : Std.U64)
   rw [hzval t ht, ZMod.natCast_mod, Nat.cast_add, ZMod.natCast_mod, Nat.cast_mul,
     ZMod.natCast_mod, Nat.cast_mul, hp]
 
+/-! ### The Goldilocks root data
+
+The same four closed facts `AuxProduct` proves for each 30-bit prime, at a
+64-bit one. `decide +kernel` still does it: `ZMod p` is `Fin p`, the
+exponentiation is by squaring, and the kernel's arithmetic is GMP's — the
+modulus being 64 bits rather than 30 costs nothing it notices. -/
+
+set_option maxRecDepth 100000 in
+theorem gpsi_ord : ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ N = -1 := by
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem gpsi_inv : ((ntt.GOLD_PSI.val : ℕ) : ZMod GP)
+    * ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) = 1 := by
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem gninv_inv : ((N : ℕ) : ZMod GP) * ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) = 1 := by
+  decide +kernel
+
+set_option maxRecDepth 100000 in
+theorem gdoff_val : (ntt.GOLD_DOFF).val = BOUND_D := by
+  decide +kernel
+
+/-- The ceiling, at the new radix. Where the two-prime path must chunk at
+`DOT_CHUNK_D = 2048` to keep `2·L·BOUND_D` under `p1·p2`, one Goldilocks lane
+holds the **whole** 8192-term width: `1.153·10^18` against `1.845·10^19`, a
+sixteenfold margin. That is why there is no chunk loop here. -/
+theorem offConvSumD_lt_GP (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (hawf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbd : ∀ u, u < en → DigitWf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hL : en - st ≤ 8192) :
+    offConvSumD a b st en k < GP := by
+  have hp := posQD_sum_le a b st en k hawf hbd
+  have hnum : 2 * 8192 * BOUND_D < GP := by
+    simp only [BOUND_D, HachiEquiv.AuxProduct.q, GP]
+    norm_num
+  have hmul : (en - st) * BOUND_D ≤ 8192 * BOUND_D :=
+    Nat.mul_le_mul_right BOUND_D hL
+  simp only [offConvSumD]
+  omega
+
+
+/-- `prep.fwd` is a correct single-lane preparation of `a`'s first `n` entries.
+[`AuxFused.PrepAt`] with the prime fixed. -/
+def PrepAtG (prep : ring.PreparedVecG) (a : alloc.vec.Vec ring.Rq) (n : ℕ) : Prop :=
+  n * N ≤ prep.fwd.val.length
+  ∧ (∀ u ∈ prep.fwd.val, u.val < GP)
+  ∧ ∀ j, j < n → ∀ t, t < N →
+      resK GP prep.fwd (j * N + t)
+        = AuxNTT.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+            (AuxNTT.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a j)) t
+
+set_option maxHeartbeats 4000000 in
+/-- **`dot_prepared_digits_gold` computes the dot product**, in one lane.
+
+`dot_prepared_digits_spec`'s conclusion word for word — the same negacyclic
+convolution sum, in the same vocabulary. What the statement does *not* carry is
+the two-prime path's apparatus: there is one `PrepAtG` where there are two
+`PrepAt`s, and no chunk width anywhere, because the whole width fits
+(`offConvSumD_lt_GP`). -/
+theorem gold_dot_spec (prep : ring.PreparedVecG) (a b : alloc.vec.Vec ring.Rq)
+    (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbd : ∀ u, u < nU.val → DigitWf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hwidth : nU.val ≤ 8192)
+    (hp : PrepAtG prep a nU.val) :
+    ring.dot_prepared_digits_gold prep b nU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  obtain ⟨hpl, hpc, hpv⟩ := hp
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  set psii : ZMod GP := ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) with hpsiidef
+  have hord : ps ^ N = -1 := gpsi_ord
+  have hpinv : ps * psii = 1 := gpsi_inv
+  have hRN : params.RING_DEGREE = ntt.NTT_LEN := by decide +kernel
+  rw [ring.dot_prepared_digits_gold, hRN]
+  step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
+  step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
+  step with zeros_canon_zero GP GP_pos as ⟨acc0, hacc0C, hacc0v⟩
+  step with gold_terms_spec prep a b 0#usize nU ntt.NTT_LEN pt acc0 acc0
+    0#usize ps ntt_NTT_LEN_val hord hptC hptv hpl hpv hpc hbw hbn
+    (by simp) (by simp) hacc0C hacc0C (by intro t ht; rw [hacc0v t ht]; simp)
+    as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
+  -- the offset, scaled by the term count
+  have hcn : lift (UScalar.cast .U64 nU) ⦃ y => y.val = nU.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 nU (by scalar_tac)
+  step with hcn as ⟨nw, hnw⟩
+  step with gold_mul_spec ntt.GOLD_DOFF nw as ⟨scaled, hscv, hsclt⟩
+  -- the inverse transform, and the value it carries
+  have hPR : ∀ t, t < N → resK GP acc1 t
+      = AuxNTT.difRun (ps ^ 2) 10 1
+          (fun t' => ∑ u ∈ Finset.Ico 0 nU.val,
+            AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK GP a u))
+              (AuxNTT.twistR ps (entryK GP b u)) t') t := by
+    intro t ht
+    rw [hac1v t ht, AuxNTT.difRun_sum (ps ^ 2) 10 1 (Finset.Ico 0 nU.val)
+      (fun u => AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK GP a u))
+        (AuxNTT.twistR ps (entryK GP b u)))]
+    simp only [termFwd, hpsdef]
+  step with gold_inverse_spec acc1 scratch it hac1C hac2C hitC psii hitv
+    as ⟨v, v5, hiv1, hiv2, hivv⟩
+  have hIV := HachiEquiv.AuxProduct.inv_value ps psii hpinv
+    (fun t' => ∑ u ∈ Finset.Ico 0 nU.val,
+      AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK GP a u))
+        (AuxNTT.twistR ps (entryK GP b u)) t')
+    (resK GP acc1) (resK GP v) hPR hivv
+  -- the untwist, with the offset
+  step with gold_untwist_cast v it scaled hiv1 hitC hsclt psii hitv
+    as ⟨words, hwC, hwv⟩
+  -- the resK value of `words` is the offset convolution sum
+  have hres : ∀ t, t < N → resK GP words t
+      = (∑ u ∈ Finset.Ico 0 nU.val,
+          AuxNTT.negConvR N (entryK GP a u) (entryK GP b u) t)
+        + ((scaled.val : ℕ) : ZMod GP) := by
+    intro t ht
+    rw [hwv t ht, hIV t ht,
+      untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+        gninv_inv (Finset.Ico 0 nU.val) (fun u => entryK GP a u)
+        (fun u => entryK GP b u) t ht]
+  -- and therefore its words are `offConvSumD`, which fits the prime whole
+  have hwordv : ∀ k, k < N → wordAt words k = offConvSumD a b 0 nU.val k := by
+    intro k hk
+    have hlt : offConvSumD a b 0 nU.val k < GP :=
+      offConvSumD_lt_GP a b 0 nU.val k haw hbd (by omega)
+    have hcast : ((wordAt words k : ℕ) : ZMod GP)
+        = ((offConvSumD a b 0 nU.val k : ℕ) : ZMod GP) := by
+      have hle := negQD_sum_le a b 0 nU.val k haw hbd
+      have hle' : (∑ u ∈ Finset.Ico 0 nU.val,
+            HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                 (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+          ≤ (∑ u ∈ Finset.Ico 0 nU.val,
+              HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                   (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+            + (nU.val - 0) * BOUND_D := le_trans hle (Nat.le_add_left _ _)
+      have h1 := hres k hk
+      rw [resK] at h1
+      rw [h1]
+      unfold offConvSumD
+      rw [Nat.cast_sub hle', Nat.cast_add]
+      have hterm : ∀ u, AuxNTT.negConvR N (entryK GP a u) (entryK GP b u) k
+          = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP)
+            - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP) := by
+        intro u
+        rw [AuxNTT.negConvR, ordConv_entryK_pos GP a b u k hk,
+          ordConv_entryK_neg GP a b u k hk]
+      rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
+      push_cast
+      rw [hscv, hnw, gdoff_val, ZMod.natCast_mod, Nat.sub_zero]
+      push_cast
+      ring
+    have h2 := HachiEquiv.AuxProduct.natCast_inj_of_lt (wordAt_lt hwC GP_pos k) hcast
+    rwa [Nat.mod_eq_of_lt hlt] at h2
+  -- the reduce-and-pack loop, then the offset vanishing mod `q`
+  have hfin := gold_out_loop_spec ntt.NTT_LEN params.Q words
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (offConvSumD a b 0 nU.val)
+    ntt_NTT_LEN_val HachiEquiv.Field.params_Q_val hwordv hwC.1
+    (by simp) (by simp) (by simp) (by simp)
+  rw [alloc.vec.Vec.with_capacity]
+  step with hfin as ⟨z, hzw, hzv⟩
+  refine ⟨hzw, fun k hk => ?_⟩
+  have hqq : HachiEquiv.AuxProduct.q = HachiEquiv.Field.q := rfl
+  rw [HachiEquiv.Ring.coeffK_eq_cast_wordN, hzv k hk, hqq, ZMod.natCast_mod,
+    offConvSumD_cast_q a b 0 nU.val k hk haw hbw hbd, Finset.range_eq_Ico]
+
+/-! ## `ring::prepare_one_gold` -- the layout claim, in one lane
+
+`prepare_one_spec`'s three proofs with the prime fixed. Aeneas names loops per
+enclosing function, so the Goldilocks preparation's two inner loops are distinct
+constants from the two-prime one's and need their own specs; the arguments are
+the two-prime ones with `pw mw psi` deleted. -/
+
+theorem gold_prep_words_spec (a : alloc.vec.Vec ring.Rq) (degU jU : Std.Usize)
+    (w : alloc.vec.Vec Std.U64) (tU : Std.Usize)
+    (hdeg : degU.val = N) (hjb : jU.val < a.val.length)
+    (haj : HachiEquiv.Ring.Wf (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)))
+    (ht : tU.val ≤ N) (hlen : w.val.length = tU.val)
+    (hval : ∀ t, t < tU.val → wordAt w t
+      = HachiEquiv.Ring.wordN (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t) :
+    ring.prepare_one_gold_loop0_loop0 a degU jU w tU
+      ⦃ z => z.val.length = N ∧ ∀ t, t < N → wordAt z t
+          = HachiEquiv.Ring.wordN
+              (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t ⦄ := by
+  rw [ring.prepare_one_gold_loop0_loop0]
+  apply loop.spec_decr_nat (fun r => degU.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
+      ∧ ∀ t, t < r.2.val → wordAt r.1 t
+          = HachiEquiv.Ring.wordN
+              (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t)
+  · rintro ⟨d, tt⟩ ⟨htt, hdl, hdv⟩
+    dsimp only at htt hdl hdv
+    simp only [ring.prepare_one_gold_loop0_loop0.body]
+    by_cases hlt : tt < degU
+    · rw [if_pos hlt]
+      have httlt : tt.val < N := by rw [← hdeg]; scalar_tac
+      step as ⟨r, hr⟩
+      have hrv : r = a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+        rw [hr, List.getD_eq_getElem _ _ hjb]
+      have hrb : tt.val < r.val.length := by rw [hrv, haj.1]; exact httlt
+      step as ⟨f, hf⟩
+      step with HachiEquiv.Ring.to_u64_id f as ⟨x, hx⟩
+      have hxv : x.val = HachiEquiv.Ring.wordN
+          (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) tt.val := by
+        rw [hx, hf, ← hrv]
+        unfold HachiEquiv.Ring.wordN
+        rw [List.getD_eq_getElem _ _ hrb]
+      step as ⟨d1, hd1⟩
+      step as ⟨tt1, htt1⟩
+      refine ⟨by rw [htt1]; omega, ?_, ?_, by rw [htt1]; omega⟩
+      · rw [hd1, htt1, List.length_append, hdl]; simp
+      · intro t htl
+        rw [htt1] at htl
+        simp only [wordAt] at hdv ⊢
+        rcases Nat.lt_or_ge t tt.val with hlt2 | hge
+        · rw [hd1, getD_append_lt' _ _ _ (by omega)]
+          exact hdv t hlt2
+        · have hteq : t = d.val.length := by omega
+          rw [hteq, hd1, getD_append_eq', hdl, hxv]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = N := by rw [← hdeg]; scalar_tac
+      exact ⟨by rw [hdl, heq], fun t htl => hdv t (by rw [heq]; exact htl)⟩
+  · exact ⟨ht, hlen, hval⟩
+
+
+/-- The append loop, for the Goldilocks table. -/
+theorem gold_prep_append_spec (degU : Std.Usize) (out : alloc.vec.Vec Std.U64)
+    (f : (alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)) (kU : Std.Usize)
+    (base : ℕ) (hdeg : degU.val = N) (hk : kU.val ≤ N)
+    -- honest: the Rust would overflow-panic otherwise, and `prepare` is only
+    -- ever called at `A`'s concrete width
+    (hbase : base + N ≤ Std.Usize.max)
+    (hfl : f.1.val.length = N)
+    (hlen : out.val.length = base + kU.val)
+    (hnew : ∀ t, t < kU.val → wordAt out (base + t) = wordAt f.1 t)
+    (pwv : ℕ) (hfc : ∀ x ∈ f.1.val, x.val < pwv)
+    (houtc : ∀ x ∈ out.val, x.val < pwv) :
+    ring.prepare_one_gold_loop0_loop1 degU out f kU
+      ⦃ z => z.val.length = base + N
+             ∧ (∀ t, t < base → wordAt z t = wordAt out t)
+             ∧ (∀ x ∈ z.val, x.val < pwv)
+             ∧ ∀ t, t < N → wordAt z (base + t) = wordAt f.1 t ⦄ := by
+  -- the body pattern-matches the pair, so it has to be in constructor form
+  obtain ⟨f1, f2⟩ := f
+  dsimp only at hfl hnew hfc ⊢
+  rw [ring.prepare_one_gold_loop0_loop1]
+  apply loop.spec_decr_nat (fun r => degU.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = base + r.2.val
+      ∧ (∀ t, t < base → wordAt r.1 t = wordAt out t)
+      ∧ (∀ x ∈ r.1.val, x.val < pwv)
+      ∧ ∀ t, t < r.2.val → wordAt r.1 (base + t) = wordAt f1 t)
+  · rintro ⟨d, kk⟩ ⟨hkk, hdl, hdold, hdc, hdnew⟩
+    dsimp only at hkk hdl hdold hdc hdnew
+    simp only [ring.prepare_one_gold_loop0_loop1.body]
+    by_cases hlt : kk < degU
+    · rw [if_pos hlt]
+      have hklt : kk.val < N := by rw [← hdeg]; scalar_tac
+      have hfb : kk.val < f1.val.length := by rw [hfl]; exact hklt
+      have hdmax : d.val.length < Std.Usize.max := by rw [hdl]; omega
+      step as ⟨x, hx⟩
+      have hxv : x.val = wordAt f1 kk.val := by
+        rw [hx, ← wordAt_of_lt (v := f1) (t := kk.val) hfb]
+      step as ⟨d1, hd1⟩
+      step as ⟨kk1, hkk1⟩
+      refine ⟨by rw [hkk1]; omega, ?_, ?_, ?_, ?_, by rw [hkk1]; omega⟩
+      · rw [hd1, hkk1, List.length_append, hdl]; simp; omega
+      · intro t ht
+        simp only [wordAt] at hdold ⊢
+        rw [hd1, getD_append_lt' _ _ _ (by rw [hdl]; omega)]
+        exact hdold t ht
+      · intro y hy
+        rw [hd1] at hy
+        rcases List.mem_append.mp hy with hm | hm
+        · exact hdc y hm
+        · rw [List.mem_singleton.mp hm, hx]
+          exact hfc _ (List.getElem_mem hfb)
+      · intro t ht
+        rw [hkk1] at ht
+        simp only [wordAt] at hdnew ⊢
+        rcases Nat.lt_or_ge t kk.val with hlt2 | hge
+        · rw [hd1, getD_append_lt' _ _ _ (by rw [hdl]; omega)]
+          exact hdnew t hlt2
+        · have hteq : base + t = d.val.length := by rw [hdl]; omega
+          rw [hteq, hd1, getD_append_eq']
+          have : t = kk.val := by omega
+          rw [this] at *
+          exact hxv
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : kk.val = N := by rw [← hdeg]; scalar_tac
+      exact ⟨by rw [hdl, heq], hdold, hdc,
+        fun t ht => hdnew t (by rw [heq]; exact ht)⟩
+  · exact ⟨hk, hlen, fun t _ => rfl, houtc, hnew⟩
+
+
+set_option maxHeartbeats 2000000 in
+/-- **`prepare_one_gold`'s table.** [`prepare_one_spec`]'s claim at `GP`. -/
+theorem prepare_one_gold_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (hawf : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length)
+    (hmax : nU.val * N ≤ Std.Usize.max) :
+    ring.prepare_one_gold a nU
+      ⦃ z => z.val.length = nU.val * N
+             ∧ (∀ u ∈ z.val, u.val < GP)
+             ∧ ∀ j, j < nU.val → ∀ t, t < N →
+                 resK GP z (j * N + t)
+                   = AuxNTT.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+                       (AuxNTT.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP)
+                         (entryK GP a j)) t ⦄ := by
+  have hRN : params.RING_DEGREE = ntt.NTT_LEN := by decide +kernel
+  rw [ring.prepare_one_gold, hRN]
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
+  rw [← hpsdef] at hptv
+  step as ⟨i, hi⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  -- the per-entry loop: after `j` entries the table is `j * N` long and every
+  -- prepared entry below `j` reads back as its transform
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ nU.val ∧ r.1.val.length = r.2.val * N
+      ∧ (∀ u ∈ r.1.val, u.val < GP)
+      ∧ ∀ u, u < r.2.val → ∀ t, t < N →
+          resK GP r.1 (u * N + t)
+            = AuxNTT.difRun (ps ^ 2) 10 1
+                (AuxNTT.twistR ps (entryK GP a u)) t)
+  · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdc, hdv⟩
+    dsimp only at hjj hdl hdc hdv
+    simp only [ring.prepare_one_gold_loop0.body]
+    by_cases hlt : jj < nU
+    · rw [if_pos hlt]
+      have hjlt : jj.val < nU.val := by scalar_tac
+      have hja : jj.val < a.val.length := by omega
+      simp only [alloc.vec.Vec.with_capacity]
+      step with gold_prep_words_spec a ntt.NTT_LEN jj (alloc.vec.Vec.new Std.U64) 0#usize
+        ntt_NTT_LEN_val hja (hawf jj.val hjlt) (by simp) (by simp)
+        (by intro t ht; simp at ht) as ⟨w, hwl, hwv⟩
+      step with gold_twist_cast w pt hwl hptC ps hptv as ⟨tw, htwC, htwv⟩
+      step with HachiEquiv.AuxTransform.zeros_canon GP GP_pos as ⟨sc, hscC⟩
+      step with gold_forward_spec tw sc pt htwC hscC hptC ps hptv
+        as ⟨fw, hf1C, hf2C, hfv⟩
+      obtain ⟨f1, f2⟩ := fw
+      dsimp only at hf1C hf2C hfv
+      have hbase : jj.val * N + N ≤ Std.Usize.max := by
+        have h1 : (jj.val + 1) * N ≤ nU.val * N := Nat.mul_le_mul_right N (by omega)
+        have h2 : (jj.val + 1) * N = jj.val * N + N := by ring
+        omega
+      step with gold_prep_append_spec ntt.NTT_LEN d (f1, f2) 0#usize (jj.val * N)
+        ntt_NTT_LEN_val (by simp) hbase (by dsimp only; exact hf1C.1)
+        (by rw [hdl]; simp) (by intro t ht; simp at ht)
+        GP (by dsimp only; exact hf1C.2) hdc
+        as ⟨o1, ho1l, ho1old, ho1c, ho1new⟩
+      step as ⟨jj1, hjj1⟩
+      refine ⟨by rw [hjj1]; omega, by rw [hjj1, ho1l]; ring, ho1c, ?_,
+        by rw [hjj1]; omega⟩
+      intro u hu t ht
+      rw [hjj1] at hu
+      rcases Nat.lt_or_ge u jj.val with hult | huge
+      · -- an earlier entry: untouched by the append
+        have hlt3 : u * N + t < jj.val * N := by
+          have h1 : (u + 1) * N ≤ jj.val * N := Nat.mul_le_mul_right N (by omega)
+          have h2 : (u + 1) * N = u * N + N := by ring
+          omega
+        have hsame : resK GP o1 (u * N + t) = resK GP d (u * N + t) := by
+          simp only [resK]; rw [ho1old (u * N + t) hlt3]
+        rw [hsame]
+        exact hdv u hult t ht
+      · -- this entry: the append wrote it, and it is the transform
+        have hueq : u = jj.val := by omega
+        rw [hueq]
+        simp only [resK]
+        rw [ho1new t ht]
+        have hf := hfv t ht
+        simp only [resK] at hf
+        rw [hf]
+        refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP tw)
+          (AuxNTT.twistR ps (entryK GP a jj.val)) ?_ t ht
+        intro e he
+        rw [htwv e he]
+        simp only [AuxNTT.twistR, entryK, hwv e he, hpsdef]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = nU.val := by scalar_tac
+      exact ⟨by rw [hdl, heq], hdc, fun u hu => hdv u (by rw [heq]; exact hu)⟩
+  · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro u hu; simp at hu⟩
+
+
+/-- **`ring::prepare_vec_gold`.** One application of [`prepare_one_gold_spec`],
+packaged as the [`PrepAtG`] the dot product consumes. -/
+theorem prepare_vec_gold_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (hawf : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hmax : nU.val * N ≤ Std.Usize.max) :
+    ring.prepare_vec_gold a nU
+      ⦃ z => z.len = nU ∧ PrepAtG z a nU.val ⦄ := by
+  rw [ring.prepare_vec_gold]
+  step with prepare_one_gold_spec a nU hawf han hmax as ⟨f, hfl, hfc, hfv⟩
+  exact ⟨le_of_eq hfl.symm, hfc, hfv⟩
+
+
 end HachiEquiv.AuxGoldDot

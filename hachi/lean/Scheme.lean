@@ -836,6 +836,187 @@ theorem apply_digits_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
   rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
   exact hzval i.val i.isLt
 
+
+/-! ### The Goldilocks prepared matrix
+
+The two-prime prepared matrix again, with one 64-bit lane in place of two 31-bit
+ones. Every statement below is its `_two`/`_digits` counterpart word for word;
+Aeneas names loops per enclosing function, so the Goldilocks path's loops are
+distinct constants and need their own specs. The one extra hypothesis is
+`cols ≤ 8192`, the width at which a single Goldilocks lane still carries the
+offset sum exactly (`AuxGoldDot.offConvSumD_lt_GP`). -/
+
+theorem dot_prep_digits_gold_spec {k : ℕ} (prep : ring.PreparedVecG) (u v : linalg.PolyVec)
+    (nU : Std.Usize) (hn : nU.val = k) (hu : WfVec k u) (hv : WfVec k v)
+    (hvd : DigitVec k v) (hwidth : k ≤ 8192) (hprep : PrepRowG k prep u) :
+    ring.dot_prepared_digits_gold prep v nU
+      ⦃ z => Wf z ∧ toRq z
+        = ArkLib.Lattices.dot (toVec (k := k) u) (toVec (k := k) v) ⦄ := by
+  apply spec_mono (HachiEquiv.RqBridge.dot_prepared_digits_gold_spec prep u v nU
+    (by intro j hj; rw [hn] at hj; exact wf_getD hu hj)
+    (by intro j hj; rw [hn] at hj; exact wf_getD hv hj)
+    (by rw [hn]; exact hvd)
+    (by rw [hn, hu.1]) (by rw [hn, hv.1]) (by rw [hn]; exact hwidth)
+    (by rw [hn]; exact hprep))
+  rintro z ⟨hzwf, hzval⟩
+  refine ⟨hzwf, ?_⟩
+  rw [hzval, hn, ArkLib.Lattices.dot_eq_sum]
+  exact (Fin.sum_univ_eq_sum_range
+    (fun j => toRq (u.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+      * toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))) k).symm
+
+/-- `pm` is the two-prime prepared form of `m`. -/
+def WfPrepG (rows cols : ℕ) (pm : linalg.PreparedMatrixG) (m : linalg.PolyMatrix) : Prop :=
+  pm.cols.val = cols ∧ pm.rows.val.length = rows
+  ∧ ∀ i, i < rows → PrepRowG cols (pm.rows.val.getD i prepJunkG)
+      (m.val.getD i (alloc.vec.Vec.new ring.Rq))
+
+/-- The loop of `PolyMatrix::prepare_digits_gold`. -/
+theorem prepare_digits_gold_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (n c : Std.Usize) (rws : alloc.vec.Vec ring.PreparedVecG) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hn : n.val = rows) (hc : c.val = cols)
+    (hmax : cols * N ≤ Std.Usize.max)
+    (hi : i.val ≤ n.val) (hlen : rws.val.length = i.val)
+    (hval : ∀ u, u < i.val → PrepRowG cols (rws.val.getD u prepJunkG)
+      (m.val.getD u (alloc.vec.Vec.new ring.Rq))) :
+    linalg.PolyMatrix.prepare_digits_gold_loop m n c rws i
+      ⦃ z => z.val.length = rows ∧ ∀ u, u < rows →
+          PrepRowG cols (z.val.getD u prepJunkG)
+            (m.val.getD u (alloc.vec.Vec.new ring.Rq)) ⦄ := by
+  rw [linalg.PolyMatrix.prepare_digits_gold_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val
+      ∧ ∀ u, u < s.2.val → PrepRowG cols (s.1.val.getD u prepJunkG)
+          (m.val.getD u (alloc.vec.Vec.new ring.Rq)))
+  · rintro ⟨r1, i1⟩ ⟨hi1, hlen1, hval1⟩
+    dsimp only at hi1 hlen1 hval1
+    simp only [linalg.PolyMatrix.prepare_digits_gold_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
+      have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
+        rw [hpv]; exact List.getD_eq_getElem _ _ him
+      step with HachiEquiv.AuxGoldDot.prepare_vec_gold_spec pv c
+        (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
+        (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1⟩
+      step as ⟨r2, hr2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_⟩
+      · rw [hr2, hi2, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [hi2] at hu
+        rcases Nat.lt_or_ge u i1.val with hult | huge
+        · rw [hr2, getD_append_lt _ _ _ (by omega)]
+          exact hval1 u hult
+        · have hueq : u = r1.val.length := by omega
+          rw [hueq, hr2, getD_append_eq, hlen1, hmi]
+          exact ⟨by rw [hpl]; exact hc, by rw [← hc]; exact hp1⟩
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], by intro u hu; exact hval1 u (by rw [heq, hn]; exact hu)⟩
+  · exact ⟨hi, hlen, hval⟩
+
+/-- `PolyMatrix::prepare_digits_gold` -- the Goldilocks prepared form. -/
+theorem prepare_digits_gold_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
+    (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
+    linalg.PolyMatrix.prepare_digits_gold m ⦃ z => WfPrepG rows cols z m ⦄ := by
+  rw [linalg.PolyMatrix.prepare_digits_gold]
+  step with cols_spec m ha hrows as ⟨c, hc⟩
+  step with prepare_digits_gold_loop_spec m (alloc.vec.Vec.len m) c
+    (alloc.vec.Vec.new ring.PreparedVecG) 0#usize ha (by simp [ha.1]) hc hmax
+    (by simp) (by simp) (by intro u hu; simp at hu) as ⟨rws, hrl, hrv⟩
+  exact ⟨hc, hrl, hrv⟩
+
+/-- The loop of `PreparedMatrixG::apply_digits_gold`. -/
+theorem apply_digits_gold_loop_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixG)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec) (n w : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hvd : DigitVec cols v)
+    (hp : WfPrepG rows cols pm m) (hwidth : cols ≤ 8192)
+    (hn : n.val = rows) (hw : w.val = cols)
+    (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
+    (hwf : ∀ z ∈ out.val, Wf z)
+    (hval : ∀ j, j < i.val →
+      toRq (out.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v)) :
+    linalg.PreparedMatrixG.apply_digits_gold_loop pm.rows v n w out i
+      ⦃ z => z.val.length = rows ∧ (∀ y ∈ z.val, Wf y) ∧
+        ∀ j, j < rows → toRq (z.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+          = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+              (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrixG.apply_digits_gold_loop]
+  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
+    (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧ (∀ y ∈ s.1.val, Wf y) ∧
+      ∀ j, j < s.2.val → toRq (s.1.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+        = ArkLib.Lattices.dot (toVec (k := cols) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))
+            (toVec (k := cols) v))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [linalg.PreparedMatrixG.apply_digits_gold_loop.body]
+    by_cases hlt : i1 < n
+    · rw [if_pos hlt]
+      have hip : i1.val < pm.rows.val.length := by rw [hp.2.1, ← hn]; scalar_tac
+      have him : i1.val < m.val.length := by rw [ha.1, ← hn]; scalar_tac
+      step as ⟨pv, hpv⟩
+      have hprow : PrepRowG cols pv (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        have := hp.2.2 i1.val (by rw [← hn]; scalar_tac)
+        rwa [List.getD_eq_getElem _ _ hip, ← hpv] at this
+      have hWrow : WfVec cols (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) := by
+        rw [List.getD_eq_getElem _ _ him]; exact ha.2 _ (List.getElem_mem him)
+      step with dot_prep_digits_gold_spec (k := cols) pv
+        (m.val.getD i1.val (alloc.vec.Vec.new ring.Rq)) v w hw hWrow hv hvd
+        hwidth hprow
+        as ⟨r, hWr, hr⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨i2, hi2⟩
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
+      · intro y hy
+        rw [ho2] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hwf1 y h
+        · rw [List.mem_singleton.mp h]; exact hWr
+      · intro j hj
+        rw [hi2] at hj
+        rcases Nat.lt_or_ge j i1.val with hjlt | hjge
+        · rw [ho2, getD_append_lt _ _ _ (by omega), hval1 j hjlt]
+        · have hjeq : j = o1.val.length := by omega
+          rw [hjeq, ho2, getD_append_eq, hr, hlen1]
+      · scalar_tac
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : i1.val = n.val := by scalar_tac
+      exact ⟨by rw [hlen1, heq, hn], hwf1, by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
+
+/-- **`PreparedMatrixG::apply_digits_gold` = `PolyMatrix::mat_vec_mul`**, for a
+vector of gadget digits. -/
+theorem apply_digits_gold_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixG)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hvd : DigitVec cols v)
+    (hp : WfPrepG rows cols pm m) (hwidth : cols ≤ 8192) :
+    linalg.PreparedMatrixG.apply_digits_gold pm v
+      ⦃ z => WfVec rows z ∧ toVec (k := rows) z
+        = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
+            (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrixG.apply_digits_gold]
+  have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
+  have hcl : pm.cols.val = cols := hp.1
+  simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
+  apply spec_mono (apply_digits_gold_loop_spec pm m v (alloc.vec.Vec.len pm.rows) pm.cols
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha hv hvd hp hwidth (by simp [hp.2.1]) hcl
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
+  exact hzval i.val i.isLt
+
 /-- The inner loop of `flatten_blocks`: it appends the `width` entries of block `i`,
 and every entry written so far — old or new — is the block-major entry it should be. -/
 theorem flatten_blocks_inner_loop_spec {blocks width : ℕ} (xs : alloc.vec.Vec linalg.PolyVec)
@@ -2441,9 +2622,9 @@ apply anything; the agreement half is what makes it the specification's
 decomposition and not merely a decomposition of the right shape. -/
 theorem generate_decomps_loop_spec (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
-    (prep : linalg.PreparedMatrix)
+    (prep : linalg.PreparedMatrixG)
     (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hprep : WfPrep2 1 (1024 * 8) prep pp.inner_matrix)
+    (hpp : WfParams pp) (hprep : WfPrepG 1 (1024 * 8) prep pp.inner_matrix)
     (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
     (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
@@ -2497,8 +2678,8 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
         refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
         rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
         exact List.getElem_mem _
-      step with apply_digits_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
-        hpp.1 hWs hsdv hprep as ⟨inner, hWinner, hinner⟩
+      step with apply_digits_gold_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
+        hpp.1 hWs hsdv hprep (by norm_num) as ⟨inner, hWinner, hinner⟩
       step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
@@ -2551,7 +2732,7 @@ theorem generate_decomps_spec (pp : commit.PublicParams) (m : alloc.vec.Vec lina
   rw [commit.generate_decomps]
   simp only [commit.Decomp.new, commit.PublicParams.impl.inner_matrix]
   -- the one prepared matrix, hoisted above the block loop: 192 MiB paid once
-  step with prepare_digits_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
+  step with prepare_digits_gold_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
     (by norm_num) (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
   step with generate_decomps_loop_spec pp m (alloc.vec.Vec.len m) prep
     (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
@@ -2882,8 +3063,8 @@ and the measured peak RSS are in the ledger row. -/
 /-- The loop of `commit::commit_streamed`: the `t̂ᵢ` only. -/
 theorem commit_streamed_loop_spec (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
-    (prep : linalg.PreparedMatrix) (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hprep : WfPrep2 1 (1024 * 8) prep pp.inner_matrix)
+    (prep : linalg.PreparedMatrixG) (ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hpp : WfParams pp) (hprep : WfPrepG 1 (1024 * 8) prep pp.inner_matrix)
     (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
     (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
     (hts : ts.val.length = i.val) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
@@ -2925,8 +3106,8 @@ theorem commit_streamed_loop_spec (pp : commit.PublicParams)
         refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
         rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
         exact List.getElem_mem _
-      step with apply_digits_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
-        hpp.1 hWs hsdv hprep as ⟨inner, hWinner, hinner⟩
+      step with apply_digits_gold_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
+        hpp.1 hWs hsdv hprep (by norm_num) as ⟨inner, hWinner, hinner⟩
       step with gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
@@ -2976,7 +3157,7 @@ theorem commit_streamed_spec (pp : commit.PublicParams) (m : alloc.vec.Vec linal
                     (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
   rw [commit.commit_streamed]
   simp only [commit.PublicParams.impl.inner_matrix, commit.PublicParams.impl.outer_matrix]
-  step with prepare_digits_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
+  step with prepare_digits_gold_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix hpp.1
     (by norm_num) (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
   step with commit_streamed_loop_spec pp m (alloc.vec.Vec.len m) prep
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hpp hprep hm (by simpa using hm.1)
