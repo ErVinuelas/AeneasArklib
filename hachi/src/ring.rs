@@ -935,6 +935,118 @@ pub fn dot_prepared_digits(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     acc
 }
 
+/// A left operand prepared in the **single Goldilocks lane** (candidate T27).
+///
+/// One forward table where [`PreparedVec`] holds two or three, so the prepared
+/// matrix halves as well: 64 MiB rather than 128 at the inner width.
+pub struct PreparedVecG {
+    len: usize,
+    fwd: Vec<u64>,
+}
+
+impl PreparedVecG {
+    /// How many entries were prepared.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+/// Forward-transform every entry of `a` in the Goldilocks lane.
+pub fn prepare_one_gold(a: &Vec<Rq>, n: usize) -> Vec<u64> {
+    let deg: usize = params::RING_DEGREE;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let mut out: Vec<u64> = Vec::with_capacity(n * deg);
+    let mut j: usize = 0;
+    while j < n {
+        let mut w: Vec<u64> = Vec::with_capacity(deg);
+        let mut u: usize = 0;
+        while u < deg {
+            w.push(a[j].coeff(u).to_u64());
+            u += 1;
+        }
+        let tw: Vec<u64> = crate::ntt::gold_twist(&w, &pt);
+        let scratch: Vec<u64> = crate::ntt::zeros(deg);
+        let f: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(tw, scratch, &pt);
+        let mut k: usize = 0;
+        while k < deg {
+            out.push(f.0[k]);
+            k += 1;
+        }
+        j += 1;
+    }
+    out
+}
+
+/// Prepare a left operand in the single Goldilocks lane.
+pub fn prepare_vec_gold(a: &Vec<Rq>, n: usize) -> PreparedVecG {
+    let fwd: Vec<u64> = prepare_one_gold(a, n);
+    PreparedVecG { len: n, fwd }
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared and `b`'s coefficients bounded by
+/// [`params::GADGET_BASE`], in **one** Goldilocks lane (candidate T27).
+///
+/// The same value [`dot_prepared_digits`] computes, and the same precondition:
+/// this is only correct for a `b` the unsigned gadget decomposition produced.
+///
+/// What one lane changes is everything around the arithmetic. The two-prime
+/// path chunks at [`DOT_CHUNK_D`] because `2·L·BOUND_D` must stay below
+/// `p1·p2`; here the bound is `1.081·10^18` against `1.845·10^19` for the
+/// whole 8192-term width, so there is **one chunk**, **one inverse transform**,
+/// **one untwist**, and **no CRT reconstruction at all** — [`crate::ntt::
+/// garner2`] does not run, and the centred lift replaces the offset. Measured
+/// 158.61 ns per coefficient against 479.64, −66.9%.
+pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u64 = params::Q;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc: Vec<u64> = crate::ntt::zeros(deg);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(deg);
+    let mut j: usize = 0;
+    while j < n {
+        let mut w: Vec<u64> = Vec::with_capacity(deg);
+        let mut u: usize = 0;
+        while u < deg {
+            w.push(b[j].coeff(u).to_u64());
+            u += 1;
+        }
+        let tw: Vec<u64> = crate::ntt::gold_twist(&w, &pt);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(tw, scratch, &pt);
+        // `j * deg` is an ABSOLUTE offset into the prepared table, exactly as
+        // `dot_prep_chunk_mod_p` does it -- and the tuple's parts are bound out
+        // before the accumulation rather than indexed in place, which is the
+        // shape the extraction accepts (indexing `fwb.0[k]` inside the loop is
+        // what made aeneas report "Not an open binder or an ignored pattern").
+        let af: Vec<u64> = slice_out(&prep.fwd, j * deg, deg);
+        acc = mac_into_gold(acc, &af, &fwb.0, deg);
+        scratch = fwb.1;
+        j += 1;
+    }
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, scratch, &it);
+    let words: Vec<u64> = crate::ntt::gold_untwist_centred(&inv.0, &it, qw);
+    let mut out: Vec<Fp> = Vec::with_capacity(deg);
+    let mut t: usize = 0;
+    while t < deg {
+        out.push(Fp::new(words[t]));
+        t += 1;
+    }
+    Rq(out)
+}
+
+/// `acc[k] += af[k] · bf[k]` in the Goldilocks lane, the counterpart of
+/// [`mac_into`].
+pub fn mac_into_gold(acc: Vec<u64>, af: &Vec<u64>, bf: &Vec<u64>, n: usize) -> Vec<u64> {
+    let mut out: Vec<u64> = acc;
+    let mut k: usize = 0;
+    while k < n {
+        let prod: u64 = crate::ntt::gold_mul(af[k], bf[k]);
+        out[k] = crate::ntt::gold_add(out[k], prod);
+        k += 1;
+    }
+    out
+}
+
 /// `Σⱼ a[j] · b[j]` with `a` prepared: the same value [`dot_fused`] computes.
 pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     let deg: usize = params::RING_DEGREE;

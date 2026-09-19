@@ -1003,6 +1003,9 @@ fn the_commitment_and_z_pass_split_per_block() {
 
     // ---- the commitment pass, `commit_streamed_32`'s loop body ----
     let prep = inner.inner_matrix().prepare_digits();
+    let prep_g = inner.inner_matrix().prepare_digits_gold();
+    let mut t_apply_g = std::time::Duration::ZERO;
+    let mut gold_agrees = true;
     let (mut t_expand, mut t_dec, mut t_apply, mut t_dec2) = (
         std::time::Duration::ZERO,
         std::time::Duration::ZERO,
@@ -1021,6 +1024,14 @@ fn the_commitment_and_z_pass_split_per_block() {
         let c2 = std::time::Instant::now();
         let innerv = prep.apply_digits(&s);
         t_apply += c2.elapsed();
+
+        // candidate T27: the same product in one Goldilocks lane
+        let c2g = std::time::Instant::now();
+        let innerv_g = prep_g.apply_digits_gold(&s);
+        t_apply_g += c2g.elapsed();
+        for z in 0..innerv.len() {
+            gold_agrees &= innerv.get(z).equals(innerv_g.get(z));
+        }
 
         let c3 = std::time::Instant::now();
         let ts = hachi::gadget::gadget_decompose(&innerv);
@@ -1087,6 +1098,19 @@ fn the_commitment_and_z_pass_split_per_block() {
         );
     }
     eprintln!("[split]   {:34} {commit_tot:>9.2?}         {:>8.2} ns/coeff", "TOTAL", per(commit_tot));
+    let commit_gold = commit_tot - t_apply + t_apply_g;
+    eprintln!(
+        "[split]   --- candidate T27, one Goldilocks lane (agrees: {gold_agrees}) ---\n         [split]   {:34} {:>9.2?}  {:>5.1}%  {:>8.2} ns/coeff   ({:+.1}% vs the two-prime lane)",
+        "apply_digits_gold", t_apply_g,
+        share(t_apply_g, commit_gold), per(t_apply_g),
+        100.0 * (t_apply_g.as_secs_f64() / t_apply.as_secs_f64() - 1.0)
+    );
+    eprintln!(
+        "[split]   {:34} {commit_gold:>9.2?}         {:>8.2} ns/coeff   ({:+.1}% on the whole pass)",
+        "TOTAL with Goldilocks", per(commit_gold),
+        100.0 * (commit_gold.as_secs_f64() / commit_tot.as_secs_f64() - 1.0)
+    );
+    assert!(gold_agrees, "the Goldilocks lane disagreed with the two-prime path");
     eprintln!("[split] --- the z pass (honest_z_from_raw_32's loop body) ---");
     eprintln!("[split]   {short_blocks}/{blocks} blocks took the SHORT path");
     for (name, d) in [

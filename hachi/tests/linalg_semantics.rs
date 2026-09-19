@@ -230,3 +230,42 @@ fn a_prepared_matrix_applies_like_mat_vec_mul() {
         }
     }
 }
+
+/// **The Goldilocks lane computes what the two-prime lane computes**
+/// (candidate T27).
+///
+/// `apply_digits` runs two 30-bit auxiliary primes, chunked at `DOT_CHUNK_D`,
+/// and reconstructs with `garner2`. `apply_digits_gold` runs ONE Goldilocks
+/// lane, in one chunk, with no CRT step at all — the signed convolution
+/// coefficient fits the prime whole (`1.081·10^18` against `1.845·10^19`) so
+/// a centred lift replaces the reconstruction. Two entirely different
+/// pipelines that must agree exactly.
+///
+/// The precondition is the digit bound, so the right operand is a real gadget
+/// decomposition, not random ring elements: handing either function an
+/// unbounded `b` gives a wrong answer with no complaint.
+#[test]
+fn the_goldilocks_lane_agrees_with_the_two_prime_digit_path() {
+    use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS};
+    let mut r = support::Lcg::new(0x60D1);
+    // widths that cross the two-prime path's chunk boundary (DOT_CHUNK_D =
+    // 2048), since a single-chunk test would not exercise what one lane
+    // removes
+    for &(rows, cols) in &[(1usize, 8usize), (2, 64), (1, 3000), (1, MESSAGE_ROWS * GADGET_DIGITS)] {
+        let m = r.next_poly_matrix(rows, cols);
+        let src = r.next_poly_vec(cols / GADGET_DIGITS + 1);
+        let digits = hachi::gadget::gadget_decompose(&src);
+        let two = m.prepare_digits();
+        let one = m.prepare_digits_gold();
+        assert_eq!(one.rows(), two.rows(), "row count differs at {rows}x{cols}");
+        let a = two.apply_digits(&digits);
+        let b = one.apply_digits_gold(&digits);
+        assert_eq!(a.len(), b.len(), "width differs at {rows}x{cols}");
+        for i in 0..a.len() {
+            assert!(
+                a.get(i).equals(b.get(i)),
+                "the Goldilocks lane differs from the two-prime path at {rows}x{cols}, row {i}"
+            );
+        }
+    }
+}
