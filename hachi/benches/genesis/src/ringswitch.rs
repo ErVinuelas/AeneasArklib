@@ -557,6 +557,7 @@ fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
     acc
 }
 
+// @genesis f1ee0a1 2026-09-19 — ringswitch::long_mul_high
 /// The **high half** of [`long_mul`]: coefficients `N … 2N − 2` of `a · b`,
 /// which are the only ones [`div_by_modulus`] reads (Stage 6 candidate T1a).
 ///
@@ -590,6 +591,7 @@ fn long_mul_high(a: &Rq, b: &Rq) -> Vec<Fp> {
     out
 }
 
+// @genesis f1ee0a1 2026-09-19 — ringswitch::c_row_sum_high
 /// The high half of [`c_row_sum`]: coefficients `N … 2N − 2` of `Σⱼ Mᵢⱼ·zⱼ`
 /// (Stage 6 candidate T1a).
 ///
