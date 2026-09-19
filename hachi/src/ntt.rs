@@ -638,35 +638,29 @@ pub fn gold_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>,
     (cur, tmp)
 }
 
-/// The untwist, and the **centred lift** into `Z_q`.
+/// `BOUND_D = N · q · GADGET_BASE`, the per-term offset of the digit path,
+/// which is already below [`GOLD_P`] so it needs no reduction.
+pub const GOLD_DOFF: u64 = 70_368_742_555_648;
+
+/// The untwist, with the digit path's offset — the Goldilocks counterpart of
+/// [`untwist`] at [`AUX_DOFF1`].
 ///
-/// One lane holds the signed convolution coefficient whole — `|v| ≤ 5.4·10^17`
-/// against `p/2 = 9.2·10^18` — so there is nothing to reconstruct and no
-/// offset to carry: a residue above `p/2` is the negative value `r − p`, and
-/// the result is that value mod `q`. This is where the two-prime path runs
-/// [`garner2`] and an offset instead.
-///
-/// Returns canonical words below `q`; the `Fp` wrapping is the ring layer's,
-/// which is where `Fp` is in scope.
-pub fn gold_untwist_centred(src: &Vec<u64>, it: &Vec<u64>, q: u64) -> Vec<u64> {
+/// The offset rather than a centred lift, deliberately. A centred lift is the
+/// obvious thing for one lane (the signed coefficient fits the prime whole,
+/// `1.081·10^18` against `1.845·10^19`) and it is what the first cut did, but
+/// the *offset* is what `AuxFused`'s `offConvSumD` machinery is already stated
+/// and proved against — `BOUND_D` is a multiple of `q`, so it vanishes in the
+/// reduction, and the whole bound argument carries over with only the radix
+/// changed. One modular add per coefficient buys roughly two hundred lines of
+/// proof that are already written.
+pub fn gold_untwist_off(src: &Vec<u64>, it: &Vec<u64>, off: u64) -> Vec<u64> {
     let n: usize = NTT_LEN;
-    let half: u64 = GOLD_P / 2;
     let mut out: Vec<u64> = Vec::with_capacity(n);
     let mut t: usize = 0;
     while t < n {
         let u: u64 = gold_mul(src[t], it[t]);
-        let r: u64 = gold_mul(u, GOLD_NINV);
-        if r > half {
-            let neg: u64 = GOLD_P - r;
-            let nm: u64 = neg % q;
-            if nm == 0 {
-                out.push(0);
-            } else {
-                out.push(q - nm);
-            }
-        } else {
-            out.push(r % q);
-        }
+        let s: u64 = gold_mul(u, GOLD_NINV);
+        out.push(gold_add(s, off));
         t += 1;
     }
     out

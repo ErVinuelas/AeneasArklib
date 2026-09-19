@@ -1023,12 +1023,15 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
         scratch = fwb.1;
         j += 1;
     }
+    // the offset is one per term, exactly as `dot_prep_chunk_mod_p` scales
+    // `boff` by the chunk length
+    let scaled: u64 = crate::ntt::gold_mul(crate::ntt::GOLD_DOFF, n as u64);
     let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, scratch, &it);
-    let words: Vec<u64> = crate::ntt::gold_untwist_centred(&inv.0, &it, qw);
+    let words: Vec<u64> = crate::ntt::gold_untwist_off(&inv.0, &it, scaled);
     let mut out: Vec<Fp> = Vec::with_capacity(deg);
     let mut t: usize = 0;
     while t < deg {
-        out.push(Fp::new(words[t]));
+        out.push(Fp::new(words[t] % qw));
         t += 1;
     }
     Rq(out)
