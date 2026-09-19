@@ -795,7 +795,6 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
     dst
 }
 
-// @genesis b54235e 2026-09-19 — ntt::gold_forward
 /// **Two** decimation-in-frequency stages in one pass -- the radix-4 shape, in
 /// the Goldilocks lane.
 ///
@@ -852,6 +851,7 @@ pub fn gold_dif_stage2(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u
     dst
 }
 
+// @genesis b54235e 2026-09-19 — ntt::gold_forward
 /// The forward transform in the Goldilocks lane.
 pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
     let mut cur: Vec<u64> = cur0;
