@@ -3561,3 +3561,107 @@ fn the_taylor_shift_at_round_zero() {
     eprintln!("[t3b] round 0 at the pin: {:.1} s -> {:.1} s  ({:+.1}% of a 663.7 s prover)",
         t_now / n * p0, t_sh / n * p0, 100.0 * (t_sh - t_now) / n * p0 / 663.7);
 }
+
+// ---------------------------------------------------------------------------
+// Radix-4: the dismissal that was made on the wrong axis
+// ---------------------------------------------------------------------------
+//
+// The 2026-09-18 close-out rejected radix-4 with "~25% fewer multiplies:
+// capped at ~4%" -- in the same paragraph that established the butterfly is
+// **data-movement bound, not multiply bound**. Fewer multiplies is exactly the
+// axis that does not matter there. What radix-4 actually buys on a
+// movement-bound kernel is **half the passes**: `log_4 1024 = 5` where
+// `log_2 1024 = 10`, and each pass reads and writes the whole 8 KiB buffer.
+//
+// Both sides below are test-side, out-of-place, ping-ponging between two
+// buffers -- the shape `ntt::gold_dif_stage` has.
+
+/// One radix-4 decimation-in-frequency stage.
+fn gdif4(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize, imag: u64) {
+    let q4 = len / 4;
+    let step = 2 * (n / len);
+    let mut st = 0usize;
+    while st < n {
+        let mut j = 0usize;
+        while j < q4 {
+            let a0 = src[st + j];
+            let a1 = src[st + j + q4];
+            let a2 = src[st + j + 2 * q4];
+            let a3 = src[st + j + 3 * q4];
+            let t0 = ga(a0, a2);
+            let t1 = gs(a0, a2);
+            let t2 = ga(a1, a3);
+            let t3 = gm(gs(a1, a3), imag);
+            let e = j * step;
+            dst[st + j] = ga(t0, t2);
+            dst[st + q4 + j] = gm(ga(t1, t3), tw[e]);
+            dst[st + 2 * q4 + j] = gm(gs(t0, t2), tw[2 * e]);
+            dst[st + 3 * q4 + j] = gm(gs(t1, t3), tw[3 * e]);
+            j += 1;
+        }
+        st += len;
+    }
+}
+
+fn gfwd4(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, imag: u64)
+    -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 {
+        gdif4(&cur, &mut tmp, len, tw, n, imag);
+        std::mem::swap(&mut cur, &mut tmp);
+        len /= 4;
+    }
+    (cur, tmp)
+}
+
+/// **The radix-4 gate.** Five passes against ten, same arithmetic, same
+/// out-of-place shape.
+///
+/// Correctness: a radix-4 DIF leaves its output in base-4 digit-reversed order
+/// and a radix-2 DIF in bit-reversed order, so the two vectors are different
+/// permutations of the same DFT. Compared as **multisets**, which is the
+/// strongest check that does not depend on the ordering convention — and the
+/// ordering is irrelevant to the use, since the transform is only ever paired
+/// with its own inverse around a pointwise product.
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_radix4_gate() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let gp = 18_446_744_069_414_584_321u64;
+    let mut r = Lcg::new(0x4AD1_0004);
+    // psi has order 2n, so a table of 3n covers the `3e` index without wrapping
+    let tw = gtab(GPSI, 3 * n);
+    let imag = tw[n / 2]; // psi^(n/2) = w^(n/4), a primitive 4th root
+    let input: Vec<u64> = (0..n).map(|_| r.next_u64() % gp).collect();
+
+    let (o2, _) = gfwd(input.clone(), vec![0u64; n], &tw, n);
+    let (o4, _) = gfwd4(input.clone(), vec![0u64; n], &tw, n, imag);
+    let mut s2 = o2.clone(); s2.sort_unstable();
+    let mut s4 = o4.clone(); s4.sort_unstable();
+    assert_eq!(s2, s4, "radix-4 is not a permutation of radix-2's DFT");
+    eprintln!("[r4] the two transforms agree as multisets ({} points)", n);
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..200 { f(); }
+        let mut b = f64::MAX;
+        for _ in 0..200 {
+            let t = Instant::now();
+            f();
+            b = b.min(t.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let t2 = best(Box::new(|| {
+        std::hint::black_box(gfwd(input.clone(), vec![0u64; n], &tw, n)); }));
+    let t4 = best(Box::new(|| {
+        std::hint::black_box(gfwd4(input.clone(), vec![0u64; n], &tw, n, imag)); }));
+    eprintln!("[r4] radix-2, 10 passes  {:>8.2} µs", 1e6 * t2);
+    eprintln!("[r4] radix-4,  5 passes  {:>8.2} µs   ({:+.1}%)",
+        1e6 * t4, 100.0 * (t4 - t2) / t2);
+    // apply_digits_gold is ~168 s of a 645.3 s prover and is ~all forward
+    // transforms; carrier_from_raw would inherit the same factor if the
+    // general-path card ever lands.
+    eprintln!("[r4] on the commitment's ~168 s of transforms: {:+.1} s, {:+.1}% of the prover",
+        168.0 * (t4 - t2) / t2, 100.0 * 168.0 * (t4 - t2) / t2 / 645.3);
+}

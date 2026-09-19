@@ -9230,3 +9230,63 @@ classes as a gated proposal rather than a champion because the carrier's
 meaning moves by a factor `R`. Estimated 2500–3500 lines. That is a scope
 decision, not a measurement question, and it is the only thing in the prover
 above the line that has not been either landed or closed with numbers.
+
+## "So there are no more optimizations?" — asked a fourth time (2026-09-19)
+
+No, and the largest item left was one this file had already rejected, on the
+wrong axis.
+
+### Radix-4: the dismissal counted the wrong thing
+
+The 2026-09-18 close-out rejected it in one line — "radix-4's ~25% fewer
+multiplies: capped at ~4%" — in the *same paragraph* that established the
+butterfly is **data-movement bound, not multiply bound**, with the diagnostic
+that removing the multiply and the reduction entirely is only 17% faster.
+Fewer multiplies is precisely the axis that does not matter on such a kernel.
+What radix-4 buys is **half the passes**: `log₄ 1024 = 5` where
+`log₂ 1024 = 10`, and each pass reads and writes the whole 8 KiB buffer.
+
+Measured, one 1024-point Goldilocks forward transform, both sides test-side
+and out-of-place:
+
+| | µs |
+|---|---|
+| radix-2, ten passes | 16.14 |
+| radix-4, five passes | **10.76 (−33.3%)** |
+
+`apply_digits_gold` is ~84% of the 200.0 s commitment and is ~all forward
+transforms, so that is **−56 s, ≈ −8.7% of a 645.3 s prover** — twice what the
+discarded figure said, and the biggest single item on the board. It would
+stack with the general-path card, which is the same kernel at a different lane
+count. `N = 1024 = 4^5` exactly, so the radix divides cleanly.
+
+The correctness check is worth stating because the obvious one fails: a
+radix-4 DIF leaves its output in base-4 digit-reversed order and a radix-2 DIF
+in bit-reversed order, so the two vectors are *different permutations of the
+same DFT* and do not compare elementwise. They compare as **multisets**, which
+is the strongest check independent of the ordering convention — and the
+ordering is irrelevant to the use, since the transform is only ever paired
+with its own inverse around a pointwise product.
+
+### The board, after four rounds of this question
+
+| card | measured | proof | status |
+|---|---|---|---|
+| **radix-4 Goldilocks** | −33.3% on the transform ⇒ **≈ −8.7%** | rework `AuxGoldCode` + `AuxGoldTransform` off the radix-2 `difWord`/`difRun` abstraction, ~1500–2000 lines; `AuxGold` untouched | gated, not started |
+| **general path, 2 × 64-bit lanes** | −43.9% on the butterfly ⇒ ≈ −6.2% | ~2500–3500 lines **incl. a Montgomery representation change** | gated, not started |
+| the lift by cyclic + negacyclic | not gated | medium; reuses the landed layer | **idea only** |
+| the rounds' remaining structure | not re-split since T3 | — | **unmeasured** |
+
+The third is worth writing down because it is cheap if it works: the full
+product's high half — which is exactly what `c_quotient` needs after T1a — is
+`(cyclic − negacyclic)/2`, and both are length-`N` transforms the landed
+Goldilocks layer already provides (the negacyclic one *is* `gold_forward`; the
+cyclic one is the same without the twist). That would replace `c_row_sum_high`'s
+`O(N²)` inner loop, 37.6 s, with `O(N log N)`. It needs the centred lift of
+`z` and a chunk width from `Z_BOUND = 2¹⁷`, neither of which is measured yet.
+
+So roughly **20% of the prover is still identified and untaken**, and the
+honest summary of four rounds of this question is that "no more optimizations"
+has been wrong every time it was said — twice because a card was left on the
+table, once because a prototype lied about its own harness, and once because a
+rejection was argued on the wrong axis.
