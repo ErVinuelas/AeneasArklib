@@ -3576,6 +3576,7 @@ fn the_taylor_shift_at_round_zero() {
     use std::time::Instant;
     let tab = t3_shift_table();
     let mut r = Lcg::new(0x7A1_0BA5);
+    let q = hachi::params::Q;
 
     for half in [1usize, 2, 3, 17, 64] {
         let w: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
