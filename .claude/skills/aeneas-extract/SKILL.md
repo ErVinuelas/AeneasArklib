@@ -274,6 +274,8 @@ extract, and are still not worth it", "The cpoly dependency" are the record.
 | `let b3: bool = b1 != b2` where `b1`, `b2` are already live values (2026-09-19) | **aeneas aborts**: `Unimplemented binary operation` | same probe. `if b1 != b2 { … }` is fine and is what `mul_short_add_into`'s old body used -- charon lowers a bool `!=` in *condition* position to a branch. It becomes an unmodelled `Ne` on `bool` when rustc can lower the combination to a **select**, which it does when both arms are a single arithmetic expression. Write nested `if`s on the two booleans separately |
 | one `if` condition appearing **twice** in a body (2026-09-19) | fine, but `rw [if_pos h]` in the proof rewrites only the first | not an extraction row but a proof one, and it cost an hour: `simp only [if_pos h]` rewrites all of them. `short_pass_off` computes the destination and the sign from the same `pos >= n` |
 
+| fused four-write inner loop: four `Vec.set`s per iteration at four separated indices (2026-09-20) | two loops, states `(dst, j)` and `(dst, start)` -- both still 2-tuples; zero axioms | measured on `ntt::gold_dif_stage2`; non-monotone write order costs the model nothing, and `j * step1` / `(j + quarter) * step1` index arithmetic extracts as ordinary monadic `Usize` multiplication (each doubling needs its operand bounded in context, or `step` leaves the overflow side goal behind) |
+
 Unprobed (add a measured row on first contact — closures, const generics,
 generic functions, `u128` division, trait objects,
 …). And the permanent ceiling: no `unsafe` (the crate `forbid`s it), no SIMD

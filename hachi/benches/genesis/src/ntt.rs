@@ -796,6 +796,62 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
 }
 
 // @genesis b54235e 2026-09-19 — ntt::gold_forward
+/// **Two** decimation-in-frequency stages in one pass -- the radix-4 shape, in
+/// the Goldilocks lane.
+///
+/// Computes exactly what [`gold_dif_stage`] at `len` followed by
+/// [`gold_dif_stage`] at `len / 2` computes: the same values, at the same
+/// positions, from the same twiddles. That is the whole design. A textbook
+/// radix-4 butterfly permutes its four outputs, so it agrees with the radix-2
+/// transform only up to base-4 digit reversal, and proving it would mean a
+/// radix-4 theory of its own -- a `dif4Run`, its multiplicativity, its
+/// inverse. Fusing the *pair* instead leaves [`AuxNTT.difRun`] alone: one pass
+/// here is `difRun om (k+2) step = difRun om k (step*4)` by `difRun_succ`
+/// twice, so `gold_forward_spec`'s statement does not move and everything
+/// above it -- `AuxProduct.prod_difRun`, `inv_value`, `gold_dot_spec` -- is
+/// untouched.
+///
+/// The gain is the memory pattern, which is the radix-4 one either way: four
+/// reads and four writes per group at stride `len/4`, and **five** passes over
+/// the array instead of ten. Gated at -34.7% on the transform.
+///
+/// The intermediate names are the pair's: `b0..b3` is what the first stage
+/// would have written, `dst` is what the second one makes of it. Writing the
+/// four outputs in *that* order, rather than the natural radix-4 order, is
+/// exactly what buys the elementwise agreement.
+pub fn gold_dif_stage2(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        while j < quarter {
+            let a0: u64 = src[start + j];
+            let a1: u64 = src[start + j + quarter];
+            let a2: u64 = src[start + j + half];
+            let a3: u64 = src[start + j + half + quarter];
+            let b0: u64 = gold_add(a0, a2);
+            let b1: u64 = gold_add(a1, a3);
+            let d0: u64 = gold_sub(a0, a2);
+            let b2: u64 = gold_mul(d0, tw[j * step1]);
+            let d1: u64 = gold_sub(a1, a3);
+            let b3: u64 = gold_mul(d1, tw[(j + quarter) * step1]);
+            dst[start + j] = gold_add(b0, b1);
+            let e0: u64 = gold_sub(b0, b1);
+            dst[start + j + quarter] = gold_mul(e0, tw[j * step2]);
+            dst[start + half + j] = gold_add(b2, b3);
+            let e1: u64 = gold_sub(b2, b3);
+            dst[start + half + quarter + j] = gold_mul(e1, tw[j * step2]);
+            j += 1;
+        }
+        start += len;
+    }
+    dst
+}
+
 /// The forward transform in the Goldilocks lane.
 pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
     let mut cur: Vec<u64> = cur0;

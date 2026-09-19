@@ -2041,6 +2041,18 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.AuxGoldTransform.gold_psi_table_cast
 #print axioms HachiEquiv.AuxGoldTransform.gold_twist_spec
 #print axioms HachiEquiv.AuxGoldCode.gold_dif_stage_spec
+-- The fused stage: two DIF stages in one pass over the array, the radix-4
+-- memory pattern without a radix-4 theory. Its conclusion is `difWord` of
+-- `difWord` -- literally the two shapes `gold_dif_stage_spec` produces at
+-- consecutive block lengths -- so `gold_forward_spec` below states exactly what
+-- it stated before, and `AuxProduct.prod_difRun` never learns this happened.
+#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_loop0_loop0_spec
+#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_loop0_spec
+#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_spec
+#print axioms HachiEquiv.AuxGoldFused.fusedA
+#print axioms HachiEquiv.AuxGoldFused.fusedB
+#print axioms HachiEquiv.AuxGoldFused.fusedC
+#print axioms HachiEquiv.AuxGoldFused.fusedD
 #print axioms HachiEquiv.AuxGoldTransform.gold_dit_stage_spec
 #print axioms HachiEquiv.AuxGoldTransform.gold_forward_spec
 #print axioms HachiEquiv.AuxGoldTransform.gold_inverse_spec

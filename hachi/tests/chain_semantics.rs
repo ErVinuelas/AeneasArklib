@@ -3722,3 +3722,98 @@ fn the_radix4_gate() {
     eprintln!("[r4] on the commitment's ~168 s of transforms: {:+.1} s, {:+.1}% of the prover",
         168.0 * (t4 - t2) / t2, 100.0 * 168.0 * (t4 - t2) / t2 / 645.3);
 }
+
+/// Two radix-2 DIF stages **fused into one pass**, computing exactly what the
+/// pair computes — same values, same positions, same twiddles.
+///
+/// This is the shape the first radix-4 gate should have had. A textbook
+/// radix-4 butterfly permutes its outputs, so it equals the radix-2 transform
+/// only up to base-4 digit reversal, and a Lean proof would need a whole
+/// radix-4 theory: `dif4Run`, its multiplicativity, its inverse. Fusing the
+/// pair instead leaves `difRun` alone — `difRun om (k+2) step` IS
+/// `difRun om k (step*4)` after this one pass, by `difRun_succ` twice — so
+/// `gold_forward_spec`'s statement does not move and `AuxProduct`'s
+/// `prod_difRun` and `inv_value` are untouched.
+///
+/// The memory pattern is the radix-4 one either way: four reads and four
+/// writes at stride `L/4` per group, five passes instead of ten.
+fn gdif_fused(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize) {
+    // stage 1 has half = len/2 and step1 = 2*(n/len)
+    // stage 2 has half = len/4 and step2 = 2*step1, on both halves
+    let h1 = len / 2;
+    let q4 = len / 4;
+    let step1 = 2 * (n / len);
+    let step2 = 2 * step1;
+    let mut st = 0usize;
+    while st < n {
+        let mut j = 0usize;
+        while j < q4 {
+            let a0 = src[st + j];
+            let a1 = src[st + j + q4];
+            let a2 = src[st + j + h1];
+            let a3 = src[st + j + h1 + q4];
+            // stage 1: b[j] = a[j] + a[j+h1]; b[j+h1] = (a[j] - a[j+h1])·w^(j·step1)
+            let b0 = ga(a0, a2);
+            let b1 = ga(a1, a3);
+            let b2 = gm(gs(a0, a2), tw[j * step1]);
+            let b3 = gm(gs(a1, a3), tw[(j + q4) * step1]);
+            // stage 2 on each half, half = q4, step2
+            dst[st + j] = ga(b0, b1);
+            dst[st + j + q4] = gm(gs(b0, b1), tw[j * step2]);
+            dst[st + j + h1] = ga(b2, b3);
+            dst[st + j + h1 + q4] = gm(gs(b2, b3), tw[j * step2]);
+            j += 1;
+        }
+        st += len;
+    }
+}
+
+fn gfwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize)
+    -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 {
+        gdif_fused(&cur, &mut tmp, len, tw, n);
+        std::mem::swap(&mut cur, &mut tmp);
+        len /= 4;
+    }
+    (cur, tmp)
+}
+
+/// **The radix-4 gate, fused.** Elementwise equality with the radix-2
+/// transform — not multiset equality — because the fusion is exact.
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_radix4_fused_gate() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let gp = 18_446_744_069_414_584_321u64;
+    let mut r = Lcg::new(0x4AD1_F0);
+    let tw = gtab(GPSI, 3 * n);
+    let input: Vec<u64> = (0..n).map(|_| r.next_u64() % gp).collect();
+
+    let (o2, _) = gfwd(input.clone(), vec![0u64; n], &tw, n);
+    let (of, _) = gfwd_fused(input.clone(), vec![0u64; n], &tw, n);
+    let bad = (0..n).filter(|&i| o2[i] != of[i]).count();
+    assert_eq!(bad, 0, "the fused stage differs from two radix-2 stages at {bad} of {n} points");
+    eprintln!("[r4f] the fused pass equals two radix-2 stages, ELEMENTWISE, at all {n} points");
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..200 { f(); }
+        let mut b = f64::MAX;
+        for _ in 0..200 {
+            let t = Instant::now();
+            f();
+            b = b.min(t.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let t2 = best(Box::new(|| {
+        std::hint::black_box(gfwd(input.clone(), vec![0u64; n], &tw, n)); }));
+    let tf = best(Box::new(|| {
+        std::hint::black_box(gfwd_fused(input.clone(), vec![0u64; n], &tw, n)); }));
+    eprintln!("[r4f] radix-2, ten passes   {:>8.2} µs", 1e6 * t2);
+    eprintln!("[r4f] fused,   five passes  {:>8.2} µs   ({:+.1}%)",
+        1e6 * tf, 100.0 * (tf - t2) / t2);
+    eprintln!("[r4f] on the commitment's ~168 s of transforms: {:+.1} s, {:+.1}% of a 642.1 s prover",
+        168.0 * (tf - t2) / t2, 100.0 * 168.0 * (tf - t2) / t2 / 642.1);
+}

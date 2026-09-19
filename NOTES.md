@@ -9342,3 +9342,77 @@ One self-inflicted cost worth recording: the first attempt at this re-baseline
 died on a compile error, because tidying an "unused variable" warning removed a
 binding a gate test still used. `cargo test` compiles the `#[ignore]`d gates, so
 it would have caught it — I did not run it between the edit and the profile.
+
+## Radix-4 landed as the fused pair: the theory you don't write (2026-09-20)
+
+The board's biggest card was radix-4 on the Goldilocks transform, gated at
+−33.3% and **priced at 1500–2000 lines of Lean**, because `AuxGoldCode` and
+`AuxGoldTransform` are written against a radix-2 `difWord`/`difRun`
+abstraction and a radix-4 transform is a different function. It landed for
+about **620 lines**, and the reason is worth keeping.
+
+A textbook radix-4 butterfly permutes its four outputs. It computes the same
+DFT as two radix-2 stages, but in base-4 digit-reversed order rather than
+bit-reversed, so it agrees with the radix-2 transform only as a *multiset* —
+which is all the first gate could assert. Proving it would have meant a second
+theory: a `dif4Run`, its multiplicativity, its inverse, and new versions of
+everything `AuxProduct` builds on `difRun`.
+
+The fused pair does the other thing. `ntt::gold_dif_stage2` reads its four
+inputs at stride `len/4` and writes its four outputs **in the order and with
+the twiddles the composite `difStage ∘ difStage` produces**. The memory
+pattern is the radix-4 one either way — four reads, four writes per group,
+five passes over the 8 KiB buffer instead of ten — but the function computed
+is, elementwise, exactly two radix-2 stages.
+
+That is worth a line of Lean rather than a file of it, because
+
+```lean
+theorem difRun_succ (om : R) (k step : ℕ) (f : ℕ → R) :
+    difRun om (k + 1) step f = difRun om k (step * 2) (difStage (2 ^ k) step om f) := rfl
+```
+
+is `rfl`. `gold_dif_stage2_spec`'s conclusion is `difWord` of `difWord` —
+literally the two shapes `gold_dif_stage_spec` already produces at consecutive
+block lengths — so **`gold_forward_spec`'s statement does not move**. It still
+says `difRun (psi^2) 10 1`. `AuxProduct.prod_difRun`, `inv_value` and
+`gold_dot_spec` never learn this happened. The only thing that changed above
+the stage is `gold_forward_loop_spec`'s invariant, which now steps two stages
+per iteration instead of one; `len` runs 1024, 256, 64, 16, 4 and the
+invariant's index runs `2·i`.
+
+### The numbers
+
+| | µs per 1024-point forward transform |
+|---|---|
+| radix-2, ten passes | 16.05 |
+| fused, five passes | **10.48** (−34.7%) |
+
+Elementwise equality at all 1024 points, not multiset — `the_radix4_fused_gate`.
+
+Accepted on `commit/commit_streamed/4` **−25.5%** and
+`commit/generate_decomps/4` **−22.7%** (recentered; 2.3% bias, 5% floor, both
+rows `faster`, slot diverged in `ntt` alone), run
+`20260920T0046+0200-61c589c3`.
+
+### Two things the proof taught
+
+**The extraction takes a four-write inner loop without complaint.** Four
+`Vec.set`s per iteration at four separated positions, and the loop state is
+still the 2-tuple `(dst, j)`. Zero axioms. The ceiling table gains a row.
+
+**`omega` scans everything it is given, and that is a real cost.** The write
+branches need only index disequalities — `start + u ≠ start + half + quarter +
+j` and its siblings, pure linear arithmetic over eight variables. But at that
+point the context holds the butterfly's fifteen `% GP` equations, and `GP` is
+a 64-bit modulus, so `omega` introduces a quotient variable and a constraint
+against `18446744069414584321` for each of them. The theorem timed out at a
+million heartbeats. Hoisting the disequalities into one `have` under
+
+```lean
+clear * - p0 p1 p2 p3 hjlt hhq hqpos
+```
+
+takes the same theorem to **8 seconds**. The lesson generalizes to every loop
+whose body does modular arithmetic and whose bookkeeping does not: keep them
+in separate contexts.
