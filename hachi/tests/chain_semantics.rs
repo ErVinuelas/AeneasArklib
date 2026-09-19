@@ -2930,3 +2930,144 @@ fn the_lift_single_product_diagnostic() {
     eprintln!("[t1a]   rev   {:>8.2} µs over {:.0} steps = {:.3} ns/step  ({:+.1}% of full)",
         1e6 * tr, steps_h, 1e9 * tr / steps_h, 100.0 * (tr - tf) / tf);
 }
+
+// ---------------------------------------------------------------------------
+// The general (non-digit) transform path: can it go 3 lanes -> 2?
+// ---------------------------------------------------------------------------
+//
+// T27 put the DIGIT path in one Goldilocks lane. `quadeval::carrier_from_raw`
+// is the other transform consumer -- 99.2 s at the pin, and unchanged by T27,
+// because its right operand is the RAW message, whose coefficients are
+// arbitrary residues. One product alone needs `N·(q−1)² = 1.89e22` against
+// Goldilocks' `1.85e19`: a single Goldilocks lane cannot even hold one term,
+// so no amount of chunking helps. The general path needs at least 2^75 of
+// modulus, which is three 31-bit primes (2^93, what it uses) or two 64-bit
+// ones.
+//
+// Two 64-bit lanes means Goldilocks plus one more NTT-friendly 64-bit prime,
+// and that second prime does NOT have Goldilocks' free reduction -- it needs
+// Montgomery. So the question is arithmetic, and it is one number:
+//
+//     3 × (31-bit Barrett)   vs   1 × Goldilocks + 1 × (64-bit Montgomery)
+//
+// Both sides measured here, in the same crate, on the same shapes.
+
+const MONT_P: u64 = 0x1FFF_FFFF_C000_0001; // 2^61 - 2^30 + 1, NTT-friendly
+const MONT_NP: u64 = 0x1FFF_FFFF_BFFF_FFFF; // -p^{-1} mod 2^64
+
+#[inline(always)]
+fn mont_mul(a: u64, b: u64) -> u64 {
+    let t: u128 = (a as u128) * (b as u128);
+    let m: u64 = (t as u64).wrapping_mul(MONT_NP);
+    let u: u128 = t + (m as u128) * (MONT_P as u128);
+    let r: u64 = (u >> 64) as u64;
+    if r >= MONT_P { r - MONT_P } else { r }
+}
+
+#[inline(always)]
+fn mont_add(a: u64, b: u64) -> u64 {
+    let s = a + b;
+    if s >= MONT_P { s - MONT_P } else { s }
+}
+
+#[inline(always)]
+fn mont_sub(a: u64, b: u64) -> u64 {
+    if a >= b { a - b } else { a + MONT_P - b }
+}
+
+/// A 31-bit Barrett butterfly, the shape `ntt::aux_mul` already uses.
+#[inline(always)]
+fn aux31_mul(a: u64, b: u64, p: u64, m: u64) -> u64 {
+    let t: u128 = (a as u128) * (b as u128);
+    let hi: u64 = (((t >> 32) as u128 * m as u128) >> 32) as u64;
+    let r: u64 = (t as u64).wrapping_sub(hi.wrapping_mul(p));
+    if r >= p { r - p } else { r }
+}
+
+/// **The general path's lane-count gate.**
+///
+/// If two 64-bit lanes are not clearly cheaper than three 31-bit ones, the
+/// general path has nothing to gain and the card is closed on arithmetic that
+/// was measured rather than counted — the discipline four reversed cards in
+/// this stage bought.
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_general_path_lane_count_gate() {
+    use std::time::Instant;
+    let n: usize = 1 << 14;
+    let mut r = Lcg::new(0x1A17_E501);
+    let p1: u64 = hachi::ntt::AUX_P1;
+    let m1: u64 = hachi::ntt::AUX_M1;
+    let gp: u64 = 18_446_744_069_414_584_321;
+    let xs: Vec<u64> = (0..n).map(|_| r.next_u64() % p1).collect();
+    let ys: Vec<u64> = (0..n).map(|_| r.next_u64() % p1).collect();
+    let xg: Vec<u64> = (0..n).map(|_| r.next_u64() % gp).collect();
+    let yg: Vec<u64> = (0..n).map(|_| r.next_u64() % gp).collect();
+    let xm: Vec<u64> = (0..n).map(|_| r.next_u64() % MONT_P).collect();
+    let ym: Vec<u64> = (0..n).map(|_| r.next_u64() % MONT_P).collect();
+
+    // one Gentleman-Sande butterfly per element: u = a+b, v = (a-b)*w
+    let bfly31 = || {
+        let mut acc: u64 = 0;
+        for i in 0..n {
+            let a = xs[i];
+            let b = ys[i];
+            let s = a + b;
+            let u = if s >= p1 { s - p1 } else { s };
+            let d = if a >= b { a - b } else { a + p1 - b };
+            acc ^= u ^ aux31_mul(d, ys[n - 1 - i], p1, m1);
+        }
+        acc
+    };
+    let bflyg = || {
+        let mut acc: u64 = 0;
+        for i in 0..n {
+            let a = xg[i];
+            let b = yg[i];
+            let s = (a as u128) + (b as u128);
+            let u = if s >= gp as u128 { (s - gp as u128) as u64 } else { s as u64 };
+            let d = if a >= b { a - b } else { a.wrapping_sub(b).wrapping_add(gp) };
+            // Goldilocks reduce of d * w, the shape `ntt::gold_mul` uses
+            let t: u128 = (d as u128) * (yg[n - 1 - i] as u128);
+            let lo: u64 = t as u64;
+            let hi: u64 = (t >> 64) as u64;
+            let hh: u64 = hi >> 32;
+            let hl: u64 = hi & 0xFFFF_FFFF;
+            let mut x = lo.wrapping_sub(hh);
+            if lo < hh { x = x.wrapping_add(gp); }
+            let y = hl.wrapping_mul(0xFFFF_FFFF);
+            let z = x.wrapping_add(y);
+            acc ^= u ^ (if z < x || z >= gp { z.wrapping_sub(gp) } else { z });
+        }
+        acc
+    };
+    let bflym = || {
+        let mut acc: u64 = 0;
+        for i in 0..n {
+            let a = xm[i];
+            let b = ym[i];
+            acc ^= mont_add(a, b) ^ mont_mul(mont_sub(a, b), ym[n - 1 - i]);
+        }
+        acc
+    };
+    let best = |mut f: Box<dyn FnMut() -> u64>| -> f64 {
+        for _ in 0..50 { std::hint::black_box(f()); }
+        let mut bb = f64::MAX;
+        for _ in 0..50 {
+            let t = Instant::now();
+            std::hint::black_box(f());
+            bb = bb.min(t.elapsed().as_secs_f64());
+        }
+        bb
+    };
+    let t31 = best(Box::new(bfly31));
+    let tg = best(Box::new(bflyg));
+    let tm = best(Box::new(bflym));
+    let per = |t: f64| 1e9 * t / n as f64;
+    eprintln!("[lanes] 31-bit Barrett butterfly   {:>6.3} ns", per(t31));
+    eprintln!("[lanes] Goldilocks butterfly       {:>6.3} ns", per(tg));
+    eprintln!("[lanes] 64-bit Montgomery butterfly{:>6.3} ns", per(tm));
+    eprintln!("[lanes] three 31-bit lanes         {:>6.3} ns", 3.0 * per(t31));
+    eprintln!("[lanes] Goldilocks + Montgomery    {:>6.3} ns  ({:+.1}%)",
+        per(tg) + per(tm), 100.0 * ((per(tg) + per(tm)) / (3.0 * per(t31)) - 1.0));
+}

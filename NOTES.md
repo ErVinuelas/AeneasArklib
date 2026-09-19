@@ -8818,3 +8818,160 @@ compares the shifted coefficients against `range_product_base` at every node. A
 transposed index survives the first and not the second — which is not
 hypothetical: the prototype had exactly that bug, indexing the table by the row
 number where it wanted the degree.
+
+## Candidate T1a: the quotient is the high half, and the prototypes were lying (2026-09-19)
+
+The 2026-09-18 close-out recorded T1a as *deferred — prototypes slower,
+unexplained*: three shapes of the high-half lift, at **+65.8%**, **+84.9%** and
+**+31.0%** against `c_quotient`, all doing half the multiplications. "A 3%
+ceiling and prototypes we cannot explain" is not a rejection, and it should not
+have been written as one.
+
+### The explanation is the harness, not the algorithm
+
+The diagnostic that settles it changes exactly one thing at a time.
+`long_mul`'s body, copied **verbatim** into the test crate, with the output
+loop started at `N` instead of `0`:
+
+| | time | steps | ns/step |
+|---|---|---|---|
+| full product | 1885.60 µs | 1 048 576 | 1.798 |
+| high half | 939.78 µs | 523 776 | **1.794** |
+| high half, antidiagonals reversed | 942.38 µs | 523 776 | 1.799 |
+
+**−50.2%, at the same cost per step.** The triangle was never the problem.
+
+What *was* the problem: the same copy, measured against the real
+`c_quotient`, reads 1886 µs per product where `c_quotient` spends about 590 µs
+on one — **3.2× apart on byte-identical source**. `Rq::coeff` is a method of
+the `hachi` crate and does not inline across the crate boundary into
+`tests/`, so every coefficient read in a test-side copy is a call where the
+real one is a slice index. Every one of the three prototypes paid that, and
+the "unexplained" +66% is exactly it.
+
+**The rule this adds**: a test-side prototype may be compared against *another
+test-side prototype* — the inlining is then the same on both sides — but never
+against an item compiled inside `hachi`. Card 6's split instrument and the T27
+gates were fine because both sides were the crate's own functions called from
+the test; these three were not, because one side was a copy.
+
+### The fact
+
+```text
+  div_by_modulus:  for k = n−2 … 0:  quot[k] = rem[k+n];  rem[k] -= rem[k+n];  rem[k+n] = 0
+```
+
+The leads run over `[n, 2n−2]`, the writes land at `k ≤ n−2` or at a lead just
+consumed and never revisited, so **every read sees the original word**;
+`quot[n−1]` is never written at all. And `c_quotient` subtracts `y` — degree
+below `n` — from the low half only. So
+
+```text
+  c_quotient(s, z, i)  =  [ c_row_sum[n], …, c_row_sum[2n−2], 0 ]
+```
+
+and the low half of every `long_mul` was computed, reduced, accumulated over
+`2N − 1` slots, copied into `rem`, and discarded.
+
+### The measurement
+
+Two independent `CANDIDATE=1` runs, both rows in both:
+
+| case | run 1 | run 2 |
+|---|---|---|
+| `ringswitch/c_quotient_blocks/28` | **−50.0%** | **−50.6%** |
+| `ringswitch/honest_lift_witness_blocks/28` | **−47.6%** | **−47.4%** |
+
+At the pin, against the T3 profile (control spread +1.5%):
+
+| | T3 | T1a | |
+|---|---|---|---|
+| commitment | 200.6 s | 200.0 s | −0.3% |
+| `carrier_decomp_from_raw` | 97.3 s | 99.2 s | +2.0% |
+| `honest_compute_resp` | 240.0 s | 240.5 s | +0.2% |
+| **lifted witness** | **71.0 s** | **40.0 s** | **−43.7%** |
+| `honest_round_messages` | 155.2 s | 153.8 s | −0.9% |
+| **prover** | **788.0 s** | **755.4 s** | **−4.1%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+### The proof
+
+`c_quotient_spec`'s statement does not move. What *leaves* the proof is the
+subtraction loop and the division loop — `c_quotient_sub_loop_spec` is deleted
+outright, because the Aeneas constant `c_quotient_loop` now names the copy
+loop instead. What arrives is `divByMonic_of_high`, which is
+`toCPolyK_eq_divByMonic`'s argument with the dividend an arbitrary
+`CPolynomial` rather than a word vector, plus the two degree facts that make it
+apply (`mul_coeff_of_high`, `cRowSum_coeff_of_high`), plus the `_high` loop
+specs. Those reuse `longSum`, `longSum_cast` and `coeff_toRq_mul_unreduced`
+**unchanged**: for `k ≥ N` the clip is exactly `lo = k + 1 − N`, `hi = N`,
+which is the shape those lemmas already take. About 430 lines.
+
+## Where the prover is now, and the one card left (2026-09-19)
+
+Four candidates landed today, each proved, each measured at the pin:
+
+| | prover | |
+|---|---|---|
+| after T12 (huge pages) | 1170.8 s | |
+| after **T27** (one Goldilocks lane) | 845.3 s | −27.8% |
+| after **T3** (Taylor-shift round polynomial) | 788.0 s | −6.8% |
+| after **T1a** (the lift's high half) | **755.4 s** | −4.1% |
+| | | **−35.5% together** |
+
+Peak resident is unchanged at 5453 MiB throughout — all three are arithmetic,
+not liveness.
+
+The map at 755.4 s:
+
+| block | s | share | disposition |
+|---|---|---|---|
+| `honest_compute_resp` | 240.5 | 31.8% | 79.8% short multiply (**both** reorderings measured slower), 18.8% decompose (T11's gate fires at 0.6%) |
+| commitment | 200.0 | 26.5% | ~84% `apply_digits_gold`; T27 just took it −62% |
+| rounds | 153.8 | 20.4% | T3 just took it −27.7%; what remains of T2 is 1–2% |
+| `carrier_from_raw` + decompose | 99.2 | 13.1% | **the one card left above the line** |
+| lifted witness | 40.0 | 5.3% | T1a just took it −43.7% |
+| `lift_commit` | 18.1 | 2.4% | |
+
+### The one card left: the general path's lane count
+
+`carrier_from_raw` is the other transform consumer and **T27 did not touch
+it**, because its right operand is the raw message rather than gadget digits.
+A single Goldilocks lane cannot hold even one term of it —
+`N·(q−1)² = 1.89 × 10²²` against `1.85 × 10¹⁹` — and no chunking fixes that,
+so the digit path's trick does not transfer. The general path's bound is
+`N · cols · (q−1)² ≈ 2^87`: three 31-bit primes give `2^93` (what it uses), two
+give `2^62` and do not fit, two 64-bit give `2^127`. **Two 64-bit lanes is the
+only reduction available**, and the second one needs a prime without
+Goldilocks' free reduction, hence Montgomery.
+
+I expected that to be a wash — a 64-bit Montgomery butterfly at ~4 ns would
+put two lanes at ~6.8 ns against three 31-bit lanes' ~7.3. Measured, both
+sides in the same crate:
+
+| | ns/butterfly |
+|---|---|
+| 31-bit Barrett | 2.108 |
+| Goldilocks | 1.760 |
+| **64-bit Montgomery** | **1.787** |
+| three 31-bit lanes | 6.325 |
+| **Goldilocks + Montgomery** | **3.548 (−43.9%)** |
+
+**Wrong again, and in the other direction this time.** Montgomery for a 61-bit
+prime is two `mulx`-shaped products and a conditional subtract, and it costs
+what Goldilocks costs. Two 64-bit lanes beat three 31-bit ones by 43.9%, which
+on the ~90 s of `carrier_from_raw` that is butterflies is about **−40 s, −5.3%
+of the prover**.
+
+That is above the threshold, so it is *not* rejected. It is also the largest
+remaining proof investment in the queue — an `AuxGold`-sized arithmetic layer
+for the second prime, a second transform layer, a two-prime CRT in `u128`, and
+Montgomery form is a **representation change**, which `lean-opt` classes as a
+gated proposal rather than a champion because the carrier's meaning moves by a
+factor `R`. Estimated 2500–3500 lines for −5.3%, against T27's ~2500 for
+−27.8%.
+
+It is recorded as a gate result and a price, not started. It also corrects
+T27's card, which called the general path's lane reduction "a smaller and
+separate win": it is smaller only because the phase is smaller, not because
+the rate is.
