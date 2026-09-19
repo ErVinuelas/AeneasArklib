@@ -9290,3 +9290,55 @@ honest summary of four rounds of this question is that "no more optimizations"
 has been wrong every time it was said — twice because a card was left on the
 table, once because a prototype lied about its own harness, and once because a
 rejection was argued on the wrong axis.
+
+## The control was the noisy thing, not the run (2026-09-20)
+
+`NOTES.md` has carried "the compute-bound profile control" in the owed list
+since this session diagnosed it. It came due when the last profile of
+2026-09-19 read a **+14.3%** spread where the five before it read +1.5 to
++7.0% — and that run produced the headline number, so there was no way to tell
+a noisy run from a noisy instrument.
+
+`profile_control` allocates and frees an `8192 × 1024` `PolyVec` per rep: 64
+MiB of churn a rep, 3.2 GiB over a reading. What it times is the allocator's
+state. The replacement is a **dependent chain** of the frozen genesis range
+factor over one `Fp` — sixteen multiplies and as many subtractions per call,
+each call fed by the last, no allocation, no memory traffic, three registers of
+working set. It reads core frequency, which is the drift that actually moves a
+laptop between runs. 39 ns/call, 78 ms a reading against the old one's 500 ms.
+Both are printed for one release so this run stays comparable with the six
+before it, and the two readings' chain values are asserted equal so the control
+cannot be optimised away unnoticed.
+
+It vindicated itself on its first real run:
+
+| control | spread within the same run |
+|---|---|
+| CPU (new) | **−3.5%** |
+| allocation (legacy) | **+26.3%** |
+
+The allocator-bound control read +26% on a run whose core frequency was 3.5%
+*higher* at the end than at the start. Yesterday's +14.3% was the instrument.
+
+### The re-baseline
+
+Same code, cold machine, trustworthy control:
+
+| | 2026-09-19 | 2026-09-20 | |
+|---|---|---|---|
+| commitment | 200.0 s | 200.3 s | +0.2% |
+| `carrier_decomp_from_raw` | 97.7 s | 97.9 s | +0.2% |
+| `honest_compute_resp` | 154.4 s | 152.5 s | −1.2% |
+| lifted witness | 37.6 s | 35.7 s | −5.1% |
+| `honest_round_messages` | 133.8 s | 133.9 s | +0.1% |
+| **prover** | **645.3 s** | **642.1 s** | **−0.5%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+The headline stands: **642 s**, 1170.8 → 642.1 is **−45.2%** for the day, and
+the number is now read against an instrument that measures the machine rather
+than its own history.
+
+One self-inflicted cost worth recording: the first attempt at this re-baseline
+died on a compile error, because tidying an "unused variable" warning removed a
+binding a gate test still used. `cargo test` compiles the `#[ignore]`d gates, so
+it would have caught it — I did not run it between the edit and the profile.
