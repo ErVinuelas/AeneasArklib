@@ -961,7 +961,7 @@ pub fn prepare_one_gold(a: &Vec<Rq>, n: usize) -> Vec<u64> {
         let mut w: Vec<u64> = Vec::with_capacity(deg);
         let mut u: usize = 0;
         while u < deg {
-            w.push(a[j].coeff(u).to_u64());
+            w.push(a[j].0[u].to_u64());
             u += 1;
         }
         let tw: Vec<u64> = crate::ntt::gold_twist(&w, &pt);
@@ -1008,7 +1008,7 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
         let mut w: Vec<u64> = Vec::with_capacity(deg);
         let mut u: usize = 0;
         while u < deg {
-            w.push(b[j].coeff(u).to_u64());
+            w.push(b[j].0[u].to_u64());
             u += 1;
         }
         let tw: Vec<u64> = crate::ntt::gold_twist(&w, &pt);

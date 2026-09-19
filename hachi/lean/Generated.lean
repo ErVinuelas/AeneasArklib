@@ -10661,7 +10661,9 @@ def ring.prepare_one_gold_loop0_loop0.body
   then
     let r ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) a j
-    let f ← ring.Rq.coeff r u
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) r u
     let i ← cpoly.field.Fp.to_u64 f
     let w1 ← alloc.vec.Vec.push w i
     let u1 ← u + 1#usize
@@ -11143,7 +11145,9 @@ def ring.dot_prepared_digits_gold_loop0_loop0.body
   then
     let r ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) b j
-    let f ← ring.Rq.coeff r u
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) r u
     let i ← cpoly.field.Fp.to_u64 f
     let w1 ← alloc.vec.Vec.push w i
     let u1 ← u + 1#usize
