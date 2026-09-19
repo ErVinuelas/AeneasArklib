@@ -2056,13 +2056,17 @@ const GPSI: u64 = 455906449640507599;
 const GEPI: u64 = 8548973421900915981;
 const GNINV: u64 = 18428729670909296641;
 
+// The EXTRACTION-ADMISSIBLE forms. `overflowing_add`/`overflowing_sub` are not
+// in the ceiling table and `checked_add` + `match` measured 7.995 ns/butterfly
+// against 2.787 for this shape -- the `Option` match defeats the carry path --
+// so `u128` intermediates, which ARE in the table, are what this has to use.
+const GPC: u128 = 18446744069414584321;
 #[inline] fn ga(a: u64, b: u64) -> u64 {
-    let (s, c) = a.overflowing_add(b); let mut r = s;
-    if c { r = r.wrapping_add(0xFFFF_FFFF); } if r >= GP { r -= GP; } r
+    let s: u128 = (a as u128) + (b as u128);
+    if s >= GPC { (s - GPC) as u64 } else { s as u64 }
 }
 #[inline] fn gs(a: u64, b: u64) -> u64 {
-    let (d, brw) = a.overflowing_sub(b); let mut r = d;
-    if brw { r = r.wrapping_sub(0xFFFF_FFFF); } r
+    if a >= b { a - b } else { ((a as u128) + GPC - (b as u128)) as u64 }
 }
 #[inline] fn gr(x: u128) -> u64 {
     let lo = x as u64; let hi = (x >> 64) as u64;
