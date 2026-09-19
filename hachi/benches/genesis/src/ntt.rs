@@ -795,6 +795,7 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
     dst
 }
 
+// @genesis f65ce91 2026-09-20 — ntt::gold_dif_stage2
 /// **Two** decimation-in-frequency stages in one pass -- the radix-4 shape, in
 /// the Goldilocks lane.
 ///
