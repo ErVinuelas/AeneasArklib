@@ -9083,3 +9083,70 @@ representation change.
 
 The first line of that table is the honest status; the rest is a queue with
 numbers on it, which is the useful thing to leave behind.
+
+## T33 landed: the short multiply, −12.1% (2026-09-19)
+
+Proved, landed, and re-profiled. `mul_short_add_into_spec`'s statement did not
+move; the pure layer — `applied`, `passed`, `termsSum`, `contribW` — was reused
+**unchanged**, because the value did not change, only the carrier. What is new
+is `offStep` at the word level, whose `offStep_cast` is the whole idea in one
+line (`q − sv` is `−sv` in `ZMod q`), and the bound invariant
+`bufN buf w ≤ (33 − left)·q`. The three `*_add_spec` theorems are deleted with
+their Aeneas loop constants.
+
+At the pin, against the T1a profile (control spread +2.8%):
+
+| | T1a | T33 | |
+|---|---|---|---|
+| commitment | 200.0 s | 200.0 s | 0.0% |
+| `carrier_decomp_from_raw` | 99.2 s | 98.1 s | −1.1% |
+| **`honest_compute_resp`** | **240.5 s** | **154.1 s** | **−35.9%** |
+| lifted witness | 40.0 s | 35.9 s | −10.3% |
+| `honest_round_messages` | 153.8 s | 153.8 s | 0.0% |
+| **prover** | **755.4 s** | **663.7 s** | **−12.1%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+Projected −8.7%, measured −12.1%, and the extra is real rather than drift: the
+caller also loses the `sv != 0` test and the per-term `Fp::new`, which the
+isolated-step measurement did not model. The commitment and the rounds are
+exactly flat, which is what makes the response number a scope claim.
+
+### The recovery, which is worth recording
+
+The first attempt at this landed nothing and nearly lost the work. A **stale
+background task** — a restore command I had queued behind a bench that I then
+killed — fired late and copied `hachi/benches/candidate/src/` over
+`hachi/src/`, silently reverting the Rust *after* I had verified it. The patch
+I saved a few minutes later therefore contained only the Lean files, and the
+`git stash` I took to leave the tree green stashed a `hachi/src` that was
+already back at `HEAD`.
+
+What made it recoverable: the extraction. `Generated.lean` in the working tree
+was the extraction *of* the lost Rust, so rewriting the Rust and re-running
+`make extract` had a **byte-for-byte oracle** — it reported `unchanged`, which
+is the determinism contract doing a job it was not designed for. Two rules out
+of it: never queue a tree-mutating command behind a long-running one, and a
+`git stash` is not a backup when you have not checked what is in it.
+
+### Where the prover is now
+
+| | prover | |
+|---|---|---|
+| after T12 | 1170.8 s | |
+| **T27** one Goldilocks lane | 845.3 s | −27.8% |
+| **T3** Taylor-shift round polynomial | 788.0 s | −6.8% |
+| **T1a** the lift's high half | 755.4 s | −4.1% |
+| **T33** the short multiply | **663.7 s** | −12.1% |
+| | | **−43.3% together** |
+
+Four candidates, all proved, peak unchanged at 5453 MiB throughout. The map at
+663.7 s:
+
+| block | s | share | disposition |
+|---|---|---|---|
+| commitment | 200.0 | 30.1% | ~84% `apply_digits_gold`; T27 took it −62% |
+| rounds | 153.8 | 23.2% | T3 took it −27.7%; **round 0 is still owed, ≈ −2.6%** |
+| `honest_compute_resp` | 154.1 | 23.2% | T33 just took it −35.9% |
+| `carrier_from_raw` + decompose | 98.1 | 14.8% | the general path, gated at ≈ −5.3% |
+| lifted witness | 35.9 | 5.4% | T1a took it −43.7% |
+| `lift_commit` | 18.0 | 2.7% | |
