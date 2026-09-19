@@ -2226,3 +2226,512 @@ fn the_goldilocks_lane_at_the_caller() {
     );
     eprintln!("[t27] the Goldilocks lane agrees with apply_digits on every block: {agree}");
 }
+
+// ---------------------------------------------------------------------------
+// Card T3: the Taylor-shift round polynomial
+// ---------------------------------------------------------------------------
+
+/// `T[k][m] = p_k · C(k, m)`, flattened to `k * 32 + m`.
+///
+/// `p_k` are the coefficients of `P_b(v) = v · Q(v²)` — the polynomial
+/// `zerocheck::range_product` evaluates — so `p_{2i+1} = RANGE_Q_COEFFS[i]` and
+/// every even coefficient is zero. The binomials come out of Pascal's triangle
+/// mod `q`; the largest, `C(31, 15) = 300 540 195`, fits a `u32` and so is
+/// already reduced.
+///
+/// In a landed version this is a `pub const T: [u64; 1024]` in `params.rs`,
+/// checked once by `decide`. Here it is built at runtime because the point of
+/// the prototype is the *cost*, and the table is built once per call either way.
+fn t3_shift_table() -> Vec<cpoly::field::Fp> {
+    use cpoly::field::Fp;
+    let q: u128 = hachi::params::Q as u128;
+    let mut p = [0u64; 32];
+    for i in 0..16 {
+        p[2 * i + 1] = hachi::params::RANGE_Q_COEFFS[i];
+    }
+    let mut c = vec![0u64; 32 * 32];
+    for k in 0..32 {
+        c[k * 32] = 1;
+        for m in 1..=k {
+            let left = c[(k - 1) * 32 + m - 1] as u128;
+            let right = if m <= k - 1 { c[(k - 1) * 32 + m] as u128 } else { 0 };
+            c[k * 32 + m] = ((left + right) % q) as u64;
+        }
+    }
+    let mut t = vec![Fp::ZERO; 32 * 32];
+    for k in 0..32 {
+        for m in 0..=k {
+            t[k * 32 + m] = Fp::new(p[k]) * Fp::new(c[k * 32 + m]);
+        }
+    }
+    t
+}
+
+/// `round_poly_zero`'s value, by Taylor shift instead of 33 node evaluations.
+///
+/// `folded(T) = lo + Δ·T` with `Δ = hi − lo`, so
+/// `P_b(folded) = Σ_m Δ^m T^m · Σ_{k ≥ m} p_k C(k,m) lo^{k−m}` — the round
+/// polynomial's coefficients directly, with no interpolation. Only odd `k`
+/// contribute, because `P_b` is odd.
+fn round_poly_zero_taylor(
+    w: &[Ext4],
+    eq: &[Ext4],
+    t: &[cpoly::field::Fp],
+) -> cpoly::univariate::UnivariatePoly {
+    let half: usize = eq.len();
+    let mut acc: Vec<Ext4> = vec![Ext4::ZERO; 32];
+    let mut lop: Vec<Ext4> = vec![Ext4::ZERO; 32];
+    let mut dp: Vec<Ext4> = vec![Ext4::ZERO; 32];
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Ext4 = w[2 * y];
+        let hi: Ext4 = w[2 * y + 1];
+        let d: Ext4 = hi - lo;
+        lop[0] = Ext4::ONE;
+        dp[0] = Ext4::ONE;
+        let mut k: usize = 1;
+        while k < 32 {
+            lop[k] = lop[k - 1] * lo;
+            dp[k] = dp[k - 1] * d;
+            k += 1;
+        }
+        let e: Ext4 = eq[y];
+        let mut m: usize = 0;
+        while m < 32 {
+            let mut s: Ext4 = Ext4::ZERO;
+            // `p_k = 0` for even `k`, so start at the first odd `k >= max(m,1)`
+            let mut kk: usize = if m == 0 { 1 } else if m % 2 == 1 { m } else { m + 1 };
+            while kk < 32 {
+                s = s + t[kk * 32 + m] * lop[kk - m];
+                kk += 2;
+            }
+            acc[m] = acc[m] + e * (dp[m] * s);
+            m += 1;
+        }
+        y += 1;
+    }
+    cpoly::univariate::UnivariatePoly::from_coeffs(acc)
+}
+
+/// **Card T3's kill gate.** The Taylor-shift round polynomial against the
+/// 33-node interpolation, same answer, then timed.
+///
+/// `honest_compute_g` is **99.4%** of the round loop and the round loop is
+/// 214.8 s of a 983.4 s prover after T27 — the single largest thing left. The
+/// card prices the range side at ~3×: ~200 general-equivalent multiplications
+/// per pair against ~630.
+///
+/// The width here is `2^18` pairs rather than the pin's `2^25`, because the
+/// inner loop is exactly linear in the pair count and a per-pair number scales;
+/// the equality assertion runs at a small width where a mismatch is readable.
+#[test]
+#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+fn the_taylor_shift_round_poly_against_its_kill_gate() {
+    use std::time::Instant;
+    let tab = t3_shift_table();
+    let mut r = Lcg::new(0x7A1_0123);
+    let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+
+    // --- equality, at a width where a mismatch is readable ------------------
+    for half in [1usize, 2, 3, 17, 64] {
+        let w: Vec<Ext4> = (0..2 * half).map(|_| e4(&mut r)).collect();
+        let eq: Vec<Ext4> = (0..half).map(|_| e4(&mut r)).collect();
+        let a = hachi::sumcheck::round_poly_zero(&w.to_vec(), &eq.to_vec());
+        let b = round_poly_zero_taylor(&w, &eq, &tab);
+        let (ca, cb) = (a.coeffs(), b.coeffs());
+        let n = ca.len().max(cb.len());
+        for i in 0..n {
+            let x = ca.get(i).copied().unwrap_or(Ext4::ZERO);
+            let y = cb.get(i).copied().unwrap_or(Ext4::ZERO);
+            assert_eq!(x, y, "coefficient {i} differs at half = {half}");
+        }
+    }
+    eprintln!("[T3] equality: the Taylor shift agrees at 5 widths, coefficient by coefficient");
+
+    // --- cost, per pair -----------------------------------------------------
+    let half: usize = 1 << 18;
+    let w: Vec<Ext4> = (0..2 * half).map(|_| e4(&mut r)).collect();
+    let eq: Vec<Ext4> = (0..half).map(|_| e4(&mut r)).collect();
+    let wv = w.to_vec();
+    let eqv = eq.to_vec();
+
+    // warm up both, then best-of-5 each: the first call of either reads cold
+    // pages, and that lie cost a measurement once already (card T11).
+    let _ = hachi::sumcheck::round_poly_zero(&wv, &eqv);
+    let _ = round_poly_zero_taylor(&w, &eq, &tab);
+    let mut t_now = f64::MAX;
+    let mut t_cand = f64::MAX;
+    for _ in 0..5 {
+        let s = Instant::now();
+        let a = hachi::sumcheck::round_poly_zero(&wv, &eqv);
+        t_now = t_now.min(s.elapsed().as_secs_f64());
+        let s = Instant::now();
+        let b = round_poly_zero_taylor(&w, &eq, &tab);
+        t_cand = t_cand.min(s.elapsed().as_secs_f64());
+        assert_eq!(a.coeffs()[0], b.coeffs()[0]);
+    }
+    let per = |t: f64| 1e9 * t / half as f64;
+    eprintln!("[T3] {half} pairs: 33-node interpolation {:>9.2} ns/pair", per(t_now));
+    eprintln!("[T3] {half} pairs: Taylor shift         {:>9.2} ns/pair", per(t_cand));
+    eprintln!("[T3] range side: {:+.1}%", 100.0 * (t_cand - t_now) / t_now);
+    // The pin: 2^26 - 2^0 pairs over 26 rounds, round loop 214.8 s of which
+    // honest_compute_g is 99.4%; round_poly_zero is one of its two halves.
+    let pairs_at_pin: f64 = ((1u64 << 26) - 1) as f64;
+    eprintln!("[T3] at the pin, range side alone: {:.1} s -> {:.1} s",
+        t_now / half as f64 * pairs_at_pin, t_cand / half as f64 * pairs_at_pin);
+}
+
+/// [`round_poly_zero_taylor`] for round 0, where `w̃` is still in the base
+/// field: `lo`, `Δ` and every power of them stay `Fp`, and only the final
+/// `eq[y] · c_m` crosses into `Ext4`.
+fn round_poly_zero_base_taylor(
+    w: &[cpoly::field::Fp],
+    eq: &[Ext4],
+    t: &[cpoly::field::Fp],
+) -> cpoly::univariate::UnivariatePoly {
+    use cpoly::field::Fp;
+    let half: usize = eq.len();
+    let mut acc: Vec<Ext4> = vec![Ext4::ZERO; 32];
+    let mut lop: Vec<Fp> = vec![Fp::ZERO; 32];
+    let mut dp: Vec<Fp> = vec![Fp::ZERO; 32];
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let d: Fp = hi - lo;
+        lop[0] = Fp::ONE;
+        dp[0] = Fp::ONE;
+        let mut k: usize = 1;
+        while k < 32 {
+            lop[k] = lop[k - 1] * lo;
+            dp[k] = dp[k - 1] * d;
+            k += 1;
+        }
+        let e: Ext4 = eq[y];
+        let mut m: usize = 0;
+        while m < 32 {
+            let mut s: Fp = Fp::ZERO;
+            let mut kk: usize = if m == 0 { 1 } else if m % 2 == 1 { m } else { m + 1 };
+            while kk < 32 {
+                s = s + t[kk * 32 + m] * lop[kk - m];
+                kk += 2;
+            }
+            acc[m] = acc[m] + (dp[m] * s) * e;
+            m += 1;
+        }
+        y += 1;
+    }
+    cpoly::univariate::UnivariatePoly::from_coeffs(acc)
+}
+
+/// **Card T3, sized against the real round mix.** The three pieces of
+/// `honest_compute_g` at a common width, weighted by the pair counts the pin
+/// actually runs.
+///
+/// Round 0 is `round_poly_zero_base` over `2^25` pairs — *half of every pair
+/// the protocol evaluates* — and it is the cheap one, because `w̃` is still in
+/// the base field. Rounds 1–25 are `round_poly_zero` over the other `2^25`
+/// pairs together. Any projection that uses one per-pair number for both is
+/// wrong by the ratio between them, which is what this measures.
+#[test]
+#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+fn the_taylor_shift_against_the_real_round_mix() {
+    use cpoly::field::Fp;
+    use std::time::Instant;
+    let tab = t3_shift_table();
+    let mut r = Lcg::new(0x7A1_0456);
+    let q = hachi::params::Q;
+
+    // --- round 0's base path: equality, then cost -------------------------
+    for half in [1usize, 2, 3, 17, 64] {
+        let w: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
+        let eq: Vec<Ext4> = (0..half)
+            .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q)))
+            .collect();
+        let a = hachi::sumcheck::round_poly_zero_base(&w.to_vec(), &eq.to_vec());
+        let b = round_poly_zero_base_taylor(&w, &eq, &tab);
+        let (ca, cb) = (a.coeffs(), b.coeffs());
+        for i in 0..ca.len().max(cb.len()) {
+            assert_eq!(
+                ca.get(i).copied().unwrap_or(Ext4::ZERO),
+                cb.get(i).copied().unwrap_or(Ext4::ZERO),
+                "base coefficient {i} differs at half = {half}"
+            );
+        }
+    }
+    eprintln!("[T3] equality: the base Taylor shift agrees at 5 widths too");
+
+    let half: usize = 1 << 18;
+    let wfp: Vec<Fp> = (0..2 * half).map(|_| Fp::new(r.next_u64() % q)).collect();
+    let we4: Vec<Ext4> = (0..2 * half)
+        .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q)))
+        .collect();
+    let eq: Vec<Ext4> = (0..half)
+        .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q)))
+        .collect();
+    let (wfpv, we4v, eqv) = (wfp.to_vec(), we4.to_vec(), eq.to_vec());
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        f();
+        let mut b = f64::MAX;
+        for _ in 0..5 {
+            let s = Instant::now();
+            f();
+            b = b.min(s.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let n = half as f64;
+    let b0 = best(Box::new(|| {
+        std::hint::black_box(hachi::sumcheck::round_poly_zero_base(&wfpv, &eqv));
+    }));
+    let b0c = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_base_taylor(&wfp, &eq, &tab));
+    }));
+    let bi = best(Box::new(|| {
+        std::hint::black_box(hachi::sumcheck::round_poly_zero(&we4v, &eqv));
+    }));
+    let bic = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_taylor(&we4, &eq, &tab));
+    }));
+
+    eprintln!("[T3] round 0   (base): {:>9.2} -> {:>9.2} ns/pair  {:+.1}%",
+        1e9 * b0 / n, 1e9 * b0c / n, 100.0 * (b0c - b0) / b0);
+    eprintln!("[T3] rounds 1+ (ext):  {:>9.2} -> {:>9.2} ns/pair  {:+.1}%",
+        1e9 * bi / n, 1e9 * bic / n, 100.0 * (bic - bi) / bi);
+
+    // The pin: round 0 has 2^25 pairs, rounds 1..25 have 2^25 - 1 between them.
+    let p0 = (1u64 << 25) as f64;
+    let pi = ((1u64 << 25) - 1) as f64;
+    let now = (b0 / n) * p0 + (bi / n) * pi;
+    let cand = (b0c / n) * p0 + (bic / n) * pi;
+    eprintln!("[T3] range side at the pin: {:.1} s -> {:.1} s  ({:+.1}%)",
+        now, cand, 100.0 * (cand - now) / now);
+    eprintln!("[T3] measured round loop is 214.8 s, honest_compute_g 99.4% of it;");
+    eprintln!("[T3] the rest of g is the alpha side, which this card does not touch.");
+    eprintln!("[T3] prover 983.4 s -> {:.1} s if the saving lands whole: {:+.1}%",
+        983.4 - (now - cand), -100.0 * (now - cand) / 983.4);
+}
+
+// The three helpers below are the *extraction-admissible* shape of the T3
+// prototype: no reused scratch buffers across pairs, no `&mut` out-parameters,
+// every loop a counter loop over a `const` bound, every accumulator rebuilt by
+// `push`. That costs allocations the throwaway prototype did not pay, and the
+// question this answers is whether it costs the win.
+
+fn t3_power_table(x: Ext4) -> Vec<Ext4> {
+    let mut out: Vec<Ext4> = Vec::with_capacity(32);
+    let mut cur: Ext4 = Ext4::ONE;
+    let mut k: usize = 0;
+    while k < 32 {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+fn t3_shift_inner(lop: &Vec<Ext4>, m: usize, t: &[cpoly::field::Fp]) -> Ext4 {
+    let mut s: Ext4 = Ext4::ZERO;
+    let mut j: usize = m / 2;
+    while j < 16 {
+        let k: usize = 2 * j + 1;
+        s = s + t[k * 32 + m] * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+fn t3_shift_accum(
+    acc: Vec<Ext4>, lop: &Vec<Ext4>, dp: &Vec<Ext4>, e: Ext4, t: &[cpoly::field::Fp],
+) -> Vec<Ext4> {
+    let mut out: Vec<Ext4> = Vec::with_capacity(32);
+    let mut m: usize = 0;
+    while m < 32 {
+        let s: Ext4 = t3_shift_inner(lop, m, t);
+        out.push(acc[m] + e * (dp[m] * s));
+        m += 1;
+    }
+    out
+}
+
+fn round_poly_zero_shift_admissible(
+    w: &Vec<Ext4>, eq: &Vec<Ext4>, t: &[cpoly::field::Fp],
+) -> cpoly::univariate::UnivariatePoly {
+    let half: usize = eq.len();
+    let mut acc: Vec<Ext4> = Vec::with_capacity(32);
+    let mut i: usize = 0;
+    while i < 32 {
+        acc.push(Ext4::ZERO);
+        i += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Ext4 = w[2 * y];
+        let hi: Ext4 = w[2 * y + 1];
+        let lop: Vec<Ext4> = t3_power_table(lo);
+        let dp: Vec<Ext4> = t3_power_table(hi - lo);
+        acc = t3_shift_accum(acc, &lop, &dp, eq[y], t);
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    cpoly::univariate::UnivariatePoly::from_coeffs(acc)
+}
+
+/// **Card T3's second gate: does the admissible shape keep the win?**
+///
+/// The first prototype hoisted two 32-entry scratch buffers out of the pair
+/// loop and mutated them in place. Nothing in the extraction ceiling forbids
+/// that, but it is not how anything else in this crate is written, and the
+/// rebuilt-by-`push` form is what the loop specs want. Three `Vec`s per pair
+/// against 67 million pairs is a real cost and it has to be measured, not
+/// waved away — the same discipline that reversed four cards in a row.
+#[test]
+#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+fn the_taylor_shift_in_its_admissible_shape() {
+    use std::time::Instant;
+    let tab = t3_shift_table();
+    let mut r = Lcg::new(0x7A1_0789);
+    let q = hachi::params::Q;
+
+    for half in [1usize, 2, 3, 17, 64] {
+        let w: Vec<Ext4> = (0..2 * half)
+            .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+        let eq: Vec<Ext4> = (0..half)
+            .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+        let a = hachi::sumcheck::round_poly_zero(&w, &eq);
+        let b = round_poly_zero_shift_admissible(&w, &eq, &tab);
+        assert_eq!(a.coeffs().len(), 33, "the spec pins 33 coefficients");
+        assert_eq!(b.coeffs().len(), 33, "the admissible form must emit 33 too");
+        for i in 0..33 {
+            assert_eq!(a.coeffs()[i], b.coeffs()[i], "coefficient {i} at half = {half}");
+        }
+    }
+    eprintln!("[T3] equality: the admissible shape agrees, 33 coefficients, 5 widths");
+
+    let half: usize = 1 << 18;
+    let w: Vec<Ext4> = (0..2 * half)
+        .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+    let eq: Vec<Ext4> = (0..half)
+        .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        f();
+        let mut b = f64::MAX;
+        for _ in 0..5 {
+            let s = Instant::now();
+            f();
+            b = b.min(s.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let n = half as f64;
+    let t_now = best(Box::new(|| { std::hint::black_box(hachi::sumcheck::round_poly_zero(&w, &eq)); }));
+    let t_hoisted = best(Box::new(|| { std::hint::black_box(round_poly_zero_taylor(&w, &eq, &tab)); }));
+    let t_adm = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_shift_admissible(&w, &eq, &tab));
+    }));
+    eprintln!("[T3] 33-node interpolation      {:>9.2} ns/pair", 1e9 * t_now / n);
+    eprintln!("[T3] Taylor, hoisted scratch    {:>9.2} ns/pair  {:+.1}%",
+        1e9 * t_hoisted / n, 100.0 * (t_hoisted - t_now) / t_now);
+    eprintln!("[T3] Taylor, admissible shape   {:>9.2} ns/pair  {:+.1}%",
+        1e9 * t_adm / n, 100.0 * (t_adm - t_now) / t_now);
+    eprintln!("[T3] the shape costs {:+.1}% against the hoisted form",
+        100.0 * (t_adm - t_hoisted) / t_hoisted);
+}
+
+/// One pair's contribution, written into `acc` through `IndexMut` — the shape
+/// `Rq::mul`'s accumulator already uses and the ceiling table already has —
+/// and with `Δ^m` carried as a running scalar instead of a second table. Two
+/// of the three per-pair allocations go away; `lop` has to stay, because `S_m`
+/// reads it at `k − m` and that is not a walk.
+fn t3_shift_accum_inplace(
+    mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4, t: &[cpoly::field::Fp],
+) -> Vec<Ext4> {
+    let mut dpow: Ext4 = Ext4::ONE;
+    let mut m: usize = 0;
+    while m < 32 {
+        let s: Ext4 = t3_shift_inner(lop, m, t);
+        acc[m] = acc[m] + e * (dpow * s);
+        dpow = dpow * d;
+        m += 1;
+    }
+    acc
+}
+
+fn round_poly_zero_shift_inplace(
+    w: &Vec<Ext4>, eq: &Vec<Ext4>, t: &[cpoly::field::Fp],
+) -> cpoly::univariate::UnivariatePoly {
+    let half: usize = eq.len();
+    let mut acc: Vec<Ext4> = Vec::with_capacity(33);
+    let mut i: usize = 0;
+    while i < 32 {
+        acc.push(Ext4::ZERO);
+        i += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Ext4 = w[2 * y];
+        let hi: Ext4 = w[2 * y + 1];
+        let lop: Vec<Ext4> = t3_power_table(lo);
+        acc = t3_shift_accum_inplace(acc, &lop, hi - lo, eq[y], t);
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    cpoly::univariate::UnivariatePoly::from_coeffs(acc)
+}
+
+/// **Card T3's third gate.** The in-place accumulator against the rebuilt one.
+#[test]
+#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+fn the_taylor_shift_with_an_in_place_accumulator() {
+    use std::time::Instant;
+    let tab = t3_shift_table();
+    let mut r = Lcg::new(0x7A1_0ABC);
+    let q = hachi::params::Q;
+
+    for half in [1usize, 2, 3, 17, 64] {
+        let w: Vec<Ext4> = (0..2 * half)
+            .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+        let eq: Vec<Ext4> = (0..half)
+            .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+        let a = hachi::sumcheck::round_poly_zero(&w, &eq);
+        let b = round_poly_zero_shift_inplace(&w, &eq, &tab);
+        assert_eq!(b.coeffs().len(), 33);
+        for i in 0..33 {
+            assert_eq!(a.coeffs()[i], b.coeffs()[i], "coefficient {i} at half = {half}");
+        }
+    }
+    eprintln!("[T3] equality: the in-place shape agrees, 33 coefficients, 5 widths");
+
+    let half: usize = 1 << 18;
+    let w: Vec<Ext4> = (0..2 * half)
+        .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+    let eq: Vec<Ext4> = (0..half)
+        .map(|_| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % q))).collect();
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        f();
+        let mut b = f64::MAX;
+        for _ in 0..5 {
+            let s = Instant::now();
+            f();
+            b = b.min(s.elapsed().as_secs_f64());
+        }
+        b
+    };
+    let n = half as f64;
+    let t_now = best(Box::new(|| { std::hint::black_box(hachi::sumcheck::round_poly_zero(&w, &eq)); }));
+    let t_adm = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_shift_admissible(&w, &eq, &tab)); }));
+    let t_ip = best(Box::new(|| {
+        std::hint::black_box(round_poly_zero_shift_inplace(&w, &eq, &tab)); }));
+    eprintln!("[T3] 33-node interpolation      {:>9.2} ns/pair", 1e9 * t_now / n);
+    eprintln!("[T3] Taylor, rebuilt acc        {:>9.2} ns/pair  {:+.1}%",
+        1e9 * t_adm / n, 100.0 * (t_adm - t_now) / t_now);
+    eprintln!("[T3] Taylor, in-place acc       {:>9.2} ns/pair  {:+.1}%",
+        1e9 * t_ip / n, 100.0 * (t_ip - t_now) / t_now);
+    // round 0 is 2^25 pairs in the base field; rounds 1..25 are 2^25 - 1 in Ext4
+    let pi = ((1u64 << 25) - 1) as f64;
+    eprintln!("[T3] rounds 1..25 at the pin: {:.1} s -> {:.1} s",
+        t_now / n * pi, t_ip / n * pi);
+}

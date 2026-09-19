@@ -414,3 +414,104 @@ fn zero_check_cube_covers_the_quotient_rows_minimally() {
     assert!(RLIN_ROWS <= 1 << M_ONE);
     assert!(RLIN_ROWS > 1 << (M_ONE - 1));
 }
+
+/// [`SHIFT_T`] is `p_{2j+1} · C(2j+1, m)`, rebuilt from [`RANGE_Q_COEFFS`] and
+/// Pascal's triangle.
+///
+/// The same contract [`range_q_coeffs_are_the_product_form`] holds over
+/// [`RANGE_Q_COEFFS`]: the table is a literal because the extraction has no
+/// `const fn`, and a literal a test checks is worth more than a computation the
+/// model cannot see. Everything here is pinned to `GADGET_BASE`, so the test
+/// derives the shape from it rather than from `SHIFT_ROWS`/`SHIFT_DEG` — if
+/// `b` moved and the three constants moved with it, the entries would still
+/// have to be rebuilt, and this is what would say so.
+#[test]
+fn shift_t_is_the_binomial_table() {
+    let q: u128 = u128::from(hachi::params::Q);
+    let b: usize = hachi::params::GADGET_BASE as usize;
+    assert_eq!(hachi::params::SHIFT_ROWS, b, "one row per nonzero p_k, and P_b is odd");
+    assert_eq!(hachi::params::SHIFT_DEG, 2 * b, "2b coefficients of degree 0 … 2b−1");
+    assert_eq!(
+        hachi::params::SHIFT_T_LEN,
+        hachi::params::SHIFT_ROWS * hachi::params::SHIFT_DEG,
+        "SHIFT_T_LEN is a literal because a product is a Result in the model"
+    );
+    assert_eq!(hachi::params::SHIFT_T.len(), hachi::params::SHIFT_T_LEN);
+
+    // Pascal's triangle up to row 2b−1, exactly, in u128 — C(31,15) is 3.0e8
+    let top: usize = 2 * b - 1;
+    let mut pascal: Vec<Vec<u128>> = vec![vec![0; top + 1]; top + 1];
+    for k in 0..=top {
+        pascal[k][0] = 1;
+        for m in 1..=k {
+            pascal[k][m] = pascal[k - 1][m - 1] + if m <= k - 1 { pascal[k - 1][m] } else { 0 };
+        }
+    }
+    assert_eq!(pascal[31][15], 300_540_195, "the largest binomial in the table");
+
+    for j in 0..hachi::params::SHIFT_ROWS {
+        let k = 2 * j + 1;
+        let p = u128::from(hachi::params::RANGE_Q_COEFFS[j]);
+        for m in 0..hachi::params::SHIFT_DEG {
+            let want = if m <= k { p * (pascal[k][m] % q) % q } else { 0 };
+            assert_eq!(
+                u128::from(hachi::params::SHIFT_T[j * hachi::params::SHIFT_DEG + m]),
+                want,
+                "SHIFT_T[j = {j} (k = {k})][m = {m}]"
+            );
+        }
+    }
+}
+
+/// The Taylor-shift identity the table exists for, checked numerically:
+/// `P_b(lo + Δ·T) = Σ_m Δ^m T^m · Σ_{k ≥ m} p_k C(k,m) lo^{k−m}`.
+///
+/// `range_product_base` is `P_b`, so this compares the shifted coefficients
+/// against a direct evaluation at several nodes. A table entry can be wrong in
+/// a way Pascal's triangle reproduces — a transposed index, say — and the test
+/// above would not see it; this one would.
+#[test]
+fn the_shift_table_reproduces_the_range_polynomial() {
+    use hachi::params::{SHIFT_DEG, SHIFT_ROWS, SHIFT_T, Q};
+    let mul = |a: u64, b: u64| ((u128::from(a) * u128::from(b)) % u128::from(Q)) as u64;
+    let add = |a: u64, b: u64| (a + b) % Q;
+    let sub = |a: u64, b: u64| (a + Q - b) % Q;
+    for (lo, hi) in [(0u64, 1u64), (7, 3), (123_456, 789), (Q - 1, 2), (5, 5)] {
+        let d = sub(hi, lo);
+        // powers of lo
+        let mut lop = vec![1u64; SHIFT_DEG];
+        for k in 1..SHIFT_DEG {
+            lop[k] = mul(lop[k - 1], lo);
+        }
+        // the shifted coefficients
+        let mut c = vec![0u64; SHIFT_DEG];
+        let mut dpow = 1u64;
+        for m in 0..SHIFT_DEG {
+            let mut s = 0u64;
+            let mut j = m / 2;
+            while j < SHIFT_ROWS {
+                let k = 2 * j + 1;
+                s = add(s, mul(SHIFT_T[j * SHIFT_DEG + m], lop[k - m]));
+                j += 1;
+            }
+            c[m] = mul(dpow, s);
+            dpow = mul(dpow, d);
+        }
+        // against the direct evaluation at every node the round uses
+        for t in 0..hachi::params::ROUND_NODES as u64 {
+            let folded = add(lo, mul(d, t));
+            let direct = hachi::zerocheck::range_product_base(cpoly::field::Fp::new(folded));
+            let mut shifted = 0u64;
+            let mut tp = 1u64;
+            for m in 0..SHIFT_DEG {
+                shifted = add(shifted, mul(c[m], tp));
+                tp = mul(tp, t);
+            }
+            assert_eq!(
+                direct.to_u64(),
+                shifted,
+                "the shift disagrees at lo = {lo}, hi = {hi}, T = {t}"
+            );
+        }
+    }
+}

@@ -1344,3 +1344,72 @@ pub fn honest_compute_g_base_split(
     let g_alpha: UnivariatePoly = round_poly_alpha_base_split(w_fp, low, high);
     RoundMsg { g_zero, g_alpha }
 }
+
+
+/// `1, x, x², …, x^{2b−1}`: the powers a Taylor shift contracts against
+/// (Stage 6 candidate T3).
+///
+/// [`params::SHIFT_DEG`] entries, so the last is `x^{2b−1}` — the degree of
+/// `P_b`. A doubling-free straight walk: each entry is the previous one times
+/// `x`, which is `2b − 1` multiplications and not `2b` because the first is
+/// `1`.
+pub fn shift_powers(x: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut out: Vec<Ext4> = Vec::with_capacity(n);
+    let mut cur: Ext4 = Ext4::ONE;
+    let mut k: usize = 0;
+    while k < n {
+        out.push(cur);
+        cur = cur * x;
+        k += 1;
+    }
+    out
+}
+
+/// `S_m = Σ_{k ≥ m} p_k · C(k, m) · lo^{k−m}`, the inner sum of the Taylor
+/// shift at coefficient `m` (Stage 6 candidate T3).
+///
+/// Only odd `k` contribute, because `P_b` is odd, so the loop walks the rows of
+/// [`params::SHIFT_T`] rather than the degrees. It starts at `j = m / 2`, and
+/// `k = 2·(m / 2) + 1 ≥ m` for every `m` — even `m` gives `k = m + 1`, odd `m`
+/// gives `k = m` — so `k − m` never underflows and no entry with `m > k` is
+/// ever read.
+///
+/// Every product here is `Fp × Ext4`, the mixed impl: four base
+/// multiplications each, against nineteen for a quartic one. That is what makes
+/// the ~`b²/2` terms of this sum cheaper than the `2b + 1` range-factor
+/// evaluations they replace.
+pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
+    let rows: usize = params::SHIFT_ROWS;
+    let deg: usize = params::SHIFT_DEG;
+    let mut s: Ext4 = Ext4::ZERO;
+    let mut j: usize = m / 2;
+    while j < rows {
+        let k: usize = 2 * j + 1;
+        s = s + Fp::new(params::SHIFT_T[j * deg + m]) * lop[k - m];
+        j += 1;
+    }
+    s
+}
+
+/// One pair's contribution to the shifted coefficients: `acc[m] += e · Δ^m · S_m`
+/// (Stage 6 candidate T3).
+///
+/// `Δ^m` is carried as a running scalar rather than a second power table,
+/// because the `m` loop visits the powers in order; only `lo`'s powers are read
+/// out of order (at `k − m`) and so have to be stored.
+///
+/// The accumulator is taken by value and written through `IndexMut`, the shape
+/// `Rq::mul`'s accumulator already uses.
+pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let mut dpow: Ext4 = Ext4::ONE;
+    let mut m: usize = 0;
+    while m < n {
+        let s: Ext4 = shift_inner(lop, m);
+        acc[m] = acc[m] + e * (dpow * s);
+        dpow = dpow * d;
+        m += 1;
+    }
+    acc
+}

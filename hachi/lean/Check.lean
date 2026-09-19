@@ -4,6 +4,7 @@ import Ext
 import Ring
 import AuxGold
 import AuxGoldDot
+import AuxShift
 import RqBridge
 import Scheme
 import EvalSplit
@@ -2018,5 +2019,31 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Scheme.dot_prep_digits_gold_spec
 #print axioms HachiEquiv.Scheme.prepare_digits_gold_spec
 #print axioms HachiEquiv.Scheme.apply_digits_gold_spec
+
+-- Candidate T3 (Stage 6) -- the TAYLOR-SHIFT round polynomial. The multilinear
+-- fold is affine in the node, `W(T, y) = lo + (hi - lo)·T`, so the range factor
+-- at the fold is `P_b` Taylor-shifted and its coefficients come out in one pass
+-- instead of `2b + 1` node evaluations plus a Lagrange interpolation.
+-- `round_poly_zero_spec`'s STATEMENT does not move: 33 coefficients, reduced,
+-- and the interpolant is `rangeSumZero` everywhere. Only the argument changes,
+-- from Lagrange uniqueness to the binomial theorem.
+--
+-- `st_nat` is the whole table in one `decide +kernel`: 512 entries, each
+-- `p_{2j+1} · C(2j+1, m)` reduced, checked in `ℕ`. A wrong entry fails its own
+-- decision. `params_semantics.rs`'s `shift_t_is_the_binomial_table` and
+-- `the_shift_table_reproduces_the_range_polynomial` are the same claim on the
+-- Rust side.
+#print axioms HachiEquiv.AuxShift.st_nat
+#print axioms HachiEquiv.AuxShift.st_eq
+#print axioms HachiEquiv.AuxShift.st_zero
+#print axioms HachiEquiv.AuxShift.rangeProduct_eq_sum
+#print axioms HachiEquiv.AuxShift.shiftCoeff_range
+#print axioms HachiEquiv.AuxShift.rangeProduct_shift
+#print axioms HachiEquiv.AuxShift.shift_powers_spec
+#print axioms HachiEquiv.AuxShift.shift_inner_spec
+#print axioms HachiEquiv.AuxShift.shift_accum_spec
+#print axioms HachiEquiv.AuxShift.zero_fill_spec
+#print axioms HachiEquiv.AuxShift.pair_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
 
 end HachiEquiv.Check
