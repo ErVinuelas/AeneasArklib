@@ -8482,3 +8482,71 @@ better one — so the `u32` retype should not be built.
 The proof is a new `AuxArith` for the Goldilocks reduction plus the transform
 layer re-instantiated: at least C2's ~1186 lines, probably more. Against
 −30.5% instead of −8.6%.
+
+## T27 implemented: the Goldilocks lane, −27.6%, on a branch (2026-09-19)
+
+The card was filed as "research", assumed blocked by the pinned `q`, and
+ranked last. It is the largest candidate in Stage 6 by a factor of three.
+
+It does not touch `q`. `q = 2^32 − 99` stays exactly where it is;
+`AUX_P1/P2/P3` are an implementation device that exists *because* `q` is not
+NTT-friendly, and T27 replaces only those — one prime `2^64 − 2^32 + 1` in
+place of two 30-bit ones on the digit path.
+
+The lane arithmetic is what makes it work. A digit-path dot has one operand
+below `GADGET_BASE`, so the whole 8192-term product is bounded by
+`1.081 × 10¹⁸` against the prime's `1.845 × 10¹⁹` — a 17× margin. **One lane
+and no chunking**: one inverse transform, one untwist, and no CRT
+reconstruction at all. `garner2` does not run; the signed coefficient fits the
+prime whole, so a centred lift replaces the offset.
+
+Measured on the card-6 split instrument, Goldilocks asserted equal to the
+two-prime path on every block:
+
+| | ns/coeff |
+|---|---|
+| `apply_digits`, two 30-bit lanes | 476.67 |
+| the whole commitment pass, two lanes | 507.80 |
+| **the whole pass, one Goldilocks lane** | **199.38** (**−60.7%**) |
+
+At the pin: commitment **541 s → 213 s**, −328 s, **−27.6% of the prover**,
+which would take it from 1186.7 s to about 859.
+
+### Three things making it extract taught
+
+**The first arithmetic would not have extracted.** `overflowing_add` and
+`overflowing_sub` are not in the ceiling table. The obvious replacement —
+`checked_add` with a `match` on the `Option`, which *is* in the table — costs
+**7.995 ns per butterfly against 2.787**, because the `Option` match defeats
+the carry-flag path. The `u128` intermediate is both admissible and fast, and
+is what the code uses. Checking this before costing the proof is exactly what
+the ceiling table is for.
+
+**aeneas rejected the first dot outright**, with `Not an open binder or an
+ignored pattern` and a crash inside a loop micro-pass that does not name the
+construct. The cause: indexing a tuple field, `fwb.0[k]`, inside a loop.
+Binding the parts out and passing a slice to a `mac` helper — precisely what
+`dot_prep_chunk_mod_p` already does — extracts fine. That existing shape is
+not a style choice; it is the one that works.
+
+**The Goldilocks reduction is simpler to prove than Barrett, not harder.**
+`2^64 ≡ 2^32 − 1 (mod p)` is exact, so there is no floor and no error term to
+bound — which means the ~1700 lines owed are mechanical rather than novel.
+
+### Why it is on a branch
+
+`champion/t27-goldilocks` at `57b79e7`. The Rust works, extracts clean (59
+items, zero axioms, every new loop state a 2- or 3-tuple, deterministic), and
+228 tests pass including an oracle that runs both pipelines at four widths —
+one crossing the two-prime chunk boundary, one at the full pin width. But it
+is **unproved**, and the perf-loop rule is that champion Rust with unpaid
+proof goes to a branch and not to main. `make build` is green on the branch
+only because the items are additive and unspecified, and `spec-check` reports
+nothing only because they carry no `(spec: …)` clause — which would be gaming
+the check, not satisfying it. Main is unchanged and still fully proved.
+
+What is owed: `AuxCode` (537 lines) and `AuxTransform` (1186) redone against a
+`u128`-product multiply, plus a reduction spec. Both files are generic over
+`(pw, mw)`, but `Magic` **requires `p < 2^32`** — its own docstring says that
+is what keeps a product of two residues inside a `u64` — so Goldilocks cannot
+instantiate the existing layer. About 1700 lines, against −27.6%.
