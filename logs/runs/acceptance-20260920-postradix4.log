@@ -1,0 +1,65 @@
+# the_honest_chain_verifies after radix-4, 2026-09-20T13:42:41+02:00, HEAD ae8dd30
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:578:4
+    |
+578 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: `hachi` (lib) generated 1 warning
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1567:9
+     |
+1567 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2390:9
+     |
+2390 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3327:9
+     |
+3327 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3447:9
+     |
+3447 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics"` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 0.02s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[  untimed ] +     1.1s  peak     96 live     96 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[     1.4s] +  293.8ms  peak    208 live    144 MiB  committed 1 block(s)
+[     2.1s] +  706.1ms  peak    208 live    144 MiB  statement built
+[     2.3s] +  181.0ms  peak    208 live    144 MiB  carrier_decomp_from_raw (shared by v and the response)
+[     2.3s] +    1.5ms  peak    208 live    144 MiB  honest_compute_v_from_decomp
+[     2.9s] +  616.5ms  peak    731 live    731 MiB  honest_compute_resp + stack
+[     2.9s] +   23.3µs  peak    731 live    731 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[     4.4s] +     1.4s  peak   3043 live   3042 MiB  R^lin statement assembled: 5 x 40976
+[    28.3s] +    23.9s  peak   3043 live   3042 MiB  M zeta = y holds (TEST ASSERTION, not prover work)
+[    54.9s] +    26.5s  peak   3043 live   3042 MiB  lifted witness built, lift width 41016
+test the_honest_chain_verifies has been running for over 60 seconds
+[   199.6s] chain_open done
+[   217.0s] chain_verify = true
+test the_honest_chain_verifies ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 217.19s
+
+# exit 0 at 2026-09-20T13:46:18+02:00

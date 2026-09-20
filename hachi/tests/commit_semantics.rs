@@ -139,7 +139,7 @@ fn l2_norm_sq_does_not_overflow_at_the_maximum() {
 /// verify -- the computational content of `InnerOuter/Correctness.lean`'s
 /// `perfectlyCorrect`.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn honest_commitments_verify() {
     for seed in [1u64, 2, 3] {
         let pp = params_from_seed(0xA000 + seed);
@@ -162,7 +162,7 @@ fn honest_commitments_verify() {
 /// `derivedMessage` ([NOZ26] Eq. (13)). This is what lets a weak opening not
 /// store the message.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn the_message_is_derived_from_the_decomposition() {
     let pp = params_from_seed(0xC001);
     let m = message_from_seed(0xC002);
@@ -182,7 +182,7 @@ fn the_message_is_derived_from_the_decomposition() {
 /// The honest decomposition is short, which is *why* verification accepts it:
 /// `‖t̂‖∞ ≤ γ` on the flattening, and `‖sᵢ‖₂² ≤ βSq` per block.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn the_honest_decomposition_meets_the_verifier_bounds() {
     let pp = params_from_seed(0xC003);
     let m = message_from_seed(0xC004);
@@ -201,7 +201,7 @@ fn the_honest_decomposition_meets_the_verifier_bounds() {
 /// `commit` is `commit_with_decomps` of what `generate_decomps` produced --
 /// i.e. the two entry points agree.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn commit_agrees_with_commit_with_decomps() {
     let pp = params_from_seed(0xC005);
     let m = message_from_seed(0xC006);
@@ -216,7 +216,7 @@ fn commit_agrees_with_commit_with_decomps() {
 /// A tampered coefficient in the inner decomposition breaks the inner gadget
 /// relation `A sᵢ = G t̂ᵢ`, and the verifier says so.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn a_tampered_inner_decomposition_is_rejected() {
     let pp = params_from_seed(0xD001);
     let m = message_from_seed(0xD002);
@@ -248,7 +248,7 @@ fn a_tampered_inner_decomposition_is_rejected() {
 /// A tampered decomposed message breaks both the gadget relation and the derived
 /// message, so both the weak verifier and the full one reject.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn a_tampered_message_decomposition_is_rejected() {
     let pp = params_from_seed(0xD003);
     let m = message_from_seed(0xD004);
@@ -277,7 +277,7 @@ fn a_tampered_message_decomposition_is_rejected() {
 /// A commitment to a different message does not verify against this opening --
 /// the property binding is about, here in its trivial (honest) direction.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn an_opening_does_not_verify_against_the_wrong_commitment() {
     let pp = params_from_seed(0xD005);
     let m = message_from_seed(0xD006);
@@ -296,7 +296,7 @@ fn an_opening_does_not_verify_against_the_wrong_commitment() {
 /// The full verifier ties the opening to a *claimed* message, so a correct
 /// opening against the wrong claim is rejected even though the weak checks pass.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn the_full_verifier_checks_the_claimed_message() {
     let pp = params_from_seed(0xD008);
     let m = message_from_seed(0xD009);
@@ -322,7 +322,7 @@ fn the_full_verifier_checks_the_claimed_message() {
 /// units, not one: γ is the weak-opening bound `b`, and one unit could land an
 /// honest zero digit exactly *on* it.)
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn a_long_inner_decomposition_is_rejected_even_when_the_relation_holds() {
     let pp = params_from_seed(0xD00B);
     let m = message_from_seed(0xD00C);
@@ -375,7 +375,7 @@ fn a_long_inner_decomposition_is_rejected_even_when_the_relation_holds() {
 /// with `‖c‖₁ > κ` fails the upper bound. Both are checked with an otherwise
 /// honest opening, so the challenge is the only thing that can reject.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn inadmissible_challenges_are_rejected() {
     let pp = params_from_seed(0xD00D);
     let m = message_from_seed(0xD00E);
@@ -425,7 +425,7 @@ fn inadmissible_challenges_are_rejected() {
 /// (t̂ and u are recomputed from it), but whose message vectors sit at the
 /// centered maximum `q/2` per coefficient, far past βSq.
 #[test]
-#[ignore = "full-const scale (~64 GiB decomposition, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a ~64 GiB decomposition, far past a 30 GiB machine. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn an_overlong_message_decomposition_is_rejected() {
     let pp = params_from_seed(0xD00F);
 
@@ -577,7 +577,7 @@ fn the_slot_rewrite_preserves_the_relation_but_not_shortness() {
 /// `‖·‖∞ = 8` is inside `GAMMA = 16` and the balanced `ℓ₂²` is far inside
 /// `BETA_SQ`.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn honest_balanced_commitments_verify() {
     for seed in [1u64, 2] {
         let pp = params_from_seed(0xA100 + seed);
@@ -600,7 +600,7 @@ fn honest_balanced_commitments_verify() {
 /// The gadget matrix is unchanged -- only the inverse moved -- which is the
 /// whole reason the balanced committer needs no new verifier.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn the_message_is_derived_from_the_balanced_decomposition() {
     let pp = params_from_seed(0xC101);
     let m = message_from_seed(0xC102);
@@ -621,7 +621,7 @@ fn the_message_is_derived_from_the_balanced_decomposition() {
 /// `commit_with_decomps` -- the outer half is shared with the unsigned
 /// committer unchanged, because it takes the `Decomp` as data.
 #[test]
-#[ignore = "full-const scale (~8 GiB message, hours of schoolbook mul); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT"]
 fn commit_balanced_agrees_with_commit_with_decomps() {
     let pp = params_from_seed(0xC103);
     let m = message_from_seed(0xC104);

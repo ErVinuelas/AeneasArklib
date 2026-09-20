@@ -758,7 +758,6 @@ fn honest_lift(seed: u64, n: usize, mu: usize) -> (RlinStatement, LiftedWitness)
 /// `cargo test --release -- --ignored` -- it was run and passed before the
 /// genesis freeze, which is what `op-genesis` requires of it.
 #[test]
-#[ignore = "full-const scale: the specification's un-hoisted M~_alpha (a c_eval_at per table cell) makes this long"]
 fn alpha_defect_vanishes_exactly_on_an_honest_lift() {
     let (s, w) = honest_lift(0x5A17_5001, 1, 1);
     let mut r = Lcg::new(0x5A17_5002);
@@ -788,7 +787,6 @@ fn alpha_defect_vanishes_exactly_on_an_honest_lift() {
 /// independently squared power, so the summation structure is pinned rather
 /// than restated.
 #[test]
-#[ignore = "full-const scale: same un-hoisted M~_alpha as above"]
 fn alpha_contract_is_the_double_sum_either_way_round() {
     let (s, w) = honest_lift(0x5A17_5003, 1, 1);
     let mut r = Lcg::new(0x5A17_5004);

@@ -1,0 +1,59 @@
+# the un-ignore ceremony: the scale: set at the paper constants, 2026-09-20T14:22:37+02:00, HEAD ae8dd30
+==> building the test binaries
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:578:4
+    |
+578 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1567:9
+     |
+1567 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2390:9
+     |
+2390 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3327:9
+     |
+3327 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3447:9
+     |
+3447 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+==> scale sweep: 1800s and 26 GiB per test, one at a time
+  PASS          3s  chain_semantics::a_transcript_whose_rounds_do_not_sum_is_rejected
+  PASS        117s  chain_semantics::chain_open_produces_the_messages_the_verifier_reads
+  PASS        118s  chain_semantics::an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only
+  PASS        222s  chain_semantics::the_honest_chain_verifies
+  PASS        370s  evalsplit_semantics::lagrange_basis_sums_to_one
+  FAIL 101     11s  evalsplit_semantics::to_matrix_places_coefficients_along_the_split
+  FAIL 101     12s  evalsplit_semantics::to_matrix_eval_places_values_along_the_split
+  FAIL 101     14s  evalsplit_semantics::to_polynomial_inverts_to_matrix
+  TIMEOUT    1800s  evalsplit_semantics::eval_split_agrees_with_a_direct_monomial_sum
+  TIMEOUT    1800s  evalsplit_semantics::eval_split_eval_agrees_with_a_direct_lagrange_sum
+  PASS        667s  evalsplit_semantics::eval_split_eval_interpolates_the_hypercube
+  PASS          1s  zerocheck_semantics::alpha_defect_vanishes_exactly_on_an_honest_lift
+  PASS          0s  zerocheck_semantics::alpha_contract_is_the_double_sum_either_way_round
+==> 13 scale test(s), 5 failing
+make: *** [Makefile:526: test-scale] Error 1
+# exit 2 at 2026-09-20T15:48:15+02:00

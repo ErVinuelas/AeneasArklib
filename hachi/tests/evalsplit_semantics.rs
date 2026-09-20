@@ -202,7 +202,7 @@ fn lagrange_basis_agrees_with_the_n_factor_oracle() {
 /// point -- a property of the definition the entry-by-entry test cannot state.
 /// At the full variable count (`nl + nh = 20`, a 2^20-element basis).
 #[test]
-#[ignore = "full-const scale (a 2^20-ring-element basis, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: full-const, a 2^20-ring-element basis; 370 s (measured 2026-09-20) -- make test-scale"]
 fn lagrange_basis_sums_to_one() {
     let mut lcg = Lcg::new(0xE5_03);
     let w = lcg.next_poly_vec(ML_VARS_LOW + ML_VARS_HIGH);
@@ -236,7 +236,7 @@ fn lagrange_basis_sums_to_one_at_a_small_point() {
 /// the index law itself, by shift-and-mask, not the crate's `split_equiv`. A
 /// transposed reshape passes both round trips; it fails here.
 #[test]
-#[ignore = "full-const scale (a 2^20-ring-element polynomial, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: full-const, a 2^20-ring-element polynomial; 11 s (measured 2026-09-20) -- make test-scale"]
 fn to_matrix_places_coefficients_along_the_split() {
     let mut coeffs = Vec::new();
     for k in 0..ML_POLY_LEN {
@@ -258,7 +258,7 @@ fn to_matrix_places_coefficients_along_the_split() {
 /// `to_matrix_eval` follows the same layout (a distinct spec definition; the
 /// test keeps the two bodies from drifting apart).
 #[test]
-#[ignore = "full-const scale (a 2^20-ring-element vector, ~8 GiB); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: full-const, a 2^20-ring-element vector; 10 s at a 13 GiB peak (measured 2026-09-20) -- make test-scale"]
 fn to_matrix_eval_places_values_along_the_split() {
     let mut values = Vec::new();
     for k in 0..ML_POLY_LEN {
@@ -276,7 +276,7 @@ fn to_matrix_eval_places_values_along_the_split() {
 
 /// The two reshapes are mutually inverse on random data, both ways round.
 #[test]
-#[ignore = "full-const scale (two 2^20-ring-element structures, ~16 GiB); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: full-const, two 2^20-ring-element structures; past 900 s at a 17 GiB peak (measured 2026-09-20)"]
 fn to_polynomial_inverts_to_matrix() {
     let mut lcg = Lcg::new(0xE5_04);
 
@@ -305,7 +305,7 @@ fn to_polynomial_inverts_to_matrix() {
 /// no basis vector. The point halves are asymmetric so a swapped `(xl, xh)`
 /// fails.
 #[test]
-#[ignore = "full-const scale (a 2^20-term direct sum of ring products); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: full-const, a 2^20-term direct sum of ring products; past 1800 s (measured 2026-09-20)"]
 fn eval_split_agrees_with_a_direct_monomial_sum() {
     let mut lcg = Lcg::new(0xE5_05);
     let mut coeffs = Vec::new();
@@ -344,7 +344,7 @@ fn eval_split_agrees_with_a_direct_monomial_sum() {
 /// `evalSplitEval_eq_eval`, same shape of reference with the Lagrange factor
 /// `(bit ? xⱼ : 1 - xⱼ)` at every position.
 #[test]
-#[ignore = "full-const scale (a 2^20-term direct sum of ring products); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale-xl: full-const, a 2^20-term direct sum of ring products; past 1800 s (measured 2026-09-20)"]
 fn eval_split_eval_agrees_with_a_direct_lagrange_sum() {
     let mut lcg = Lcg::new(0xE5_06);
     let mut values = Vec::new();
@@ -392,7 +392,7 @@ fn eval_split_eval_agrees_with_a_direct_lagrange_sum() {
 /// all-ones catch a stuck evaluator; the mixed ones catch a swapped or
 /// bit-reversed half).
 #[test]
-#[ignore = "full-const scale (a 2^20-ring-element vector, ~8 GiB, ~2^20 ring products per vertex); see the module doc -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: full-const, a 2^20-ring-element vector and ~2^20 ring products; 667 s (measured 2026-09-20) -- make test-scale"]
 fn eval_split_eval_interpolates_the_hypercube() {
     let mut lcg = Lcg::new(0xE5_07);
     let mut values = Vec::new();

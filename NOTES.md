@@ -9497,3 +9497,83 @@ and this row is a fifty-point counterexample to the method on this kernel.
 That number is no longer evidence. It has to be re-measured in the crate,
 through the slot, before the card is worth a line of Lean — and on today's
 showing the honest prior is that it will not survive.
+
+## The un-ignore ceremony, done (2026-09-20)
+
+Owed since Stage 6 opened, and overdue: nothing had run the scale-walled tests
+at the paper's constants in weeks — across the NTT, four memory-wall removals
+and seven optimizations. Their `#[ignore]` reasons were therefore claims about
+a program that no longer existed, and several turned out to be false.
+
+### `#[ignore]` meant two unrelated things
+
+The 51 ignored tests were two populations under one attribute:
+
+* **instruments** — timing gates, kill-gates, diagnostics and the profile,
+  added by the optimization loop. These must *never* join a correctness sweep:
+  putting timing in the test suite is precisely what the bench harness's accept
+  rule exists to prevent. 24 of them.
+* **correctness tests walled by scale** — real assertions at the full
+  constants, ignored because the machine could not hold them. 27 of them.
+
+Every reason now opens with `instrument:`, `scale:` or `scale-xl:`, and
+`scripts/scale_tests.py --check` fails an untagged one, so the choice is made
+when the attribute is written rather than rediscovered a month later.
+`make test-scale` derives its list from the tags instead of duplicating it.
+
+### What the sweep found
+
+`make test-scale`, one process at a time, RSS-bounded
+(`logs/runs/scale-sweep-20260920-final.log`): **8 tests, 0 failing, 1521 s.**
+
+| | |
+|---|---|
+| `a_transcript_whose_rounds_do_not_sum_is_rejected` | 4 s |
+| `chain_open_produces_the_messages_the_verifier_reads` | 117 s |
+| `an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only` | 119 s |
+| `the_honest_chain_verifies` | **222 s**, against 2202 s before Stage 6 |
+| `lagrange_basis_sums_to_one` | 369 s |
+| `to_matrix_places_coefficients_along_the_split` | 11 s |
+| `to_matrix_eval_places_values_along_the_split` | 10 s, 13 GiB peak |
+| `eval_split_eval_interpolates_the_hypercube` | 669 s |
+
+**Two tests were not scale-walled at all and have been un-ignored.**
+`zerocheck_semantics::alpha_defect_vanishes_exactly_on_an_honest_lift` and
+`alpha_contract_is_the_double_sum_either_way_round` run in **one second on two
+megabytes**. Their reason blamed "the specification's un-hoisted `M~_alpha`" —
+a wall the Stage 6 `c_eval_at` work removed, and nobody updated the attribute.
+They are live tests again; the default suite is 232, not 230. The first even
+uses a 1 × 1 instance, so "full-const scale" was never an accurate description
+of it.
+
+**Three are past this machine on the wall clock, not on memory** — the naive
+2^20-term direct sums, and `to_polynomial_inverts_to_matrix` at over 900 s and
+a 17 GiB peak. They are `scale-xl:` with those measurements recorded, so a
+bigger machine knows what it is taking on.
+
+**The commit group (14) stays `scale-xl:` on memory**, but its reason was
+wrong: it blamed "hours of schoolbook mul", and the schoolbook mul left with
+the NTT. `honest_commitments_verify` exhausted 30 GiB on 2026-09-20. The wall
+is a full-const message and its decomposition held together, and it is a space
+wall.
+
+### `ulimit -v` is the wrong guard, and it fabricated three failures
+
+The first cut of `make test-scale` capped **address space** at 26 GiB. Three
+evalsplit tests "failed" in eleven seconds with exit 101, and the shape of that
+— a panic code, far too fast to have built anything — read exactly like three
+tests that had silently rotted. They had not. Run unguarded,
+`to_matrix_places_coefficients_along_the_split` passes in 10.9 s.
+
+A `Vec` growing to 8 GiB allocates its 16 GiB replacement while still holding
+the 8 GiB original, so a test whose resident set never passes 13 GiB touches
+~24 GiB of address space. `ulimit -v` therefore kills healthy tests while
+still not bounding the quantity that actually takes a machine down. The guard
+is now a systemd scope with `MemoryMax=`, which bounds resident memory, and
+`MemorySwapMax=0` so the failure is a clean kill rather than a thrash. Where
+`systemd-run --user` is unavailable the sweep runs unguarded and wants an idle
+machine.
+
+The lesson generalizes past this repository: **an exit code is not a
+diagnosis.** Exit 101 was read as "the test panicked, so the test is broken",
+and it meant "the allocator gave up because of the harness".

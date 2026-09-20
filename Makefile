@@ -97,6 +97,7 @@ help:
 	@echo '    build          check the Lean proofs -- fails on any error or `sorry`'
 	@echo '    extract        regenerate hachi/lean/Generated.lean from hachi/src/'
 	@echo '    test           run the Rust-side semantics tests'
+	@echo '    test-scale     run the scale-walled correctness tests at the paper constants'
 	@echo '    run-bench      time every operation against its frozen first translation'
 	@echo '    run-profile    the pin-scale honest-chain profile (long; sets the huge-page tunable)'
 	@echo '    bench-check    check the frozen baseline against git, and bench coverage'
@@ -315,7 +316,7 @@ extract: check-toolchain | $(STAMPS)
 BENCH_TOOLCHAIN := nightly-2026-06-01
 HARNESS         := $(PKG)/benches/harness.py
 
-.PHONY: run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check gains changes
+.PHONY: test-scale run-bench bench-check bench-stamp bench-coverage bench-toolchain ledger-check spec-check gains changes
 
 # Statistics cannot rescue a corrupted baseline, so the integrity checks run
 # before any measurement and are a hard gate.
@@ -496,6 +497,80 @@ run-profile:
 	  GLIBC_TUNABLES=glibc.malloc.hugetlb=1 HACHI_CHAIN_BLOCKS='$(BLOCKS)' \
 	  cargo test --release --test chain_semantics -- \
 	    --ignored --nocapture the_honest_chain_profile
+
+# The scale-walled correctness tests, at the paper's own constants.
+#
+# `#[ignore]` in this repository means one of two unrelated things, and the tag
+# that opens every reason string says which (scripts/scale_tests.py):
+#
+#   instrument:  a timing gate, kill-gate, diagnostic or profile. These must
+#                never join a correctness sweep -- putting timing in the test
+#                suite is the thing the bench harness's accept rule exists to
+#                prevent -- so this target does not run them.
+#   scale:       a correctness test at the full constants, runnable here.
+#   scale-xl:    the same, but past this machine -- by resident memory or by
+#                wall clock, whichever its reason records.
+#
+# This target runs the `scale:` set, one process at a time, each under a wall
+# clock and a memory bound, so that a test which outgrows the machine fails
+# fast instead of taking the machine down with it. That protection is not
+# theoretical: `commit_semantics::honest_commitments_verify` exhausted 30 GiB
+# on 2026-09-20, which is why the whole commit group is `scale-xl`.
+#
+# **The bound is on resident memory, via a systemd scope, and `ulimit -v` is
+# the wrong tool here.** The first cut of this target capped address space at
+# 26 GiB and three tests "failed" in eleven seconds. They were not broken: a
+# `Vec` growing to 8 GiB reserves the 16 GiB replacement while still holding
+# the 8 GiB original, so 24 GiB of address space is reached by a test whose
+# resident set never passes 9. An address-space cap therefore fails healthy
+# tests while a genuinely oversized one can still thrash; `MemoryMax=` bounds
+# the quantity that actually runs the machine out. Where `systemd-run --user`
+# is unavailable the sweep runs unguarded, and then it wants an idle machine.
+#
+# It is a release-time sweep, not part of `make test` -- the default suite is
+# ~25 s and this is tens of minutes. What it buys is that the walls stay
+# honest: between the NTT, four memory-wall removals and seven optimizations,
+# every reason string here had drifted from the truth by 2026-09-20.
+SCALE_TIMEOUT ?= 1800
+SCALE_MEM_GIB ?= 22
+test-scale:
+	@set -uo pipefail; \
+	if ! command -v cargo >/dev/null; then \
+	  echo 'error: cargo not found. Run `make setup`.' >&2; exit 1; \
+	fi; \
+	python3 scripts/scale_tests.py --check >/dev/null || exit 1; \
+	guard=''; \
+	if command -v systemd-run >/dev/null \
+	   && systemd-run --user --scope -p MemoryMax=1G --quiet -- /bin/true >/dev/null 2>&1; then \
+	  guard="systemd-run --user --scope -p MemoryMax=$(SCALE_MEM_GIB)G -p MemorySwapMax=0 --quiet --"; \
+	else \
+	  echo '    (no systemd-run --user: running unguarded, so use an idle machine)'; \
+	fi; \
+	echo '==> building the test binaries'; \
+	( cd $(PKG) && cargo test --release --no-run -q ) || exit 1; \
+	echo "==> scale sweep: $(SCALE_TIMEOUT)s and $(SCALE_MEM_GIB) GiB per test, one at a time"; \
+	fail=0; n=0; \
+	while read -r bin name; do \
+	  n=$$((n+1)); \
+	  start=$$(date +%s); \
+	  ( cd $(PKG) && $$guard timeout $(SCALE_TIMEOUT) cargo test --release --test "$$bin" -- \
+	      --ignored --exact --test-threads=1 "$$name" ) >/tmp/scale-$$$$.log 2>&1; \
+	  rc=$$?; el=$$(( $$(date +%s) - start )); \
+	  case $$rc in \
+	    0)   verdict='PASS   ' ;; \
+	    124) verdict='TIMEOUT'; fail=$$((fail+1)) ;; \
+	    137) verdict='OOM    '; fail=$$((fail+1)) ;; \
+	    *)   verdict="FAIL $$rc"; fail=$$((fail+1)) ;; \
+	  esac; \
+	  printf '  %-8s %6ds  %s::%s\n' "$$verdict" "$$el" "$$bin" "$$name"; \
+	  if [ $$rc -ne 0 ] && [ $$rc -ne 124 ]; then \
+	    grep -E "^(test .* FAILED|thread .* panicked|memory allocation of )" /tmp/scale-$$$$.log \
+	      | head -2 | sed 's/^/           | /'; \
+	  fi; \
+	  rm -f /tmp/scale-$$$$.log; \
+	done < <(python3 scripts/scale_tests.py --list); \
+	echo "==> $$n scale test(s), $$fail failing"; \
+	test $$fail -eq 0
 
 clean:
 	@echo '==> clean'

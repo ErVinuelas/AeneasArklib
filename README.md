@@ -50,10 +50,14 @@ in structure and in method, and depends on it for the coefficient field.
 > paired sumcheck's round polynomials, checks and loops),
 > [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
 > conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
-> `verify` over the proved links). 230 tests pass, including perfect correctness
-> and every rejection path of the verifier; 51 more are `#[ignore]`d because
-> they cannot complete at the paper's parameters, each naming the wall that
-> ignores it (NOTES.md, `exclusions.toml`). `make extract` produces a model with
+> `verify` over the proved links). 232 tests pass, including perfect correctness
+> and every rejection path of the verifier; 49 more are `#[ignore]`d, each
+> reason opening with a tag that says which kind it is: **24 `instrument:`**
+> (timing gates, kill-gates and the profile, which must never join a
+> correctness sweep), **8 `scale:`** (correctness at the paper's constants,
+> run by `make test-scale` — green in 25 minutes on 2026-09-20) and **17
+> `scale-xl:`** (past this machine, each carrying the measurement that put it
+> there). `scripts/scale_tests.py --check` fails an untagged one. `make extract` produces a model with
 > no axioms and no opaque bodies; every mirrored item is benched or excluded by
 > name, and the 444 frozen baseline items are verified against git. The
 > optimization loop has run to a standstill: `logs/ledger.jsonl` holds 72

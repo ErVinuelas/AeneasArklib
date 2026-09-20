@@ -257,7 +257,7 @@ fn open(cm: &Common, raw: &Vec<RawVec32>) -> Transcript {
 /// polynomials essentially never satisfy `g(0) + g(1) = target`, so the first
 /// round fails and the chain must be `false`.
 #[test]
-#[ignore = "materializes the 2.2 GiB R^lin matrix -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: materializes the 2.2 GiB R^lin matrix; 3 s (measured 2026-09-20) -- make test-scale"]
 fn a_transcript_whose_rounds_do_not_sum_is_rejected() {
     let cm = common(0xC0A1_0000);
     let tr = random_transcript(0xC0A1_0001, TOY.m0);
@@ -269,7 +269,7 @@ fn a_transcript_whose_rounds_do_not_sum_is_rejected() {
 /// per round at the specification's two degree bounds, and `y′` equal to the
 /// witness table's multilinear extension at the challenge point.
 #[test]
-#[ignore = "materializes the 2.2 GiB R^lin matrix -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: materializes the 2.2 GiB R^lin matrix; 117 s (measured 2026-09-20) -- make test-scale"]
 fn chain_open_produces_the_messages_the_verifier_reads() {
     let s = &TOY;
     let cm = common(0xC0A1_0030);
@@ -309,7 +309,7 @@ fn chain_open_produces_the_messages_the_verifier_reads() {
 /// and not later. That pins the rejection to the relation, not to the
 /// threading.
 #[test]
-#[ignore = "materializes the 2.2 GiB R^lin matrix twice -- run with cargo test --release -- --ignored"]
+#[ignore = "scale: materializes the 2.2 GiB R^lin matrix twice; 118 s (measured 2026-09-20) -- make test-scale"]
 fn an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only() {
     let s = &TOY;
     let cm = common(0xC0A1_0040);
@@ -723,7 +723,7 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
 /// Peak memory is a few `2^26`-entry `Ext4` tables (2 GiB each) plus the
 /// 1.6 GiB matrix.
 #[test]
-#[ignore = "hours: two naive 2^26 alpha_public_tables -- run with cargo test --release -- --ignored --nocapture"]
+#[ignore = "scale: the honest transcript end to end, one block and otherwise the pin; 221 s (measured 2026-09-20, against 2202 s before Stage 6) -- make test-scale"]
 #[allow(clippy::too_many_lines)]
 fn the_honest_chain_verifies() {
     use std::time::Instant;
@@ -886,7 +886,7 @@ fn profile_control_cpu(reps: usize) -> (std::time::Duration, u64) {
 /// measurement rather than by estimate -- run it with
 /// `cargo test --release -- --ignored --nocapture the_honest_chain_profile`.
 #[test]
-#[ignore = "tens of minutes at the pin: the honest prover replayed piece by piece for timing"]
+#[ignore = "instrument: the pin-scale prover replayed piece by piece, tens of minutes -- make run-profile"]
 #[allow(clippy::too_many_lines)]
 fn the_honest_chain_profile() {
     use std::time::Instant;
@@ -1037,7 +1037,7 @@ fn the_honest_chain_profile() {
 /// is `MESSAGE_ROWS × RING_DEGREE` per block, because that is the unit T11's
 /// target is quoted in. The digit count is eight times larger.
 #[test]
-#[ignore = "pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
 fn the_commitment_and_z_pass_split_per_block() {
     use hachi::linalg::RawVec32;
     use hachi::params::{GADGET_DIGITS, INNER_ROWS, MESSAGE_ROWS, OMEGA, RING_DEGREE};
@@ -1364,7 +1364,7 @@ fn dot_prepared_digits32(f1: &[u32], f2: &[u32], b: &PolyVec, n_terms: usize) ->
 /// **Gate B.** `apply_digits` with `u32` transform words, timed against the
 /// `u64` path it would replace, at pin width.
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_u32_transform_at_the_caller() {
     use hachi::linalg::RawVec32;
     use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, RING_DEGREE};
@@ -1553,7 +1553,7 @@ fn gadget_decompose_kernel2(x: &PolyVec) -> PolyVec {
 /// and then `reps` times, and the MINIMUM is reported -- the minimum is the
 /// one statistic a cold start cannot inflate.
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_decomposer_kernel_against_its_kill_gate() {
     use hachi::params::{MESSAGE_ROWS, RING_DEGREE};
     let rows: usize = std::env::var("HACHI_T11_ROWS")
@@ -1710,7 +1710,7 @@ fn mul_short_add_into_i64(d: &Desc, s: &Rq, acc: &mut Vec<i64>) {
 /// not the cost.** The `i64` accumulator carries across blocks, as the card's
 /// strong form specifies, and is reduced to `Fp` once at the end.
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_gather_form_against_its_kill_gate() {
     use hachi::linalg::RawVec32;
     use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, OMEGA, Q, RING_DEGREE};
@@ -1911,7 +1911,7 @@ fn c_quotient_high_half_v3(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpo
 
 /// **Card 10's price, measured rather than counted.**
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_lift_high_half_against_the_full_product() {
     use hachi::ringswitch::{c_quotient, RlinStatement};
     let cols: usize = std::env::var("HACHI_T1_COLS")
@@ -1976,7 +1976,7 @@ fn the_lift_high_half_against_the_full_product() {
 /// entries, round 1 walks `2^(m₀−1)` — so the totals are dominated by the
 /// first few, and the per-round numbers are printed for the first five.
 #[test]
-#[ignore = "pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing, several minutes -- run with cargo test --release -- --ignored"]
 fn the_rounds_split_per_phase() {
     let blocks: usize = std::env::var("HACHI_CHAIN_BLOCKS")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(1024);
@@ -2073,7 +2073,7 @@ fn the_rounds_split_per_phase() {
 /// This walks the shapes the rounds actually walk, at pin width, so the answer
 /// arrives in seconds rather than in a 26-minute profile. Run it both ways.
 #[test]
-#[ignore = "pin-width memory walk -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width memory walk -- run with cargo test --release -- --ignored"]
 fn the_big_table_walk_under_huge_pages() {
     use cpoly::Ext4;
     let m0: usize = std::env::var("HACHI_T12_VARS")
@@ -2241,7 +2241,7 @@ fn gold_dot(fwd: &[u64], b: &PolyVec, terms: usize) -> Rq {
 
 /// **T27 Gate B.**
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_goldilocks_lane_at_the_caller() {
     use hachi::linalg::RawVec32;
     use hachi::params::{GADGET_DIGITS, MESSAGE_ROWS, RING_DEGREE};
@@ -2382,7 +2382,7 @@ fn round_poly_zero_taylor(
 /// inner loop is exactly linear in the pair count and a per-pair number scales;
 /// the equality assertion runs at a small width where a mismatch is readable.
 #[test]
-#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: prototype timing -- run with cargo test --release -- --ignored"]
 fn the_taylor_shift_round_poly_against_its_kill_gate() {
     use std::time::Instant;
     let tab = t3_shift_table();
@@ -2491,7 +2491,7 @@ fn round_poly_zero_base_taylor(
 /// pairs together. Any projection that uses one per-pair number for both is
 /// wrong by the ratio between them, which is what this measures.
 #[test]
-#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: prototype timing -- run with cargo test --release -- --ignored"]
 fn the_taylor_shift_against_the_real_round_mix() {
     use cpoly::field::Fp;
     use std::time::Instant;
@@ -2644,7 +2644,7 @@ fn round_poly_zero_shift_admissible(
 /// against 67 million pairs is a real cost and it has to be measured, not
 /// waved away — the same discipline that reversed four cards in a row.
 #[test]
-#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: prototype timing -- run with cargo test --release -- --ignored"]
 fn the_taylor_shift_in_its_admissible_shape() {
     use std::time::Instant;
     let tab = t3_shift_table();
@@ -2740,7 +2740,7 @@ fn round_poly_zero_shift_inplace(
 
 /// **Card T3's third gate.** The in-place accumulator against the rebuilt one.
 #[test]
-#[ignore = "prototype timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: prototype timing -- run with cargo test --release -- --ignored"]
 fn the_taylor_shift_with_an_in_place_accumulator() {
     use std::time::Instant;
     let tab = t3_shift_table();
@@ -2851,7 +2851,7 @@ fn t1a_row_sum_high(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpoly::fie
 /// multiplications at all and the card is dead on arithmetic grounds rather
 /// than on a compiler accident.
 #[test]
-#[ignore = "pin-width timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: pin-width timing -- run with cargo test --release -- --ignored"]
 fn the_lift_high_half_diagnostic() {
     use hachi::ringswitch::{c_quotient, RlinStatement};
     use std::time::Instant;
@@ -2948,7 +2948,7 @@ fn t1a_long_mul_high_rev(a: &Rq, b: &Rq) -> Vec<cpoly::field::Fp> {
 /// **Card T1a, the single-product diagnostic.** One `long_mul` against one
 /// high half, nothing else in the loop.
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_lift_single_product_diagnostic() {
     use std::time::Instant;
     let mut r = Lcg::new(0xC0A1_00C0);
@@ -3048,7 +3048,7 @@ fn aux31_mul(a: u64, b: u64, p: u64, m: u64) -> u64 {
 /// was measured rather than counted — the discipline four reversed cards in
 /// this stage bought.
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_general_path_lane_count_gate() {
     use std::time::Instant;
     let n: usize = 1 << 14;
@@ -3224,7 +3224,7 @@ fn t33_scatter_off(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
 
 /// **The short multiply's gate.**
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_short_multiply_deferred_reduction_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -3320,7 +3320,7 @@ fn t33_percall(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
 
 /// **The short multiply's second gate**: does the cheap version keep the win?
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_short_multiply_per_call_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -3440,7 +3440,7 @@ fn t33_percall_u128(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
 
 /// **The short multiply's third gate**: `u64` + a precondition, or `u128` and none?
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_short_multiply_u128_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -3570,7 +3570,7 @@ fn round_poly_zero_base_shift(
 /// **T3 at round 0.** Round 0 runs `round_poly_zero_base` over `2^25` pairs —
 /// half of every pair the protocol evaluates — and T3 did not touch it.
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_taylor_shift_at_round_zero() {
     use cpoly::field::Fp;
     use std::time::Instant;
@@ -3681,7 +3681,7 @@ fn gfwd4(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, imag: u64)
 /// ordering is irrelevant to the use, since the transform is only ever paired
 /// with its own inverse around a pointwise product.
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_radix4_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -3782,7 +3782,7 @@ fn gfwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize)
 /// **The radix-4 gate, fused.** Elementwise equality with the radix-2
 /// transform — not multiset equality — because the fusion is exact.
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_radix4_fused_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -3915,7 +3915,7 @@ fn afwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize)
 }
 
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_radix4_fused_gate_general() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
@@ -4008,7 +4008,7 @@ fn xfwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, p: u64
 }
 
 #[test]
-#[ignore = "timing -- run with cargo test --release -- --ignored"]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
 fn the_radix4_general_runtime_prime_diagnostic() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
