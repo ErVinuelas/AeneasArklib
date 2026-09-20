@@ -9634,3 +9634,41 @@ wide context where `Bool.false_ne_true` is instant; and the `t.1 = s`
 component of a loop invariant is discharged automatically in the
 continuation case but *not* in the `done` case, so the two branches need
 tuples of different arity.
+
+### The pin-scale effect
+
+`logs/runs/pin-profile-20260920-shortsplit.log`, control CPU spread −0.4%.
+
+| | 598.4 s baseline | card S1 | |
+|---|---|---|---|
+| commitment | 156.5 s | 157.0 s | +0.3% |
+| `carrier_decomp_from_raw` | 98.0 s | 98.1 s | +0.1% |
+| **`honest_compute_resp` + stack** | 152.6 s | **83.3 s** | **−45.4%** |
+| lifted witness | 35.9 s | 35.9 s | 0 |
+| `honest_round_messages` | 133.6 s | 133.9 s | +0.2% |
+| **prover** | **598.4 s** | **530.0 s** | **−11.4%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+One phase moves, by nearly half, and nothing else does — the shape a kernel
+change should have. **1170.8 → 530.0 is −54.7% for the day.**
+
+Against the paper's own implementation at ℓ = 30 on this laptop (scheme cost
+450–509 s, `logs/paper-impl/`), the verified crate is now **1.04–1.18×** —
+from 2.3–2.6× this morning. It still uses 2.4× less memory and still runs the
+sumchecks about 2× faster.
+
+### Where the prover is now
+
+| | | |
+|---|---|---|
+| commitment | 157.0 s | 29.6% |
+| `honest_round_messages` | 133.9 s | 25.3% |
+| `carrier_decomp_from_raw` | 98.1 s | 18.5% |
+| `honest_compute_resp` | 83.3 s | 15.7% |
+| lifted witness | 35.9 s | 6.8% |
+| `lift_commit` | 18.0 s | 3.4% |
+
+The rounds have not been looked at since T3 and are now a quarter of the
+prover; `carrier_decomp_from_raw` is the general three-prime path, whose
+radix-4 fusion was rejected this afternoon. Those are the next two places to
+price.
