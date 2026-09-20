@@ -568,32 +568,46 @@ fn short_pass_off(s: &Rq, k: usize, negt: bool, acc: Vec<u64>) -> Vec<u64> {
     let n: usize = params::RING_DEGREE;
     let q: u64 = params::Q;
     let mut out: Vec<u64> = acc;
+    // `X^N = -1`: the term at `i` lands at `k + i`, and crossing `N` flips its
+    // sign. The old shape tested `pos >= n` per element, which put two
+    // conditionals and a computed index in the inner loop. The wrap point is
+    // known before the loop -- it is `i = n - k` -- so the pass splits into
+    // two runs, each with a constant sign and a stride-1 destination:
+    //
+    //   i <  n-k  ->  out[k + i]     gets  +s[i]  (negated if `negt`)
+    //   i >= n-k  ->  out[k + i - n] gets  -s[i]  (negated if `negt`)
+    //
+    // Both are branch-free over `i`, which is what lets them vectorize; the
+    // remaining `if negt` is loop-invariant and unswitches. Measured on the
+    // general path's fused NTT (2026-09-20), a stride-1 branch-free run is
+    // worth more here than any arithmetic saving.
+    //
+    // Two shapes are still forced by the extraction, both measured 2026-09-19
+    // (`aeneas-extract`'s ceiling table): a negative contribution is added as
+    // `q - sv` so the buffer never borrows, and the accumulate reads `out[w]`
+    // into a `let` before adding, because `out[w] = out[w] + add` in one
+    // expression is an unmodelled binary operation when the element type is a
+    // scalar.
+    let lim: usize = n - k;
     let mut i: usize = 0;
-    while i < n {
+    while i < lim {
         let sv: u64 = s.0[i].to_u64();
-        let pos: usize = k + i;
-        let w: usize = if pos >= n { pos - n } else { pos };
-        // `X^N = -1`: crossing the boundary flips the sign, and a negative
-        // contribution is added as `q - sv` so the buffer never borrows.
-        //
-        // Two shapes here are forced by the extraction, both measured
-        // 2026-09-19 (`aeneas-extract`'s ceiling table). The sign is decided
-        // by nested `if`s on the two booleans separately rather than by
-        // `negt != (pos >= n)`: with single-expression arms rustc lowers that
-        // combination to a select and leaves a `Ne` on `bool` in the MIR,
-        // which is an unmodelled binary operation. And the accumulate reads
-        // `out[w]` into a `let` before adding: `out[w] = out[w] + add` in one
-        // expression is *also* an unmodelled binary operation when the
-        // element type is a scalar.
-        let add: u64 = if pos >= n {
-            if negt { sv } else { q - sv }
-        } else {
-            if negt { q - sv } else { sv }
-        };
+        let add: u64 = if negt { q - sv } else { sv };
+        let w: usize = k + i;
         let cur: u64 = out[w];
         let nv: u64 = cur + add;
         out[w] = nv;
         i += 1;
+    }
+    let mut j: usize = lim;
+    while j < n {
+        let sv: u64 = s.0[j].to_u64();
+        let add: u64 = if negt { sv } else { q - sv };
+        let w: usize = j - lim;
+        let cur: u64 = out[w];
+        let nv: u64 = cur + add;
+        out[w] = nv;
+        j += 1;
     }
     out
 }

@@ -9577,3 +9577,60 @@ machine.
 The lesson generalizes past this repository: **an exit code is not a
 diagnosis.** Exit 101 was read as "the test panicked, so the test is broken",
 and it meant "the allocator gave up because of the harness".
+
+## Card S1: the short multiply, split at the wrap point (2026-09-20)
+
+The general path's fused NTT was rejected earlier today because a stride-1
+branch-free loop vectorizes and a scattered conditional one does not. That
+rejection is what found this.
+
+### Where the time actually was
+
+`the_commitment_and_z_pass_split_per_block` at 64 blocks, scaled ×16 to the
+pin, prices the prover's kernels:
+
+| kernel | at 1024 blocks | share of 598.4 s |
+|---|---|---|
+| `apply_digits_gold` | ~136 s | 23% |
+| **`mul_short_add_into`** | **~103 s** | **17%** |
+| `gadget_decompose` (computed twice) | ~51 s | 8.5% |
+
+The short multiply-accumulate is 79% of the z pass and the largest kernel
+nobody had looked at since T33. Its inner loop was:
+
+```rust
+let pos: usize = k + i;
+let w: usize = if pos >= n { pos - n } else { pos };
+let add: u64 = if pos >= n { … } else { … };
+```
+
+Two conditionals and a computed destination, per element. But `X^N = -1` puts
+the wrap at a point known *before* the loop — `i = N - k` — so the pass splits
+into two runs, each with a constant sign and a stride-1 destination, and the
+remaining `if negt` is loop-invariant and unswitches.
+
+| | `cand vs now` |
+|---|---|
+| `quadeval/honest_z_short/1` | **−49.1%** |
+| `quadeval/honest_z_short_heavy/1` | **−60.6%** |
+
+### Why the proof was cheap
+
+The two loops write **the same slots in the same order** the single loop did.
+`applied` and `offStep` are therefore unchanged, and `offStep`'s `if N ≤ k+i`
+is simply decided statically per loop — true in one, false in the other. The
+per-write invariant step was already isolated in the old proof as a plain
+proposition (`hfin`, written that way because a hand-written `do` block does
+not reliably match the extracted one); hoisting it to a standalone
+`offWrite_step` let both loops share one copy. **`short_pass_off_spec` states
+exactly what it stated before**, so `mul_short_add_into_spec` above it never
+moved. About 250 net lines.
+
+Three mechanical things cost the most time, all worth knowing: the overflow
+side goal comes back **unnamed** when the loop shape changes (`case hmax` no
+longer resolves — put the bound in context as a `have` before the `step`
+instead); `by simp` on `¬((false : Bool) = true)` blows `maxRecDepth` in a
+wide context where `Bool.false_ne_true` is instant; and the `t.1 = s`
+component of a loop invariant is discharged automatically in the
+continuation case but *not* in the `done` case, so the two branches need
+tuples of different arity.

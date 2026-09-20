@@ -1375,38 +1375,114 @@ theorem bnd_succ (left : ℕ) (h1 : 1 ≤ left) (h2 : left ≤ 32) :
   unfold bnd
   rw [hr]; ring
 
-set_option maxRecDepth 8000 in
+/-- **One offset write**, shared by both passes.
+
+`short_pass_off` splits at the wrap point, so neither loop tests `pos >= N`
+any more -- but the two loops write the *same* sequence of slots in the *same*
+order the single loop did, so the invariant step is literally the same lemma.
+It is stated over plain propositions rather than `WP.spec`s because a
+hand-written `do` block does not reliably match the extracted one:
+`Vec.index_usize` and `Vec.index (SliceIndexUsizeSlice _)` even print
+identically. -/
+theorem offWrite_step (s : ring.Rq) (kU : Std.Usize) (negt : Bool)
+    (base : ℕ → ZMod q) (B : ℕ) (d : alloc.vec.Vec Std.U64)
+    (ii sv : ℕ) (wU : Std.Usize) (addU nvU : Std.U64) (i1 : ℕ)
+    (hk : kU.val < N) (hiilt : ii < N) (hdl : d.val.length = N)
+    (hsvlt : sv < q) (hsvval : ((sv : ℕ) : ZMod q) = coeffK s ii)
+    (hbd : ∀ w, w < N → bufN d w ≤ (if srcOf kU.val w < ii then B + q else B))
+    (hw : ∀ w, w < N → ((bufN d w : ℕ) : ZMod q)
+            = applied base (coeffK s) kU.val negt ii w)
+    (hwv : wU.val = dstOf kU.val ii)
+    (haddv : addU.val = offStep negt kU.val ii sv)
+    (hnvv : nvU.val = bufN d wU.val + addU.val)
+    (hi1 : i1 = ii + 1) :
+    (d.set wU nvU).val.length = N
+      ∧ (∀ w, w < N → bufN (d.set wU nvU) w
+          ≤ (if srcOf kU.val w < i1 then B + q else B))
+      ∧ (∀ w, w < N → ((bufN (d.set wU nvU) w : ℕ) : ZMod q)
+          = applied base (coeffK s) kU.val negt i1 w) := by
+  have hdstN : dstOf kU.val ii < N := dstOf_lt hk hiilt
+  have hwltN : wU.val < N := by rw [hwv]; exact hdstN
+  have hsrceq : srcOf kU.val wU.val = ii := by
+    rw [hwv]; exact srcOf_dstOf hk hiilt
+  have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
+  have hcurB : bufN d wU.val ≤ B := by
+    have := hbd wU.val hwltN
+    rwa [if_neg (by rw [hsrceq]; omega)] at this
+  have haddq : addU.val ≤ q := by
+    rw [haddv]; exact offStep_le negt kU.val ii sv hsvlt
+  refine ⟨?_, ?_, ?_⟩
+  · rw [alloc.vec.Vec.set_val_eq, List.length_set, hdl]
+  · intro w hwlt
+    by_cases heqw : w = wU.val
+    · subst heqw
+      rw [bufN_set_eq (by rw [hdl]; exact hwltN), hnvv, hi1,
+        if_pos (by rw [hsrceq]; omega)]
+      omega
+    · rw [bufN_set_ne heqw, hi1]
+      have hb := hbd w hwlt
+      have hne : srcOf kU.val w ≠ ii := by
+        intro hcon
+        exact heqw (by rw [hwv, ← hcon, dstOf_srcOf hk hwlt])
+      split at hb
+      · rw [if_pos (by omega)]; omega
+      · by_cases hc : srcOf kU.val w < ii + 1
+        · rw [if_pos hc]; omega
+        · rw [if_neg hc]; omega
+  · intro w hwlt
+    rw [hi1, applied_succ]
+    by_cases heqw : w = wU.val
+    · subst heqw
+      rw [bufN_set_eq (by rw [hdl]; exact hwltN), hnvv]
+      push_cast
+      rw [hw wU.val hwltN, haddv,
+        offStep_cast negt kU.val ii sv hk hiilt hsvlt, ← hwv,
+        hsrceq, if_pos rfl, hsvval]
+    · have hne : srcOf kU.val w ≠ ii := by
+        intro hcon
+        exact heqw (by rw [hwv, ← hcon, dstOf_srcOf hk hwlt])
+      rw [bufN_set_ne heqw, hw w hwlt, if_neg hne, add_zero]
+
+private theorem short_usize_succ (iU : Std.Usize) (h : iU.val < N) :
+    iU.val + 1 ≤ Std.Usize.max := by
+  have h2 := usize_max_ge4
+  have h3 : N = 1024 := rfl
+  omega
+
+set_option maxRecDepth 100000 in
 set_option maxHeartbeats 1000000 in
-/-- **One offset pass.** The same `applied` progression the reducing inner loop
-had, over an unreduced buffer, with the bound growing by at most `q` at each
-position that has been written -- and each position is written exactly once,
-because `dstOf` is injective on `[0, N)`. -/
-theorem short_pass_off_loop_spec (s : ring.Rq) (kU nU : Std.Usize) (qU : Std.U64)
+/-- **The low pass**: `i < N - k`, so the term lands at `k + i` with no wrap
+and the sign is `negt`'s alone. -/
+theorem short_pass_off_loop0_spec (s : ring.Rq) (kU limU : Std.Usize) (qU : Std.U64)
     (negt : Bool) (out : alloc.vec.Vec Std.U64) (iU : Std.Usize)
     (base : ℕ → ZMod q) (B : ℕ)
-    (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q) (hk : kU.val < N)
-    (hi : iU.val ≤ N) (hlen : out.val.length = N) (hB : B + q ≤ Std.U64.max)
+    (hs : Wf s) (hlim : limU.val = N - kU.val) (hq : qU.val = q) (hk : kU.val < N)
+    (hi : iU.val ≤ limU.val) (hlen : out.val.length = N) (hB : B + q ≤ Std.U64.max)
     (hbnd : ∀ w, w < N → bufN out w ≤ (if srcOf kU.val w < iU.val then B + q else B))
     (hval : ∀ w, w < N → ((bufN out w : ℕ) : ZMod q)
               = applied base (coeffK s) kU.val negt iU.val w) :
-    ring.short_pass_off_loop s kU negt nU qU out iU
-      ⦃ z => z.val.length = N ∧ (∀ w, w < N → bufN z w ≤ B + q) ∧
-          ∀ w, w < N → ((bufN z w : ℕ) : ZMod q)
-            = applied base (coeffK s) kU.val negt N w ⦄ := by
-  rw [ring.short_pass_off_loop]
-  apply loop.spec_decr_nat (fun t => nU.val - t.2.2.2.val)
-    (fun t => t.1 = s ∧ t.2.1 = negt ∧ t.2.2.2.val ≤ N ∧ t.2.2.1.val.length = N
-      ∧ (∀ w, w < N → bufN t.2.2.1 w
-          ≤ (if srcOf kU.val w < t.2.2.2.val then B + q else B))
-      ∧ ∀ w, w < N → ((bufN t.2.2.1 w : ℕ) : ZMod q)
-            = applied base (coeffK s) kU.val negt t.2.2.2.val w)
-  · rintro ⟨s1, ng, d, ii⟩ ⟨hs1, hng, hii, hdl, hbd, hw⟩
-    dsimp only at hs1 hng hii hdl hbd hw
-    rw [hs1, hng]
-    simp only [ring.short_pass_off_loop.body]
-    by_cases hlt : ii < nU
+    ring.short_pass_off_loop0 s kU negt qU out limU iU
+      ⦃ z => z.1 = s ∧ z.2.val.length = N
+          ∧ (∀ w, w < N → bufN z.2 w
+              ≤ (if srcOf kU.val w < limU.val then B + q else B))
+          ∧ ∀ w, w < N → ((bufN z.2 w : ℕ) : ZMod q)
+              = applied base (coeffK s) kU.val negt limU.val w ⦄ := by
+  rw [ring.short_pass_off_loop0]
+  apply loop.spec_decr_nat (fun t => limU.val - t.2.2.val)
+    (fun t => t.1 = s ∧ t.2.2.val ≤ limU.val ∧ t.2.1.val.length = N
+      ∧ (∀ w, w < N → bufN t.2.1 w
+          ≤ (if srcOf kU.val w < t.2.2.val then B + q else B))
+      ∧ ∀ w, w < N → ((bufN t.2.1 w : ℕ) : ZMod q)
+            = applied base (coeffK s) kU.val negt t.2.2.val w)
+  · rintro ⟨s1, d, ii⟩ ⟨hs1, hii, hdl, hbd, hw⟩
+    dsimp only at hs1 hii hdl hbd hw
+    rw [hs1]
+    simp only [ring.short_pass_off_loop0.body]
+    by_cases hlt : ii < limU
     · rw [if_pos hlt]
-      have hiilt : ii.val < N := by rw [← hn]; scalar_tac
+      have hiilim : ii.val < limU.val := by scalar_tac
+      have hiilt : ii.val < N := by omega
+      have hnowrap : ¬ N ≤ kU.val + ii.val := by omega
       have hsb : ii.val < s.val.length := by rw [hs.1]; exact hiilt
       step as ⟨f, hf⟩
       have hfred : Red f := by rw [hf]; exact hs.2 _ (List.getElem_mem hsb)
@@ -1414,193 +1490,188 @@ theorem short_pass_off_loop_spec (s : ring.Rq) (kU nU : Std.Usize) (qU : Std.U64
       have hsvlt : sv.val < q := by rw [hsvf]; exact hfred
       have hsvval : ((sv.val : ℕ) : ZMod q) = coeffK s ii.val := by
         rw [hsvf, hf, coeffK_of_lt hsb]; rfl
-      step as ⟨pos, hpos⟩
-      have hposv : pos.val = kU.val + ii.val := by scalar_tac
-      have hdstN : dstOf kU.val ii.val < N := dstOf_lt hk hiilt
-      -- The reasoning after the four writes is the same in all four leaves;
-      -- it is shared as a plain implication between propositions rather than
-      -- between `WP.spec`s, because a hand-written `do` block does not
-      -- reliably match the extracted one -- `Vec.index_usize` and
-      -- `Vec.index (SliceIndexUsizeSlice _)` even print identically.
-      have hfin : ∀ (wU : Std.Usize) (addU nvU : Std.U64) (i1 : Std.Usize),
-          wU.val = dstOf kU.val ii.val →
-          addU.val = offStep negt kU.val ii.val sv.val →
-          nvU.val = bufN d wU.val + addU.val →
-          i1.val = ii.val + 1 →
-          ((d.set wU nvU).val.length = N
-            ∧ (∀ w, w < N → bufN (d.set wU nvU) w
-                ≤ (if srcOf kU.val w < i1.val then B + q else B))
-            ∧ (∀ w, w < N → ((bufN (d.set wU nvU) w : ℕ) : ZMod q)
-                = applied base (coeffK s) kU.val negt i1.val w)) := by
-        intro wU addU nvU i1 hwv haddv hnvv hi1
-        have hwltN : wU.val < N := by rw [hwv]; exact hdstN
-        have hsrceq : srcOf kU.val wU.val = ii.val := by
-          rw [hwv]; exact srcOf_dstOf hk hiilt
-        have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
-        have hcurB : bufN d wU.val ≤ B := by
-          have := hbd wU.val hwltN
-          rwa [if_neg (by rw [hsrceq]; omega)] at this
+      have hwvgen : ∀ wU : Std.Usize, wU.val = kU.val + ii.val →
+          wU.val = dstOf kU.val ii.val := by
+        intro wU h; unfold dstOf; rw [if_pos (by omega)]; exact h
+      cases negt with
+      | true =>
+        rw [if_pos (rfl : (true : Bool) = true)]
+        step as ⟨addU, haddU⟩
+        have haddv : addU.val = offStep true kU.val ii.val sv.val := by
+          unfold offStep; rw [if_neg hnowrap, if_pos rfl]; scalar_tac
         have haddq : addU.val ≤ q := by
-          rw [haddv]; exact offStep_le negt kU.val ii.val sv.val hsvlt
-        refine ⟨?_, ?_, ?_⟩
-        · rw [alloc.vec.Vec.set_val_eq, List.length_set, hdl]
-        · intro w hwlt
-          by_cases heqw : w = wU.val
-          · subst heqw
-            rw [bufN_set_eq (by rw [hdl]; exact hwltN), hnvv, hi1,
-              if_pos (by rw [hsrceq]; omega)]
-            omega
-          · rw [bufN_set_ne heqw, hi1]
-            have hb := hbd w hwlt
-            have hne : srcOf kU.val w ≠ ii.val := by
-              intro hcon
-              exact heqw (by rw [hwv, ← hcon, dstOf_srcOf hk hwlt])
-            split at hb
-            · rw [if_pos (by omega)]; omega
-            · by_cases hc : srcOf kU.val w < ii.val + 1
-              · rw [if_pos hc]; omega
-              · rw [if_neg hc]; omega
-        · intro w hwlt
-          rw [hi1, applied_succ]
-          by_cases heqw : w = wU.val
-          · subst heqw
-            rw [bufN_set_eq (by rw [hdl]; exact hwltN), hnvv]
-            push_cast
-            rw [hw wU.val hwltN, haddv,
-              offStep_cast negt kU.val ii.val sv.val hk hiilt hsvlt, ← hwv,
-              hsrceq, if_pos rfl, hsvval]
-          · have hne : srcOf kU.val w ≠ ii.val := by
-              intro hcon
-              exact heqw (by rw [hwv, ← hcon, dstOf_srcOf hk hwlt])
-            rw [bufN_set_ne heqw, hw w hwlt, if_neg hne, add_zero]
-      -- the four leaves: wrapped or not, sign or not
-      by_cases hge : pos ≥ nU
-      · simp only [if_pos hge]
-        have hgeN : N ≤ kU.val + ii.val := by rw [← hposv]; scalar_tac
+          rw [haddv]; exact offStep_le true kU.val ii.val sv.val hsvlt
         step as ⟨wU, hwU⟩
-        have hwv : wU.val = dstOf kU.val ii.val := by
-          unfold dstOf; rw [if_neg (by omega)]; scalar_tac
-        have hwltN : wU.val < N := by rw [hwv]; exact hdstN
+        have hwv : wU.val = dstOf kU.val ii.val := hwvgen wU (by omega)
+        have hwltN : wU.val < N := by rw [hwv]; exact dstOf_lt hk hiilt
         have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
         have hsrceq : srcOf kU.val wU.val = ii.val := by
           rw [hwv]; exact srcOf_dstOf hk hiilt
         have hcurB : bufN d wU.val ≤ B := by
           have := hbd wU.val hwltN
           rwa [if_neg (by rw [hsrceq]; omega)] at this
-        cases negt with
-        | true =>
-          rw [if_pos (rfl : (true : Bool) = true), bind_tc_ok]
-          have haddv : sv.val = offStep true kU.val ii.val sv.val := by
-            unfold offStep; rw [if_pos hgeN, if_pos rfl]
-          step as ⟨cur, hcur⟩
-          have hcurv : cur.val = bufN d wU.val := by
-            rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
-          have hbound : cur.val + sv.val ≤ Std.U64.max := by
-            rw [hcurv]; have := hsvlt; omega
-          step as ⟨nv, hnv⟩
-          step as ⟨xw, back, hxw, hback⟩
-          step as ⟨i1, hi1⟩
-          case hmax =>
-            have h1 : ((1#usize : Std.Usize).val) = 1 := rfl
-            have h2 := usize_max_ge4
-            have h3 : N = 1024 := rfl
-            omega
-          rw [hback]
-          obtain ⟨hfl, hfb, hfv⟩ :=
-            hfin wU sv nv i1 hwv haddv (by rw [hnv, hcurv]) hi1
-          exact ⟨by omega, hfl, hfb, hfv, by omega⟩
-        | false =>
-          rw [if_neg (by simp : ¬((false : Bool) = true))]
-          step as ⟨addU, haddU⟩
-          have haddv : addU.val = offStep false kU.val ii.val sv.val := by
-            unfold offStep; rw [if_pos hgeN, if_neg (by simp)]; scalar_tac
-          have haddq : addU.val ≤ q := by
-            rw [haddv]; exact offStep_le false kU.val ii.val sv.val hsvlt
-          step as ⟨cur, hcur⟩
-          have hcurv : cur.val = bufN d wU.val := by
-            rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
-          have hbound : cur.val + addU.val ≤ Std.U64.max := by
-            rw [hcurv]; omega
-          step as ⟨nv, hnv⟩
-          step as ⟨xw, back, hxw, hback⟩
-          step as ⟨i1, hi1⟩
-          case hmax =>
-            have h1 : ((1#usize : Std.Usize).val) = 1 := rfl
-            have h2 := usize_max_ge4
-            have h3 : N = 1024 := rfl
-            omega
-          rw [hback]
-          obtain ⟨hfl, hfb, hfv⟩ :=
-            hfin wU addU nv i1 hwv haddv (by rw [hnv, hcurv]) hi1
-          exact ⟨by omega, hfl, hfb, hfv, by omega⟩
-      · simp only [if_neg hge]
-        have hltN : ¬ N ≤ kU.val + ii.val := by rw [← hposv]; scalar_tac
-        have hwv : pos.val = dstOf kU.val ii.val := by
-          unfold dstOf; rw [if_pos (by omega)]; exact hposv
-        have hwltN : pos.val < N := by rw [hwv]; exact hdstN
-        have hwd : pos.val < d.val.length := by rw [hdl]; exact hwltN
-        have hsrceq : srcOf kU.val pos.val = ii.val := by
+        step as ⟨cur, hcur⟩
+        have hcurv : cur.val = bufN d wU.val := by
+          rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
+        have hbound : cur.val + addU.val ≤ Std.U64.max := by rw [hcurv]; omega
+        step as ⟨nv, hnv⟩
+        step as ⟨xw, back, hxw, hback⟩
+        have hmaxb : ii.val + 1 ≤ Std.Usize.max := short_usize_succ ii hiilt
+        step as ⟨i1, hi1⟩
+        rw [hback]
+        obtain ⟨hfl, hfb, hfv⟩ :=
+          offWrite_step s kU true base B d ii.val sv.val wU addU nv (ii.val + 1)
+            hk hiilt hdl hsvlt hsvval hbd hw hwv haddv (by rw [hnv, hcurv]) rfl
+        exact ⟨by omega, hfl, by rw [hi1]; exact hfb, by rw [hi1]; exact hfv,
+          by omega⟩
+      | false =>
+        rw [if_neg Bool.false_ne_true, bind_tc_ok]
+        have haddv : sv.val = offStep false kU.val ii.val sv.val := by
+          unfold offStep; rw [if_neg hnowrap, if_neg Bool.false_ne_true]
+        step as ⟨wU, hwU⟩
+        have hwv : wU.val = dstOf kU.val ii.val := hwvgen wU (by omega)
+        have hwltN : wU.val < N := by rw [hwv]; exact dstOf_lt hk hiilt
+        have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
+        have hsrceq : srcOf kU.val wU.val = ii.val := by
           rw [hwv]; exact srcOf_dstOf hk hiilt
-        have hcurB : bufN d pos.val ≤ B := by
-          have := hbd pos.val hwltN
+        have hcurB : bufN d wU.val ≤ B := by
+          have := hbd wU.val hwltN
           rwa [if_neg (by rw [hsrceq]; omega)] at this
-        cases negt with
-        | true =>
-          rw [if_pos (rfl : (true : Bool) = true)]
-          step as ⟨addU, haddU⟩
-          have haddv : addU.val = offStep true kU.val ii.val sv.val := by
-            unfold offStep; rw [if_neg hltN, if_pos rfl]; scalar_tac
-          have haddq : addU.val ≤ q := by
-            rw [haddv]; exact offStep_le true kU.val ii.val sv.val hsvlt
-          step as ⟨cur, hcur⟩
-          have hcurv : cur.val = bufN d pos.val := by
-            rw [hcur, ← bufN_of_lt (v := d) (w := pos.val) hwd]
-          have hbound : cur.val + addU.val ≤ Std.U64.max := by
-            rw [hcurv]; omega
-          step as ⟨nv, hnv⟩
-          step as ⟨xw, back, hxw, hback⟩
-          step as ⟨i1, hi1⟩
-          case hmax =>
-            have h1 : ((1#usize : Std.Usize).val) = 1 := rfl
-            have h2 := usize_max_ge4
-            have h3 : N = 1024 := rfl
-            omega
-          rw [hback]
-          obtain ⟨hfl, hfb, hfv⟩ :=
-            hfin pos addU nv i1 hwv haddv (by rw [hnv, hcurv]) hi1
-          exact ⟨by omega, hfl, hfb, hfv, by omega⟩
-        | false =>
-          rw [if_neg (by simp : ¬((false : Bool) = true)), bind_tc_ok]
-          have haddv : sv.val = offStep false kU.val ii.val sv.val := by
-            unfold offStep; rw [if_neg hltN, if_neg (by simp)]
-          step as ⟨cur, hcur⟩
-          have hcurv : cur.val = bufN d pos.val := by
-            rw [hcur, ← bufN_of_lt (v := d) (w := pos.val) hwd]
-          have hbound : cur.val + sv.val ≤ Std.U64.max := by
-            rw [hcurv]; have := hsvlt; omega
-          step as ⟨nv, hnv⟩
-          step as ⟨xw, back, hxw, hback⟩
-          step as ⟨i1, hi1⟩
-          case hmax =>
-            have h1 : ((1#usize : Std.Usize).val) = 1 := rfl
-            have h2 := usize_max_ge4
-            have h3 : N = 1024 := rfl
-            omega
-          rw [hback]
-          obtain ⟨hfl, hfb, hfv⟩ :=
-            hfin pos sv nv i1 hwv haddv (by rw [hnv, hcurv]) hi1
-          exact ⟨by omega, hfl, hfb, hfv, by omega⟩
+        step as ⟨cur, hcur⟩
+        have hcurv : cur.val = bufN d wU.val := by
+          rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
+        have hbound : cur.val + sv.val ≤ Std.U64.max := by
+          rw [hcurv]; have := hsvlt; omega
+        step as ⟨nv, hnv⟩
+        step as ⟨xw, back, hxw, hback⟩
+        have hmaxb : ii.val + 1 ≤ Std.Usize.max := short_usize_succ ii hiilt
+        step as ⟨i1, hi1⟩
+        rw [hback]
+        obtain ⟨hfl, hfb, hfv⟩ :=
+          offWrite_step s kU false base B d ii.val sv.val wU sv nv (ii.val + 1)
+            hk hiilt hdl hsvlt hsvval hbd hw hwv haddv (by rw [hnv, hcurv]) rfl
+        exact ⟨by omega, hfl, by rw [hi1]; exact hfb, by rw [hi1]; exact hfv,
+          by omega⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : ii.val = N := by rw [← hn]; scalar_tac
+      have heq : ii.val = limU.val := by scalar_tac
+      exact ⟨rfl, hdl, by rw [← heq]; exact hbd, by rw [← heq]; exact hw⟩
+  · exact ⟨rfl, hi, hlen, hbnd, hval⟩
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 1000000 in
+/-- **The high pass**: `j >= N - k`, so every term wraps, lands at `j - lim`
+and carries the opposite sign. -/
+theorem short_pass_off_loop1_spec (s : ring.Rq) (kU nU limU : Std.Usize) (qU : Std.U64)
+    (negt : Bool) (out : alloc.vec.Vec Std.U64) (jU : Std.Usize)
+    (base : ℕ → ZMod q) (B : ℕ)
+    (hs : Wf s) (hn : nU.val = N) (hlim : limU.val = N - kU.val) (hq : qU.val = q)
+    (hk : kU.val < N) (hj1 : limU.val ≤ jU.val) (hj2 : jU.val ≤ N)
+    (hlen : out.val.length = N) (hB : B + q ≤ Std.U64.max)
+    (hbnd : ∀ w, w < N → bufN out w ≤ (if srcOf kU.val w < jU.val then B + q else B))
+    (hval : ∀ w, w < N → ((bufN out w : ℕ) : ZMod q)
+              = applied base (coeffK s) kU.val negt jU.val w) :
+    ring.short_pass_off_loop1 s negt nU qU out limU jU
+      ⦃ z => z.val.length = N ∧ (∀ w, w < N → bufN z w ≤ B + q) ∧
+          ∀ w, w < N → ((bufN z w : ℕ) : ZMod q)
+            = applied base (coeffK s) kU.val negt N w ⦄ := by
+  rw [ring.short_pass_off_loop1]
+  apply loop.spec_decr_nat (fun t => nU.val - t.2.2.val)
+    (fun t => t.1 = s ∧ limU.val ≤ t.2.2.val ∧ t.2.2.val ≤ N
+      ∧ t.2.1.val.length = N
+      ∧ (∀ w, w < N → bufN t.2.1 w
+          ≤ (if srcOf kU.val w < t.2.2.val then B + q else B))
+      ∧ ∀ w, w < N → ((bufN t.2.1 w : ℕ) : ZMod q)
+            = applied base (coeffK s) kU.val negt t.2.2.val w)
+  · rintro ⟨s1, d, jj⟩ ⟨hs1, hjl, hjN, hdl, hbd, hw⟩
+    dsimp only at hs1 hjl hjN hdl hbd hw
+    rw [hs1]
+    simp only [ring.short_pass_off_loop1.body]
+    by_cases hlt : jj < nU
+    · rw [if_pos hlt]
+      have hjjlt : jj.val < N := by rw [← hn]; scalar_tac
+      have hwrap : N ≤ kU.val + jj.val := by omega
+      have hsb : jj.val < s.val.length := by rw [hs.1]; exact hjjlt
+      step as ⟨f, hf⟩
+      have hfred : Red f := by rw [hf]; exact hs.2 _ (List.getElem_mem hsb)
+      step with to_u64_id f as ⟨sv, hsvf⟩
+      have hsvlt : sv.val < q := by rw [hsvf]; exact hfred
+      have hsvval : ((sv.val : ℕ) : ZMod q) = coeffK s jj.val := by
+        rw [hsvf, hf, coeffK_of_lt hsb]; rfl
+      have hwvgen : ∀ wU : Std.Usize, wU.val = jj.val - limU.val →
+          wU.val = dstOf kU.val jj.val := by
+        intro wU h; unfold dstOf; rw [if_neg (by omega)]; rw [h]; omega
+      cases negt with
+      | true =>
+        rw [if_pos (rfl : (true : Bool) = true), bind_tc_ok]
+        have haddv : sv.val = offStep true kU.val jj.val sv.val := by
+          unfold offStep; rw [if_pos hwrap, if_pos rfl]
+        step as ⟨wU, hwU⟩
+        have hwv : wU.val = dstOf kU.val jj.val := hwvgen wU (by omega)
+        have hwltN : wU.val < N := by rw [hwv]; exact dstOf_lt hk hjjlt
+        have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
+        have hsrceq : srcOf kU.val wU.val = jj.val := by
+          rw [hwv]; exact srcOf_dstOf hk hjjlt
+        have hcurB : bufN d wU.val ≤ B := by
+          have := hbd wU.val hwltN
+          rwa [if_neg (by rw [hsrceq]; omega)] at this
+        step as ⟨cur, hcur⟩
+        have hcurv : cur.val = bufN d wU.val := by
+          rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
+        have hbound : cur.val + sv.val ≤ Std.U64.max := by
+          rw [hcurv]; have := hsvlt; omega
+        step as ⟨nv, hnv⟩
+        step as ⟨xw, back, hxw, hback⟩
+        have hmaxb : jj.val + 1 ≤ Std.Usize.max := short_usize_succ jj hjjlt
+        step as ⟨j1, hj1v⟩
+        rw [hback]
+        obtain ⟨hfl, hfb, hfv⟩ :=
+          offWrite_step s kU true base B d jj.val sv.val wU sv nv (jj.val + 1)
+            hk hjjlt hdl hsvlt hsvval hbd hw hwv haddv (by rw [hnv, hcurv]) rfl
+        exact ⟨by omega, by omega, hfl, by rw [hj1v]; exact hfb,
+          by rw [hj1v]; exact hfv, by omega⟩
+      | false =>
+        rw [if_neg Bool.false_ne_true]
+        step as ⟨addU, haddU⟩
+        have haddv : addU.val = offStep false kU.val jj.val sv.val := by
+          unfold offStep; rw [if_pos hwrap, if_neg Bool.false_ne_true]; scalar_tac
+        have haddq : addU.val ≤ q := by
+          rw [haddv]; exact offStep_le false kU.val jj.val sv.val hsvlt
+        step as ⟨wU, hwU⟩
+        have hwv : wU.val = dstOf kU.val jj.val := hwvgen wU (by omega)
+        have hwltN : wU.val < N := by rw [hwv]; exact dstOf_lt hk hjjlt
+        have hwd : wU.val < d.val.length := by rw [hdl]; exact hwltN
+        have hsrceq : srcOf kU.val wU.val = jj.val := by
+          rw [hwv]; exact srcOf_dstOf hk hjjlt
+        have hcurB : bufN d wU.val ≤ B := by
+          have := hbd wU.val hwltN
+          rwa [if_neg (by rw [hsrceq]; omega)] at this
+        step as ⟨cur, hcur⟩
+        have hcurv : cur.val = bufN d wU.val := by
+          rw [hcur, ← bufN_of_lt (v := d) (w := wU.val) hwd]
+        have hbound : cur.val + addU.val ≤ Std.U64.max := by rw [hcurv]; omega
+        step as ⟨nv, hnv⟩
+        step as ⟨xw, back, hxw, hback⟩
+        have hmaxb : jj.val + 1 ≤ Std.Usize.max := short_usize_succ jj hjjlt
+        step as ⟨j1, hj1v⟩
+        rw [hback]
+        obtain ⟨hfl, hfb, hfv⟩ :=
+          offWrite_step s kU false base B d jj.val sv.val wU addU nv (jj.val + 1)
+            hk hjjlt hdl hsvlt hsvval hbd hw hwv haddv (by rw [hnv, hcurv]) rfl
+        exact ⟨by omega, by omega, hfl, by rw [hj1v]; exact hfb,
+          by rw [hj1v]; exact hfv, by omega⟩
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = N := by rw [← hn]; scalar_tac
       refine ⟨hdl, ?_, ?_⟩
       · intro w hwlt
         have := hbd w hwlt
         split at this <;> omega
       · intro w hwlt; rw [← heq]; exact hw w hwlt
-  · exact ⟨rfl, rfl, hi, hlen, hbnd, hval⟩
+  · exact ⟨rfl, hj1, hj2, hlen, hbnd, hval⟩
 
-/-- **`short_pass_off`.** -/
+/-- **`short_pass_off`.** The statement is the one the single-loop version
+had: the split is invisible above this line. -/
 theorem short_pass_off_spec (s : ring.Rq) (kU : Std.Usize) (negt : Bool)
     (acc : alloc.vec.Vec Std.U64) (base : ℕ → ZMod q) (B : ℕ)
     (hs : Wf s) (hk : kU.val < N) (hlen : acc.val.length = N)
@@ -1612,14 +1683,22 @@ theorem short_pass_off_spec (s : ring.Rq) (kU : Std.Usize) (negt : Bool)
           ∀ w, w < N → ((bufN z w : ℕ) : ZMod q)
             = applied base (coeffK s) kU.val negt N w ⦄ := by
   rw [ring.short_pass_off]
-  exact short_pass_off_loop_spec s kU params.RING_DEGREE params.Q negt acc 0#usize
-    base B hs params_RING_DEGREE_val params_Q_val hk (by simp) hlen hB
+  step as ⟨limU, hlimU⟩
+  have hlim : limU.val = N - kU.val := by
+    rw [hlimU, params_RING_DEGREE_val]
+  step with short_pass_off_loop0_spec s kU limU params.Q negt acc 0#usize
+    base B hs hlim params_Q_val hk (by simp) hlen hB
     (by intro w hwlt; rw [if_neg (by simp)]; exact hbnd w hwlt)
     (by
       intro w hwlt
       have hz : applied base (coeffK s) kU.val negt ((0#usize : Std.Usize).val) w
           = base w := by unfold applied; simp
       rw [hz]; exact hval w hwlt)
+    as ⟨s1, out1, hp1, hp2, hp3, hp4⟩
+  rw [hp1]
+  exact short_pass_off_loop1_spec s kU params.RING_DEGREE limU params.Q negt
+    out1 limU base B hs params_RING_DEGREE_val hlim params_Q_val hk
+    (le_refl _) (by omega) hp2 hB hp3 hp4
 
 /-- **The reduction pass.** Every slot mod `q`: the value is unchanged in
 `ZMod q` and the bound drops back to `q`. -/
@@ -1713,16 +1792,9 @@ theorem short_chunk_loop_spec (s : ring.Rq) (chunk : Std.U64) (kU : Std.Usize)
     by_cases hlt : pp < mU
     · rw [if_pos hlt]
       have hppm : pp.val < mU.val := by scalar_tac
-      step with short_pass_off_loop_spec s kU params.RING_DEGREE params.Q negt b 0#usize
+      step with short_pass_off_spec s kU negt b
         (passed base (coeffK s) kU.val negt pp.val) (bnd lf.val)
-        hs params_RING_DEGREE_val params_Q_val hk (by simp) hbl (bnd_le lf.val hlf1)
-        (by intro w hwlt; rw [if_neg (by simp)]; exact hbb w hwlt)
-        (by
-          intro w hwlt
-          have hz : applied (passed base (coeffK s) kU.val negt pp.val) (coeffK s)
-              kU.val negt ((0#usize : Std.Usize).val) w
-              = passed base (coeffK s) kU.val negt pp.val w := by unfold applied; simp
-          rw [hz]; exact hbv w hwlt)
+        hs hk hbl (bnd_le lf.val hlf1) hbb hbv
         as ⟨b1, hb1l, hb1b, hb1v⟩
       have hb1v' : ∀ w, w < N → ((bufN b1 w : ℕ) : ZMod q)
           = passed base (coeffK s) kU.val negt (pp.val + 1) w := by

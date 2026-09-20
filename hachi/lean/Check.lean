@@ -1827,6 +1827,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- their Aeneas loop constants.
 #print axioms HachiEquiv.AuxShort.offStep_cast
 #print axioms HachiEquiv.AuxShort.bnd_le
+-- The offset pass splits at the wrap point, so neither loop tests `pos >= N`
+-- per element and both runs are stride-1. The write step is the same lemma for
+-- both, and `short_pass_off_spec`'s statement is the one the single loop had:
+-- the split is invisible to `mul_short_add_into_spec` below.
+#print axioms HachiEquiv.AuxShort.offWrite_step
+#print axioms HachiEquiv.AuxShort.short_pass_off_loop0_spec
+#print axioms HachiEquiv.AuxShort.short_pass_off_loop1_spec
 #print axioms HachiEquiv.AuxShort.short_pass_off_spec
 #print axioms HachiEquiv.AuxShort.short_reduce_buf_spec
 #print axioms HachiEquiv.AuxShort.short_chunk_loop_spec
