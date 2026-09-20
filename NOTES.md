@@ -9416,3 +9416,33 @@ clear * - p0 p1 p2 p3 hjlt hhq hqpos
 takes the same theorem to **8 seconds**. The lesson generalizes to every loop
 whose body does modular arithmetic and whose bookkeeping does not: keep them
 in separate contexts.
+
+### The pin-scale effect
+
+`logs/runs/pin-profile-20260920-radix4.log`, cold, control CPU spread −2.7%.
+
+| | 642.1 s baseline | radix-4 fused | |
+|---|---|---|---|
+| **commitment** | 200.3 s | **156.5 s** | **−21.9%** |
+| `carrier_decomp_from_raw` | 97.9 s | 98.0 s | +0.1% |
+| `honest_compute_resp` | 152.5 s | 152.6 s | +0.1% |
+| lifted witness | 35.7 s | 35.9 s | +0.6% |
+| `lift_commit` | 18.0 s | 18.0 s | 0 |
+| `honest_round_messages` | 133.9 s | 133.6 s | −0.2% |
+| **prover** | **642.1 s** | **598.4 s** | **−6.8%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+Exactly the shape the card predicted: the commitment is the only phase that
+moves, because `apply_digits_gold` is the only caller of `gold_forward`, and
+everything else is flat inside the control's own spread. **1170.8 → 598.4 is
+−48.9%** since the start of the day.
+
+`c_w_table_mle` at 212.7 ms rather than the 345 ms of the collided run is the
+same code; that row is 0.2 s of a 598 s prover and reads whatever the page
+cache is doing.
+
+One process hygiene note, paid for with an eighteen-minute run: the first
+attempt wrote its log to the same path as an aborted earlier run whose shell
+still held the redirect open, and the two interleaved — the surviving file had
+a coherent tail and **no commitment line at all**, which is the one line the
+card moves. A profile log gets a fresh name, or it gets read wrong.
