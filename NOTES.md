@@ -9446,3 +9446,54 @@ attempt wrote its log to the same path as an aborted earlier run whose shell
 still held the redirect open, and the two interleaved — the surviving file had
 a coherent tail and **no commitment line at all**, which is the one line the
 card moves. A profile log gets a fresh name, or it gets read wrong.
+
+## The same fusion on the general path: rejected, and it takes a gate with it (2026-09-20)
+
+The obvious follow-on to radix-4 was the same fusion at the general
+three-prime transform, which is what `carrier_decomp_from_raw` (98.0 s) and
+`Rq::mul` run, and which does **three** transforms per term to the digit
+path's one. The Rust was written, `cargo test` was green at 230, and
+`make extract` was clean with zero axioms. Then the bench rejected it:
+
+| | `cand vs now` |
+|---|---|
+| `quadeval/carrier_from_raw/8` | **+22.3% slower** |
+| `ring/mul/1024` | **+30.2% slower** |
+
+against a 2.3% bias and a 5% floor. Two independent callers, same sign, far
+outside noise.
+
+The standalone gate had said **−27.7%**.
+
+### The fifty-point gap, and what it is not
+
+The first suspicion was the obvious one: the gate hard-codes `AUX_P1` and its
+Barrett magic as `const`, and `ntt::dif_stage` receives them as runtime
+arguments, so the gate was constant-folding a function the crate cannot.
+`the_radix4_general_runtime_prime_diagnostic` settles that — the same pair with
+both values `black_box`ed reads **−33.6%**, i.e. *better*. The standalone
+kernel is genuinely faster either way. The const-vs-runtime prime is not it.
+
+The leading suspicion is auto-vectorization. `dif_stage`'s first inner loop is
+a branch-free stride-1 `aux_add` across `half` entries — exactly the shape LLVM
+turns into AVX2 — and the fused body's four scattered writes with interleaved
+128-bit Barrett reductions cannot be vectorized at all. The Goldilocks lane
+does not lose this way because its reduction-heavy loop dominates the cheap
+one. Confirming that needs the disassembly, and it would not change the
+verdict, so it is left as a suspicion rather than dressed up as a finding.
+
+### What this costs the board
+
+`prototype-in-crate-only` already said a test-side copy of a *crate* item
+measures wrong. This is the sharper version: **two test-side functions
+measured against each other, in identical shape, can mispredict the crate by
+fifty points** — not because either is mis-written, but because the crate's
+version of the loser gets an optimization the crate's version of the winner
+cannot.
+
+The casualty is the last butterfly card. "The general path in 2 × 64-bit
+lanes" carries a **−43.9%** butterfly figure obtained by exactly this method,
+and this row is a fifty-point counterexample to the method on this kernel.
+That number is no longer evidence. It has to be re-measured in the crate,
+through the slot, before the card is worth a line of Lean — and on today's
+showing the honest prior is that it will not survive.

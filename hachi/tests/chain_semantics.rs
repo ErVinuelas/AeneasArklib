@@ -3817,3 +3817,220 @@ fn the_radix4_fused_gate() {
     eprintln!("[r4f] on the commitment's ~168 s of transforms: {:+.1} s, {:+.1}% of a 642.1 s prover",
         168.0 * (tf - t2) / t2, 100.0 * 168.0 * (tf - t2) / t2 / 642.1);
 }
+
+// ---- the general path's fused stage (card R4g) ------------------------------
+//
+// The same fusion as `the_radix4_fused_gate`, at the general path's 30-bit
+// Barrett prime instead of Goldilocks. The butterfly costs more here -- a
+// 128-bit multiply and a division by `BARRETT_SCALE` per twiddle -- so this
+// kernel is less memory-bound than the Goldilocks one and the pair fusion
+// should be worth less. How much less is the question this gate answers,
+// because the proof cost is the same either way.
+
+const AP: u64 = 469_762_049;
+const AM: u64 = 39_268_272_336;
+const APSI: u64 = 165_447_688;
+const BSCALE: u128 = 1u128 << 64;
+
+#[inline] fn ar(x: u64) -> u64 {
+    let wide: u128 = (x as u128) * (AM as u128);
+    let qh: u64 = (wide / BSCALE) as u64;
+    let r: u64 = x - qh * AP;
+    if r >= AP { r - AP } else { r }
+}
+#[inline] fn aa(a: u64, b: u64) -> u64 { let s = a + b; if s >= AP { s - AP } else { s } }
+#[inline] fn asu(a: u64, b: u64) -> u64 { if a >= b { a - b } else { a + AP - b } }
+#[inline] fn am(a: u64, b: u64) -> u64 { ar(a * b) }
+
+fn atab(psi: u64, n: usize) -> Vec<u64> {
+    let mut v = Vec::with_capacity(n);
+    let mut cur = 1u64;
+    for _ in 0..n { v.push(cur); cur = am(cur, psi); }
+    v
+}
+
+/// The radix-2 stage, the shape `ntt::dif_stage` has.
+fn adif(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize) {
+    let half = len / 2;
+    let step = 2 * (n / len);
+    let mut st = 0usize;
+    while st < n {
+        for j in 0..half { dst[st + j] = aa(src[st + j], src[st + j + half]); }
+        let mut e = 0usize;
+        for i in 0..half {
+            dst[st + half + i] = am(asu(src[st + i], src[st + i + half]), tw[e]);
+            e += step;
+        }
+        st += len;
+    }
+}
+
+fn afwd(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize) -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 {
+        adif(&cur, &mut tmp, len, tw, n);
+        std::mem::swap(&mut cur, &mut tmp);
+        len /= 2;
+    }
+    (cur, tmp)
+}
+
+/// Two stages fused, exactly as `ntt::gold_dif_stage2` does it.
+fn adif_fused(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize) {
+    let h1 = len / 2;
+    let q4 = len / 4;
+    let step1 = 2 * (n / len);
+    let step2 = 2 * step1;
+    let mut st = 0usize;
+    while st < n {
+        let mut j = 0usize;
+        while j < q4 {
+            let a0 = src[st + j];
+            let a1 = src[st + j + q4];
+            let a2 = src[st + j + h1];
+            let a3 = src[st + j + h1 + q4];
+            let b0 = aa(a0, a2);
+            let b1 = aa(a1, a3);
+            let b2 = am(asu(a0, a2), tw[j * step1]);
+            let b3 = am(asu(a1, a3), tw[(j + q4) * step1]);
+            dst[st + j] = aa(b0, b1);
+            dst[st + j + q4] = am(asu(b0, b1), tw[j * step2]);
+            dst[st + h1 + j] = aa(b2, b3);
+            dst[st + h1 + q4 + j] = am(asu(b2, b3), tw[j * step2]);
+            j += 1;
+        }
+        st += len;
+    }
+}
+
+fn afwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize)
+    -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 {
+        adif_fused(&cur, &mut tmp, len, tw, n);
+        std::mem::swap(&mut cur, &mut tmp);
+        len /= 4;
+    }
+    (cur, tmp)
+}
+
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_radix4_fused_gate_general() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let mut r = Lcg::new(0x4AD1_F1);
+    let tw = atab(APSI, 3 * n);
+    let input: Vec<u64> = (0..n).map(|_| r.next_u64() % AP).collect();
+
+    let (o2, _) = afwd(input.clone(), vec![0u64; n], &tw, n);
+    let (of, _) = afwd_fused(input.clone(), vec![0u64; n], &tw, n);
+    let bad = (0..n).filter(|&i| o2[i] != of[i]).count();
+    assert_eq!(bad, 0, "the fused general stage differs at {bad} of {n} points");
+    eprintln!("[r4g] the fused pass equals two radix-2 stages, ELEMENTWISE, at all {n} points");
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..200 { f(); }
+        let mut b = f64::MAX;
+        for _ in 0..200 { let t = Instant::now(); f(); b = b.min(t.elapsed().as_secs_f64()); }
+        b
+    };
+    let t2 = best(Box::new(|| { std::hint::black_box(afwd(input.clone(), vec![0u64; n], &tw, n)); }));
+    let tf = best(Box::new(|| { std::hint::black_box(afwd_fused(input.clone(), vec![0u64; n], &tw, n)); }));
+    eprintln!("[r4g] radix-2, ten passes   {:>8.2} µs", 1e6 * t2);
+    eprintln!("[r4g] fused,   five passes  {:>8.2} µs   ({:+.1}%)",
+        1e6 * tf, 100.0 * (tf - t2) / t2);
+    eprintln!("[r4g] the general dot runs THREE of these per term (AUX_P1/P2/P3);");
+    eprintln!("[r4g] on carrier_decomp_from_raw's 98.0 s, if it is all transform: {:+.1} s",
+        98.0 * (tf - t2) / t2);
+}
+
+/// The same two kernels, but with the prime and the Barrett magic arriving as
+/// **runtime arguments**, which is how `ntt::dif_stage` actually gets them.
+/// `the_radix4_fused_gate_general` made them `const`, and that is the whole
+/// difference between its -27.7% and the bench's +22.3%.
+#[inline] fn xr(x: u64, p: u64, m: u64) -> u64 {
+    let wide: u128 = (x as u128) * (m as u128);
+    let qh: u64 = (wide / BSCALE) as u64;
+    let r: u64 = x - qh * p;
+    if r >= p { r - p } else { r }
+}
+#[inline] fn xa(a: u64, b: u64, p: u64) -> u64 { let s = a + b; if s >= p { s - p } else { s } }
+#[inline] fn xs(a: u64, b: u64, p: u64) -> u64 { if a >= b { a - b } else { a + p - b } }
+#[inline] fn xm(a: u64, b: u64, p: u64, m: u64) -> u64 { xr(a * b, p, m) }
+
+fn xdif(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize, p: u64, m: u64) {
+    let half = len / 2;
+    let step = 2 * (n / len);
+    let mut st = 0usize;
+    while st < n {
+        for j in 0..half { dst[st + j] = xa(src[st + j], src[st + j + half], p); }
+        let mut e = 0usize;
+        for i in 0..half {
+            dst[st + half + i] = xm(xs(src[st + i], src[st + i + half], p), tw[e], p, m);
+            e += step;
+        }
+        st += len;
+    }
+}
+fn xfwd(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, p: u64, m: u64)
+    -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 { xdif(&cur, &mut tmp, len, tw, n, p, m); std::mem::swap(&mut cur, &mut tmp); len /= 2; }
+    (cur, tmp)
+}
+fn xdif_fused(src: &[u64], dst: &mut [u64], len: usize, tw: &[u64], n: usize, p: u64, m: u64) {
+    let h1 = len / 2; let q4 = len / 4;
+    let step1 = 2 * (n / len); let step2 = 2 * step1;
+    let mut st = 0usize;
+    while st < n {
+        let mut j = 0usize;
+        while j < q4 {
+            let a0 = src[st + j]; let a1 = src[st + j + q4];
+            let a2 = src[st + j + h1]; let a3 = src[st + j + h1 + q4];
+            let b0 = xa(a0, a2, p); let b1 = xa(a1, a3, p);
+            let b2 = xm(xs(a0, a2, p), tw[j * step1], p, m);
+            let b3 = xm(xs(a1, a3, p), tw[(j + q4) * step1], p, m);
+            dst[st + j] = xa(b0, b1, p);
+            dst[st + j + q4] = xm(xs(b0, b1, p), tw[j * step2], p, m);
+            dst[st + h1 + j] = xa(b2, b3, p);
+            dst[st + h1 + q4 + j] = xm(xs(b2, b3, p), tw[j * step2], p, m);
+            j += 1;
+        }
+        st += len;
+    }
+}
+fn xfwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, p: u64, m: u64)
+    -> (Vec<u64>, Vec<u64>) {
+    let mut len = n;
+    while len > 1 { xdif_fused(&cur, &mut tmp, len, tw, n, p, m); std::mem::swap(&mut cur, &mut tmp); len /= 4; }
+    (cur, tmp)
+}
+
+#[test]
+#[ignore = "timing -- run with cargo test --release -- --ignored"]
+fn the_radix4_general_runtime_prime_diagnostic() {
+    use std::time::Instant;
+    let n = hachi::params::RING_DEGREE;
+    let mut r = Lcg::new(0x4AD1_F2);
+    let tw = atab(APSI, 3 * n);
+    let input: Vec<u64> = (0..n).map(|_| r.next_u64() % AP).collect();
+    let (p, m) = (std::hint::black_box(AP), std::hint::black_box(AM));
+
+    let (o2, _) = xfwd(input.clone(), vec![0u64; n], &tw, n, p, m);
+    let (of, _) = xfwd_fused(input.clone(), vec![0u64; n], &tw, n, p, m);
+    assert_eq!((0..n).filter(|&i| o2[i] != of[i]).count(), 0);
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..200 { f(); }
+        let mut b = f64::MAX;
+        for _ in 0..200 { let t = Instant::now(); f(); b = b.min(t.elapsed().as_secs_f64()); }
+        b
+    };
+    let t2 = best(Box::new(|| { std::hint::black_box(xfwd(input.clone(), vec![0u64; n], &tw, n, p, m)); }));
+    let tf = best(Box::new(|| { std::hint::black_box(xfwd_fused(input.clone(), vec![0u64; n], &tw, n, p, m)); }));
+    eprintln!("[r4x] RUNTIME prime -- radix-2, ten passes   {:>8.2} µs", 1e6 * t2);
+    eprintln!("[r4x] RUNTIME prime -- fused,   five passes  {:>8.2} µs   ({:+.1}%)",
+        1e6 * tf, 100.0 * (tf - t2) / t2);
+    eprintln!("[r4x] const-prime gate said -27.7%; the bench on the real crate said +22.3%.");
+}
