@@ -305,12 +305,20 @@ pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
 /// `Rq::mul`'s accumulator already uses.
 pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec<Ext4> {
     let n: usize = params::SHIFT_DEG;
-    let mut dpow: Ext4 = Ext4::ONE;
+    // `e·d^m`, threaded, rather than `d^m` multiplied by `e` at every step:
+    // `e · (d^m · s) = (e · d^m) · s`, so the weight rides along with the
+    // power and the body drops from three full `Ext4` products to two. This
+    // is the innermost loop of `round_poly_zero`, which the phase split
+    // (2026-09-20) measured at 92% of `honest_compute_g` and so ~22% of the
+    // whole prover; the other 8% is the alpha side, where the same reasoning
+    // bought nothing.
+    let mut epow: Ext4 = e;
     let mut m: usize = 0;
     while m < n {
         let s: Ext4 = shift_inner(lop, m);
-        acc[m] = acc[m] + e * (dpow * s);
-        dpow = dpow * d;
+        let cur: Ext4 = acc[m];
+        acc[m] = cur + epow * s;
+        epow = epow * d;
         m += 1;
     }
     acc

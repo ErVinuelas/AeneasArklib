@@ -4034,3 +4034,40 @@ fn the_radix4_general_runtime_prime_diagnostic() {
         1e6 * tf, 100.0 * (tf - t2) / t2);
     eprintln!("[r4x] const-prime gate said -27.7%; the bench on the real crate said +22.3%.");
 }
+
+/// Which half of `honest_compute_g` costs what. The rounds are 25% of the
+/// prover and 99% of them is `honest_compute_g`; this splits that into its
+/// zero side (the Taylor shift, candidate T3) and its alpha side (the
+/// two-factor linear term), at a width where both are well past the
+/// unresolved band.
+#[test]
+#[ignore = "instrument: timing -- run with cargo test --release -- --ignored"]
+fn the_round_g_halves() {
+    use hachi::params::ROUND_NODES_ALPHA;
+    use std::time::Instant;
+    let half: usize = std::env::var("HACHI_G_HALF").ok()
+        .and_then(|v| v.parse().ok()).unwrap_or(1 << 16);
+    let mut r = Lcg::new(0x6A17_0001);
+    let e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+    let w: Vec<Ext4> = (0..2 * half).map(|_| e4(&mut r)).collect();
+    let l: usize = 1 << 8;
+    let low: Vec<Ext4> = (0..l).map(|_| e4(&mut r)).collect();
+    let high: Vec<Ext4> = (0..(2 * half).div_ceil(l)).map(|_| e4(&mut r)).collect();
+    let suffix: Vec<Ext4> = (0..half.max(1)).map(|_| e4(&mut r)).collect();
+
+    let best = |mut f: Box<dyn FnMut()>| -> f64 {
+        for _ in 0..3 { f(); }
+        let mut b = f64::MAX;
+        for _ in 0..7 { let t = Instant::now(); f(); b = b.min(t.elapsed().as_secs_f64()); }
+        b
+    };
+    let tz = best(Box::new(|| {
+        std::hint::black_box(hachi::sumcheck::round_poly_zero(&w, &suffix)); }));
+    let ta = best(Box::new(|| {
+        std::hint::black_box(hachi::sumcheck::round_poly_alpha_split(&w, &low, &high)); }));
+    eprintln!("[gsplit] half = {half}, ROUND_NODES_ALPHA = {ROUND_NODES_ALPHA}");
+    eprintln!("[gsplit]   round_poly_zero        {:>9.2} ms   {:5.1}%", 1e3 * tz,
+        100.0 * tz / (tz + ta));
+    eprintln!("[gsplit]   round_poly_alpha_split {:>9.2} ms   {:5.1}%", 1e3 * ta,
+        100.0 * ta / (tz + ta));
+}

@@ -364,17 +364,17 @@ theorem shift_accum_loop_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
     (hv : ∀ t, t < 32 → toExt (lop.val.getD t cpoly.field.Ext4.ZERO) = X ^ t)
     (hdr : Reduced d) (her : Reduced e)
     (halen : acc.val.length = 32) (har : VecReduced acc)
-    (hdpr : Reduced dpow) (hdpv : toExt dpow = toExt d ^ m.val)
+    (hdpr : Reduced dpow) (hdpv : toExt dpow = toExt e * toExt d ^ m.val)
     (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
       = acc0 t + (if t < m.val then toExt e * shiftCoeff X (toExt d) t else 0)) :
-    sumcheck.shift_accum_loop acc lop d e n dpow m
+    sumcheck.shift_accum_loop acc lop d n dpow m
       ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
           ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
             = acc0 t + toExt e * shiftCoeff X (toExt d) t ⦄ := by
   rw [sumcheck.shift_accum_loop]
   apply loop.spec_decr_nat (fun r => 32 - r.2.2.val)
     (fun r => r.2.2.val ≤ 32 ∧ r.1.val.length = 32 ∧ VecReduced r.1
-      ∧ Reduced r.2.1 ∧ toExt r.2.1 = toExt d ^ r.2.2.val
+      ∧ Reduced r.2.1 ∧ toExt r.2.1 = toExt e * toExt d ^ r.2.2.val
       ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
           = acc0 t + (if t < r.2.2.val then toExt e * shiftCoeff X (toExt d) t else 0))
   · rintro ⟨a, dp, mm⟩ ⟨hmm, hal, har', hdpr', hdpv', hav'⟩
@@ -390,15 +390,14 @@ theorem shift_accum_loop_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
       have he1v : toExt e1 = acc0 mm.val + 0 := by
         rw [he1, ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO) hab,
           hav' mm.val hmlt, if_neg (by omega)]
-      step with HachiEquiv.Ext.ext_mul_spec dp sv hdpr' hRsv as ⟨e2, hRe2, he2v⟩
-      step with HachiEquiv.Ext.ext_mul_spec e e2 her hRe2 as ⟨e3, hRe3, he3v⟩
+      step with HachiEquiv.Ext.ext_mul_spec dp sv hdpr' hRsv as ⟨e3, hRe3, he3v⟩
       step with HachiEquiv.Ext.ext_add_spec e1 e3 hRe1 hRe3 as ⟨e4, hRe4, he4v⟩
       step as ⟨elem, back, helem, hback⟩
       step with HachiEquiv.Ext.ext_mul_spec dp d hdpr' hdr as ⟨dp1, hRdp1, hdp1v⟩
       step as ⟨mm1, hmm1⟩
       have hset : back e4 = a.set mm e4 := by rw [hback]
       have he4val : toExt e4 = acc0 mm.val + toExt e * shiftCoeff X (toExt d) mm.val := by
-        rw [he4v, he1v, he3v, he2v, hsvv, hdpv', shiftCoeff]
+        rw [he4v, he1v, he3v, hsvv, hdpv', shiftCoeff]
         ring
       refine ⟨by omega, ?_, ?_, hRdp1, ?_, ?_, by omega⟩
       · rw [hset, alloc.vec.Vec.set_val_eq, List.length_set, hal]
@@ -407,7 +406,7 @@ theorem shift_accum_loop_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
         rcases List.mem_or_eq_of_mem_set hy with h | h
         · exact har' y h
         · rw [h]; exact hRe4
-      · rw [hdp1v, hdpv', hmm1, pow_succ]
+      · rw [hdp1v, hdpv', hmm1, pow_succ]; ring
       · intro t ht
         rw [hset, alloc.vec.Vec.set_val_eq, hmm1]
         rcases eq_or_ne t mm.val with rfl | hne
@@ -440,9 +439,9 @@ theorem shift_accum_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
           ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
             = acc0 t + toExt e * shiftCoeff X (toExt d) t ⦄ := by
   rw [sumcheck.shift_accum]
-  exact shift_accum_loop_spec acc lop d e params.SHIFT_DEG cpoly.field.Ext4.ONE 0#usize
+  exact shift_accum_loop_spec acc lop d e params.SHIFT_DEG e 0#usize
     X acc0 shift_deg_val (by simp) hlen hlr hv hdr her halen har
-    HachiEquiv.Ext.reduced_ONE (by simp)
+    her (by simp)
     (by intro t ht; rw [hav t ht, if_neg (by simp)]; ring)
 
 

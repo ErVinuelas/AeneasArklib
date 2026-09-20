@@ -9672,3 +9672,76 @@ The rounds have not been looked at since T3 and are now a quarter of the
 prover; `carrier_decomp_from_raw` is the general three-prime path, whose
 radix-4 fusion was rejected this afternoon. Those are the next two places to
 price.
+
+## The rounds, priced: 99% is one function and 92% of that is one half (2026-09-20)
+
+The rounds were 133.9 s, a quarter of a 530 s prover, and nothing had looked
+at them since T3. `the_rounds_split_per_phase` at the pin:
+
+| | |
+|---|---|
+| `honest_compute_g` | **127.82 s, 99.0%** |
+| `eval_mle_layer` | 1.34 s, 1.0% |
+| `round_out` | 25.91 µs |
+| `alpha_split_fold` | 911 µs |
+
+Per round, `g` reads 31.86 s, **48.29 s**, 24.14 s, 12.05 s, 6.02 s. Rounds 1–4
+halve cleanly; round 0 is *below* the geometric line because T3-at-round-0 put
+it in the base field. So round 1 — the first extension-field round at full
+width — is the single most expensive thing in the sumcheck.
+
+### Card A1, rejected: the right idea on the wrong half
+
+`round_value_alpha_split` rebuilds each `Ã` entry — `low[j % l] · high[j / l]`,
+two `Ext4` products and a division by a runtime divisor — once per
+interpolation node, though it does not depend on the node. Interchanging the
+loops builds it once and folds it against all three nodes in registers, with
+no extra memory (three accumulators, not a table, so the `2^m₀` wall stays
+away).
+
+The arithmetic is real and the bench said **noise**: −3.4% and −2.8%, both
+under the floor.
+
+The follow-up instrument `the_round_g_halves` says why, in one line:
+
+| | |
+|---|---|
+| `round_poly_zero` | **169.99 ms, 92.0%** |
+| `round_poly_alpha_split` | 14.71 ms, 8.0% |
+
+The card could not have been worth more than 8% of the rounds if it had been
+perfect. **Price the halves before optimizing one** — the split took seconds
+and would have saved the candidate.
+
+### Card A2, accepted: one multiplication out of the innermost loop
+
+`round_poly_zero`'s inner loop runs over `ROUND_NODES = 33` coefficients
+against the alpha side's 3, which is the whole of the 92/8 split. Its body was
+
+```rust
+acc[m] = acc[m] + e * (dpow * s);
+dpow = dpow * d;
+```
+
+three full `Ext4` products per coefficient. But `e · (dᵐ · s) = (e · dᵐ) · s`,
+so the weight can ride along with the running power:
+
+```rust
+acc[m] = cur + epow * s;
+epow = epow * d;
+```
+
+two products instead of three.
+
+| | `cand vs now` |
+|---|---|
+| `sumcheck/round_poly_zero/1024` | **−9.6%** |
+| `sumcheck/honest_compute_g_split/1024` | −8.5% |
+| `sumcheck/honest_round_messages/11` | −5.5% |
+
+**The proof is about ten changed lines.** `shift_accum_spec` is verbatim what
+it was; only the loop invariant moves, from `toExt dpow = dᵐ` to
+`toExt epow = e · dᵐ`, and the body loses one `ext_mul_spec` step. One
+extraction detail worth recording: the loop no longer reads `e`, so Aeneas
+**drops it from `shift_accum_loop`'s parameter list** — the spec keeps `e` as
+a specification-only parameter and the application loses it.
