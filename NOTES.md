@@ -9745,3 +9745,31 @@ it was; only the loop invariant moves, from `toExt dpow = dᵐ` to
 extraction detail worth recording: the loop no longer reads `e`, so Aeneas
 **drops it from `shift_accum_loop`'s parameter list** — the spec keeps `e` as
 a specification-only parameter and the application loses it.
+
+### The pin-scale effect
+
+`logs/runs/pin-profile-20260920-epow.log`, control CPU spread −0.4%.
+
+| | 530.0 s baseline | card A2 | |
+|---|---|---|---|
+| commitment | 157.0 s | 156.1 s | −0.6% |
+| `carrier_decomp_from_raw` | 98.1 s | 97.6 s | −0.5% |
+| `honest_compute_resp` | 83.3 s | 81.4 s | −2.3% |
+| lifted witness | 35.9 s | **39.8 s** | **+10.9%** |
+| **`honest_round_messages`** | 133.9 s | **124.7 s** | **−6.9%** |
+| **prover** | **530.0 s** | **521.3 s** | **−1.6%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+
+The rounds moved −6.9%, which is what the `honest_round_messages` bench row
+(−5.5%) predicted, and the change touches nothing else in the prover.
+
+**The lifted-witness row is an outlier and A2 cannot have caused it.** That
+phase has read 35.7, 35.9, 35.9, 35.9 and 36.1 s in the five profiles before
+this one, and `honest_lift_witness` shares no code with `shift_accum`. Taken
+at its usual level the prover would read ≈ 517 s (−2.4%); the table above
+reports what the run actually printed, which is the rule. The CPU control was
+clean at −0.4%, so this is phase variance rather than machine drift — worth
+one more datapoint before anyone treats 39.8 s as real.
+
+**1170.8 → 521.3 is −55.5% for the day**, and puts the verified crate at
+**1.02–1.16×** the paper's own implementation at ℓ = 30 on this laptop.
