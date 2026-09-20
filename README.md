@@ -32,7 +32,11 @@ in structure and in method, and depends on it for the coefficient field.
 > build-enforced, up to perfect correctness of the scheme and the composed
 > chain's honest `open`/`verify` pair.**
 >
-> Twelve modules are in place — [`params`](hachi/src/params.rs),
+> Thirteen modules are in place — [`params`](hachi/src/params.rs),
+> [`ntt`](hachi/src/ntt.rs) (the number-theoretic transform the ring
+> multiplication runs on — three auxiliary Barrett primes for the general
+> path, one Goldilocks lane for the digit path, and the fused pair of
+> decimation-in-frequency stages that halves the passes over the buffer),
 > [`ring`](hachi/src/ring.rs) (the negacyclic ring `R_q = Z_q[X]/(X^N+1)`),
 > [`linalg`](hachi/src/linalg.rs), [`gadget`](hachi/src/gadget.rs) (base-`b` digit
 > decomposition, unsigned and balanced, and the gadget matrix),
@@ -46,15 +50,19 @@ in structure and in method, and depends on it for the coefficient field.
 > paired sumcheck's round polynomials, checks and loops),
 > [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
 > conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
-> `verify` over the proved links). 187 tests pass, including perfect correctness
-> and every rejection path of the verifier; 27 more are `#[ignore]`d because
+> `verify` over the proved links). 230 tests pass, including perfect correctness
+> and every rejection path of the verifier; 51 more are `#[ignore]`d because
 > they cannot complete at the paper's parameters, each naming the wall that
 > ignores it (NOTES.md, `exclusions.toml`). `make extract` produces a model with
 > no axioms and no opaque bodies; every mirrored item is benched or excluded by
-> name, and the 287 frozen baseline items are verified against git. The
-> optimization loop has run: `lean/Opt.lean` holds the first three accepted
-> champions' optimized definitions with their proved `opt_eq_spec` lemmas, and
-> `logs/ledger.jsonl` their within-run verdicts (NOTES.md § "Stage 6 opens").
+> name, and the 444 frozen baseline items are verified against git. The
+> optimization loop has run to a standstill: `logs/ledger.jsonl` holds 72
+> within-run verdicts, accepted and rejected, and the pin-scale prover has gone
+> from 1170.8 s to **598.4 s** (−48.9%) at an unchanged 5453 MiB peak. Every
+> accepted champion is proof-carrying — some as an optimized definition in
+> [`lean/Opt.lean`](hachi/lean/Opt.lean) with its `opt_eq_spec`, the rest as a
+> re-proof of the item's own spec with the statement unmoved — and no theorem
+> statement was weakened to let one land (NOTES.md, the Stage 6 sections).
 >
 > `make build` passes, and every layer it checks is proved:
 >
@@ -116,9 +124,10 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of all two hundred and five proved specs (191 headline specs, the ten
-> `opt_eq_spec`/length lemmas and the five helper specs of iteration 1): the three Lean kernel axioms,
-> nothing else. `make spec-check` reports 155 mirrored items, 155 stated, 0 owed.
+> of every proved spec — 499 `#print axioms` lines, headline specs, the
+> `opt_eq_spec`/length lemmas and the helper specs alike: the three Lean kernel
+> axioms, nothing else. `make spec-check` reports 156 mirrored items, 156
+> stated, 0 owed.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is **empty**; its [README](hachi/lean-wip/README.md) holds the
 > procedure for promoting a file, which the next translated operation will need.
@@ -148,9 +157,10 @@ in structure and in method, and depends on it for the coefficient field.
 > * an **acceptance test** — an honest transcript that verifies end to end — is
 >   in `tests/chain_semantics.rs` as `the_honest_chain_verifies`, at one block
 >   and otherwise the pin. It is `#[ignore]`d because it costs hours (two naive
->   `alpha_public_table`s of `2^26` entries, one on each side) and its first full
->   run has not reported yet. The plumbing, the rejection paths and the
->   cross-route identity around it are tested and passing.
+>   `alpha_public_table`s of `2^26` entries, one on each side). It has since
+>   been run: it **passed** on 2026-09-14, `chain_verify = true` in 2202 s,
+>   log under [`logs/runs/`](logs/runs). The plumbing, the rejection paths and
+>   the cross-route identity around it are tested and passing.
 
 ## Usage
 
