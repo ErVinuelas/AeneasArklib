@@ -9956,3 +9956,70 @@ part without touching the Rust.
 
 The pattern to extend it — general form with side conditions last, pinned
 statement kept verbatim and proved by instantiation — is now the house shape.
+
+## Stage 6, exit criterion (c): which wall stands, and why it is not a wall (2026-09-21)
+
+Decision 5 lets the stage close on "either the composed-chain row built, or a
+written statement of which wall still stands and why". The row is not built.
+This is the statement, and the interesting part is that the answer changed
+while nobody was looking at this paragraph.
+
+**Every memory wall named anywhere in the plan is down.** In the order they
+fell, each with its ledger row:
+
+| wall | what it was | removed |
+|---|---|---|
+| W3 | the materialized `lift_message` concatenation inside `lift_commit` | 2026-09-14, I2 |
+| W1 | the prover's `2^m₀` α table Ã, 2 GiB | 2026-09-15, candidate L (tensor split) |
+| W4 | `Decomp.message`, the stored digit decomposition, 68.7 GiB at the pin | 2026-09-17, `generate_decomps` streams |
+| — | the 8 GiB resident raw message | 2026-09-18 |
+| — | the 4.3 GiB *dead* raw message under the `R^lin` matrix | 2026-09-18 |
+| W2 | the dense `R^lin` matrix, 2.19 GiB | 2026-09-21, card W2 (blocks + `RlinMat::entry`) |
+
+W4 is worth singling out because it was named *late* (2026-09-14 evening) as
+the one "no wall removal in the queue touches", with the conclusion that an
+end-to-end ℓ = 30 run at `BLOCKS = 1024` "does not fit this machine whatever
+W1–W3 do". That is no longer true and has not been for four days: a pin-shaped
+profile peaks at **5 453 MiB** on a 30 GiB machine. The plan's § "The fourth
+wall" and its three routes should be read as history.
+
+**What stands is time, and it is one number: `lift_commit` at 17.9 s per call
+at the pin.** `exclusions.toml` still said 62 s, which was true when
+`ring::mul` was schoolbook; `ring::mul` is now a three-prime CRT NTT
+(`negconv_mod_q`) and the figure is 3.5× smaller. Measured 2026-09-21,
+`logs/runs/pin-profile-20260921-g2-KILLED-at-rounds.log`, alongside
+`rlin_stmt` at 409 ms and `c_w_table_mle` at 2^26 in 1.3 s.
+
+So the composed row is not blocked on a removal. It is blocked on two things
+that are not walls, and saying so is the point of this entry:
+
+1. **A sampling decision.** One iteration of the composed verifier costs tens
+   of seconds, so the row needs an explicit small `sample_size` and a long
+   measurement time rather than criterion's defaults. That is a configuration
+   question with a precedent (`quadeval/carrier_from_raw` is already a
+   ~450 ms row) and no research in it.
+2. **An environment that lets a 5.4 GiB process finish.** Two attempts at the
+   pin profile on 2026-09-21 were killed by a background-process low-memory
+   watchdog — one during the round loop, one inside the first 60 s — with
+   15 GiB reported available. That is a property of the process supervisor
+   those runs were launched under, not of the machine, and the same command
+   run from a shell is unaffected.
+
+**The queue, checked against the tree rather than against this plan's prose.**
+Two entries had gone stale in a way that matters:
+
+* **I4 is obsolete as written.** Its stated first candidate is "the `u128`
+  delayed-reduction dense convolution, not Karatsuba". `ring::mul` is already
+  an NTT, so both of I4's candidates are regressions. The plan text predates
+  the NTT merge and never mentions it — which is also why `exclusions.toml`
+  was still quoting 62 s.
+* **I3 is complete.** `vec_add`/`vec_sub` accepted 2026-09-14; the third row,
+  `flatten_blocks`, was measured 2026-09-21 and **rejected-noise** at −1.5%
+  recentered over two runs. Pre-sizing is the lever that carried the other two
+  and it buys nothing here: the row's cost is 8192 `Rq::copy()` calls, not the
+  sixteen reallocations of an array of 24-byte handles.
+
+Criteria (a) and (b) hold: every accepted champion is proof-paid and
+axiom-clean (card W2's debt, the last one open, was paid 2026-09-21 — 523
+`#print axioms` lines, all three-axiom, 0 `sorryAx`), and every candidate
+measured has a row, the rejections included.

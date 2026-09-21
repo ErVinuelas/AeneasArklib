@@ -118,12 +118,33 @@ Removal condition (restated 2026-09-11, measured): a row here must *accept*,
 or `&&` and the round loop's early `None` leave `final_check` and the end piece
 untimed; accepting needs a covering cube `(mu + n*delta)*d <= 2^m0`, and the
 honest side sizes its widths from `params` (`honest_z`, `rel_out`), so the
-smallest accepting shape is the pin's `m0 = 26`. The walls at that shape, each
-with its own removal: ~~`alpha_public_table`~~ (removed 2026-09-15 by the
+smallest accepting shape is the pin's `m0 = 26`.
+
+**Status 2026-09-21: every wall this condition named is down, and what stands
+is not a wall.** Struck in order: ~~`alpha_public_table`~~ (2026-09-15, the
 tensor split of `A~`, target-5 brief S4, candidate J; `eq_tilde`'s basis by
-candidate K), `rlin_stmt` (2.2 GiB, removed by a lazy entry-at-alpha form),
-`lift_commit` (`ring::mul`'s width, the 62 s end piece). When those land, this row returns
-as the composed verifier at the pin; until then the end-to-end number is
+candidate K), ~~`rlin_stmt`~~ (2026-09-21, card W2 -- the statement keeps its
+blocks and `RlinMat::entry` reads them, 2.19 GiB -> 0.94 GiB), and the memory
+walls outside this list with it: W3 (2026-09-14), W1 (2026-09-15), W4 (the
+68.7 GiB stored decomposition, 2026-09-17) and the two raw-message walls
+(2026-09-18). A pin-shaped run now peaks at 5 453 MiB on a 30 GiB machine.
+
+What is left of `lift_commit` is time, not memory, and it is 3.5x smaller than
+this paragraph used to claim: **17.9 s per call at the pin**, measured
+2026-09-21 (`logs/runs/pin-profile-20260921-g2-KILLED-at-rounds.log`), against
+the 62 s written here when `ring::mul` was schoolbook. The NTT merge did that,
+not a card in the Stage 6 queue.
+
+So the row is no longer blocked on a removal; it is a sampling decision. One
+iteration of the composed verifier pays `lift_commit` 17.9 s plus `rlin_stmt`
+409 ms plus `c_w_table_mle` 1.3 s plus the round loop, so criterion needs an
+explicit small `sample_size` and a long measurement time, and the run needs an
+environment that will let a 5.4 GiB process live for its duration -- two
+attempts on 2026-09-21 were killed by a background-process memory watchdog
+before the rounds, which is a property of the harness that launched them and
+not of this machine. Returning the row is therefore ordinary bench work with a
+configuration question in front of it, and it is the last thing Stage 5's
+inherited obligation is waiting on. Until it is done the end-to-end number is
 Stage 7's span comparison against `logs/paper-impl/`."""
 
 "chain::chain_open" = """
