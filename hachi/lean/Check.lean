@@ -1903,6 +1903,12 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingLimb.limb_at_inner_spec
 #print axioms HachiEquiv.RingLimb.limb_at_outer_spec
 #print axioms HachiEquiv.RingLimb.limb_at_spec
+-- Layer 3: `negConv` reads its left operand only through `coeffK`, so it is
+-- linear in it, and the two limbs reconstruct the coefficients in `ZMod q`.
+-- The recombination `r0 + 2^16 * r1` the Rust does is `negConv_split` read
+-- right to left.
+#print axioms HachiEquiv.RingLimb.negConv_split
+#print axioms HachiEquiv.RingLimb.coeffK_of_limbs
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt

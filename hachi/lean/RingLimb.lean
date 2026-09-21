@@ -257,4 +257,65 @@ theorem limb_at_spec (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) (div base : Std
     (by simp) (by simp) (by intro x hx; simp at hx) (by intro x hx; simp at hx)
     (by intro i hi; simp at hi)
 
+/-! ## Linearity of the convolution over the split
+
+`negConv` reads its left operand only through `coeffK`, so it is additive and
+scalar-homogeneous in it. That is all card T35's reconstruction needs: the two
+lanes compute `negConv a₀ b` and `negConv a₁ b`, and the recombination
+`r₀ + 2¹⁶·r₁` is this lemma read right to left. -/
+
+/-- The convolution is linear in its **left** operand, coefficientwise. -/
+theorem negConv_split (a a0 a1 b : ring.Rq) (d : ℕ)
+    (h : ∀ t, HachiEquiv.Ring.coeffK a t
+      = HachiEquiv.Ring.coeffK a0 t + (d : ZMod HachiEquiv.NttProduct.q)
+          * HachiEquiv.Ring.coeffK a1 t) (k : ℕ) :
+    HachiEquiv.Ring.negConv a b k
+      = HachiEquiv.Ring.negConv a0 b k
+        + (d : ZMod HachiEquiv.NttProduct.q) * HachiEquiv.Ring.negConv a1 b k := by
+  simp only [HachiEquiv.Ring.negConv]
+  have hpos : ∀ m : ℕ, (∑ p ∈ Finset.antidiagonal m,
+        HachiEquiv.Ring.coeffK a p.1 * HachiEquiv.Ring.coeffK b p.2)
+      = (∑ p ∈ Finset.antidiagonal m,
+          HachiEquiv.Ring.coeffK a0 p.1 * HachiEquiv.Ring.coeffK b p.2)
+        + (d : ZMod HachiEquiv.NttProduct.q)
+          * ∑ p ∈ Finset.antidiagonal m,
+              HachiEquiv.Ring.coeffK a1 p.1 * HachiEquiv.Ring.coeffK b p.2 := by
+    intro m
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl (fun p _ => ?_)
+    rw [h p.1]
+    ring
+  rw [hpos k, hpos (N + k)]
+  ring
+
+/-- The two limbs of a reduced element reconstruct its coefficients in
+`ZMod q`. This is [`limb_recon_q`] cast, and the one place where layer 2's
+arithmetic meets the field. -/
+theorem coeffK_of_limbs (a a0 a1 : ring.Rq) (ha : HachiEquiv.Ring.Wf a)
+    (hl0 : a0.val.length = N) (hl1 : a1.val.length = N)
+    (h0 : ∀ t, t < N → HachiEquiv.Ring.wordN a0 t = HachiEquiv.Ring.wordN a t % 65536)
+    (h1 : ∀ t, t < N → HachiEquiv.Ring.wordN a1 t
+      = (HachiEquiv.Ring.wordN a t / 65536) % 65536) (t : ℕ) :
+    HachiEquiv.Ring.coeffK a t
+      = HachiEquiv.Ring.coeffK a0 t
+        + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q) * HachiEquiv.Ring.coeffK a1 t := by
+  rcases Nat.lt_or_ge t N with ht | ht
+  · have hwlt : HachiEquiv.Ring.wordN a t < HachiEquiv.NttProduct.q := by
+      unfold HachiEquiv.Ring.wordN
+      rw [List.getD_eq_getElem _ _ (by rw [ha.1]; exact ht)]
+      exact ha.2 _ (List.getElem_mem (by rw [ha.1]; exact ht))
+    have hrec := limb_recon_q (HachiEquiv.Ring.wordN a t) hwlt
+    simp only [HachiEquiv.Ring.coeffK_eq_cast_wordN, h0 t ht, h1 t ht]
+    conv_lhs => rw [← hrec]
+    push_cast
+    ring
+  · -- past the end every reader is the default, and `0 = 0 + d * 0`
+    have hz : ∀ (v : ring.Rq), v.val.length = N → HachiEquiv.Ring.coeffK v t = 0 := by
+      intro v hv
+      simp only [HachiEquiv.Ring.coeffK, HachiEquiv.Field.toK]
+      rw [List.getD_eq_default _ _ (by omega)]
+      simp [cpoly.field.Fp.ZERO]
+    rw [hz a ha.1, hz a0 hl0, hz a1 hl1]
+    ring
+
 end HachiEquiv.RingLimb
