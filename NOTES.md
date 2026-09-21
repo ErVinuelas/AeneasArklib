@@ -10023,3 +10023,70 @@ Criteria (a) and (b) hold: every accepted champion is proof-paid and
 axiom-clean (card W2's debt, the last one open, was paid 2026-09-21 — 523
 `#print axioms` lines, all three-axiom, 0 `sorryAx`), and every candidate
 measured has a row, the rejections included.
+
+### The pin-scale effect of W2, T34, T36 and T38
+
+`logs/runs/pin-profile-20260921-lazyrlin.log`, `BLOCKS=1024`, control CPU
+spread within run **−4.4%**. The baseline column is card A2's profile
+(`pin-profile-20260920-epow.log`, control spread −0.4%), which is the last one
+taken. **Card G1 landed on main after that profile and has never been
+pin-profiled**, so it sits inside every delta below alongside the four cards
+this branch carries. The table does not pretend otherwise; where a phase can
+be attributed to one card, the text says so and says why.
+
+| | A2 baseline | W2+T34+T36+T38 | |
+|---|---|---|---|
+| commitment | 156.1 s | 138.7 s | −11.1% |
+| `carrier_decomp_from_raw` | 97.6 s | 97.2 s | −0.4% |
+| `honest_compute_v_from_decomp` | 1.3 s | 1.3 s | 0 |
+| `honest_compute_resp` + stack | 81.4 s | 60.4 s | −25.8% |
+| R^lin statement assembled | 0.413 s | 0.201 s | −51.3% |
+| lifted witness | 39.8 s | 34.5 s | −13.3% |
+| `lift_commit` | 17.9 s | 18.6 s | +3.9% |
+| **`honest_round_messages`** | 124.7 s | **98.9 s** | **−20.7%** |
+| `honest_compute_y` | 1.2 s | 2.5 s | +108% |
+| **prover** | **521.3 s** | **453.0 s** | **−13.1%** |
+| peak RSS | 5453 MiB | **5453 MiB** | **0** |
+| `chain_verify` (whole) | 28.2 s | 28.1 s | −0.4% |
+
+**The rounds are T36 and T38, and nothing else in the tree touches them.**
+−20.7% against bench rows of −16.6% (T36 on `honest_round_messages/11`) and
+−10.1% (T38 on `honest_compute_g_split/1024`); the bench row runs 11 rounds
+where the pin runs 26, so the two cards compounding to −20.7% over the longer
+schedule is the expected shape rather than a surprise.
+
+**The commitment is T34, with G1 inside it.** T34's own rows read −8.0% and
+−9.2% on `commit/commit_streamed/4`; the pin reads −11.1%, and `gadget_decompose`
+runs inside the commitment too, so the extra is G1's and the split cannot be
+read off this run.
+
+**W2 buys no time at the pin, and that is what its `accepted-wall` verdict
+said it would do.** The statement assembly goes 0.413 s → 0.201 s and the
+verifier's copy 0.406 s → 0.174 s: real halvings of a phase that is 0.04% of
+the prover. The measured claim is the memory one, and here it needs a
+correction to what the ledger row implies:
+
+**Peak RSS does not move.** 5453 MiB before, 5453 MiB after. W2 removes
+1.25 GiB from the R^lin matrix, but the peak is set earlier, inside
+`honest_compute_resp + stack`, and never by the matrix. So at ℓ = 30 on this
+machine W2's gain is headroom in `chain_verify` — which is where the
+2026-09-18 run died — and not a lower peak. The arithmetic in its ledger row
+(2.19 GiB → 0.94 GiB) is unchanged and still correct; what is corrected is the
+reading that it lowers the pin's high-water mark. It does not.
+
+**Two rows moved the wrong way and neither is attributable.**
+`honest_compute_y` 1.2 → 2.5 s and `c_w_table_mle` at 2^26 0.216 → 0.527 s
+(diagnostic, inside the rounds' total). Both are sub-3-second phases, and this
+run's control CPU spread was −4.4% against A2's −0.4%, so the machine drifted
+ten times as much within this run as within the baseline's. Recorded, not
+smoothed; neither figure is claimed as an effect of any card here.
+
+**The lifted-witness outlier resolves.** A2's profile flagged 39.8 s against
+35.7–36.1 s in the five profiles before it and said it was phase variance.
+This run reads 34.5 s, below that band, which settles it: 39.8 was noise.
+Against a baseline with the lifted witness at its usual 35.9 s the prover
+reads 517.4 s → 453.0 s, **−12.4%**, and that is the figure to quote rather
+than −13.1%.
+
+**1170.8 → 453.0 is −61.3% for the campaign**, with the caveat above that G1
+is inside this delta and has no profile of its own.
