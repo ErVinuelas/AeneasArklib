@@ -516,7 +516,7 @@ theorem commit_streamed_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
 /-- **`carrier_from_raw_32` is `carrier_from_raw` on the message it denotes.** -/
 theorem carrier_from_raw_32_loop_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
     {raw : alloc.vec.Vec linalg.PolyVec} (blocks : Std.Usize)
-    (prep : linalg.PreparedMatrix) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (prep : linalg.PreparedMatrixL2) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (hex : ExpandsTo raw32 raw) (hb : blocks.val ≤ raw.val.length) :
     quadeval.carrier_from_raw_32_loop raw32 blocks prep out i
       = quadeval.carrier_from_raw_loop raw blocks prep out i := by
@@ -539,7 +539,7 @@ theorem carrier_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
     {raw : alloc.vec.Vec linalg.PolyVec} (a : linalg.PolyVec)
     (hex : ExpandsTo raw32 raw) :
     quadeval.carrier_from_raw_32 a raw32 = quadeval.carrier_from_raw a raw := by
-  have hL : ∀ prep : linalg.PreparedMatrix,
+  have hL : ∀ prep : linalg.PreparedMatrixL2,
       quadeval.carrier_from_raw_32_loop raw32 (alloc.vec.Vec.len raw) prep
           (alloc.vec.Vec.new ring.Rq) 0#usize
         = quadeval.carrier_from_raw_loop raw (alloc.vec.Vec.len raw) prep

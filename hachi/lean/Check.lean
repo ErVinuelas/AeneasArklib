@@ -10,6 +10,7 @@ import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import SchemeTwoLane
 import QuadEvalProtocol
 import RingSwitch
 import ZeroCheck
@@ -1923,6 +1924,60 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.NttMath.ditRun_add
 #print axioms HachiEquiv.NttMath.difRun_sum
 #print axioms HachiEquiv.NttMath.ditRun_sum
+-- Card T35's bound layer: the digit path's ceiling argument with the bound,
+-- the chunk and the modulus all parameters. `BoundedWf 16 = DigitWf` and
+-- `BOUNDB 16 = BOUND_D` hold by `rfl`, so the existing path is literally an
+-- instance and cannot drift from the general one. Both cards' numeric
+-- premises are checked here rather than asserted at their use sites.
+-- Card T35 layer 2: what `limb_at` computes, and the identity that makes the
+-- split exact. `limb_recon` is division, not a congruence -- the limbs are
+-- naturals below the radix and the coefficient is below its square, so
+-- nothing here is mod q.
+#print axioms HachiEquiv.RingLimb.limb_recon
+#print axioms HachiEquiv.RingLimb.limb_recon_q
+#print axioms HachiEquiv.RingLimb.limb_at_inner_spec
+#print axioms HachiEquiv.RingLimb.limb_at_outer_spec
+#print axioms HachiEquiv.RingLimb.limb_at_spec
+-- Layer 3: `negConv` reads its left operand only through `coeffK`, so it is
+-- linear in it, and the two limbs reconstruct the coefficients in `ZMod q`.
+-- The recombination `r0 + 2^16 * r1` the Rust does is `negConv_split` read
+-- right to left.
+#print axioms HachiEquiv.RingLimb.negConv_split
+#print axioms HachiEquiv.RingLimb.coeffK_of_limbs
+-- Layer 4's core: the two-accumulator chunk. One loop, one transform of the
+-- right operand, two MACs -- which is card T35's performance claim -- and on
+-- the proof side one invariant carrying two copies of the same `termFwd` sum.
+-- T34's two helper specs are carried onto this branch for it.
+#print axioms HachiEquiv.GoldDot.load_twisted_into_spec
+#print axioms HachiEquiv.GoldDot.gold_mac_off_spec
+#print axioms HachiEquiv.RingLimb.limb_terms_spec
+#print axioms HachiEquiv.RingLimb.lane_words_eq
+#print axioms HachiEquiv.RingLimb.gold_loff2_val
+#print axioms HachiEquiv.RingLimb.limb_chunk_spec
+#print axioms HachiEquiv.RingLimb.limb_out_loop_spec
+#print axioms HachiEquiv.RingLimb.limb_chunk_value
+#print axioms HachiEquiv.RingLimb.limb_dot_loop_spec
+#print axioms HachiEquiv.RingLimb.dot_prepared_limbs2_spec
+#print axioms HachiEquiv.RingLimb.prepare_vec_limbs2_spec
+-- Layer 6, the linalg layer: the two-limb store carried up to `matVecMul`,
+-- statement for statement the one the three-lane and two-lane stores already
+-- prove. A prepared row here does not name its limbs -- `prepare_vec_limbs2`
+-- makes them and `dot_prepared_limbs2` reads them, and nothing in between --
+-- so `PrepRowL2` quantifies over them and the row spec re-opens the pair.
+#print axioms HachiEquiv.SchemeLimb.dot_prepared_limbs2_rq_spec
+#print axioms HachiEquiv.SchemeLimb.dot_prep_limbs2_spec
+#print axioms HachiEquiv.SchemeLimb.prepare_limbs2_spec
+#print axioms HachiEquiv.SchemeLimb.apply_limbs2_spec
+#print axioms HachiEquiv.RingFused.posSumB_le
+#print axioms HachiEquiv.RingFused.posQB_sum_le
+#print axioms HachiEquiv.RingFused.offConvSumB_lt
+#print axioms HachiEquiv.RingFused.negSumB_le
+#print axioms HachiEquiv.RingFused.negQB_sum_le
+#print axioms HachiEquiv.RingFused.offConvSumB_cast_q
+#print axioms HachiEquiv.RingFused.boundB_fit_limb2
+#print axioms HachiEquiv.RingFused.boundB_fit_digits
+#print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
+#print axioms HachiEquiv.RingFused.boundB_16
 #print axioms HachiEquiv.RingFused.untwist_value_sum
 #print axioms HachiEquiv.RingFused.accum_spec
 #print axioms HachiEquiv.RingFused.words_a_spec
@@ -1967,6 +2022,23 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingFused.dot_prep_chunk_word_spec
 #print axioms HachiEquiv.RingFused.prep_chunk_loop_spec
 #print axioms HachiEquiv.RingFused.dot_prepared_spec
+-- Candidate G2: the general path in TWO lanes, one Goldilocks and one 31-bit
+-- Barrett, where it ran three 31-bit ones. `chunk_fits` is the card: the chunk
+-- bound is 2^87 and GOLD_P*p1 is 2^92.8, the same margin three primes gave, so
+-- no second 64-bit prime and no Montgomery representation change. Every
+-- statement below is its three-lane counterpart's, word for word.
+#print axioms HachiEquiv.RingTwoLane.chunk_fits
+#print axioms HachiEquiv.RingTwoLane.garner_ga_spec
+#print axioms HachiEquiv.RingTwoLane.gold_chunk_terms_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prep_chunk_gold_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prep_chunk_gold_word_spec
+#print axioms HachiEquiv.RingTwoLane.prep_garner_ga_out_spec
+#print axioms HachiEquiv.RingTwoLane.prepare_vec_ga_spec
+#print axioms HachiEquiv.RingTwoLane.prep_chunk_ga_loop_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prepared_ga_spec
+#print axioms HachiEquiv.SchemeTwoLane.dot_prepared_ga_rq_spec
+#print axioms HachiEquiv.SchemeTwoLane.prepare_ga_spec
+#print axioms HachiEquiv.SchemeTwoLane.apply_ga_spec
 #print axioms HachiEquiv.RingFused.prepare_vec_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_spec
 #print axioms HachiEquiv.Scheme.dot_prep_spec

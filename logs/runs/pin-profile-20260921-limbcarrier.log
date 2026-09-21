@@ -1,0 +1,85 @@
+# cards G2 + T35 (champion/limb-carrier), 2026-09-21T20:20:52+02:00, HEAD 521f308
+   Compiling hachi-candidate v0.0.0 (/tmp/claude-1000/-home-pablo-Documents-internship-eth-AeneasArklib/78e2612d-401e-47ad-82f8-d11c26b31db5/scratchpad/g2-worktree/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/tmp/claude-1000/-home-pablo-Documents-internship-eth-AeneasArklib/78e2612d-401e-47ad-82f8-d11c26b31db5/scratchpad/g2-worktree/hachi)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:578:4
+    |
+578 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: `hachi` (lib) generated 1 warning
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1567:9
+     |
+1567 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2390:9
+     |
+2390 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3327:9
+     |
+3327 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3447:9
+     |
+3447 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics"` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 3.26s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-d8b42317af48628a)
+
+running 1 test
+[profile] control CPU (frozen genesis range_product_base x2000000): 77.8ms = 38.91 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 494.5ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   407.7s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   570.9s] +   156.7s  peak   4536 live   4473 MiB  committed 1024 block(s)
+[   571.6s] +  700.9ms  peak   4536 live   4473 MiB  statement built
+[   593.0s] +    21.4s  peak   4536 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   594.3s] +     1.3s  peak   4536 live   4497 MiB  honest_compute_v_from_decomp
+[   650.0s] +    55.7s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   650.0s] +   17.2ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   650.4s] +  412.2ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   650.4s] +   60.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   689.7s] +    39.3s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   689.8s] ---------  peak   5453 live   5123 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 459.8ms
+[profile] lift_commit: 18.9s
+[profile] c_w_table_mle at 2^26: 235.1ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 11.1s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 126.9s
+[profile] honest_compute_y: 1.8s
+[profile] verifier: rlin_stmt + statement thread: 436.6ms
+[profile] verifier: round_verify_loop (26 rounds): 59.1µs
+[profile] verifier: final_check = true: 6.8s
+[profile] verifier: end_piece_check = true: 20.7s
+[profile] chain_verify (whole) = true: 29.6s
+[profile] control CPU (frozen genesis range_product_base x2000000): 77.4ms = 38.68 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 527.1ms
+[profile] control CPU spread within run: -0.6%  (recenter cross-run deltas by THIS)
+[profile] control alloc spread within run: +6.6%  (legacy, allocation-bound)
+[   908.2s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 908.63s
+
+# exit 0 at 2026-09-21T20:36:04+02:00
+PROFILE_DONE

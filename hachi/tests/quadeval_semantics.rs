@@ -957,6 +957,37 @@ fn carrier_from_raw_agrees_with_carrier() {
     }
 }
 
+/// **The compact carrier is the expanded one** (card T39).
+///
+/// `carrier_from_raw_32` used to call `RawVec32::expand` and hand the result
+/// to the same `apply`; it now reads the `u32` words in place. The two things
+/// that could go wrong are an index shift -- the compact block is one `u32`
+/// per coefficient where the expanded one is one `Fp`, and the twist table is
+/// indexed by the same `t` -- and a widening that picks up sign or garbage in
+/// the high half. Both would show as a different carrier, so the check is the
+/// direct one: the same draw down both paths.
+///
+/// Three blocks and the full `MESSAGE_ROWS`, which is more than one
+/// `LIMB2_CHUNK` (32), so the chunk boundary is crossed rather than assumed.
+#[test]
+fn the_compact_carrier_equals_the_expanded_one() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::MESSAGE_ROWS;
+    let mut rng = support::Lcg::new(0x7391);
+    let blocks = 3usize;
+    let expanded: Vec<hachi::linalg::PolyVec> =
+        (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+    let packed: Vec<RawVec32> = expanded.iter().map(RawVec32::compact).collect();
+    let a = rng.next_poly_vec(MESSAGE_ROWS);
+
+    let want = hachi::quadeval::carrier_from_raw(&a, &expanded);
+    let got = hachi::quadeval::carrier_from_raw_32(&a, &packed);
+    assert_eq!(got.len(), want.len(), "the compact carrier has the same width");
+    for i in 0..want.len() {
+        assert!(got.get(i).equals(want.get(i)), "compact carrier differs at block {i}");
+    }
+}
+
 /// **Sharing the carrier decomposition changes nothing** (candidate T28).
 ///
 /// `honest_compute_v_from_raw_32` computed `ŵ = G⁻¹(a · raw)` internally and

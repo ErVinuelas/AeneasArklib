@@ -2102,6 +2102,151 @@ theorem posQD_sum_le (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
     _ = (en - st) * BOUND_D := by
         rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
 
+/-! ### The bound, with the ceiling as a parameter (card T35)
+
+`DigitWf` fixes the bounded operand at `< 16` and on the *right*, because the
+digit path is the only one that had one. Card T35 bounds the **left** operand
+instead -- it splits the reusable `a` into limbs -- and at `< 2^16` rather than
+`< 16`, with a chunk of 32 rather than 8192. The three definitions below are
+the same argument with `B` and the chunk ceiling as parameters; `DigitWf` and
+`BOUND_D` are the `B = 16` instance and are left exactly as they were, so
+nothing that depends on them moves.
+
+The parameterised fit takes its numeric premise as a hypothesis rather than
+hard-coding a ceiling, because the ceiling is what moves between cards: the
+digit path clears `2 · 8192 · N·q·16 < GP`, and T35 clears
+`2 · 32 · N·q·2^16 < GP` -- the same inequality at a different pair. -/
+
+/-- A ring element all of whose words are below `B`. [`DigitWf`] is `B = 16`. -/
+def BoundedWf (B : ℕ) (b : ring.Rq) : Prop := ∀ t, HachiEquiv.Ring.wordN b t < B
+
+theorem digitWf_eq_boundedWf (b : ring.Rq) : DigitWf b = BoundedWf 16 b := rfl
+
+/-- The per-term offset for a `< B` operand against a reduced one, `N · q · B`.
+[`BOUND_D`] is `B = 16`. -/
+def BOUNDB (B : ℕ) : ℕ := N * (HachiEquiv.NttProduct.q * B)
+
+theorem boundB_16 : BOUNDB 16 = BOUND_D := rfl
+
+/-- One coefficient's positive part with the bounded operand on the **left**,
+which is the side T35 bounds. [`posSumD_le`] is the mirror of this. -/
+theorem posSumB_le {B : ℕ} {a b : ring.Rq} (ha : BoundedWf B a)
+    (hb : HachiEquiv.Ring.Wf b) (k m : ℕ) :
+    HachiEquiv.Ring.posSum a b k m ≤ m * (HachiEquiv.NttProduct.q * B) := by
+  unfold HachiEquiv.Ring.posSum
+  calc ∑ t ∈ Finset.range m,
+        (if t ≤ k then HachiEquiv.Ring.wordN a t * HachiEquiv.Ring.wordN b (k - t) else 0)
+      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.NttProduct.q * B := by
+        refine Finset.sum_le_sum (fun t _ => ?_)
+        by_cases h : t ≤ k
+        · rw [if_pos h, Nat.mul_comm]
+          exact Nat.mul_le_mul (Nat.le_of_lt (HachiEquiv.Ring.wordN_lt hb _))
+            (Nat.le_of_lt (ha _))
+        · rw [if_neg h]; exact Nat.zero_le _
+    _ = m * (HachiEquiv.NttProduct.q * B) := by
+        rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+
+/-- [`offConvSumD`] at a general bound, with the bounded operand on the left. -/
+def offConvSumB (B : ℕ) (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) : ℕ :=
+  (∑ u ∈ Finset.Ico st en,
+      HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+           (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+    + (en - st) * BOUNDB B
+  - ∑ u ∈ Finset.Ico st en,
+      HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+           (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N
+
+theorem posQB_sum_le (B : ℕ) (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (had : ∀ u, u < en → BoundedWf B (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))) :
+    (∑ u ∈ Finset.Ico st en,
+        HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ (en - st) * BOUNDB B := by
+  calc (∑ u ∈ Finset.Ico st en,
+          HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ ∑ _u ∈ Finset.Ico st en, BOUNDB B := by
+        refine Finset.sum_le_sum (fun u hu => ?_)
+        simp only [Finset.mem_Ico] at hu
+        exact posSumB_le (had u hu.2) (hbwf u hu.2) k N
+    _ = (en - st) * BOUNDB B := by
+        rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
+
+/-- [`negSumD_le`] with the bounded operand on the left. -/
+theorem negSumB_le {B : ℕ} {a b : ring.Rq} (ha : BoundedWf B a)
+    (hb : HachiEquiv.Ring.Wf b) (k m : ℕ) :
+    HachiEquiv.Ring.negSum a b k m ≤ m * (HachiEquiv.NttProduct.q * B) := by
+  unfold HachiEquiv.Ring.negSum
+  calc ∑ t ∈ Finset.range m,
+        (if t ≤ k then 0 else HachiEquiv.Ring.wordN a t * HachiEquiv.Ring.wordN b (N + k - t))
+      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.NttProduct.q * B := by
+        refine Finset.sum_le_sum (fun t _ => ?_)
+        by_cases h : t ≤ k
+        · rw [if_pos h]; exact Nat.zero_le _
+        · rw [if_neg h, Nat.mul_comm]
+          exact Nat.mul_le_mul (Nat.le_of_lt (HachiEquiv.Ring.wordN_lt hb _))
+            (Nat.le_of_lt (ha _))
+    _ = m * (HachiEquiv.NttProduct.q * B) := by
+        rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
+
+theorem negQB_sum_le (B : ℕ) (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (had : ∀ u, u < en → BoundedWf B (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))) :
+    (∑ u ∈ Finset.Ico st en,
+        HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ (en - st) * BOUNDB B := by
+  calc (∑ u ∈ Finset.Ico st en,
+          HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ ∑ _u ∈ Finset.Ico st en, BOUNDB B := by
+        refine Finset.sum_le_sum (fun u hu => ?_)
+        simp only [Finset.mem_Ico] at hu
+        exact negSumB_le (had u hu.2) (hbwf u hu.2) k N
+    _ = (en - st) * BOUNDB B := by
+        rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
+
+/-- **The single-lane fit, with the modulus and the ceiling both premises.**
+The offset form is below `P` whenever `2 · C · N·q·B` is, for a chunk of at
+most `C`. Polymorphic in `P` on purpose: the modulus lives in `GoldArith`,
+which this file does not import, and the inequality does not care which prime
+it is asked about. Card T35 instantiates it at `P = GP`, `B = 2^16`, `C = 32`,
+where the left side is `2^32 · q = 2^64 − 99·2^32` against
+`GP = 2^64 − 2^32 + 1`: a margin of `98·2^32` and no more. -/
+theorem offConvSumB_lt (B C P : ℕ) (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (had : ∀ u, u < en → BoundedWf B (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hL : en - st ≤ C) (hfit : 2 * C * BOUNDB B < P) :
+    offConvSumB B a b st en k < P := by
+  have hp := posQB_sum_le B a b st en k had hbwf
+  have hmul : (en - st) * BOUNDB B ≤ C * BOUNDB B :=
+    Nat.mul_le_mul_right (BOUNDB B) hL
+  -- `omega` is linear, and `2 * C * BOUNDB B` is a product of two variables;
+  -- naming `C * BOUNDB B` as one atom is what makes the chain linear.
+  have hfit' : 2 * (C * BOUNDB B) < P := by rw [← Nat.mul_assoc]; exact hfit
+  simp only [offConvSumB]
+  omega
+
+/-- **Card T35 variant 2A's instance of the fit**, checked rather than
+asserted: `B = 2^16`, `C = 32`, `P = GP`. The left side is `2^32 · q`, i.e.
+`2^64 − 99·2^32`, against `2^64 − 2^32 + 1` -- a margin of `98·2^32 − 1`
+= 420 906 795 009 and no slack for a wider `B` or a longer chunk. The
+semantics oracle drives every coefficient to `q − 1` at exactly this chunk
+for the same reason. -/
+theorem boundB_fit_limb2 : 2 * 32 * BOUNDB 65536 < 18446744069414584321 := by
+  simp only [BOUNDB, N, HachiEquiv.NttProduct.q]
+  norm_num
+
+/-- The digit path's ceiling, as the same lemma's other instance -- so the two
+cards' premises sit side by side and neither can drift unnoticed. -/
+theorem boundB_fit_digits : 2 * 8192 * BOUNDB 16 < 18446744069414584321 := by
+  simp only [BOUNDB, N, HachiEquiv.NttProduct.q]
+  norm_num
+
 /-- **The two-prime CRT fit.** `offConvSumD ≤ 2 · L · BOUND_D`, and
 `2 · DOT_CHUNK_D · BOUND_D < p1 · p2` with 1.6x to spare.
 
@@ -2153,6 +2298,45 @@ theorem offConvSumD_cast_q (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) (hk : k
     have : BOUND_D = 1024 * HachiEquiv.Field.q * 16 := by
       simp only [BOUND_D, HachiEquiv.NttProduct.q, HachiEquiv.Field.q]
     rw [this]
+    push_cast
+    simp [ZMod.natCast_self]
+  rw [hB, add_zero, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl (fun u hu => ?_)
+  simp only [Finset.mem_Ico] at hu
+  rw [HachiEquiv.Ring.negConv,
+    ← HachiEquiv.Ring.posSum_cast (hawf u hu.2) (hbwf u hu.2) hk,
+    ← HachiEquiv.Ring.negSum_cast (hawf u hu.2) (hbwf u hu.2) hk]
+
+/-- [`offConvSumD_cast_q`] at a general bound. `BOUNDB B = N · q · B` is a
+multiple of `q` for any `B`, so the offset vanishes mod `q` exactly as the
+digit path's does -- which is the whole reason the offset form can be read
+back with a single `% q` and no correction term. -/
+theorem offConvSumB_cast_q (B : ℕ) (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (hk : k < N)
+    (had : ∀ u, u < en → BoundedWf B (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hawf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))) :
+    ((offConvSumB B a b st en k : ℕ) : ZMod HachiEquiv.Field.q)
+      = ∑ u ∈ Finset.Ico st en, HachiEquiv.Ring.negConv
+          (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k := by
+  have hle := negQB_sum_le B a b st en k had hbwf
+  have hle' : (∑ u ∈ Finset.Ico st en,
+        HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ (∑ u ∈ Finset.Ico st en,
+          HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+        + (en - st) * BOUNDB B := le_trans hle (Nat.le_add_left _ _)
+  unfold offConvSumB
+  rw [Nat.cast_sub hle', Nat.cast_add, Nat.cast_sum, Nat.cast_sum]
+  have hB : (((en - st) * BOUNDB B : ℕ) : ZMod HachiEquiv.Field.q) = 0 := by
+    have hBB : BOUNDB B = 1024 * HachiEquiv.Field.q * B := by
+      simp only [BOUNDB, N, HachiEquiv.NttProduct.q, HachiEquiv.Field.q]
+      ring
+    rw [hBB]
     push_cast
     simp [ZMod.natCast_self]
   rw [hB, add_zero, ← Finset.sum_sub_distrib]

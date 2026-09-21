@@ -58,6 +58,7 @@ never goals.
 -/
 import QuadEval
 import Raw32
+import SchemeLimb
 
 set_option autoImplicit false
 set_option maxRecDepth 8192
@@ -66,6 +67,7 @@ open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open CompPoly ArkLib.Lattices ArkLib.Lattices.CyclotomicModulus ArkLib.Lattices.Ajtai
 open hachi
 open HachiEquiv.Field HachiEquiv.Ring HachiEquiv.RqBridge HachiEquiv.Scheme
+open HachiEquiv.SchemeLimb
 open HachiEquiv.Balanced (ddBal bddZ)
 
 namespace HachiEquiv.QuadEvalProtocol
@@ -357,13 +359,13 @@ decomposition of `raw`: the same value, from an argument that is never built. -/
 
 /-- The loop of `quadeval::carrier_from_raw`: entry `j` is `a · rawⱼ`. -/
 theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
-    (am : linalg.PolyMatrix) (prep : linalg.PreparedMatrix)
+    (am : linalg.PolyMatrix) (prep : linalg.PreparedMatrixL2)
     (raw : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize)
     (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (ha : WfVec rows a) (ham : WfMat 1 rows am)
     (ha0 : toVec (k := rows) (am.val.getD 0 (alloc.vec.Vec.new ring.Rq))
              = toVec (k := rows) a)
-    (hprep : WfPrep 1 rows prep am)
+    (hprep : WfPrepL2 1 rows prep am)
     (hraw : WfBlocks blocks rows raw) (hn : n.val = blocks)
     (hi : i.val ≤ n.val) (hlen : out.val.length = i.val)
     (hwf : ∀ y ∈ out.val, Wf y)
@@ -394,7 +396,7 @@ theorem carrier_from_raw_loop_spec {rows blocks : ℕ} (a : linalg.PolyVec)
       have hri : raw.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
         rw [hpv]; exact List.getD_eq_getElem _ _ hib
       -- the prepared row, applied: `matVecMul` at one row IS the dot against it
-      step with apply_spec (rows := 1) (cols := rows) prep am pv ham hWpv hprep
+      step with apply_limbs2_spec (rows := 1) (cols := rows) prep am pv ham hWpv hprep
         as ⟨rv, hWrv, hrv⟩
       have hr0 : (0 : ℕ) < rv.val.length := by rw [hWrv.1]; norm_num
       simp only [linalg.PolyVec.get]
@@ -490,7 +492,7 @@ theorem carrier_from_raw_spec {rows blocks : ℕ} (a : linalg.PolyVec)
       = toVec (k := rows) a := by
     rw [hrws]
     simpa using hac
-  step with prepare_spec (rows := 1) (cols := rows) rws ham (by norm_num) hmax
+  step with prepare_limbs2_spec (rows := 1) (cols := rows) rws ham (by norm_num) hmax
     as ⟨prep, hprep⟩
   simp only [linalg.PolyVec.new, bind_ok_id]
   -- bound to a `have` before the `apply`: elaborating the loop spec's arguments

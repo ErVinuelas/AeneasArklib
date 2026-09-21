@@ -515,7 +515,7 @@ pub fn mul_short_add_into(desc: &ShortMul, s: &Rq, acc: &mut Rq) {
     // loop in the prover. What replaces it is an unreduced `u64` buffer, with
     // a subtraction contributing `q - sv` instead of `-sv` so the accumulator
     // only ever grows and its value mod `q` is the answer -- the offset trick
-    // `AuxFused.offConvSumD` already uses twice in this tree.
+    // `RingFused.offConvSumD` already uses twice in this tree.
     //
     // A slot grows by at most `q` per pass, so [`params::SHORT_CHUNK`] passes
     // between reductions keep it below `(SHORT_CHUNK + 1)·q`, unconditionally
@@ -940,6 +940,111 @@ pub fn dot_prep_chunk_mod_p(
     crate::ntt::untwist(&inv.0, &it, ninv, scaled, p, m)
 }
 
+/// One chunk of the fused dot in the **Goldilocks** lane, on the general path.
+///
+/// [`dot_prep_chunk_mod_p`]'s body with the Goldilocks operations in place of
+/// the Barrett ones and [`crate::ntt::GOLD_BOFF`] as the offset. The lane
+/// carries one of the two residues [`crate::ntt::garner_ga`] reconstructs
+/// from; it does not have to hold the whole sum, only the sum mod `GOLD_P`.
+pub fn dot_prep_chunk_gold(
+    pfwd: &Vec<u64>,
+    b: &Vec<Rq>,
+    start: usize,
+    end: usize,
+    boff: u64,
+) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc: Vec<u64> = crate::ntt::zeros(n);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = start;
+    while j < end {
+        let mut bw: Vec<u64> = Vec::with_capacity(n);
+        let mut u: usize = 0;
+        while u < n {
+            bw.push(b[j].0[u].to_u64());
+            u += 1;
+        }
+        let tb: Vec<u64> = crate::ntt::gold_twist(&bw, &pt);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(tb, scratch, &pt);
+        let af: Vec<u64> = slice_out(pfwd, j * n, n);
+        acc = mac_into_gold(acc, &af, &fwb.0, n);
+        scratch = fwb.1;
+        j += 1;
+    }
+    let len: u64 = (end - start) as u64;
+    let scaled: u64 = crate::ntt::gold_mul(boff, len);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, scratch, &it);
+    crate::ntt::gold_untwist_off(&inv.0, &it, scaled)
+}
+
+/// A left operand prepared for the general path in **two** lanes: one
+/// Goldilocks and one 31-bit Barrett (candidate G2).
+///
+/// The three-lane [`PreparedVec`] stays where it is, dead but proved, for the
+/// same reason `dot_prepared_digits` did after T27: re-proving a superseded
+/// path buys nothing.
+pub struct PreparedVecGA {
+    len: usize,
+    fwd_g: Vec<u64>,
+    fwd_a: Vec<u64>,
+}
+
+impl PreparedVecGA {
+    /// How many entries were prepared.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+/// Prepare a left operand in the general path's two lanes.
+pub fn prepare_vec_ga(a: &Vec<Rq>, n: usize) -> PreparedVecGA {
+    let fwd_g: Vec<u64> = prepare_one_gold(a, n);
+    let fwd_a: Vec<u64> = prepare_one(a, n, crate::ntt::AUX_P1, crate::ntt::AUX_M1,
+        crate::ntt::AUX_PSI1);
+    PreparedVecGA { len: n, fwd_g, fwd_a }
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared, in **two** lanes instead of three
+/// (candidate G2).
+///
+/// The same value [`dot_prepared`] computes. What changes is the lane count
+/// and the arithmetic in one of them: the general path's chunk bound is
+/// `N·cols·(q−1)² ≈ 2^87`, three 31-bit primes give `2^93`, and
+/// `GOLD_P · AUX_P1` gives `2^92.8` — the same margin from two lanes. The
+/// Goldilocks lane is the one the digit path already uses, so it arrives with
+/// its fused radix-4 transform; the second lane is `AUX_P1` unchanged.
+///
+/// This is the card the board priced at 2500–3500 lines and a Montgomery
+/// representation change. That estimate assumed two *64-bit* lanes, which the
+/// bound does not require.
+pub fn dot_prepared_ga(prep: &PreparedVecGA, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u128 = params::Q as u128;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        let remaining: usize = n - start;
+        let take: usize = if remaining < DOT_CHUNK { remaining } else { DOT_CHUNK };
+        let end: usize = start + take;
+        let rg: Vec<u64> = dot_prep_chunk_gold(&prep.fwd_g, b, start, end,
+            crate::ntt::GOLD_BOFF);
+        let ra: Vec<u64> = dot_prep_chunk_mod_p(&prep.fwd_a, b, start, end,
+            crate::ntt::AUX_P1, crate::ntt::AUX_M1, crate::ntt::AUX_PSI1,
+            crate::ntt::AUX_PSIINV1, crate::ntt::AUX_NINV1, crate::ntt::AUX_BOFF1);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            out.push(Fp::new((crate::ntt::garner_ga(rg[t], ra[t]) % qw) as u64));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}
+
 /// The chunk width of the **bounded** fused dot, where one operand's
 /// coefficients are gadget digits.
 ///
@@ -1202,6 +1307,132 @@ pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
         let mut t: usize = 0;
         while t < deg {
             out.push(Fp::new((crate::ntt::garner(r1[t], r2[t], r3[t]) % qw) as u64));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}
+
+// ---------------------------------------------------------------------------
+// Card T35: the general path by limb decomposition (PROTOTYPE, 2026-09-21)
+// ---------------------------------------------------------------------------
+
+/// One limb of a left operand: coefficient `c` becomes `(c / div) % base`.
+///
+/// Division rather than a shift because a shift with a *runtime* amount is not
+/// on the extraction's measured list, and `/` and `%` by a runtime `u64` are
+/// (the gadget decomposition is the same shape). The divisors here are powers
+/// of two, so the compiler emits the shift regardless.
+pub fn limb_at(a: &Vec<Rq>, n: usize, div: u64, base: u64) -> Vec<Rq> {
+    let deg: usize = params::RING_DEGREE;
+    let mut out: Vec<Rq> = Vec::with_capacity(n);
+    let mut j: usize = 0;
+    while j < n {
+        let mut c: Vec<Fp> = Vec::with_capacity(deg);
+        let mut u: usize = 0;
+        while u < deg {
+            c.push(Fp::new((a[j].0[u].to_u64() / div) % base));
+            u += 1;
+        }
+        out.push(Rq(c));
+        j += 1;
+    }
+    out
+}
+
+/// `N · q · 2^16`, the per-term offset of the two-limb split. A multiple of
+/// `q`, so `% q` at the end is unaffected by it -- the same trick
+/// [`crate::ntt::GOLD_DOFF`] plays on the digit path.
+pub const GOLD_LOFF2: u64 = 288_230_369_507_934_208;
+/// Terms per chunk at two limbs: `2·C·N·B·q < GOLD_P` with `B = 2^16` gives
+/// `C ≤ 32`.
+pub const LIMB2_CHUNK: usize = 32;
+/// A left operand split into two 16-bit limbs, each prepared in the
+/// Goldilocks lane (card T35, variant 2A).
+pub struct PreparedVecL2 {
+    len: usize,
+    f0: Vec<u64>,
+    f1: Vec<u64>,
+}
+
+impl PreparedVecL2 {
+    /// How many entries were prepared.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+/// Prepare a left operand as two 16-bit limbs.
+pub fn prepare_vec_limbs2(a: &Vec<Rq>, n: usize) -> PreparedVecL2 {
+    let l0: Vec<Rq> = limb_at(a, n, 1, 65536);
+    let l1: Vec<Rq> = limb_at(a, n, 65536, 65536);
+    PreparedVecL2 { len: n, f0: prepare_one_gold(&l0, n), f1: prepare_one_gold(&l1, n) }
+}
+
+/// One chunk of the two-limb fused dot: the right operand is transformed
+/// **once** and multiply-accumulated into both limb accumulators.
+///
+/// This is the whole card in one function. The three-prime path transforms
+/// `b[j]` in each of its lanes; here there is one lane and one transform, and
+/// the limbs cost a MAC each -- `N` multiplications against a transform's
+/// `N log N`.
+pub fn dot_prep_chunk_limbs2(
+    f0: &Vec<u64>,
+    f1: &Vec<u64>,
+    b: &Vec<Rq>,
+    start: usize,
+    end: usize,
+    boff: u64,
+) -> (Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc0: Vec<u64> = crate::ntt::zeros(n);
+    let mut acc1: Vec<u64> = crate::ntt::zeros(n);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(n);
+    let mut buf: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = start;
+    while j < end {
+        buf = load_twisted_into(buf, &b[j], &pt);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(buf, scratch, &pt);
+        acc0 = mac_into_gold_off(acc0, f0, j * n, &fwb.0, n);
+        acc1 = mac_into_gold_off(acc1, f1, j * n, &fwb.0, n);
+        buf = fwb.0;
+        scratch = fwb.1;
+        j += 1;
+    }
+    let len: u64 = (end - start) as u64;
+    let scaled: u64 = crate::ntt::gold_mul(boff, len);
+    let inv0: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc0, scratch, &it);
+    let w0: Vec<u64> = crate::ntt::gold_untwist_off(&inv0.0, &it, scaled);
+    let inv1: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc1, inv0.1, &it);
+    let w1: Vec<u64> = crate::ntt::gold_untwist_off(&inv1.0, &it, scaled);
+    (w0, w1)
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared as two 16-bit limbs (card T35, 2A).
+///
+/// The value [`dot_prepared`] computes, by a different route: one Goldilocks
+/// lane instead of three 31-bit ones, no Garner reconstruction, and the right
+/// operand transformed once rather than three times.
+pub fn dot_prepared_limbs2(prep: &PreparedVecL2, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u128 = params::Q as u128;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        let remaining: usize = n - start;
+        let take: usize = if remaining < LIMB2_CHUNK { remaining } else { LIMB2_CHUNK };
+        let end: usize = start + take;
+        let ws: (Vec<u64>, Vec<u64>) =
+            dot_prep_chunk_limbs2(&prep.f0, &prep.f1, b, start, end, GOLD_LOFF2);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            let v: u128 = (ws.0[t] as u128) + 65536 * (ws.1[t] as u128);
+            out.push(Fp::new((v % qw) as u64));
             t += 1;
         }
         acc = acc.add(&Rq(out));

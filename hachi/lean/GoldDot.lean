@@ -319,7 +319,6 @@ theorem gold_twist_cast (v pt : alloc.vec.Vec Std.U64)
   simp only [resK, NttMath.twistR] at hp ⊢
   rw [hzval t ht, ZMod.natCast_mod, Nat.cast_mul, hp]
 
-
 theorem gold_terms_spec (prep : ring.PreparedVecG)
     (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
     (nU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
