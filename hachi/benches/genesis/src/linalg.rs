@@ -557,3 +557,47 @@ impl PreparedMatrixGA {
         PolyVec(out)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Card T35: the limb-split general path (PROTOTYPE, 2026-09-21)
+// ---------------------------------------------------------------------------
+
+// @genesis f3a4046 2026-09-21 — linalg::PreparedMatrixL2
+/// A matrix prepared as two 16-bit limbs per row (card T35, variant 2A).
+pub struct PreparedMatrixL2 {
+    rows: Vec<crate::ring::PreparedVecL2>,
+    cols: usize,
+}
+
+impl PolyMatrix {
+    // @genesis f3a4046 2026-09-21 — linalg::PolyMatrix::prepare_limbs2
+    /// Prepare every row as two 16-bit limbs.
+    pub fn prepare_limbs2(&self) -> PreparedMatrixL2 {
+        let n: usize = self.0.len();
+        let c: usize = self.cols();
+        let mut rows: Vec<crate::ring::PreparedVecL2> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            rows.push(crate::ring::prepare_vec_limbs2(&self.0[i].0, c));
+            i += 1;
+        }
+        PreparedMatrixL2 { rows, cols: c }
+    }
+
+}
+
+impl PreparedMatrixL2 {
+    // @genesis f3a4046 2026-09-21 — linalg::PreparedMatrixL2::apply_limbs2
+    /// `M · v` with `M` prepared as two limbs.
+    pub fn apply_limbs2(&self, v: &PolyVec) -> PolyVec {
+        let n: usize = self.rows.len();
+        let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::dot_prepared_limbs2(&self.rows[i], &v.0, w));
+            i += 1;
+        }
+        PolyVec(out)
+    }
+}
