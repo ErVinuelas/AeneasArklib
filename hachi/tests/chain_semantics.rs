@@ -672,7 +672,13 @@ fn pin_instance(blocks: usize, t0: &std::time::Instant, check_relout: bool) -> P
     // relOut ⇒ rlin: the stacked honest response solves the assembled system
     if check_relout {
         assert!(
-            rlin.m().mat_vec_mul(&zeta).equals(rlin.yvec()),
+            {
+                let rws: Vec<hachi::linalg::PolyVec> = (0..rlin.m().rows())
+                    .map(|i| hachi::linalg::PolyVec::new(
+                        (0..rlin.m().cols()).map(|j| rlin.m().entry(i, j).copy()).collect()))
+                    .collect();
+                hachi::linalg::PolyMatrix::new(rws).mat_vec_mul(&zeta).equals(rlin.yvec())
+            },
             "the honest stacked response must solve the assembled R^lin system"
         );
         stage!("M zeta = y holds (TEST ASSERTION, not prover work)");

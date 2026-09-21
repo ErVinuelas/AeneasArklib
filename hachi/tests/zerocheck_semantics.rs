@@ -554,7 +554,7 @@ fn m_alpha_tilde_has_the_three_specified_cases() {
         for u in 0..mu {
             assert_eq!(
                 m_alpha_tilde(&s, alpha, i, u),
-                horner_ref(alpha, s.m().row(i).get(u)),
+                horner_ref(alpha, s.m().entry(i, u)),
                 "matrix case at ({i}, {u})"
             );
         }
@@ -772,7 +772,7 @@ fn alpha_defect_vanishes_exactly_on_an_honest_lift() {
     let mut bad_y = coeffs(s.yvec().get(0));
     bad_y[3] = (bad_y[3] + 1) % Q;
     let bad = RlinStatement::new(
-        PolyMatrix::new(vec![s.m().row(0).copy()]),
+        PolyMatrix::new(vec![rlin_row(s.m(), 0)]),
         PolyVec::new(vec![rq_from_u64s(&bad_y)]),
         15,
     );
@@ -1047,4 +1047,15 @@ fn the_cube_guard_drops_rows_above_the_cube() {
         expected_ap,
         "the same padding rule applies to the public table"
     );
+}
+
+/// One row of an `RlinMat`, read out through `entry`. The statement no longer
+/// stores rows (wall W2), and these tests want one; `entry` is the only reader
+/// the source has.
+fn rlin_row(m: &hachi::ringswitch::RlinMat, i: usize) -> PolyVec {
+    let mut v: Vec<hachi::ring::Rq> = Vec::new();
+    for j in 0..m.cols() {
+        v.push(m.entry(i, j).copy());
+    }
+    PolyVec::new(v)
 }

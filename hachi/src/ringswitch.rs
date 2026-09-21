@@ -270,20 +270,157 @@ pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
 /// reason [`params::CHAIN_GAMMA`] is: the specification's `ℕ` is compared
 /// against a centered coefficient magnitude, and every value in play is below
 /// `q < 2^32`.
+/// The blocks the `R^lin` matrix is assembled *from*, kept instead of the
+/// assembly (wall W2).
+///
+/// `M` is `5 × 57 344` at the pin, which is 2.19 GiB -- and 1.25 GiB of that
+/// is explicit `Rq::zero()`, because the matrix is block structured and only
+/// `c4` and `c5` carry two blocks each. `ringswitch::c_row_sum` has skipped
+/// those zeros since candidate T1a1; this keeps them from being built at all.
+///
+/// The two negated blocks are stored already negated, so that every entry can
+/// be handed back as a borrow into a block and nothing is constructed per
+/// call -- including the zero, of which there is exactly one.
+pub struct RlinBlocks {
+    d: PolyMatrix,
+    bmat: PolyMatrix,
+    g_b: PolyVec,
+    g_c: PolyVec,
+    neg_jt_g_a: PolyVec,
+    tensor: PolyMatrix,
+    neg_aj: PolyMatrix,
+    cw: usize,
+    ct: usize,
+    cz: usize,
+    d_rows: usize,
+    b_rows: usize,
+    t_rows: usize,
+    zero: Rq,
+}
+
+impl RlinBlocks {
+    /// Bundle the blocks. The two negated ones arrive negated.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        d: PolyMatrix,
+        bmat: PolyMatrix,
+        g_b: PolyVec,
+        g_c: PolyVec,
+        neg_jt_g_a: PolyVec,
+        tensor: PolyMatrix,
+        neg_aj: PolyMatrix,
+        cw: usize,
+        ct: usize,
+        cz: usize,
+    ) -> RlinBlocks {
+        let d_rows: usize = d.rows();
+        let b_rows: usize = bmat.rows();
+        let t_rows: usize = tensor.rows();
+        RlinBlocks {
+            d, bmat, g_b, g_c, neg_jt_g_a, tensor, neg_aj,
+            cw, ct, cz, d_rows, b_rows, t_rows, zero: Rq::zero(),
+        }
+    }
+}
+
+/// The public matrix, either assembled or as the blocks it would be assembled
+/// from.
+///
+/// `match` on a custom enum was on the extraction's unprobed list until
+/// 2026-09-21; it extracts to a Lean `inductive` and a native `match`, with a
+/// shared borrow out of a variant coming back as the value itself.
+pub enum RlinMat {
+    /// The matrix as assembled, entry by entry.
+    Dense(PolyMatrix),
+    /// The blocks it would have been assembled from.
+    Lazy(RlinBlocks),
+}
+
+impl RlinMat {
+    /// How many rows the matrix has.
+    pub fn rows(&self) -> usize {
+        match self {
+            RlinMat::Dense(m) => m.rows(),
+            RlinMat::Lazy(b) => b.d_rows + b.b_rows + 2 + b.t_rows,
+        }
+    }
+
+    /// How many columns the matrix has.
+    pub fn cols(&self) -> usize {
+        match self {
+            RlinMat::Dense(m) => m.cols(),
+            RlinMat::Lazy(b) => b.cw + b.ct + b.cz,
+        }
+    }
+
+    /// `M[i][j]`, as a borrow: the dense arm reads it, the lazy arm decides
+    /// which block it falls in. Every arm returns a reference into something
+    /// already held, so nothing is allocated per entry.
+    pub fn entry(&self, i: usize, j: usize) -> &Rq {
+        match self {
+            RlinMat::Dense(m) => m.row(i).get(j),
+            RlinMat::Lazy(b) => {
+                if i < b.d_rows {
+                    // c1: [ D | 0 | 0 ]
+                    if j < b.cw { b.d.row(i).get(j) } else { &b.zero }
+                } else if i < b.d_rows + b.b_rows {
+                    // c2: [ 0 | B | 0 ]
+                    let i2: usize = i - b.d_rows;
+                    if j < b.cw {
+                        &b.zero
+                    } else if j < b.cw + b.ct {
+                        b.bmat.row(i2).get(j - b.cw)
+                    } else {
+                        &b.zero
+                    }
+                } else if i == b.d_rows + b.b_rows {
+                    // c3: [ Gᵀb | 0 | 0 ]
+                    if j < b.cw { b.g_b.get(j) } else { &b.zero }
+                } else if i == b.d_rows + b.b_rows + 1 {
+                    // c4: [ Gᵀc | 0 | −Jᵀ(Gᵀa) ]
+                    if j < b.cw {
+                        b.g_c.get(j)
+                    } else if j < b.cw + b.ct {
+                        &b.zero
+                    } else {
+                        b.neg_jt_g_a.get(j - b.cw - b.ct)
+                    }
+                } else {
+                    // c5: [ 0 | cᵀ ⊗ G | −(AJ) ]
+                    let p: usize = i - b.d_rows - b.b_rows - 2;
+                    if j < b.cw {
+                        &b.zero
+                    } else if j < b.cw + b.ct {
+                        b.tensor.row(p).get(j - b.cw)
+                    } else {
+                        b.neg_aj.row(p).get(j - b.cw - b.ct)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The `R^lin` statement: a public matrix, a right-hand side and a norm bound.
 pub struct RlinStatement {
-    m: PolyMatrix,
+    m: RlinMat,
     yvec: PolyVec,
     bound: u64,
 }
 
 impl RlinStatement {
-    /// Bundle the public matrix, right-hand side and norm bound.
+    /// Bundle an assembled matrix, right-hand side and norm bound.
     pub fn new(m: PolyMatrix, yvec: PolyVec, bound: u64) -> RlinStatement {
-        RlinStatement { m, yvec, bound }
+        RlinStatement { m: RlinMat::Dense(m), yvec, bound }
     }
 
-    /// The public matrix `M ∈ Rq^{n×μ}`.
-    pub fn m(&self) -> &PolyMatrix {
+    /// Bundle the blocks instead of the assembly (wall W2).
+    pub fn new_lazy(b: RlinBlocks, yvec: PolyVec, bound: u64) -> RlinStatement {
+        RlinStatement { m: RlinMat::Lazy(b), yvec, bound }
+    }
+
+    /// The public matrix `M ∈ Rq^{n×μ}`, assembled or lazy.
+    pub fn m(&self) -> &RlinMat {
         &self.m
     }
 
@@ -450,7 +587,6 @@ pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
     let width: usize = 2 * n - 1;
     let cols: usize = s.m().cols();
-    let row: &PolyVec = s.m().row(i);
     let mut acc: Vec<Fp> = Vec::new();
     let mut k: usize = 0;
     while k < width {
@@ -472,7 +608,7 @@ pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
         // and is worth paying even when it fails. On the specification side the
         // skipped term is `0 · z_j = 0`, which is why this does not move
         // `c_row_sum_spec`'s statement.
-        let mij: &Rq = row.get(j);
+        let mij: &Rq = s.m().entry(i, j);
         if !mij.is_zero() {
             let prod: Vec<Fp> = long_mul(mij, z.get(j));
             let mut t: usize = 0;
@@ -531,7 +667,6 @@ fn long_mul_high(a: &Rq, b: &Rq) -> Vec<Fp> {
 fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
     let cols: usize = s.m().cols();
-    let row: &PolyVec = s.m().row(i);
     let mut acc: Vec<Fp> = Vec::new();
     let mut k: usize = 0;
     while k < n - 1 {
@@ -540,7 +675,7 @@ fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     }
     let mut j: usize = 0;
     while j < cols {
-        let mij: &Rq = row.get(j);
+        let mij: &Rq = s.m().entry(i, j);
         if !mij.is_zero() {
             let prod: Vec<Fp> = long_mul_high(mij, z.get(j));
             let mut t: usize = 0;

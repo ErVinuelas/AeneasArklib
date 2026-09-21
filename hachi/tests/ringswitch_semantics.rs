@@ -435,7 +435,7 @@ fn defect_ref(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<u64> {
     let width = 2 * RING_DEGREE - 1;
     let mut acc = vec![0u64; width];
     for j in 0..z.len() {
-        let prod = long_mul_ref(&coeffs_of(s.m().row(i).get(j)), &coeffs_of(z.get(j)));
+        let prod = long_mul_ref(&coeffs_of(s.m().entry(i, j)), &coeffs_of(z.get(j)));
         for t in 0..width {
             acc[t] = (acc[t] + prod[t]) % hachi::params::Q;
         }
@@ -480,7 +480,7 @@ fn c_row_sum_is_the_unreduced_row_convolution() {
         assert_eq!(got.len(), 2 * RING_DEGREE - 1);
         let mut want = vec![0u64; 2 * RING_DEGREE - 1];
         for j in 0..3 {
-            let prod = long_mul_ref(&coeffs_of(s.m().row(i).get(j)), &coeffs_of(z.get(j)));
+            let prod = long_mul_ref(&coeffs_of(s.m().entry(i, j)), &coeffs_of(z.get(j)));
             for t in 0..want.len() {
                 want[t] = (want[t] + prod[t]) % hachi::params::Q;
             }
@@ -501,7 +501,8 @@ fn the_quotient_times_the_modulus_plus_the_reduced_defect_is_the_defect() {
     let mut rng = Lcg::new(0x8047_0000_0000_0210);
     let s = random_statement(&mut rng, 2, 3);
     let z = rng.next_poly_vec(3);
-    let reduced: PolyVec = s.m().mat_vec_mul(&z).sub(s.yvec());
+    let mrows: Vec<PolyVec> = (0..s.m().rows()).map(|i| rlin_row(s.m(), i)).collect();
+    let reduced: PolyVec = hachi::linalg::PolyMatrix::new(mrows).mat_vec_mul(&z).sub(s.yvec());
     for i in 0..2 {
         let rho = quotient_coeffs(&c_quotient(&s, &z, i));
         assert_eq!(rho[RING_DEGREE - 1], 0, "row {i}: degree at most N - 2");
@@ -547,4 +548,15 @@ fn the_honest_lift_witness_is_z_and_the_row_quotients() {
             "row {i}"
         );
     }
+}
+
+/// One row of an `RlinMat`, read out through `entry`. The statement no longer
+/// stores rows (wall W2), and these tests want one; `entry` is the only reader
+/// the source has.
+fn rlin_row(m: &hachi::ringswitch::RlinMat, i: usize) -> PolyVec {
+    let mut v: Vec<hachi::ring::Rq> = Vec::new();
+    for j in 0..m.cols() {
+        v.push(m.entry(i, j).copy());
+    }
+    PolyVec::new(v)
 }
