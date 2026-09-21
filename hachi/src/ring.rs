@@ -1266,3 +1266,178 @@ pub fn dot_prepared(prep: &PreparedVec, b: &Vec<Rq>, n: usize) -> Rq {
     }
     acc
 }
+
+// --- T34 helpers, brought in because card T35 builds on them (they change
+// --- nothing on this branch: nothing else calls them here).
+/// Load a ring element's canonical words into `out`, already ψ-twisted
+/// (card T34, part 1A+1C).
+///
+/// Two passes become one and the buffer is the caller's. The old shape --
+/// `w = Vec::with_capacity(n)` filled by `to_u64`, then
+/// [`crate::ntt::gold_twist`] returning a second fresh `Vec` -- allocated
+/// 2 x 8 KiB per right-hand polynomial and walked the words twice. Here the
+/// twist happens where the word is read, into a buffer the prepared dot
+/// recycles from the previous iteration's transform output.
+///
+/// `out` is overwritten, not appended to, so it arrives at length
+/// [`crate::ntt::NTT_LEN`] and leaves at it; the loop writes every index.
+pub fn load_twisted_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut w: Vec<u64> = out;
+    let mut t: usize = 0;
+    while t < n {
+        w[t] = crate::ntt::gold_mul(a.0[t].to_u64(), pt[t]);
+        t += 1;
+    }
+    w
+}
+
+/// `acc[k] += pfwd[base + k] · bf[k]` in the Goldilocks lane, reading the
+/// prepared table in place (card T34, part 1B).
+///
+/// [`mac_into_gold`] takes its left factor as a vector, so the prepared dot
+/// had to copy 8 KiB out of the prepared table with [`slice_out`] on every
+/// right-hand polynomial. The offset moves into the index instead. This is a
+/// *separate helper* and not an offset index written into the caller's loop,
+/// because a borrowed read beside a mutated accumulator in one loop body is
+/// what tripped `filter_loop_useless_inputs_outputs` before; behind a helper
+/// boundary it extracts to the ordinary 2-tuple loop, probed 2026-09-21
+/// (`aeneas-extract` ceiling table).
+///
+/// [`slice_out`] stays: the mod-p lane and the general path still use it.
+pub fn mac_into_gold_off(acc: Vec<u64>, pfwd: &Vec<u64>, base: usize, bf: &Vec<u64>, n: usize)
+    -> Vec<u64> {
+    let mut out: Vec<u64> = acc;
+    let mut k: usize = 0;
+    while k < n {
+        let prod: u64 = crate::ntt::gold_mul(pfwd[base + k], bf[k]);
+        out[k] = crate::ntt::gold_add(out[k], prod);
+        k += 1;
+    }
+    out
+}
+// ---------------------------------------------------------------------------
+// Card T35: the general path by limb decomposition (PROTOTYPE, 2026-09-21)
+// ---------------------------------------------------------------------------
+
+/// One limb of a left operand: coefficient `c` becomes `(c / div) % base`.
+///
+/// Division rather than a shift because a shift with a *runtime* amount is not
+/// on the extraction's measured list, and `/` and `%` by a runtime `u64` are
+/// (the gadget decomposition is the same shape). The divisors here are powers
+/// of two, so the compiler emits the shift regardless.
+pub fn limb_at(a: &Vec<Rq>, n: usize, div: u64, base: u64) -> Vec<Rq> {
+    let deg: usize = params::RING_DEGREE;
+    let mut out: Vec<Rq> = Vec::with_capacity(n);
+    let mut j: usize = 0;
+    while j < n {
+        let mut c: Vec<Fp> = Vec::with_capacity(deg);
+        let mut u: usize = 0;
+        while u < deg {
+            c.push(Fp::new((a[j].0[u].to_u64() / div) % base));
+            u += 1;
+        }
+        out.push(Rq(c));
+        j += 1;
+    }
+    out
+}
+
+/// `N · q · 2^16`, the per-term offset of the two-limb split. A multiple of
+/// `q`, so `% q` at the end is unaffected by it -- the same trick
+/// [`crate::ntt::GOLD_DOFF`] plays on the digit path.
+pub const GOLD_LOFF2: u64 = 288_230_369_507_934_208;
+/// Terms per chunk at two limbs: `2·C·N·B·q < GOLD_P` with `B = 2^16` gives
+/// `C ≤ 32`.
+pub const LIMB2_CHUNK: usize = 32;
+/// A left operand split into two 16-bit limbs, each prepared in the
+/// Goldilocks lane (card T35, variant 2A).
+pub struct PreparedVecL2 {
+    len: usize,
+    f0: Vec<u64>,
+    f1: Vec<u64>,
+}
+
+impl PreparedVecL2 {
+    /// How many entries were prepared.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+/// Prepare a left operand as two 16-bit limbs.
+pub fn prepare_vec_limbs2(a: &Vec<Rq>, n: usize) -> PreparedVecL2 {
+    let l0: Vec<Rq> = limb_at(a, n, 1, 65536);
+    let l1: Vec<Rq> = limb_at(a, n, 65536, 65536);
+    PreparedVecL2 { len: n, f0: prepare_one_gold(&l0, n), f1: prepare_one_gold(&l1, n) }
+}
+
+/// One chunk of the two-limb fused dot: the right operand is transformed
+/// **once** and multiply-accumulated into both limb accumulators.
+///
+/// This is the whole card in one function. The three-prime path transforms
+/// `b[j]` in each of its lanes; here there is one lane and one transform, and
+/// the limbs cost a MAC each -- `N` multiplications against a transform's
+/// `N log N`.
+pub fn dot_prep_chunk_limbs2(
+    f0: &Vec<u64>,
+    f1: &Vec<u64>,
+    b: &Vec<Rq>,
+    start: usize,
+    end: usize,
+    boff: u64,
+) -> (Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc0: Vec<u64> = crate::ntt::zeros(n);
+    let mut acc1: Vec<u64> = crate::ntt::zeros(n);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(n);
+    let mut buf: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = start;
+    while j < end {
+        buf = load_twisted_into(buf, &b[j], &pt);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(buf, scratch, &pt);
+        acc0 = mac_into_gold_off(acc0, f0, j * n, &fwb.0, n);
+        acc1 = mac_into_gold_off(acc1, f1, j * n, &fwb.0, n);
+        buf = fwb.0;
+        scratch = fwb.1;
+        j += 1;
+    }
+    let len: u64 = (end - start) as u64;
+    let scaled: u64 = crate::ntt::gold_mul(boff, len);
+    let inv0: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc0, scratch, &it);
+    let w0: Vec<u64> = crate::ntt::gold_untwist_off(&inv0.0, &it, scaled);
+    let inv1: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc1, inv0.1, &it);
+    let w1: Vec<u64> = crate::ntt::gold_untwist_off(&inv1.0, &it, scaled);
+    (w0, w1)
+}
+
+/// `Σⱼ a[j] · b[j]` with `a` prepared as two 16-bit limbs (card T35, 2A).
+///
+/// The value [`dot_prepared`] computes, by a different route: one Goldilocks
+/// lane instead of three 31-bit ones, no Garner reconstruction, and the right
+/// operand transformed once rather than three times.
+pub fn dot_prepared_limbs2(prep: &PreparedVecL2, b: &Vec<Rq>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let qw: u128 = params::Q as u128;
+    let mut acc: Rq = Rq::zero();
+    let mut start: usize = 0;
+    while start < n {
+        let remaining: usize = n - start;
+        let take: usize = if remaining < LIMB2_CHUNK { remaining } else { LIMB2_CHUNK };
+        let end: usize = start + take;
+        let ws: (Vec<u64>, Vec<u64>) =
+            dot_prep_chunk_limbs2(&prep.f0, &prep.f1, b, start, end, GOLD_LOFF2);
+        let mut out: Vec<Fp> = Vec::with_capacity(deg);
+        let mut t: usize = 0;
+        while t < deg {
+            let v: u128 = (ws.0[t] as u128) + 65536 * (ws.1[t] as u128);
+            out.push(Fp::new((v % qw) as u64));
+            t += 1;
+        }
+        acc = acc.add(&Rq(out));
+        start = end;
+    }
+    acc
+}

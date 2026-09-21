@@ -1015,3 +1015,70 @@ fn the_two_lane_dot_agrees_with_the_three_lane_one() {
             "two-lane and three-lane dots disagree at width {width}");
     }
 }
+
+/// **The oracle for card T35**: the limb split computes `dot_fused`.
+///
+/// The card's whole argument is a bound -- `2·C·N·B·q < GOLD_P` -- and a bound
+/// is exactly the kind of claim a prototype can get wrong silently, because a
+/// too-large chunk still *runs* and only wraps on inputs that reach the top of
+/// the range. So the widths here include the chunk boundary of each variant
+/// (`LIMB2_CHUNK`, `LIMB2_CHUNK + 1`) and the coefficients are drawn from the
+/// whole of `[0, q)`, where the bound is tightest: at `q − 1` the offset sum is
+/// `2·C·N·B·q = 2^64 − 99·2^32` against a modulus of `2^64 − 2^32 + 1`, a
+/// margin of 98·2^32 and no more.
+///
+/// A deliberate extra: the all-`q−1` row. Random draws almost never put every
+/// coefficient at the maximum, and that is the input the margin is computed
+/// for.
+#[test]
+fn limb_dots_agree_with_the_fused_dot() {
+    let mut rng = Lcg::new(0x5170_0000_0000_0035);
+    let q = hachi::params::Q;
+    let c2 = hachi::ring::LIMB2_CHUNK;
+
+    let build = |rng: &mut Lcg, n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            let mut cs = Vec::with_capacity(RING_DEGREE);
+            for _ in 0..RING_DEGREE {
+                cs.push(rng.next_u64() % q);
+            }
+            v.push(rq_from_u64s(&cs));
+        }
+        v
+    };
+    let build_max = |n: usize| -> Vec<hachi::ring::Rq> {
+        let mut v = Vec::with_capacity(n);
+        for _ in 0..n {
+            v.push(rq_from_u64s(&vec![q - 1; RING_DEGREE]));
+        }
+        v
+    };
+
+    for &n in &[1usize, 2, 8, 33, c2, c2 + 1, 1024] {
+        let a = build(&mut rng, n);
+        let b = build(&mut rng, n);
+        let expected = hachi::ring::dot_fused(&a, &b, n);
+
+        let p2 = hachi::ring::prepare_vec_limbs2(&a, n);
+        assert_eq!(p2.len(), n, "2A prepared length at n = {n}");
+        assert!(
+            hachi::ring::dot_prepared_limbs2(&p2, &b, n).equals(&expected),
+            "T35 variant 2A disagrees with the fused dot at n = {n}"
+        );
+
+    }
+
+    // The corner the margin is computed for: every coefficient at `q − 1`, at
+    // each variant's full chunk.
+    for &n in &[c2, 1024] {
+        let a = build_max(n);
+        let b = build_max(n);
+        let expected = hachi::ring::dot_fused(&a, &b, n);
+        let p2 = hachi::ring::prepare_vec_limbs2(&a, n);
+        assert!(
+            hachi::ring::dot_prepared_limbs2(&p2, &b, n).equals(&expected),
+            "T35 variant 2A wraps at the maximum coefficient, n = {n}"
+        );
+    }
+}
