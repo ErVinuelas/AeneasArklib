@@ -299,7 +299,7 @@ theorem dot_prep_chunk_gold_spec (pfwd : alloc.vec.Vec Std.U64)
     (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbe : endU.val ≤ b.val.length) (hse : startU.val ≤ endU.val)
-    (hwidth : endU.val ≤ 8192) :
+    (hwidth : endU.val - startU.val ≤ 8192) :
     ring.dot_prep_chunk_gold pfwd b startU endU boff
       ⦃ z => Canon GP z ∧ ∀ t, t < N → resK GP z t
               = (∑ u ∈ Finset.Ico startU.val endU.val,
@@ -499,7 +499,7 @@ theorem dot_prep_chunk_gold_word_spec (pfwd : alloc.vec.Vec Std.U64)
     (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbe : endU.val ≤ b.val.length)
-    (hse : startU.val ≤ endU.val) (hwidth : endU.val ≤ 8192) :
+    (hse : startU.val ≤ endU.val) (hwidth : endU.val - startU.val ≤ 8192) :
     ring.dot_prep_chunk_gold pfwd b startU endU ntt.GOLD_BOFF
       ⦃ z => Canon GP z ∧ ∀ k, k < N → wordAt z k
               = offConvSum a b startU.val endU.val k % GP ⦄ := by
@@ -549,3 +549,166 @@ theorem dot_prep_chunk_gold_word_spec (pfwd : alloc.vec.Vec Std.U64)
     push_cast
     ring
   exact HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
+
+/-! ## The chunk loop and the dot
+
+`RingFused.prep_chunk_loop_spec` with two lanes. The reconstruction bound
+comes free: `offConvSum < NttCRT.P` is already proved, and `P < PGA`. -/
+
+theorem prep_chunk_ga_loop_spec (prep : ring.PreparedVecGA) (a b : alloc.vec.Vec ring.Rq)
+    (nU degU : Std.Usize) (qwU : Std.U128) (acc : ring.Rq) (startU : Std.Usize)
+    (haw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hpg : PrepAtGV prep.fwd_g a nU.val)
+    (hpa : PrepAt prep.fwd_a a nU.val ntt.AUX_P1 ntt.AUX_PSI1)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
+    (hs : startU.val ≤ nU.val) (hacc : HachiEquiv.Ring.Wf acc)
+    (hval : ∀ k, k < N → HachiEquiv.Ring.coeffK acc k
+              = ∑ u ∈ Finset.range startU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k) :
+    ring.dot_prepared_ga_loop0 prep b nU degU qwU acc startU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  rw [ring.dot_prepared_ga_loop0]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ nU.val ∧ HachiEquiv.Ring.Wf r.1
+      ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK r.1 k
+              = ∑ u ∈ Finset.range r.2.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k)
+  · rintro ⟨d, st⟩ ⟨hst, hdw, hdv⟩
+    dsimp only at hst hdw hdv
+    simp only [ring.dot_prepared_ga_loop0.body]
+    by_cases hlt : st < nU
+    · rw [if_pos hlt]
+      have hstlt : st.val < nU.val := by scalar_tac
+      step as ⟨rem, hrem⟩
+      have hite : (if rem < ring.DOT_CHUNK then ok rem else ok ring.DOT_CHUNK)
+          = ok (if rem < ring.DOT_CHUNK then rem else ring.DOT_CHUNK) := by
+        split_ifs <;> rfl
+      rw [hite]
+      set tk : Std.Usize := if rem < ring.DOT_CHUNK then rem else ring.DOT_CHUNK with htk
+      have hdc : (ring.DOT_CHUNK).val = 8192 := by simp only [ring.DOT_CHUNK]; rfl
+      have hremv : rem.val = nU.val - st.val := hrem
+      have htkle : tk.val ≤ rem.val := by
+        rw [htk]; split_ifs with hc
+        · exact le_refl _
+        · have : ¬ (rem.val < (ring.DOT_CHUNK).val) := by scalar_tac
+          omega
+      have htk8 : tk.val ≤ 8192 := by
+        rw [htk]; split_ifs with hc
+        · have : rem.val < (ring.DOT_CHUNK).val := by scalar_tac
+          rw [hdc] at this; omega
+        · rw [hdc]
+      have htkpos : 0 < tk.val := by
+        rw [htk]; split_ifs
+        · rw [hremv]; omega
+        · rw [hdc]; omega
+      clear_value tk
+      step as ⟨en, hen⟩
+      have henv : en.val = st.val + tk.val := hen
+      have hennU : en.val ≤ nU.val := by rw [henv, hremv] at *; omega
+      have hsen : st.val ≤ en.val := by rw [henv]; omega
+      have hsen' : st.val < en.val := by rw [henv]; omega
+      have hL : en.val - st.val ≤ 8192 := by rw [henv]; omega
+      have hawe : ∀ u, u < en.val → HachiEquiv.Ring.Wf
+          (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+        fun u hu => haw u (by omega)
+      have hbwe : ∀ u, u < en.val → HachiEquiv.Ring.Wf
+          (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+        fun u hu => hbw u (by omega)
+      have hbe : en.val ≤ b.val.length := le_trans hennU hbn
+      have hmono : ∀ (pf : alloc.vec.Vec Std.U64) (pw psi : Std.U64),
+          PrepAt pf a nU.val pw psi →
+          (en.val * N ≤ pf.val.length
+           ∧ (∀ u ∈ pf.val, u.val < pw.val)
+           ∧ ∀ j, j < en.val → ∀ t, t < N →
+               resK pw.val pf (j * N + t)
+                 = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+                     (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val)
+                       (entryK pw.val a j)) t) := by
+        intro pf pw psi hpp
+        refine ⟨le_trans (Nat.mul_le_mul_right N hennU) hpp.1, hpp.2.1, ?_⟩
+        intro j hj t ht
+        exact hpp.2.2 j (by omega) t ht
+      have hmonoG : en.val * N ≤ prep.fwd_g.val.length
+          ∧ (∀ u ∈ prep.fwd_g.val, u.val < GP)
+          ∧ ∀ j, j < en.val → ∀ t, t < N →
+              resK GP prep.fwd_g (j * N + t)
+                = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+                    (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP)
+                      (entryK GP a j)) t := by
+        refine ⟨le_trans (Nat.mul_le_mul_right N hennU) hpg.1, hpg.2.1, ?_⟩
+        intro j hj t ht
+        exact hpg.2.2 j (by omega) t ht
+      obtain ⟨qga, qgb, qgc⟩ := hmonoG
+      obtain ⟨qaa, qab, qac⟩ := hmono prep.fwd_a ntt.AUX_P1 ntt.AUX_PSI1 hpa
+      obtain ⟨o1, oi1, on1, ob1⟩ := HachiEquiv.NttProduct.aux1_lt
+      step with dot_prep_chunk_gold_word_spec prep.fwd_g a b st en
+        qga qgc qgb hawe hbwe hbe hsen hL as ⟨rg, hcg, hwg⟩
+      step with dot_prep_chunk_word_spec prep.fwd_a a b st en ntt.AUX_P1 ntt.AUX_M1
+        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1 NttCRT.magic1
+        o1 oi1 on1 ob1 HachiEquiv.NttProduct.psi1_ord HachiEquiv.NttProduct.psi1_inv
+        HachiEquiv.NttProduct.ninv1_inv HachiEquiv.NttProduct.boff1_val
+        qaa qac qab hawe hbwe hbe hsen
+        (by rw [NttCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
+        as ⟨ra, hca, hwa⟩
+      rw [NttCRT.AUX_P1_val] at hwa
+      simp only [alloc.vec.Vec.with_capacity]
+      step with prep_garner_ga_out_spec degU qwU rg ra
+        (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+        (fun k => offConvSum a b st.val en.val k) hdeg hqw
+        (fun k _ => lt_of_lt_of_le
+          (offConvSum_lt_P a b st.val en.val k hawe hbwe hL)
+          (by norm_num [NttCRT.P, NttCRT.p1, NttCRT.p2, NttCRT.p3, PGA, GP]))
+        hwg hwa hcg.1 hca.1 (by simp) (by simp)
+        (by intro u hu; simp at hu) (by intro k hk; simp at hk)
+        as ⟨out1, ho1wf, ho1v⟩
+      step with HachiEquiv.Ring.add_spec d out1 hdw ho1wf as ⟨acc1, hacwf, hacv⟩
+      refine ⟨by omega, hacwf, ?_, by omega⟩
+      intro k hk
+      have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
+      rw [hacv k hk, hdv k hk, HachiEquiv.Ring.coeffK_eq_cast_wordN, ho1v k hk,
+        hqq, ZMod.natCast_mod,
+        offConvSum_cast_q a b st.val en.val k hk hawe hbwe,
+        Finset.range_eq_Ico, Finset.range_eq_Ico,
+        Finset.sum_Ico_consecutive _ (Nat.zero_le _) hsen]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : st.val = nU.val := by scalar_tac
+      exact ⟨hdw, fun k hk => by rw [hdv k hk, heq]⟩
+  · exact ⟨hs, hacc, hval⟩
+
+/-- **`ring::dot_prepared_ga`.** The value `dot_prepared_spec` computes, from
+two lanes instead of three. The statement is `dot_prepared_spec`'s word for
+word; only the preparation hypotheses differ, one `PrepAtGV` and one `PrepAt`
+where there were three `PrepAt`s. -/
+theorem dot_prepared_ga_spec (prep : ring.PreparedVecGA) (a b : alloc.vec.Vec ring.Rq)
+    (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
+    (hpg : PrepAtGV prep.fwd_g a nU.val)
+    (hpa : PrepAt prep.fwd_a a nU.val ntt.AUX_P1 ntt.AUX_PSI1) :
+    ring.dot_prepared_ga prep b nU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  rw [ring.dot_prepared_ga]
+  have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q (NttCRT.u64_le_u128_max _)
+  step with hcq as ⟨qw, hqw⟩
+  rw [HachiEquiv.Field.params_Q_val] at hqw
+  step with HachiEquiv.Ring.zero_spec as ⟨z0, hz0wf, hz0v⟩
+  exact prep_chunk_ga_loop_spec prep a b nU params.RING_DEGREE qw z0 0#usize
+    haw hbw han hbn hpg hpa HachiEquiv.Ring.params_RING_DEGREE_val hqw
+    (by simp) hz0wf (by intro k hk; rw [hz0v k]; simp)
