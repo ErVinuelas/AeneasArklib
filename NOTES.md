@@ -10149,13 +10149,28 @@ equal cost:
    same shape and the same scale as the `fusedA`–`fusedD` machinery in
    `GoldFusedStage.lean`, which was a card's worth of proof on its own.
 
-**So there is a cheaper card hiding inside this one.** (A) alone removes one
-of the seven passes and needs none of (B)'s permutation argument — its proof
-is a rewrite. (A)+(B) measured −6.5%/−5.9%; **(A) alone has not been
-measured**, and if it carries most of the win it is the better trade by a
-wide margin. Measuring it is two `CANDIDATE=1` runs and no new proof. That
-experiment is owed before anyone spends (B)'s budget, and it is the concrete
-next step on this card rather than the proof itself.
+**There is no cheaper card hiding inside this one — measured, card T37a.**
+The obvious hope was that (A) alone, whose proof is a rewrite, carries most
+of the win and lets (B)'s budget go unspent. It does not. Same row, same
+baseline, same machine:
+
+| | raw `cand vs now` | recentered | verdict |
+|---|---|---|---|
+| T37a, twist only | −1.56% | −3.89% | noise |
+| T37, both halves | −3.82% / −3.61% | −6.46% / −5.86% | faster |
+
+The twist half carries about 1.6 of T37's 3.7 raw points; the MAC half
+carries the other 2.2. **The win is mostly in the half whose proof is
+expensive**, so taking the −6% means paying the write-permutation argument,
+and there is no subset of this card that is both worth having and cheap to
+prove. One run decided T37a rather than two: a single-row target needs both
+runs `faster`, so a `noise` already settles it, and running again until one
+reads `faster` is precisely what the accept rule forbids.
+
+That leaves the card's real question as a budget one, and it is the user's:
+pay (B)'s `fusedA`–`fusedD`-scale proof for 6% of the commitment phase, or
+revert T37 and keep `load_twisted_into` and `mac_into_gold_off` reachable.
+Nothing in the measurement decides it.
 
 Two further facts the implementation established, both recorded in the
 ceiling table's terms:
