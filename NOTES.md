@@ -10094,3 +10094,77 @@ the level, and the figure to quote from this run is the raw one: **521.3 →
 
 **1170.8 → 453.0 is −61.3% for the campaign**, with the caveat above that G1
 is inside this delta and has no profile of its own.
+
+### Card T37's proof debt, specified
+
+`make build` on `champion/fused-stages` fails with **one** error, and the
+loop-state shape of the chunk loop did not change:
+
+```
+lean/GoldDot.lean:363:6: Could not unify the theorem with the target:
+- theorem: Std.bind (ring.load_twisted_into bf rq pt) ?k ⦃ ?Pₖ ⦄
+- target:  ring.gold_dot_one_fused rq bf sc d pt prep.fwd i
+```
+
+`gold_terms_spec`'s body took three steps — `load_twisted_into_spec`,
+`gold_forward_spec`, `gold_mac_off_spec` — and the Rust now takes one. Nothing
+else in the file, and nothing in any other file, moved. The debt is therefore
+exactly one new spec, `gold_dot_one_fused_spec`, with the same conclusion the
+three had in sequence.
+
+**The cheapest shape is a `Result` equality, not a re-derivation.**
+`load_twisted_into`, `gold_forward` and `mac_into_gold_off` are all still in
+the model (they are local `pub` items; what they lost is callers, not
+extraction), so the target is
+
+```lean
+ring.gold_dot_one_fused a cur0 tmp0 acc0 pt pfwd base
+  = (do let bf ← ring.load_twisted_into cur0 a pt
+        let fw ← ntt.gold_forward bf tmp0 pt
+        let ac ← ring.mac_into_gold_off acc0 pfwd base fw.1 N
+        ok (ac, fw.1, fw.2))
+```
+
+after which `gold_terms_spec` is repaired by one `rw` and keeps all three of
+its existing steps verbatim. Three sub-obligations, and they are **not** of
+equal cost:
+
+1. **(A) the twist stage.** `gold_dif_stage2_twist a dst len tw pt =
+   gold_dif_stage2 (load_twisted_into d a pt) dst len tw` for any `d` of
+   length `N`. Cheap: the fusion substitutes *reads*, the write order is
+   untouched, and `load_twisted_into` writes `0..N` in order so it totally
+   overwrites `d`. A pointwise read-substitution with no reordering.
+2. **(C) the middle loop.** `gold_dot_one_fused_loop` is `gold_forward`'s loop
+   with the first and last passes peeled. `gold_forward_loop_spec` is already
+   parameterised by a stage count (it is called at `NTT_LEN, 5`), so the
+   mirror at `NTT_LEN/4, 3` is a re-instantiation, plus peeling two concrete
+   iterations where `len` is a literal. Moderate.
+3. **(B) the MAC stage, and this is the expensive one.** The extracted body
+   does four `index_mut` read-modify-writes into `acc` per group, at
+   `start+j`, `start+j+quarter`, `start+half+j`, `start+half+quarter+j`.
+   `mac_into_gold_off` walks `k = 0..N` in order. So the equality is an
+   interleaved-versus-sequential **write permutation** argument: the four
+   indices are pairwise distinct for `j < quarter` and distinct across `j`
+   and across `start`, and writes at distinct indices commute. That is the
+   same shape and the same scale as the `fusedA`–`fusedD` machinery in
+   `GoldFusedStage.lean`, which was a card's worth of proof on its own.
+
+**So there is a cheaper card hiding inside this one.** (A) alone removes one
+of the seven passes and needs none of (B)'s permutation argument — its proof
+is a rewrite. (A)+(B) measured −6.5%/−5.9%; **(A) alone has not been
+measured**, and if it carries most of the win it is the better trade by a
+wide margin. Measuring it is two `CANDIDATE=1` runs and no new proof. That
+experiment is owed before anyone spends (B)'s budget, and it is the concrete
+next step on this card rather than the proof itself.
+
+Two further facts the implementation established, both recorded in the
+ceiling table's terms:
+
+* `ntt.gold_dif_stage2_mac_loop0_loop0` keeps the **2-tuple** `(acc1, j1)` —
+  the fused read-modify-write does not grow the state.
+* `ring.gold_dif_stage2_twist_loop0_loop0` is a **3-tuple** `(a1, dst1, j1)`:
+  the borrowed `&Rq` operand is threaded, exactly as `add_loop` and
+  `sub_loop` thread `rhs`. So (A), which I called the contained half before
+  extracting, is the half whose loop shape changed, and (B), which I called
+  risky, is the one that kept its shape. The risk is real but it is in the
+  write permutation, not the state.
