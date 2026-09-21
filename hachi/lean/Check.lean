@@ -1889,6 +1889,18 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.NttMath.ditRun_add
 #print axioms HachiEquiv.NttMath.difRun_sum
 #print axioms HachiEquiv.NttMath.ditRun_sum
+-- Card T35's bound layer: the digit path's ceiling argument with the bound,
+-- the chunk and the modulus all parameters. `BoundedWf 16 = DigitWf` and
+-- `BOUNDB 16 = BOUND_D` hold by `rfl`, so the existing path is literally an
+-- instance and cannot drift from the general one. Both cards' numeric
+-- premises are checked here rather than asserted at their use sites.
+#print axioms HachiEquiv.RingFused.posSumB_le
+#print axioms HachiEquiv.RingFused.posQB_sum_le
+#print axioms HachiEquiv.RingFused.offConvSumB_lt
+#print axioms HachiEquiv.RingFused.boundB_fit_limb2
+#print axioms HachiEquiv.RingFused.boundB_fit_digits
+#print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
+#print axioms HachiEquiv.RingFused.boundB_16
 #print axioms HachiEquiv.RingFused.untwist_value_sum
 #print axioms HachiEquiv.RingFused.accum_spec
 #print axioms HachiEquiv.RingFused.words_a_spec
