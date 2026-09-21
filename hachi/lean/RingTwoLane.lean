@@ -387,3 +387,88 @@ theorem prepare_vec_ga_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
     _ magic1 hpsi1 rfl hawf han hmax as ⟨fa, hal, hac, hav⟩
   exact ⟨show PrepAtGV fg a nU.val from ⟨le_of_eq hgl.symm, hgc, hgv⟩,
     le_of_eq hal.symm, hac, hav⟩
+
+/-! ## The output loop
+
+`RingFused.prep_garner_out_spec` with two residues instead of three and
+`garner_ga` in place of `garner`; the Rust loops are otherwise the same. -/
+
+theorem prep_garner_ga_out_spec (degU : Std.Usize) (qwU : Std.U128)
+    (rg ra : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
+    (tU : Std.Usize) (X : ℕ → ℕ)
+    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.NttProduct.q)
+    (hXP : ∀ k, k < N → X k < PGA)
+    (hvg : ∀ k, k < N → wordAt rg k = X k % GP)
+    (hva : ∀ k, k < N → wordAt ra k = X k % NttCRT.p1)
+    (hlg : rg.val.length = N) (hla : ra.val.length = N)
+    (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
+    (hred : ∀ u ∈ out.val, HachiEquiv.Field.Red u)
+    (hval : ∀ k, k < tU.val →
+      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.NttProduct.q) :
+    ring.dot_prepared_ga_loop0_loop0 degU qwU rg ra out tU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N →
+          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.NttProduct.q ⦄ := by
+  rw [ring.dot_prepared_ga_loop0_loop0]
+  apply loop.spec_decr_nat (fun r => N - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
+      ∧ (∀ u ∈ r.1.val, HachiEquiv.Field.Red u)
+      ∧ ∀ k, k < r.2.val →
+          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.NttProduct.q)
+  · rintro ⟨o1, tt⟩ ⟨htt, hlen1, hred1, hval1⟩
+    dsimp only at htt hlen1 hred1 hval1
+    simp only [ring.dot_prepared_ga_loop0_loop0.body]
+    by_cases hlt : tt < degU
+    · rw [if_pos hlt]
+      have httlt : tt.val < N := by rw [← hdeg]; scalar_tac
+      have hbg : tt.val < rg.val.length := by rw [hlg]; exact httlt
+      have hba : tt.val < ra.val.length := by rw [hla]; exact httlt
+      step as ⟨xg, hxg⟩
+      step as ⟨xa, hxa⟩
+      have hxgv : xg.val = X tt.val % GP := by
+        rw [hxg, ← wordAt_of_lt (v := rg) (t := tt.val) hbg]; exact hvg tt.val httlt
+      have hxav : xa.val = X tt.val % NttCRT.p1 := by
+        rw [hxa, ← wordAt_of_lt (v := ra) (t := tt.val) hba]; exact hva tt.val httlt
+      step with garner_ga_spec xg xa (X tt.val) (hXP tt.val httlt)
+        hxgv hxav as ⟨g, hgv⟩
+      step as ⟨md, hmd⟩
+      have hmdv : md.val = X tt.val % HachiEquiv.NttProduct.q := by
+        rw [hmd, hgv, hqwv]
+      have hmdlt : md.val < HachiEquiv.NttProduct.q := by
+        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
+      have hcast : lift (UScalar.cast .U64 md) ⦃ y => y.val = md.val ⦄ :=
+        UScalar.cast_inBounds_spec .U64 md (by
+          have hq : md.val < 4294967197 := by
+            have := hmdlt; simpa [HachiEquiv.NttProduct.q] using this
+          simp only [UScalar.max, UScalarTy.numBits]
+          omega)
+      step with hcast as ⟨w, hw⟩
+      step with HachiEquiv.Field.fp_new_spec w as ⟨f, hfred, hfval⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨tt1, htt1⟩
+      refine ⟨by rw [htt1]; omega, ?_, ?_, ?_, by rw [htt1]; omega⟩
+      · rw [ho2, htt1, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with hm | hm
+        · exact hred1 u hm
+        · rw [List.mem_singleton.mp hm]; exact hfred
+      · intro k hk
+        rw [htt1] at hk
+        simp only [HachiEquiv.Ring.wordN] at hval1 ⊢
+        rcases Nat.lt_or_ge k tt.val with hklt | hkge
+        · rw [ho2, getD_append_lt' _ _ _ (by omega)]
+          exact hval1 k hklt
+        · have hkeq : k = o1.val.length := by omega
+          rw [hkeq, ho2, getD_append_eq', hlen1]
+          have hwlt : w.val < HachiEquiv.NttProduct.q := by rw [hw]; exact hmdlt
+          have hfv : f.val = w.val := by
+            have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+              (n := HachiEquiv.NttProduct.q) (x := f.val) (y := w.val) hfred hfval
+            rwa [Nat.mod_eq_of_lt hwlt] at h1
+          rw [hfv, hw, hmdv]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = N := by rw [← hdeg]; scalar_tac
+      exact ⟨⟨by rw [hlen1, heq], hred1⟩,
+        fun k hk => hval1 k (by rw [heq]; exact hk)⟩
+  · exact ⟨ht, hlen, hred, hval⟩
