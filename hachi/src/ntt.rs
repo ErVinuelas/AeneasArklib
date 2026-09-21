@@ -666,6 +666,74 @@ pub fn gold_dif_stage2(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u
     dst
 }
 
+/// [`gold_dif_stage2`] with the prepared multiply-accumulate folded into the
+/// writes (card T37, B).
+///
+/// The last pass of the transform is the only one whose output nobody reads
+/// again as a transform input, so it is the only one that can absorb the MAC.
+/// Where [`gold_dif_stage2`] writes `dst[i] = v`, this writes
+/// `acc[i] += pfwd[base + i] · v`, and the 8 KiB buffer the MAC would have
+/// read back never exists.
+///
+/// What this does **not** remove is the stream of `pfwd[base ..]`, a slice of
+/// a table far larger than any cache. That read is the loop's one genuinely
+/// expensive memory access and it is unchanged here; what the fusion saves is
+/// the warm buffer beside it. The multiplications are the same ones in the
+/// same order.
+///
+/// The body is [`gold_dif_stage2`] verbatim down to `b3`, with each of the
+/// four `dst[...] = v` writes replaced by the accumulate. Keeping the
+/// destination indices in named `let`s rather than repeating the arithmetic
+/// is what keeps `acc[o] = ...acc[o]...` a single indexed read-modify-write,
+/// the shape the extraction models as an ordinary update.
+pub fn gold_dif_stage2_mac(
+    src: &Vec<u64>,
+    mut acc: Vec<u64>,
+    len: usize,
+    tw: &Vec<u64>,
+    pfwd: &Vec<u64>,
+    base: usize,
+) -> Vec<u64> {
+    let n: usize = NTT_LEN;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        while j < quarter {
+            let a0: u64 = src[start + j];
+            let a1: u64 = src[start + j + quarter];
+            let a2: u64 = src[start + j + half];
+            let a3: u64 = src[start + j + half + quarter];
+            let b0: u64 = gold_add(a0, a2);
+            let b1: u64 = gold_add(a1, a3);
+            let d0: u64 = gold_sub(a0, a2);
+            let b2: u64 = gold_mul(d0, tw[j * step1]);
+            let d1: u64 = gold_sub(a1, a3);
+            let b3: u64 = gold_mul(d1, tw[(j + quarter) * step1]);
+            let o0: usize = start + j;
+            let v0: u64 = gold_add(b0, b1);
+            acc[o0] = gold_add(acc[o0], gold_mul(pfwd[base + o0], v0));
+            let o1: usize = start + j + quarter;
+            let e0: u64 = gold_sub(b0, b1);
+            let v1: u64 = gold_mul(e0, tw[j * step2]);
+            acc[o1] = gold_add(acc[o1], gold_mul(pfwd[base + o1], v1));
+            let o2: usize = start + half + j;
+            let v2: u64 = gold_add(b2, b3);
+            acc[o2] = gold_add(acc[o2], gold_mul(pfwd[base + o2], v2));
+            let o3: usize = start + half + quarter + j;
+            let e1: u64 = gold_sub(b2, b3);
+            let v3: u64 = gold_mul(e1, tw[j * step2]);
+            acc[o3] = gold_add(acc[o3], gold_mul(pfwd[base + o3], v3));
+            j += 1;
+        }
+        start += len;
+    }
+    acc
+}
+
 /// The forward transform in the Goldilocks lane.
 pub fn gold_forward(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>, Vec<u64>) {
     let mut cur: Vec<u64> = cur0;
