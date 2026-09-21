@@ -9956,3 +9956,69 @@ part without touching the Rust.
 
 The pattern to extend it — general form with side conditions last, pinned
 statement kept verbatim and proved by instantiation — is now the house shape.
+
+### The pin-scale effect of G2 and T35, and what a second branch measures
+
+`logs/runs/pin-profile-20260921-limbcarrier.log`, `BLOCKS=1024`, control CPU
+spread within run **−0.6%** — the best-conditioned profile of the three taken
+today. Baseline is card A2's (`pin-profile-20260920-epow.log`, spread −0.4%).
+
+| | A2 baseline | G2 + T35 | |
+|---|---|---|---|
+| commitment | 156.1 s | 156.7 s | +0.4% |
+| **`carrier_decomp_from_raw`** | 97.6 s | **21.4 s** | **−78.1%** |
+| `honest_compute_v_from_decomp` | 1.3 s | 1.3 s | 0 |
+| `honest_compute_resp` + stack | 81.4 s | 55.7 s | −31.6% |
+| R^lin statement assembled | 0.413 s | 0.412 s | 0 |
+| lifted witness | 39.8 s | 39.3 s | −1.3% |
+| `lift_commit` | 17.9 s | 18.9 s | +5.6% |
+| `honest_round_messages` | 124.7 s | 126.9 s | +1.8% |
+| **prover** | **521.3 s** | **423.1 s** | **−18.8%** |
+| peak RSS | 5453 MiB | 5453 MiB | 0 |
+| `chain_verify` (whole) | 28.2 s | 29.6 s | +5.0% |
+
+**G2 and T35 compose exactly as their bench rows said they would, and that
+settles the supersession question.** The card text calls T35 a card that
+"supersedes the gated general-path card"; that gated card is the two 64-bit
+Montgomery lanes, *not* G2, and the two have been measured stacked because
+T35's branch sits on G2's. G2's rows read −53.6% / −55.0% against the
+three-prime path; T35's read −51.9% / −52.6% against G2. The product of those
+factors is 0.464 × 0.481 = 0.223, i.e. −77.7%, and the pin reads **−78.1%**.
+Nothing is being double-counted and neither card is redundant: keep both, in
+this order, which is what the branch topology already is.
+
+**The two branches are each other's control, and that is what makes the
+attribution possible.** Both sit on the same main, so both carry G1, which
+landed after A2's profile and has no profile of its own. Reading the phases
+where one branch's cards cannot reach:
+
+* **commitment** — this branch +0.4%, so G1 does not move it, so the
+  `lazy-rlin` branch's −11.1% is **card T34 alone** (its own rows: −8.0%,
+  −9.2%). This is the attribution that one profile could not make.
+* **`honest_round_messages`** — this branch +1.8%, so the other branch's
+  −20.7% is **T36 + T38 alone**.
+* **R^lin statement** — this branch 0%, so the other's −51.3% is **W2 alone**.
+* **`carrier_decomp_from_raw`** — the other branch −0.4%, so this one's
+  −78.1% is **G2 + T35 alone**.
+* **`honest_compute_resp`** — down in *both* (−31.6% here, −25.8% there), and
+  no card on either branch touches it. G1 is the only code between A2's
+  profile and both branches, so this phase is **G1's pin effect**, previously
+  unmeasured: roughly −26 s of the prover, against a bench row of −6.5% /
+  −7.8% on `gadget_decompose` itself.
+
+**Correction to the entry above on the lifted witness.** That note said A2's
+39.8 s "was noise" because this campaign's first profile read 34.5 s. This
+profile reads 39.3 s, on the *cleanest* control of the three, with no card on
+either branch touching `honest_lift_witness`. So the reading to keep is:
+after five profiles in a tight 35.7–36.1 band, the phase has since read 39.8,
+34.5 and 39.3 — a 14% spread with no code correlate and larger than any
+control drift. Treat it as **±8% run-to-run variance**, do not call any single
+reading the level, and do not attribute a move in it to a card. The prover
+totals above are the raw ones; normalising this phase to 36.5 s across all
+three runs gives 518.0 → 455.0 (`lazy-rlin`, −12.2%) and 518.0 → 420.3
+(this branch, −18.9%), which is the same story with the noise taken out.
+
+**1170.8 → 423.1 is −63.9% for the campaign** on this branch. The two branches
+are disjoint in what they touch — the carrier here, the commitment, rounds and
+R^lin there — so a merged tree is expected to land near 355 s, but that is a
+projection and stays labelled one until a merged profile exists.
