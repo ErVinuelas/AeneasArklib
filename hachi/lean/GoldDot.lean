@@ -105,14 +105,202 @@ theorem gold_mac_into_spec (acc af bf : alloc.vec.Vec Std.U64) (nU : Std.Usize)
       rw [hw t ht, heq, if_pos ht]
   · exact ⟨hk, hacc, hval⟩
 
-/-- The word gather is the *same loop* as the two-prime path's: it reads
-`b[j]`'s coefficients and pushes their words, and nothing in it mentions a
-prime. `ring.rs` writes both the same way deliberately, so this is `rfl` and
-`RingFused.prep_words_b_spec` is reused rather than re-proved. -/
-theorem gold_words_eq (b : alloc.vec.Vec ring.Rq) (n j : Std.Usize)
-    (w : alloc.vec.Vec Std.U64) (u : Std.Usize) :
-    ring.dot_prepared_digits_gold_loop0_loop0 b n j w u
-      = ring.dot_prep_chunk_mod_p_loop0_loop0 b n j w u := rfl
+/-! ### Card T34: the loader and the offset MAC
+
+The word gather used to be the two-prime path's loop verbatim, followed by
+`gold_twist` over its result -- two passes and two 8 KiB allocations per
+right-hand polynomial. Card T34 fuses them into `load_twisted_into`, writing
+the twisted word where the coefficient is read, into a buffer the caller
+recycles. `gold_words_eq`, which said the gather was `rfl`-equal to the
+two-prime one, is gone with the loop it was about.
+
+The two lemmas below are the whole proof cost of the card. Neither moves a
+statement above it: `gold_terms_spec`'s conclusion is unchanged, and so is
+everything that steps through it. -/
+
+/-- The fused loader writes the ψ-twisted words of `a` into `w`.
+
+One loop where there were two, so one lemma where there were two
+(`prep_words_b_spec` then `gold_twist_cast`). The loop state is the 3-tuple
+`(a, w, t)` -- the borrowed operand rides along, the shape `add_loop` and
+`sub_loop` already have. -/
+theorem load_twisted_into_loop_spec (a : ring.Rq) (pt : alloc.vec.Vec Std.U64)
+    (nU : Std.Usize) (w : alloc.vec.Vec Std.U64) (tU : Std.Usize) (ps : ZMod GP)
+    (hn : nU.val = N) (hwf : HachiEquiv.Ring.Wf a)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (ht : tU.val ≤ N) (hwl : w.val.length = N)
+    (hwc : ∀ e, e < tU.val → (wordAt w e) < GP)
+    (hwv : ∀ e, e < tU.val → resK GP w e
+      = NttMath.twistR ps (fun u => ((HachiEquiv.Ring.wordN a u : ℕ) : ZMod GP)) e) :
+    ring.load_twisted_into_loop a pt nU w tU
+      ⦃ z => Canon GP z ∧ ∀ e, e < N → resK GP z e
+               = NttMath.twistR ps
+                   (fun u => ((HachiEquiv.Ring.wordN a u : ℕ) : ZMod GP)) e ⦄ := by
+  rw [ring.load_twisted_into_loop]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.2.val)
+    (fun r => r.2.2.val ≤ N ∧ r.1 = a ∧ r.2.1.val.length = N
+      ∧ (∀ e, e < r.2.2.val → (wordAt r.2.1 e) < GP)
+      ∧ ∀ e, e < r.2.2.val → resK GP r.2.1 e
+          = NttMath.twistR ps
+              (fun u => ((HachiEquiv.Ring.wordN a u : ℕ) : ZMod GP)) e)
+  · rintro ⟨aa, d, tt⟩ ⟨htt, haa, hdl, hdc, hdv⟩
+    dsimp only at htt haa hdl hdc hdv
+    subst haa
+    simp only [ring.load_twisted_into_loop.body]
+    by_cases hlt : tt < nU
+    · rw [if_pos hlt]
+      have httlt : tt.val < N := by rw [← hn]; scalar_tac
+      have hab : tt.val < aa.val.length := by rw [hwf.1]; exact httlt
+      have hpb : tt.val < pt.val.length := by rw [hptC.1]; exact httlt
+      have hdb : tt.val < d.val.length := by rw [hdl]; exact httlt
+      step as ⟨f, hf⟩
+      step with HachiEquiv.Ring.to_u64_id f as ⟨x, hx⟩
+      have hxv : x.val = HachiEquiv.Ring.wordN aa tt.val := by
+        rw [hx, hf]
+        unfold HachiEquiv.Ring.wordN
+        rw [List.getD_eq_getElem _ _ hab]
+      have hxlt : x.val < GP := by
+        have hq : x.val < HachiEquiv.NttProduct.q := by
+          rw [hx, hf]; exact hwf.2 _ (List.getElem_mem hab)
+        have : (HachiEquiv.NttProduct.q : ℕ) < GP := by
+          unfold HachiEquiv.NttProduct.q GP; norm_num
+        omega
+      step as ⟨y, hy⟩
+      have hyv : y.val = wordAt pt tt.val := by
+        rw [hy, ← wordAt_of_lt (v := pt) (t := tt.val) hpb]
+      have hylt : y.val < GP := by rw [hyv]; exact wordAt_lt hptC GP_pos _
+      step with gold_mul_spec x y as ⟨pr, hprv, hprlt⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨tt1, htt1⟩
+      rw [hback]
+      refine ⟨by rw [htt1]; omega, ?_, ?_, ?_, by rw [htt1]; omega⟩
+      · simpa using hdl
+      · intro e he
+        rw [htt1] at he
+        by_cases heq : e = tt.val
+        · rw [heq, wordAt_set_eq hdb]; exact hprlt
+        · rw [wordAt_set_ne heq]; exact hdc e (by omega)
+      · intro e he
+        rw [htt1] at he
+        by_cases heq : e = tt.val
+        · rw [heq]
+          simp only [resK]
+          rw [wordAt_set_eq hdb, hprv, hxv, hyv]
+          simp only [NttMath.twistR, resK] at hptv ⊢
+          rw [ZMod.natCast_mod]
+          push_cast
+          rw [hptv tt.val httlt]
+        · simp only [resK]
+          rw [wordAt_set_ne heq]
+          have := hdv e (by omega)
+          simpa only [resK] using this
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = N := by rw [← hn]; scalar_tac
+      refine ⟨⟨hdl, ?_⟩, fun e he => hdv e (by rw [heq]; exact he)⟩
+      intro u hu
+      obtain ⟨e, he, hee⟩ := List.getElem_of_mem hu
+      have := hdc e (by rw [heq]; omega)
+      rw [wordAt_of_lt he] at this
+      rw [← hee]; exact this
+  · exact ⟨ht, rfl, hwl, hwc, hwv⟩
+
+/-- [`load_twisted_into`] at its entry point. -/
+theorem load_twisted_into_spec (w : alloc.vec.Vec Std.U64) (a : ring.Rq)
+    (pt : alloc.vec.Vec Std.U64) (ps : ZMod GP)
+    (hwf : HachiEquiv.Ring.Wf a) (hwl : w.val.length = N)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e) :
+    ring.load_twisted_into w a pt
+      ⦃ z => Canon GP z ∧ ∀ e, e < N → resK GP z e
+               = NttMath.twistR ps
+                   (fun u => ((HachiEquiv.Ring.wordN a u : ℕ) : ZMod GP)) e ⦄ := by
+  rw [ring.load_twisted_into]
+  exact load_twisted_into_loop_spec a pt ntt.NTT_LEN w 0#usize ps
+    ntt_NTT_LEN_val hwf hptC hptv (by simp) hwl
+    (by intro e he; simp at he) (by intro e he; simp at he)
+
+/-- The offset MAC: [`gold_mac_into_spec`] reading its left factor out of the
+prepared table in place, at `base + k`, instead of out of an 8 KiB copy.
+
+The left factor arrives as an abstract `A : ℕ → ZMod GP` with `hA` saying the
+table holds it, because `prep.fwd` is `endU * N` long and `Canon` -- which
+pins the length at `N` -- does not apply to it. That is the same reason
+`gold_terms_spec` carried `hpc` separately for `slice_out`'s result. -/
+theorem gold_mac_off_spec (acc pfwd bf : alloc.vec.Vec Std.U64)
+    (baseU nU kU : Std.Usize) (base A : ℕ → ZMod GP)
+    (hn : nU.val = N) (hk : kU.val ≤ N)
+    (hb : baseU.val + N ≤ pfwd.val.length)
+    (hacc : Canon GP acc) (hbf : Canon GP bf)
+    (hpc : ∀ u ∈ pfwd.val, u.val < GP)
+    (hA : ∀ t, t < N → ((wordAt pfwd (baseU.val + t) : ℕ) : ZMod GP) = A t)
+    (hval : ∀ t, t < N → resK GP acc t
+              = base t + (if t < kU.val then A t * resK GP bf t else 0)) :
+    ring.mac_into_gold_off_loop pfwd baseU bf nU acc kU
+      ⦃ z => Canon GP z ∧ ∀ t, t < N → resK GP z t
+              = base t + A t * resK GP bf t ⦄ := by
+  rw [ring.mac_into_gold_off_loop]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ Canon GP r.1
+      ∧ ∀ t, t < N → resK GP r.1 t
+              = base t + (if t < r.2.val then A t * resK GP bf t else 0))
+  · rintro ⟨d, kk⟩ ⟨hkk, hcd, hw⟩
+    dsimp only at hkk hcd hw
+    simp only [ring.mac_into_gold_off_loop.body]
+    by_cases hlt : kk < nU
+    · rw [if_pos hlt]
+      have hklt : kk.val < N := by rw [← hn]; scalar_tac
+      have hbb : kk.val < bf.val.length := by rw [hbf.1]; exact hklt
+      have hdb : kk.val < d.val.length := by rw [hcd.1]; exact hklt
+      step as ⟨idx, hidx⟩
+      have hidxb : idx.val < pfwd.val.length := by rw [hidx]; omega
+      step as ⟨x, hx⟩
+      step as ⟨y, hy⟩
+      have hxv : x.val = wordAt pfwd (baseU.val + kk.val) := by
+        rw [hx, ← wordAt_of_lt (v := pfwd) (t := idx.val) hidxb, hidx]
+      have hyv : y.val = wordAt bf kk.val := by
+        rw [hy, ← wordAt_of_lt (v := bf) (t := kk.val) hbb]
+      have hxlt : x.val < GP := by
+        rw [hx]; exact hpc _ (List.getElem_mem hidxb)
+      have hylt : y.val < GP := by rw [hyv]; exact wordAt_lt hbf GP_pos _
+      step with gold_mul_spec x y as ⟨pr, hprv, hprlt⟩
+      step as ⟨cur, hcur⟩
+      have hcurv : cur.val = wordAt d kk.val := by
+        rw [hcur, ← wordAt_of_lt (v := d) (t := kk.val) hdb]
+      have hcurlt : cur.val < GP := by rw [hcurv]; exact wordAt_lt hcd GP_pos _
+      step with gold_add_spec cur pr hcurlt hprlt as ⟨z, hzv, hzlt⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨kk1, hkk1⟩
+      rw [hback]
+      refine ⟨by rw [hkk1]; omega, Canon_set hcd hzlt, ?_, by rw [hkk1]; omega⟩
+      intro t ht
+      rw [hkk1]
+      by_cases heq : t = kk.val
+      · rw [heq]
+        simp only [resK]
+        rw [wordAt_set_eq hdb, hzv, hprv]
+        have hc1 : ((((cur.val + (x.val * y.val) % GP) % GP : ℕ)) : ZMod GP)
+            = ((cur.val : ℕ) : ZMod GP)
+              + ((x.val : ℕ) : ZMod GP) * ((y.val : ℕ) : ZMod GP) := by
+          rw [ZMod.natCast_mod]; push_cast; rw [ZMod.natCast_mod]; push_cast; ring
+        rw [hc1, hcurv, hxv, hyv, hA kk.val hklt]
+        have hbase := hw kk.val hklt
+        simp only [resK] at hbase
+        rw [hbase, if_neg (by omega), add_zero, if_pos (by omega)]
+      · simp only [resK]
+        rw [wordAt_set_ne heq]
+        have hbase := hw t ht
+        simp only [resK] at hbase
+        rw [hbase]
+        by_cases hlt2 : t < kk.val
+        · rw [if_pos hlt2, if_pos (by omega)]
+        · rw [if_neg hlt2, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : kk.val = N := by rw [← hn]; scalar_tac
+      refine ⟨hcd, ?_⟩
+      intro t ht
+      rw [hw t ht, heq, if_pos ht]
+  · exact ⟨hk, hacc, hval⟩
 
 /-- [`NttProduct.twist_cast`] in this lane: the twist in `ZMod GP`. -/
 theorem gold_twist_cast (v pt : alloc.vec.Vec Std.U64)
@@ -135,7 +323,7 @@ theorem gold_twist_cast (v pt : alloc.vec.Vec Std.U64)
 theorem gold_terms_spec (prep : ring.PreparedVecG)
     (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
     (nU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
-    (acc scratch : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
+    (acc scratch buf : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
     (hn : nU.val = N) (hord : ps ^ N = -1)
     (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
     (hpl : endU.val * N ≤ prep.fwd.val.length)
@@ -148,32 +336,32 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbe : endU.val ≤ b.val.length)
     (hjs : startU.val ≤ jU.val) (hje : jU.val ≤ endU.val)
-    (haccC : Canon GP acc) (hscC : Canon GP scratch)
+    (haccC : Canon GP acc) (hscC : Canon GP scratch) (hbufl : buf.val.length = N)
     (hval : ∀ t, t < N → resK GP acc t
               = ∑ u ∈ Finset.Ico startU.val jU.val, termFwd ps a b u t) :
-    ring.dot_prepared_digits_gold_loop0 prep b endU nU pt acc scratch jU
+    ring.dot_prepared_digits_gold_loop0 prep b endU nU pt acc scratch buf jU
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N → resK GP z.1 t
                  = ∑ u ∈ Finset.Ico startU.val endU.val, termFwd ps a b u t ⦄ := by
   rw [ring.dot_prepared_digits_gold_loop0]
-  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.val)
-    (fun r => startU.val ≤ r.2.2.val ∧ r.2.2.val ≤ endU.val
-      ∧ Canon GP r.1 ∧ Canon GP r.2.1
+  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.val)
+    (fun r => startU.val ≤ r.2.2.2.val ∧ r.2.2.2.val ≤ endU.val
+      ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ r.2.2.1.val.length = N
       ∧ ∀ t, t < N → resK GP r.1 t
-              = ∑ u ∈ Finset.Ico startU.val r.2.2.val, termFwd ps a b u t)
-  · rintro ⟨d, sc, jj⟩ ⟨hjjs, hjje, hcd, hcsc, hw⟩
-    dsimp only at hjjs hjje hcd hcsc hw
+              = ∑ u ∈ Finset.Ico startU.val r.2.2.2.val, termFwd ps a b u t)
+  · rintro ⟨d, sc, bf, jj⟩ ⟨hjjs, hjje, hcd, hcsc, hbfl, hw⟩
+    dsimp only at hjjs hjje hcd hcsc hbfl hw
     simp only [ring.dot_prepared_digits_gold_loop0.body]
     by_cases hlt : jj < endU
     · rw [if_pos hlt]
       have hjjlt : jj.val < endU.val := by scalar_tac
       have hjb : jj.val < b.val.length := by omega
-      simp only [alloc.vec.Vec.with_capacity]
-      rw [gold_words_eq]
-      step with prep_words_b_spec b nU jj (alloc.vec.Vec.new Std.U64) 0#usize hn hjb
-        (hbwf jj.val hjjlt) (by simp) (by simp) (by intro u hu; simp at hu)
-        (by intro t ht; simp at ht) as ⟨bw, hbwl, hbwr, hbwv⟩
-      step with gold_twist_cast bw pt hbwl hptC ps hptv as ⟨tb, htbC, htbv⟩
+      step as ⟨rq, hrq⟩
+      have hrqv : rq = b.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+        rw [hrq, List.getD_eq_getElem _ _ hjb]
+      -- card T34 part 1A+1C: one loader where there were a gather and a twist
+      step with load_twisted_into_spec bf rq pt ps
+        (by rw [hrqv]; exact hbwf jj.val hjjlt) hbfl hptC hptv as ⟨tb, htbC, htbv⟩
       step with gold_forward_spec tb sc pt htbC hcsc hptC ps hptv
         as ⟨fw, hfw1, hfw2, hfwv⟩
       obtain ⟨v, v1⟩ := fw
@@ -185,31 +373,16 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
         have h1 : (jj.val + 1) * N ≤ endU.val * N := Nat.mul_le_mul_right N (by omega)
         have h2 : (jj.val + 1) * N = jj.val * N + N := by ring
         omega
-      step with slice_out_top_spec prep.fwd off nU hn hslb as ⟨af, hafl, hafv⟩
-      -- `prep.fwd` is `endU * N` long, so `Canon` does not apply to it; the bound
-      -- comes from `hpc` directly, with the out-of-range default handled
-      have hafC : Canon GP af := ⟨hafl, fun x hx => by
-        obtain ⟨t, ht, hteq⟩ := List.getElem_of_mem hx
-        have hb : wordAt af t = wordAt prep.fwd (off.val + t) :=
-          hafv t (by rw [← hafl]; exact ht)
-        rw [wordAt_of_lt ht] at hb
-        rw [← hteq, hb]
-        unfold wordAt
-        by_cases hin : off.val + t < prep.fwd.val.length
-        · rw [List.getD_eq_getElem _ _ hin]
-          exact hpc _ (List.getElem_mem hin)
-        · rw [List.getD_eq_default _ _ (by omega)]
-          simpa using GP_pos⟩
-      -- the table's entry IS this term's left transform
-      have hFA : ∀ t, t < N → resK GP af t
+      -- the table's entry IS this term's left transform; card T34 part 1B reads
+      -- it in place, so it arrives as the abstract `A` of `gold_mac_off_spec`
+      -- rather than as an 8 KiB copy
+      have hFA : ∀ t, t < N → ((wordAt prep.fwd (off.val + t) : ℕ) : ZMod GP)
           = NttMath.difRun (ps ^ 2) 10 1
               (NttMath.twistR ps (entryK GP a jj.val)) t := by
         intro t ht
-        simp only [resK]
-        rw [hafv t ht, hoffv]
+        rw [hoffv]
         have := hpv jj.val hjjlt t ht
-        simp only [resK] at this
-        exact this
+        simpa only [resK] using this
       have hFB : ∀ t, t < N → resK GP v t
           = NttMath.difRun (ps ^ 2) 10 1
               (NttMath.twistR ps (entryK GP b jj.val)) t := by
@@ -219,15 +392,18 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
           (NttMath.twistR ps (entryK GP b jj.val)) ?_ t ht
         intro e he
         rw [htbv e he]
-        simp only [NttMath.twistR, entryK, hbwv e he]
-      step with gold_mac_into_spec d af v nU 0#usize (resK GP d)
-        hn (by simp) hcd hafC hfw1 (by intro t ht; simp) as ⟨acc1, hac1C, hac1v⟩
+        simp only [NttMath.twistR, entryK, hrqv]
+      step with gold_mac_off_spec d prep.fwd v off nU 0#usize (resK GP d)
+        (fun t => NttMath.difRun (ps ^ 2) 10 1
+          (NttMath.twistR ps (entryK GP a jj.val)) t)
+        hn (by simp) hslb hcd hfw1 hpc hFA (by intro t ht; simp)
+        as ⟨acc1, hac1C, hac1v⟩
       step as ⟨jj1, hjj1⟩
-      refine ⟨by rw [hjj1]; omega, by rw [hjj1]; omega, hac1C, hfw2, ?_,
+      refine ⟨by rw [hjj1]; omega, by rw [hjj1]; omega, hac1C, hfw2, hfw1.1, ?_,
         by rw [hjj1]; omega⟩
       intro t ht
       rw [hjj1, Finset.sum_Ico_succ_top (by omega), ← hw t ht]
-      rw [hac1v t ht, hFA t ht, hFB t ht]
+      rw [hac1v t ht, hFB t ht]
       unfold termFwd
       rw [← HachiEquiv.NttProduct.prod_difRun ps hord (entryK GP a jj.val) (entryK GP b jj.val)
         (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a jj.val)))
@@ -243,7 +419,7 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
       refine ⟨hcd, hcsc, ?_⟩
       intro t ht
       rw [hw t ht, heq]
-  · exact ⟨hjs, hje, haccC, hscC, hval⟩
+  · exact ⟨hjs, hje, haccC, hscC, hbufl, hval⟩
 
 theorem gold_out_loop_spec (degU : Std.Usize) (qwU : Std.U64)
     (words : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
@@ -495,9 +671,10 @@ theorem gold_dot_spec (prep : ring.PreparedVecG) (a b : alloc.vec.Vec ring.Rq)
   step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
   step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
   step with zeros_canon_zero GP GP_pos as ⟨acc0, hacc0C, hacc0v⟩
-  step with gold_terms_spec prep a b 0#usize nU ntt.NTT_LEN pt acc0 acc0
+  step with gold_terms_spec prep a b 0#usize nU ntt.NTT_LEN pt acc0 acc0 acc0
     0#usize ps ntt_NTT_LEN_val hord hptC hptv hpl hpv hpc hbw hbn
-    (by simp) (by simp) hacc0C hacc0C (by intro t ht; rw [hacc0v t ht]; simp)
+    (by simp) (by simp) hacc0C hacc0C hacc0C.1
+    (by intro t ht; rw [hacc0v t ht]; simp)
     as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
   -- the offset, scaled by the term count
   have hcn : lift (UScalar.cast .U64 nU) ⦃ y => y.val = nU.val ⦄ :=

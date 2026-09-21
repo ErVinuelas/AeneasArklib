@@ -2110,6 +2110,14 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.GoldTransform.gold_forward_spec
 #print axioms HachiEquiv.GoldTransform.gold_inverse_spec
 #print axioms HachiEquiv.GoldDot.gold_mac_into_spec
+-- Card T34's two lemmas. The loader replaced a word gather followed by a
+-- separate twist pass, so `gold_words_eq` (which said the gather was the
+-- two-prime path's loop verbatim) is gone with the loop it named; the offset
+-- MAC replaced a `slice_out` copy feeding `gold_mac_into`. Both kept
+-- `gold_terms_spec`'s statement, which is why nothing above them moved.
+#print axioms HachiEquiv.GoldDot.load_twisted_into_loop_spec
+#print axioms HachiEquiv.GoldDot.load_twisted_into_spec
+#print axioms HachiEquiv.GoldDot.gold_mac_off_spec
 #print axioms HachiEquiv.GoldDot.gold_twist_cast
 #print axioms HachiEquiv.GoldDot.gold_terms_spec
 #print axioms HachiEquiv.GoldDot.gold_out_loop_spec

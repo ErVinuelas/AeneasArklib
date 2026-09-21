@@ -1084,23 +1084,23 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
     let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
     let mut acc: Vec<u64> = crate::ntt::zeros(deg);
     let mut scratch: Vec<u64> = crate::ntt::zeros(deg);
+    // Card T34, part 1C: a third buffer, recycled from the previous
+    // iteration's transform output, so the loop allocates nothing per
+    // polynomial. `gold_forward` already threads its scratch pair; this
+    // extends the same discipline to the twist input.
+    let mut buf: Vec<u64> = crate::ntt::zeros(deg);
     let mut j: usize = 0;
     while j < n {
-        let mut w: Vec<u64> = Vec::with_capacity(deg);
-        let mut u: usize = 0;
-        while u < deg {
-            w.push(b[j].0[u].to_u64());
-            u += 1;
-        }
-        let tw: Vec<u64> = crate::ntt::gold_twist(&w, &pt);
-        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(tw, scratch, &pt);
+        buf = load_twisted_into(buf, &b[j], &pt);
+        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(buf, scratch, &pt);
         // `j * deg` is an ABSOLUTE offset into the prepared table, exactly as
-        // `dot_prep_chunk_mod_p` does it -- and the tuple's parts are bound out
-        // before the accumulation rather than indexed in place, which is the
-        // shape the extraction accepts (indexing `fwb.0[k]` inside the loop is
-        // what made aeneas report "Not an open binder or an ignored pattern").
-        let af: Vec<u64> = slice_out(&prep.fwd, j * deg, deg);
-        acc = mac_into_gold(acc, &af, &fwb.0, deg);
+        // `dot_prep_chunk_mod_p` does it. Card T34 part 1B: the offset is the
+        // helper's argument now, so the 8 KiB `slice_out` copy is gone. The
+        // tuple's part is still bound out before the call rather than indexed
+        // in place -- indexing `fwb.0[k]` inside this loop is what made aeneas
+        // report "Not an open binder or an ignored pattern".
+        acc = mac_into_gold_off(acc, &prep.fwd, j * deg, &fwb.0, deg);
+        buf = fwb.0;
         scratch = fwb.1;
         j += 1;
     }
@@ -1116,6 +1116,54 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
         t += 1;
     }
     Rq(out)
+}
+
+/// Load a ring element's canonical words into `out`, already ψ-twisted
+/// (card T34, part 1A+1C).
+///
+/// Two passes become one and the buffer is the caller's. The old shape --
+/// `w = Vec::with_capacity(n)` filled by `to_u64`, then
+/// [`crate::ntt::gold_twist`] returning a second fresh `Vec` -- allocated
+/// 2 x 8 KiB per right-hand polynomial and walked the words twice. Here the
+/// twist happens where the word is read, into a buffer the prepared dot
+/// recycles from the previous iteration's transform output.
+///
+/// `out` is overwritten, not appended to, so it arrives at length
+/// [`crate::ntt::NTT_LEN`] and leaves at it; the loop writes every index.
+pub fn load_twisted_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut w: Vec<u64> = out;
+    let mut t: usize = 0;
+    while t < n {
+        w[t] = crate::ntt::gold_mul(a.0[t].to_u64(), pt[t]);
+        t += 1;
+    }
+    w
+}
+
+/// `acc[k] += pfwd[base + k] · bf[k]` in the Goldilocks lane, reading the
+/// prepared table in place (card T34, part 1B).
+///
+/// [`mac_into_gold`] takes its left factor as a vector, so the prepared dot
+/// had to copy 8 KiB out of the prepared table with [`slice_out`] on every
+/// right-hand polynomial. The offset moves into the index instead. This is a
+/// *separate helper* and not an offset index written into the caller's loop,
+/// because a borrowed read beside a mutated accumulator in one loop body is
+/// what tripped `filter_loop_useless_inputs_outputs` before; behind a helper
+/// boundary it extracts to the ordinary 2-tuple loop, probed 2026-09-21
+/// (`aeneas-extract` ceiling table).
+///
+/// [`slice_out`] stays: the mod-p lane and the general path still use it.
+pub fn mac_into_gold_off(acc: Vec<u64>, pfwd: &Vec<u64>, base: usize, bf: &Vec<u64>, n: usize)
+    -> Vec<u64> {
+    let mut out: Vec<u64> = acc;
+    let mut k: usize = 0;
+    while k < n {
+        let prod: u64 = crate::ntt::gold_mul(pfwd[base + k], bf[k]);
+        out[k] = crate::ntt::gold_add(out[k], prod);
+        k += 1;
+    }
+    out
 }
 
 /// `acc[k] += af[k] · bf[k]` in the Goldilocks lane, the counterpart of
