@@ -10081,12 +10081,16 @@ run's control CPU spread was −4.4% against A2's −0.4%, so the machine drifte
 ten times as much within this run as within the baseline's. Recorded, not
 smoothed; neither figure is claimed as an effect of any card here.
 
-**The lifted-witness outlier resolves.** A2's profile flagged 39.8 s against
-35.7–36.1 s in the five profiles before it and said it was phase variance.
-This run reads 34.5 s, below that band, which settles it: 39.8 was noise.
-Against a baseline with the lifted witness at its usual 35.9 s the prover
-reads 517.4 s → 453.0 s, **−12.4%**, and that is the figure to quote rather
-than −13.1%.
+**The lifted-witness phase is noisy, and no card here moves it.**
+*Superseded, same day, by the G2+T35 profile — see the entry after this one.*
+This run reads 34.5 s where A2's read 39.8 s and the five before that read
+35.7–36.1 s, and on that evidence the entry originally committed here called
+A2's 39.8 s noise and quoted the prover as 517.4 → 453.0 s, −12.4%. The
+G2+T35 profile then read 39.3 s on a cleaner control than either, with no
+card on either branch touching `honest_lift_witness`. So the phase carries
+about ±8% run-to-run variance with no code correlate, no single reading is
+the level, and the figure to quote from this run is the raw one: **521.3 →
+453.0 s, −13.1%**, with the understanding that ±2.5 s of that is this phase.
 
 **1170.8 → 453.0 is −61.3% for the campaign**, with the caveat above that G1
 is inside this delta and has no profile of its own.
