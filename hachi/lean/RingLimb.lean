@@ -766,4 +766,172 @@ theorem limb_out_loop_spec (degU : Std.Usize) (qwU : Std.U128)
       exact ⟨⟨by rw [hl1, heq], hr1⟩, fun k hk => hv1 k (by rw [heq]; exact hk)⟩
   · exact ⟨ht, hlen, hred, hval⟩
 
+/-! ## The chunked dot
+
+`RingTwoLane.prep_chunk_ga_loop_spec`'s shape, with the two Barrett-and-
+Goldilocks lanes replaced by two Goldilocks limb lanes and Garner replaced by
+the shift-and-add. The conclusion is `dot_prepared_spec`'s, word for word:
+what changed is how the value is reached, not what it is. -/
+
+/-- One prepared table is the forward transform of its operand's entries.
+`RingTwoLane` has the same predicate, but that file is card G2's and this card
+supersedes it, so the definition is restated rather than imported. -/
+def PrepAtLimb (pfwd : alloc.vec.Vec Std.U64) (a : alloc.vec.Vec ring.Rq) (n : ℕ) : Prop :=
+  n * N ≤ pfwd.val.length
+  ∧ (∀ u ∈ pfwd.val, u.val < GP)
+  ∧ ∀ j, j < n → ∀ t, t < N →
+      resK GP pfwd (j * N + t)
+        = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+            (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a j)) t
+
+/-- The two limbs of `a`, as the dot needs them: right length, reduced,
+bounded by `2^16`, and reconstructing `a`'s coefficients. -/
+def LimbsOf (a a0 a1 : alloc.vec.Vec ring.Rq) (n : ℕ) : Prop :=
+  (∀ u, u < n → HachiEquiv.Ring.Wf (a0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+  ∧ (∀ u, u < n → HachiEquiv.Ring.Wf (a1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+  ∧ (∀ u, u < n → BoundedWf 65536 (a0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+  ∧ (∀ u, u < n → BoundedWf 65536 (a1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+  ∧ ∀ u, u < n → ∀ t, HachiEquiv.Ring.coeffK
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t
+    = HachiEquiv.Ring.coeffK (a0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t
+      + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+        * HachiEquiv.Ring.coeffK (a1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t
+
+/-- One chunk's contribution, in `ZMod q`: the two lanes' offset sums, shifted
+and added, are the chunk's slice of `Σ negConv a b`. Layers 1 and 3 meet
+here -- `offConvSumB_cast_q` on each lane, then `negConv_split`. -/
+theorem limb_chunk_value (a a0 a1 b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
+    (hk : k < N) (hl : LimbsOf a a0 a1 en)
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))) :
+    ((offConvSumB 65536 a0 b st en k : ℕ) : ZMod HachiEquiv.NttProduct.q)
+      + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+        * ((offConvSumB 65536 a1 b st en k : ℕ) : ZMod HachiEquiv.NttProduct.q)
+      = ∑ u ∈ Finset.Ico st en, HachiEquiv.Ring.negConv
+          (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k := by
+  obtain ⟨hw0, hw1, hb0, hb1, hrec⟩ := hl
+  have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
+  rw [hqq] at *
+  rw [offConvSumB_cast_q 65536 a0 b st en k hk hb0 hw0 hbwf,
+      offConvSumB_cast_q 65536 a1 b st en k hk hb1 hw1 hbwf,
+      Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl (fun u hu => ?_)
+  simp only [Finset.mem_Ico] at hu
+  exact (negConv_split _ _ _ _ 65536 (hrec u hu.2) k).symm
+
+set_option maxRecDepth 20000 in
+/-- The chunk loop of `dot_prepared_limbs2`. -/
+theorem limb_dot_loop_spec (prep : ring.PreparedVecL2)
+    (a a0 a1 b : alloc.vec.Vec ring.Rq) (nU degU : Std.Usize) (qwU : Std.U128)
+    (acc : ring.Rq) (startU : Std.Usize)
+    (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbn : nU.val ≤ b.val.length)
+    (hl : LimbsOf a a0 a1 nU.val)
+    (hp0 : PrepAtLimb prep.f0 a0 nU.val)
+    (hp1 : PrepAtLimb prep.f1 a1 nU.val)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
+    (hs : startU.val ≤ nU.val) (hacc : HachiEquiv.Ring.Wf acc)
+    (hval : ∀ k, k < N → HachiEquiv.Ring.coeffK acc k
+              = ∑ u ∈ Finset.range startU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k) :
+    ring.dot_prepared_limbs2_loop0 prep b nU degU qwU acc startU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  rw [ring.dot_prepared_limbs2_loop0]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ nU.val ∧ HachiEquiv.Ring.Wf r.1
+      ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK r.1 k
+              = ∑ u ∈ Finset.range r.2.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k)
+  · rintro ⟨d, st⟩ ⟨hst, hdw, hdv⟩
+    dsimp only at hst hdw hdv
+    simp only [ring.dot_prepared_limbs2_loop0.body]
+    by_cases hlt : st < nU
+    · rw [if_pos hlt]
+      have hstlt : st.val < nU.val := by clear * - hlt; scalar_tac
+      step as ⟨rem, hrem⟩
+      have hite : (if rem < ring.LIMB2_CHUNK then ok rem else ok ring.LIMB2_CHUNK)
+          = ok (if rem < ring.LIMB2_CHUNK then rem else ring.LIMB2_CHUNK) := by
+        split_ifs <;> rfl
+      rw [hite]
+      set tk : Std.Usize := if rem < ring.LIMB2_CHUNK then rem else ring.LIMB2_CHUNK
+        with htk
+      have hdc : (ring.LIMB2_CHUNK).val = 32 := by simp only [ring.LIMB2_CHUNK]; rfl
+      have hremv : rem.val = nU.val - st.val := hrem
+      have htkle : tk.val ≤ rem.val := by
+        rw [htk]; split_ifs with hc
+        · exact le_refl _
+        · have : ¬ (rem.val < (ring.LIMB2_CHUNK).val) := by clear * - hc; scalar_tac
+          omega
+      have htk32 : tk.val ≤ 32 := by
+        rw [htk]; split_ifs with hc
+        · have : rem.val < (ring.LIMB2_CHUNK).val := by clear * - hc; scalar_tac
+          rw [hdc] at this; omega
+        · rw [hdc]
+      -- the chunk is non-empty, which is what makes the measure decrease
+      have htkpos : 0 < tk.val := by
+        rw [htk]; split_ifs
+        · clear * - hremv hstlt; omega
+        · rw [hdc]; omega
+      clear_value tk
+      step as ⟨en, hen⟩
+      have henv : en.val = st.val + tk.val := hen
+      have hennU : en.val ≤ nU.val := by
+        clear * - henv htkle hremv hstlt; omega
+      have hsen : st.val ≤ en.val := by clear * - henv; omega
+      have hL : en.val - st.val ≤ 32 := by clear * - henv htk32; omega
+      have hbwe : ∀ u, u < en.val → HachiEquiv.Ring.Wf
+          (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+        fun u hu => hbw u (by omega)
+      have hbe : en.val ≤ b.val.length := le_trans hennU hbn
+      have hle : LimbsOf a a0 a1 en.val := by
+        obtain ⟨q0, q1, q2, q3, q4⟩ := hl
+        exact ⟨fun u hu => q0 u (by omega), fun u hu => q1 u (by omega),
+          fun u hu => q2 u (by omega), fun u hu => q3 u (by omega),
+          fun u hu => q4 u (by omega)⟩
+      have hmono : ∀ (pf : alloc.vec.Vec Std.U64) (aa : alloc.vec.Vec ring.Rq),
+          PrepAtLimb pf aa nU.val →
+          en.val * N ≤ pf.val.length
+          ∧ (∀ u ∈ pf.val, u.val < GP)
+          ∧ ∀ j, j < en.val → ∀ t, t < N →
+              resK GP pf (j * N + t)
+                = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+                    (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP)
+                      (entryK GP aa j)) t := by
+        intro pf aa hpp
+        exact ⟨le_trans (Nat.mul_le_mul_right N hennU) hpp.1, hpp.2.1,
+          fun j hj t ht => hpp.2.2 j (by omega) t ht⟩
+      obtain ⟨g0a, g0b, g0c⟩ := hmono prep.f0 a0 hp0
+      obtain ⟨g1a, g1b, g1c⟩ := hmono prep.f1 a1 hp1
+      step with limb_chunk_spec prep.f0 prep.f1 a0 a1 b st en g0a g1a g0b g1b
+        g0c g1c hle.2.2.1 hle.2.2.2.1 hle.1 hle.2.1 hbwe hbe hsen hL
+        as ⟨ws, hws0C, hws1C, hws0v, hws1v⟩
+      obtain ⟨W0, W1⟩ := ws
+      dsimp only at hws0C hws1C hws0v hws1v
+      simp only [alloc.vec.Vec.with_capacity]
+      step with limb_out_loop_spec degU qwU W0 W1 (alloc.vec.Vec.new cpoly.field.Fp)
+        0#usize (fun k => offConvSumB 65536 a0 b st.val en.val k)
+        (fun k => offConvSumB 65536 a1 b st.val en.val k)
+        hdeg hqw hws0v hws1v hws0C hws1C (by simp) (by simp)
+        (by intro x hx; simp at hx) (by intro k hk; simp at hk)
+        as ⟨out1, ho1wf, ho1v⟩
+      step with HachiEquiv.Ring.add_spec d out1 hdw ho1wf as ⟨acc1, hacwf, hacv⟩
+      refine ⟨hennU, hacwf, ?_, by clear * - henv htkpos hennU hstlt; omega⟩
+      intro k hk
+      rw [hacv k hk, hdv k hk, ho1v k hk,
+        limb_chunk_value a a0 a1 b st.val en.val k hk hle hbwe,
+        Finset.range_eq_Ico, Finset.range_eq_Ico,
+        Finset.sum_Ico_consecutive _ (Nat.zero_le _) hsen]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : st.val = nU.val := by clear * - hlt hst; scalar_tac
+      exact ⟨hdw, fun k hk => by rw [hdv k hk, heq]⟩
+  · exact ⟨hs, hacc, hval⟩
+
 end HachiEquiv.RingLimb
