@@ -1494,6 +1494,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.eq_free_factor_spec
 #print axioms HachiEquiv.Sumcheck.round_value_alpha_spec
 #print axioms HachiEquiv.Sumcheck.round_values_alpha_spec
+-- Card T38's identity and the two loops that accumulate it. `pair_quadratic`
+-- is the card in one line: the product of two affine folds, in the
+-- coefficients the loops carry. Both `round_poly_alpha_spec` and
+-- `round_poly_alpha_split_spec` keep their pre-T38 statements.
+#print axioms HachiEquiv.Sumcheck.pair_quadratic
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_loop_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_spec
 #print axioms HachiEquiv.Sumcheck.alpha_public_table_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_spec
