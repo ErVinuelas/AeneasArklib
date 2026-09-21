@@ -1919,6 +1919,9 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt
+#print axioms HachiEquiv.RingFused.negSumB_le
+#print axioms HachiEquiv.RingFused.negQB_sum_le
+#print axioms HachiEquiv.RingFused.offConvSumB_cast_q
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
