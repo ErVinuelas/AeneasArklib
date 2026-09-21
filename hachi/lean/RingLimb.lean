@@ -518,4 +518,138 @@ theorem lane_words_eq (B C : ℕ) (a b : alloc.vec.Vec ring.Rq)
   have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hwC HachiEquiv.GoldDot.GP_pos k) hcast
   rwa [Nat.mod_eq_of_lt hlt] at h2
 
+/-! ## The chunk
+
+[`GoldDot.gold_dot_spec`]'s shape at a chunk and two lanes. The offset is
+`GOLD_LOFF2 = N·q·2^16`, which is `BOUNDB 65536` on the nose -- checked, not
+asserted -- and a multiple of `q`, so it vanishes when the words are read back
+mod `q` in the dot above. -/
+
+theorem gold_loff2_val : (ring.GOLD_LOFF2).val = BOUNDB 65536 := by
+  simp only [ring.GOLD_LOFF2, BOUNDB, N, HachiEquiv.NttProduct.q]
+  norm_num
+
+set_option maxRecDepth 8000 in
+theorem limb_chunk_spec (f0 f1 : alloc.vec.Vec Std.U64)
+    (a0 a1 b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
+    (hpl0 : endU.val * N ≤ f0.val.length) (hpl1 : endU.val * N ≤ f1.val.length)
+    (hpc0 : ∀ u ∈ f0.val, u.val < GP) (hpc1 : ∀ u ∈ f1.val, u.val < GP)
+    (hpv0 : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP f0 (j * N + t)
+          = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+              (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a0 j)) t)
+    (hpv1 : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP f1 (j * N + t)
+          = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+              (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a1 j)) t)
+    (had0 : ∀ u, u < endU.val → BoundedWf 65536
+      (a0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (had1 : ∀ u, u < endU.val → BoundedWf 65536
+      (a1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (haw0 : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (a0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (haw1 : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (a1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbe : endU.val ≤ b.val.length) (hse : startU.val ≤ endU.val)
+    (hchunk : endU.val - startU.val ≤ 32) :
+    ring.dot_prep_chunk_limbs2 f0 f1 b startU endU ring.GOLD_LOFF2
+      ⦃ z => Canon GP z.1 ∧ Canon GP z.2
+             ∧ (∀ k, k < N → wordAt z.1 k
+                 = offConvSumB 65536 a0 b startU.val endU.val k)
+             ∧ (∀ k, k < N → wordAt z.2 k
+                 = offConvSumB 65536 a1 b startU.val endU.val k) ⦄ := by
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  set psii : ZMod GP := ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) with hpsiidef
+  have hord : ps ^ N = -1 := HachiEquiv.GoldDot.gpsi_ord
+  have hpinv : ps * psii = 1 := HachiEquiv.GoldDot.gpsi_inv
+  have hfit : 2 * 32 * BOUNDB 65536 < GP := by
+    have := boundB_fit_limb2
+    simpa only [GP] using this
+  rw [ring.dot_prep_chunk_limbs2]
+  step with HachiEquiv.GoldTransform.gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel)
+    as ⟨pt, hptC, hptv⟩
+  step with HachiEquiv.GoldTransform.gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel)
+    as ⟨it, hitC, hitv⟩
+  step with zeros_canon_zero GP HachiEquiv.GoldDot.GP_pos as ⟨z0, hz0C, hz0v⟩
+  step with limb_terms_spec f0 f1 a0 a1 b startU endU ntt.NTT_LEN pt z0 z0 z0 z0
+    startU ps HachiEquiv.NttStage.ntt_NTT_LEN_val hord hptC hptv hpl0 hpl1 hpv0 hpv1
+    hpc0 hpc1 hbwf hbe (le_refl _) hse hz0C hz0C hz0C hz0C.1
+    (by intro t ht; rw [hz0v t ht]; simp) (by intro t ht; rw [hz0v t ht]; simp)
+    as ⟨A0, A1, sc, hA0C, hA1C, hscC, hA0v, hA1v⟩
+  step as ⟨len0, hlen0⟩
+  have hcn : lift (UScalar.cast .U64 len0) ⦃ y => y.val = len0.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 len0 (by
+      have hl : len0.val ≤ 32 := by clear * - hlen0 hchunk; scalar_tac
+      have hm : (UScalar.max UScalarTy.U64 : ℕ) = 18446744073709551615 := by
+        simp only [UScalar.max, UScalarTy.numBits]; norm_num
+      omega)
+  step with hcn as ⟨lw, hlw⟩
+  have hlwv : lw.val = endU.val - startU.val := by
+    rw [hlw]; clear * - hlen0; scalar_tac
+  step with HachiEquiv.GoldArith.gold_mul_spec ring.GOLD_LOFF2 lw
+    as ⟨scaled, hscv, hsclt⟩
+  have hscaled : ((scaled.val : ℕ) : ZMod GP)
+      = (((endU.val - startU.val) * BOUNDB 65536 : ℕ) : ZMod GP) := by
+    rw [hscv, gold_loff2_val, hlwv, ZMod.natCast_mod]
+    push_cast
+    ring
+  -- the two lanes, each an inverse transform and an untwist
+  step with HachiEquiv.GoldTransform.gold_inverse_spec A0 sc it hA0C hscC hitC psii hitv
+    as ⟨v0, s0, hv0C, hs0C, hv0v⟩
+  step with HachiEquiv.GoldDot.gold_untwist_cast v0 it scaled hv0C hitC hsclt psii hitv
+    as ⟨w0, hw0C, hw0v⟩
+  step with HachiEquiv.GoldTransform.gold_inverse_spec A1 s0 it hA1C hs0C hitC psii hitv
+    as ⟨v1, s1, hv1C, hs1C, hv1v⟩
+  step with HachiEquiv.GoldDot.gold_untwist_cast v1 it scaled hv1C hitC hsclt psii hitv
+    as ⟨w1, hw1C, hw1v⟩
+  refine ⟨hw0C, hw1C, ?_, ?_⟩
+  · refine lane_words_eq 65536 32 a0 b w0 scaled startU.val endU.val hw0C had0 haw0
+      hbwf hchunk hfit hscaled ?_
+    intro t ht
+    have hPR : ∀ t', t' < N → resK GP A0 t'
+        = NttMath.difRun (ps ^ 2) 10 1
+            (fun t'' => ∑ u ∈ Finset.Ico startU.val endU.val,
+              NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a0 u))
+                (NttMath.twistR ps (entryK GP b u)) t'') t' := by
+      intro t' ht'
+      rw [hA0v t' ht', NttMath.difRun_sum (ps ^ 2) 10 1
+        (Finset.Ico startU.val endU.val)
+        (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a0 u))
+          (NttMath.twistR ps (entryK GP b u)))]
+      simp only [termFwd, hpsdef]
+    have hIV := HachiEquiv.NttProduct.inv_value ps psii hpinv
+      (fun t'' => ∑ u ∈ Finset.Ico startU.val endU.val,
+        NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a0 u))
+          (NttMath.twistR ps (entryK GP b u)) t'')
+      (resK GP A0) (resK GP v0) hPR hv0v
+    rw [hw0v t ht, hIV t ht,
+      untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+        HachiEquiv.GoldDot.gninv_inv (Finset.Ico startU.val endU.val)
+        (fun u => entryK GP a0 u) (fun u => entryK GP b u) t ht]
+  · refine lane_words_eq 65536 32 a1 b w1 scaled startU.val endU.val hw1C had1 haw1
+      hbwf hchunk hfit hscaled ?_
+    intro t ht
+    have hPR : ∀ t', t' < N → resK GP A1 t'
+        = NttMath.difRun (ps ^ 2) 10 1
+            (fun t'' => ∑ u ∈ Finset.Ico startU.val endU.val,
+              NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a1 u))
+                (NttMath.twistR ps (entryK GP b u)) t'') t' := by
+      intro t' ht'
+      rw [hA1v t' ht', NttMath.difRun_sum (ps ^ 2) 10 1
+        (Finset.Ico startU.val endU.val)
+        (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a1 u))
+          (NttMath.twistR ps (entryK GP b u)))]
+      simp only [termFwd, hpsdef]
+    have hIV := HachiEquiv.NttProduct.inv_value ps psii hpinv
+      (fun t'' => ∑ u ∈ Finset.Ico startU.val endU.val,
+        NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a1 u))
+          (NttMath.twistR ps (entryK GP b u)) t'')
+      (resK GP A1) (resK GP v1) hPR hv1v
+    rw [hw1v t ht, hIV t ht,
+      untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+        HachiEquiv.GoldDot.gninv_inv (Finset.Ico startU.val endU.val)
+        (fun u => entryK GP a1 u) (fun u => entryK GP b u) t ht]
+
 end HachiEquiv.RingLimb
