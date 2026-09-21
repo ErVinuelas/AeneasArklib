@@ -1298,106 +1298,75 @@ pub fn rlin_stmt(
     let g_c: PolyVec = gadget::gadget_transpose_mul(blocks, message_digits, c);
     let tensor: PolyMatrix = tensor_g_matrix(inner_rows, inner_digits, c);
 
-    let mut out: Vec<PolyVec> = Vec::new();
-
-    // c1: [ D | 0 | 0 ]
-    let mut i: usize = 0;
-    while i < pp.d_matrix().rows() {
+    // Wall W2: the blocks, not the assembly. `M` is `5 × 57 344` at the pin
+    // = 2.19 GiB, and 1.25 GiB of that is explicit `Rq::zero()`, because every
+    // row carries at most two non-zero blocks. `RlinMat::entry` decides which
+    // block an index falls in and hands back a borrow, so the zeros are never
+    // built and each non-zero block is stored once instead of being copied
+    // into a row.
+    let d_rows: usize = pp.d_matrix().rows();
+    let mut drows: Vec<PolyVec> = Vec::new();
+    let mut di: usize = 0;
+    while di < d_rows {
         let mut row: Vec<Rq> = Vec::new();
         let mut k: usize = 0;
         while k < cw {
-            row.push(pp.d_matrix().row(i).get(k).copy());
+            row.push(pp.d_matrix().row(di).get(k).copy());
             k += 1;
         }
-        let mut z: usize = 0;
-        while z < ct + cz {
-            row.push(Rq::zero());
-            z += 1;
-        }
-        out.push(PolyVec::new(row));
-        i += 1;
+        drows.push(PolyVec::new(row));
+        di += 1;
     }
 
-    // c2: [ 0 | B | 0 ]
-    let mut i2: usize = 0;
-    while i2 < pp.inner().outer_matrix().rows() {
+    let b_rows: usize = pp.inner().outer_matrix().rows();
+    let mut brows: Vec<PolyVec> = Vec::new();
+    let mut bi: usize = 0;
+    while bi < b_rows {
         let mut row: Vec<Rq> = Vec::new();
-        let mut z: usize = 0;
-        while z < cw {
-            row.push(Rq::zero());
-            z += 1;
-        }
         let mut k: usize = 0;
         while k < ct {
-            row.push(pp.inner().outer_matrix().row(i2).get(k).copy());
+            row.push(pp.inner().outer_matrix().row(bi).get(k).copy());
             k += 1;
         }
-        let mut z2: usize = 0;
-        while z2 < cz {
-            row.push(Rq::zero());
-            z2 += 1;
-        }
-        out.push(PolyVec::new(row));
-        i2 += 1;
+        brows.push(PolyVec::new(row));
+        bi += 1;
     }
 
-    // c3: [ (G_{2^r})ᵀ b | 0 | 0 ]
-    let mut row3: Vec<Rq> = Vec::new();
-    let mut k3: usize = 0;
-    while k3 < cw {
-        row3.push(g_b.get(k3).copy());
-        k3 += 1;
-    }
-    let mut z3: usize = 0;
-    while z3 < ct + cz {
-        row3.push(Rq::zero());
-        z3 += 1;
-    }
-    out.push(PolyVec::new(row3));
-
-    // c4: [ (G_{2^r})ᵀ c | 0 | −Jᵀ((G_{2^m})ᵀ a) ]
-    let mut row4: Vec<Rq> = Vec::new();
-    let mut k4: usize = 0;
-    while k4 < cw {
-        row4.push(g_c.get(k4).copy());
-        k4 += 1;
-    }
-    let mut z4: usize = 0;
-    while z4 < ct {
-        row4.push(Rq::zero());
-        z4 += 1;
-    }
+    // the two negated blocks, negated once here so `entry` can borrow them
+    let mut njga: Vec<Rq> = Vec::new();
     let mut k4z: usize = 0;
     while k4z < cz {
-        row4.push(jt_g_a.get(k4z).neg());
+        njga.push(jt_g_a.get(k4z).neg());
         k4z += 1;
     }
-    out.push(PolyVec::new(row4));
 
-    // c5: [ 0 | (cᵀ ⊗ G_{n_A}) | −(A J) ]
+    let mut ajrows: Vec<PolyVec> = Vec::new();
     let mut p: usize = 0;
     while p < inner_rows {
-        let mut row: Vec<Rq> = Vec::new();
-        let mut z: usize = 0;
-        while z < cw {
-            row.push(Rq::zero());
-            z += 1;
-        }
-        let mut k: usize = 0;
-        while k < ct {
-            row.push(tensor.row(p).get(k).copy());
-            k += 1;
-        }
         let aj: PolyVec =
             gadget::gadget_transpose_mul(inner_cols, z_digits, pp.inner().inner_matrix().row(p));
+        let mut row: Vec<Rq> = Vec::new();
         let mut kz: usize = 0;
         while kz < cz {
             row.push(aj.get(kz).neg());
             kz += 1;
         }
-        out.push(PolyVec::new(row));
+        ajrows.push(PolyVec::new(row));
         p += 1;
     }
+
+    let blocks: crate::ringswitch::RlinBlocks = crate::ringswitch::RlinBlocks::new(
+        PolyMatrix::new(drows),
+        PolyMatrix::new(brows),
+        g_b,
+        g_c,
+        PolyVec::new(njga),
+        tensor,
+        PolyMatrix::new(ajrows),
+        cw,
+        ct,
+        cz,
+    );
 
     // yvec = (v, u, y, 0, 0)
     let mut y: Vec<Rq> = Vec::new();
@@ -1419,5 +1388,5 @@ pub fn rlin_stmt(
         e += 1;
     }
 
-    crate::ringswitch::RlinStatement::new(PolyMatrix::new(out), PolyVec::new(y), gamma)
+    crate::ringswitch::RlinStatement::new_lazy(blocks, PolyVec::new(y), gamma)
 }

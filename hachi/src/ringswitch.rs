@@ -259,17 +259,6 @@ pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
     PolyVec::new(out)
 }
 
-/// Statement of Hachi's unstructured linear relation `R^lin` (spec:
-/// `RlinStatement`, `RingSwitch/Rlin.lean:97`).
-///
-/// Mirrors `RlinStatement`.
-///
-/// All three fields are *public* data in the protocol's sense -- the matrix, the
-/// right-hand side, and the `ℓ∞` bound the witness must meet -- which is what
-/// makes the zero-check's `M̃_α` verifier-computable. `bound` is a `u64` for the
-/// reason [`params::CHAIN_GAMMA`] is: the specification's `ℕ` is compared
-/// against a centered coefficient magnitude, and every value in play is below
-/// `q < 2^32`.
 /// The blocks the `R^lin` matrix is assembled *from*, kept instead of the
 /// assembly (wall W2).
 ///
@@ -401,7 +390,21 @@ impl RlinMat {
     }
 }
 
-/// The `R^lin` statement: a public matrix, a right-hand side and a norm bound.
+/// Statement of Hachi's unstructured linear relation `R^lin` (spec:
+/// `RlinStatement`, `RingSwitch/Rlin.lean:97`).
+///
+/// Mirrors `RlinStatement`.
+///
+/// All three fields are *public* data in the protocol's sense -- the matrix, the
+/// right-hand side, and the `ℓ∞` bound the witness must meet -- which is what
+/// makes the zero-check's `M̃_α` verifier-computable. `bound` is a `u64` for the
+/// reason [`params::CHAIN_GAMMA`] is: the specification's `ℕ` is compared
+/// against a centered coefficient magnitude, and every value in play is below
+/// `q < 2^32`.
+///
+/// Since wall W2 the matrix is an [`RlinMat`] rather than a [`PolyMatrix`]: the
+/// statement is the same public data either way, and which representation it
+/// holds is invisible above [`RlinMat::entry`].
 pub struct RlinStatement {
     m: RlinMat,
     yvec: PolyVec,

@@ -523,7 +523,7 @@ pub fn m_alpha_tilde(s: &crate::ringswitch::RlinStatement, alpha: Ext4, i: usize
     let mu: usize = s.m().cols();
     let rows: usize = s.m().rows();
     if u < mu {
-        crate::ringswitch::c_eval_at(alpha, s.m().row(i).get(u))
+        crate::ringswitch::c_eval_at(alpha, s.m().entry(i, u))
     } else if u < mu + rows * digits && (u - mu) / digits == i {
         let e: usize = (u - mu) % digits;
         let weight: Ext4 = Ext4::from_base(crate::gadget::base_pow(e));
@@ -648,7 +648,7 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
         let mut u: usize = 0;
         while u < cols {
             if u < mu {
-                row.push(crate::ringswitch::c_eval_at(alpha, s.m().row(i).get(u)));
+                row.push(crate::ringswitch::c_eval_at(alpha, s.m().entry(i, u)));
             } else if (u - mu) / digits == i {
                 let e: usize = (u - mu) % digits;
                 row.push((Ext4::ZERO - phi_alpha) * bp[e]);

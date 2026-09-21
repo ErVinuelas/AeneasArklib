@@ -626,3 +626,180 @@ fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     }
     acc
 }
+
+// @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinBlocks
+// Card W2 (2026-09-21): the `R^lin` matrix stopped being assembled. The five
+// items below are first translations and are frozen here in the shape they
+// landed in; the dense arm is what every earlier item was written against, so
+// the baseline they are measured from is the assembled matrix's.
+/// The blocks the `R^lin` matrix is assembled *from*, kept instead of the
+/// assembly (wall W2).
+///
+/// `M` is `5 × 57 344` at the pin, which is 2.19 GiB -- and 1.25 GiB of that
+/// is explicit `Rq::zero()`, because the matrix is block structured and only
+/// `c4` and `c5` carry two blocks each. `ringswitch::c_row_sum` has skipped
+/// those zeros since candidate T1a1; this keeps them from being built at all.
+///
+/// The two negated blocks are stored already negated, so that every entry can
+/// be handed back as a borrow into a block and nothing is constructed per
+/// call -- including the zero, of which there is exactly one.
+pub struct RlinBlocks {
+    d: PolyMatrix,
+    bmat: PolyMatrix,
+    g_b: PolyVec,
+    g_c: PolyVec,
+    neg_jt_g_a: PolyVec,
+    tensor: PolyMatrix,
+    neg_aj: PolyMatrix,
+    cw: usize,
+    ct: usize,
+    cz: usize,
+    d_rows: usize,
+    b_rows: usize,
+    t_rows: usize,
+    zero: Rq,
+}
+
+impl RlinBlocks {
+    // @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinBlocks::new
+    /// Bundle the blocks. The two negated ones arrive negated.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        d: PolyMatrix,
+        bmat: PolyMatrix,
+        g_b: PolyVec,
+        g_c: PolyVec,
+        neg_jt_g_a: PolyVec,
+        tensor: PolyMatrix,
+        neg_aj: PolyMatrix,
+        cw: usize,
+        ct: usize,
+        cz: usize,
+    ) -> RlinBlocks {
+        let d_rows: usize = d.rows();
+        let b_rows: usize = bmat.rows();
+        let t_rows: usize = tensor.rows();
+        RlinBlocks {
+            d, bmat, g_b, g_c, neg_jt_g_a, tensor, neg_aj,
+            cw, ct, cz, d_rows, b_rows, t_rows, zero: Rq::zero(),
+        }
+    }
+}
+
+// @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinMat
+/// The public matrix, either assembled or as the blocks it would be assembled
+/// from.
+///
+/// `match` on a custom enum was on the extraction's unprobed list until
+/// 2026-09-21; it extracts to a Lean `inductive` and a native `match`, with a
+/// shared borrow out of a variant coming back as the value itself.
+pub enum RlinMat {
+    /// The matrix as assembled, entry by entry.
+    Dense(PolyMatrix),
+    /// The blocks it would have been assembled from.
+    Lazy(RlinBlocks),
+}
+
+impl RlinMat {
+    // @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinMat::rows
+    /// How many rows the matrix has.
+    pub fn rows(&self) -> usize {
+        match self {
+            RlinMat::Dense(m) => m.rows(),
+            RlinMat::Lazy(b) => b.d_rows + b.b_rows + 2 + b.t_rows,
+        }
+    }
+
+    // @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinMat::cols
+    /// How many columns the matrix has.
+    pub fn cols(&self) -> usize {
+        match self {
+            RlinMat::Dense(m) => m.cols(),
+            RlinMat::Lazy(b) => b.cw + b.ct + b.cz,
+        }
+    }
+
+    // @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinMat::entry
+    /// `M[i][j]`, as a borrow: the dense arm reads it, the lazy arm decides
+    /// which block it falls in. Every arm returns a reference into something
+    /// already held, so nothing is allocated per entry.
+    pub fn entry(&self, i: usize, j: usize) -> &Rq {
+        match self {
+            RlinMat::Dense(m) => m.row(i).get(j),
+            RlinMat::Lazy(b) => {
+                if i < b.d_rows {
+                    // c1: [ D | 0 | 0 ]
+                    if j < b.cw { b.d.row(i).get(j) } else { &b.zero }
+                } else if i < b.d_rows + b.b_rows {
+                    // c2: [ 0 | B | 0 ]
+                    let i2: usize = i - b.d_rows;
+                    if j < b.cw {
+                        &b.zero
+                    } else if j < b.cw + b.ct {
+                        b.bmat.row(i2).get(j - b.cw)
+                    } else {
+                        &b.zero
+                    }
+                } else if i == b.d_rows + b.b_rows {
+                    // c3: [ Gᵀb | 0 | 0 ]
+                    if j < b.cw { b.g_b.get(j) } else { &b.zero }
+                } else if i == b.d_rows + b.b_rows + 1 {
+                    // c4: [ Gᵀc | 0 | −Jᵀ(Gᵀa) ]
+                    if j < b.cw {
+                        b.g_c.get(j)
+                    } else if j < b.cw + b.ct {
+                        &b.zero
+                    } else {
+                        b.neg_jt_g_a.get(j - b.cw - b.ct)
+                    }
+                } else {
+                    // c5: [ 0 | cᵀ ⊗ G | −(AJ) ]
+                    let p: usize = i - b.d_rows - b.b_rows - 2;
+                    if j < b.cw {
+                        &b.zero
+                    } else if j < b.cw + b.ct {
+                        b.tensor.row(p).get(j - b.cw)
+                    } else {
+                        b.neg_aj.row(p).get(j - b.cw - b.ct)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Frozen, but never compiled. `new_lazy` constructs `RlinMat::Lazy`, and the
+// frozen `RlinStatement` above it -- stamped 1e57c54, 2026-09-08 -- declares
+// `m: PolyMatrix`, a type that predates the enum. Contract point 4 (genesis
+// composes with genesis) cannot be met for this item: the only frozen
+// `RlinStatement` it could build is one whose field it does not fit, and
+// contract point 1 forbids editing that struct to make it fit. So the text is
+// frozen for provenance and `#[cfg(any())]` keeps it out of the build.
+//
+// Nothing measurable is lost. `new_lazy` is straight-line -- one enum wrap and
+// a struct literal, no loop, no allocation -- so it sits below the bar in
+// `benches/exclusions.toml`: a criterion row over it would time the
+// `black_box` around it. There is no genesis time here to be compared against
+// because there is no time to take. What the freeze preserves is the record
+// `check-genesis` verifies against git -- a sha, a date, and text that matches
+// `hachi/src` at that commit -- so that `hachi/src` still cannot grow an item
+// nobody froze.
+//
+// The `#[cfg(any())]` belongs on this `impl` and NOT on the `fn`:
+// `harness.py::_frozen_text` holds an item's attributes against git along with
+// its body, so an attribute on the signature that `hachi/src` does not carry
+// would fail the very check this freeze exists to satisfy.
+//
+// The precedent is narrow: a frozen item may go uncompiled only when a frozen
+// type below it cannot express it, and only where an enclosing `impl` can
+// carry the `cfg` -- `rustitems.scan` does not descend into `mod`, so a free
+// function in this position has no frozen form at all and is the repo owner's
+// call, not this rule's.
+#[cfg(any())]
+impl RlinStatement {
+    // @genesis 4a0a1c3 2026-09-21 — ringswitch::RlinStatement::new_lazy
+    /// Bundle the blocks instead of the assembly (wall W2).
+    pub fn new_lazy(b: RlinBlocks, yvec: PolyVec, bound: u64) -> RlinStatement {
+        RlinStatement { m: RlinMat::Lazy(b), yvec, bound }
+    }
+}

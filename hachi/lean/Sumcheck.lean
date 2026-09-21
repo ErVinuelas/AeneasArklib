@@ -3296,14 +3296,14 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
         Vector.ofFn fun idx : Fin (2 ^ m0.val) =>
           InnerOuter.alphaPublicEvals Φ m0.val m₁ phiF 16 rs (toExt alpha)
             (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm idx) ⦄ := by
-  have hWm : WfMat n μ s.m := hs.1
+  have hWm : WfRlinMat n μ s.m := hs.1
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   rw [sumcheck.alpha_public_table]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
-  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with ZeroCheck.rlin_rows_spec (n := n) (μ := μ) s.m hWm as ⟨rows, hrows⟩
+  step with ZeroCheck.rlin_cols_le_spec (n := n) (μ := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
     rw [hrows, hgd]; omega
   step as ⟨j1, hj1⟩
   have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
@@ -3315,13 +3315,13 @@ theorem alpha_public_table_spec {n μ m₁ : ℕ} (s : ringswitch.RlinStatement)
   step with HachiEquiv.ZeroCheck.alpha_pow_table_spec alpha params.RING_DEGREE ha
     as ⟨pw, hpwlen, hpwred, hpwval⟩
   rw [hrd] at hpwlen hpwval
-  step with eq_weight_table_spec (m₁ := m₁) tau1 (alloc.vec.Vec.len s.m) ht
+  step with eq_weight_table_spec (m₁ := m₁) tau1 rows ht
     as ⟨eqw, heqwlen, heqwred, heqwval⟩
   rw [hrows] at heqwlen heqwval
   step with m_alpha_table_spec (n := n) (μ := μ) s rs alpha hs ha hmax
     as ⟨mt, hmtlen, hmtval⟩
   step with alpha_public_table_loop0_spec (n := n) (μ := μ) (m₀ := m0.val) (m₁ := m₁) rs
-    alpha tau1 (alloc.vec.Vec.len s.m) cols sz pw eqw mt
+    alpha tau1 rows cols sz pw eqw mt
     (alloc.vec.Vec.with_capacity cpoly.field.Ext4 sz) 0#usize hrows hcolsv hsz hpwlen
     hpwred hpwval heqwlen heqwred heqwval hmtlen hmtval (by simp)
     (by simp [alloc.vec.Vec.with_capacity])
@@ -3962,9 +3962,8 @@ theorem alpha_public_mle_eval_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinSt
         (InnerOuter.cMultilinearExtension m₀
           (InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
             (toPoint (m := m₁) tau1))).eval (toPoint (m := m₀) a) ⦄ := by
-  have hWm : WfMat n μ s.m := hs.1
+  have hWm : WfRlinMat n μ s.m := hs.1
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   have halen : a.val.length = m₀ := hpt.1
   have hared : VecReduced a := hpt.2
   have hm0v : (alloc.vec.Vec.len a).val = m₀ := by simpa using halen
@@ -3977,9 +3976,10 @@ theorem alpha_public_mle_eval_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinSt
     (MvPolynomial.MLE' (alphaHighTable rs (toExt alpha) (toPoint (m := m₁) tau1)
       (m₀ - min m₀ 10))) with hthighdef
   rw [sumcheck.alpha_public_mle_eval]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
-  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with ZeroCheck.rlin_rows_spec (n := n) (μ := μ) s.m hWm as ⟨rows, hrows⟩
+  step with ZeroCheck.rlin_cols_le_spec (n := n) (μ := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
     rw [hrows, hgd]; omega
   step as ⟨j1, hj1⟩
   have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
@@ -4021,13 +4021,13 @@ theorem alpha_public_mle_eval_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinSt
     rw [hi2v]
     exact le_trans (Nat.pow_le_pow_right (by norm_num) (by omega)) hm0) as ⟨hsz, hhsz⟩
   rw [hi2v] at hhsz
-  step with eq_weight_table_spec (m₁ := m₁) tau1 (alloc.vec.Vec.len s.m) ht
+  step with eq_weight_table_spec (m₁ := m₁) tau1 rows ht
     as ⟨eqw, heqwlen, heqwred, heqwval⟩
   rw [hrows] at heqwlen heqwval
   step with m_alpha_table_spec (n := n) (μ := μ) s rs alpha hs ha hmax
     as ⟨mt, hmtlen, hmtval⟩
   step with alpha_public_mle_eval_loop2_spec (n := n) (μ := μ) (j := m₀ - min m₀ 10)
-    (m₁ := m₁) rs alpha tau1 (alloc.vec.Vec.len s.m) cols hsz eqw mt
+    (m₁ := m₁) rs alpha tau1 rows cols hsz eqw mt
     (alloc.vec.Vec.with_capacity cpoly.field.Ext4 hsz) 0#usize hrows hcolsv hhsz
     heqwlen heqwred heqwval hmtlen hmtval (by simp)
     (by simp [alloc.vec.Vec.with_capacity])
@@ -6179,14 +6179,14 @@ theorem alpha_split_high_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinStateme
           tableFn (m := m₀ - min m₀ 10) out u
             = alphaHighTable rs (toExt alpha) (toPoint (m := m₁) tau1)
                 (m₀ - min m₀ 10) u ⦄ := by
-  have hWm : WfMat n μ s.m := hs.1
+  have hWm : WfRlinMat n μ s.m := hs.1
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   have hklem : min m₀ 10 ≤ m₀ := alphaSplit_le m₀
   rw [sumcheck.alpha_split_high]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
-  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with ZeroCheck.rlin_rows_spec (n := n) (μ := μ) s.m hWm as ⟨rows, hrows⟩
+  step with ZeroCheck.rlin_cols_le_spec (n := n) (μ := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  have hmulbound : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
     rw [hrows, hgd]; omega
   step as ⟨j1, hj1⟩
   have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
@@ -6203,13 +6203,13 @@ theorem alpha_split_high_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinStateme
     rw [hi2v]
     exact le_trans (Nat.pow_le_pow_right (by norm_num) (by omega)) hm0) as ⟨hsz, hhsz⟩
   rw [hi2v] at hhsz
-  step with eq_weight_table_spec (m₁ := m₁) tau1 (alloc.vec.Vec.len s.m) ht
+  step with eq_weight_table_spec (m₁ := m₁) tau1 rows ht
     as ⟨eqw, heqwlen, heqwred, heqwval⟩
   rw [hrows] at heqwlen heqwval
   step with m_alpha_table_spec (n := n) (μ := μ) s rs alpha hs ha hmax
     as ⟨mt, hmtlen, hmtval⟩
   apply spec_mono (alpha_split_high_loop1_spec (n := n) (μ := μ) (j := m₀ - min m₀ 10)
-    (m₁ := m₁) rs alpha tau1 (alloc.vec.Vec.len s.m) cols hsz eqw mt
+    (m₁ := m₁) rs alpha tau1 rows cols hsz eqw mt
     (alloc.vec.Vec.with_capacity cpoly.field.Ext4 hsz) 0#usize hrows hcolsv hhsz
     heqwlen heqwred heqwval hmtlen hmtval (by simp)
     (by simp [alloc.vec.Vec.with_capacity])

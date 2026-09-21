@@ -1434,513 +1434,24 @@ theorem to_quad_eval_statement_spec (s : quadeval.PolyEvalStatement)
 
 /-! ## The assembly -/
 
-/-! ### The row loops of `rlin_stmt`
+/-! ### The block loops of `rlin_stmt`
 
-Each of the eighteen extracted loops appends one block of a row (or of the
-right-hand side) to an accumulator; the specs below all have the same shape:
-the accumulator's prefix is untouched and the new entries are the block. -/
-
-theorem rlin_c1_zeros_loop_spec (ct cz : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hsum : ct.val + cz.val ≤ Usize.max)
-    (hcap : out.val.length + (ct.val + cz.val) ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop0_loop1 ct cz out 0#usize
-      ⦃ z => z.val.length = out.val.length + (ct.val + cz.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < ct.val + cz.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop0_loop1]
-  apply loop.spec_decr_nat (fun s => ct.val + cz.val - s.2.val)
-    (fun s => s.2.val ≤ ct.val + cz.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop0_loop1.body]
-    step as ⟨nn, hnn⟩
-    have hnnv : nn.val = ct.val + cz.val := by rw [hnn]
-    by_cases hlt : i1 < nn
-    · rw [if_pos hlt]
-      have hilt : i1.val < ct.val + cz.val := by rw [← hnnv]; scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = ct.val + cz.val := by rw [← hnnv]; scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c2_zeros_cw_loop_spec (cw : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hcap : out.val.length + cw.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop1_loop0 cw out 0#usize
-      ⦃ z => z.val.length = out.val.length + (cw.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < cw.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop1_loop0]
-  apply loop.spec_decr_nat (fun s => cw.val - s.2.val)
-    (fun s => s.2.val ≤ cw.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop1_loop0.body]
-    by_cases hlt : i1 < cw
-    · rw [if_pos hlt]
-      have hilt : i1.val < cw.val := by scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = cw.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c2_zeros_cz_loop_spec (cz : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hcap : out.val.length + cz.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop1_loop2 cz out 0#usize
-      ⦃ z => z.val.length = out.val.length + (cz.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < cz.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop1_loop2]
-  apply loop.spec_decr_nat (fun s => cz.val - s.2.val)
-    (fun s => s.2.val ≤ cz.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop1_loop2.body]
-    by_cases hlt : i1 < cz
-    · rw [if_pos hlt]
-      have hilt : i1.val < cz.val := by scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = cz.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c3_zeros_loop_spec (ct cz : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hsum : ct.val + cz.val ≤ Usize.max)
-    (hcap : out.val.length + (ct.val + cz.val) ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop3 ct cz out 0#usize
-      ⦃ z => z.val.length = out.val.length + (ct.val + cz.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < ct.val + cz.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop3]
-  apply loop.spec_decr_nat (fun s => ct.val + cz.val - s.2.val)
-    (fun s => s.2.val ≤ ct.val + cz.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop3.body]
-    step as ⟨nn, hnn⟩
-    have hnnv : nn.val = ct.val + cz.val := by rw [hnn]
-    by_cases hlt : i1 < nn
-    · rw [if_pos hlt]
-      have hilt : i1.val < ct.val + cz.val := by rw [← hnnv]; scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = ct.val + cz.val := by rw [← hnnv]; scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c4_zeros_ct_loop_spec (ct : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hcap : out.val.length + ct.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop5 ct out 0#usize
-      ⦃ z => z.val.length = out.val.length + (ct.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < ct.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop5]
-  apply loop.spec_decr_nat (fun s => ct.val - s.2.val)
-    (fun s => s.2.val ≤ ct.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop5.body]
-    by_cases hlt : i1 < ct
-    · rw [if_pos hlt]
-      have hilt : i1.val < ct.val := by scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = ct.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c5_zeros_cw_loop_spec (cw : Std.Usize) (out : alloc.vec.Vec ring.Rq)
-    (hcap : out.val.length + cw.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop7_loop0 cw out 0#usize
-      ⦃ z => z.val.length = out.val.length + (cw.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < cw.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = 0 ⦄ := by
-  rw [quadeval.rlin_stmt_loop7_loop0]
-  apply loop.spec_decr_nat (fun s => cw.val - s.2.val)
-    (fun s => s.2.val ≤ cw.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop7_loop0.body]
-    by_cases hlt : i1 < cw
-    · rw [if_pos hlt]
-      have hilt : i1.val < cw.val := by scalar_tac
-      step with RqBridge.zero_spec as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq]
-          exact hr1
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = cw.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c3_gb_loop_spec {n : ℕ} (cw : Std.Usize) (g_b : linalg.PolyVec)
-    (out : alloc.vec.Vec ring.Rq)
-    (hg : WfVec n g_b) (hcw : cw.val ≤ n)
-    (hcap : out.val.length + cw.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop2 cw g_b out 0#usize
-      ⦃ z => z.val.length = out.val.length + (cw.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < cw.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (g_b.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop2]
-  apply loop.spec_decr_nat (fun s => cw.val - s.2.val)
-    (fun s => s.2.val ≤ cw.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (g_b.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop2.body]
-    by_cases hlt : i1 < cw
-    · rw [if_pos hlt]
-      have hilt : i1.val < cw.val := by scalar_tac
-      have hidx : i1.val < g_b.val.length := by rw [hg.1]; omega
-      simp only [linalg.PolyVec.get]
-      step as ⟨r, hr⟩
-      have hWr : Wf r := by rw [hr]; exact hg.2 _ (List.getElem_mem hidx)
-      step with RqBridge.copy_spec r hWr as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq, hteq2, hr1, hr,
-            ← List.getD_eq_getElem _ _ hidx]
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = cw.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
-theorem rlin_c4_gc_loop_spec {n : ℕ} (cw : Std.Usize) (g_c : linalg.PolyVec)
-    (out : alloc.vec.Vec ring.Rq)
-    (hg : WfVec n g_c) (hcw : cw.val ≤ n)
-    (hcap : out.val.length + cw.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop4 cw g_c out 0#usize
-      ⦃ z => z.val.length = out.val.length + (cw.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < cw.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (g_c.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop4]
-  apply loop.spec_decr_nat (fun s => cw.val - s.2.val)
-    (fun s => s.2.val ≤ cw.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (g_c.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop4.body]
-    by_cases hlt : i1 < cw
-    · rw [if_pos hlt]
-      have hilt : i1.val < cw.val := by scalar_tac
-      have hidx : i1.val < g_c.val.length := by rw [hg.1]; omega
-      simp only [linalg.PolyVec.get]
-      step as ⟨r, hr⟩
-      have hWr : Wf r := by rw [hr]; exact hg.2 _ (List.getElem_mem hidx)
-      step with RqBridge.copy_spec r hWr as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq, hteq2, hr1, hr,
-            ← List.getD_eq_getElem _ _ hidx]
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = cw.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
+Card W2 cut the eighteen loops to ten: with the blocks kept as blocks there is
+no padding to write, so every `zeros` loop and the two that copied a gadget
+vector into a wider row are gone, and what is left builds `D`, `B`, `−Jᵀ(Gᵀa)`,
+`−(A J)` and the right-hand side.  The specs below all have the same shape: the
+accumulator's prefix is untouched and the new entries are the block. -/
 theorem rlin_c4_neg_loop_spec {n : ℕ} (cz : Std.Usize) (jt_g_a : linalg.PolyVec)
     (out : alloc.vec.Vec ring.Rq)
     (hj : WfVec n jt_g_a) (hcz : cz.val ≤ n)
     (hcap : out.val.length + cz.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop6 cz jt_g_a out 0#usize
+    quadeval.rlin_stmt_loop2 cz jt_g_a out 0#usize
       ⦃ z => z.val.length = out.val.length + (cz.val) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < cz.val → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = - toRq (jt_g_a.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop6]
+  rw [quadeval.rlin_stmt_loop2]
   apply loop.spec_decr_nat (fun s => cz.val - s.2.val)
     (fun s => s.2.val ≤ cz.val ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -1950,7 +1461,7 @@ theorem rlin_c4_neg_loop_spec {n : ℕ} (cz : Std.Usize) (jt_g_a : linalg.PolyVe
           (alloc.vec.Vec.new cpoly.field.Fp)) = - toRq (jt_g_a.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop6.body]
+    simp only [quadeval.rlin_stmt_loop2.body]
     by_cases hlt : i1 < cz
     · rw [if_pos hlt]
       have hilt : i1.val < cz.val := by scalar_tac
@@ -1999,13 +1510,13 @@ theorem rlin_c5_neg_loop_spec {n : ℕ} (cz : Std.Usize) (aj : linalg.PolyVec)
     (out : alloc.vec.Vec ring.Rq)
     (ha : WfVec n aj) (hcz : cz.val ≤ n)
     (hcap : out.val.length + cz.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop7_loop2 cz out aj 0#usize
+    quadeval.rlin_stmt_loop3_loop0 cz aj out 0#usize
       ⦃ z => z.val.length = out.val.length + (cz.val) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < cz.val → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = - toRq (aj.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop7_loop2]
+  rw [quadeval.rlin_stmt_loop3_loop0]
   apply loop.spec_decr_nat (fun s => cz.val - s.2.val)
     (fun s => s.2.val ≤ cz.val ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -2015,7 +1526,7 @@ theorem rlin_c5_neg_loop_spec {n : ℕ} (cz : Std.Usize) (aj : linalg.PolyVec)
           (alloc.vec.Vec.new cpoly.field.Fp)) = - toRq (aj.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop7_loop2.body]
+    simp only [quadeval.rlin_stmt_loop3_loop0.body]
     by_cases hlt : i1 < cz
     · rw [if_pos hlt]
       have hilt : i1.val < cz.val := by scalar_tac
@@ -2137,14 +1648,14 @@ theorem rlin_c2_row_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD) (c
     (out : alloc.vec.Vec ring.Rq)
     (ho : WfMat rows cols pp.inner.outer_matrix) (hi : i2.val < rows) (hct : ct.val ≤ cols)
     (hcap : out.val.length + ct.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop1_loop1 pp ct i2 out 0#usize
+    quadeval.rlin_stmt_loop1_loop0 pp ct i2 out 0#usize
       ⦃ z => z.val.length = out.val.length + (ct.val) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < ct.val → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = toRq ((pp.inner.outer_matrix.val.getD i2.val (alloc.vec.Vec.new ring.Rq)).val.getD t
           (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop1_loop1]
+  rw [quadeval.rlin_stmt_loop1_loop0]
   apply loop.spec_decr_nat (fun s => ct.val - s.2.val)
     (fun s => s.2.val ≤ ct.val ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -2155,7 +1666,7 @@ theorem rlin_c2_row_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD) (c
           (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop1_loop1.body]
+    simp only [quadeval.rlin_stmt_loop1_loop0.body]
     by_cases hlt : i1 < ct
     · rw [if_pos hlt]
       have hilt : i1.val < ct.val := by scalar_tac
@@ -2204,85 +1715,15 @@ theorem rlin_c2_row_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD) (c
     · dsimp only; intro t _; rfl
     · dsimp only; intro t ht; simp at ht
 
-theorem rlin_c5_tensor_loop_spec {rows cols : ℕ} (ct p : Std.Usize) (tensor : linalg.PolyMatrix)
-    (out : alloc.vec.Vec ring.Rq)
-    (ht : WfMat rows cols tensor) (hp : p.val < rows) (hct : ct.val ≤ cols)
-    (hcap : out.val.length + ct.val ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop7_loop1 ct tensor p out 0#usize
-      ⦃ z => z.val.length = out.val.length + (ct.val) ∧ (∀ y ∈ z.val, Wf y) ∧
-        (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-          = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-        ∀ t, t < ct.val → toRq (z.val.getD (out.val.length + t)
-            (alloc.vec.Vec.new cpoly.field.Fp)) = toRq ((tensor.val.getD p.val (alloc.vec.Vec.new ring.Rq)).val.getD t
-          (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop7_loop1]
-  apply loop.spec_decr_nat (fun s => ct.val - s.2.val)
-    (fun s => s.2.val ≤ ct.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ y ∈ s.1.val, Wf y) ∧
-      (∀ t, t < out.val.length → s.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
-        = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
-      ∀ t, t < s.2.val → toRq (s.1.val.getD (out.val.length + t)
-          (alloc.vec.Vec.new cpoly.field.Fp)) = toRq ((tensor.val.getD p.val (alloc.vec.Vec.new ring.Rq)).val.getD t
-          (alloc.vec.Vec.new cpoly.field.Fp)))
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop7_loop1.body]
-    by_cases hlt : i1 < ct
-    · rw [if_pos hlt]
-      have hilt : i1.val < ct.val := by scalar_tac
-      have hrowidx : p.val < tensor.val.length := by rw [ht.1]; exact hp
-      simp only [linalg.PolyMatrix.row, linalg.PolyVec.get]
-      step as ⟨pv, hpv⟩
-      have hWpv : WfVec cols pv := by rw [hpv]; exact ht.2 _ (List.getElem_mem hrowidx)
-      have hidx : i1.val < pv.val.length := by rw [hWpv.1]; omega
-      step as ⟨r, hr⟩
-      have hWr : Wf r := by rw [hr]; exact hWpv.2 _ (List.getElem_mem hidx)
-      step with RqBridge.copy_spec r hWr as ⟨r1, hWr1, hr1⟩
-      have hcap1 : o1.val.length < Usize.max := by omega
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
-      · intro y hy
-        rw [ho2] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact hwf1 y h
-        · rw [List.mem_singleton.mp h]; exact hWr1
-      · intro t ht
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 t ht
-      · intro t ht
-        rw [hi2] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [ho2, getD_append_lt _ _ _ (by omega)]
-          exact hval1 t htlt
-        · have hteq : out.val.length + t = o1.val.length := by omega
-          have hteq2 : t = i1.val := by omega
-          rw [hteq, ho2, getD_append_eq, hteq2, hr1, hr,
-            ← List.getD_eq_getElem _ _ hidx, hpv, ← List.getD_eq_getElem _ _ hrowidx]
-      · scalar_tac
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : i1.val = ct.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
-  · refine ⟨?_, ?_, hwf, ?_, ?_⟩
-    · dsimp only; simp
-    · dsimp only; simp
-    · dsimp only; intro t _; rfl
-    · dsimp only; intro t ht; simp at ht
-
 theorem rlin_y_v_loop_spec {n : ℕ} (v : linalg.PolyVec) (out : alloc.vec.Vec ring.Rq)
     (hv : WfVec n v) (hcap : out.val.length + n ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop8 v out 0#usize
+    quadeval.rlin_stmt_loop4 v out 0#usize
       ⦃ z => z.val.length = out.val.length + (n) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < n → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (v.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop8]
+  rw [quadeval.rlin_stmt_loop4]
   apply loop.spec_decr_nat (fun s => n - s.2.val)
     (fun s => s.2.val ≤ n ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -2292,7 +1733,7 @@ theorem rlin_y_v_loop_spec {n : ℕ} (v : linalg.PolyVec) (out : alloc.vec.Vec r
           (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (v.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop8.body]
+    simp only [quadeval.rlin_stmt_loop4.body]
     have hnv : (alloc.vec.Vec.len v).val = n := by simpa using hv.1
     simp only [linalg.PolyVec.len, bind_tc_ok]
     by_cases hlt : i1 < alloc.vec.Vec.len v
@@ -2341,13 +1782,13 @@ theorem rlin_y_v_loop_spec {n : ℕ} (v : linalg.PolyVec) (out : alloc.vec.Vec r
 
 theorem rlin_y_u_loop_spec {n : ℕ} (stmt : quadeval.QuadEvalStatement) (out : alloc.vec.Vec ring.Rq)
     (hu : WfVec n stmt.u) (hcap : out.val.length + n ≤ Usize.max) (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop9 stmt out 0#usize
+    quadeval.rlin_stmt_loop5 stmt out 0#usize
       ⦃ z => z.val.length = out.val.length + (n) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < n → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (stmt.u.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop9]
+  rw [quadeval.rlin_stmt_loop5]
   apply loop.spec_decr_nat (fun s => n - s.2.val)
     (fun s => s.2.val ≤ n ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -2357,7 +1798,7 @@ theorem rlin_y_u_loop_spec {n : ℕ} (stmt : quadeval.QuadEvalStatement) (out : 
           (alloc.vec.Vec.new cpoly.field.Fp)) = toRq (stmt.u.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop9.body]
+    simp only [quadeval.rlin_stmt_loop5.body]
     have hnv : (alloc.vec.Vec.len stmt.u).val = n := by simpa using hu.1
     simp only [quadeval.QuadEvalStatement.impl.u, linalg.PolyVec.len, bind_tc_ok]
     by_cases hlt : i1 < alloc.vec.Vec.len stmt.u
@@ -2407,13 +1848,13 @@ theorem rlin_y_u_loop_spec {n : ℕ} (stmt : quadeval.QuadEvalStatement) (out : 
 theorem rlin_y_repeat_loop_spec (r : ring.Rq) (innerRows : Std.Usize) (out : alloc.vec.Vec ring.Rq)
     (hWr : Wf r) (hcap : out.val.length + innerRows.val ≤ Usize.max)
     (hwf : ∀ y ∈ out.val, Wf y) :
-    quadeval.rlin_stmt_loop10 r innerRows out 0#usize
+    quadeval.rlin_stmt_loop6 r innerRows out 0#usize
       ⦃ z => z.val.length = out.val.length + (innerRows.val) ∧ (∀ y ∈ z.val, Wf y) ∧
         (∀ t, t < out.val.length → z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) ∧
         ∀ t, t < innerRows.val → toRq (z.val.getD (out.val.length + t)
             (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r ⦄ := by
-  rw [quadeval.rlin_stmt_loop10]
+  rw [quadeval.rlin_stmt_loop6]
   apply loop.spec_decr_nat (fun s => innerRows.val - s.2.val)
     (fun s => s.2.val ≤ innerRows.val ∧ s.1.val.length = out.val.length + s.2.val ∧
       (∀ y ∈ s.1.val, Wf y) ∧
@@ -2423,7 +1864,7 @@ theorem rlin_y_repeat_loop_spec (r : ring.Rq) (innerRows : Std.Usize) (out : all
           (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r)
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop10.body]
+    simp only [quadeval.rlin_stmt_loop6.body]
     by_cases hlt : i1 < innerRows
     · rw [if_pos hlt]
       have hilt : i1.val < innerRows.val := by scalar_tac
@@ -2463,74 +1904,53 @@ theorem rlin_y_repeat_loop_spec (r : ring.Rq) (innerRows : Std.Usize) (out : all
     · dsimp only; intro t ht; simp at ht
 
 
-/-- The `c1` row loop: `dRows` rows of `[ D | 0 ]`. -/
+/-- The `c1` block: the `D` matrix, copied row by row.
+
+Card W2 stopped the row from being padded out to the full `μ` -- the `D` block
+is stored at its own width `cw`, and `RlinMat.entry` supplies the zeros to the
+right of it -- so this loop and its inner loop are all that is left of the old
+`c1` assembly. -/
 theorem rlin_c1_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
-    (cw ct cz : Std.Usize) (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hd : WfMat rows cols pp.d_matrix) (hcw : cw.val ≤ cols)
-    (hsum : ct.val + cz.val ≤ Usize.max)
-    (hwidth : cw.val + (ct.val + cz.val) ≤ Usize.max)
+    (cw d_rows : Std.Usize) (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hd : WfMat rows cols pp.d_matrix) (hcw : cw.val ≤ cols) (hdr : d_rows.val = rows)
     (hi : i.val ≤ rows) (hlen : out.val.length = i.val)
-    (hwf : ∀ x ∈ out.val, WfVec (cw.val + (ct.val + cz.val)) x)
-    (hval : ∀ u, u < i.val → ∀ t, t < cw.val + (ct.val + cz.val) →
+    (hwf : ∀ x ∈ out.val, WfVec cw.val x)
+    (hval : ∀ u, u < i.val → ∀ t, t < cw.val →
       toRq ((out.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
           (alloc.vec.Vec.new cpoly.field.Fp))
-        = if t < cw.val then
-            toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
-              (alloc.vec.Vec.new cpoly.field.Fp))
-          else 0) :
-    quadeval.rlin_stmt_loop0 pp cw ct cz out i
-      ⦃ z => z.val.length = rows ∧ (∀ x ∈ z.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-        ∀ u, u < rows → ∀ t, t < cw.val + (ct.val + cz.val) →
+        = toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+            (alloc.vec.Vec.new cpoly.field.Fp))) :
+    quadeval.rlin_stmt_loop0 pp cw d_rows out i
+      ⦃ z => z.val.length = rows ∧ (∀ x ∈ z.val, WfVec cw.val x) ∧
+        ∀ u, u < rows → ∀ t, t < cw.val →
           toRq ((z.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then
-                toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
-                  (alloc.vec.Vec.new cpoly.field.Fp))
-              else 0 ⦄ := by
+            = toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+                (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   have hdrows : pp.d_matrix.val.length = rows := hd.1
   have hrowscap : rows ≤ Usize.max := by rw [← hdrows]; exact pp.d_matrix.property
   rw [quadeval.rlin_stmt_loop0]
   apply loop.spec_decr_nat (fun s => rows - s.2.val)
     (fun s => s.2.val ≤ rows ∧ s.1.val.length = s.2.val ∧
-      (∀ x ∈ s.1.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-      ∀ u, u < s.2.val → ∀ t, t < cw.val + (ct.val + cz.val) →
+      (∀ x ∈ s.1.val, WfVec cw.val x) ∧
+      ∀ u, u < s.2.val → ∀ t, t < cw.val →
         toRq ((s.1.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp))
-          = if t < cw.val then
-              toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
-                (alloc.vec.Vec.new cpoly.field.Fp))
-            else 0)
+          = toRq ((pp.d_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+              (alloc.vec.Vec.new cpoly.field.Fp)))
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
-    simp only [quadeval.rlin_stmt_loop0.body, quadeval.PublicParamsD.impl.d_matrix,
-      linalg.PolyMatrix.rows, bind_tc_ok]
-    have hnr : (alloc.vec.Vec.len pp.d_matrix).val = rows := by simpa using hdrows
-    by_cases hlt : i1 < alloc.vec.Vec.len pp.d_matrix
+    simp only [quadeval.rlin_stmt_loop0.body]
+    by_cases hlt : i1 < d_rows
     · rw [if_pos hlt]
-      have hi1lt : i1.val < rows := by rw [← hnr]; scalar_tac
+      have hi1lt : i1.val < rows := by rw [← hdr]; scalar_tac
       step with rlin_c1_row_loop_spec pp cw i1 (alloc.vec.Vec.new ring.Rq) hd hi1lt hcw
-        (by simp; omega) (by intro y hy; simp at hy) as ⟨row, hrlen, hrwf, _, hrval⟩
+        (by simp; scalar_tac) (by intro y hy; simp at hy) as ⟨row, hrlen, hrwf, _, hrval⟩
       simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at hrlen hrval
-      step with rlin_c1_zeros_loop_spec ct cz row hsum (by rw [hrlen]; exact hwidth) hrwf
-        as ⟨row1, h1len, h1wf, h1pre, h1val⟩
-      rw [hrlen] at h1len h1val
       simp only [linalg.PolyVec.new]
       have hcap1 : o1.val.length < Usize.max := by omega
       step as ⟨o2, ho2⟩
       step as ⟨i2, hi2⟩
-      have hrowval : ∀ t, t < cw.val + (ct.val + cz.val) →
-          toRq (row1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then
-                toRq ((pp.d_matrix.val.getD i1.val (alloc.vec.Vec.new ring.Rq)).val.getD t
-                  (alloc.vec.Vec.new cpoly.field.Fp))
-              else 0 := by
-        intro t ht
-        by_cases hlt2 : t < cw.val
-        · rw [if_pos hlt2, h1pre t (by rw [hrlen]; omega), hrval t hlt2]
-        · rw [if_neg hlt2]
-          have h := h1val (t - cw.val) (by omega)
-          rw [show cw.val + (t - cw.val) = t from by omega] at h
-          exact h
       refine ⟨?_, ?_, ?_, ?_, ?_⟩
       · scalar_tac
       · rw [ho2, hi2, List.length_append, hlen1]; simp
@@ -2538,7 +1958,7 @@ theorem rlin_c1_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
         rw [ho2] at hx
         rcases List.mem_append.mp hx with h | h
         · exact hwf1 x h
-        · rw [List.mem_singleton.mp h]; exact ⟨h1len, h1wf⟩
+        · rw [List.mem_singleton.mp h]; exact ⟨hrlen, hrwf⟩
       · intro u hu t ht
         rw [hi2] at hu
         rcases Nat.lt_or_ge u i1.val with hult | huge
@@ -2546,182 +1966,116 @@ theorem rlin_c1_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
           exact hval1 u hult t ht
         · have hueq : u = o1.val.length := by omega
           rw [hueq, ho2, getD_append_eq, hlen1]
-          exact hrowval t ht
+          exact hrval t ht
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = rows := by rw [← hnr]; scalar_tac
+      have heq : i1.val = rows := by rw [← hdr]; scalar_tac
       exact ⟨by rw [hlen1, heq], hwf1, fun u hu t ht => hval1 u (by rw [heq]; exact hu) t ht⟩
   · exact ⟨hi, hlen, hwf, hval⟩
 
-/-- The `c2` row loop: `outerRows` rows of `[ 0 | B | 0 ]`. -/
+/-- The `c2` block: the outer commitment matrix `B`, at its own width `ct`. -/
 theorem rlin_c2_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
-    (cw ct cz : Std.Usize) (out : alloc.vec.Vec linalg.PolyVec)
-    (ho : WfMat rows cols pp.inner.outer_matrix) (hct : ct.val ≤ cols)
-    (hwidth : cw.val + (ct.val + cz.val) ≤ Usize.max)
-    (hcap : out.val.length + rows ≤ Usize.max)
-    (hwf : ∀ x ∈ out.val, WfVec (cw.val + (ct.val + cz.val)) x) :
-    quadeval.rlin_stmt_loop1 pp cw ct cz out 0#usize
-      ⦃ z => z.val.length = out.val.length + rows ∧
-        (∀ x ∈ z.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-        (∀ u, u < out.val.length →
-          z.val.getD u (alloc.vec.Vec.new ring.Rq)
-            = out.val.getD u (alloc.vec.Vec.new ring.Rq)) ∧
-        ∀ u, u < rows → ∀ t, t < cw.val + (ct.val + cz.val) →
-          toRq ((z.val.getD (out.val.length + u) (alloc.vec.Vec.new ring.Rq)).val.getD t
+    (ct b_rows : Std.Usize) (out : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (ho : WfMat rows cols pp.inner.outer_matrix) (hct : ct.val ≤ cols) (hbr : b_rows.val = rows)
+    (hi : i.val ≤ rows) (hlen : out.val.length = i.val)
+    (hwf : ∀ x ∈ out.val, WfVec ct.val x)
+    (hval : ∀ u, u < i.val → ∀ t, t < ct.val →
+      toRq ((out.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+          (alloc.vec.Vec.new cpoly.field.Fp))
+        = toRq ((pp.inner.outer_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+            (alloc.vec.Vec.new cpoly.field.Fp))) :
+    quadeval.rlin_stmt_loop1 pp ct b_rows out i
+      ⦃ z => z.val.length = rows ∧ (∀ x ∈ z.val, WfVec ct.val x) ∧
+        ∀ u, u < rows → ∀ t, t < ct.val →
+          toRq ((z.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then 0
-              else if t < cw.val + ct.val then
-                toRq ((pp.inner.outer_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD
-                  (t - cw.val) (alloc.vec.Vec.new cpoly.field.Fp))
-              else 0 ⦄ := by
+            = toRq ((pp.inner.outer_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+                (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   have horows : pp.inner.outer_matrix.val.length = rows := ho.1
+  have hrowscap : rows ≤ Usize.max := by
+    rw [← horows]; exact pp.inner.outer_matrix.property
   rw [quadeval.rlin_stmt_loop1]
   apply loop.spec_decr_nat (fun s => rows - s.2.val)
-    (fun s => s.2.val ≤ rows ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ x ∈ s.1.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-      (∀ u, u < out.val.length →
-        s.1.val.getD u (alloc.vec.Vec.new ring.Rq)
-          = out.val.getD u (alloc.vec.Vec.new ring.Rq)) ∧
-      ∀ u, u < s.2.val → ∀ t, t < cw.val + (ct.val + cz.val) →
-        toRq ((s.1.val.getD (out.val.length + u) (alloc.vec.Vec.new ring.Rq)).val.getD t
+    (fun s => s.2.val ≤ rows ∧ s.1.val.length = s.2.val ∧
+      (∀ x ∈ s.1.val, WfVec ct.val x) ∧
+      ∀ u, u < s.2.val → ∀ t, t < ct.val →
+        toRq ((s.1.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp))
-          = if t < cw.val then 0
-            else if t < cw.val + ct.val then
-              toRq ((pp.inner.outer_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD
-                (t - cw.val) (alloc.vec.Vec.new cpoly.field.Fp))
-            else 0)
-  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hi1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop1.body, quadeval.PublicParamsD.impl.inner,
-      commit.PublicParams.impl.outer_matrix, linalg.PolyMatrix.rows, bind_tc_ok]
-    have hnr : (alloc.vec.Vec.len pp.inner.outer_matrix).val = rows := by simpa using horows
-    by_cases hlt : i1 < alloc.vec.Vec.len pp.inner.outer_matrix
+          = toRq ((pp.inner.outer_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+              (alloc.vec.Vec.new cpoly.field.Fp)))
+  · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
+    dsimp only at hi1 hlen1 hwf1 hval1
+    simp only [quadeval.rlin_stmt_loop1.body]
+    by_cases hlt : i1 < b_rows
     · rw [if_pos hlt]
-      have hi1lt : i1.val < rows := by rw [← hnr]; scalar_tac
-      step with rlin_c2_zeros_cw_loop_spec cw (alloc.vec.Vec.new ring.Rq)
-        (by simp; omega) (by intro y hy; simp at hy) as ⟨rowa, halen, hawf, _, haval⟩
-      simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at halen haval
-      step with rlin_c2_row_loop_spec pp ct i1 rowa ho hi1lt hct
-        (by rw [halen]; omega) hawf as ⟨rowb, hblen, hbwf, hbpre, hbval⟩
-      rw [halen] at hblen hbval
-      step with rlin_c2_zeros_cz_loop_spec cz rowb (by rw [hblen]; omega) hbwf
-        as ⟨rowc, hclen, hcwf, hcpre, hcval⟩
-      rw [hblen] at hclen hcval
+      have hi1lt : i1.val < rows := by rw [← hbr]; scalar_tac
+      step with rlin_c2_row_loop_spec pp ct i1 (alloc.vec.Vec.new ring.Rq) ho hi1lt hct
+        (by simp; scalar_tac) (by intro y hy; simp at hy) as ⟨row, hrlen, hrwf, _, hrval⟩
+      simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at hrlen hrval
       simp only [linalg.PolyVec.new]
       have hcap1 : o1.val.length < Usize.max := by omega
       step as ⟨o2, ho2⟩
       step as ⟨i2, hi2⟩
-      have hrowval : ∀ t, t < cw.val + (ct.val + cz.val) →
-          toRq (rowc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then 0
-              else if t < cw.val + ct.val then
-                toRq ((pp.inner.outer_matrix.val.getD i1.val
-                  (alloc.vec.Vec.new ring.Rq)).val.getD (t - cw.val)
-                  (alloc.vec.Vec.new cpoly.field.Fp))
-              else 0 := by
-        intro t ht
-        by_cases hlt2 : t < cw.val
-        · rw [if_pos hlt2, hcpre t (by rw [hblen]; omega),
-            hbpre t (by rw [halen]; omega), haval t hlt2]
-        · rw [if_neg hlt2]
-          by_cases hlt3 : t < cw.val + ct.val
-          · rw [if_pos hlt3, hcpre t (by rw [hblen]; omega)]
-            have h := hbval (t - cw.val) (by omega)
-            rw [show cw.val + (t - cw.val) = t from by omega] at h
-            exact h
-          · rw [if_neg hlt3]
-            have h := hcval (t - (cw.val + ct.val)) (by omega)
-            rw [show cw.val + ct.val + (t - (cw.val + ct.val)) = t from by omega] at h
-            exact h
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩
       · scalar_tac
-      · rw [ho2, hi2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
+      · rw [ho2, hi2, List.length_append, hlen1]; simp
       · intro x hx
         rw [ho2] at hx
         rcases List.mem_append.mp hx with h | h
         · exact hwf1 x h
-        · rw [List.mem_singleton.mp h]
-          exact ⟨by rw [hclen]; ring, hcwf⟩
-      · intro u hu
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 u hu
+        · rw [List.mem_singleton.mp h]; exact ⟨hrlen, hrwf⟩
       · intro u hu t ht
         rw [hi2] at hu
         rcases Nat.lt_or_ge u i1.val with hult | huge
         · rw [ho2, getD_append_lt _ _ _ (by omega)]
           exact hval1 u hult t ht
-        · have hueq : u = i1.val := by omega
-          subst hueq
-          rw [← hlen1, ho2, getD_append_eq]
-          exact hrowval t ht
+        · have hueq : u = o1.val.length := by omega
+          rw [hueq, ho2, getD_append_eq, hlen1]
+          exact hrval t ht
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = rows := by rw [← hnr]; scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1,
-        fun u hu t ht => hval1 u (by rw [heq]; exact hu) t ht⟩
-  · refine ⟨by scalar_tac, by scalar_tac, hwf, fun u _ => rfl, ?_⟩
-    intro u hu
-    exact absurd hu (by scalar_tac)
+      have heq : i1.val = rows := by rw [← hbr]; scalar_tac
+      exact ⟨by rw [hlen1, heq], hwf1, fun u hu t ht => hval1 u (by rw [heq]; exact hu) t ht⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
 
-/-- The `c5` row loop: `innerRows` rows of `[ 0 | (cᵀ ⊗ G) | −(A J) ]`, the last
-block computed as `Jᵀ` applied to the row of `A`. -/
-theorem rlin_c5_outer_loop_spec {rowsT colsT rowsA zd : ℕ} (pp : quadeval.PublicParamsD)
-    (innerRowsU zDigits cw ct cz innerCols : Std.Usize) (tensor : linalg.PolyMatrix)
-    (out : alloc.vec.Vec linalg.PolyVec)
-    (ht : WfMat rowsT colsT tensor) (hct : ct.val ≤ colsT) (hpT : innerRowsU.val ≤ rowsT)
+/-- The `c5` block: `−(A J)`, one row per inner row, computed as `Jᵀ` applied
+to the row of `A` and then negated.  The tensor half of the old `c5` row is now
+the `tensor` block in its own right, so this loop builds only `neg_aj`. -/
+theorem rlin_c5_outer_loop_spec {rowsA zd : ℕ} (pp : quadeval.PublicParamsD)
+    (innerRowsU zDigits cz innerCols : Std.Usize) (out : alloc.vec.Vec linalg.PolyVec)
+    (i : Std.Usize)
     (hA : WfMat rowsA innerCols.val pp.inner.inner_matrix) (hpA : innerRowsU.val ≤ rowsA)
     (hzd : zDigits.val = zd) (hfit : innerCols.val * zd ≤ Usize.max)
     (hcz : cz.val ≤ innerCols.val * zd)
-    (hwidth : cw.val + (ct.val + cz.val) ≤ Usize.max)
-    (hcap : out.val.length + innerRowsU.val ≤ Usize.max)
-    (hwf : ∀ x ∈ out.val, WfVec (cw.val + (ct.val + cz.val)) x) :
-    quadeval.rlin_stmt_loop7 pp innerRowsU zDigits cw ct cz innerCols tensor out 0#usize
-      ⦃ z => z.val.length = out.val.length + innerRowsU.val ∧
-        (∀ x ∈ z.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-        (∀ u, u < out.val.length →
-          z.val.getD u (alloc.vec.Vec.new ring.Rq)
-            = out.val.getD u (alloc.vec.Vec.new ring.Rq)) ∧
-        ∀ u, u < innerRowsU.val → ∀ t, t < cw.val + (ct.val + cz.val) →
-          toRq ((z.val.getD (out.val.length + u) (alloc.vec.Vec.new ring.Rq)).val.getD t
+    (hi : i.val ≤ innerRowsU.val) (hlen : out.val.length = i.val)
+    (hwf : ∀ x ∈ out.val, WfVec cz.val x)
+    (hval : ∀ u, u < i.val → ∀ t, t < cz.val →
+      toRq ((out.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
+          (alloc.vec.Vec.new cpoly.field.Fp))
+        = - gtmVal zd (pp.inner.inner_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)) t) :
+    quadeval.rlin_stmt_loop3 pp innerRowsU zDigits cz innerCols out i
+      ⦃ z => z.val.length = innerRowsU.val ∧ (∀ x ∈ z.val, WfVec cz.val x) ∧
+        ∀ u, u < innerRowsU.val → ∀ t, t < cz.val →
+          toRq ((z.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then 0
-              else if t < cw.val + ct.val then
-                toRq ((tensor.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD (t - cw.val)
-                  (alloc.vec.Vec.new cpoly.field.Fp))
-              else - gtmVal zd (pp.inner.inner_matrix.val.getD u (alloc.vec.Vec.new ring.Rq))
-                  (t - (cw.val + ct.val)) ⦄ := by
-  rw [quadeval.rlin_stmt_loop7]
+            = - gtmVal zd (pp.inner.inner_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)) t ⦄ := by
+  have hrowscap : innerRowsU.val ≤ Usize.max := by scalar_tac
+  rw [quadeval.rlin_stmt_loop3]
   apply loop.spec_decr_nat (fun s => innerRowsU.val - s.2.val)
-    (fun s => s.2.val ≤ innerRowsU.val ∧ s.1.val.length = out.val.length + s.2.val ∧
-      (∀ x ∈ s.1.val, WfVec (cw.val + (ct.val + cz.val)) x) ∧
-      (∀ u, u < out.val.length →
-        s.1.val.getD u (alloc.vec.Vec.new ring.Rq)
-          = out.val.getD u (alloc.vec.Vec.new ring.Rq)) ∧
-      ∀ u, u < s.2.val → ∀ t, t < cw.val + (ct.val + cz.val) →
-        toRq ((s.1.val.getD (out.val.length + u) (alloc.vec.Vec.new ring.Rq)).val.getD t
+    (fun s => s.2.val ≤ innerRowsU.val ∧ s.1.val.length = s.2.val ∧
+      (∀ x ∈ s.1.val, WfVec cz.val x) ∧
+      ∀ u, u < s.2.val → ∀ t, t < cz.val →
+        toRq ((s.1.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp))
-          = if t < cw.val then 0
-            else if t < cw.val + ct.val then
-              toRq ((tensor.val.getD u (alloc.vec.Vec.new ring.Rq)).val.getD (t - cw.val)
-                (alloc.vec.Vec.new cpoly.field.Fp))
-            else - gtmVal zd (pp.inner.inner_matrix.val.getD u (alloc.vec.Vec.new ring.Rq))
-                (t - (cw.val + ct.val)))
-  · rintro ⟨o1, p1⟩ ⟨hp1, hlen1, hwf1, hpre1, hval1⟩
-    dsimp only at hp1 hlen1 hwf1 hpre1 hval1
-    simp only [quadeval.rlin_stmt_loop7.body]
+          = - gtmVal zd (pp.inner.inner_matrix.val.getD u (alloc.vec.Vec.new ring.Rq)) t)
+  · rintro ⟨o1, p1⟩ ⟨hp1, hlen1, hwf1, hval1⟩
+    dsimp only at hp1 hlen1 hwf1 hval1
+    simp only [quadeval.rlin_stmt_loop3.body]
     by_cases hlt : p1 < innerRowsU
     · rw [if_pos hlt]
       have hp1lt : p1.val < innerRowsU.val := by scalar_tac
-      step with rlin_c5_zeros_cw_loop_spec cw (alloc.vec.Vec.new ring.Rq)
-        (by simp; omega) (by intro y hy; simp at hy) as ⟨rowa, halen, hawf, _, haval⟩
-      simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at halen haval
-      step with rlin_c5_tensor_loop_spec ct p1 tensor rowa ht (by omega) hct
-        (by rw [halen]; omega) hawf as ⟨rowb, hblen, hbwf, hbpre, hbval⟩
-      rw [halen] at hblen hbval
       simp only [quadeval.PublicParamsD.impl.inner, commit.PublicParams.impl.inner_matrix,
         linalg.PolyMatrix.row, bind_tc_ok]
       have hArow : p1.val < pp.inner.inner_matrix.val.length := by rw [hA.1]; omega
@@ -2730,68 +2084,42 @@ theorem rlin_c5_outer_loop_spec {rowsT colsT rowsA zd : ℕ} (pp : quadeval.Publ
         rw [hpv]; exact hA.2 _ (List.getElem_mem hArow)
       step with gadget_transpose_mul_entry_spec (rows := innerCols.val) (digits := zd)
         innerCols zDigits pv hWpv rfl hzd hfit as ⟨aj, hajwf, hajval⟩
-      step with rlin_c5_neg_loop_spec cz aj rowb hajwf hcz (by rw [hblen]; omega) hbwf
-        as ⟨rowc, hclen, hcwf, hcpre, hcval⟩
-      rw [hblen] at hclen hcval
+      step with rlin_c5_neg_loop_spec cz aj (alloc.vec.Vec.new ring.Rq) hajwf hcz
+        (by simp; scalar_tac) (by intro y hy; simp at hy)
+        as ⟨row, hrlen, hrwf, _, hrval⟩
+      simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at hrlen hrval
       simp only [linalg.PolyVec.new]
       have hcap1 : o1.val.length < Usize.max := by omega
       step as ⟨o2, ho2⟩
       step as ⟨p2, hp2⟩
-      have hrowval : ∀ t, t < cw.val + (ct.val + cz.val) →
-          toRq (rowc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = if t < cw.val then 0
-              else if t < cw.val + ct.val then
-                toRq ((tensor.val.getD p1.val (alloc.vec.Vec.new ring.Rq)).val.getD
-                  (t - cw.val) (alloc.vec.Vec.new cpoly.field.Fp))
-              else - gtmVal zd (pp.inner.inner_matrix.val.getD p1.val
-                  (alloc.vec.Vec.new ring.Rq)) (t - (cw.val + ct.val)) := by
+      have hrowval : ∀ t, t < cz.val →
+          toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = - gtmVal zd (pp.inner.inner_matrix.val.getD p1.val
+                (alloc.vec.Vec.new ring.Rq)) t := by
         intro t ht
-        by_cases hlt2 : t < cw.val
-        · rw [if_pos hlt2, hcpre t (by rw [hblen]; omega),
-            hbpre t (by rw [halen]; omega), haval t hlt2]
-        · rw [if_neg hlt2]
-          by_cases hlt3 : t < cw.val + ct.val
-          · rw [if_pos hlt3, hcpre t (by rw [hblen]; omega)]
-            have h := hbval (t - cw.val) (by omega)
-            rw [show cw.val + (t - cw.val) = t from by omega] at h
-            exact h
-          · rw [if_neg hlt3]
-            have h := hcval (t - (cw.val + ct.val)) (by omega)
-            rw [show cw.val + ct.val + (t - (cw.val + ct.val)) = t from by omega] at h
-            rw [h, hajval (t - (cw.val + ct.val)) (by omega), hpv,
-              ← List.getD_eq_getElem _ _ hArow]
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+        rw [hrval t ht, hajval t (by omega), hpv, ← List.getD_eq_getElem _ _ hArow]
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩
       · scalar_tac
-      · rw [ho2, hp2, List.length_append, hlen1]
-        simp only [List.length_cons, List.length_nil]
-        omega
+      · rw [ho2, hp2, List.length_append, hlen1]; simp
       · intro x hx
         rw [ho2] at hx
         rcases List.mem_append.mp hx with h | h
         · exact hwf1 x h
-        · rw [List.mem_singleton.mp h]
-          exact ⟨by rw [hclen]; ring, hcwf⟩
-      · intro u hu
-        rw [ho2, getD_append_lt _ _ _ (by omega)]
-        exact hpre1 u hu
+        · rw [List.mem_singleton.mp h]; exact ⟨hrlen, hrwf⟩
       · intro u hu t ht
         rw [hp2] at hu
         rcases Nat.lt_or_ge u p1.val with hult | huge
         · rw [ho2, getD_append_lt _ _ _ (by omega)]
           exact hval1 u hult t ht
-        · have hueq : u = p1.val := by omega
-          subst hueq
-          rw [← hlen1, ho2, getD_append_eq]
+        · have hueq : u = o1.val.length := by omega
+          rw [hueq, ho2, getD_append_eq, hlen1]
           exact hrowval t ht
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : p1.val = innerRowsU.val := by scalar_tac
-      exact ⟨by rw [hlen1, heq], hwf1, hpre1,
-        fun u hu t ht => hval1 u (by rw [heq]; exact hu) t ht⟩
-  · refine ⟨by scalar_tac, by scalar_tac, hwf, fun u _ => rfl, ?_⟩
-    intro u hu
-    exact absurd hu (by scalar_tac)
+      exact ⟨by rw [hlen1, heq], hwf1, fun u hu t ht => hval1 u (by rw [heq]; exact hu) t ht⟩
+  · exact ⟨hi, hlen, hwf, hval⟩
 
 /-! ## Two `matMul` bridges
 
@@ -2873,8 +2201,11 @@ theorem rlin_stmt_spec
   have hmul : mr.val * md.val ≤ Usize.max := by rw [hmr, hmd]; scalar_tac
   step as ⟨innerCols, hicv0⟩
   have hicv : innerCols.val = 2 ^ 10 * 8 := by rw [hicv0, hmr, hmd]
-  have hwidth : cw.val + (ct.val + cz.val) ≤ Usize.max := by
+  have hwidth : cw.val + ct.val + cz.val ≤ Usize.max := by
     rw [hcwv, hctv, hczv]; scalar_tac
+  have hrowseq : (1 : ℕ) + 1 + 2 + 1 = InnerOuter.rlinRows 1 1 1 := rfl
+  have hcolseq : cw.val + ct.val + cz.val = InnerOuter.rlinCols 1 8 8 5 10 10 := by
+    rw [hcwv, hctv, hczv]; norm_num
   simp only [quadeval.QuadEvalStatement.impl.avec, quadeval.QuadEvalStatement.impl.bvec,
     quadeval.QuadEvalStatement.impl.y, bind_tc_ok]
   step with gadget_transpose_mul_spec (rows := 2 ^ 10) (digits := 8) mr md stmt.avec hWa hmr hmd
@@ -2887,71 +2218,47 @@ theorem rlin_stmt_spec
     (by scalar_tac) as ⟨g_c, hWgc, hgcv⟩
   step with tensor_g_matrix_spec (k := 1) (digits := 8) (blocks := 2 ^ 10) ir idg c hir hidg hc
     (by scalar_tac) as ⟨tensor, hWt, htv⟩
-  -- c1: the `D` row block
-  step with rlin_c1_outer_loop_spec (rows := 1) (cols := 2 ^ 10 * 8) pp cw ct cz
-    (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWd (le_of_eq hcwv)
-    (by rw [hctv, hczv]; scalar_tac) hwidth (by simp) (by simp)
-    (by intro x hx; simp at hx) (by intro u hu; simp at hu) as ⟨o0, h0len, h0wf, h0val⟩
-  -- c2: the `B` row block
-  step with rlin_c2_outer_loop_spec (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp cw ct cz o0 hWB
-    (le_of_eq hctv) hwidth (by rw [h0len]; scalar_tac) h0wf
-    as ⟨o1, h1len, h1wf, h1pre, h1val⟩
-  rw [h0len] at h1len h1val
-  -- c3: the `(G_{2^r})ᵀ b` row
-  step with rlin_c3_gb_loop_spec (n := 2 ^ 10 * 8) cw g_b (alloc.vec.Vec.new ring.Rq) hWgb
-    (le_of_eq hcwv) (by simp only [List.length_nil, Nat.zero_add]; omega)
-    (by intro y hy; simp at hy) as ⟨row3, h3len, h3wf, _, h3val⟩
-  have hnewR : (alloc.vec.Vec.new ring.Rq).val.length = 0 := rfl
-  rw [hnewR] at h3len h3val
-  simp only [Nat.zero_add] at h3len h3val
-  step with rlin_c3_zeros_loop_spec ct cz row3 (by rw [hctv, hczv]; scalar_tac)
-    (by rw [h3len]; omega) h3wf as ⟨row31, h31len, h31wf, h31pre, h31val⟩
-  rw [h3len] at h31len h31val h31pre
-  simp only [linalg.PolyVec.new]
-  have hcapo1 : o1.val.length < Usize.max := by rw [h1len]; scalar_tac
-  step as ⟨o2, ho2v⟩
-  -- c4: the `(G_{2^r})ᵀ c | 0 | −Jᵀ(G_{2^m}ᵀ a)` row
-  step with rlin_c4_gc_loop_spec (n := 2 ^ 10 * 8) cw g_c (alloc.vec.Vec.new ring.Rq) hWgc
-    (le_of_eq hcwv) (by simp only [List.length_nil, Nat.zero_add]; omega)
-    (by intro y hy; simp at hy) as ⟨row4, h4len, h4wf, _, h4val⟩
-  rw [hnewR] at h4len h4val
-  simp only [Nat.zero_add] at h4len h4val
-  step with rlin_c4_zeros_ct_loop_spec ct row4 (by rw [h4len]; omega) h4wf
-    as ⟨row41, h41len, h41wf, h41pre, h41val⟩
-  rw [h4len] at h41len h41val h41pre
-  step with rlin_c4_neg_loop_spec (n := 2 ^ 10 * 8 * 5) cz jtga row41 hWjt (le_of_eq hczv)
-    (by rw [h41len]; omega) h41wf as ⟨row42, h42len, h42wf, h42pre, h42val⟩
-  rw [h41len] at h42len h42val h42pre
-  have hcapo2 : o2.val.length < Usize.max := by
-    rw [ho2v, List.length_append, h1len]
-    simp only [List.length_cons, List.length_nil]
-    scalar_tac
-  step as ⟨o3, ho3v⟩
-  -- c5: the tensor rows
-  have ho3len : o3.val.length = 4 := by
-    rw [ho3v, ho2v, List.length_append, List.length_append, h1len]
-    simp only [List.length_cons, List.length_nil]
-  step with rlin_c5_outer_loop_spec (rowsT := 1) (colsT := 2 ^ 10 * (1 * 8)) (rowsA := 1)
-    (zd := 5) pp ir zd cw ct cz innerCols tensor o3 hWt (le_of_eq hctv) (le_of_eq hir)
-    (by rw [hicv]; exact hWA) (le_of_eq hir) hzd (by rw [hicv]; scalar_tac)
-    (by rw [hczv, hicv]) hwidth (by rw [ho3len, hir]; scalar_tac)
-    (by
-      intro x hx
-      rw [ho3v] at hx
-      rcases List.mem_append.mp hx with h | h
-      · rw [ho2v] at h
-        rcases List.mem_append.mp h with h2 | h2
-        · exact h1wf x h2
-        · rw [List.mem_singleton.mp h2]
-          exact ⟨h31len, h31wf⟩
-      · rw [List.mem_singleton.mp h]
-        exact ⟨by rw [h42len]; ring, h42wf⟩)
-    as ⟨o4, h7len, h7wf, h7pre, h7val⟩
-  rw [ho3len, hir] at h7len h7val
-  -- the right-hand side
+  -- the `D` block, at its own width
+  simp only [quadeval.PublicParamsD.impl.d_matrix, linalg.PolyMatrix.rows, bind_tc_ok]
+  step with rlin_c1_outer_loop_spec (rows := 1) (cols := 2 ^ 10 * 8) pp cw
+    (alloc.vec.Vec.len pp.d_matrix) (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWd
+    (le_of_eq hcwv) (by simpa using hWd.1) (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro u hu; simp at hu) as ⟨drows, hdlen, hdwf, hdval⟩
+  -- the `B` block
+  simp only [quadeval.PublicParamsD.impl.inner, commit.PublicParams.impl.outer_matrix,
+    linalg.PolyMatrix.rows, bind_tc_ok]
+  step with rlin_c2_outer_loop_spec (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp ct
+    (alloc.vec.Vec.len pp.inner.outer_matrix) (alloc.vec.Vec.new linalg.PolyVec) 0#usize hWB
+    (le_of_eq hctv) (by simpa using hWB.1) (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro u hu; simp at hu) as ⟨brows, hblen, hbwf, hbval⟩
+  -- `−Jᵀ(G_{2^m}ᵀ a)`, the gadget row's tail
+  step with rlin_c4_neg_loop_spec (n := 2 ^ 10 * 8 * 5) cz jtga (alloc.vec.Vec.new ring.Rq) hWjt
+    (le_of_eq hczv) (by simp; scalar_tac) (by intro y hy; simp at hy)
+    as ⟨njga, hnlen, hnwf, _, hnval⟩
+  simp only [alloc.vec.Vec.new, List.length_nil, Nat.zero_add] at hnlen hnval
+  -- `−(A J)`, one row per inner row
+  step with rlin_c5_outer_loop_spec (rowsA := 1) (zd := 5) pp ir zd cz innerCols
+    (alloc.vec.Vec.new linalg.PolyVec) 0#usize (by rw [hicv]; exact hWA) (le_of_eq hir) hzd
+    (by rw [hicv]; scalar_tac) (by rw [hczv, hicv]) (by simp) (by simp)
+    (by intro x hx; simp at hx) (by intro u hu; simp at hu)
+    as ⟨ajrows, halen, hawf, haval⟩
+  rw [hir] at halen haval
+  simp only [linalg.PolyMatrix.new, linalg.PolyVec.new, bind_tc_ok]
+  -- the blocks, in place of the matrix they used to be assembled into
+  step with ZeroCheck.RlinBlocks_new_spec (n := InnerOuter.rlinRows 1 1 1)
+    (μ := InnerOuter.rlinCols 1 8 8 5 10 10) (dr := 1) (br := 1) (tr := 1)
+    drows brows tensor ajrows g_b g_c njga cw ct cz
+    ⟨hdlen, fun x hx => hdwf x hx⟩ ⟨hblen, fun x hx => hbwf x hx⟩
+    (by rw [hcwv]; exact hWgb) (by rw [hcwv]; exact hWgc)
+    ⟨by rw [hnlen], hnwf⟩
+    (by rw [hctv]; exact hWt) ⟨halen, fun x hx => hawf x hx⟩
+    hrowseq hcolseq (by rw [← hrowseq]; scalar_tac) (by rw [← hcolseq]; exact hwidth)
+    as ⟨bl, hWbl, hbd, hbb, hbgb, hbgc, hbnj, hbt, hba, hbcw, hbct, hbcz, hbdr, hbbr, hbtr⟩
+  -- the right-hand side, unchanged by card W2
   step with rlin_y_v_loop_spec (n := 1) v (alloc.vec.Vec.new ring.Rq) hv
     (by simp only [List.length_nil, Nat.zero_add]; scalar_tac)
     (by intro y hy; simp at hy) as ⟨y0, hy0len, hy0wf, _, hy0val⟩
+  have hnewR : (alloc.vec.Vec.new ring.Rq).val.length = 0 := rfl
   rw [hnewR] at hy0len hy0val
   simp only [Nat.zero_add] at hy0len hy0val
   step with rlin_y_u_loop_spec (n := 1) stmt y0 hWu (by rw [hy0len]; scalar_tac) hy0wf
@@ -2981,8 +2288,6 @@ theorem rlin_stmt_spec
       · rw [List.mem_singleton.mp h]; exact hWr2)
     as ⟨y4, hy4len, hy4wf, hy4pre, hy4val⟩
   rw [hy3len, hir] at hy4len hy4val
-  simp only [linalg.PolyMatrix.new]
-  simp only [bind_tc_ok]
   -- the specification's public matrices, read off the parameter relation
   have houter : toMat (rows := 1) (cols := 2 ^ 10 * (1 * 8)) pp.inner.outer_matrix
       = sp.outerMatrix := congrArg InnerOuter.PublicParams.outerMatrix hparams
@@ -2992,95 +2297,92 @@ theorem rlin_stmt_spec
   rw [hsa] at hgav
   rw [hgav] at hjtv
   rw [hsb] at hgbv
-  -- the five rows of the assembled matrix
-  have ho2len : o2.val.length = 3 := by
-    rw [ho2v, List.length_append, h1len]
-    simp only [List.length_cons, List.length_nil]
-  have hR0 : o4.val.getD 0 (alloc.vec.Vec.new ring.Rq)
-      = o0.val.getD 0 (alloc.vec.Vec.new ring.Rq) := by
-    rw [h7pre 0 (by omega), ho3v, getD_append_lt _ _ _ (by omega), ho2v,
-      getD_append_lt _ _ _ (by omega), h1pre 0 (by omega)]
-  have hR1 : o4.val.getD 1 (alloc.vec.Vec.new ring.Rq)
-      = o1.val.getD 1 (alloc.vec.Vec.new ring.Rq) := by
-    rw [h7pre 1 (by omega), ho3v, getD_append_lt _ _ _ (by omega), ho2v,
-      getD_append_lt _ _ _ (by omega)]
-  have hR2 : o4.val.getD 2 (alloc.vec.Vec.new ring.Rq) = row31 := by
-    have h2 : o1.val.length = 2 := by omega
-    rw [h7pre 2 (by omega), ho3v, getD_append_lt _ _ _ (by omega), ho2v, ← h2]
-    exact getD_append_eq _ _ _
-  have hR3 : o4.val.getD 3 (alloc.vec.Vec.new ring.Rq) = row42 := by
-    rw [h7pre 3 (by omega), ho3v, ← ho2len]
-    exact getD_append_eq _ _ _
-  have h0val0 := h0val 0 (by omega)
-  have h1val0 := h1val 0 (by omega)
-  have h7val0 := h7val 0 (by omega)
-  simp only [Nat.add_zero] at h1val0 h7val0
-  rw [← hR0] at h0val0
-  rw [← hR1] at h1val0
-  have hrow2 : ∀ t, t < cw.val + (ct.val + cz.val) →
-      toRq ((o4.val.getD 2 (alloc.vec.Vec.new ring.Rq)).val.getD t
-          (alloc.vec.Vec.new cpoly.field.Fp))
-        = if t < cw.val then toRq (g_b.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          else 0 := by
-    intro t ht
-    rw [hR2]
-    by_cases hlt : t < cw.val
-    · rw [if_pos hlt, h31pre t hlt, h3val t hlt]
-    · rw [if_neg hlt]
-      have h := h31val (t - cw.val) (by omega)
-      rw [show cw.val + (t - cw.val) = t from by omega] at h
-      exact h
-  have hrow3 : ∀ t, t < cw.val + (ct.val + cz.val) →
-      toRq ((o4.val.getD 3 (alloc.vec.Vec.new ring.Rq)).val.getD t
-          (alloc.vec.Vec.new cpoly.field.Fp))
-        = if t < cw.val then toRq (g_c.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-          else if t < cw.val + ct.val then 0
-          else - toRq (jtga.val.getD (t - (cw.val + ct.val))
+  rw [hcwv] at hdval
+  rw [hctv] at hbval
+  rw [hczv] at hnval
+  rw [hczv] at haval
+  -- the five row bands of the lazy matrix, read off `blocksAt`
+  have hcw' : bl.cw.val = 2 ^ 10 * 8 := by rw [hbcw, hcwv]
+  have hct' : bl.ct.val = 2 ^ 10 * (1 * 8) := by rw [hbct, hctv]
+  have hrow0 : ∀ t, t < 2 ^ 10 * 8 →
+      blocksAt bl 0 t
+        = toRq ((pp.d_matrix.val.getD 0 (alloc.vec.Vec.new ring.Rq)).val.getD t
             (alloc.vec.Vec.new cpoly.field.Fp)) := by
     intro t ht
-    rw [hR3]
-    by_cases hlt : t < cw.val
-    · rw [if_pos hlt, h42pre t (by omega), h41pre t hlt, h4val t hlt]
-    · rw [if_neg hlt]
-      by_cases hlt2 : t < cw.val + ct.val
-      · rw [if_pos hlt2, h42pre t hlt2]
-        have h := h41val (t - cw.val) (by omega)
-        rw [show cw.val + (t - cw.val) = t from by omega] at h
+    unfold blocksAt
+    rw [hbdr, if_pos (by omega), hcw', if_pos ht, hbd]
+    exact hdval 0 (by omega) t ht
+  have hrow1 : ∀ t, t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) + 2 ^ 10 * 8 * 5 →
+      blocksAt bl 1 t
+        = if t < 2 ^ 10 * 8 then 0
+          else if t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) then
+            toRq ((pp.inner.outer_matrix.val.getD 0 (alloc.vec.Vec.new ring.Rq)).val.getD
+              (t - 2 ^ 10 * 8) (alloc.vec.Vec.new cpoly.field.Fp))
+          else 0 := by
+    intro t ht
+    unfold blocksAt
+    rw [hbdr, hbbr, if_neg (by omega), if_pos (by omega), hcw', hct', hbb]
+    by_cases h1 : t < 2 ^ 10 * 8
+    · rw [if_pos h1, if_pos h1]
+    · rw [if_neg h1, if_neg h1]
+      by_cases h2 : t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8)
+      · rw [if_pos h2, if_pos h2]
+        exact hbval 0 (by omega) (t - 2 ^ 10 * 8) (by omega)
+      · rw [if_neg h2, if_neg h2]
+  have hrow2 : ∀ t, blocksAt bl 2 t
+      = if t < 2 ^ 10 * 8 then
+          toRq (g_b.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) else 0 := by
+    intro t
+    unfold blocksAt
+    rw [hbdr, hbbr, if_neg (by omega), if_neg (by omega), if_pos (by omega), hcw', hbgb]
+    rfl
+  have hrow3 : ∀ t, t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) + 2 ^ 10 * 8 * 5 →
+      blocksAt bl 3 t
+      = if t < 2 ^ 10 * 8 then toRq (g_c.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        else if t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) then 0
+        else - toRq (jtga.val.getD (t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8))
+          (alloc.vec.Vec.new cpoly.field.Fp)) := by
+    intro t ht
+    unfold blocksAt
+    rw [hbdr, hbbr, if_neg (by omega), if_neg (by omega), if_neg (by omega),
+      if_pos (by omega), hcw', hct', hbgc, hbnj]
+    by_cases h1 : t < 2 ^ 10 * 8
+    · rw [if_pos h1, if_pos h1]; rfl
+    · rw [if_neg h1, if_neg h1]
+      by_cases h2 : t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8)
+      · rw [if_pos h2, if_pos h2]
+      · rw [if_neg h2, if_neg h2, vecAt]
+        exact hnval (t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8)) (by omega)
+  have hrow4 : ∀ t, t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) + 2 ^ 10 * 8 * 5 →
+      blocksAt bl 4 t
+      = if t < 2 ^ 10 * 8 then 0
+        else if t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8) then
+          toRq ((tensor.val.getD 0 (alloc.vec.Vec.new ring.Rq)).val.getD (t - 2 ^ 10 * 8)
+            (alloc.vec.Vec.new cpoly.field.Fp))
+        else - gtmVal 5 (pp.inner.inner_matrix.val.getD 0 (alloc.vec.Vec.new ring.Rq))
+            (t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8)) := by
+    intro t ht
+    unfold blocksAt
+    rw [hbdr, hbbr, if_neg (by omega), if_neg (by omega), if_neg (by omega),
+      if_neg (by omega), hcw', hct', hbt, hba]
+    by_cases h1 : t < 2 ^ 10 * 8
+    · rw [if_pos h1, if_pos h1]
+    · rw [if_neg h1, if_neg h1]
+      by_cases h2 : t < 2 ^ 10 * 8 + 2 ^ 10 * (1 * 8)
+      · rw [if_pos h2, if_pos h2]; rfl
+      · rw [if_neg h2, if_neg h2]
+        have h := haval 0 (by omega) (t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8)) (by omega)
+        rw [matAt]
+        rw [show 4 - 1 - 1 - 2 = 0 from rfl] at *
+        rw [show t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8) = t - 2 ^ 10 * 8 - 2 ^ 10 * (1 * 8) from rfl]
         exact h
-      · rw [if_neg hlt2]
-        have h := h42val (t - (cw.val + ct.val)) (by omega)
-        rw [show cw.val + ct.val + (t - (cw.val + ct.val)) = t from by omega] at h
-        exact h
-  rw [hcwv, hctv, hczv] at h0val0 h1val0 h7val0 hrow2 hrow3
-  -- the right-hand side entries
-  have hE0 : y4.val.getD 0 (alloc.vec.Vec.new cpoly.field.Fp)
-      = y0.val.getD 0 (alloc.vec.Vec.new cpoly.field.Fp) := by
-    rw [hy4pre 0 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v,
-      getD_append_lt _ _ _ (by omega), hy1pre 0 (by omega)]
-  have hE1 : y4.val.getD 1 (alloc.vec.Vec.new cpoly.field.Fp)
-      = y1.val.getD 1 (alloc.vec.Vec.new cpoly.field.Fp) := by
-    rw [hy4pre 1 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v,
-      getD_append_lt _ _ _ (by omega)]
-  have hE2 : y4.val.getD 2 (alloc.vec.Vec.new cpoly.field.Fp) = r1 := by
-    have h2 : y1.val.length = 2 := by omega
-    rw [hy4pre 2 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v, ← h2]
-    exact getD_append_eq _ _ _
-  have hE3 : y4.val.getD 3 (alloc.vec.Vec.new cpoly.field.Fp) = r2 := by
-    rw [hy4pre 3 (by omega), hy3v, ← hy2len]
-    exact getD_append_eq _ _ _
-  have hy1val0 := hy1val 0 (by omega)
-  have hy4val0 := hy4val 0 (by omega)
-  simp only [Nat.add_zero] at hy1val0 hy4val0
-  rw [← hE1] at hy1val0
-  have hWeq : cw.val + (ct.val + cz.val) = InnerOuter.rlinCols 1 8 8 5 10 10 := by
-    rw [hcwv, hctv, hczv]
   -- the block matrix
-  have hM : toMat (rows := InnerOuter.rlinRows 1 1 1)
-      (cols := InnerOuter.rlinCols 1 8 8 5 10 10) o4
+  have hM : toMatRlin (rows := InnerOuter.rlinRows 1 1 1)
+      (cols := InnerOuter.rlinCols 1 8 8 5 10 10) (ringswitch.RlinMat.Lazy bl)
       = (InnerOuter.rlinStmt (zDigits := 5) Φ sp (16 : ZMod q) 16 gamma.val
           (ss, toVec (k := 1) v, toChals c hcn)).M := by
     funext i j
-    simp only [toMat, toVec, InnerOuter.rlinStmt, Hachi.jMatrix, hcvec]
+    simp only [toMatRlin, rlinAt, toVec, InnerOuter.rlinStmt, Hachi.jMatrix, hcvec]
     refine Fin.addCases (fun i0 => ?_) (fun i1 => ?_) i
     · -- c1: `[ D | 0 ]`
       have hi0 : i0.val = 0 := Nat.lt_one_iff.mp i0.isLt
@@ -3091,15 +2393,15 @@ theorem rlin_stmt_spec
           congrFun hdmat i0
         rwa [hi0] at h
       simp only [Fin.append_left, Fin.val_castAdd, hi0]
-      rw [h0val0 j.val j.isLt]
       refine Fin.addCases (fun jw => ?_) (fun jr => ?_) j
       · simp only [Fin.append_left, Fin.val_castAdd]
-        rw [if_pos jw.isLt]
+        rw [hrow0 jw.val jw.isLt]
         have h := congrFun hd0 jw
         simp only [toVec] at h
         exact h
       · simp only [Fin.append_right, Fin.val_natAdd, Pi.zero_apply]
-        rw [if_neg (by omega)]
+        unfold blocksAt
+        rw [hbdr, if_pos (by omega), hcw', if_neg (by omega)]
     · refine Fin.addCases (fun i0 => ?_) (fun i2 => ?_) i1
       · -- c2: `[ 0 | B | 0 ]`
         have hi0 : i0.val = 0 := Nat.lt_one_iff.mp i0.isLt
@@ -3112,7 +2414,7 @@ theorem rlin_stmt_spec
           rwa [hi0] at h
         simp only [Fin.append_right, Fin.append_left, Fin.val_natAdd, Fin.val_castAdd, hi0,
           Nat.add_zero]
-        rw [h1val0 j.val j.isLt]
+        rw [hrow1 j.val (by exact j.isLt)]
         refine Fin.addCases (fun jw => ?_) (fun jr => ?_) j
         · simp only [Fin.append_left, Fin.val_castAdd, Pi.zero_apply]
           rw [if_pos jw.isLt]
@@ -3131,7 +2433,7 @@ theorem rlin_stmt_spec
           have hi0 : i0.val = 0 := Nat.lt_one_iff.mp i0.isLt
           simp only [Fin.append_right, Fin.append_left, Fin.val_natAdd, Fin.val_castAdd, hi0,
             Nat.add_zero]
-          rw [show 1 + (1 + 0) = 2 from rfl, hrow2 j.val j.isLt]
+          rw [show 1 + (1 + 0) = 2 from rfl, hrow2 j.val]
           refine Fin.addCases (fun jw => ?_) (fun jr => ?_) j
           · simp only [Fin.append_left, Fin.val_castAdd]
             rw [if_pos jw.isLt]
@@ -3145,7 +2447,7 @@ theorem rlin_stmt_spec
             have hi0 : i0.val = 0 := Nat.lt_one_iff.mp i0.isLt
             simp only [Fin.append_right, Fin.append_left, Fin.val_natAdd, Fin.val_castAdd, hi0,
               Nat.add_zero]
-            rw [show 1 + (1 + (1 + 0)) = 3 from rfl, hrow3 j.val j.isLt]
+            rw [show 1 + (1 + (1 + 0)) = 3 from rfl, hrow3 j.val (by exact j.isLt)]
             refine Fin.addCases (fun jw => ?_) (fun jr => ?_) j
             · simp only [Fin.append_left, Fin.val_castAdd]
               rw [if_pos jw.isLt]
@@ -3158,8 +2460,8 @@ theorem rlin_stmt_spec
                 rw [if_neg (by omega), if_pos (by omega)]
               · simp only [Fin.append_right, Fin.val_natAdd]
                 rw [if_neg (by omega), if_neg (by omega),
-                  show 2 ^ 10 * 8 + (2 ^ 10 * (1 * 8) + jz.val) - (2 ^ 10 * 8 + 2 ^ 10 * (1 * 8))
-                    = jz.val from by omega, matMul_transpose_mulVec]
+                  show 2 ^ 10 * 8 + (2 ^ 10 * (1 * 8) + jz.val) - 2 ^ 10 * 8
+                    - 2 ^ 10 * (1 * 8) = jz.val from by omega, matMul_transpose_mulVec]
                 simp only [Pi.neg_apply]
                 have h := congrFun hjtv jz
                 simp only [toVec] at h
@@ -3182,7 +2484,7 @@ theorem rlin_stmt_spec
                   = sp.innerMatrix i4 := congrFun hinner i4
               rwa [hi0] at h
             simp only [Fin.append_right, Fin.val_natAdd, hi0, Nat.add_zero]
-            rw [show 1 + (1 + (1 + 1)) = 4 from rfl, h7val0 j.val j.isLt]
+            rw [show 1 + (1 + (1 + 1)) = 4 from rfl, hrow4 j.val (by exact j.isLt)]
             refine Fin.addCases (fun jw => ?_) (fun jr => ?_) j
             · simp only [Fin.append_left, Fin.val_castAdd, Pi.zero_apply]
               rw [if_pos jw.isLt]
@@ -3196,11 +2498,30 @@ theorem rlin_stmt_spec
                 exact h
               · simp only [Fin.append_right, Fin.val_natAdd]
                 rw [if_neg (by omega), if_neg (by omega),
-                  show 2 ^ 10 * 8 + (2 ^ 10 * (1 * 8) + jz.val) - (2 ^ 10 * 8 + 2 ^ 10 * (1 * 8))
-                    = jz.val from by omega, matMul_row]
+                  show 2 ^ 10 * 8 + (2 ^ 10 * (1 * 8) + jz.val) - 2 ^ 10 * 8
+                    - 2 ^ 10 * (1 * 8) = jz.val from by omega, matMul_row]
                 simp only [Pi.neg_apply]
                 rw [gtmVal_eq_transpose_apply (rows := 2 ^ 10 * 8) (digits := 5), hA0]
   -- the right-hand side
+  have hE0 : y4.val.getD 0 (alloc.vec.Vec.new cpoly.field.Fp)
+      = y0.val.getD 0 (alloc.vec.Vec.new cpoly.field.Fp) := by
+    rw [hy4pre 0 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v,
+      getD_append_lt _ _ _ (by omega), hy1pre 0 (by omega)]
+  have hE1 : y4.val.getD 1 (alloc.vec.Vec.new cpoly.field.Fp)
+      = y1.val.getD 1 (alloc.vec.Vec.new cpoly.field.Fp) := by
+    rw [hy4pre 1 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v,
+      getD_append_lt _ _ _ (by omega)]
+  have hE2 : y4.val.getD 2 (alloc.vec.Vec.new cpoly.field.Fp) = r1 := by
+    have h2 : y1.val.length = 2 := by omega
+    rw [hy4pre 2 (by omega), hy3v, getD_append_lt _ _ _ (by omega), hy2v, ← h2]
+    exact getD_append_eq _ _ _
+  have hE3 : y4.val.getD 3 (alloc.vec.Vec.new cpoly.field.Fp) = r2 := by
+    rw [hy4pre 3 (by omega), hy3v, ← hy2len]
+    exact getD_append_eq _ _ _
+  have hy1val0 := hy1val 0 (by omega)
+  have hy4val0 := hy4val 0 (by omega)
+  simp only [Nat.add_zero] at hy1val0 hy4val0
+  rw [← hE1] at hy1val0
   have hY : toVec (k := InnerOuter.rlinRows 1 1 1) y4
       = (InnerOuter.rlinStmt (zDigits := 5) Φ sp (16 : ZMod q) 16 gamma.val
           (ss, toVec (k := 1) v, toChals c hcn)).yvec := by
@@ -3230,11 +2551,8 @@ theorem rlin_stmt_spec
             rw [show 1 + (1 + (1 + 0)) = 3 from rfl, hE3, hr2v]
           · simp only [Fin.append_right, Fin.val_natAdd, Nat.lt_one_iff.mp i4.isLt, Nat.add_zero]
             rw [show 1 + (1 + (1 + 1)) = 4 from rfl, hy4val0, hr2v]
-  refine ZeroCheck.RlinStatement_new_spec (n := InnerOuter.rlinRows 1 1 1)
-    (μ := InnerOuter.rlinCols 1 8 8 5 10 10) o4 y4 gamma _ hM hY rfl ⟨by omega, ?_⟩
+  exact ZeroCheck.RlinStatement_new_lazy_spec (n := InnerOuter.rlinRows 1 1 1)
+    (μ := InnerOuter.rlinCols 1 8 8 5 10 10) bl y4 gamma _ hM hY rfl hWbl
     ⟨by omega, hy4wf⟩
-  intro x hx
-  have h := h7wf x hx
-  rwa [hWeq] at h
 
 end HachiEquiv.Rlin

@@ -751,71 +751,74 @@ theorem c_row_sum_high_add_loop_spec (n : Std.Usize) (hn : n.val = N)
       rw [hc1 s hs, heq, if_pos hs]
   · exact ⟨ht, hal, har, hbase⟩
 
-/-- The column loop of `c_row_sum_high`. -/
-theorem c_row_sum_high_col_loop_spec {μ : ℕ} (z row : linalg.PolyVec)
-    (n cols : Std.Usize) (hn : n.val = N) (hcols : cols.val = μ)
-    (hz : WfVec μ z) (hrow : WfVec μ row) (acc : alloc.vec.Vec cpoly.field.Fp)
+/-- The column loop of `c_row_sum_high`.
+
+After card W2 the row is not pulled out of the matrix once and indexed; the
+loop asks `RlinMat::entry` for `(i, j)` on each column, so the summand is
+`rlinAt s.m i j` where it used to be the `j`-th entry of a fetched row.  The
+two read the same element -- that is `rlin_entry_spec` -- and the invariant is
+otherwise word for word what it was. -/
+theorem c_row_sum_high_col_loop_spec {nr μ : ℕ} (s : ringswitch.RlinStatement)
+    (z : linalg.PolyVec) (i n cols : Std.Usize)
+    (hWm : WfRlinMat nr μ s.m) (hi : i.val < nr)
+    (hn : n.val = N) (hcols : cols.val = μ)
+    (hz : WfVec μ z) (acc : alloc.vec.Vec cpoly.field.Fp)
     (j : Std.Usize) (hal : acc.val.length = N - 1) (har : ∀ x ∈ acc.val, Red x)
     (hj : j.val ≤ μ)
-    (hbase : ∀ s, s < N - 1 → coeffK acc s
-      = (∑ t ∈ Finset.range j.val,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s)) :
-    ringswitch.c_row_sum_high_loop1 z n cols row acc j
+    (hbase : ∀ w, w < N - 1 → coeffK acc w
+      = (∑ t ∈ Finset.range j.val, (rlinAt s.m i.val t).1
+            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + w)) :
+    ringswitch.c_row_sum_high_loop1 s z i n cols acc j
       ⦃ out => WfWords (N - 1) out ∧
-        ∀ s, s < N - 1 → coeffK out s
-          = (∑ t ∈ Finset.range μ,
-              (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-                * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s) ⦄ := by
+        ∀ w, w < N - 1 → coeffK out w
+          = (∑ t ∈ Finset.range μ, (rlinAt s.m i.val t).1
+                * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + w) ⦄ := by
   rw [ringswitch.c_row_sum_high_loop1]
   apply loop.spec_decr_nat (fun st => μ - st.2.val)
     (fun st => st.2.val ≤ μ ∧ st.1.val.length = N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      ∀ s, s < N - 1 → coeffK st.1 s
-        = (∑ t ∈ Finset.range st.2.val,
-            (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-              * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s))
+      ∀ w, w < N - 1 → coeffK st.1 w
+        = (∑ t ∈ Finset.range st.2.val, (rlinAt s.m i.val t).1
+              * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + w))
   · rintro ⟨a1, j1⟩ ⟨hj1, hl1, hr1, hc1⟩
     dsimp only at hj1 hl1 hr1 hc1
     simp only [ringswitch.c_row_sum_high_loop1.body]
     by_cases hlt : j1 < cols
     · rw [if_pos hlt]
       have hjm : j1.val < μ := by rw [← hcols]; scalar_tac
-      have hjr : j1.val < row.val.length := by rw [hrow.1]; exact hjm
       have hjz : j1.val < z.val.length := by rw [hz.1]; exact hjm
-      simp only [linalg.PolyVec.get]
-      step as ⟨r, hr⟩
-      have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hjr)
+      simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+      step with ZeroCheck.rlin_entry_spec (n := nr) (μ := μ) s.m hWm i j1 hi hjm
+        as ⟨r, hWr, hrv⟩
+      have hrv' : toRq r = rlinAt s.m i.val j1.val := hrv
       step with RqBridge.is_zero_spec r hWr as ⟨bz, hbz⟩
       by_cases hzero : bz = true
       · rw [if_pos hzero]
         step as ⟨j2, hj2⟩
         refine ⟨by scalar_tac, hl1, hr1, ?_, by scalar_tac⟩
-        intro s hs
-        have hz0 : toRq r = 0 := hbz.1 hzero
-        rw [hc1 s hs, hj2, Finset.sum_range_succ,
-          List.getD_eq_getElem _ _ hjr, ← hr, hz0]
+        intro w hw
+        have hz0 : rlinAt s.m i.val j1.val = 0 := by rw [← hrv']; exact hbz.1 hzero
+        rw [hc1 w hw, hj2, Finset.sum_range_succ, hz0]
         simp
       rw [if_neg hzero]
+      simp only [linalg.PolyVec.get]
       step as ⟨r1, hr1'⟩
       have hWr1 : Wf r1 := by rw [hr1']; exact hz.2 _ (List.getElem_mem hjz)
       step with long_mul_high_spec r r1 hWr hWr1 as ⟨prod, hWprod, hprod⟩
       step with c_row_sum_high_add_loop_spec n hn a1 prod 0#usize
-        (fun s => (∑ t ∈ Finset.range j1.val,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + s))
+        (fun w => (∑ t ∈ Finset.range j1.val, (rlinAt s.m i.val t).1
+          * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff (N + w))
         hl1 hr1 hWprod.1 hWprod.2 (by simp)
-        (by intro s hs; rw [hc1 s hs]; simp)
+        (by intro w hw; rw [hc1 w hw]; simp)
         as ⟨a2, hl2, hr2, hc2⟩
       step as ⟨j2, hj2⟩
       refine ⟨by scalar_tac, hl2, hr2, ?_, by scalar_tac⟩
-      intro s hs
-      rw [hc2 s hs, hj2, Finset.sum_range_succ, cpoly_coeff_add,
-        hprod s hs, hr, hr1',
-        List.getD_eq_getElem _ _ hjr, List.getD_eq_getElem _ _ hjz]
+      intro w hw
+      rw [hc2 w hw, hj2, Finset.sum_range_succ, cpoly_coeff_add,
+        hprod w hw, hrv', hr1', List.getD_eq_getElem _ _ hjz]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : j1.val = μ := by rw [← hcols]; scalar_tac
-      exact ⟨⟨hl1, hr1⟩, fun s hs => by rw [hc1 s hs, heq]⟩
+      exact ⟨⟨hl1, hr1⟩, fun w hw => by rw [hc1 w hw, heq]⟩
   · exact ⟨hj, hal, har, hbase⟩
 
 /-- **`c_row_sum_high` is `cRowSum`'s high half**: `N − 1` words, `out[s]` the
@@ -830,11 +833,7 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
   obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
   rw [ringswitch.c_row_sum_high]
   simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
-  step with poly_matrix_cols_spec (rows := n) (cols := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
-  have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
-  simp only [linalg.PolyMatrix.row]
-  step as ⟨row, hrow⟩
-  have hWrow : WfVec μ row := by rw [hrow]; exact hWm.2 _ (List.getElem_mem hrowlt)
+  step with ZeroCheck.rlin_cols_spec (n := n) (μ := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
   step with c_row_sum_high_zero_loop_spec params.RING_DEGREE params_RING_DEGREE_val
     (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (by simp) (by simp) as ⟨acc, hacc⟩
   have hal : acc.val.length = N - 1 := by rw [hacc, List.length_replicate]
@@ -843,8 +842,9 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
     rw [hacc] at hx
     rw [List.eq_of_mem_replicate hx]
     exact Red_zero
-  apply spec_mono (c_row_sum_high_col_loop_spec (μ := μ) z row params.RING_DEGREE cols
-    params_RING_DEGREE_val hcols hz hWrow acc 0#usize hal har (by simp)
+  apply spec_mono (c_row_sum_high_col_loop_spec (nr := n) (μ := μ) s z i
+    params.RING_DEGREE cols hWm hi params_RING_DEGREE_val hcols hz acc 0#usize hal har
+    (by simp)
     (by
       intro t ht
       have : coeffK acc t = 0 := by
@@ -855,21 +855,14 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
       rw [this, show ((0#usize : Std.Usize).val) = 0 from rfl, Finset.range_zero,
         Finset.sum_empty, CPolynomial.coeff_zero]))
   rintro out ⟨hWout, hval⟩
-  have hsum : (∑ t ∈ Finset.range μ,
-      (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+  have hsum : (∑ t ∈ Finset.range μ, (rlinAt s.m i.val t).1
         * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1)
       = InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩ := by
     rw [InnerOuter.cRowSum,
-      ← Fin.sum_univ_eq_sum_range (fun t =>
-        (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+      ← Fin.sum_univ_eq_sum_range (fun t => (rlinAt s.m i.val t).1
           * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1) μ]
     refine Finset.sum_congr rfl fun j _ => ?_
-    have hentry : rs.M ⟨i.val, hi⟩ j
-        = toRq (row.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp)) := by
-      rw [← hmeq, toMat_apply]
-      show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD j.val
-        (alloc.vec.Vec.new cpoly.field.Fp)) = _
-      rw [List.getD_eq_getElem _ _ hrowlt, ← hrow]
+    have hentry : rs.M ⟨i.val, hi⟩ j = rlinAt s.m i.val j.val := by rw [← hmeq]; rfl
     rw [hentry]
     rfl
   exact ⟨hWout, fun t ht => by rw [hval t ht, hsum]⟩
@@ -1173,43 +1166,45 @@ theorem c_row_sum_add_loop_spec (width : Std.Usize) (hw : width.val = 2 * N - 1)
   · exact ⟨ht, hal, har, hbase⟩
 
 /-- The column loop of `c_row_sum`: the partial row sum over the first `j`
-columns. -/
-theorem c_row_sum_col_loop_spec {μ : ℕ} (z row : linalg.PolyVec) (width cols : Std.Usize)
+columns.  As in the high half, card W2 turned the fetched row into a per-column
+`RlinMat::entry` call; the summand is `rlinAt s.m i j`. -/
+theorem c_row_sum_col_loop_spec {nr μ : ℕ} (s : ringswitch.RlinStatement)
+    (z : linalg.PolyVec) (i width cols : Std.Usize)
+    (hWm : WfRlinMat nr μ s.m) (hi : i.val < nr)
     (hw : width.val = 2 * N - 1) (hcols : cols.val = μ)
-    (hz : WfVec μ z) (hrow : WfVec μ row) (acc : alloc.vec.Vec cpoly.field.Fp)
+    (hz : WfVec μ z) (acc : alloc.vec.Vec cpoly.field.Fp)
     (j : Std.Usize) (hal : acc.val.length = 2 * N - 1) (har : ∀ x ∈ acc.val, Red x)
     (hj : j.val ≤ μ)
-    (hbase : ∀ s, coeffK acc s
-      = (∑ t ∈ Finset.range j.val,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff s) :
-    ringswitch.c_row_sum_loop1 z width cols row acc j
+    (hbase : ∀ w, coeffK acc w
+      = (∑ t ∈ Finset.range j.val, (rlinAt s.m i.val t).1
+            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff w) :
+    ringswitch.c_row_sum_loop1 s z i width cols acc j
       ⦃ out => WfWords (2 * N - 1) out ∧
-        toCPolyK out = ∑ t ∈ Finset.range μ,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+        toCPolyK out = ∑ t ∈ Finset.range μ, (rlinAt s.m i.val t).1
             * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1 ⦄ := by
   rw [ringswitch.c_row_sum_loop1]
   apply loop.spec_decr_nat (fun st => μ - st.2.val)
     (fun st => st.2.val ≤ μ ∧ st.1.val.length = 2 * N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      ∀ s, coeffK st.1 s
-        = (∑ t ∈ Finset.range st.2.val,
-            (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-              * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff s)
+      ∀ w, coeffK st.1 w
+        = (∑ t ∈ Finset.range st.2.val, (rlinAt s.m i.val t).1
+              * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff w)
   · rintro ⟨a1, j1⟩ ⟨hj1, hl1, hr1, hc1⟩
     dsimp only at hj1 hl1 hr1 hc1
     simp only [ringswitch.c_row_sum_loop1.body]
     by_cases hlt : j1 < cols
     · rw [if_pos hlt]
       have hjm : j1.val < μ := by rw [← hcols]; scalar_tac
-      have hjr : j1.val < row.val.length := by rw [hrow.1]; exact hjm
       have hjz : j1.val < z.val.length := by rw [hz.1]; exact hjm
-      simp only [linalg.PolyVec.get]
-      step as ⟨r, hr⟩
-      have hWr : Wf r := by rw [hr]; exact hrow.2 _ (List.getElem_mem hjr)
+      simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+      step with ZeroCheck.rlin_entry_spec (n := nr) (μ := μ) s.m hWm i j1 hi hjm
+        as ⟨r, hWr, hrv⟩
+      have hrv' : toRq r = rlinAt s.m i.val j1.val := hrv
       -- Candidate T1a1: the column is skipped when `M_ij = 0`. `rlin_stmt`
       -- builds `M` block structured, so at the pin rows c1-c3 are 86% literal
       -- `Rq::zero()`, and each of those entries would otherwise buy a full
       -- `long_mul` and a `2N − 1`-wide accumulation in order to add nothing.
+      -- After card W2 those entries are not even stored: `entry` returns the
+      -- blocks' shared `zero` and this branch is the one that runs.
       step with RqBridge.is_zero_spec r hWr as ⟨bz, hbz⟩
       by_cases hzero : bz = true
       · -- Skipped. The term is `0 · z_j = 0`, so the partial sum is unchanged
@@ -1218,27 +1213,26 @@ theorem c_row_sum_col_loop_spec {μ : ℕ} (z row : linalg.PolyVec) (width cols 
         rw [if_pos hzero]
         step as ⟨j2, hj2⟩
         refine ⟨by scalar_tac, hl1, hr1, ?_, by scalar_tac⟩
-        intro s
-        have hz0 : toRq r = 0 := hbz.1 hzero
-        rw [hc1 s, hj2, Finset.sum_range_succ,
-          List.getD_eq_getElem _ _ hjr, ← hr, hz0]
+        intro w
+        have hz0 : rlinAt s.m i.val j1.val = 0 := by rw [← hrv']; exact hbz.1 hzero
+        rw [hc1 w, hj2, Finset.sum_range_succ, hz0]
         simp
       rw [if_neg hzero]
+      simp only [linalg.PolyVec.get]
       step as ⟨r1, hr1'⟩
       have hWr1 : Wf r1 := by rw [hr1']; exact hz.2 _ (List.getElem_mem hjz)
       step with long_mul_spec r r1 hWr hWr1 as ⟨prod, hWprod, hprod⟩
       step with c_row_sum_add_loop_spec width hw a1 prod 0#usize
-        (fun s => (∑ t ∈ Finset.range j1.val,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff s)
-        hl1 hr1 hWprod.1 hWprod.2 (by simp) (by intro s; rw [hc1 s]; simp)
+        (fun w => (∑ t ∈ Finset.range j1.val, (rlinAt s.m i.val t).1
+          * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff w)
+        hl1 hr1 hWprod.1 hWprod.2 (by simp) (by intro w; rw [hc1 w]; simp)
         as ⟨a2, hl2, hr2, hc2⟩
       step as ⟨j2, hj2⟩
       refine ⟨by scalar_tac, hl2, hr2, ?_, by scalar_tac⟩
-      intro s
-      rw [hc2 s, hj2, Finset.sum_range_succ, cpoly_coeff_add,
-        ← toCPolyK_coeff_eq_coeffK, hprod, hr, hr1',
-        List.getD_eq_getElem _ _ hjr, List.getD_eq_getElem _ _ hjz]
+      intro w
+      rw [hc2 w, hj2, Finset.sum_range_succ, cpoly_coeff_add,
+        ← toCPolyK_coeff_eq_coeffK, hprod, hrv', hr1',
+        List.getD_eq_getElem _ _ hjz]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : j1.val = μ := by rw [← hcols]; scalar_tac
@@ -1261,11 +1255,7 @@ theorem c_row_sum_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.P
   step as ⟨width, hwidth⟩
   have hwv : width.val = 2 * N - 1 := by scalar_tac
   simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
-  step with poly_matrix_cols_spec (rows := n) (cols := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
-  have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
-  simp only [linalg.PolyMatrix.row]
-  step as ⟨row, hrow⟩
-  have hWrow : WfVec μ row := by rw [hrow]; exact hWm.2 _ (List.getElem_mem hrowlt)
+  step with ZeroCheck.rlin_cols_spec (n := n) (μ := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
   step with c_row_sum_zero_loop_spec width (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
     (by simp) (by simp) as ⟨acc0, hacc0⟩
   have hl0 : acc0.val.length = 2 * N - 1 := by rw [hacc0, List.length_replicate, hwv]
@@ -1274,33 +1264,27 @@ theorem c_row_sum_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.P
     rw [hacc0] at hx
     rw [List.eq_of_mem_replicate hx]
     exact Red_zero
-  have hc0 : ∀ s', coeffK acc0 s'
-      = (∑ t ∈ Finset.range (0#usize : Std.Usize).val,
-          (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
-            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff s' := by
-    intro s'
-    have hzero : coeffK acc0 s' = 0 := by
+  have hc0 : ∀ w, coeffK acc0 w
+      = (∑ t ∈ Finset.range (0#usize : Std.Usize).val, (rlinAt s.m i.val t).1
+            * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1).coeff w := by
+    intro w
+    have hzero : coeffK acc0 w = 0 := by
       unfold coeffK
       rw [hacc0]
-      by_cases hs : s' < (List.replicate width.val cpoly.field.Fp.ZERO).length
+      by_cases hs : w < (List.replicate width.val cpoly.field.Fp.ZERO).length
       · rw [List.getD_eq_getElem _ _ hs, List.getElem_replicate, toK_zero]
       · rw [List.getD_eq_default _ _ (by omega), toK_zero]
     rw [hzero, show ((0#usize : Std.Usize).val) = 0 from rfl, Finset.range_zero,
       Finset.sum_empty, CPolynomial.coeff_zero]
-  apply spec_mono (c_row_sum_col_loop_spec (μ := μ) z row width cols hwv hcols hz hWrow
-    acc0 0#usize hl0 hr0 (by simp) hc0)
+  apply spec_mono (c_row_sum_col_loop_spec (nr := n) (μ := μ) s z i width cols hWm hi
+    hwv hcols hz acc0 0#usize hl0 hr0 (by simp) hc0)
   rintro out ⟨hW, hsum⟩
   refine ⟨hW, ?_⟩
   rw [hsum, InnerOuter.cRowSum,
-    ← Fin.sum_univ_eq_sum_range (fun t =>
-      (toRq (row.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1
+    ← Fin.sum_univ_eq_sum_range (fun t => (rlinAt s.m i.val t).1
         * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1) μ]
   refine Finset.sum_congr rfl fun j _ => ?_
-  have hentry : rs.M ⟨i.val, hi⟩ j = toRq (row.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp)) := by
-    rw [← hmeq, toMat_apply]
-    show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD j.val
-      (alloc.vec.Vec.new cpoly.field.Fp)) = _
-    rw [List.getD_eq_getElem _ _ hrowlt, ← hrow]
+  have hentry : rs.M ⟨i.val, hi⟩ j = rlinAt s.m i.val j.val := by rw [← hmeq]; rfl
   rw [hentry]
   rfl
 
@@ -1518,9 +1502,7 @@ theorem honest_lift_witness_loop_spec {n μ : ℕ}
       step with c_quotient_spec s z i1 rs hs hz hin as ⟨qr, hWqr, hqr⟩
       have hcap : rho1.val.length < Usize.max := by
         rw [hlen1]
-        have hnmax : n ≤ Usize.max := by
-          rw [← hs.1.1]
-          exact s.m.property
+        have hnmax : n ≤ Usize.max := ZeroCheck.rlin_rows_le_max hs.1
         omega
       step as ⟨rho2, hrho2⟩
       step as ⟨i2, hi2⟩
@@ -1628,10 +1610,10 @@ theorem honest_lift_witness_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z 
     ringswitch.honest_lift_witness s z
       ⦃ out => RepLiftedWitness (μ := μ) (n := n) out
         (InnerOuter.honestLiftWitnessC Φ hd rs (toVec (k := μ) z)) ⦄ := by
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hs.1.1
   rw [ringswitch.honest_lift_witness]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with honest_lift_witness_loop_spec s z (alloc.vec.Vec.len s.m)
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with ZeroCheck.rlin_rows_spec (n := n) (μ := μ) s.m hs.1 as ⟨rows, hrows⟩
+  step with honest_lift_witness_loop_spec s z rows
     (alloc.vec.Vec.new ringswitch.QuotientRow) 0#usize rs hs hz hrows (by simp) (by simp)
     (by intro x hx; simp at hx) (by intro t ht; simp at ht) as ⟨rho, hWrho, hrho⟩
   step with poly_vec_copy_spec (k := μ) z hz as ⟨pv, hWpv, hpv⟩

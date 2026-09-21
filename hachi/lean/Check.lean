@@ -726,7 +726,11 @@ example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool :=
 -- * `RlinStatement` is a named-fields structure, so the extracted model reads
 --   `s.m`/`s.yvec`/`s.bound` as projections rather than through a `Vec` of
 --   heterogeneous parts -- the reason `arklib-analyze` § 6 prescribes that shape
---   for a small fixed carrier;
+--   for a small fixed carrier.  Since card W2 the matrix field is an `RlinMat`,
+--   a two-constructor enum: `Dense` still holds an assembled `PolyMatrix`, and
+--   `Lazy` holds the blocks `rlin_stmt` used to assemble.  Both constructors and
+--   the entry accessor are pinned below, because the whole of W2's correctness
+--   argument is that `entry` reads what the assembled matrix held;
 -- * `c_eval_at` takes the polynomial by reference and the point by value, so the
 --   spec quantifies over an `Rq` and an `Ext4` and not over two borrows;
 -- * `c_eval_at_modulus` takes *no* polynomial: `Φ.φ = X^d + 1` has `d + 1`
@@ -734,8 +738,16 @@ example (w : ringswitch.LiftedWitness) (m0 : Std.Usize) : Result Bool :=
 --   point and not a call with the modulus passed in.
 example (m : linalg.PolyMatrix) (yvec : linalg.PolyVec) (bound : Std.U64) :
     Result ringswitch.RlinStatement := ringswitch.RlinStatement.new m yvec bound
-example (s : ringswitch.RlinStatement) : Result linalg.PolyMatrix :=
+example (b : ringswitch.RlinBlocks) (yvec : linalg.PolyVec) (bound : Std.U64) :
+    Result ringswitch.RlinStatement := ringswitch.RlinStatement.new_lazy b yvec bound
+example (s : ringswitch.RlinStatement) : Result ringswitch.RlinMat :=
   ringswitch.RlinStatement.impl.m s
+example (m : linalg.PolyMatrix) : ringswitch.RlinMat := ringswitch.RlinMat.Dense m
+example (b : ringswitch.RlinBlocks) : ringswitch.RlinMat := ringswitch.RlinMat.Lazy b
+example (m : ringswitch.RlinMat) (i j : Std.Usize) : Result ring.Rq :=
+  ringswitch.RlinMat.entry m i j
+example (m : ringswitch.RlinMat) : Result Std.Usize := ringswitch.RlinMat.rows m
+example (m : ringswitch.RlinMat) : Result Std.Usize := ringswitch.RlinMat.cols m
 example (alpha : cpoly.field.Ext4) (p : ring.Rq) : Result cpoly.field.Ext4 :=
   ringswitch.c_eval_at alpha p
 example (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 :=
@@ -1367,6 +1379,21 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZeroCheck.c_eval_at_spec
 #print axioms HachiEquiv.ZeroCheck.c_eval_at_modulus_spec
 #print axioms HachiEquiv.ZeroCheck.RlinStatement_new_spec
+-- Card W2's spec layer: the lazy `R^lin` matrix.  `rlin_entry_spec` is the one
+-- that carries the change -- everything above the matrix reads an entry through
+-- it and through nothing else, so it is where "the blocks hold what the
+-- assembled matrix held" is discharged.  The three accessors and the two
+-- constructors are listed beside it because `rlin_stmt_spec` and every table
+-- builder now step with them.
+#print axioms HachiEquiv.ZeroCheck.rlin_entry_spec
+#print axioms HachiEquiv.ZeroCheck.rlin_rows_spec
+#print axioms HachiEquiv.ZeroCheck.rlin_cols_spec
+#print axioms HachiEquiv.ZeroCheck.rlin_cols_le_spec
+#print axioms HachiEquiv.ZeroCheck.rlin_rows_le_max
+#print axioms HachiEquiv.ZeroCheck.RlinBlocks_new_spec
+#print axioms HachiEquiv.ZeroCheck.RlinStatement_new_lazy_spec
+#print axioms HachiEquiv.ZeroCheck.poly_matrix_row_spec
+#print axioms HachiEquiv.ZeroCheck.poly_vec_get_spec
 #print axioms HachiEquiv.ZeroCheck.range_product_spec
 #print axioms HachiEquiv.ZeroCheck.w_table_spec
 #print axioms HachiEquiv.ZeroCheck.w_table_flat_spec

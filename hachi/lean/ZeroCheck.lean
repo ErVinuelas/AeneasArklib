@@ -113,12 +113,368 @@ sumcheck carries (candidate I): before the first challenge the whole table is
 def WfEvalsFp (m : ℕ) (t : alloc.vec.Vec cpoly.field.Fp) : Prop :=
   t.val.length = 2 ^ m ∧ ∀ a ∈ t.val, Red a
 
+/-! ### The `R^lin` matrix, dense or lazy
+
+Card W2 replaced the assembled `R^lin` matrix with its blocks: `rlin_stmt` no
+longer materializes `n × μ` ring elements (2.19 GiB at the pin) but keeps the
+seven blocks it was assembling them from, and `RlinMat::entry` reads an entry
+out of whichever block covers `(i, j)`.  Nothing above the matrix changed --
+`c_row_sum`, `c_quotient` and the two table builders still ask for entries one
+at a time -- so the whole of the change is confined to what `entry` means, and
+these definitions are that meaning, read off the code's branching.
+
+`rlinAt` is `ℕ`-indexed on purpose.  The extracted `entry` branches on `usize`
+comparisons and subtracts with `-`, and a `Fin`-indexed definition would have
+to carry the proof that each subtraction stays in range through every branch;
+at `ℕ`, truncated subtraction agrees with the checked one exactly where the
+branch guard says it does, and `toMatRlin` puts the `Fin` back on at the end. -/
+
+/-- Entry `(i, j)` of an extracted matrix, `ℕ`-indexed and total: out of range
+reads the default, exactly as `toMat` does. -/
+def matAt (a : linalg.PolyMatrix) (i j : ℕ) : Rq Φ :=
+  toRq ((a.val.getD i (alloc.vec.Vec.new ring.Rq)).val.getD j
+    (alloc.vec.Vec.new cpoly.field.Fp))
+
+/-- Entry `j` of an extracted vector, `ℕ`-indexed and total. -/
+def vecAt (v : linalg.PolyVec) (j : ℕ) : Rq Φ :=
+  toRq (v.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+
+@[simp] theorem toMat_eq_matAt {rows cols : ℕ} (a : linalg.PolyMatrix)
+    (i : Fin rows) (j : Fin cols) :
+    toMat (rows := rows) (cols := cols) a i j = matAt a i.val j.val := rfl
+
+@[simp] theorem toVec_eq_vecAt {k : ℕ} (v : linalg.PolyVec) (j : Fin k) :
+    toVec (k := k) v j = vecAt v j.val := rfl
+
+/-- The block structure `RlinBlocks` stands for, as a `ℕ`-indexed function.
+This mirrors `RlinMat::entry`'s Lazy arm branch for branch: the row bands are
+`D`, `B`, the two gadget rows, and the tensor rows; the column bands are the
+`w`, `t` and `z` segments. -/
+def blocksAt (b : ringswitch.RlinBlocks) (i j : ℕ) : Rq Φ :=
+  if i < b.d_rows.val then
+    (if j < b.cw.val then matAt b.d i j else 0)
+  else if i < b.d_rows.val + b.b_rows.val then
+    (if j < b.cw.val then 0
+     else if j < b.cw.val + b.ct.val then
+       matAt b.bmat (i - b.d_rows.val) (j - b.cw.val)
+     else 0)
+  else if i = b.d_rows.val + b.b_rows.val then
+    (if j < b.cw.val then vecAt b.g_b j else 0)
+  else if i = b.d_rows.val + b.b_rows.val + 1 then
+    (if j < b.cw.val then vecAt b.g_c j
+     else if j < b.cw.val + b.ct.val then 0
+     else vecAt b.neg_jt_g_a (j - b.cw.val - b.ct.val))
+  else
+    (if j < b.cw.val then 0
+     else if j < b.cw.val + b.ct.val then
+       matAt b.tensor (i - b.d_rows.val - b.b_rows.val - 2) (j - b.cw.val)
+     else matAt b.neg_aj (i - b.d_rows.val - b.b_rows.val - 2)
+       (j - b.cw.val - b.ct.val))
+
+/-- Entry `(i, j)` of an `RlinMat`, in either representation. -/
+def rlinAt (m : ringswitch.RlinMat) (i j : ℕ) : Rq Φ :=
+  match m with
+  | .Dense a => matAt a i j
+  | .Lazy b => blocksAt b i j
+
+/-- The `PolyMatrix` an `RlinMat` represents.  The `Dense` arm is `toMat`
+unchanged, so every statement proved against the assembled matrix reads the
+same after W2; the `Lazy` arm is the block reading. -/
+def toMatRlin {rows cols : ℕ} (m : ringswitch.RlinMat) : PolyMatrix (Rq Φ) rows cols :=
+  fun i j => rlinAt m i.val j.val
+
+@[simp] theorem toMatRlin_apply {rows cols : ℕ} (m : ringswitch.RlinMat)
+    (i : Fin rows) (j : Fin cols) :
+    toMatRlin (rows := rows) (cols := cols) m i j = rlinAt m i.val j.val := rfl
+
+@[simp] theorem toMatRlin_dense {rows cols : ℕ} (a : linalg.PolyMatrix) :
+    toMatRlin (rows := rows) (cols := cols) (ringswitch.RlinMat.Dense a)
+      = toMat (rows := rows) (cols := cols) a := rfl
+
+/-- Well-formedness of the seven blocks: each has the shape its band claims,
+the bands tile `n × μ`, and the padding element really is zero.  The two
+`Usize.max` bounds are what the row and column accessors need, since both
+recompute the totals with checked `usize` addition. -/
+def WfRlinBlocks (n μ : ℕ) (b : ringswitch.RlinBlocks) : Prop :=
+  WfMat b.d_rows.val b.cw.val b.d ∧
+  WfMat b.b_rows.val b.ct.val b.bmat ∧
+  WfVec b.cw.val b.g_b ∧ WfVec b.cw.val b.g_c ∧ WfVec b.cz.val b.neg_jt_g_a ∧
+  WfMat b.t_rows.val b.ct.val b.tensor ∧ WfMat b.t_rows.val b.cz.val b.neg_aj ∧
+  Wf b.zero ∧ toRq b.zero = 0 ∧
+  b.d_rows.val + b.b_rows.val + 2 + b.t_rows.val = n ∧
+  b.cw.val + b.ct.val + b.cz.val = μ ∧
+  n ≤ Usize.max ∧ μ ≤ Usize.max
+
+/-- Well-formedness of an `R^lin` matrix in either representation. -/
+def WfRlinMat (n μ : ℕ) (m : ringswitch.RlinMat) : Prop :=
+  match m with
+  | .Dense a => WfMat n μ a
+  | .Lazy b => WfRlinBlocks n μ b
+
+/-- A well-formed `R^lin` matrix has at most `Usize.max` rows: a dense one
+because its row list is a `Vec`, a lazy one because the bound is part of
+`WfRlinBlocks` (the accessors recompute the total with checked addition). -/
+theorem rlin_rows_le_max {n μ : ℕ} {m : ringswitch.RlinMat} (hm : WfRlinMat n μ m) :
+    n ≤ Usize.max := by
+  cases m with
+  | Dense a => rw [← (hm : WfMat n μ a).1]; exact a.property
+  | Lazy b => exact hm.2.2.2.2.2.2.2.2.2.2.2.1
+
+/-- Reading a row of a well-formed matrix: the row is a well-formed vector of
+the matrix's width, and it is the list entry `matAt` reads. -/
+theorem poly_matrix_row_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
+    (ha : WfMat rows cols a) (i : Std.Usize) (hi : i.val < rows) :
+    linalg.PolyMatrix.row a i
+      ⦃ pv => WfVec cols pv ∧ pv = a.val.getD i.val (alloc.vec.Vec.new ring.Rq) ⦄ := by
+  have hlen : i.val < a.val.length := by rw [ha.1]; exact hi
+  rw [linalg.PolyMatrix.row]
+  step as ⟨pv, hpv⟩
+  refine ⟨by rw [hpv]; exact ha.2 _ (List.getElem_mem hlen), ?_⟩
+  rw [hpv, List.getD_eq_getElem _ _ hlen]
+
+/-- Reading an entry of a well-formed vector. -/
+theorem poly_vec_get_spec {k : ℕ} (v : linalg.PolyVec) (hv : WfVec k v)
+    (j : Std.Usize) (hj : j.val < k) :
+    linalg.PolyVec.get v j ⦃ r => Wf r ∧ toRq r = vecAt v j.val ⦄ := by
+  have hlen : j.val < v.val.length := by rw [hv.1]; exact hj
+  rw [linalg.PolyVec.get]
+  step as ⟨r, hr⟩
+  refine ⟨by rw [hr]; exact hv.2 _ (List.getElem_mem hlen), ?_⟩
+  rw [vecAt, hr, List.getD_eq_getElem _ _ hlen]
+
+/-- `RlinMat::rows` reports the row count either representation claims. -/
+theorem rlin_rows_spec {n μ : ℕ} (m : ringswitch.RlinMat) (hm : WfRlinMat n μ m) :
+    ringswitch.RlinMat.rows m ⦃ r => r.val = n ⦄ := by
+  rw [ringswitch.RlinMat.rows.eq_def]
+  cases m with
+  | Dense a =>
+    simp only [linalg.PolyMatrix.rows, WP.spec_ok]
+    simpa using (hm : WfMat n μ a).1
+  | Lazy b =>
+    obtain ⟨-, -, -, -, -, -, -, -, -, hn, -, hnmax, -⟩ := hm
+    step as ⟨i, hi⟩
+    step as ⟨i1, hi1⟩
+    step as ⟨i2, hi2⟩
+    scalar_tac
+
+/-- The width of a well-formed matrix, read off its first row.  Needs a row to
+read, hence `0 < rows`; `poly_matrix_cols_le_spec` is the shape for callers
+that reach `cols` before they know the matrix is nonempty. -/
+theorem poly_matrix_cols_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
+    (ha : WfMat rows cols a) (hrows : 0 < rows) :
+    linalg.PolyMatrix.cols a ⦃ c => c.val = cols ⦄ := by
+  have hlen : a.val.length = rows := ha.1
+  have h0lt : 0 < a.val.length := by rw [hlen]; exact hrows
+  rw [linalg.PolyMatrix.cols]
+  have hne : ¬ (alloc.vec.Vec.len a = 0#usize) := by scalar_tac
+  rw [if_neg hne]
+  step as ⟨pv, hpv⟩
+  have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0lt)
+  simp only [linalg.PolyVec.len, WP.spec_ok]
+  simpa using hWpv.1
+
+
+/-- `PolyMatrix::cols` is **total**: an empty matrix reports `0` columns rather
+than failing, so the width is only pinned once there is a row.
+
+`poly_matrix_cols_spec` needs `0 < rows` because it reads row `0`. Both table
+builders below reach `cols` before they know `n > 0` -- at `n = 0` the row loop
+never runs and the width never matters -- so they need this shape instead. The
+`c.val ≤ cols` half is what discharges the checked `mu + rows * δ` at `n = 0`. -/
+theorem poly_matrix_cols_le_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
+    (ha : WfMat rows cols a) :
+    linalg.PolyMatrix.cols a ⦃ c => c.val ≤ cols ∧ (0 < rows → c.val = cols) ⦄ := by
+  have hlen : a.val.length = rows := ha.1
+  rw [linalg.PolyMatrix.cols]
+  by_cases hz : alloc.vec.Vec.len a = 0#usize
+  · rw [if_pos hz, WP.spec_ok]
+    have hrows : rows = 0 := by rw [← hlen]; scalar_tac
+    exact ⟨by simp, by rw [hrows]; intro h; exact absurd h (by omega)⟩
+  · rw [if_neg hz]
+    have h0lt : 0 < a.val.length := by scalar_tac
+    have hrows : 0 < rows := by rw [← hlen]; exact h0lt
+    step as ⟨pv, hpv⟩
+    have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0lt)
+    simp only [linalg.PolyVec.len, WP.spec_ok]
+    have hc : (alloc.vec.Vec.len pv).val = cols := by simpa using hWpv.1
+    exact ⟨by rw [hc], fun _ => hc⟩
+
+/-- `RlinMat::cols` is total, as `PolyMatrix::cols` is: at zero rows a dense
+matrix reports `0` rather than failing.  A lazy matrix knows its width from the
+three column counts and reports `μ` unconditionally, which is strictly more
+than the callers need. -/
+theorem rlin_cols_le_spec {n μ : ℕ} (m : ringswitch.RlinMat) (hm : WfRlinMat n μ m) :
+    ringswitch.RlinMat.cols m ⦃ c => c.val ≤ μ ∧ (0 < n → c.val = μ) ⦄ := by
+  rw [ringswitch.RlinMat.cols.eq_def]
+  cases m with
+  | Dense a => exact poly_matrix_cols_le_spec (rows := n) (cols := μ) a hm
+  | Lazy b =>
+    obtain ⟨-, -, -, -, -, -, -, -, -, hn, hμ, -, hμmax⟩ := hm
+    step as ⟨i, hi⟩
+    step as ⟨i1, hi1⟩
+    exact ⟨by scalar_tac, fun _ => by scalar_tac⟩
+
+/-- `RlinMat::cols` at a nonempty matrix. -/
+theorem rlin_cols_spec {n μ : ℕ} (m : ringswitch.RlinMat) (hm : WfRlinMat n μ m)
+    (hn : 0 < n) : ringswitch.RlinMat.cols m ⦃ c => c.val = μ ⦄ := by
+  apply spec_mono (rlin_cols_le_spec (n := n) (μ := μ) m hm)
+  rintro c ⟨-, h⟩
+  exact h hn
+
+/-- **The W2 entry lemma.**  `RlinMat::entry` reads the entry `toMatRlin` says
+it reads, and the result is a well-formed ring element.  Everything above the
+matrix goes through this and through nothing else, which is why the change is
+local: `c_row_sum`, `c_quotient`, `m_alpha_table` and `m_alpha_tilde` each
+called `PolyMatrix::row`/`PolyVec::get` inline before and call `entry` now, and
+their proofs step with this in the same place. -/
+theorem rlin_entry_spec {n μ : ℕ} (m : ringswitch.RlinMat) (hm : WfRlinMat n μ m)
+    (i j : Std.Usize) (hi : i.val < n) (hj : j.val < μ) :
+    ringswitch.RlinMat.entry m i j
+      ⦃ r => Wf r ∧ toRq r = toMatRlin (rows := n) (cols := μ) m ⟨i.val, hi⟩ ⟨j.val, hj⟩ ⦄ := by
+  rw [ringswitch.RlinMat.entry.eq_def]
+  simp only [toMatRlin_apply, rlinAt]
+  cases m with
+  | Dense a =>
+    step with poly_matrix_row_spec (rows := n) (cols := μ) a hm i hi as ⟨pv, hWpv, hpv⟩
+    apply spec_mono (poly_vec_get_spec (k := μ) pv hWpv j hj)
+    rintro r ⟨hWr, hr⟩
+    exact ⟨hWr, by rw [hr, hpv, vecAt, matAt]⟩
+  | Lazy b =>
+    obtain ⟨hD, hB, hgb, hgc, hga, hT, hA, hz, hzv, hn, hμ, hnmax, hμmax⟩ := hm
+    simp only [blocksAt]
+    by_cases h1 : i < b.d_rows
+    · have h1' : i.val < b.d_rows.val := by scalar_tac
+      rw [if_pos h1, if_pos h1']
+      by_cases h2 : j < b.cw
+      · have h2' : j.val < b.cw.val := by scalar_tac
+        rw [if_pos h2, if_pos h2']
+        step with poly_matrix_row_spec (rows := b.d_rows.val) (cols := b.cw.val) b.d hD i h1'
+          as ⟨pv, hWpv, hpv⟩
+        apply spec_mono (poly_vec_get_spec (k := b.cw.val) pv hWpv j h2')
+        rintro r ⟨hWr, hr⟩
+        exact ⟨hWr, by rw [hr, hpv, vecAt, matAt]⟩
+      · have h2' : ¬ j.val < b.cw.val := by scalar_tac
+        rw [if_neg h2, if_neg h2', WP.spec_ok]
+        exact ⟨hz, hzv⟩
+    · have h1' : ¬ i.val < b.d_rows.val := by scalar_tac
+      rw [if_neg h1, if_neg h1']
+      step as ⟨i1, hi1⟩
+      have hi1v : i1.val = b.d_rows.val + b.b_rows.val := by scalar_tac
+      by_cases h3 : i < i1
+      · have h3' : i.val < b.d_rows.val + b.b_rows.val := by scalar_tac
+        rw [if_pos h3, if_pos h3']
+        step as ⟨i2, hi2⟩
+        have hi2v : i2.val = i.val - b.d_rows.val := by scalar_tac
+        by_cases h2 : j < b.cw
+        · have h2' : j.val < b.cw.val := by scalar_tac
+          rw [if_pos h2, if_pos h2', WP.spec_ok]
+          exact ⟨hz, hzv⟩
+        · have h2' : ¬ j.val < b.cw.val := by scalar_tac
+          rw [if_neg h2, if_neg h2']
+          step as ⟨i3, hi3⟩
+          have hi3v : i3.val = b.cw.val + b.ct.val := by scalar_tac
+          by_cases h4 : j < i3
+          · have h4' : j.val < b.cw.val + b.ct.val := by scalar_tac
+            rw [if_pos h4, if_pos h4']
+            step with poly_matrix_row_spec (rows := b.b_rows.val) (cols := b.ct.val) b.bmat hB
+              i2 (by omega) as ⟨pv, hWpv, hpv⟩
+            step as ⟨i4, hi4⟩
+            have hi4v : i4.val = j.val - b.cw.val := by scalar_tac
+            apply spec_mono (poly_vec_get_spec (k := b.ct.val) pv hWpv i4 (by omega))
+            rintro r ⟨hWr, hr⟩
+            exact ⟨hWr, by rw [hr, hpv, vecAt, matAt, hi2v, hi4v]⟩
+          · have h4' : ¬ j.val < b.cw.val + b.ct.val := by scalar_tac
+            rw [if_neg h4, if_neg h4', WP.spec_ok]
+            exact ⟨hz, hzv⟩
+      · have h3' : ¬ i.val < b.d_rows.val + b.b_rows.val := by scalar_tac
+        rw [if_neg h3, if_neg h3']
+        by_cases h5 : i = i1
+        · have h5' : i.val = b.d_rows.val + b.b_rows.val := by rw [h5]; exact hi1v
+          rw [if_pos h5, if_pos h5']
+          by_cases h2 : j < b.cw
+          · have h2' : j.val < b.cw.val := by scalar_tac
+            rw [if_pos h2, if_pos h2']
+            exact poly_vec_get_spec (k := b.cw.val) b.g_b hgb j h2'
+          · have h2' : ¬ j.val < b.cw.val := by scalar_tac
+            rw [if_neg h2, if_neg h2', WP.spec_ok]
+            exact ⟨hz, hzv⟩
+        · have h5' : ¬ i.val = b.d_rows.val + b.b_rows.val := by
+            intro hc; exact h5 (by scalar_tac)
+          rw [if_neg h5, if_neg h5']
+          step as ⟨i2, hi2⟩
+          have hi2v : i2.val = b.d_rows.val + b.b_rows.val + 1 := by scalar_tac
+          by_cases h6 : i = i2
+          · have h6' : i.val = b.d_rows.val + b.b_rows.val + 1 := by rw [h6]; exact hi2v
+            rw [if_pos h6, if_pos h6']
+            by_cases h2 : j < b.cw
+            · have h2' : j.val < b.cw.val := by scalar_tac
+              rw [if_pos h2, if_pos h2']
+              exact poly_vec_get_spec (k := b.cw.val) b.g_c hgc j h2'
+            · have h2' : ¬ j.val < b.cw.val := by scalar_tac
+              rw [if_neg h2, if_neg h2']
+              step as ⟨i3, hi3⟩
+              have hi3v : i3.val = b.cw.val + b.ct.val := by scalar_tac
+              by_cases h4 : j < i3
+              · have h4' : j.val < b.cw.val + b.ct.val := by scalar_tac
+                rw [if_pos h4, if_pos h4', WP.spec_ok]
+                exact ⟨hz, hzv⟩
+              · have h4' : ¬ j.val < b.cw.val + b.ct.val := by scalar_tac
+                rw [if_neg h4, if_neg h4']
+                step as ⟨i4, hi4⟩
+                step as ⟨i5, hi5⟩
+                have hi5v : i5.val = j.val - b.cw.val - b.ct.val := by scalar_tac
+                apply spec_mono (poly_vec_get_spec (k := b.cz.val) b.neg_jt_g_a hga i5 (by omega))
+                rintro r ⟨hWr, hr⟩
+                exact ⟨hWr, by rw [hr, hi5v]⟩
+          · have h6' : ¬ i.val = b.d_rows.val + b.b_rows.val + 1 := by
+              intro hc; exact h6 (by scalar_tac)
+            rw [if_neg h6, if_neg h6']
+            step as ⟨i3, hi3⟩
+            step as ⟨i4, hi4⟩
+            step as ⟨p, hp⟩
+            have hpv : p.val = i.val - b.d_rows.val - b.b_rows.val - 2 := by scalar_tac
+            have hplt : p.val < b.t_rows.val := by omega
+            by_cases h2 : j < b.cw
+            · have h2' : j.val < b.cw.val := by scalar_tac
+              rw [if_pos h2, if_pos h2', WP.spec_ok]
+              exact ⟨hz, hzv⟩
+            · have h2' : ¬ j.val < b.cw.val := by scalar_tac
+              rw [if_neg h2, if_neg h2']
+              step as ⟨i5, hi5⟩
+              have hi5v : i5.val = b.cw.val + b.ct.val := by scalar_tac
+              by_cases h4 : j < i5
+              · have h4' : j.val < b.cw.val + b.ct.val := by scalar_tac
+                rw [if_pos h4, if_pos h4']
+                step with poly_matrix_row_spec (rows := b.t_rows.val) (cols := b.ct.val)
+                  b.tensor hT p hplt as ⟨pv2, hWpv2, hpv2⟩
+                step as ⟨i6, hi6⟩
+                have hi6v : i6.val = j.val - b.cw.val := by scalar_tac
+                apply spec_mono (poly_vec_get_spec (k := b.ct.val) pv2 hWpv2 i6 (by omega))
+                rintro r ⟨hWr, hr⟩
+                exact ⟨hWr, by rw [hr, hpv2, vecAt, matAt, hpv, hi6v]⟩
+              · have h4' : ¬ j.val < b.cw.val + b.ct.val := by scalar_tac
+                rw [if_neg h4, if_neg h4']
+                step with poly_matrix_row_spec (rows := b.t_rows.val) (cols := b.cz.val)
+                  b.neg_aj hA p hplt as ⟨pv2, hWpv2, hpv2⟩
+                step as ⟨i6, hi6⟩
+                step as ⟨i7, hi7⟩
+                have hi7v : i7.val = j.val - b.cw.val - b.ct.val := by scalar_tac
+                apply spec_mono (poly_vec_get_spec (k := b.cz.val) pv2 hWpv2 i7 (by omega))
+                rintro r ⟨hWr, hr⟩
+                exact ⟨hWr, by rw [hr, hpv2, vecAt, matAt, hpv, hi7v]⟩
+
 /-- Relation between the extracted `R^lin` statement and ArkLib's. The bound is
-a `u64` against the specification's `ℕ`, as `params::CHAIN_GAMMA` is. -/
+a `u64` against the specification's `ℕ`, as `params::CHAIN_GAMMA` is.
+
+The five conjuncts are what they were before card W2; only the first and third
+changed representation, from `WfMat`/`toMat` on an assembled `PolyMatrix` to
+`WfRlinMat`/`toMatRlin` on an `RlinMat` that may still be assembled or may be
+the blocks.  Every use of this relation below is as a hypothesis about `rs.M`,
+so the change is invisible to them. -/
 def RepRlin {n μ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) : Prop :=
-  WfMat n μ s.m ∧ WfVec n s.yvec ∧
-    toMat (rows := n) (cols := μ) s.m = rs.M ∧
+  WfRlinMat n μ s.m ∧ WfVec n s.yvec ∧
+    toMatRlin (rows := n) (cols := μ) s.m = rs.M ∧
     toVec (k := n) s.yvec = rs.yvec ∧
     s.bound.val = rs.bound
 
@@ -372,6 +728,47 @@ theorem RlinStatement_new_spec {n μ : ℕ} (m : linalg.PolyMatrix) (yvec : lina
     ringswitch.RlinStatement.new m yvec bound
       ⦃ out => RepRlin (n := n) (μ := μ) out rs ⦄ := by
   rw [ringswitch.RlinStatement.new, WP.spec_ok]
+  exact ⟨hWm, hWy, hm, hy, hb⟩
+
+/-- The block constructor: `RlinBlocks::new` stores the seven blocks and
+recomputes the three row counts it needs to branch on, so a well-formed set of
+blocks makes a well-formed `RlinBlocks`.  The projection equalities are what
+lets the caller read `blocksAt` back in terms of the blocks it passed in. -/
+theorem RlinBlocks_new_spec {n μ dr br tr : ℕ}
+    (d bmat tensor neg_aj : linalg.PolyMatrix)
+    (g_b g_c neg_jt_g_a : linalg.PolyVec) (cw ct cz : Std.Usize)
+    (hd : WfMat dr cw.val d) (hb : WfMat br ct.val bmat)
+    (hgb : WfVec cw.val g_b) (hgc : WfVec cw.val g_c) (hnj : WfVec cz.val neg_jt_g_a)
+    (ht : WfMat tr ct.val tensor) (ha : WfMat tr cz.val neg_aj)
+    (hrows : dr + br + 2 + tr = n) (hcols : cw.val + ct.val + cz.val = μ)
+    (hnmax : n ≤ Usize.max) (hmumax : μ ≤ Usize.max) :
+    ringswitch.RlinBlocks.new d bmat g_b g_c neg_jt_g_a tensor neg_aj cw ct cz
+      ⦃ bl => WfRlinBlocks n μ bl ∧
+        bl.d = d ∧ bl.bmat = bmat ∧ bl.g_b = g_b ∧ bl.g_c = g_c ∧
+        bl.neg_jt_g_a = neg_jt_g_a ∧ bl.tensor = tensor ∧ bl.neg_aj = neg_aj ∧
+        bl.cw = cw ∧ bl.ct = ct ∧ bl.cz = cz ∧
+        bl.d_rows.val = dr ∧ bl.b_rows.val = br ∧ bl.t_rows.val = tr ⦄ := by
+  rw [ringswitch.RlinBlocks.new]
+  simp only [linalg.PolyMatrix.rows, bind_tc_ok]
+  step with HachiEquiv.RqBridge.zero_spec as ⟨z, hWz, hzv⟩
+  have hdr : (alloc.vec.Vec.len d).val = dr := by simpa using hd.1
+  have hbr : (alloc.vec.Vec.len bmat).val = br := by simpa using hb.1
+  have htr : (alloc.vec.Vec.len tensor).val = tr := by simpa using ht.1
+  constructor
+  · unfold WfRlinBlocks
+    simp only [hdr, hbr, htr]
+    exact ⟨hd, hb, hgb, hgc, hnj, ht, ha, hWz, hzv, hrows, hcols, hnmax, hmumax⟩
+  · exact ⟨hdr, hbr, htr⟩
+
+/-- The lazy `R^lin` statement's constructor preserves the relation. -/
+theorem RlinStatement_new_lazy_spec {n μ : ℕ} (b : ringswitch.RlinBlocks)
+    (yvec : linalg.PolyVec) (bound : Std.U64) (rs : InnerOuter.RlinStatement Φ n μ)
+    (hm : toMatRlin (rows := n) (cols := μ) (ringswitch.RlinMat.Lazy b) = rs.M)
+    (hy : toVec (k := n) yvec = rs.yvec) (hb : bound.val = rs.bound)
+    (hWm : WfRlinBlocks n μ b) (hWy : WfVec n yvec) :
+    ringswitch.RlinStatement.new_lazy b yvec bound
+      ⦃ out => RepRlin (n := n) (μ := μ) out rs ⦄ := by
+  rw [ringswitch.RlinStatement.new_lazy, WP.spec_ok]
   exact ⟨hWm, hWy, hm, hy, hb⟩
 
 /-! ## `zerocheck`: the `H₀` side -/
@@ -2159,21 +2556,6 @@ theorem below_two_pow_spec (i m : Std.Usize) :
     · intro h; scalar_tac
   rw [hzero, hout, Nat.div_eq_zero_iff]
   simp
-/-- `m_alpha_tilde` computes `mAlphaTilde`, the public constraint matrix at `α`
-(`Constraints.lean:517`), in the specification's three cases. -/
-theorem poly_matrix_cols_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
-    (ha : WfMat rows cols a) (hrows : 0 < rows) :
-    linalg.PolyMatrix.cols a ⦃ c => c.val = cols ⦄ := by
-  have hlen : a.val.length = rows := ha.1
-  have h0lt : 0 < a.val.length := by rw [hlen]; exact hrows
-  rw [linalg.PolyMatrix.cols]
-  have hne : ¬ (alloc.vec.Vec.len a = 0#usize) := by scalar_tac
-  rw [if_neg hne]
-  step as ⟨pv, hpv⟩
-  have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0lt)
-  simp only [linalg.PolyVec.len, WP.spec_ok]
-  simpa using hWpv.1
-
 /-- `m_alpha_tilde` computes `mAlphaTilde`, in the specification's three cases.
 
 `hmax` is the arity bound the crate's checked `mu + rows * GADGET_DIGITS`
@@ -2187,36 +2569,22 @@ theorem m_alpha_tilde_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
         InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u.val ⦄ := by
   obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   rw [zerocheck.m_alpha_tilde, InnerOuter.mAlphaTilde, rhoDigitCount_eq]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_spec (rows := n) (cols := μ) s.m hWm (by omega) as ⟨mu, hmu⟩
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with rlin_cols_spec (n := n) (μ := μ) s.m hWm (by omega) as ⟨mu, hmu⟩
+  step with rlin_rows_spec (n := n) (μ := μ) s.m hWm as ⟨rows, hrows⟩
   by_cases hlt : u < mu
   · have hu : u.val < μ := by rw [← hmu]; scalar_tac
     rw [if_pos hlt, dif_pos hu]
-    have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
-    simp only [linalg.PolyMatrix.row]
-    step as ⟨pv, hpv⟩
-    have hWpv : WfVec μ pv := by rw [hpv]; exact hWm.2 _ (List.getElem_mem hrowlt)
-    have hulen : u.val < pv.val.length := by rw [hWpv.1]; exact hu
-    simp only [linalg.PolyVec.get]
-    step as ⟨r, hr⟩
-    have hWr : Wf r := by rw [hr]; exact hWpv.2 _ (List.getElem_mem hulen)
+    step with rlin_entry_spec (n := n) (μ := μ) s.m hWm i u hi hu as ⟨r, hWr, hrv⟩
     apply spec_mono (c_eval_at_spec alpha r ha hWr)
     rintro out ⟨hRout, hout⟩
     refine ⟨hRout, ?_⟩
-    have hentry : rs.M ⟨i.val, hi⟩ ⟨u.val, hu⟩ = toRq r := by
-      rw [← hmeq, toMat_apply]
-      show toVec (k := μ) (s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)) ((⟨u.val, hu⟩ : Fin μ))
-        = toRq r
-      rw [toVec]
-      show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD u.val
-        (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r
-      rw [List.getD_eq_getElem _ _ hrowlt, ← hpv, List.getD_eq_getElem _ _ hulen, hr]
+    have hentry : rs.M ⟨i.val, hi⟩ ⟨u.val, hu⟩ = toRq r := by rw [← hmeq, hrv]
     rw [hout, hentry]
   · have hu : ¬ u.val < μ := by rw [← hmu]; scalar_tac
     rw [if_neg hlt, dif_neg hu]
-    have hmul : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+    have hmul : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
       rw [hrows, hgd]; omega
     step as ⟨i1, hi1⟩
     have hi1v : i1.val = n * 8 := by rw [hi1, hrows, hgd]
@@ -2369,11 +2737,11 @@ theorem alpha_public_evals_spec {n μ m₀ m₁ : ℕ} (s : ringswitch.RlinState
         InnerOuter.alphaPublicEvals Φ m₀ m₁ phiF 16 rs (toExt alpha)
           (toPoint (m := m₁) tau1) (finFunctionFinEquiv.symm ⟨idx.val, hidx⟩) ⦄ := by
   have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hs.1.1
   rw [zerocheck.alpha_public_evals]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with rlin_rows_spec (n := n) (μ := μ) s.m hs.1 as ⟨rows, hrows⟩
   step with alpha_public_evals_loop_spec (n := n) (μ := μ) (m₁ := m₁) s rs alpha tau1 idx
-    (alloc.vec.Vec.len s.m) cpoly.field.Ext4.ZERO 0#usize hs ha ht hmax hrows (by simp)
+    rows cpoly.field.Ext4.ZERO 0#usize hs ha ht hmax hrows (by simp)
     reduced_ZERO (by simp) as ⟨sum, hRsum, hsum⟩
   step as ⟨l, hl⟩
   have hlv : l.val = idx.val % N := by rw [hl, hrd]
@@ -2422,31 +2790,6 @@ theorem mAlphaTilde_eq_zero_of_ge {n μ : ℕ} (rs : InnerOuter.RlinStatement Φ
     (α : F) (i : Fin n) {u : ℕ} (hu : μ + n * 8 ≤ u) :
     InnerOuter.mAlphaTilde Φ phiF 16 rs α i u = 0 := by
   rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_neg (by omega), if_neg (by omega)]
-
-/-- `PolyMatrix::cols` is **total**: an empty matrix reports `0` columns rather
-than failing, so the width is only pinned once there is a row.
-
-`poly_matrix_cols_spec` needs `0 < rows` because it reads row `0`. Both table
-builders below reach `cols` before they know `n > 0` -- at `n = 0` the row loop
-never runs and the width never matters -- so they need this shape instead. The
-`c.val ≤ cols` half is what discharges the checked `mu + rows * δ` at `n = 0`. -/
-theorem poly_matrix_cols_le_spec {rows cols : ℕ} (a : linalg.PolyMatrix)
-    (ha : WfMat rows cols a) :
-    linalg.PolyMatrix.cols a ⦃ c => c.val ≤ cols ∧ (0 < rows → c.val = cols) ⦄ := by
-  have hlen : a.val.length = rows := ha.1
-  rw [linalg.PolyMatrix.cols]
-  by_cases hz : alloc.vec.Vec.len a = 0#usize
-  · rw [if_pos hz, WP.spec_ok]
-    have hrows : rows = 0 := by rw [← hlen]; scalar_tac
-    exact ⟨by simp, by rw [hrows]; intro h; exact absurd h (by omega)⟩
-  · rw [if_neg hz]
-    have h0lt : 0 < a.val.length := by scalar_tac
-    have hrows : 0 < rows := by rw [← hlen]; exact h0lt
-    step as ⟨pv, hpv⟩
-    have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem h0lt)
-    simp only [linalg.PolyVec.len, WP.spec_ok]
-    have hc : (alloc.vec.Vec.len pv).val = cols := by simpa using hWpv.1
-    exact ⟨by rw [hc], fun _ => hc⟩
 
 /-- The loop of `alpha_pow_table`: state `(out, pw, l)`, with `out` holding
 `α^0 … α^(l−1)` and `pw` the running power `α^l`. One multiplication per entry,
@@ -2692,7 +3035,6 @@ theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatemen
   obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hcmax : cols.val ≤ Usize.max := by scalar_tac
-  have hrowlt : i.val < s.m.val.length := by rw [hWm.1]; exact hi
   rw [zerocheck.m_alpha_table_loop0_loop0]
   apply loop.spec_decr_nat (fun st => cols.val - st.2.val)
     (fun st => st.2.val ≤ cols.val ∧ st.1.val.length = st.2.val ∧ VecReduced st.1 ∧
@@ -2740,22 +3082,10 @@ theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatemen
       by_cases hltmu : u1 < mu
       · rw [if_pos hltmu]
         have humu : u1.val < μ := by rw [← hmu]; scalar_tac
-        simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.row, bind_tc_ok]
-        step as ⟨pv, hpv⟩
-        have hWpv : WfVec μ pv := by rw [hpv]; exact hWm.2 _ (List.getElem_mem hrowlt)
-        have hulen : u1.val < pv.val.length := by rw [hWpv.1]; exact humu
-        simp only [linalg.PolyVec.get]
-        step as ⟨r, hr⟩
-        have hWr : Wf r := by rw [hr]; exact hWpv.2 _ (List.getElem_mem hulen)
+        simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+        step with rlin_entry_spec (n := n) (μ := μ) s.m hWm i u1 hi humu as ⟨r, hWr, hrv⟩
         step with c_eval_at_spec alpha r ha hWr as ⟨e, hRe, he⟩
-        have hentry : rs.M ⟨i.val, hi⟩ ⟨u1.val, humu⟩ = toRq r := by
-          rw [← hmeq, toMat_apply]
-          show toVec (k := μ) (s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq))
-            ((⟨u1.val, humu⟩ : Fin μ)) = toRq r
-          rw [toVec]
-          show toRq ((s.m.val.getD i.val (alloc.vec.Vec.new ring.Rq)).val.getD u1.val
-            (alloc.vec.Vec.new cpoly.field.Fp)) = toRq r
-          rw [List.getD_eq_getElem _ _ hrowlt, ← hpv, List.getD_eq_getElem _ _ hulen, hr]
+        have hentry : rs.M ⟨i.val, hi⟩ ⟨u1.val, humu⟩ = toRq r := by rw [← hmeq, hrv]
         have hev : toExt e =
             InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
           rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_pos humu, he, hentry]
@@ -2903,13 +3233,13 @@ theorem m_alpha_table_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
         (tableRow out i).val.length = μ + n * 8 ∧ VecReduced (tableRow out i) ∧
         ∀ u < μ + n * 8, toExt ((tableRow out i).val.getD u cpoly.field.Ext4.ZERO) =
           InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i, hi⟩ u ⦄ := by
-  have hWm : WfMat n μ s.m := hs.1
+  have hWm : WfRlinMat n μ s.m := hs.1
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hWm.1
   rw [zerocheck.m_alpha_table]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_le_spec (rows := n) (cols := μ) s.m hWm as ⟨mu, hmule, hmu⟩
-  have hmulbound : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with rlin_cols_le_spec (n := n) (μ := μ) s.m hWm as ⟨mu, hmule, hmu⟩
+  step with rlin_rows_spec (n := n) (μ := μ) s.m hWm as ⟨rows, hrows⟩
+  have hmulbound : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
     rw [hrows, hgd]; omega
   step as ⟨j1, hj1⟩
   have hj1v : j1.val = n * 8 := by rw [hj1, hrows, hgd]
@@ -2927,9 +3257,9 @@ theorem m_alpha_table_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
       = phiF ((16 : ZMod q) ^ e) := by
     intro e he
     rw [hbpv e he, hbase, hf', ← phiF_apply, ← map_pow]
-  exact m_alpha_table_loop0_spec (n := n) (μ := μ) s rs alpha mu (alloc.vec.Vec.len s.m)
+  exact m_alpha_table_loop0_spec (n := n) (μ := μ) s rs alpha mu rows
     cols phi_alpha bp (alloc.vec.Vec.with_capacity (alloc.vec.Vec cpoly.field.Ext4)
-    (alloc.vec.Vec.len s.m)) 0#usize hs ha hrows hmu hcolsv hRphi hphi hbplen hbpred hbp
+    rows) 0#usize hs ha hrows hmu hcolsv hRphi hphi hbplen hbpred hbp
     (by simp) (by simp [alloc.vec.Vec.with_capacity])
     (by intro t ht htlt; simp at htlt)
 /-- Term `t` of the public initial target, as a function of a plain `ℕ`. -/
@@ -3219,11 +3549,11 @@ theorem alpha_contract_spec {n μ m₀ : ℕ} (s : ringswitch.RlinStatement)
     have : μ + n * 8 ≤ (μ + n * 8) * N := Nat.le_mul_of_pos_right _ hNpos
     omega
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
-  have hrows : (alloc.vec.Vec.len s.m).val = n := by simpa using hs.1.1
   rw [zerocheck.alpha_contract]
-  simp only [ringswitch.RlinStatement.impl.m, linalg.PolyMatrix.rows, bind_tc_ok]
-  step with poly_matrix_cols_spec (rows := n) (cols := μ) s.m hs.1 (by omega) as ⟨mu, hmu⟩
-  have hmul : (alloc.vec.Vec.len s.m).val * (params.GADGET_DIGITS).val ≤ Usize.max := by
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  step with rlin_cols_spec (n := n) (μ := μ) s.m hs.1 (by omega) as ⟨mu, hmu⟩
+  step with rlin_rows_spec (n := n) (μ := μ) s.m hs.1 as ⟨rows, hrows⟩
+  have hmul : rows.val * (params.GADGET_DIGITS).val ≤ Usize.max := by
     rw [hrows, hgd]; omega
   step as ⟨i1, hi1⟩
   have hi1v : i1.val = n * 8 := by rw [hi1, hrows, hgd]
