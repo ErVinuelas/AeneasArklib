@@ -27,7 +27,7 @@ statements below can be quantified over all `k` rather than only over `k < N`.
 -/
 import Generated
 import Field
-import AuxProduct
+import NttProduct
 
 set_option autoImplicit false
 
@@ -610,21 +610,21 @@ theorem wordN_of_lt {v : alloc.vec.Vec cpoly.field.Fp} {t : ℕ} (ht : t < v.val
     wordN v t = (v.val[t]).val := by
   unfold wordN; rw [List.getD_eq_getElem _ _ ht]
 
-/-! ### The three loops, and the bridge to `AuxProduct`
+/-! ### The three loops, and the bridge to `NttProduct`
 
 `Rq::mul` is three passes and one call: read `self`'s words, read `rhs`'s words,
 hand both to `ntt::negconv_mod_q`, and wrap what comes back as `Fp`. So the loop
 proofs here are three push loops of exactly the shape `add_loop_spec` has, and
 the content of the multiplication theorem lives one layer down, in
-`AuxProduct.negconv_mod_q_spec`.
+`NttProduct.negconv_mod_q_spec`.
 
-What joins the two layers is that `AuxProduct`'s `posW`/`negW` -- the same two
+What joins the two layers is that `NttProduct`'s `posW`/`negW` -- the same two
 antidiagonals, over a `u64` buffer instead of over an `Rq` -- agree with
 `posSum`/`negSum` once the extraction loops have copied the words. After that
 `negConv_eq_sums` closes the proof exactly as it did for the schoolbook, which
 is why the headline statement below is the one it always was.
 
-The offset is invisible here. `AuxProduct.BOUND` is `N · q²`, a multiple of `q`,
+The offset is invisible here. `NttProduct.BOUND` is `N · q²`, a multiple of `q`,
 so `negconv_mod_q` hands back the coefficient itself and there is no correction
 term to carry through `coeffK`. -/
 
@@ -648,14 +648,14 @@ The `Red` half of `Wf` is what makes every word below `q`, which is
 theorem mul_loop0_spec (a : ring.Rq) (n : Std.Usize) (aw : alloc.vec.Vec Std.U64)
     (i : Std.Usize) (ha : Wf a) (hn : n.val = N) (hi : i.val ≤ n.val)
     (hlen : aw.val.length = i.val) (hred : ∀ u ∈ aw.val, u.val < q)
-    (hval : ∀ t, t < i.val → AuxCode.wordAt aw t = wordN a t) :
+    (hval : ∀ t, t < i.val → NttStage.wordAt aw t = wordN a t) :
     ring.Rq.mul_loop0 a n aw i
-      ⦃ z => AuxCode.Canon q z ∧ ∀ t, t < N → AuxCode.wordAt z t = wordN a t ⦄ := by
+      ⦃ z => NttStage.Canon q z ∧ ∀ t, t < N → NttStage.wordAt z t = wordN a t ⦄ := by
   rw [ring.Rq.mul_loop0]
   apply loop.spec_decr_nat (fun s => n.val - s.2.2.val)
     (fun s => s.1 = a ∧ s.2.2.val ≤ n.val ∧ s.2.1.val.length = s.2.2.val ∧
       (∀ u ∈ s.2.1.val, u.val < q) ∧
-      ∀ t, t < s.2.2.val → AuxCode.wordAt s.2.1 t = wordN a t)
+      ∀ t, t < s.2.2.val → NttStage.wordAt s.2.1 t = wordN a t)
   · rintro ⟨s1, o1, i1⟩ ⟨h1, h2, h3, h4, h5⟩
     dsimp only at h1 h2 h3 h4 h5
     subst h1
@@ -678,7 +678,7 @@ theorem mul_loop0_spec (a : ring.Rq) (n : Std.Usize) (aw : alloc.vec.Vec Std.U64
         · rw [List.mem_singleton.mp h]; exact hRw
       · intro t ht
         rw [hi2] at ht
-        simp only [AuxCode.wordAt] at h5 ⊢
+        simp only [NttStage.wordAt] at h5 ⊢
         rcases Nat.lt_or_ge t i1.val with htlt | htge
         · rw [ho2, getD_append_lt' _ _ _ (by omega)]
           exact h5 t htlt
@@ -699,14 +699,14 @@ it is a separate Rust loop, and separate here for the same reason. -/
 theorem mul_loop1_spec (b : ring.Rq) (n : Std.Usize) (bw : alloc.vec.Vec Std.U64)
     (j : Std.Usize) (hb : Wf b) (hn : n.val = N) (hj : j.val ≤ n.val)
     (hlen : bw.val.length = j.val) (hred : ∀ u ∈ bw.val, u.val < q)
-    (hval : ∀ t, t < j.val → AuxCode.wordAt bw t = wordN b t) :
+    (hval : ∀ t, t < j.val → NttStage.wordAt bw t = wordN b t) :
     ring.Rq.mul_loop1 b n bw j
-      ⦃ z => AuxCode.Canon q z ∧ ∀ t, t < N → AuxCode.wordAt z t = wordN b t ⦄ := by
+      ⦃ z => NttStage.Canon q z ∧ ∀ t, t < N → NttStage.wordAt z t = wordN b t ⦄ := by
   rw [ring.Rq.mul_loop1]
   apply loop.spec_decr_nat (fun s => n.val - s.2.2.val)
     (fun s => s.1 = b ∧ s.2.2.val ≤ n.val ∧ s.2.1.val.length = s.2.2.val ∧
       (∀ u ∈ s.2.1.val, u.val < q) ∧
-      ∀ t, t < s.2.2.val → AuxCode.wordAt s.2.1 t = wordN b t)
+      ∀ t, t < s.2.2.val → NttStage.wordAt s.2.1 t = wordN b t)
   · rintro ⟨s1, o1, j1⟩ ⟨h1, h2, h3, h4, h5⟩
     dsimp only at h1 h2 h3 h4 h5
     subst h1
@@ -729,7 +729,7 @@ theorem mul_loop1_spec (b : ring.Rq) (n : Std.Usize) (bw : alloc.vec.Vec Std.U64
         · rw [List.mem_singleton.mp h]; exact hRw
       · intro t ht
         rw [hj2] at ht
-        simp only [AuxCode.wordAt] at h5 ⊢
+        simp only [NttStage.wordAt] at h5 ⊢
         rcases Nat.lt_or_ge t j1.val with htlt | htge
         · rw [ho2, getD_append_lt' _ _ _ (by omega)]
           exact h5 t htlt
@@ -752,14 +752,14 @@ theorem mul_loop2_spec (n : Std.Usize) (cw : alloc.vec.Vec Std.U64)
     (out : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize)
     (hn : n.val = N) (hcw : cw.val.length = N) (hk : k.val ≤ n.val)
     (hlen : out.val.length = k.val) (hred : ∀ u ∈ out.val, Red u)
-    (hval : ∀ t, t < k.val → coeffK out t = ((AuxCode.wordAt cw t : ℕ) : ZMod q)) :
+    (hval : ∀ t, t < k.val → coeffK out t = ((NttStage.wordAt cw t : ℕ) : ZMod q)) :
     ring.Rq.mul_loop2 n cw out k
-      ⦃ z => Wf z ∧ ∀ t, t < N → coeffK z t = ((AuxCode.wordAt cw t : ℕ) : ZMod q) ⦄ := by
+      ⦃ z => Wf z ∧ ∀ t, t < N → coeffK z t = ((NttStage.wordAt cw t : ℕ) : ZMod q) ⦄ := by
   rw [ring.Rq.mul_loop2]
   apply loop.spec_decr_nat (fun s => n.val - s.2.val)
     (fun s => s.2.val ≤ n.val ∧ s.1.val.length = s.2.val ∧
       (∀ u ∈ s.1.val, Red u) ∧
-      ∀ t, t < s.2.val → coeffK s.1 t = ((AuxCode.wordAt cw t : ℕ) : ZMod q))
+      ∀ t, t < s.2.val → coeffK s.1 t = ((NttStage.wordAt cw t : ℕ) : ZMod q))
   · rintro ⟨o1, k1⟩ ⟨h1, h2, h3, h4⟩
     dsimp only at h1 h2 h3 h4
     simp only [ring.Rq.mul_loop2.body]
@@ -767,8 +767,8 @@ theorem mul_loop2_spec (n : Std.Usize) (cw : alloc.vec.Vec Std.U64)
     · rw [if_pos hlt]
       have hkc : k1.val < cw.val.length := by rw [hcw, ← hn]; scalar_tac
       step as ⟨w, hw⟩
-      have hwv : w.val = AuxCode.wordAt cw k1.val := by
-        rw [hw, AuxCode.wordAt_of_lt hkc]
+      have hwv : w.val = NttStage.wordAt cw k1.val := by
+        rw [hw, NttStage.wordAt_of_lt hkc]
       step as ⟨f, hRf, hf⟩
       step as ⟨o2, ho2⟩
       step as ⟨k2, hk2⟩
@@ -801,11 +801,11 @@ operands. Both sums run over `Finset.range N` with the same guard, so this is a
 `Finset.sum_congr` once the copies are known to agree -- and they are known to
 agree only below `N`, which is all either sum reads. -/
 theorem posW_eq_posSum (a b : ring.Rq) (aw bw : alloc.vec.Vec Std.U64)
-    (haw : ∀ t, t < N → AuxCode.wordAt aw t = wordN a t)
-    (hbw : ∀ t, t < N → AuxCode.wordAt bw t = wordN b t)
+    (haw : ∀ t, t < N → NttStage.wordAt aw t = wordN a t)
+    (hbw : ∀ t, t < N → NttStage.wordAt bw t = wordN b t)
     (k : ℕ) (hk : k < N) :
-    AuxProduct.posW aw bw k N = posSum a b k N := by
-  unfold AuxProduct.posW posSum
+    NttProduct.posW aw bw k N = posSum a b k N := by
+  unfold NttProduct.posW posSum
   refine Finset.sum_congr rfl (fun t ht => ?_)
   simp only [Finset.mem_range] at ht
   by_cases h : t ≤ k
@@ -815,11 +815,11 @@ theorem posW_eq_posSum (a b : ring.Rq) (aw bw : alloc.vec.Vec Std.U64)
 /-- The `−` antidiagonal, likewise. Its `b` index is `N + k − t` for `t > k`,
 which lies in `[k+1, N−1]`, so it too reads only below `N`. -/
 theorem negW_eq_negSum (a b : ring.Rq) (aw bw : alloc.vec.Vec Std.U64)
-    (haw : ∀ t, t < N → AuxCode.wordAt aw t = wordN a t)
-    (hbw : ∀ t, t < N → AuxCode.wordAt bw t = wordN b t)
+    (haw : ∀ t, t < N → NttStage.wordAt aw t = wordN a t)
+    (hbw : ∀ t, t < N → NttStage.wordAt bw t = wordN b t)
     (k : ℕ) (hk : k < N) :
-    AuxProduct.negW aw bw k N = negSum a b k N := by
-  unfold AuxProduct.negW negSum
+    NttProduct.negW aw bw k N = negSum a b k N := by
+  unfold NttProduct.negW negSum
   refine Finset.sum_congr rfl (fun t ht => ?_)
   simp only [Finset.mem_range] at ht
   by_cases h : t ≤ k
@@ -827,8 +827,8 @@ theorem negW_eq_negSum (a b : ring.Rq) (aw bw : alloc.vec.Vec Std.U64)
   · rw [if_neg h, if_neg h, haw t ht]
     -- `N + k − t` with `k < t < N` lies in `[k+1, N−1]`, so it too is below `N`.
     have hkN : k < N := hk
-    have hNN : AuxCode.N = N := rfl
-    have hidx : AuxCode.N + k - t < N := by omega
+    have hNN : NttStage.N = N := rfl
+    have hidx : NttStage.N + k - t < N := by omega
     exact congrArg (fun x => wordN a t * x) (hbw _ hidx)
 
 /-- `Rq::mul` -- the negacyclic product: total, length-preserving, and
@@ -848,11 +848,11 @@ theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   step with mul_loop1_spec b params.RING_DEGREE (alloc.vec.Vec.new Std.U64) 0#usize
     hb params_RING_DEGREE_val (by simp) (by simp) (by intro u hu; simp at hu)
     (by intro t ht; simp at ht) as ⟨bw1, hbcan, hbw⟩
-  have hqa : ∀ t, AuxCode.wordAt aw1 t < AuxProduct.q :=
-    fun t => AuxCode.wordAt_lt hacan (by norm_num [q]) t
-  have hqb : ∀ t, AuxCode.wordAt bw1 t < AuxProduct.q :=
-    fun t => AuxCode.wordAt_lt hbcan (by norm_num [q]) t
-  step with AuxProduct.negconv_mod_q_spec aw1 bw1 hacan.1 hbcan.1 hqa hqb
+  have hqa : ∀ t, NttStage.wordAt aw1 t < NttProduct.q :=
+    fun t => NttStage.wordAt_lt hacan (by norm_num [q]) t
+  have hqb : ∀ t, NttStage.wordAt bw1 t < NttProduct.q :=
+    fun t => NttStage.wordAt_lt hbcan (by norm_num [q]) t
+  step with NttProduct.negconv_mod_q_spec aw1 bw1 hacan.1 hbcan.1 hqa hqb
     as ⟨cw, hcwlen, hcwred, hcwval⟩
   step with mul_loop2_spec params.RING_DEGREE cw (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
     params_RING_DEGREE_val hcwlen (by simp) (by simp) (by intro u hu; simp at hu)
@@ -862,23 +862,23 @@ theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   -- the finished word, as the offset natural it is
   have hzk := hzval k hk
   rw [hcwval k hk] at hzk
-  have hmod : ((AuxProduct.offConvW aw1 bw1 k % AuxProduct.q : ℕ) : ZMod q)
-      = ((AuxProduct.offConvW aw1 bw1 k : ℕ) : ZMod q) := ZMod.natCast_mod _ _
+  have hmod : ((NttProduct.offConvW aw1 bw1 k % NttProduct.q : ℕ) : ZMod q)
+      = ((NttProduct.offConvW aw1 bw1 k : ℕ) : ZMod q) := ZMod.natCast_mod _ _
   -- the offset is a multiple of `q`, so it is invisible after the cast
-  have hB : ((AuxProduct.BOUND : ℕ) : ZMod q) = 0 := by
-    have h1024 : (AuxProduct.BOUND : ℕ) = 1024 * (q * q) := rfl
+  have hB : ((NttProduct.BOUND : ℕ) : ZMod q) = 0 := by
+    have h1024 : (NttProduct.BOUND : ℕ) = 1024 * (q * q) := rfl
     rw [h1024]
     push_cast
     simp
-  have hnb : AuxProduct.negW aw1 bw1 k N
-      ≤ AuxProduct.posW aw1 bw1 k N + AuxProduct.BOUND :=
-    Nat.le_trans (AuxProduct.negW_le_bound aw1 bw1 hqa hqb k) (Nat.le_add_left _ _)
-  have hcast : ((AuxProduct.offConvW aw1 bw1 k : ℕ) : ZMod q)
-      = ((AuxProduct.posW aw1 bw1 k N : ℕ) : ZMod q)
-        - ((AuxProduct.negW aw1 bw1 k N : ℕ) : ZMod q) := by
-    have hoff : (AuxProduct.offConvW aw1 bw1 k : ℕ)
-        = AuxProduct.posW aw1 bw1 k N + AuxProduct.BOUND
-          - AuxProduct.negW aw1 bw1 k N := rfl
+  have hnb : NttProduct.negW aw1 bw1 k N
+      ≤ NttProduct.posW aw1 bw1 k N + NttProduct.BOUND :=
+    Nat.le_trans (NttProduct.negW_le_bound aw1 bw1 hqa hqb k) (Nat.le_add_left _ _)
+  have hcast : ((NttProduct.offConvW aw1 bw1 k : ℕ) : ZMod q)
+      = ((NttProduct.posW aw1 bw1 k N : ℕ) : ZMod q)
+        - ((NttProduct.negW aw1 bw1 k N : ℕ) : ZMod q) := by
+    have hoff : (NttProduct.offConvW aw1 bw1 k : ℕ)
+        = NttProduct.posW aw1 bw1 k N + NttProduct.BOUND
+          - NttProduct.negW aw1 bw1 k N := rfl
     rw [hoff, Nat.cast_sub hnb, Nat.cast_add, hB, add_zero]
   rw [hzk, hmod, hcast, posW_eq_posSum a b aw1 bw1 haw hbw k hk,
     negW_eq_negSum a b aw1 bw1 haw hbw k hk]

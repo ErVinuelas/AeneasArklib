@@ -78,7 +78,7 @@ theorem index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) (d : α)
   step as ⟨z, hz⟩
   rw [hz, List.getD_eq_getElem _ _ h]
 
-/-- Reading a `push` below the old length, and at it. `AuxProduct.lean` has the
+/-- Reading a `push` below the old length, and at it. `NttProduct.lean` has the
 same two facts privately; restated here rather than exported, as that file's
 own header says. -/
 theorem getD_push_lt {α : Type} (l : List α) (x d : α) {j : ℕ} (hj : j < l.length) :

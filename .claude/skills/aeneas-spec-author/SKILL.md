@@ -226,9 +226,9 @@ Author both halves, and say in the deliverable which of the two is proved.
     follow the opt definition's structure (a Karatsuba champion gets
     recursion-shaped sub-specs, not the schoolbook loops'), with
     `Foo.opt_eq_spec` splicing the proof onto the unchanged right-hand side.
-    `hachi/lean/Opt.lean` **does not exist yet**: the first `lean-opt` run
-    creates it and must add `Opt` to `roots` in `hachi/lakefile.lean`, or it
-    is silently not built. Any new hypothesis on a carried-over headline is
+    A module's `hachi/lean/Opt<Module>.lean` part may not exist yet: the first
+    `lean-opt` run for that module creates it and must add it to `roots` in
+    `hachi/lakefile.lean` and to `Opt.lean`'s imports, or it is silently not built. Any new hypothesis on a carried-over headline is
     a weakening and goes through `prove-sorry`'s approval gate.
 
 ## Failure modes with teeth

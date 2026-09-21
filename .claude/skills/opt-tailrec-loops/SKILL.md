@@ -7,7 +7,7 @@ description: Optimization strategy — rewriting structural or non-tail recursio
 
 One strategy of the optimization loop. Invoked by the `lean-opt` driver with a
 target definition and its `arklib-analyze` brief; delivers a candidate under
-the opt-contract that `lean-opt` owns: `Foo.opt` in `hachi/lean/Opt.lean` plus
+the opt-contract that `lean-opt` owns: `Foo.opt` in the `hachi/lean/Opt<Module>.lean` part for the target's module (`Opt.lean` is the umbrella that imports every part) plus
 the proved `Foo.opt_eq_spec`.
 
 ## The one rule: the target shape is the one `lean-to-rust` already translates

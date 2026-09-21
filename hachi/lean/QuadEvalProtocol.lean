@@ -685,9 +685,9 @@ theorem honest_z_loop1_loop1_spec {width : ℕ} (message : alloc.vec.Vec linalg.
     (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
     (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
     (hidx : ∀ u, u < desc.idx.val.length →
-      HachiEquiv.AuxShort.idxAt desc.idx u < N)
+      HachiEquiv.RingShort.idxAt desc.idx u < N)
     (hden : ∀ j, j < N → coeffK ci j
-      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+      = HachiEquiv.RingShort.descCoeffW desc.idx desc.mag desc.neg
           desc.idx.val.length j)
     (hj : jU.val ≤ width) (hlen : acc.val.length = width)
     (hwf : ∀ x ∈ acc.val, Wf x)
@@ -878,7 +878,7 @@ theorem honest_z_loop1_spec {width blocks : ℕ} (message : alloc.vec.Vec linalg
         toRq (c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp))
           * toRq ((message.val.getD ii.val (alloc.vec.Vec.new ring.Rq)).val.getD t
               (alloc.vec.Vec.new cpoly.field.Fp)) with hterm
-      step with HachiEquiv.AuxShort.classify_short_spec cr hWcr as ⟨o, ho⟩
+      step with HachiEquiv.RingShort.classify_short_spec cr hWcr as ⟨o, ho⟩
       cases o with
       | none =>
         step as ⟨pv, hpv⟩
@@ -1325,9 +1325,9 @@ theorem honest_z_from_raw_loop1_loop1_spec {width : ℕ} (s : linalg.PolyVec)
     (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
     (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
     (hidx : ∀ u, u < desc.idx.val.length →
-      HachiEquiv.AuxShort.idxAt desc.idx u < N)
+      HachiEquiv.RingShort.idxAt desc.idx u < N)
     (hden : ∀ j, j < N → coeffK ci j
-      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+      = HachiEquiv.RingShort.descCoeffW desc.idx desc.mag desc.neg
           desc.idx.val.length j)
     (hj : jU.val ≤ width) (hlen : acc.val.length = width)
     (hwf : ∀ x ∈ acc.val, Wf x)
@@ -1451,7 +1451,7 @@ theorem honest_z_from_raw_loop1_spec {width blocks rows : ℕ}
       have hWcr : Wf cr := by rw [hcr]; exact hc.2 _ (List.getElem_mem hic)
       have hcrv : cr = c.val.getD ii.val (alloc.vec.Vec.new cpoly.field.Fp) := by
         rw [hcr, List.getD_eq_getElem _ _ hic]
-      step with HachiEquiv.AuxShort.classify_short_spec cr hWcr as ⟨o, ho⟩
+      step with HachiEquiv.RingShort.classify_short_spec cr hWcr as ⟨o, ho⟩
       cases o with
       | none =>
         step with scalar_vec_mul_spec (k := width) cr s hWcr hWs

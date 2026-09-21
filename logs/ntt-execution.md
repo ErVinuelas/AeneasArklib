@@ -251,7 +251,7 @@ What the generated model looks like, item by item:
   straight-line scalar arithmetic.
 
 Proof status:
-- **`hachi/lean/AuxArith.lean` — complete, no `sorry`.** `aux_reduce_spec`
+- **`hachi/lean/NttArith.lean` — complete, no `sorry`.** `aux_reduce_spec`
   proves Barrett reduction equals `% p` for **every** `x : u64` (not merely for
   products of residues), which is what lets one theorem serve both the twist's
   input reduction and every butterfly. Its three `ℕ` ingredients
@@ -276,7 +276,7 @@ function of its input buffer, and the loop invariant is the ordinary
 
 Status: **PASS**
 
-Artifact: `hachi/lean/AuxNTT.lean`, **complete, no `sorry`**, stated over an
+Artifact: `hachi/lean/NttMath.lean`, **complete, no `sorry`**, stated over an
 arbitrary `CommRing` with an arbitrary root of unity — so the same theorems
 instantiate at all three auxiliary primes with no `NeZero` instance threaded
 through them.
@@ -302,7 +302,7 @@ form**: the stage induction only ever needs its two recursion equations, and the
 pointwise product never needs to know which root each entry belongs to.
 
 Commands/evidence:
-- `lake build AuxArith AuxNTT` — green, no `sorry`.
+- `lake build NttArith NttMath` — green, no `sorry`.
 - `#print axioms` on all eleven headline theorems of the two files:
   `[propext, Classical.choice, Quot.sound]` (two of them do not even need
   `Classical.choice`). No `sorryAx`.
@@ -329,12 +329,12 @@ By the time of this entry the following are proved with no `sorry`, checked by
 
 | file | content | `sorry` |
 |---|---|---|
-| `hachi/lean/AuxArith.lean` | Barrett reduction, `aux_add`/`sub`/`mul`, canonicality | 0 |
-| `hachi/lean/AuxNTT.lean` | the pure transform mathematics (Gate 3) | 0 |
-| `hachi/lean/AuxCode.lean` | the extracted **DIF stage**: three loops, plus its word→ring cast | 0 |
-| `hachi/lean/AuxCRT.lean` | the three primes' `Magic` pairs, and **Garner exactness** | 0 |
-| `hachi/lean/AuxTransform.lean` | `zeros`, `psi_table`, `twist`, `pointwise`, `untwist`, the extracted **DIT stage** and its cast | 2 (the two transform loops) |
-| `hachi/lean/AuxProduct.lean` | the word-level antidiagonals, their bounds and their casts | 3 (the two pipeline entry points) |
+| `hachi/lean/NttArith.lean` | Barrett reduction, `aux_add`/`sub`/`mul`, canonicality | 0 |
+| `hachi/lean/NttMath.lean` | the pure transform mathematics (Gate 3) | 0 |
+| `hachi/lean/NttStage.lean` | the extracted **DIF stage**: three loops, plus its word→ring cast | 0 |
+| `hachi/lean/NttCRT.lean` | the three primes' `Magic` pairs, and **Garner exactness** | 0 |
+| `hachi/lean/NttTransform.lean` | `zeros`, `psi_table`, `twist`, `pointwise`, `untwist`, the extracted **DIT stage** and its cast | 2 (the two transform loops) |
+| `hachi/lean/NttProduct.lean` | the word-level antidiagonals, their bounds and their casts | 3 (the two pipeline entry points) |
 
 ### What Gate 4 actually required, and what it cost
 
@@ -366,7 +366,7 @@ Two facts worth recording for anyone extending this:
 
 ### Gate 5 — exact CRT
 
-`AuxCRT.garner_spec` proves that, given the three residues of a natural number
+`NttCRT.garner_spec` proves that, given the three residues of a natural number
 below `P = p1·p2·p3`, the extracted `ntt.garner` returns **that number**, as an
 exact `u128`. The bound is tight: `r1 + p1·t1 + (p1·p2)·t2 ≤ P − 1`, so `x < P`
 is exactly what forces the leftover multiple of `P` to vanish. Every
@@ -437,9 +437,9 @@ that must already exist (`INSTRUCTIONS.md`, `op-genesis`).
    -> "ntt: the auxiliary-prime negacyclic transform, with its constant and
        differential tests"
 
-2. hachi/lean/AuxArith.lean  hachi/lean/AuxNTT.lean  hachi/lean/AuxCRT.lean
-   hachi/lean/AuxCode.lean   hachi/lean/AuxTransform.lean
-   hachi/lean/AuxProduct.lean hachi/lakefile.lean
+2. hachi/lean/NttArith.lean  hachi/lean/NttMath.lean  hachi/lean/NttCRT.lean
+   hachi/lean/NttStage.lean   hachi/lean/NttTransform.lean
+   hachi/lean/NttProduct.lean hachi/lakefile.lean
    -> "ntt: the transform's Lean equivalence layer"
 
 2b. hachi/src/ring.rs  hachi/src/lib.rs
@@ -490,7 +490,7 @@ introducing a competing public multiplication specification. It does, and the
 chain is:
 
 ```text
-ntt::negconv_mod_q                     (AuxProduct.negconv_mod_q_spec)
+ntt::negconv_mod_q                     (NttProduct.negconv_mod_q_spec)
   = offConvW a b k % q                 exact natural number, via Garner
   = (posW + BOUND − negW) % q
   ↓ posW_eq_posSum / negW_eq_negSum     (Ring.lean: the copied words agree)
@@ -505,7 +505,7 @@ ntt::negconv_mod_q                     (AuxProduct.negconv_mod_q_spec)
 `posSum_le` and `negSum_le` are the baseline's, reused verbatim — which is
 exactly what §14 of the playbook asked for. Nothing in the chain mentions an
 auxiliary prime, a root of unity, a transform order or a CRT: those live below
-`AuxProduct` and are invisible to `negConv`.
+`NttProduct` and are invisible to `negConv`.
 
 Four lemmas of the baseline's `Ring.lean` did become dead and were deleted:
 `posSum_zero`, `negSum_zero`, `posSum_succ`, `negSum_succ` — the four
@@ -573,15 +573,15 @@ directly):
 ```
 HachiEquiv.Ring.mul_spec                  [propext, Classical.choice, Quot.sound]
 HachiEquiv.RqBridge.mul_spec              [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxProduct.negconv_mod_q_spec  [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxProduct.negconv_mod_p_spec  [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxCRT.garner_spec             [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxCode.dif_stage_spec         [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxTransform.dit_stage_spec    [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxTransform.ntt_forward_spec  [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxTransform.ntt_inverse_spec  [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxNTT.difRun_blockVal         [propext, Classical.choice, Quot.sound]
-HachiEquiv.AuxNTT.ditRun_difRun           [propext, Quot.sound]
+HachiEquiv.NttProduct.negconv_mod_q_spec  [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttProduct.negconv_mod_p_spec  [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttCRT.garner_spec             [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttStage.dif_stage_spec         [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttTransform.dit_stage_spec    [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttTransform.ntt_forward_spec  [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttTransform.ntt_inverse_spec  [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttMath.difRun_blockVal         [propext, Classical.choice, Quot.sound]
+HachiEquiv.NttMath.ditRun_difRun           [propext, Quot.sound]
 ```
 
 No `sorryAx`, no new axiom, no `native_decide`, no `unsafe`, no
@@ -853,12 +853,12 @@ independent oracle for the operations that call `Rq::mul`, and all pass.
 ```text
 hachi/src/ntt.rs              the transform (551 lines, header carries the argument)
 hachi/src/ring.rs             Rq::mul -- three passes and one call
-hachi/lean/AuxArith.lean      Barrett, aux_add/sub/mul                  (318)
-hachi/lean/AuxNTT.lean        the pure transform mathematics            (594)
-hachi/lean/AuxCode.lean       the extracted DIF stage + its cast        (523)
-hachi/lean/AuxTransform.lean  the DIT stage, the passes, both transforms (1186)
-hachi/lean/AuxCRT.lean        the three primes, and Garner exactness    (301)
-hachi/lean/AuxProduct.lean    the per-prime pipeline and the CRT step   (736)
+hachi/lean/NttArith.lean      Barrett, aux_add/sub/mul                  (318)
+hachi/lean/NttMath.lean        the pure transform mathematics            (594)
+hachi/lean/NttStage.lean       the extracted DIF stage + its cast        (523)
+hachi/lean/NttTransform.lean  the DIT stage, the passes, both transforms (1186)
+hachi/lean/NttCRT.lean        the three primes, and Garner exactness    (301)
+hachi/lean/NttProduct.lean    the per-prime pipeline and the CRT step   (736)
 hachi/lean/Ring.lean          the new mul_spec and the bridge to posSum/negSum
 hachi/lean/RqBridge.lean      UNCHANGED -- read it to confirm
 hachi/tests/ring_semantics.rs the constant and differential tests

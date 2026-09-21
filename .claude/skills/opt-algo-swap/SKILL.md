@@ -7,7 +7,7 @@ description: Optimization strategy — substituting the algorithm behind a targe
 
 One strategy of the optimization loop. Invoked by the `lean-opt` driver with a
 target definition and its `arklib-analyze` brief; delivers a candidate under
-the opt-contract that `lean-opt` owns: `Foo.opt` in `hachi/lean/Opt.lean`,
+the opt-contract that `lean-opt` owns: `Foo.opt` in the `hachi/lean/Opt<Module>.lean` part for the target's module (`Opt.lean` is the umbrella that imports every part),
 written inside `lean-to-rust`'s translatable subset, plus the proved
 `Foo.opt_eq_spec`. This is the strategy the driver tries **first**: a
 complexity-class or operation-count win dwarfs constant-factor tuning, and it
@@ -17,9 +17,9 @@ run" found byte-identical crates reading up to 59% apart on the host it
 measured, so a few-percent win is indistinguishable from placement there.
 
 Being the first tier means this strategy is likely to produce the *first*
-candidate, and `hachi/lean/Opt.lean` does not exist yet: creating it is
-`lean-opt`'s step zero (new module, `` `Opt `` in `roots`, imported by
-`Check.lean`), and skipping it leaves a lemma that is never checked. Do not
+candidate, and the target module's `hachi/lean/Opt<Module>.lean` part may not exist
+yet: creating it is `lean-opt`'s step zero (new module, in `roots`, imported by
+the `Opt.lean` umbrella), and skipping it leaves a lemma that is never checked. Do not
 re-derive that procedure here — follow it there.
 
 ## The one rule: the algorithm changes in Lean, never in the translation

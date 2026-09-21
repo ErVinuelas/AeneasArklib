@@ -43,9 +43,9 @@ the rejection direction is the half a broken implementation would still satisfy,
 the half `Simple.verify` rests on.
 -/
 import Ring
-import AuxShort
-import AuxFused
-import AuxGoldDot
+import RingShort
+import RingFused
+import GoldDot
 import ArkLib.Commitments.Functional.Hachi.InnerOuter.Arithmetic
 -- `Nat.Prime 4294967197` is decided by norm_num's primality extension, which is not
 -- reached by the ArkLib import above; without this the instance below is unprovable
@@ -486,19 +486,19 @@ theorem mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
 
 /-- **`ring::mul_short_desc` at the `Rq` level.** The same conclusion as
 [`mul_spec`], from the same coefficientwise closed form -- because
-`AuxShort.mul_short_desc_spec` proves `negConv`, exactly as `Ring.mul_spec`
+`RingShort.mul_short_desc_spec` proves `negConv`, exactly as `Ring.mul_spec`
 does. Everything below this point is unaware that the product was computed by
 signed shifts rather than by a transform. -/
 theorem mul_short_desc_spec (desc : ring.ShortMul) (s a : ring.Rq)
     (hs : Wf s) (ha : Wf a)
     (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
     (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
-    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.AuxShort.idxAt desc.idx u < N)
+    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.RingShort.idxAt desc.idx u < N)
     (hden : ∀ j, j < N → coeffK a j
-      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+      = HachiEquiv.RingShort.descCoeffW desc.idx desc.mag desc.neg
           desc.idx.val.length j) :
     ring.mul_short_desc desc s ⦃ z => Wf z ∧ toRq z = toRq a * toRq s ⦄ := by
-  apply spec_mono (HachiEquiv.AuxShort.mul_short_desc_spec desc s a hs ha hmlen
+  apply spec_mono (HachiEquiv.RingShort.mul_short_desc_spec desc s a hs ha hmlen
     hnlen hidx hden)
   rintro z ⟨hz, hcoef⟩
   refine ⟨hz, ?_⟩
@@ -516,13 +516,13 @@ theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
     (hs : Wf s) (ha : Wf a) (hacc : Wf acc)
     (hmlen : desc.idx.val.length ≤ desc.mag.val.length)
     (hnlen : desc.idx.val.length ≤ desc.neg.val.length)
-    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.AuxShort.idxAt desc.idx u < N)
+    (hidx : ∀ u, u < desc.idx.val.length → HachiEquiv.RingShort.idxAt desc.idx u < N)
     (hden : ∀ j, j < N → coeffK a j
-      = HachiEquiv.AuxShort.descCoeffW desc.idx desc.mag desc.neg
+      = HachiEquiv.RingShort.descCoeffW desc.idx desc.mag desc.neg
           desc.idx.val.length j) :
     ring.mul_short_add_into desc s acc
       ⦃ z => Wf z ∧ toRq z = toRq acc + toRq a * toRq s ⦄ := by
-  apply spec_mono (HachiEquiv.AuxShort.mul_short_add_into_spec desc s acc a hs ha
+  apply spec_mono (HachiEquiv.RingShort.mul_short_add_into_spec desc s acc a hs ha
     hacc hmlen hnlen hidx hden)
   rintro z ⟨hz, hcoef⟩
   refine ⟨hz, ?_⟩
@@ -541,7 +541,7 @@ theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
 /-! ## The fused dot product
 
 `linalg::PolyVec::dot` no longer multiplies term by term; `ring::dot_fused`
-accumulates in the transform domain (`AuxFused`). The statement below, and
+accumulates in the transform domain (`RingFused`). The statement below, and
 `Scheme.dot_spec` above it, are unchanged by that -- which is the third time a
 Stage 6 champion has moved an implementation without moving its specification. -/
 
@@ -593,7 +593,7 @@ theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
       ⦃ z => Wf z ∧ toRq z = ∑ u ∈ Finset.range nU.val,
           toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
-  apply spec_mono (HachiEquiv.AuxFused.dot_fused_spec a b nU haw hbw han hbn)
+  apply spec_mono (HachiEquiv.RingFused.dot_fused_spec a b nU haw hbw han hbn)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
 
@@ -616,9 +616,9 @@ def prepJunk : ring.PreparedVec :=
 /-- `p` holds the three forward transforms of the first `cols` entries of `a`. -/
 def PrepRow (cols : ℕ) (p : ring.PreparedVec) (a : linalg.PolyVec) : Prop :=
   p.len.val = cols
-  ∧ HachiEquiv.AuxFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
-  ∧ HachiEquiv.AuxFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
-  ∧ HachiEquiv.AuxFused.PrepAt p.fwd3 a cols ntt.AUX_P3 ntt.AUX_PSI3
+  ∧ HachiEquiv.RingFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
+  ∧ HachiEquiv.RingFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
+  ∧ HachiEquiv.RingFused.PrepAt p.fwd3 a cols ntt.AUX_P3 ntt.AUX_PSI3
 
 /-- **`ring::dot_prepared` at the `Rq` level** -- the same value as
 `dot_fused_spec`, for a left operand supplied in prepared form. -/
@@ -633,7 +633,7 @@ theorem dot_prepared_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq
           toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   obtain ⟨-, hp1, hp2, hp3⟩ := hprep
-  apply spec_mono (HachiEquiv.AuxFused.dot_prepared_spec prep a b nU haw hbw han hbn
+  apply spec_mono (HachiEquiv.RingFused.dot_prepared_spec prep a b nU haw hbw han hbn
     hp1 hp2 hp3)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
@@ -649,12 +649,12 @@ proof obligation stops that. -/
 /-- `p` holds the two forward transforms of the first `cols` entries of `a`. -/
 def PrepRow2 (cols : ℕ) (p : ring.PreparedVec) (a : linalg.PolyVec) : Prop :=
   p.len.val = cols
-  ∧ HachiEquiv.AuxFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
-  ∧ HachiEquiv.AuxFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
+  ∧ HachiEquiv.RingFused.PrepAt p.fwd1 a cols ntt.AUX_P1 ntt.AUX_PSI1
+  ∧ HachiEquiv.RingFused.PrepAt p.fwd2 a cols ntt.AUX_P2 ntt.AUX_PSI2
 
 /-- Every word of every entry below `cols` is a gadget digit. -/
 def DigitVec (cols : ℕ) (v : linalg.PolyVec) : Prop :=
-  ∀ u, u < cols → HachiEquiv.AuxFused.DigitWf
+  ∀ u, u < cols → HachiEquiv.RingFused.DigitWf
     (v.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
 
 /-- **`ring::dot_prepared_digits` at the `Rq` level** -- the value
@@ -671,7 +671,7 @@ theorem dot_prepared_digits_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec 
           toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   obtain ⟨-, hp1, hp2⟩ := hprep
-  apply spec_mono (HachiEquiv.AuxFused.dot_prepared_digits_spec prep a b nU haw hbw
+  apply spec_mono (HachiEquiv.RingFused.dot_prepared_digits_spec prep a b nU haw hbw
     hbd han hbn hp1 hp2)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩
@@ -685,7 +685,7 @@ predicate differs, because there is one table rather than two. -/
 /-- `p` holds the single Goldilocks forward transform of the first `cols`
 entries of `a`. -/
 def PrepRowG (cols : ℕ) (p : ring.PreparedVecG) (a : linalg.PolyVec) : Prop :=
-  p.len.val = cols ∧ HachiEquiv.AuxGoldDot.PrepAtG p a cols
+  p.len.val = cols ∧ HachiEquiv.GoldDot.PrepAtG p a cols
 
 /-- The `getD` default for a `PreparedVecG` slot; never read, see [`prepJunk`]. -/
 def prepJunkG : ring.PreparedVecG :=
@@ -705,7 +705,7 @@ theorem dot_prepared_digits_gold_spec (prep : ring.PreparedVecG)
           toRq (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             * toRq (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
   obtain ⟨-, hp⟩ := hprep
-  apply spec_mono (HachiEquiv.AuxGoldDot.gold_dot_spec prep a b nU haw hbw
+  apply spec_mono (HachiEquiv.GoldDot.gold_dot_spec prep a b nU haw hbw
     hbd han hbn hwidth hp)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, dot_sum_toRq a b nU haw hbw z hzval⟩

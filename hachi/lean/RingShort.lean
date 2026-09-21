@@ -1,5 +1,5 @@
 /-
-`AuxShort.lean` -- the word level of multiplication by a short element.
+`RingShort.lean` -- the word level of multiplication by a short element.
 
 `ring::mul_short_desc` multiplies by a challenge of bounded centred `ℓ₁` norm
 using signed negacyclic shifts, never a product. Its correctness is settled in
@@ -10,7 +10,7 @@ loops actually live.
 
 # Why a file of its own
 
-The same reason `AuxCode` and `AuxProduct` are files of their own: the
+The same reason `NttStage` and `NttProduct` are files of their own: the
 development below is about a `Vec Std.U64` scratch buffer and the mod-`q`
 branches the Rust writes by hand, none of which `Ring.lean`'s statements
 mention. `Ring.lean` gets one spec out of it.
@@ -29,7 +29,7 @@ branches (`cur - sv` / `cur + q - sv`, `cur + sv` / `cur + sv - q`) are each
 shown **once**, by [`subBranch`] and [`addBranch`], to be the canonical
 representative of `cur ∓ sv`. Nothing above that point sees a branch.
 -/
-import AuxCode
+import NttStage
 import Ring
 
 set_option autoImplicit false
@@ -38,7 +38,7 @@ set_option maxRecDepth 8192
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxShort
+namespace HachiEquiv.RingShort
 
 open HachiEquiv.Field HachiEquiv.Ring
 
@@ -192,28 +192,28 @@ not, crossed with sign-flipped or not -- which differ only in which `ℕ` branch
 computed the stored word. Everything after that word is known is this lemma. -/
 theorem write_invariant (d : alloc.vec.Vec Std.U64) (base sc : ℕ → ZMod q)
     (k i : ℕ) (negt : Bool) (wU : Std.Usize) (x : Std.U64)
-    (hk : k < N) (hi : i < N) (hdl : d.val.length = N) (hcd : AuxCode.Canon q d)
+    (hk : k < N) (hi : i < N) (hdl : d.val.length = N) (hcd : NttStage.Canon q d)
     (hwv : wU.val = dstOf k i) (hxlt : x.val < q)
     (hxval : ((x.val : ℕ) : ZMod q)
-      = ((AuxCode.wordAt d wU.val : ℕ) : ZMod q) + sgn negt k wU.val * sc i)
-    (hw : ∀ w, w < N → ((AuxCode.wordAt d w : ℕ) : ZMod q) = applied base sc k negt i w) :
-    AuxCode.Canon q (d.set wU x) ∧
-      ∀ w, w < N → ((AuxCode.wordAt (d.set wU x) w : ℕ) : ZMod q)
+      = ((NttStage.wordAt d wU.val : ℕ) : ZMod q) + sgn negt k wU.val * sc i)
+    (hw : ∀ w, w < N → ((NttStage.wordAt d w : ℕ) : ZMod q) = applied base sc k negt i w) :
+    NttStage.Canon q (d.set wU x) ∧
+      ∀ w, w < N → ((NttStage.wordAt (d.set wU x) w : ℕ) : ZMod q)
         = applied base sc k negt (i + 1) w := by
-  refine ⟨AuxCode.Canon_set hcd hxlt, ?_⟩
+  refine ⟨NttStage.Canon_set hcd hxlt, ?_⟩
   intro w hwlt
   rw [applied_succ]
   by_cases heq : w = wU.val
   · have hsrceq : srcOf k wU.val = i := by rw [hwv]; exact srcOf_dstOf hk hi
     have hwltU : wU.val < N := by rw [← heq]; exact hwlt
-    rw [heq, AuxCode.wordAt_set_eq (by rw [hdl]; exact hwltU), hxval,
+    rw [heq, NttStage.wordAt_set_eq (by rw [hdl]; exact hwltU), hxval,
       hw wU.val hwltU, hsrceq, if_pos rfl]
   · have hne : srcOf k w ≠ i := by
       intro hcon
       have hwd : w = dstOf k i := by rw [← hcon, dstOf_srcOf hk hwlt]
       rw [← hwv] at hwd
       exact heq hwd
-    rw [AuxCode.wordAt_set_ne heq, hw w hwlt, if_neg hne, add_zero]
+    rw [NttStage.wordAt_set_ne heq, hw w hwlt, if_neg hne, add_zero]
 
 /-- **The inner loop.** One pass: add (or subtract) the `k`-shifted `s`, with the
 sign folded on wrap. -/
@@ -221,16 +221,16 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
     (out : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool) (iU : Std.Usize)
     (base : ℕ → ZMod q)
     (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q) (hk : kU.val < N)
-    (hi : iU.val ≤ N) (hc : AuxCode.Canon q out)
-    (hval : ∀ w, w < N → ((AuxCode.wordAt out w : ℕ) : ZMod q)
+    (hi : iU.val ≤ N) (hc : NttStage.Canon q out)
+    (hval : ∀ w, w < N → ((NttStage.wordAt out w : ℕ) : ZMod q)
               = applied base (coeffK s) kU.val negt iU.val w) :
     ring.mul_short_desc_loop1_loop0_loop0 s nU qU out kU negt iU
-      ⦃ z => AuxCode.Canon q z ∧ ∀ w, w < N → ((AuxCode.wordAt z w : ℕ) : ZMod q)
+      ⦃ z => NttStage.Canon q z ∧ ∀ w, w < N → ((NttStage.wordAt z w : ℕ) : ZMod q)
               = applied base (coeffK s) kU.val negt N w ⦄ := by
   rw [ring.mul_short_desc_loop1_loop0_loop0]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
-    (fun t => t.2.val ≤ N ∧ AuxCode.Canon q t.1
-      ∧ ∀ w, w < N → ((AuxCode.wordAt t.1 w : ℕ) : ZMod q)
+    (fun t => t.2.val ≤ N ∧ NttStage.Canon q t.1
+      ∧ ∀ w, w < N → ((NttStage.wordAt t.1 w : ℕ) : ZMod q)
               = applied base (coeffK s) kU.val negt t.2.val w)
   · rintro ⟨d, ii⟩ ⟨hii, hcd, hw⟩
     dsimp only at hii hcd hw
@@ -272,11 +272,11 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
             unfold wrapped
             rw [decide_eq_true hge]
           step as ⟨cur, hcurg⟩
-          have hcurv : cur.val = AuxCode.wordAt d wU.val := by
-            rw [hcurg, ← AuxCode.wordAt_of_lt (v := d) (t := wU.val)
+          have hcurv : cur.val = NttStage.wordAt d wU.val := by
+            rw [hcurg, ← NttStage.wordAt_of_lt (v := d) (t := wU.val)
               (by rw [hdl]; exact hwltN)]
           have hcurlt : cur.val < q := by
-            rw [hcurv]; exact AuxCode.wordAt_lt hcd (by norm_num [HachiEquiv.Field.q]) _
+            rw [hcurv]; exact NttStage.wordAt_lt hcd (by norm_num [HachiEquiv.Field.q]) _
           rw [hdf]
           cases negt with
           | false =>
@@ -287,7 +287,7 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
               ite_true]
             have hsub : ∀ z : Std.U64, z.val = subW cur.val sv.val →
                 ((z.val : ℕ) : ZMod q)
-                  = ((AuxCode.wordAt d wU.val : ℕ) : ZMod q)
+                  = ((NttStage.wordAt d wU.val : ℕ) : ZMod q)
                     + sgn false kU.val wU.val * coeffK s ii.val := by
               intro z hz
               rw [hz, (subBranch cur.val sv.val hcurlt hsvlt).2, hcurv, hsgnv,
@@ -331,7 +331,7 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
             simp only [bne_self_eq_false, Bool.false_eq_true, if_false]
             have hadd : ∀ z : Std.U64, z.val = addW cur.val sv.val →
                 ((z.val : ℕ) : ZMod q)
-                  = ((AuxCode.wordAt d wU.val : ℕ) : ZMod q)
+                  = ((NttStage.wordAt d wU.val : ℕ) : ZMod q)
                     + sgn true kU.val wU.val * coeffK s ii.val := by
               intro z hz
               rw [hz, (addBranch cur.val sv.val hcurlt hsvlt).2, hcurv, hsgnv,
@@ -380,11 +380,11 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
             rw [decide_eq_false (by omega : ¬ (N ≤ kU.val + ii.val))]
           -- `ok pos` is a bind, so this one `step` also consumes the read
           step as ⟨cur, hcurg⟩
-          have hcurv : cur.val = AuxCode.wordAt d pos.val := by
-            rw [hcurg, ← AuxCode.wordAt_of_lt (v := d) (t := pos.val)
+          have hcurv : cur.val = NttStage.wordAt d pos.val := by
+            rw [hcurg, ← NttStage.wordAt_of_lt (v := d) (t := pos.val)
               (by rw [hdl]; exact hwltN)]
           have hcurlt : cur.val < q := by
-            rw [hcurv]; exact AuxCode.wordAt_lt hcd (by norm_num [HachiEquiv.Field.q]) _
+            rw [hcurv]; exact NttStage.wordAt_lt hcd (by norm_num [HachiEquiv.Field.q]) _
           rw [hdf]
           cases negt with
           | false =>
@@ -393,7 +393,7 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
             simp only [bne_self_eq_false, Bool.false_eq_true, if_false]
             have hadd : ∀ z : Std.U64, z.val = addW cur.val sv.val →
                 ((z.val : ℕ) : ZMod q)
-                  = ((AuxCode.wordAt d pos.val : ℕ) : ZMod q)
+                  = ((NttStage.wordAt d pos.val : ℕ) : ZMod q)
                     + sgn false kU.val pos.val * coeffK s ii.val := by
               intro z hz
               rw [hz, (addBranch cur.val sv.val hcurlt hsvlt).2, hcurv, hsgnv, ← hsvval]
@@ -434,7 +434,7 @@ theorem inner_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
               ite_true]
             have hsub : ∀ z : Std.U64, z.val = subW cur.val sv.val →
                 ((z.val : ℕ) : ZMod q)
-                  = ((AuxCode.wordAt d pos.val : ℕ) : ZMod q)
+                  = ((NttStage.wordAt d pos.val : ℕ) : ZMod q)
                     + sgn true kU.val pos.val * coeffK s ii.val := by
               intro z hz
               rw [hz, (subBranch cur.val sv.val hcurlt hsvlt).2, hcurv, hsgnv, ← hsvval]
@@ -509,16 +509,16 @@ theorem pass_spec (s : ring.Rq) (nU : Std.Usize) (qU : Std.U64)
     (out : alloc.vec.Vec Std.U64) (kU : Std.Usize) (mU : Std.U64) (negt : Bool)
     (passU : Std.U64) (base : ℕ → ZMod q)
     (hs : Wf s) (hn : nU.val = N) (hq : qU.val = q) (hk : kU.val < N)
-    (hp : passU.val ≤ mU.val) (hc : AuxCode.Canon q out)
-    (hval : ∀ w, w < N → ((AuxCode.wordAt out w : ℕ) : ZMod q)
+    (hp : passU.val ≤ mU.val) (hc : NttStage.Canon q out)
+    (hval : ∀ w, w < N → ((NttStage.wordAt out w : ℕ) : ZMod q)
               = passed base (coeffK s) kU.val negt passU.val w) :
     ring.mul_short_desc_loop1_loop0 s nU qU out kU mU negt passU
-      ⦃ z => AuxCode.Canon q z ∧ ∀ w, w < N → ((AuxCode.wordAt z w : ℕ) : ZMod q)
+      ⦃ z => NttStage.Canon q z ∧ ∀ w, w < N → ((NttStage.wordAt z w : ℕ) : ZMod q)
               = passed base (coeffK s) kU.val negt mU.val w ⦄ := by
   rw [ring.mul_short_desc_loop1_loop0]
   apply loop.spec_decr_nat (fun t => mU.val - t.2.val)
-    (fun t => t.2.val ≤ mU.val ∧ AuxCode.Canon q t.1
-      ∧ ∀ w, w < N → ((AuxCode.wordAt t.1 w : ℕ) : ZMod q)
+    (fun t => t.2.val ≤ mU.val ∧ NttStage.Canon q t.1
+      ∧ ∀ w, w < N → ((NttStage.wordAt t.1 w : ℕ) : ZMod q)
               = passed base (coeffK s) kU.val negt t.2.val w)
   · rintro ⟨d, pp⟩ ⟨hpp, hcd, hw⟩
     dsimp only at hpp hcd hw
@@ -581,16 +581,16 @@ theorem terms_spec (vi : alloc.vec.Vec Std.Usize) (vm : alloc.vec.Vec Std.U64)
     (hlen : vi.val.length = termsU.val)
     (hmlen : termsU.val ≤ vm.val.length) (hnlen : termsU.val ≤ vn.val.length)
     (hidx : ∀ u, u < termsU.val → idxAt vi u < N)
-    (ht : tU.val ≤ termsU.val) (hc : AuxCode.Canon q out)
-    (hval : ∀ w, w < N → ((AuxCode.wordAt out w : ℕ) : ZMod q)
+    (ht : tU.val ≤ termsU.val) (hc : NttStage.Canon q out)
+    (hval : ∀ w, w < N → ((NttStage.wordAt out w : ℕ) : ZMod q)
               = base w + termsSum (coeffK s) vi vm vn tU.val w) :
     ring.mul_short_desc_loop1 vi vm vn s nU qU termsU out tU
-      ⦃ z => AuxCode.Canon q z ∧ ∀ w, w < N → ((AuxCode.wordAt z w : ℕ) : ZMod q)
+      ⦃ z => NttStage.Canon q z ∧ ∀ w, w < N → ((NttStage.wordAt z w : ℕ) : ZMod q)
               = base w + termsSum (coeffK s) vi vm vn termsU.val w ⦄ := by
   rw [ring.mul_short_desc_loop1]
   apply loop.spec_decr_nat (fun r => termsU.val - r.2.val)
-    (fun r => r.2.val ≤ termsU.val ∧ AuxCode.Canon q r.1
-      ∧ ∀ w, w < N → ((AuxCode.wordAt r.1 w : ℕ) : ZMod q)
+    (fun r => r.2.val ≤ termsU.val ∧ NttStage.Canon q r.1
+      ∧ ∀ w, w < N → ((NttStage.wordAt r.1 w : ℕ) : ZMod q)
               = base w + termsSum (coeffK s) vi vm vn r.2.val w)
   · rintro ⟨d, tt⟩ ⟨htt, hcd, hw⟩
     dsimp only at htt hcd hw
@@ -649,13 +649,13 @@ private theorem getD_append_eq' {α : Type} (l : List α) (x d : α) :
 /-- **The zero-fill.** The accumulator starts as `N` zero words. -/
 theorem zerofill_spec (nU : Std.Usize) (out : alloc.vec.Vec Std.U64) (zU : Std.Usize)
     (hn : nU.val = N) (hz : zU.val ≤ nU.val) (hlen : out.val.length = zU.val)
-    (hzero : ∀ u, u < zU.val → AuxCode.wordAt out u = 0) :
+    (hzero : ∀ u, u < zU.val → NttStage.wordAt out u = 0) :
     ring.mul_short_desc_loop0 nU out zU
-      ⦃ r => r.val.length = N ∧ ∀ u, u < N → AuxCode.wordAt r u = 0 ⦄ := by
+      ⦃ r => r.val.length = N ∧ ∀ u, u < N → NttStage.wordAt r u = 0 ⦄ := by
   rw [ring.mul_short_desc_loop0]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
     (fun t => t.2.val ≤ nU.val ∧ t.1.val.length = t.2.val
-      ∧ ∀ u, u < t.2.val → AuxCode.wordAt t.1 u = 0)
+      ∧ ∀ u, u < t.2.val → NttStage.wordAt t.1 u = 0)
   · rintro ⟨d, zz⟩ ⟨hzz, hdl, hdz⟩
     dsimp only at hzz hdl hdz
     simp only [ring.mul_short_desc_loop0.body]
@@ -667,7 +667,7 @@ theorem zerofill_spec (nU : Std.Usize) (out : alloc.vec.Vec Std.U64) (zU : Std.U
       · rw [hd1, hzz1, List.length_append, hdl]; simp
       · intro u hu
         rw [hzz1] at hu
-        simp only [AuxCode.wordAt] at hdz ⊢
+        simp only [NttStage.wordAt] at hdz ⊢
         rcases Nat.lt_or_ge u zz.val with hult | huge
         · rw [hd1, getD_append_lt' _ _ _ (by omega)]
           exact hdz u hult
@@ -685,14 +685,14 @@ theorem convert_spec (nU : Std.Usize) (out : alloc.vec.Vec Std.U64)
     (res : alloc.vec.Vec cpoly.field.Fp) (jU : Std.Usize)
     (hn : nU.val = N) (hj : jU.val ≤ nU.val) (hol : out.val.length = N)
     (hlen : res.val.length = jU.val) (hred : ∀ u ∈ res.val, Red u)
-    (hval : ∀ t, t < jU.val → coeffK res t = ((AuxCode.wordAt out t : ℕ) : ZMod q)) :
+    (hval : ∀ t, t < jU.val → coeffK res t = ((NttStage.wordAt out t : ℕ) : ZMod q)) :
     ring.mul_short_desc_loop2 nU out res jU
-      ⦃ r => Wf r ∧ ∀ t, t < N → coeffK r t = ((AuxCode.wordAt out t : ℕ) : ZMod q) ⦄ := by
+      ⦃ r => Wf r ∧ ∀ t, t < N → coeffK r t = ((NttStage.wordAt out t : ℕ) : ZMod q) ⦄ := by
   rw [ring.mul_short_desc_loop2]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
     (fun t => t.2.val ≤ nU.val ∧ t.1.val.length = t.2.val
       ∧ (∀ u ∈ t.1.val, Red u)
-      ∧ ∀ v, v < t.2.val → coeffK t.1 v = ((AuxCode.wordAt out v : ℕ) : ZMod q))
+      ∧ ∀ v, v < t.2.val → coeffK t.1 v = ((NttStage.wordAt out v : ℕ) : ZMod q))
   · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdr, hdv⟩
     dsimp only at hjj hdl hdr hdv
     simp only [ring.mul_short_desc_loop2.body]
@@ -700,8 +700,8 @@ theorem convert_spec (nU : Std.Usize) (out : alloc.vec.Vec Std.U64)
     · rw [if_pos hlt]
       have hjb : jj.val < out.val.length := by rw [hol, ← hn]; scalar_tac
       step as ⟨x, hx⟩
-      have hxv : x.val = AuxCode.wordAt out jj.val := by
-        rw [hx, ← AuxCode.wordAt_of_lt (v := out) (t := jj.val) hjb]
+      have hxv : x.val = NttStage.wordAt out jj.val := by
+        rw [hx, ← NttStage.wordAt_of_lt (v := out) (t := jj.val) hjb]
       step with fp_new_spec x as ⟨f, hfred, hfval⟩
       step as ⟨d1, hd1⟩
       step as ⟨jj1, hjj1⟩
@@ -910,12 +910,12 @@ theorem mul_short_desc_spec (desc : ring.ShortMul) (s a : ring.Rq)
   step with zerofill_spec params.RING_DEGREE (alloc.vec.Vec.new Std.U64) 0#usize
     params_RING_DEGREE_val (by simp) (by simp) (by intro u hu; simp at hu)
     as ⟨o1, ho1len, ho1zero⟩
-  have hco1 : AuxCode.Canon q o1 := by
+  have hco1 : NttStage.Canon q o1 := by
     refine ⟨ho1len, ?_⟩
     intro u hu
     obtain ⟨t, ht, hteq⟩ := List.getElem_of_mem hu
-    have : AuxCode.wordAt o1 t = 0 := ho1zero t (by rw [← ho1len]; exact ht)
-    rw [AuxCode.wordAt_of_lt ht] at this
+    have : NttStage.wordAt o1 t = 0 := ho1zero t (by rw [← ho1len]; exact ht)
+    rw [NttStage.wordAt_of_lt ht] at this
     rw [← hteq, this]
     norm_num [HachiEquiv.Field.q]
   step with terms_spec desc.idx desc.mag desc.neg s params.RING_DEGREE params.Q
@@ -1225,7 +1225,7 @@ straight into the accumulator, since adding a shifted copy is what it does.
 `sgn`, `dstOf`/`srcOf`, the branch lemmas and `termsSum_eq_negConvF` are stated
 over `ℕ → ZMod q` and know nothing about which buffer holds the coefficients. Only
 the *loop* specs are new, because the extracted loops here write a `Vec Fp`
-through `coeffK` where §§3-6 wrote a `Vec Std.U64` through `AuxCode.wordAt`. -/
+through `coeffK` where §§3-6 wrote a `Vec Std.U64` through `NttStage.wordAt`. -/
 
 theorem coeffK_set_eq {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize}
     {x : cpoly.field.Fp} (ht : t.val < v.val.length) :
@@ -1247,7 +1247,7 @@ theorem coeffK_set_ne {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize}
       List.getD_eq_default _ _ (by omega)]
 
 /-- The `Fp`-buffer twin of [`write_invariant`]: one write advances `applied` by
-one source index. Same proof, `coeffK` in place of `AuxCode.wordAt`. -/
+one source index. Same proof, `coeffK` in place of `NttStage.wordAt`. -/
 theorem write_invariant_fp (d : ring.Rq) (base sc : ℕ → ZMod q)
     (k i : ℕ) (negt : Bool) (wU : Std.Usize) (x : cpoly.field.Fp)
     (hk : k < N) (hi : i < N) (hdl : d.val.length = N)
@@ -2054,4 +2054,4 @@ theorem mul_short_add_into_spec (desc : ring.ShortMul) (s acc a : ring.Rq)
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, fun w hwlt => by rw [hzval w hwlt, negConvF_coeffK a s w]⟩
 
-end HachiEquiv.AuxShort
+end HachiEquiv.RingShort

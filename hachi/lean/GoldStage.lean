@@ -1,30 +1,30 @@
 /-
-The **Goldilocks DIF stage** (candidate T27): `AuxCode.lean`'s stage proof,
+The **Goldilocks DIF stage** (candidate T27): `NttStage.lean`'s stage proof,
 ported to the single 64-bit lane.
 
 Everything structural is reused rather than restated. `wordAt`, `Canon`,
 `difWord`, `ditWord`, `resK` and the ring-level bridge `difWord_cast` are all
 already generic in the prime, so this file supplies only what the word
 arithmetic changes: the three arithmetic steps, which move from
-`aux_{add,sub,mul}_lt` at a `Magic` prime to `AuxGold`'s specs at `GP`.
+`aux_{add,sub,mul}_lt` at a `Magic` prime to `GoldArith`'s specs at `GP`.
 
 The theorems come out *simpler* than their originals, because the prime is a
 constant here rather than a parameter: no `pw`, no `mw`, no `Magic`, and no
 `0 < pw.val` to thread. That is the one compensation for not being able to
-instantiate `AuxArith` — `Magic` requires `p < 2^32`, and a product of two
+instantiate `NttArith` — `Magic` requires `p < 2^32`, and a product of two
 Goldilocks residues needs a `u128`.
 -/
-import AuxCode
-import AuxGold
+import NttStage
+import GoldArith
 
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxGoldCode
+namespace HachiEquiv.GoldStage
 
-open HachiEquiv.AuxCode HachiEquiv.AuxGold
+open HachiEquiv.NttStage HachiEquiv.GoldArith
 
 theorem GP_pos : 0 < GP := by norm_num
 
@@ -344,10 +344,10 @@ theorem gold_dif_stage_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usiz
 /-! ## From words to the ring
 
 `resK p v` reads a buffer as a function into `ZMod p`, and the word-level stage
-becomes `AuxNTT.difStage` under it. The `ω` the ring-level stage runs on is the
+becomes `NttMath.difStage` under it. The `ω` the ring-level stage runs on is the
 *square* of the root the table holds, which is where the factor of two in the
 code's `step` goes: `tw[(idx − half) · 2 · (N/len)] = ψ^(2·(idx−half)·(N/len))
 = ω^((idx−half)·(N/len))`.
 -/
 
-end HachiEquiv.AuxGoldCode
+end HachiEquiv.GoldStage

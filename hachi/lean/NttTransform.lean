@@ -2,7 +2,7 @@
 The rest of the **extracted transform**: the push and in-place loops around the
 stages, the two stage runs, and the per-prime pipeline.
 
-`AuxCode.lean` proves the DIF stage; this file proves the DIT stage (its mirror)
+`NttStage.lean` proves the DIF stage; this file proves the DIT stage (its mirror)
 and everything that is not a stage: the twiddle table, the twist, the pointwise
 product, the untwist, and the two loops that compose stages into transforms.
 
@@ -26,19 +26,19 @@ block structure re-derived at every stage.
 The twiddle table holds powers of `ψ`, a root of order `2N`; the transform runs
 on `ω = ψ²`, of order `N`. The code therefore steps the table index by
 `2 · (N / len)` where the ring-level stage steps the exponent by `N / len`.
-`AuxCode.difWord_cast` and [`ditWord_cast`] are where that factor is discharged,
+`NttStage.difWord_cast` and [`ditWord_cast`] are where that factor is discharged,
 once each, and nothing above them mentions `ψ` again.
 -/
-import AuxCode
+import NttStage
 
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxTransform
+namespace HachiEquiv.NttTransform
 
-open HachiEquiv.AuxArith HachiEquiv.AuxCode
+open HachiEquiv.NttArith HachiEquiv.NttStage
 
 /-! ## `ntt::zeros` -/
 
@@ -446,7 +446,7 @@ theorem untwist_spec (src it : alloc.vec.Vec Std.U64) (ninv boff pw mw : Std.U64
 
 /-! ## `ntt::dit_stage`
 
-The mirror of `AuxCode`'s DIF stage, loop for loop. The one asymmetry is that the
+The mirror of `NttStage`'s DIF stage, loop for loop. The one asymmetry is that the
 twiddle product is computed twice, once in each inner loop -- a deliberate
 performance choice (`ntt.rs`, module header), and on the proof side simply two
 occurrences of the same expression.
@@ -648,7 +648,7 @@ theorem dit_stage_loop0_loop1_spec (src dst tw : alloc.vec.Vec Std.U64)
 /-- The three numeric facts about `len = 2 ^ (k+1)` dividing `N = 1024` that the
 stage's parameter bookkeeping needs: the block length divides the buffer, the
 twiddle stride is positive, and `half · step` is exactly `N`. The mirror of
-`AuxCode`'s `difParams`, restated rather than shared because that one is
+`NttStage`'s `difParams`, restated rather than shared because that one is
 `private` to its file. -/
 private theorem ditParams (k : ℕ) (hk : k < 10) :
     2 ^ (k + 1) ∣ N ∧ 0 < 2 * (N / 2 ^ (k + 1))
@@ -670,7 +670,7 @@ private theorem ditParams (k : ℕ) (hk : k < 10) :
 
 /-- The outer loop of `dit_stage`: block starts below `start` already hold the
 stage's value, and the loop finishes the buffer. The mirror of
-`AuxCode.dif_stage_loop0_spec`. -/
+`NttStage.dif_stage_loop0_spec`. -/
 theorem dit_stage_loop0_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usize)
     (pw mw : Std.U64) (half step start : Std.Usize) (h : Magic pw mw)
     (hsrc : Canon pw.val src) (hdst : Canon pw.val dst) (htw : Canon pw.val tw)
@@ -785,17 +785,17 @@ theorem dit_stage_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usize)
 
 /-- The word-level DIT stage is the ring-level one, given a table of powers of
 `ψ` and `ω = ψ²`. Needs canonicality for the same reason
-`AuxCode.difWord_cast` does: the `+ p - x` numerator is a truncating `ℕ`
+`NttStage.difWord_cast` does: the `+ p - x` numerator is a truncating `ℕ`
 subtraction, and only `x < p` makes it the subtraction it is meant to be. -/
--- The doc-comment above it in AuxTransform.lean is unchanged and not repeated.
+-- The doc-comment above it in NttTransform.lean is unchanged and not repeated.
 
 theorem ditWord_cast (p half step : ℕ) (psi : ZMod p) (sw tww : ℕ → ℕ)
     (htw : ∀ e, ((tww e : ℕ) : ZMod p) = psi ^ e) (hsw : ∀ u, sw u < p)
     (_htwl : ∀ e, tww e < p) (t : ℕ) :
     ((ditWord p half (2 * step) sw tww t : ℕ) : ZMod p)
-      = AuxNTT.ditStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t := by
+      = NttMath.ditStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t := by
   have hppos : 0 < p := Nat.lt_of_le_of_lt (Nat.zero_le _) (hsw 0)
-  unfold ditWord AuxNTT.ditStage
+  unfold ditWord NttMath.ditStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, ZMod.natCast_mod, Nat.cast_add, ZMod.natCast_mod,
       Nat.cast_mul, htw, ← pow_mul]
@@ -817,7 +817,7 @@ The two loops below compose the ten stages, and three kinds of bookkeeping stand
 between a stage's specification and a whole run:
 
 * the code's twiddle stride `2 · (N / 2^(k+1))` has to be recognised as
-  `2 · 2^(9-k)`, which is what [`AuxCode.difWord_cast`] and [`ditWord_cast`] are
+  `2 · 2^(9-k)`, which is what [`NttStage.difWord_cast`] and [`ditWord_cast`] are
   stated against ([`N_div_pow`]);
 * those two lemmas want a table that is `ψ^e` at *every* exponent, while `Canon`
   says nothing above `N`. Every table index a stage reads is below `N`
@@ -929,8 +929,8 @@ private theorem stage_idx_lt (half t : ℕ) (hh : 0 < half) (hdvd : 2 * half ∣
 private theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : R)
     (hh : 0 < half) (hdvd : 2 * half ∣ N) (f f' : ℕ → R)
     (hff : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.difStage half step om f t = AuxNTT.difStage half step om f' t := by
-  unfold AuxNTT.difStage
+    NttMath.difStage half step om f t = NttMath.difStage half step om f' t := by
+  unfold NttMath.difStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hff t ht, hff (t + half) (stage_idx_lt half t hh hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hff t ht, hff (t - half) (by omega)]
@@ -939,8 +939,8 @@ private theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : 
 private theorem ditStage_congr {R : Type*} [CommRing R] (half step : ℕ) (omi : R)
     (hh : 0 < half) (hdvd : 2 * half ∣ N) (f f' : ℕ → R)
     (hff : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.ditStage half step omi f t = AuxNTT.ditStage half step omi f' t := by
-  unfold AuxNTT.ditStage
+    NttMath.ditStage half step omi f t = NttMath.ditStage half step omi f' t := by
+  unfold NttMath.ditStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hff t ht, hff (t + half) (stage_idx_lt half t hh hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hff t ht, hff (t - half) (by omega)]
@@ -949,11 +949,11 @@ private theorem ditStage_congr {R : Type*} [CommRing R] (half step : ℕ) (omi :
 
 This is what lets a stage's specification -- which pins the output only below
 `N` -- be substituted *inside* a run, and it is the one thing the forward loop's
-conserved-value invariant needs beyond [`AuxNTT.difRun_succ`]. The hypothesis is
+conserved-value invariant needs beyond [`NttMath.difRun_succ`]. The hypothesis is
 that the outermost block length divides `N`; every later one divides that. -/
 private theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
     ∀ (k : ℕ), 2 ^ k ∣ N → ∀ (step : ℕ) (f f' : ℕ → R), (∀ u, u < N → f u = f' u) →
-      ∀ t, t < N → AuxNTT.difRun om k step f t = AuxNTT.difRun om k step f' t := by
+      ∀ t, t < N → NttMath.difRun om k step f t = NttMath.difRun om k step f' t := by
   intro k
   induction k with
   | zero => intro _ step f f' hff t ht; simpa using hff t ht
@@ -961,7 +961,7 @@ private theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
       intro hdvd step f f' hff t ht
       have hd2 : 2 * 2 ^ k ∣ N := by rw [show 2 * 2 ^ k = 2 ^ (k + 1) by ring]; exact hdvd
       have hdk : (2 : ℕ) ^ k ∣ N := dvd_trans (pow_dvd_pow 2 (Nat.le_succ k)) hdvd
-      rw [AuxNTT.difRun_succ, AuxNTT.difRun_succ]
+      rw [NttMath.difRun_succ, NttMath.difRun_succ]
       refine ih hdk (step * 2) _ _ ?_ t ht
       intro u hu
       exact difStage_congr (2 ^ k) step om (Nat.two_pow_pos k) hd2 f f' hff u hu
@@ -986,7 +986,7 @@ theorem ntt_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
     (psi : ZMod pw.val) (hpsi : ∀ e, e < N → resK pw.val tw e = psi ^ e)
     (g : ℕ → ZMod pw.val)
     (hinv : ∀ t, t < N →
-      AuxNTT.difRun (psi ^ 2) k (2 ^ (10 - k)) (resK pw.val cur) t = g t) :
+      NttMath.difRun (psi ^ 2) k (2 ^ (10 - k)) (resK pw.val cur) t = g t) :
     ntt.ntt_forward_loop tw pw mw cur tmp len
       ⦃ z => Canon pw.val z.1 ∧ Canon pw.val z.2
              ∧ ∀ t, t < N → resK pw.val z.1 t = g t ⦄ := by
@@ -997,7 +997,7 @@ theorem ntt_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
     (fun s => Canon pw.val s.1 ∧ Canon pw.val s.2.1
       ∧ ∃ i, i ≤ 10 ∧ s.2.2.val = 2 ^ i
         ∧ ∀ t, t < N →
-            AuxNTT.difRun (psi ^ 2) i (2 ^ (10 - i)) (resK pw.val s.1) t = g t)
+            NttMath.difRun (psi ^ 2) i (2 ^ (10 - i)) (resK pw.val s.1) t = g t)
   · rintro ⟨c, d, l⟩ ⟨hc, hd, i, hi, hli, hvi⟩
     dsimp only at hc hd hli hvi
     simp only [ntt.ntt_forward_loop.body]
@@ -1017,7 +1017,7 @@ theorem ntt_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
       have hstride : N / 2 ^ (j + 1) = 2 ^ (9 - j) := N_div_pow j hj9
       have hres : ∀ t, t < N →
           resK pw.val fl t
-            = AuxNTT.difStage (2 ^ j) (2 ^ (9 - j)) (psi ^ 2) (resK pw.val c) t := by
+            = NttMath.difStage (2 ^ j) (2 ^ (9 - j)) (psi ^ 2) (resK pw.val c) t := by
         intro t ht
         have h1 : wordAt fl t
             = difWord pw.val (2 ^ j) (2 * (N / 2 ^ (j + 1))) (wordAt c) (psiRep psi) t := by
@@ -1028,18 +1028,18 @@ theorem ntt_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
           (psiRep_cast hppos psi) hswc t
       -- the invariant, advanced by one stage
       have hnext : ∀ t, t < N →
-          AuxNTT.difRun (psi ^ 2) j (2 ^ (10 - j)) (resK pw.val fl) t = g t := by
+          NttMath.difRun (psi ^ 2) j (2 ^ (10 - j)) (resK pw.val fl) t = g t := by
         intro t ht
         have hdvd : (2 : ℕ) ^ j ∣ N := by
           rw [show N = 2 ^ 10 by norm_num]
           exact pow_dvd_pow 2 (by omega)
         rw [difRun_congr (psi ^ 2) j hdvd (2 ^ (10 - j)) (resK pw.val fl)
-              (AuxNTT.difStage (2 ^ j) (2 ^ (9 - j)) (psi ^ 2) (resK pw.val c)) hres t ht]
+              (NttMath.difStage (2 ^ j) (2 ^ (9 - j)) (psi ^ 2) (resK pw.val c)) hres t ht]
         have he1 : (2 : ℕ) ^ (9 - j) * 2 = 2 ^ (10 - j) := by
           rw [show 10 - j = (9 - j) + 1 by omega, pow_succ]
         have hv := hvi t ht
         rw [show 10 - (j + 1) = 9 - j by omega] at hv
-        rw [← hv, AuxNTT.difRun_succ, he1]
+        rw [← hv, NttMath.difRun_succ, he1]
       have hp2 : (2 : ℕ) ^ (j + 1) = 2 * 2 ^ j := by ring
       have h2j : 0 < (2 : ℕ) ^ j := Nat.two_pow_pos j
       have hl2v : l2.val = 2 ^ j := by rw [hl2, hli, hp2]; omega
@@ -1071,11 +1071,11 @@ theorem ntt_forward_spec (cur tmp tw : alloc.vec.Vec Std.U64) (pw mw : Std.U64)
       ⦃ z => Canon pw.val z.1 ∧ Canon pw.val z.2
              ∧ ∀ t, t < N →
                  resK pw.val z.1 t
-                   = AuxNTT.difRun (psi ^ 2) 10 1 (resK pw.val cur) t ⦄ := by
+                   = NttMath.difRun (psi ^ 2) 10 1 (resK pw.val cur) t ⦄ := by
   rw [ntt.ntt_forward]
   exact ntt_forward_loop_spec tw cur tmp pw mw h ntt.NTT_LEN 10 (le_refl 10)
     (by rw [ntt_NTT_LEN_val]; norm_num) hcur htmp htw psi hpsi
-    (AuxNTT.difRun (psi ^ 2) 10 1 (resK pw.val cur)) (by intro t _; norm_num)
+    (NttMath.difRun (psi ^ 2) 10 1 (resK pw.val cur)) (by intro t _; norm_num)
 
 -- Insert before `ntt_inverse_spec`.
 
@@ -1092,11 +1092,11 @@ theorem ntt_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
     (psii : ZMod pw.val) (hpsi : ∀ e, e < N → resK pw.val tw e = psii ^ e)
     (f : ℕ → ZMod pw.val)
     (hinv : ∀ t, t < N →
-      resK pw.val cur t = AuxNTT.ditRun (psii ^ 2) k (2 ^ (10 - k)) f t) :
+      resK pw.val cur t = NttMath.ditRun (psii ^ 2) k (2 ^ (10 - k)) f t) :
     ntt.ntt_inverse_loop tw pw mw cur tmp len
       ⦃ z => Canon pw.val z.1 ∧ Canon pw.val z.2
              ∧ ∀ t, t < N →
-                 resK pw.val z.1 t = AuxNTT.ditRun (psii ^ 2) 10 1 f t ⦄ := by
+                 resK pw.val z.1 t = NttMath.ditRun (psii ^ 2) 10 1 f t ⦄ := by
   have hppos : 0 < pw.val := h.pos
   have hag : ∀ e, e < N → wordAt tw e = psiRep psii e := tw_agree pw tw hppos htw psii hpsi
   rw [ntt.ntt_inverse_loop]
@@ -1104,7 +1104,7 @@ theorem ntt_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
     (fun s => Canon pw.val s.1 ∧ Canon pw.val s.2.1
       ∧ ∃ i, i ≤ 10 ∧ s.2.2.val = 2 ^ (i + 1)
         ∧ ∀ t, t < N →
-            resK pw.val s.1 t = AuxNTT.ditRun (psii ^ 2) i (2 ^ (10 - i)) f t)
+            resK pw.val s.1 t = NttMath.ditRun (psii ^ 2) i (2 ^ (10 - i)) f t)
   · rintro ⟨c, d, l⟩ ⟨hc, hd, i, hi, hli, hvi⟩
     dsimp only at hc hd hli hvi
     simp only [ntt.ntt_inverse_loop.body]
@@ -1127,7 +1127,7 @@ theorem ntt_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
       have hstride : N / 2 ^ (i + 1) = 2 ^ (9 - i) := N_div_pow i hi9
       have hres : ∀ t, t < N →
           resK pw.val fl t
-            = AuxNTT.ditStage (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (resK pw.val c) t := by
+            = NttMath.ditStage (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (resK pw.val c) t := by
         intro t ht
         have h1 : wordAt fl t
             = ditWord pw.val (2 ^ i) (2 * (N / 2 ^ (i + 1))) (wordAt c) (psiRep psii) t := by
@@ -1137,16 +1137,16 @@ theorem ntt_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64) (pw mw : Std.
         exact ditWord_cast pw.val (2 ^ i) (2 ^ (9 - i)) psii (wordAt c) (psiRep psii)
           (psiRep_cast hppos psii) hswc (psiRep_lt hppos psii) t
       have hnext : ∀ t, t < N →
-          resK pw.val fl t = AuxNTT.ditRun (psii ^ 2) (i + 1) (2 ^ (10 - (i + 1))) f t := by
+          resK pw.val fl t = NttMath.ditRun (psii ^ 2) (i + 1) (2 ^ (10 - (i + 1))) f t := by
         intro t ht
         have hd2 : 2 * 2 ^ i ∣ N := by
           rw [show 2 * 2 ^ i = 2 ^ (i + 1) by ring, show N = 2 ^ 10 by norm_num]
           exact pow_dvd_pow 2 (by omega)
         have he1 : (2 : ℕ) ^ (9 - i) * 2 = 2 ^ (10 - i) := by
           rw [show 10 - i = (9 - i) + 1 by omega, pow_succ]
-        rw [hres t ht, show 10 - (i + 1) = 9 - i by omega, AuxNTT.ditRun_succ, he1]
+        rw [hres t ht, show 10 - (i + 1) = 9 - i by omega, NttMath.ditRun_succ, he1]
         exact ditStage_congr (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (Nat.two_pow_pos i) hd2
-          (resK pw.val c) (AuxNTT.ditRun (psii ^ 2) i (2 ^ (10 - i)) f) hvi t ht
+          (resK pw.val c) (NttMath.ditRun (psii ^ 2) i (2 ^ (10 - i)) f) hvi t ht
       have hp2 : (2 : ℕ) ^ (i + 1 + 1) = 2 * 2 ^ (i + 1) := by ring
       have hl2v : l2.val = 2 ^ (i + 1 + 1) := by rw [hl2, hli]; ring
       exact ⟨hcf, hc, ⟨i + 1, by omega, hl2v, hnext⟩, by
@@ -1178,9 +1178,9 @@ theorem ntt_inverse_spec (cur tmp tw : alloc.vec.Vec Std.U64) (pw mw : Std.U64)
       ⦃ z => Canon pw.val z.1 ∧ Canon pw.val z.2
              ∧ ∀ t, t < N →
                  resK pw.val z.1 t
-                   = AuxNTT.ditRun (psii ^ 2) 10 1 (resK pw.val cur) t ⦄ := by
+                   = NttMath.ditRun (psii ^ 2) 10 1 (resK pw.val cur) t ⦄ := by
   rw [ntt.ntt_inverse]
   exact ntt_inverse_loop_spec tw cur tmp pw mw h 2#usize 0 (by norm_num)
     (by simp) hcur htmp htw psii hpsi (resK pw.val cur) (by intro t _; simp)
 
-end HachiEquiv.AuxTransform
+end HachiEquiv.NttTransform

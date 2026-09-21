@@ -5,7 +5,7 @@ pass over the array -- the radix-4 memory pattern, without a radix-4 theory.
 A textbook radix-4 butterfly permutes its four outputs, so it agrees with the
 radix-2 transform only up to base-4 digit reversal. Proving *that* would mean a
 whole second theory: a `dif4Run`, its multiplicativity, its inverse, and new
-versions of everything `AuxProduct` builds on `difRun`. This file does the other
+versions of everything `NttProduct` builds on `difRun`. This file does the other
 thing. `ntt::gold_dif_stage2` writes the four outputs of a group in the order
 and with the twiddles the *composite* `difStage ∘ difStage` produces, so one
 pass of it is exactly two passes of the old stage -- the same values, at the
@@ -14,18 +14,18 @@ same positions, from the same table.
 The payoff is at the top: [`gold_dif_stage2_spec`]'s conclusion is literally
 [`difWord`] of [`difWord`], the two shapes `gold_dif_stage_spec` already
 produces at consecutive block lengths, so `gold_forward_spec`'s statement does
-not move and `AuxProduct.prod_difRun`, `inv_value` and `gold_dot_spec` are
+not move and `NttProduct.prod_difRun`, `inv_value` and `gold_dot_spec` are
 untouched. `difRun_succ` is `rfl`, which is what makes the two-at-a-time
 invariant step as cheap as the one-at-a-time one.
 
-The structure mirrors `AuxGoldCode`'s: an inner loop over the groups of one
+The structure mirrors `GoldStage`'s: an inner loop over the groups of one
 block, an outer loop over the blocks, a top-level spec that fixes the
 parameters. What changes is the inner loop, which now writes *four* entries per
 iteration at four separated positions rather than one, so its specification has
 four written-value clauses instead of one and its frame condition has to survive
 four `Vec.set`s.
 -/
-import AuxGoldCode
+import GoldStage
 
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
@@ -33,9 +33,9 @@ set_option maxHeartbeats 1000000
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxGoldFused
+namespace HachiEquiv.GoldFusedStage
 
-open HachiEquiv.AuxCode HachiEquiv.AuxGold HachiEquiv.AuxGoldCode
+open HachiEquiv.NttStage HachiEquiv.GoldArith HachiEquiv.GoldStage
 
 /-! ## The four words one group writes
 
@@ -520,7 +520,7 @@ end Block
 
 /-! ## The outer loop and the stage
 
-Unchanged in shape from `AuxGoldCode`'s: the blocks are walked in order, each
+Unchanged in shape from `GoldStage`'s: the blocks are walked in order, each
 one filled by the inner loop, and the frame condition carries the finished
 blocks forward. Only the per-index reconciliation is new, and that is the four
 lemmas above. -/
@@ -668,4 +668,4 @@ theorem gold_dif_stage2_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usi
       show k + 1 + (8 - k) = 9 by omega]
     norm_num
 
-end HachiEquiv.AuxGoldFused
+end HachiEquiv.GoldFusedStage

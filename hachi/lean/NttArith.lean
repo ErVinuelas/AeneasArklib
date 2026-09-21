@@ -11,7 +11,7 @@ their specs are what discharge the no-overflow side conditions everywhere else.
 `hachi::ntt` runs the same transform at three different primes, and passes the
 prime (and its Barrett magic) as arguments rather than monomorphising. So the
 theorems here are stated for an arbitrary `(p, m)` satisfying [`Magic`], and
-`AuxNTT.lean` instantiates them three times. The alternative -- three copies of
+`NttMath.lean` instantiates them three times. The alternative -- three copies of
 the code with the modulus as a literal -- would be three copies of every proof
 above this file too.
 
@@ -39,7 +39,7 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxArith
+namespace HachiEquiv.NttArith
 
 /-! ## The Barrett precondition
 
@@ -315,4 +315,4 @@ theorem aux_reduce_lt (x p m : Std.U64) (h : Magic p m) :
   intro r hr
   exact ⟨hr, by rw [hr]; exact Nat.mod_lt _ h.pos⟩
 
-end HachiEquiv.AuxArith
+end HachiEquiv.NttArith

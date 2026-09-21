@@ -533,7 +533,7 @@ theorem prepare_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
       have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
       have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
         rw [hpv]; exact List.getD_eq_getElem _ _ him
-      step with HachiEquiv.AuxFused.prepare_vec_spec pv c
+      step with HachiEquiv.RingFused.prepare_vec_spec pv c
         (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
         (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1, hp2, hp3⟩
       step as ⟨r2, hr2⟩
@@ -715,7 +715,7 @@ theorem prepare_digits_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
       have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
       have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
         rw [hpv]; exact List.getD_eq_getElem _ _ him
-      step with HachiEquiv.AuxFused.prepare_vec_two_spec pv c
+      step with HachiEquiv.RingFused.prepare_vec_two_spec pv c
         (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
         (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1, hp2⟩
       step as ⟨r2, hr2⟩
@@ -844,7 +844,7 @@ ones. Every statement below is its `_two`/`_digits` counterpart word for word;
 Aeneas names loops per enclosing function, so the Goldilocks path's loops are
 distinct constants and need their own specs. The one extra hypothesis is
 `cols ≤ 8192`, the width at which a single Goldilocks lane still carries the
-offset sum exactly (`AuxGoldDot.offConvSumD_lt_GP`). -/
+offset sum exactly (`GoldDot.offConvSumD_lt_GP`). -/
 
 theorem dot_prep_digits_gold_spec {k : ℕ} (prep : ring.PreparedVecG) (u v : linalg.PolyVec)
     (nU : Std.Usize) (hn : nU.val = k) (hu : WfVec k u) (hv : WfVec k v)
@@ -898,7 +898,7 @@ theorem prepare_digits_gold_loop_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
       have hWpv : WfVec cols pv := by rw [hpv]; exact ha.2 _ (List.getElem_mem him)
       have hmi : m.val.getD i1.val (alloc.vec.Vec.new ring.Rq) = pv := by
         rw [hpv]; exact List.getD_eq_getElem _ _ him
-      step with HachiEquiv.AuxGoldDot.prepare_vec_gold_spec pv c
+      step with HachiEquiv.GoldDot.prepare_vec_gold_spec pv c
         (by intro u hu; rw [hc] at hu; exact wf_getD hWpv hu)
         (by rw [hc, hWpv.1]) (by rw [hc]; exact hmax) as ⟨p, hpl, hp1⟩
       step as ⟨r2, hr2⟩
@@ -1252,7 +1252,7 @@ is a statement about `Rq`s and not about their `u64` representatives.
 Both facts below are *derived* rather than proved by a second induction over the
 three loops of `gadget_decompose`: ArkLib's `gadgetDecompose_coeff` says each
 coefficient of the result is a digit, and `dd_digit_val_lt` says a digit's
-canonical value is below the base. `AuxCode.spec_and` is what lets the caller
+canonical value is below the base. `NttStage.spec_and` is what lets the caller
 have this and `gadget_decompose_spec` at once, with neither statement moving. -/
 /-- **The unsigned digit bound, on the canonical value.** `dd`'s digits are
 natural numbers below the base, so they do not wrap: `val`, not just
@@ -2063,7 +2063,7 @@ Derived from `gadget_decompose_spec` rather than proved by a second induction
 over its three loops -- the represented block *is* `dd.digit` of the input
 coefficient, and `dd_digit_val_lt` bounds that. A separate theorem rather than a
 conjunct, because `gadget_decompose_spec` is audited by name and its three call
-sites do not need this; `AuxCode.spec_and` puts the two together where they are
+sites do not need this; `NttStage.spec_and` puts the two together where they are
 both wanted. -/
 theorem gadget_decompose_digit_words {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows x)
     (hmax : 8 * rows ≤ Usize.max) :
@@ -2673,13 +2673,13 @@ theorem generate_decomps_loop_spec (pp : commit.PublicParams)
       have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
       -- the value spec and the digit bound at once: `apply_digits` needs both,
       -- and neither theorem changes to provide it
-      step with HachiEquiv.AuxCode.spec_and
+      step with HachiEquiv.NttStage.spec_and
         (gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac))
         (gadget_decompose_digit_words (rows := 1024) pv hWpv (by scalar_tac))
         as ⟨s, hWs, hs, hsd⟩
       have hsdv : DigitVec (1024 * 8) s := by
         intro u hu
-        refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
+        refine HachiEquiv.RingFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
         rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
         exact List.getElem_mem _
       step with apply_digits_gold_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s
@@ -3101,13 +3101,13 @@ theorem commit_streamed_loop_spec (pp : commit.PublicParams)
       have hilt : i1.val < m.val.length := by rw [hm.1, ← hb]; scalar_tac
       step as ⟨pv, hpv⟩
       have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
-      step with HachiEquiv.AuxCode.spec_and
+      step with HachiEquiv.NttStage.spec_and
         (gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac))
         (gadget_decompose_digit_words (rows := 1024) pv hWpv (by scalar_tac))
         as ⟨s, hWs, hs, hsd⟩
       have hsdv : DigitVec (1024 * 8) s := by
         intro u hu
-        refine HachiEquiv.AuxFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
+        refine HachiEquiv.RingFused.digitWf_of_mem (fun w hw => hsd _ ?_ w hw)
         rw [List.getD_eq_getElem _ _ (by rw [hWs.1]; exact hu)]
         exact List.getElem_mem _
       step with apply_digits_gold_spec (rows := 1) (cols := 1024 * 8) prep pp.inner_matrix s

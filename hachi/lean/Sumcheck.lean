@@ -124,7 +124,7 @@ Promoted from `lean-wip/` on 2026-09-11; the proofs here are re-checked by
 every `make build`, and a `sorry` in this file is a build failure.
 -/
 import EndPiece
-import AuxShift
+import SumcheckShift
 import CompPoly.Univariate.Raw.Ops
 import CompPoly.Univariate.Raw.Proofs
 import CompPoly.Univariate.LagrangeArray
@@ -2071,7 +2071,7 @@ coefficients, reduced, and the polynomial they denote evaluates to
 uniqueness argument — `2b + 1` nodes determine a polynomial of degree
 `2b − 1 < 2b + 1`. It is now the binomial theorem: the fold is affine in the
 node, so `P_b(W(T, y))` is `P_b` shifted, and
-[`AuxShift.rangeProduct_shift`] writes its coefficients down.
+[`SumcheckShift.rangeProduct_shift`] writes its coefficients down.
 
 The top coefficient is still zero — `P_b` has degree `2b − 1 = 31`, so the
 shift has `2b = 32` coefficients and the `33`rd is the explicit `ZERO` the code
@@ -2086,14 +2086,14 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
           rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
   rw [sumcheck.round_poly_zero]
   simp only [alloc.vec.Vec.with_capacity]
-  step with HachiEquiv.AuxShift.zero_fill_spec params.SHIFT_DEG
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.AuxShift.shift_deg_val
+  step with HachiEquiv.SumcheckShift.zero_fill_spec params.SHIFT_DEG
+    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.SumcheckShift.shift_deg_val
     (by simp) (by simp) (by intro a ha; simp at ha) (by intro t ht; simp at ht)
     as ⟨acc1, hacl, hacr, hacv⟩
   have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
   have hwl : w.val.length = 2 * eq.val.length := by
     rw [hw.1, heq.1, pow_succ]; ring
-  step with HachiEquiv.AuxShift.pair_loop_spec w eq (alloc.vec.Vec.len eq) acc1 0#usize
+  step with HachiEquiv.SumcheckShift.pair_loop_spec w eq (alloc.vec.Vec.len eq) acc1 0#usize
     hhalf hwl hw.2 heq.2 (by simp) hacl hacr
     (by intro t ht; rw [hacv t ht]; simp)
     as ⟨acc2, ha2l, ha2r, ha2v⟩
@@ -2112,15 +2112,15 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
   -- the coefficients, read back
   have hco : ∀ t, t < 32 → toExt (acc3.val.getD t cpoly.field.Ext4.ZERO)
       = ∑ y' ∈ Finset.range eq.val.length,
-          HachiEquiv.AuxShift.eqF eq y'
-            * HachiEquiv.AuxShift.shiftCoeff (HachiEquiv.AuxShift.loF w y')
-                (HachiEquiv.AuxShift.dF w y') t := by
+          HachiEquiv.SumcheckShift.eqF eq y'
+            * HachiEquiv.SumcheckShift.shiftCoeff (HachiEquiv.SumcheckShift.loF w y')
+                (HachiEquiv.SumcheckShift.dF w y') t := by
     intro t ht
-    rw [ha3, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht)]
+    rw [ha3, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht)]
     rw [ha2v t ht, hhalf]
   have hco32 : toExt (acc3.val.getD 32 cpoly.field.Ext4.ZERO) = 0 := by
     rw [ha3, show (32 : ℕ) = acc2.val.length by rw [ha2l],
-      HachiEquiv.AuxGoldTransform.getD_append_eq']
+      HachiEquiv.GoldTransform.getD_append_eq']
     exact toExt_ZERO
   rw [toUni_eval, toRaw_eval_eq_sum acc3 x 33 (by rw [ha3l]),
     Finset.sum_range_succ]
@@ -2132,9 +2132,9 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
   rw [hlast, add_zero]
   have hterm : ∀ t ∈ Finset.range 32, (toRaw acc3).coeff t * x ^ t
       = ∑ y' ∈ Finset.range eq.val.length,
-          HachiEquiv.AuxShift.eqF eq y'
-            * (HachiEquiv.AuxShift.shiftCoeff (HachiEquiv.AuxShift.loF w y')
-                (HachiEquiv.AuxShift.dF w y') t * x ^ t) := by
+          HachiEquiv.SumcheckShift.eqF eq y'
+            * (HachiEquiv.SumcheckShift.shiftCoeff (HachiEquiv.SumcheckShift.loF w y')
+                (HachiEquiv.SumcheckShift.dF w y') t * x ^ t) := by
     intro t ht
     simp only [Finset.mem_range] at ht
     rw [toRaw_coeff_of_lt acc3 (by rw [ha3l]; omega),
@@ -2144,33 +2144,33 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
   rw [Finset.sum_congr rfl hterm, Finset.sum_comm]
   -- each pair's inner sum is the shifted range factor, by `rangeProduct_shift`
   have hpair : ∀ y' ∈ Finset.range eq.val.length,
-      ∑ t ∈ Finset.range 32, HachiEquiv.AuxShift.eqF eq y'
-          * (HachiEquiv.AuxShift.shiftCoeff (HachiEquiv.AuxShift.loF w y')
-              (HachiEquiv.AuxShift.dF w y') t * x ^ t)
-        = HachiEquiv.AuxShift.eqF eq y'
+      ∑ t ∈ Finset.range 32, HachiEquiv.SumcheckShift.eqF eq y'
+          * (HachiEquiv.SumcheckShift.shiftCoeff (HachiEquiv.SumcheckShift.loF w y')
+              (HachiEquiv.SumcheckShift.dF w y') t * x ^ t)
+        = HachiEquiv.SumcheckShift.eqF eq y'
             * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
-                (HachiEquiv.AuxShift.loF w y' + HachiEquiv.AuxShift.dF w y' * x) := by
+                (HachiEquiv.SumcheckShift.loF w y' + HachiEquiv.SumcheckShift.dF w y' * x) := by
     intro y' _
-    rw [← Finset.mul_sum, HachiEquiv.AuxShift.rangeProduct_shift]
+    rw [← Finset.mul_sum, HachiEquiv.SumcheckShift.rangeProduct_shift]
   rw [Finset.sum_congr rfl hpair]
   -- and the pair sum over `range` is the specification's sum over `Fin (2^k)`
   rw [rangeSumZero]
   have hlen : eq.val.length = 2 ^ k := heq.1
   rw [hlen, ← Fin.sum_univ_eq_sum_range
-    (fun y' => HachiEquiv.AuxShift.eqF eq y'
+    (fun y' => HachiEquiv.SumcheckShift.eqF eq y'
       * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
-          (HachiEquiv.AuxShift.loF w y' + HachiEquiv.AuxShift.dF w y' * x)) (2 ^ k)]
+          (HachiEquiv.SumcheckShift.loF w y' + HachiEquiv.SumcheckShift.dF w y' * x)) (2 ^ k)]
   refine Finset.sum_congr rfl (fun y _ => ?_)
-  have hlo : tableFn (m := k + 1) w (lo y) = HachiEquiv.AuxShift.loF w y.val := by
-    rw [tableFn_apply, HachiEquiv.AuxShift.loF, lo]
+  have hlo : tableFn (m := k + 1) w (lo y) = HachiEquiv.SumcheckShift.loF w y.val := by
+    rw [tableFn_apply, HachiEquiv.SumcheckShift.loF, lo]
   have hhi : tableFn (m := k + 1) w (hi y)
-      = HachiEquiv.AuxShift.dF w y.val + HachiEquiv.AuxShift.loF w y.val := by
-    rw [tableFn_apply, HachiEquiv.AuxShift.dF, HachiEquiv.AuxShift.loF, hi]
+      = HachiEquiv.SumcheckShift.dF w y.val + HachiEquiv.SumcheckShift.loF w y.val := by
+    rw [tableFn_apply, HachiEquiv.SumcheckShift.dF, HachiEquiv.SumcheckShift.loF, hi]
     ring
   have hfold : fold (tableFn (m := k + 1) w) x y
-      = HachiEquiv.AuxShift.loF w y.val + HachiEquiv.AuxShift.dF w y.val * x := by
+      = HachiEquiv.SumcheckShift.loF w y.val + HachiEquiv.SumcheckShift.dF w y.val * x := by
     rw [fold, hlo, hhi]; ring
-  rw [hfold, tableFn_apply, HachiEquiv.AuxShift.eqF]
+  rw [hfold, tableFn_apply, HachiEquiv.SumcheckShift.eqF]
 
 /-! ### The range summand at round 0, in the base field
 
@@ -2325,14 +2325,14 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
           rangeSumZero (phiF ∘ tableFnFp (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
   rw [sumcheck.round_poly_zero_base]
   simp only [alloc.vec.Vec.with_capacity]
-  step with HachiEquiv.AuxShift.zero_fill_base_spec params.SHIFT_DEG
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.AuxShift.shift_deg_val
+  step with HachiEquiv.SumcheckShift.zero_fill_base_spec params.SHIFT_DEG
+    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.SumcheckShift.shift_deg_val
     (by simp) (by simp) (by intro a ha; simp at ha) (by intro t ht; simp at ht)
     as ⟨acc1, hacl, hacr, hacv⟩
   have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
   have hwl : w.val.length = 2 * eq.val.length := by
     rw [hw.1, heq.1, pow_succ]; ring
-  step with HachiEquiv.AuxShift.pair_loop_base_spec w eq (alloc.vec.Vec.len eq)
+  step with HachiEquiv.SumcheckShift.pair_loop_base_spec w eq (alloc.vec.Vec.len eq)
     acc1 0#usize hhalf hwl hw.2 heq.2 (by simp) hacl hacr
     (by intro t ht; rw [hacv t ht]; simp)
     as ⟨acc2, ha2l, ha2r, ha2v⟩
@@ -2350,14 +2350,14 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
     · rw [List.mem_singleton.mp h]; exact reduced_ZERO
   have hco : ∀ t, t < 32 → toExt (acc3.val.getD t cpoly.field.Ext4.ZERO)
       = ∑ y' ∈ Finset.range eq.val.length,
-          phiF (HachiEquiv.AuxShift.shiftCoeffK (HachiEquiv.AuxShift.loK w y')
-            (HachiEquiv.AuxShift.dK w y') t) * HachiEquiv.AuxShift.eqF eq y' := by
+          phiF (HachiEquiv.SumcheckShift.shiftCoeffK (HachiEquiv.SumcheckShift.loK w y')
+            (HachiEquiv.SumcheckShift.dK w y') t) * HachiEquiv.SumcheckShift.eqF eq y' := by
     intro t ht
-    rw [ha3, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht),
+    rw [ha3, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht),
       ha2v t ht, hhalf]
   have hco32 : toExt (acc3.val.getD 32 cpoly.field.Ext4.ZERO) = 0 := by
     rw [ha3, show (32 : ℕ) = acc2.val.length by rw [ha2l],
-      HachiEquiv.AuxGoldTransform.getD_append_eq']
+      HachiEquiv.GoldTransform.getD_append_eq']
     exact toExt_ZERO
   rw [toUni_eval, toRaw_eval_eq_sum acc3 x 33 (by rw [ha3l]), Finset.sum_range_succ]
   have hlast : (toRaw acc3).coeff 32 * x ^ 32 = 0 := by
@@ -2368,56 +2368,56 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
   rw [hlast, add_zero]
   have hterm : ∀ t ∈ Finset.range 32, (toRaw acc3).coeff t * x ^ t
       = ∑ y' ∈ Finset.range eq.val.length,
-          HachiEquiv.AuxShift.eqF eq y'
-            * (HachiEquiv.AuxShift.shiftCoeff
-                (phiF (HachiEquiv.AuxShift.loK w y'))
-                (phiF (HachiEquiv.AuxShift.dK w y')) t * x ^ t) := by
+          HachiEquiv.SumcheckShift.eqF eq y'
+            * (HachiEquiv.SumcheckShift.shiftCoeff
+                (phiF (HachiEquiv.SumcheckShift.loK w y'))
+                (phiF (HachiEquiv.SumcheckShift.dK w y')) t * x ^ t) := by
     intro t ht
     simp only [Finset.mem_range] at ht
     rw [toRaw_coeff_of_lt acc3 (by rw [ha3l]; omega),
       ← List.getD_eq_getElem (l := acc3.val) (d := cpoly.field.Ext4.ZERO)
         (by rw [ha3l]; omega), hco t ht, Finset.sum_mul]
     refine Finset.sum_congr rfl (fun y' _ => ?_)
-    rw [HachiEquiv.AuxShift.shiftCoeffK_phi]
+    rw [HachiEquiv.SumcheckShift.shiftCoeffK_phi]
     ring
   rw [Finset.sum_congr rfl hterm, Finset.sum_comm]
   have hpair : ∀ y' ∈ Finset.range eq.val.length,
-      ∑ t ∈ Finset.range 32, HachiEquiv.AuxShift.eqF eq y'
-          * (HachiEquiv.AuxShift.shiftCoeff (phiF (HachiEquiv.AuxShift.loK w y'))
-              (phiF (HachiEquiv.AuxShift.dK w y')) t * x ^ t)
-        = HachiEquiv.AuxShift.eqF eq y'
+      ∑ t ∈ Finset.range 32, HachiEquiv.SumcheckShift.eqF eq y'
+          * (HachiEquiv.SumcheckShift.shiftCoeff (phiF (HachiEquiv.SumcheckShift.loK w y'))
+              (phiF (HachiEquiv.SumcheckShift.dK w y')) t * x ^ t)
+        = HachiEquiv.SumcheckShift.eqF eq y'
             * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
-                (phiF (HachiEquiv.AuxShift.loK w y')
-                  + phiF (HachiEquiv.AuxShift.dK w y') * x) := by
+                (phiF (HachiEquiv.SumcheckShift.loK w y')
+                  + phiF (HachiEquiv.SumcheckShift.dK w y') * x) := by
     intro y' _
-    rw [← Finset.mul_sum, HachiEquiv.AuxShift.rangeProduct_shift]
+    rw [← Finset.mul_sum, HachiEquiv.SumcheckShift.rangeProduct_shift]
   rw [Finset.sum_congr rfl hpair, rangeSumZero]
   have hlen : eq.val.length = 2 ^ k := heq.1
   rw [hlen, ← Fin.sum_univ_eq_sum_range
-    (fun y' => HachiEquiv.AuxShift.eqF eq y'
+    (fun y' => HachiEquiv.SumcheckShift.eqF eq y'
       * ArkLib.Lattices.Ajtai.InnerOuter.rangeProduct 16
-          (phiF (HachiEquiv.AuxShift.loK w y')
-            + phiF (HachiEquiv.AuxShift.dK w y') * x)) (2 ^ k)]
+          (phiF (HachiEquiv.SumcheckShift.loK w y')
+            + phiF (HachiEquiv.SumcheckShift.dK w y') * x)) (2 ^ k)]
   refine Finset.sum_congr rfl (fun y _ => ?_)
   have hlo : (phiF ∘ tableFnFp (m := k + 1) w) (lo y)
-      = phiF (HachiEquiv.AuxShift.loK w y.val) := by
+      = phiF (HachiEquiv.SumcheckShift.loK w y.val) := by
     show phiF (tableFnFp (m := k + 1) w (lo y)) = _
-    rw [tableFnFp_apply, HachiEquiv.AuxShift.loK, lo]
+    rw [tableFnFp_apply, HachiEquiv.SumcheckShift.loK, lo]
     rfl
   have hhi : (phiF ∘ tableFnFp (m := k + 1) w) (hi y)
-      = phiF (HachiEquiv.AuxShift.dK w y.val) + phiF (HachiEquiv.AuxShift.loK w y.val) := by
+      = phiF (HachiEquiv.SumcheckShift.dK w y.val) + phiF (HachiEquiv.SumcheckShift.loK w y.val) := by
     show phiF (tableFnFp (m := k + 1) w (hi y)) = _
-    rw [tableFnFp_apply, HachiEquiv.AuxShift.dK, HachiEquiv.AuxShift.loK, hi,
+    rw [tableFnFp_apply, HachiEquiv.SumcheckShift.dK, HachiEquiv.SumcheckShift.loK, hi,
       ← map_add]
     congr 1
     show toK (w.val.getD (2 * y.val + 1) cpoly.field.Fp.ZERO) = _
     rw [← coeffK]
     ring
   have hfold : fold (phiF ∘ tableFnFp (m := k + 1) w) x y
-      = phiF (HachiEquiv.AuxShift.loK w y.val)
-        + phiF (HachiEquiv.AuxShift.dK w y.val) * x := by
+      = phiF (HachiEquiv.SumcheckShift.loK w y.val)
+        + phiF (HachiEquiv.SumcheckShift.dK w y.val) * x := by
     rw [fold, hlo, hhi]; ring
-  rw [hfold, tableFn_apply, HachiEquiv.AuxShift.eqF]
+  rw [hfold, tableFn_apply, HachiEquiv.SumcheckShift.eqF]
 
 /-! ## The equality kernel in three pieces -/
 

@@ -30,7 +30,7 @@ import argparse, json, pathlib, re, subprocess, sys, textwrap
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "logs" / "ledger.jsonl"
 CODE = ["hachi/src"]
-LEAN = ["hachi/lean/Opt.lean"]
+LEAN = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "hachi" / "lean").glob("Opt*.lean"))
 UNCOMMITTED = "0" * 40
 
 

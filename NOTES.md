@@ -7437,7 +7437,7 @@ It reuses **candidate Q's own bound lemmas**, `posSum_le` and `negSum_le`.
    re-proved the specs, but left every spec *statement* alone, and the NTT
    proofs go through the statements.
 3. **`45987ea` is sorry-free in all seven files**, so the uncommitted
-   refinements left in that clone (AuxTransform 74 lines, Ring 22) are polish,
+   refinements left in that clone (NttTransform 74 lines, Ring 22) are polish,
    not gap-fillers. They were **not** taken: uncommitted work in someone else's
    checkout that I cannot verify.
 4. **The `d7e26bb` cpoly pin survived** in all three manifests.
@@ -8143,7 +8143,7 @@ boundary conversions are the rest, and none of them moves.
 
 ### Rejected, and why that is the right answer
 
-C2 — the retype — costs **~1186 lines**: every `AuxTransform` spec is stated
+C2 — the retype — costs **~1186 lines**: every `NttTransform` spec is stated
 over `Vec Std.U64`, so it restates the whole transform layer and `make build`
 stays red until it is finished. Against that, T11 is 5.2% of the prover for a
 low-to-medium proof. Per unit of proof T11 is the better card, and Gate B's own
@@ -8479,7 +8479,7 @@ Goldilocks × 1 lane move the same bytes per coefficient; Goldilocks
 additionally halves the lane count. They are alternatives, and it is 3.5× the
 better one — so the `u32` retype should not be built.
 
-The proof is a new `AuxArith` for the Goldilocks reduction plus the transform
+The proof is a new `NttArith` for the Goldilocks reduction plus the transform
 layer re-instantiated: at least C2's ~1186 lines, probably more. Against
 −30.5% instead of −8.6%.
 
@@ -8545,7 +8545,7 @@ only because the items are additive and unspecified, and `spec-check` reports
 nothing only because they carry no `(spec: …)` clause — which would be gaming
 the check, not satisfying it. Main is unchanged and still fully proved.
 
-What is owed: `AuxCode` (537 lines) and `AuxTransform` (1186) redone against a
+What is owed: `NttStage` (537 lines) and `NttTransform` (1186) redone against a
 `u128`-product multiply, plus a reduction spec. Both files are generic over
 `(pw, mw)`, but `Magic` **requires `p < 2^32`** — its own docstring says that
 is what keeps a product of two residues inside a `u64` — so Goldilocks cannot
@@ -8565,7 +8565,7 @@ NTT-friendly — and T27 replaces those and nothing else.
 shifts, a mask and one `wrapping_mul` by `0xFFFFFFFF`. No Barrett, no magic
 constant, no `Magic p m` obligation — which is just as well, because `Magic`
 *requires* `p < 2^32` ("what keeps a product of two residues inside a `u64`"),
-so Goldilocks could never have instantiated `AuxArith` at all. It needed its
+so Goldilocks could never have instantiated `NttArith` at all. It needed its
 own arithmetic layer.
 
 The lane count is the win, not the butterfly. In the extraction-admissible
@@ -8643,18 +8643,18 @@ is the whole point of that table.
 
 About 2500 lines, in four layers, all by hand:
 
-* `AuxGold.lean` (306) — `gold_add/sub/reduce/mul`. The two headline specs,
+* `GoldArith.lean` (306) — `gold_add/sub/reduce/mul`. The two headline specs,
   `gold_reduce_spec` and `gold_mul_spec`, have **no precondition**: the margin
   is exactly 2 (`t ≤ 2^64−1`, `m ≤ (2^32−1)²`, so `t + m ≤ 2p − 2`).
-* `AuxGoldCode.lean` (353) — the DIF stage.
-* `AuxGoldTransform.lean` (912) — psi table, twist, DIT stage, forward,
+* `GoldStage.lean` (353) — the DIF stage.
+* `GoldTransform.lean` (912) — psi table, twist, DIT stage, forward,
   inverse. `tw_agree'` had to be generalised from `Std.U64` to raw `ℕ`.
-* `AuxGoldDot.lean` (~1040) — mac, terms, untwist-with-offset, the output
+* `GoldDot.lean` (~1040) — mac, terms, untwist-with-offset, the output
   loop, `gold_dot_spec`, and the preparation's three loops.
 
 Above them `RqBridge.dot_prepared_digits_gold_spec` and
 `Scheme.{prepare_digits_gold_spec, apply_digits_gold_spec}`, whose conclusion
-is `mat_vec_mul_spec`'s **word for word**. `AuxCode`/`AuxTransform`'s
+is `mat_vec_mul_spec`'s **word for word**. `NttStage`/`NttTransform`'s
 vocabulary (`wordAt`, `Canon p`, `difWord p`, `resK p`, …) was already
 prime-generic, so that part was a substitution rather than a rewrite.
 
@@ -8782,7 +8782,7 @@ unchanged), the alpha side, and its own two tables.
 
 ### The proof was a third of what the card priced
 
-`lean/AuxShift.lean`, about 470 lines. The card priced step (ii) as needing
+`lean/SumcheckShift.lean`, about 470 lines. The card priced step (ii) as needing
 Lagrange uniqueness out of CompPoly's `LagrangeArray` — a polynomial of degree
 `≤ 32` is determined by its values at 33 nodes. **It does not need that**, and
 the reason is a fact about how `round_poly_zero_spec` was already phrased: its
@@ -8964,7 +8964,7 @@ on the ~90 s of `carrier_from_raw` that is butterflies is about **−40 s, −5.
 of the prover**.
 
 That is above the threshold, so it is *not* rejected. It is also the largest
-remaining proof investment in the queue — an `AuxGold`-sized arithmetic layer
+remaining proof investment in the queue — an `GoldArith`-sized arithmetic layer
 for the second prime, a second transform layer, a two-prime CRT in `u128`, and
 Montgomery form is a **representation change**, which `lean-opt` classes as a
 gated proposal rather than a champion because the carrier's meaning moves by a
@@ -9047,7 +9047,7 @@ the first time it was caught before the number was used.
 
 * `v[i] = v[i] + x` **in one expression** on a `Vec<u64>` is an unmodelled
   binary operation. Read the slot into a `let` first. It works unchanged for
-  `Vec<Ext4>` — `AuxShift.shift_accum` does exactly that — so the trigger is
+  `Vec<Ext4>` — `SumcheckShift.shift_accum` does exactly that — so the trigger is
   the **scalar** element type.
 * `let b3: bool = b1 != b2` is unmodelled when rustc can lower the combination
   to a *select*, which it does when both arms are a single arithmetic
@@ -9062,7 +9062,7 @@ protocol evaluates**, and T3 did not touch it: I scoped the card to the `Ext4`
 path and said I would assess round 0 afterwards, and then did not. The base
 Taylor shift measured **1340 → 611 ns/pair** on the hoisted prototype, which is
 about 45 s → 25 s, **≈ −2.6% of the prover**. The proof machinery is landed —
-`AuxShift` is generic in everything but the field — so this is a substitution
+`SumcheckShift` is generic in everything but the field — so this is a substitution
 of the kind `round_value_zero_base` already is of `round_value_zero`.
 
 ### 3. The general path's lane count — gated, priced, not started
@@ -9188,7 +9188,7 @@ Projected −3.3%, measured −2.8%.
 
 The proof is the smallest of the five, and for the reason the card predicted:
 `round_poly_zero_base_spec`'s statement does not move, the algebra is the same
-shift, and `AuxShift` already carries all of it. The only new content is that
+shift, and `SumcheckShift` already carries all of it. The only new content is that
 the coefficient is computed in `ZMod q` and embedded — and `φF` is a ring
 homomorphism, so `shiftCoeffK_phi` moves it across in one line. Five loop
 specs and two definitions; `applied`, `shiftCoeff` and `rangeProduct_shift`
@@ -9223,7 +9223,7 @@ resident unchanged at 5453 MiB. The map at 645.3 s:
 lanes beat three 31-bit ones by a measured **43.9%** — a 64-bit Montgomery
 butterfly costs 1.787 ns, not the ~4 ns I projected — which on the ~90 s of
 `carrier_from_raw` that is butterflies is about **−40 s, −6.2% of a 645.3 s
-prover**. It is gated, priced and not started: an `AuxGold`-sized arithmetic
+prover**. It is gated, priced and not started: an `GoldArith`-sized arithmetic
 layer for the second prime, a second transform layer, a two-prime CRT in
 `u128`, and Montgomery form is a **representation change**, which `lean-opt`
 classes as a gated proposal rather than a champion because the carrier's
@@ -9272,7 +9272,7 @@ with its own inverse around a pointwise product.
 
 | card | measured | proof | status |
 |---|---|---|---|
-| **radix-4 Goldilocks** | −33.3% on the transform ⇒ **≈ −8.7%** | rework `AuxGoldCode` + `AuxGoldTransform` off the radix-2 `difWord`/`difRun` abstraction, ~1500–2000 lines; `AuxGold` untouched | gated, not started |
+| **radix-4 Goldilocks** | −33.3% on the transform ⇒ **≈ −8.7%** | rework `GoldStage` + `GoldTransform` off the radix-2 `difWord`/`difRun` abstraction, ~1500–2000 lines; `GoldArith` untouched | gated, not started |
 | **general path, 2 × 64-bit lanes** | −43.9% on the butterfly ⇒ ≈ −6.2% | ~2500–3500 lines **incl. a Montgomery representation change** | gated, not started |
 | the lift by cyclic + negacyclic | not gated | medium; reuses the landed layer | **idea only** |
 | the rounds' remaining structure | not re-split since T3 | — | **unmeasured** |
@@ -9346,8 +9346,8 @@ it would have caught it — I did not run it between the edit and the profile.
 ## Radix-4 landed as the fused pair: the theory you don't write (2026-09-20)
 
 The board's biggest card was radix-4 on the Goldilocks transform, gated at
-−33.3% and **priced at 1500–2000 lines of Lean**, because `AuxGoldCode` and
-`AuxGoldTransform` are written against a radix-2 `difWord`/`difRun`
+−33.3% and **priced at 1500–2000 lines of Lean**, because `GoldStage` and
+`GoldTransform` are written against a radix-2 `difWord`/`difRun`
 abstraction and a radix-4 transform is a different function. It landed for
 about **620 lines**, and the reason is worth keeping.
 
@@ -9356,7 +9356,7 @@ DFT as two radix-2 stages, but in base-4 digit-reversed order rather than
 bit-reversed, so it agrees with the radix-2 transform only as a *multiset* —
 which is all the first gate could assert. Proving it would have meant a second
 theory: a `dif4Run`, its multiplicativity, its inverse, and new versions of
-everything `AuxProduct` builds on `difRun`.
+everything `NttProduct` builds on `difRun`.
 
 The fused pair does the other thing. `ntt::gold_dif_stage2` reads its four
 inputs at stride `len/4` and writes its four outputs **in the order and with
@@ -9375,7 +9375,7 @@ theorem difRun_succ (om : R) (k step : ℕ) (f : ℕ → R) :
 is `rfl`. `gold_dif_stage2_spec`'s conclusion is `difWord` of `difWord` —
 literally the two shapes `gold_dif_stage_spec` already produces at consecutive
 block lengths — so **`gold_forward_spec`'s statement does not move**. It still
-says `difRun (psi^2) 10 1`. `AuxProduct.prod_difRun`, `inv_value` and
+says `difRun (psi^2) 10 1`. `NttProduct.prod_difRun`, `inv_value` and
 `gold_dot_spec` never learn this happened. The only thing that changed above
 the stage is `gold_forward_loop_spec`'s invariant, which now steps two stages
 per iteration instead of one; `len` runs 1024, 256, 64, 16, 4 and the
@@ -9821,3 +9821,61 @@ monadic step and takes one `step`.
 0.7% of the prover, and this profile demonstrated 4 s of phase variance on an
 untouched phase yesterday. Claiming a measured delta from a run that cannot
 resolve it would be worse than saying so; it rides in the next card's profile.
+
+## The proof files, reordered by layer (2026-09-21)
+
+Thirty-four files in `hachi/lean/`, fourteen of them `Aux*`, named after the
+candidate that produced them rather than the layer they prove. The convention
+had been one file per `hachi/src` module; Stage 6 outgrew it. This is the
+rename, one commit, no statement touched — `make build` re-verifies every
+theorem and the `#print axioms` lines follow the namespaces.
+
+| was | is | what it is |
+|---|---|---|
+| `AuxArith` | `NttArith` | Barrett arithmetic at a runtime prime |
+| `AuxNTT` | `NttMath` | the transform as mathematics, no code |
+| `AuxCRT` | `NttCRT` | the three primes, Garner |
+| `AuxCode` | `NttStage` | the extracted DIF stage |
+| `AuxTransform` | `NttTransform` | DIT stage, twist, pointwise, transform loops |
+| `AuxProduct` | `NttProduct` | the per-prime pipeline, `negconv_mod_{p,q}` |
+| `AuxGold` | `GoldArith` | Goldilocks arithmetic (T27) |
+| `AuxGoldCode` | `GoldStage` | Goldilocks DIF stage |
+| `AuxGoldFused` | `GoldFusedStage` | the fused stage pair (radix-4 pattern) |
+| `AuxGoldTransform` | `GoldTransform` | Goldilocks twiddles and transform loops |
+| `AuxGoldDot` | `GoldDot` | the digit-path dot's headline |
+| `AuxShort` | `RingShort` | short multiply, word level (T17) |
+| `AuxFused` | `RingFused` | the fused dot (T18/T19) |
+| `AuxShift` | `SumcheckShift` | the Taylor-shift round polynomial (T3) |
+
+Namespaces moved with the files (`HachiEquiv.AuxFused` → `HachiEquiv.RingFused`,
+…), so every `#print axioms` line in `Check.lean` § 4 was rewritten with them;
+the substitution was word-bounded and ran over every tracked text file except
+two: `hachi/benches/genesis/` (frozen; `check-genesis` compares it to git at the
+stamp commit, and an edited comment there is an edited baseline) and
+`logs/ledger.jsonl` (append-only; its rows name the files as they were).
+`hachi/src/ntt.rs`, `ring.rs` and `tests/chain_semantics.rs` carry six comments
+naming the old files; those edits are in the working tree but **not** in the
+rename commit, because a parallel session was mid-edit in `hachi/src` (a
+`PreparedVecGA` candidate that did not yet compile) when the gate ran `make
+test`. They ride the next Rust commit; `make extract` on them reports the model
+unchanged, so nothing downstream moves.
+
+`Opt.lean` (2646 lines, 57 definitions, 102 theorems across five modules) is
+now an umbrella over six parts — `OptFold`, `OptZeroCheck`, `OptSumcheck`,
+`OptRingSwitch`, `OptEvalSplit`, `OptRingShort` — each still inside
+`namespace HachiEquiv.Opt`, so no lemma's qualified name moved and the ledger's
+`opt:` fields still resolve. The split follows the dependencies the file
+already had: candidate I's base-field round rests on candidate G's base-field
+range factor (`OptSumcheck` imports `OptZeroCheck`); candidates C, E and I share
+five generic `List.foldl` lemmas (`OptFold`). `lean-opt`, `perf-loop`,
+`verify-campaign`, the `opt-*` strategies and `scripts/changes.py` now say
+"the part for the module".
+
+Two proved statements were removed as orphans: `Sumcheck.uni_zero_spec` (a
+cpoly item, used by nothing) and `Sumcheck.round_node_weights_spec` (the
+33-node interpolation weights; nothing in the protocol path has used them since
+the Taylor shift, and no audited spec reached the lemma). The Rust
+`sumcheck::round_node_weights` **stays**: `tests/sumcheck_semantics.rs` and a
+bench case call it as their own interpolation oracle, so it is test
+scaffolding, not dead code — the overview of 09-21 that called it dead was
+wrong on that point.

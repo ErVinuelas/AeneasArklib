@@ -2,10 +2,10 @@
 The **per-prime pipeline and the CRT reconstruction**: `hachi.ntt`'s two entry
 points, `negconv_mod_p` and `negconv_mod_q`.
 
-This is where the pieces meet. `AuxTransform` gives the two transforms as
-`AuxNTT.difRun`/`ditRun`; `AuxNTT` gives the three mathematical facts about them
+This is where the pieces meet. `NttTransform` gives the two transforms as
+`NttMath.difRun`/`ditRun`; `NttMath` gives the three mathematical facts about them
 (the forward transform evaluates, evaluation is multiplicative for cyclic
-convolution, the inverse undoes the forward up to `N`); `AuxCRT` gives the exact
+convolution, the inverse undoes the forward up to `N`); `NttCRT` gives the exact
 reconstruction. Composing them is [`negconv_mod_p_spec`] and
 [`negconv_mod_q_spec`].
 
@@ -28,7 +28,7 @@ offset      ↦ + (BOUND mod p)
 
 Every step is one of the imported theorems; the work is the bookkeeping, and the
 one subtlety is that each stage spec constrains its output only *below* `N`, so
-the composition needs the congruence lemmas `AuxTransform` carries.
+the composition needs the congruence lemmas `NttTransform` carries.
 
 ## The word-level sums, and why they are here
 
@@ -39,17 +39,17 @@ file, because the new `Rq::mul` proof is the one consumer of it. The two are
 identified in `Ring.lean` by a one-line `Finset.sum_congr`, since the extraction
 loop copies word for word.
 -/
-import AuxTransform
-import AuxCRT
+import NttTransform
+import NttCRT
 
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxProduct
+namespace HachiEquiv.NttProduct
 
-open HachiEquiv.AuxArith HachiEquiv.AuxCode HachiEquiv.AuxTransform HachiEquiv.AuxCRT
+open HachiEquiv.NttArith HachiEquiv.NttStage HachiEquiv.NttTransform HachiEquiv.NttCRT
 
 /-- The Hachi modulus, as a plain natural. -/
 abbrev q : ℕ := 4294967197
@@ -107,25 +107,25 @@ theorem posW_le_bound (a b : alloc.vec.Vec Std.U64)
 
 theorem offConvW_lt_P (a b : alloc.vec.Vec Std.U64)
     (hqa : ∀ t, wordAt a t < q) (hqb : ∀ t, wordAt b t < q) (k : ℕ) :
-    offConvW a b k < AuxCRT.P := by
+    offConvW a b k < NttCRT.P := by
   have hpos : posW a b k N ≤ BOUND := posW_le_bound a b hqa hqb k
   have hB : BOUND = 18889465060665381692416 := by norm_num
-  have hP : AuxCRT.P = 471064322751194440790966273 := AuxCRT.P_val
+  have hP : NttCRT.P = 471064322751194440790966273 := NttCRT.P_val
   unfold offConvW
   rw [hB] at hpos ⊢
   omega
 
 /-! ## The word-level antidiagonals *are* the ring-level convolution
 
-`AuxNTT.ordConv` over the casts of the words is the cast of the `ℕ` sum. Both
+`NttMath.ordConv` over the casts of the words is the cast of the `ℕ` sum. Both
 directions of the negacyclic fold are instances of the same lemma, at `k` and at
 `N + k`. -/
 
 theorem ordConv_cast_pos (p : ℕ) (a b : alloc.vec.Vec Std.U64) (k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (fun u => ((wordAt a u : ℕ) : ZMod p))
+    NttMath.ordConv N (fun u => ((wordAt a u : ℕ) : ZMod p))
         (fun u => ((wordAt b u : ℕ) : ZMod p)) k
       = ((posW a b k N : ℕ) : ZMod p) := by
-  unfold AuxNTT.ordConv posW
+  unfold NttMath.ordConv posW
   push_cast
   refine Finset.sum_congr rfl (fun i hi => ?_)
   simp only [Finset.mem_range] at hi
@@ -134,11 +134,11 @@ theorem ordConv_cast_pos (p : ℕ) (a b : alloc.vec.Vec Std.U64) (k : ℕ) (hk :
   · rw [if_neg (by omega : ¬(i ≤ k ∧ k - i < N)), if_neg h]
 
 theorem ordConv_cast_neg (p : ℕ) (a b : alloc.vec.Vec Std.U64) (k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (fun u => ((wordAt a u : ℕ) : ZMod p))
+    NttMath.ordConv N (fun u => ((wordAt a u : ℕ) : ZMod p))
         (fun u => ((wordAt b u : ℕ) : ZMod p)) (N + k)
       = ((negW a b k N : ℕ) : ZMod p) := by
   have hkN : k < N := hk
-  unfold AuxNTT.ordConv negW
+  unfold NttMath.ordConv negW
   push_cast
   refine Finset.sum_congr rfl (fun i hi => ?_)
   simp only [Finset.mem_range] at hi
@@ -154,7 +154,7 @@ Three groups, all of them additions of this file:
   its output only below `N`, so composing them needs to know that `difRun` and
   `ditRun` read their input only below `N` too;
 * the three *cast bridges* for the word-level passes (`twist`, `pointwise`,
-  `untwist`), which are `AuxCode.difWord_cast`'s pattern applied to a `% p`
+  `untwist`), which are `NttStage.difWord_cast`'s pattern applied to a `% p`
   equation instead of a stage;
 * the pure `ZMod p` steps of the argument, stated on extracted equations so that
   no algebra happens inside the monadic part.
@@ -190,8 +190,8 @@ private theorem blk_add_lt (half n t : ℕ) (hdvd : 2 * half ∣ n) (ht : t < n)
 /-- One DIF stage reads its input only below `N`. -/
 theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : R) (f f' : ℕ → R)
     (hdvd : 2 * half ∣ N) (hag : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.difStage half step om f t = AuxNTT.difStage half step om f' t := by
-  unfold AuxNTT.difStage
+    NttMath.difStage half step om f t = NttMath.difStage half step om f' t := by
+  unfold NttMath.difStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hag t ht, hag (t + half) (blk_add_lt half N t hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hag t ht, hag (t - half) (by omega)]
@@ -199,8 +199,8 @@ theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : R) (f f'
 /-- One DIT stage reads its input only below `N`. -/
 theorem ditStage_congr {R : Type*} [CommRing R] (half step : ℕ) (omi : R) (f f' : ℕ → R)
     (hdvd : 2 * half ∣ N) (hag : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.ditStage half step omi f t = AuxNTT.ditStage half step omi f' t := by
-  unfold AuxNTT.ditStage
+    NttMath.ditStage half step omi f t = NttMath.ditStage half step omi f' t := by
+  unfold NttMath.ditStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hag t ht, hag (t + half) (blk_add_lt half N t hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hag t ht, hag (t - half) (by omega)]
@@ -215,13 +215,13 @@ private theorem two_pow_succ_dvd_N (k : ℕ) (hk : k + 1 ≤ 10) : 2 * 2 ^ k ∣
 pass that produced it is pinned only below `N`. -/
 theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
     ∀ (k : ℕ), k ≤ 10 → ∀ (step : ℕ) (f f' : ℕ → R), (∀ u, u < N → f u = f' u) →
-      ∀ t, t < N → AuxNTT.difRun om k step f t = AuxNTT.difRun om k step f' t := by
+      ∀ t, t < N → NttMath.difRun om k step f t = NttMath.difRun om k step f' t := by
   intro k
   induction k with
   | zero => intro _ step f f' hag t ht; simpa using hag t ht
   | succ k ih =>
       intro hk step f f' hag t ht
-      rw [AuxNTT.difRun_succ, AuxNTT.difRun_succ]
+      rw [NttMath.difRun_succ, NttMath.difRun_succ]
       exact ih (by omega) (step * 2) _ _
         (fun u hu => difStage_congr (2 ^ k) step om f f'
           (two_pow_succ_dvd_N k hk) hag u hu) t ht
@@ -229,13 +229,13 @@ theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
 /-- **`ditRun` reads its input only below `N`.** -/
 theorem ditRun_congr {R : Type*} [CommRing R] (omi : R) :
     ∀ (k : ℕ), k ≤ 10 → ∀ (step : ℕ) (f f' : ℕ → R), (∀ u, u < N → f u = f' u) →
-      ∀ t, t < N → AuxNTT.ditRun omi k step f t = AuxNTT.ditRun omi k step f' t := by
+      ∀ t, t < N → NttMath.ditRun omi k step f t = NttMath.ditRun omi k step f' t := by
   intro k
   induction k with
   | zero => intro _ step f f' hag t ht; simpa using hag t ht
   | succ k ih =>
       intro hk step f f' hag t ht
-      rw [AuxNTT.ditRun_succ, AuxNTT.ditRun_succ]
+      rw [NttMath.ditRun_succ, NttMath.ditRun_succ]
       exact ditStage_congr (2 ^ k) step omi _ _ (two_pow_succ_dvd_N k hk)
         (fun u hu => ih (by omega) (step * 2) f f' hag u hu) t ht
 
@@ -244,11 +244,11 @@ theorem ditRun_congr {R : Type*} [CommRing R] (omi : R) :
 `twist_spec`, `pointwise_spec` and `untwist_spec` are stated on words with `% p`;
 the two transform specs are stated in `ZMod p` through `resK`. These three
 lemmas are the translation, and each is `ZMod.natCast_mod` plus `Nat.cast_mul` /
-`Nat.cast_add` on the word equation -- `AuxCode.difWord_cast`'s pattern, with a
+`Nat.cast_add` on the word equation -- `NttStage.difWord_cast`'s pattern, with a
 pass in place of a stage. -/
 
 /-- `ntt::twist` in `ZMod p`: the buffer scaled by the powers of `ψ`, i.e.
-`AuxNTT.twistR`. No canonicality of `v` is needed -- the body reduces every word
+`NttMath.twistR`. No canonicality of `v` is needed -- the body reduces every word
 it reads, and `ZMod.natCast_mod` throws that reduction away. -/
 theorem twist_cast (v pt : alloc.vec.Vec Std.U64) (pw mw : Std.U64) (h : Magic pw mw)
     (hv : v.val.length = N) (hpt : Canon pw.val pt) (psi : ZMod pw.val)
@@ -257,13 +257,13 @@ theorem twist_cast (v pt : alloc.vec.Vec Std.U64) (pw mw : Std.U64) (h : Magic p
       ⦃ z => Canon pw.val z
              ∧ ∀ t, t < N →
                  resK pw.val z t
-                   = AuxNTT.twistR psi (fun u => ((wordAt v u : ℕ) : ZMod pw.val)) t ⦄ := by
+                   = NttMath.twistR psi (fun u => ((wordAt v u : ℕ) : ZMod pw.val)) t ⦄ := by
   apply spec_mono (twist_spec v pt pw mw h hv hpt)
   rintro z ⟨hzc, hzval⟩
   refine ⟨hzc, ?_⟩
   intro t ht
   have hp : resK pw.val pt t = psi ^ t := hpsi t ht
-  simp only [resK, AuxNTT.twistR] at hp ⊢
+  simp only [resK, NttMath.twistR] at hp ⊢
   rw [hzval t ht, ZMod.natCast_mod, Nat.cast_mul, ZMod.natCast_mod, hp]
 
 /-- `ntt::pointwise` in `ZMod p`. -/
@@ -302,7 +302,7 @@ theorem untwist_cast (src it : alloc.vec.Vec Std.U64) (ninv boff pw mw : Std.U64
 
 /-! ### The three facts about `ω = ψ²`
 
-`AuxNTT`'s transform lemmas ask for `ω^N = 1`, `ω^(N/2) = −1` and `ω·ω' = 1`;
+`NttMath`'s transform lemmas ask for `ω^N = 1`, `ω^(N/2) = −1` and `ω·ω' = 1`;
 all three come from `ψ^N = −1` and `ψ·ψ' = 1`, which is the whole reason the
 table holds powers of a `2N`-th root. -/
 
@@ -327,40 +327,40 @@ runs into an evaluation, and `cyclicConv_eval` multiplies two of them into the
 third. -/
 theorem prod_difRun {p : ℕ} (psi : ZMod p) (hord : psi ^ N = -1)
     (A B FA FB PR : ℕ → ZMod p)
-    (hFA : ∀ t, t < N → FA t = AuxNTT.difRun (psi ^ 2) 10 1 (AuxNTT.twistR psi A) t)
-    (hFB : ∀ t, t < N → FB t = AuxNTT.difRun (psi ^ 2) 10 1 (AuxNTT.twistR psi B) t)
+    (hFA : ∀ t, t < N → FA t = NttMath.difRun (psi ^ 2) 10 1 (NttMath.twistR psi A) t)
+    (hFB : ∀ t, t < N → FB t = NttMath.difRun (psi ^ 2) 10 1 (NttMath.twistR psi B) t)
     (hPR : ∀ t, t < N → PR t = FA t * FB t) :
-    ∀ t, t < N → PR t = AuxNTT.difRun (psi ^ 2) 10 1
-        (AuxNTT.cyclicConv N (AuxNTT.twistR psi A) (AuxNTT.twistR psi B)) t := by
+    ∀ t, t < N → PR t = NttMath.difRun (psi ^ 2) 10 1
+        (NttMath.cyclicConv N (NttMath.twistR psi A) (NttMath.twistR psi B)) t := by
   intro t ht
   have hpow := om_pow psi hord
   have hneg := om_neg psi hord
   have hN : N = 2 ^ 10 := by norm_num
-  have he : ((psi ^ 2) ^ AuxNTT.brev 10 t) ^ N = 1 := by
+  have he : ((psi ^ 2) ^ NttMath.brev 10 t) ^ N = 1 := by
     rw [← pow_mul, mul_comm, pow_mul, hpow, one_pow]
   rw [hPR t ht, hFA t ht, hFB t ht,
-    AuxNTT.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg (AuxNTT.twistR psi A) t ht,
-    AuxNTT.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg (AuxNTT.twistR psi B) t ht,
-    AuxNTT.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg
-      (AuxNTT.cyclicConv N (AuxNTT.twistR psi A) (AuxNTT.twistR psi B)) t ht]
-  exact (AuxNTT.cyclicConv_eval N (psi ^ 2) (AuxNTT.brev 10 t) he _ _).symm
+    NttMath.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg (NttMath.twistR psi A) t ht,
+    NttMath.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg (NttMath.twistR psi B) t ht,
+    NttMath.difRun_blockVal 10 (psi ^ 2) N hN hpow hneg
+      (NttMath.cyclicConv N (NttMath.twistR psi A) (NttMath.twistR psi B)) t ht]
+  exact (NttMath.cyclicConv_eval N (psi ^ 2) (NttMath.brev 10 t) he _ _).symm
 
 /-- **The inverse transform undoes the forward one, up to `N`.** -/
 theorem inv_value {p : ℕ} (psi psii : ZMod p) (hpinv : psi * psii = 1)
     (C PR IV : ℕ → ZMod p)
-    (hPR : ∀ t, t < N → PR t = AuxNTT.difRun (psi ^ 2) 10 1 C t)
-    (hIV : ∀ t, t < N → IV t = AuxNTT.ditRun (psii ^ 2) 10 1 PR t) :
+    (hPR : ∀ t, t < N → PR t = NttMath.difRun (psi ^ 2) 10 1 C t)
+    (hIV : ∀ t, t < N → IV t = NttMath.ditRun (psii ^ 2) 10 1 PR t) :
     ∀ t, t < N → IV t = ((N : ℕ) : ZMod p) * C t := by
   intro t ht
-  have hdd : AuxNTT.ditRun (psii ^ 2) 10 1 (AuxNTT.difRun (psi ^ 2) 10 1 C) t
+  have hdd : NttMath.ditRun (psii ^ 2) 10 1 (NttMath.difRun (psi ^ 2) 10 1 C) t
       = (2 : ZMod p) ^ 10 * C t := by
-    rw [AuxNTT.ditRun_difRun (psi ^ 2) (psii ^ 2) (om_inv psi psii hpinv) 10 1 C]
+    rw [NttMath.ditRun_difRun (psi ^ 2) (psii ^ 2) (om_inv psi psii hpinv) 10 1 C]
   have h2N : (2 : ZMod p) ^ 10 = ((N : ℕ) : ZMod p) := by
     rw [show ((N : ℕ) : ZMod p) = ((1024 : ℕ) : ZMod p) from rfl]
     push_cast
     norm_num
   rw [hIV t ht, ditRun_congr (psii ^ 2) 10 (by norm_num) 1 PR
-    (AuxNTT.difRun (psi ^ 2) 10 1 C) hPR t ht, hdd, h2N]
+    (NttMath.difRun (psi ^ 2) 10 1 C) hPR t ht, hdd, h2N]
 
 /-- **The untwist.** `twistConv` removes the twist, `hNinv` the factor `N`, and
 `hpinv` the remaining `(ψ·ψ')^t`. -/
@@ -368,15 +368,15 @@ theorem untwist_value {p : ℕ} (psi psii ninvK : ZMod p) (hord : psi ^ N = -1)
     (hpinv : psi * psii = 1) (hNinv : ((N : ℕ) : ZMod p) * ninvK = 1)
     (A B : ℕ → ZMod p) (t : ℕ) (ht : t < N) :
     ((N : ℕ) : ZMod p)
-          * AuxNTT.cyclicConv N (AuxNTT.twistR psi A) (AuxNTT.twistR psi B) t
+          * NttMath.cyclicConv N (NttMath.twistR psi A) (NttMath.twistR psi B) t
         * psii ^ t * ninvK
-      = AuxNTT.negConvR N A B t := by
+      = NttMath.negConvR N A B t := by
   have hpp : psi ^ t * psii ^ t = 1 := by rw [← mul_pow, hpinv, one_pow]
-  rw [AuxNTT.twistConv N psi hord A B t ht]
-  calc ((N : ℕ) : ZMod p) * (psi ^ t * AuxNTT.negConvR N A B t) * psii ^ t * ninvK
-      = AuxNTT.negConvR N A B t * (psi ^ t * psii ^ t)
+  rw [NttMath.twistConv N psi hord A B t ht]
+  calc ((N : ℕ) : ZMod p) * (psi ^ t * NttMath.negConvR N A B t) * psii ^ t * ninvK
+      = NttMath.negConvR N A B t * (psi ^ t * psii ^ t)
           * (((N : ℕ) : ZMod p) * ninvK) := by ring
-    _ = AuxNTT.negConvR N A B t := by rw [hpp, hNinv, mul_one, mul_one]
+    _ = NttMath.negConvR N A B t := by rw [hpp, hNinv, mul_one, mul_one]
 
 
 /-! ## `ntt::negconv_mod_p` -/
@@ -394,7 +394,7 @@ theorem negconv_mod_p_spec
       ⦃ z => Canon pw.val z
              ∧ ∀ t, t < N →
                  resK pw.val z t
-                   = AuxNTT.negConvR N (fun u => ((wordAt a u : ℕ) : ZMod pw.val))
+                   = NttMath.negConvR N (fun u => ((wordAt a u : ℕ) : ZMod pw.val))
                        (fun u => ((wordAt b u : ℕ) : ZMod pw.val)) t
                      + ((boff.val : ℕ) : ZMod pw.val) ⦄ := by
   have hppos : 0 < pw.val := h.pos
@@ -422,12 +422,12 @@ theorem negconv_mod_p_spec
   set B : ℕ → ZMod pw.val := fun u => ((wordAt b u : ℕ) : ZMod pw.val) with hB
   -- the two forward transforms, restated on the *twisted* ring-level buffers
   have hFA : ∀ t, t < N →
-      resK pw.val v t = AuxNTT.difRun (ps ^ 2) 10 1 (AuxNTT.twistR ps A) t := by
+      resK pw.val v t = NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps A) t := by
     intro t ht
     rw [hfwv t ht]
     exact difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val ta) _ htav t ht
   have hFB : ∀ t, t < N →
-      resK pw.val v2 t = AuxNTT.difRun (ps ^ 2) 10 1 (AuxNTT.twistR ps B) t := by
+      resK pw.val v2 t = NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps B) t := by
     intro t ht
     rw [hgwv t ht]
     exact difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val tb) _ htbv t ht
@@ -436,7 +436,7 @@ theorem negconv_mod_p_spec
     (resK pw.val prod) hFA hFB hprv
   -- the inverse transform recovers `N ·` that convolution
   have hIV := inv_value ps psii hpinv
-    (AuxNTT.cyclicConv N (AuxNTT.twistR ps A) (AuxNTT.twistR ps B))
+    (NttMath.cyclicConv N (NttMath.twistR ps A) (NttMath.twistR ps B))
     (resK pw.val prod) (resK pw.val v4) hsum hinv
   -- the untwist
   apply spec_mono (untwist_cast v4 it ninv boff pw mw h hin1 hitC hninv hboff psii hitv)
@@ -489,22 +489,22 @@ theorem negconv_mod_p_word
   have hcast : ((wordAt z t : ℕ) : ZMod pw.val) = ((offConvW a b t : ℕ) : ZMod pw.val) := by
     have h1 := hval t ht
     rw [resK] at h1
-    rw [h1, hoff, AuxNTT.negConvR, ordConv_cast_pos pw.val a b t ht,
+    rw [h1, hoff, NttMath.negConvR, ordConv_cast_pos pw.val a b t ht,
       ordConv_cast_neg pw.val a b t ht, hboffv, ZMod.natCast_mod]
     ring
   exact natCast_inj_of_lt (wordAt_lt hcanon hppos t) hcast
 
 --
---   B1  the three primes' root data      (candidate for AuxCRT.lean)
+--   B1  the three primes' root data      (candidate for NttCRT.lean)
 --   B2  params.Q's value
---   B3  the pushed-buffer getD pair      (local restatement: AuxTransform's
+--   B3  the pushed-buffer getD pair      (local restatement: NttTransform's
 --       copies are `private`)
 --   B4  two `q` numeral facts
 --   B5  the reconstruction loop spec
 
 /-! ### The three primes' root data
 
-`AuxCRT` carries the `Magic` pairs and the `P`/`M`/`GARNER_*` values; the four
+`NttCRT` carries the `Magic` pairs and the `P`/`M`/`GARNER_*` values; the four
 root facts per prime are here. Each is a closed statement about a 30-bit
 modulus, so `decide +kernel` is the whole proof -- and it is the cheapest one
 available, since `ZMod p` is `Fin p` and the exponentiation is by squaring in
@@ -589,7 +589,7 @@ theorem aux3_lt : (ntt.AUX_PSI3).val < (ntt.AUX_P3).val
 
 /-! ### Reading a pushed buffer
 
-`AuxTransform`'s pair of the same name is `private`, so the two `List.getD`
+`NttTransform`'s pair of the same name is `private`, so the two `List.getD`
 facts are transcribed. -/
 
 private theorem getD_append_lt'' {α : Type} (l : List α) (x d : α) {j : ℕ}
@@ -628,9 +628,9 @@ theorem negconv_mod_q_loop_spec (a b : alloc.vec.Vec Std.U64)
     (hqa : ∀ t, wordAt a t < q) (hqb : ∀ t, wordAt b t < q)
     (hn : n.val = N) (hqwv : qw.val = q)
     (hl1 : r1.val.length = N) (hl2 : r2.val.length = N) (hl3 : r3.val.length = N)
-    (hv1 : ∀ k, k < N → wordAt r1 k = offConvW a b k % AuxCRT.p1)
-    (hv2 : ∀ k, k < N → wordAt r2 k = offConvW a b k % AuxCRT.p2)
-    (hv3 : ∀ k, k < N → wordAt r3 k = offConvW a b k % AuxCRT.p3)
+    (hv1 : ∀ k, k < N → wordAt r1 k = offConvW a b k % NttCRT.p1)
+    (hv2 : ∀ k, k < N → wordAt r2 k = offConvW a b k % NttCRT.p2)
+    (hv3 : ∀ k, k < N → wordAt r3 k = offConvW a b k % NttCRT.p3)
     (ht : t.val ≤ n.val) (hlen : out.val.length = t.val)
     (hred : ∀ u ∈ out.val, u.val < q)
     (hval : ∀ k, k < t.val → wordAt out k = offConvW a b k % q) :
@@ -656,14 +656,14 @@ theorem negconv_mod_q_loop_spec (a b : alloc.vec.Vec Std.U64)
       step as ⟨i1, hi1⟩
       step as ⟨i2, hi2⟩
       -- the three residues of one natural number
-      have he1 : i.val = offConvW a b t1.val % AuxCRT.p1 := by
+      have he1 : i.val = offConvW a b t1.val % NttCRT.p1 := by
         rw [hi, ← wordAt_of_lt hib1]; exact hv1 t1.val htN
-      have he2 : i1.val = offConvW a b t1.val % AuxCRT.p2 := by
+      have he2 : i1.val = offConvW a b t1.val % NttCRT.p2 := by
         rw [hi1, ← wordAt_of_lt hib2]; exact hv2 t1.val htN
-      have he3 : i2.val = offConvW a b t1.val % AuxCRT.p3 := by
+      have he3 : i2.val = offConvW a b t1.val % NttCRT.p3 := by
         rw [hi2, ← wordAt_of_lt hib3]; exact hv3 t1.val htN
-      have hxP : offConvW a b t1.val < AuxCRT.P := offConvW_lt_P a b hqa hqb t1.val
-      step with AuxCRT.garner_spec i i1 i2 (offConvW a b t1.val) hxP he1 he2 he3
+      have hxP : offConvW a b t1.val < NttCRT.P := offConvW_lt_P a b hqa hqb t1.val
+      step with NttCRT.garner_spec i i1 i2 (offConvW a b t1.val) hxP he1 he2 he3
         as ⟨i3, hi3⟩
       step as ⟨i4, hi4⟩
       have hi4lt : i4.val < q := by
@@ -709,20 +709,20 @@ theorem negconv_mod_q_spec (a b : alloc.vec.Vec Std.U64)
   obtain ⟨hp2, hpi2, hn2, hb2⟩ := aux2_lt
   obtain ⟨hp3, hpi3, hn3, hb3⟩ := aux3_lt
   step with negconv_mod_p_word a b ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1 ntt.AUX_PSIINV1
-      ntt.AUX_NINV1 ntt.AUX_BOFF1 AuxCRT.magic1 ha hb hqa hqb hp1 hpi1 hn1 hb1
+      ntt.AUX_NINV1 ntt.AUX_BOFF1 NttCRT.magic1 ha hb hqa hqb hp1 hpi1 hn1 hb1
       psi1_ord psi1_inv ninv1_inv boff1_val as ⟨r1, hc1, hw1⟩
   step with negconv_mod_p_word a b ntt.AUX_P2 ntt.AUX_M2 ntt.AUX_PSI2 ntt.AUX_PSIINV2
-      ntt.AUX_NINV2 ntt.AUX_BOFF2 AuxCRT.magic2 ha hb hqa hqb hp2 hpi2 hn2 hb2
+      ntt.AUX_NINV2 ntt.AUX_BOFF2 NttCRT.magic2 ha hb hqa hqb hp2 hpi2 hn2 hb2
       psi2_ord psi2_inv ninv2_inv boff2_val as ⟨r2, hc2, hw2⟩
   step with negconv_mod_p_word a b ntt.AUX_P3 ntt.AUX_M3 ntt.AUX_PSI3 ntt.AUX_PSIINV3
-      ntt.AUX_NINV3 ntt.AUX_BOFF3 AuxCRT.magic3 ha hb hqa hqb hp3 hpi3 hn3 hb3
+      ntt.AUX_NINV3 ntt.AUX_BOFF3 NttCRT.magic3 ha hb hqa hqb hp3 hpi3 hn3 hb3
       psi3_ord psi3_inv ninv3_inv boff3_val as ⟨r3, hc3, hw3⟩
-  rw [AuxCRT.AUX_P1_val] at hw1
-  rw [AuxCRT.AUX_P2_val] at hw2
-  rw [AuxCRT.AUX_P3_val] at hw3
+  rw [NttCRT.AUX_P1_val] at hw1
+  rw [NttCRT.AUX_P2_val] at hw2
+  rw [NttCRT.AUX_P3_val] at hw3
   -- the modulus, widened
   have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
-    UScalar.cast_inBounds_spec .U128 params.Q (AuxCRT.u64_le_u128_max _)
+    UScalar.cast_inBounds_spec .U128 params.Q (NttCRT.u64_le_u128_max _)
   step with hcq as ⟨qw, hqw⟩
   rw [params_Q_val'] at hqw
   simp only [alloc.vec.Vec.with_capacity]
@@ -731,6 +731,6 @@ theorem negconv_mod_q_spec (a b : alloc.vec.Vec Std.U64)
     hc1.1 hc2.1 hc3.1 hw1 hw2 hw3 (by simp) (by simp)
     (by intro u hu; simp at hu) (by intro k hk; simp at hk)
 
-end HachiEquiv.AuxProduct
+end HachiEquiv.NttProduct
 
 

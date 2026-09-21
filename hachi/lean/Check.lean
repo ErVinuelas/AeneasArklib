@@ -2,9 +2,9 @@ import Generated
 import Field
 import Ext
 import Ring
-import AuxGold
-import AuxGoldDot
-import AuxShift
+import GoldArith
+import GoldDot
+import SumcheckShift
 import RqBridge
 import Scheme
 import EvalSplit
@@ -1436,13 +1436,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Round 0 walks half of every pair the protocol evaluates and T3 left it
 -- alone. `shiftCoeffK_phi` is the whole bridge: `φF` is a ring homomorphism,
 -- so the coefficient computed in `ZMod q` embeds to the one `shiftCoeff` names.
-#print axioms HachiEquiv.AuxShift.stK_phi
-#print axioms HachiEquiv.AuxShift.shiftCoeffK_phi
-#print axioms HachiEquiv.AuxShift.shift_powers_base_spec
-#print axioms HachiEquiv.AuxShift.shift_inner_base_spec
-#print axioms HachiEquiv.AuxShift.shift_accum_base_spec
-#print axioms HachiEquiv.AuxShift.zero_fill_base_spec
-#print axioms HachiEquiv.AuxShift.pair_loop_base_spec
+#print axioms HachiEquiv.SumcheckShift.stK_phi
+#print axioms HachiEquiv.SumcheckShift.shiftCoeffK_phi
+#print axioms HachiEquiv.SumcheckShift.shift_powers_base_spec
+#print axioms HachiEquiv.SumcheckShift.shift_inner_base_spec
+#print axioms HachiEquiv.SumcheckShift.shift_accum_base_spec
+#print axioms HachiEquiv.SumcheckShift.zero_fill_base_spec
+#print axioms HachiEquiv.SumcheckShift.pair_loop_base_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_base_spec
 #print axioms HachiEquiv.Sumcheck.eq_prefix_spec
 #print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec
@@ -1500,7 +1500,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 --    is an ordinary function of its body). The `_32` and `_64` loop bodies
 --    differ by one inserted `expand` and the inner loops are byte-identical,
 --    so the pointwise body equality is the entire content.
--- Candidate T27's arithmetic layer. `AuxArith`'s theorems are generic in
+-- Candidate T27's arithmetic layer. `NttArith`'s theorems are generic in
 -- `(p, m)` but `Magic` REQUIRES `p < 2^32` -- its own docstring says that is
 -- what keeps a product of two residues inside a `u64` -- so a 64-bit auxiliary
 -- prime cannot instantiate it and the arithmetic starts again. What it does
@@ -1516,15 +1516,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- at `a + b < 2p` rather than at two reduced operands, because the reduction's
 -- own call sites do not have reduced operands and demanding them would be a
 -- lie about the code.
-#print axioms HachiEquiv.AuxGold.GOLD_P_val
-#print axioms HachiEquiv.AuxGold.cast_trunc_spec
-#print axioms HachiEquiv.AuxGold.pow96_succ
-#print axioms HachiEquiv.AuxGold.gold_add_bounded
-#print axioms HachiEquiv.AuxGold.gold_add_spec
-#print axioms HachiEquiv.AuxGold.gold_sub_bounded
-#print axioms HachiEquiv.AuxGold.gold_sub_spec
-#print axioms HachiEquiv.AuxGold.gold_reduce_spec
-#print axioms HachiEquiv.AuxGold.gold_mul_spec
+#print axioms HachiEquiv.GoldArith.GOLD_P_val
+#print axioms HachiEquiv.GoldArith.cast_trunc_spec
+#print axioms HachiEquiv.GoldArith.pow96_succ
+#print axioms HachiEquiv.GoldArith.gold_add_bounded
+#print axioms HachiEquiv.GoldArith.gold_add_spec
+#print axioms HachiEquiv.GoldArith.gold_sub_bounded
+#print axioms HachiEquiv.GoldArith.gold_sub_spec
+#print axioms HachiEquiv.GoldArith.gold_reduce_spec
+#print axioms HachiEquiv.GoldArith.gold_mul_spec
 #print axioms HachiEquiv.Raw32.eq_ok_of_spec
 #print axioms HachiEquiv.Raw32.loop_congr
 #print axioms HachiEquiv.Raw32.fp_new_id
@@ -1614,7 +1614,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.LiftProver.c_quotient_copy_loop_spec
 #print axioms HachiEquiv.LiftProver.honest_lift_witness_spec
 
--- The optimized variants (`lean/Opt.lean`): each `opt_eq_spec` equates a
+-- The optimized variants (`lean/Opt*.lean`, one part per module): each `opt_eq_spec` equates a
 -- translatable `Foo.opt` with the ArkLib definition its Rust item mirrors.
 -- Stage 6, iteration 1, candidate A -- the running-power evaluation.
 #print axioms HachiEquiv.Opt.c_eval_at.opt_eq_spec
@@ -1687,7 +1687,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Opt.roundValuesZeroBase_eq_all
 -- Candidate J -- the tensor split of Ã: the MLE of a tensor-product table is the
 -- product of the two small MLEs (brief 5's S4, verifier half). The pure algebra
--- lives in `lean/Sumcheck.lean`, which `Opt.lean` imports, so the tensor-split
+-- lives in `lean/Sumcheck.lean`, which `OptSumcheck.lean` imports, so the tensor-split
 -- lemma and the split-against-the-specification lemma print under `Sumcheck`.
 #print axioms HachiEquiv.Sumcheck.mle_tensor_split
 #print axioms HachiEquiv.Sumcheck.alphaSplit_eval_eq
@@ -1793,25 +1793,25 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- hypothesis anywhere, which is what makes the classification unable to affect
 -- soundness -- only speed.
 --
--- `Opt.lean` (the algebra) and `AuxShort.lean` (the word level) share one copy
+-- `OptRingShort.lean` (the algebra) and `RingShort.lean` (the word level) share one copy
 -- of `negConvF`/`single`/`contrib`, which is why those audit lines name
--- `AuxShort` rather than `Opt`. Change 2 reuses that algebra verbatim and adds
+-- `RingShort` rather than `Opt`. Change 2 reuses that algebra verbatim and adds
 -- only `Fp`-buffer twins of the loop specs (`coeffK` where Change 1 used
--- `AuxCode.wordAt`).
+-- `NttStage.wordAt`).
 #print axioms HachiEquiv.Opt.MulShort.opt_eq_spec
 #print axioms HachiEquiv.Opt.MulShort.opt_eq_negConvF
 #print axioms HachiEquiv.Opt.MulShort.passLoop_eq
-#print axioms HachiEquiv.AuxShort.negConvF_single
-#print axioms HachiEquiv.AuxShort.negConvF_add_left
-#print axioms HachiEquiv.AuxShort.negConvF_coeffK
-#print axioms HachiEquiv.AuxShort.inner_spec
-#print axioms HachiEquiv.AuxShort.pass_spec
-#print axioms HachiEquiv.AuxShort.terms_spec
-#print axioms HachiEquiv.AuxShort.termsSum_eq_negConvF
-#print axioms HachiEquiv.AuxShort.mul_short_desc_spec
-#print axioms HachiEquiv.AuxShort.classify_short_loop_spec
-#print axioms HachiEquiv.AuxShort.classify_short_spec
-#print axioms HachiEquiv.AuxShort.write_invariant_fp
+#print axioms HachiEquiv.RingShort.negConvF_single
+#print axioms HachiEquiv.RingShort.negConvF_add_left
+#print axioms HachiEquiv.RingShort.negConvF_coeffK
+#print axioms HachiEquiv.RingShort.inner_spec
+#print axioms HachiEquiv.RingShort.pass_spec
+#print axioms HachiEquiv.RingShort.terms_spec
+#print axioms HachiEquiv.RingShort.termsSum_eq_negConvF
+#print axioms HachiEquiv.RingShort.mul_short_desc_spec
+#print axioms HachiEquiv.RingShort.classify_short_loop_spec
+#print axioms HachiEquiv.RingShort.classify_short_spec
+#print axioms HachiEquiv.RingShort.write_invariant_fp
 -- Candidate T33 (Stage 6) -- the DEFERRED reduction. The short multiply's
 -- inner step finished with `Fp::new` on a value the branchy add/sub had
 -- already put in [0, q): a `% Q` for nothing, on the hottest loop in the
@@ -1825,22 +1825,22 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- passes: no new value-level precondition, and at the pin the inner reduction
 -- never fires. The three `*_add_spec` theorems this replaces are gone with
 -- their Aeneas loop constants.
-#print axioms HachiEquiv.AuxShort.offStep_cast
-#print axioms HachiEquiv.AuxShort.bnd_le
+#print axioms HachiEquiv.RingShort.offStep_cast
+#print axioms HachiEquiv.RingShort.bnd_le
 -- The offset pass splits at the wrap point, so neither loop tests `pos >= N`
 -- per element and both runs are stride-1. The write step is the same lemma for
 -- both, and `short_pass_off_spec`'s statement is the one the single loop had:
 -- the split is invisible to `mul_short_add_into_spec` below.
-#print axioms HachiEquiv.AuxShort.offWrite_step
-#print axioms HachiEquiv.AuxShort.short_pass_off_loop0_spec
-#print axioms HachiEquiv.AuxShort.short_pass_off_loop1_spec
-#print axioms HachiEquiv.AuxShort.short_pass_off_spec
-#print axioms HachiEquiv.AuxShort.short_reduce_buf_spec
-#print axioms HachiEquiv.AuxShort.short_chunk_loop_spec
-#print axioms HachiEquiv.AuxShort.short_terms_loop_spec
-#print axioms HachiEquiv.AuxShort.short_seed_loop_spec
-#print axioms HachiEquiv.AuxShort.short_write_loop_spec
-#print axioms HachiEquiv.AuxShort.mul_short_add_into_spec
+#print axioms HachiEquiv.RingShort.offWrite_step
+#print axioms HachiEquiv.RingShort.short_pass_off_loop0_spec
+#print axioms HachiEquiv.RingShort.short_pass_off_loop1_spec
+#print axioms HachiEquiv.RingShort.short_pass_off_spec
+#print axioms HachiEquiv.RingShort.short_reduce_buf_spec
+#print axioms HachiEquiv.RingShort.short_chunk_loop_spec
+#print axioms HachiEquiv.RingShort.short_terms_loop_spec
+#print axioms HachiEquiv.RingShort.short_seed_loop_spec
+#print axioms HachiEquiv.RingShort.short_write_loop_spec
+#print axioms HachiEquiv.RingShort.mul_short_add_into_spec
 #print axioms HachiEquiv.RqBridge.mul_short_desc_spec
 #print axioms HachiEquiv.RqBridge.mul_short_add_into_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_loop0_spec
@@ -1855,33 +1855,33 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 --
 -- `Scheme.dot_spec`'s statement is UNCHANGED, so its seven call sites are
 -- untouched -- the third Stage 6 champion to move an implementation without
--- moving its specification. `AuxProduct` needed no generalizing: `inv_value`
+-- moving its specification. `NttProduct` needed no generalizing: `inv_value`
 -- already takes an arbitrary buffer and `garner_spec` an arbitrary `x < P`.
 --
 -- The one new mathematical fact is that the transforms commute with a finite
--- sum (`AuxNTT.difRun_sum` / `ditRun_sum`), which is not free because they are
+-- sum (`NttMath.difRun_sum` / `ditRun_sum`), which is not free because they are
 -- butterfly networks rather than explicit sums.
 --
 -- The correctness-critical detail is the offset: `untwist` adds `BOUND` once
 -- per coefficient, so a fused dot over `L` terms needs `L · BOUND` or the
 -- reconstructed integer goes negative and Garner returns a different value.
 -- `offConvSum_lt_P` is the bound that pins `DOT_CHUNK = 8192`.
-#print axioms HachiEquiv.AuxNTT.difRun_add
-#print axioms HachiEquiv.AuxNTT.ditRun_add
-#print axioms HachiEquiv.AuxNTT.difRun_sum
-#print axioms HachiEquiv.AuxNTT.ditRun_sum
-#print axioms HachiEquiv.AuxFused.untwist_value_sum
-#print axioms HachiEquiv.AuxFused.accum_spec
-#print axioms HachiEquiv.AuxFused.words_a_spec
-#print axioms HachiEquiv.AuxFused.words_b_spec
-#print axioms HachiEquiv.AuxFused.terms_chunk_spec
-#print axioms HachiEquiv.AuxFused.dot_chunk_mod_p_spec
-#print axioms HachiEquiv.AuxFused.garner_out_spec
-#print axioms HachiEquiv.AuxFused.offConvSum_lt_P
-#print axioms HachiEquiv.AuxFused.offConvSum_cast_q
-#print axioms HachiEquiv.AuxFused.dot_chunk_word_spec
-#print axioms HachiEquiv.AuxFused.chunk_loop_spec
-#print axioms HachiEquiv.AuxFused.dot_fused_spec
+#print axioms HachiEquiv.NttMath.difRun_add
+#print axioms HachiEquiv.NttMath.ditRun_add
+#print axioms HachiEquiv.NttMath.difRun_sum
+#print axioms HachiEquiv.NttMath.ditRun_sum
+#print axioms HachiEquiv.RingFused.untwist_value_sum
+#print axioms HachiEquiv.RingFused.accum_spec
+#print axioms HachiEquiv.RingFused.words_a_spec
+#print axioms HachiEquiv.RingFused.words_b_spec
+#print axioms HachiEquiv.RingFused.terms_chunk_spec
+#print axioms HachiEquiv.RingFused.dot_chunk_mod_p_spec
+#print axioms HachiEquiv.RingFused.garner_out_spec
+#print axioms HachiEquiv.RingFused.offConvSum_lt_P
+#print axioms HachiEquiv.RingFused.offConvSum_cast_q
+#print axioms HachiEquiv.RingFused.dot_chunk_word_spec
+#print axioms HachiEquiv.RingFused.chunk_loop_spec
+#print axioms HachiEquiv.RingFused.dot_fused_spec
 #print axioms HachiEquiv.RqBridge.dot_fused_spec
 #print axioms HachiEquiv.Scheme.dot_spec
 -- Candidate T19 Change 4 (Stage 6, `commit::generate_decomps`) -- the CACHED
@@ -1905,16 +1905,16 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- `rows · cols · 3 · N · 8` bytes -- 192 MiB for `A` (1 × 8192) but 4.8 GiB for
 -- `rlin_stmt`'s `M` (5 × 40976) -- so the choice is per caller, and
 -- `hachi/src/linalg.rs` records it at `PolyMatrix::prepare`.
-#print axioms HachiEquiv.AuxFused.slice_out_spec
-#print axioms HachiEquiv.AuxFused.mac_into_spec
-#print axioms HachiEquiv.AuxFused.prep_append_spec
-#print axioms HachiEquiv.AuxFused.prepare_one_spec
-#print axioms HachiEquiv.AuxFused.prep_terms_chunk_spec
-#print axioms HachiEquiv.AuxFused.dot_prep_chunk_mod_p_spec
-#print axioms HachiEquiv.AuxFused.dot_prep_chunk_word_spec
-#print axioms HachiEquiv.AuxFused.prep_chunk_loop_spec
-#print axioms HachiEquiv.AuxFused.dot_prepared_spec
-#print axioms HachiEquiv.AuxFused.prepare_vec_spec
+#print axioms HachiEquiv.RingFused.slice_out_spec
+#print axioms HachiEquiv.RingFused.mac_into_spec
+#print axioms HachiEquiv.RingFused.prep_append_spec
+#print axioms HachiEquiv.RingFused.prepare_one_spec
+#print axioms HachiEquiv.RingFused.prep_terms_chunk_spec
+#print axioms HachiEquiv.RingFused.dot_prep_chunk_mod_p_spec
+#print axioms HachiEquiv.RingFused.dot_prep_chunk_word_spec
+#print axioms HachiEquiv.RingFused.prep_chunk_loop_spec
+#print axioms HachiEquiv.RingFused.dot_prepared_spec
+#print axioms HachiEquiv.RingFused.prepare_vec_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_spec
 #print axioms HachiEquiv.Scheme.dot_prep_spec
 #print axioms HachiEquiv.Scheme.cols_spec
@@ -1942,28 +1942,28 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- complaint from the compiler. `gadget_decompose_digit_words` is what discharges
 -- it, and it is derived from `gadget_decompose_spec` rather than proved by a
 -- second induction -- the represented block IS `dd.digit` of the input
--- coefficient, and `dd_digit_val_lt` bounds that. `AuxCode.spec_and` puts the
+-- coefficient, and `dd_digit_val_lt` bounds that. `NttStage.spec_and` puts the
 -- value spec and the bound together without either statement moving, which is
 -- why `gadget_decompose_spec` is untouched and its other call sites are too.
 --
 -- The BALANCED path is deliberately excluded: centred digits give a two-sided
 -- word bound (`< 8` or `> q − 9`), for which this argument does not hold.
-#print axioms HachiEquiv.AuxCode.spec_and
-#print axioms HachiEquiv.AuxCRT.garner2_spec
+#print axioms HachiEquiv.NttStage.spec_and
+#print axioms HachiEquiv.NttCRT.garner2_spec
 #print axioms HachiEquiv.Scheme.dd_digit_val_lt
 #print axioms HachiEquiv.Scheme.digit_at_lt_base
 #print axioms HachiEquiv.Scheme.gadget_decompose_digit_words
-#print axioms HachiEquiv.AuxFused.posSumD_le
-#print axioms HachiEquiv.AuxFused.negSumD_le
-#print axioms HachiEquiv.AuxFused.offConvSumD_lt_P12
-#print axioms HachiEquiv.AuxFused.offConvSumD_cast_q
-#print axioms HachiEquiv.AuxFused.doff1_val
-#print axioms HachiEquiv.AuxFused.doff2_val
-#print axioms HachiEquiv.AuxFused.dot_prep_chunk_word_digits_spec
-#print axioms HachiEquiv.AuxFused.prep2_garner_out_spec
-#print axioms HachiEquiv.AuxFused.prep2_chunk_loop_spec
-#print axioms HachiEquiv.AuxFused.dot_prepared_digits_spec
-#print axioms HachiEquiv.AuxFused.prepare_vec_two_spec
+#print axioms HachiEquiv.RingFused.posSumD_le
+#print axioms HachiEquiv.RingFused.negSumD_le
+#print axioms HachiEquiv.RingFused.offConvSumD_lt_P12
+#print axioms HachiEquiv.RingFused.offConvSumD_cast_q
+#print axioms HachiEquiv.RingFused.doff1_val
+#print axioms HachiEquiv.RingFused.doff2_val
+#print axioms HachiEquiv.RingFused.dot_prep_chunk_word_digits_spec
+#print axioms HachiEquiv.RingFused.prep2_garner_out_spec
+#print axioms HachiEquiv.RingFused.prep2_chunk_loop_spec
+#print axioms HachiEquiv.RingFused.dot_prepared_digits_spec
+#print axioms HachiEquiv.RingFused.prepare_vec_two_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_digits_spec
 #print axioms HachiEquiv.Scheme.dot_prep_digits_spec
 #print axioms HachiEquiv.Scheme.prepare_digits_spec
@@ -2042,43 +2042,43 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- uses `GOLD_P = 2^64 - 2^32 + 1`, where `2^64 = 2^32 - 1` exactly and no
 -- Barrett reduction is needed. One lane carries the whole 8192-term sum
 -- (`2 * 8192 * BOUND_D = 1.15e18 < 1.84e19`), so there is no chunking and no
--- Garner. Three layers: the arithmetic (AuxGold), the transform
--- (AuxGoldCode/AuxGoldTransform) and the dot product below.
-#print axioms HachiEquiv.AuxGoldTransform.gold_psi_table_spec
-#print axioms HachiEquiv.AuxGoldTransform.gold_psi_table_cast
-#print axioms HachiEquiv.AuxGoldTransform.gold_twist_spec
-#print axioms HachiEquiv.AuxGoldCode.gold_dif_stage_spec
+-- Garner. Three layers: the arithmetic (GoldArith), the transform
+-- (GoldStage/GoldTransform) and the dot product below.
+#print axioms HachiEquiv.GoldTransform.gold_psi_table_spec
+#print axioms HachiEquiv.GoldTransform.gold_psi_table_cast
+#print axioms HachiEquiv.GoldTransform.gold_twist_spec
+#print axioms HachiEquiv.GoldStage.gold_dif_stage_spec
 -- The fused stage: two DIF stages in one pass over the array, the radix-4
 -- memory pattern without a radix-4 theory. Its conclusion is `difWord` of
 -- `difWord` -- literally the two shapes `gold_dif_stage_spec` produces at
 -- consecutive block lengths -- so `gold_forward_spec` below states exactly what
--- it stated before, and `AuxProduct.prod_difRun` never learns this happened.
-#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_loop0_loop0_spec
-#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_loop0_spec
-#print axioms HachiEquiv.AuxGoldFused.gold_dif_stage2_spec
-#print axioms HachiEquiv.AuxGoldFused.fusedA
-#print axioms HachiEquiv.AuxGoldFused.fusedB
-#print axioms HachiEquiv.AuxGoldFused.fusedC
-#print axioms HachiEquiv.AuxGoldFused.fusedD
-#print axioms HachiEquiv.AuxGoldTransform.gold_dit_stage_spec
-#print axioms HachiEquiv.AuxGoldTransform.gold_forward_spec
-#print axioms HachiEquiv.AuxGoldTransform.gold_inverse_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_mac_into_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_twist_cast
-#print axioms HachiEquiv.AuxGoldDot.gold_terms_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_out_loop_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_untwist_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_untwist_cast
-#print axioms HachiEquiv.AuxGoldDot.gpsi_ord
-#print axioms HachiEquiv.AuxGoldDot.gpsi_inv
-#print axioms HachiEquiv.AuxGoldDot.gninv_inv
-#print axioms HachiEquiv.AuxGoldDot.gdoff_val
-#print axioms HachiEquiv.AuxGoldDot.offConvSumD_lt_GP
-#print axioms HachiEquiv.AuxGoldDot.gold_dot_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_prep_words_spec
-#print axioms HachiEquiv.AuxGoldDot.gold_prep_append_spec
-#print axioms HachiEquiv.AuxGoldDot.prepare_one_gold_spec
-#print axioms HachiEquiv.AuxGoldDot.prepare_vec_gold_spec
+-- it stated before, and `NttProduct.prod_difRun` never learns this happened.
+#print axioms HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_loop0_spec
+#print axioms HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_spec
+#print axioms HachiEquiv.GoldFusedStage.gold_dif_stage2_spec
+#print axioms HachiEquiv.GoldFusedStage.fusedA
+#print axioms HachiEquiv.GoldFusedStage.fusedB
+#print axioms HachiEquiv.GoldFusedStage.fusedC
+#print axioms HachiEquiv.GoldFusedStage.fusedD
+#print axioms HachiEquiv.GoldTransform.gold_dit_stage_spec
+#print axioms HachiEquiv.GoldTransform.gold_forward_spec
+#print axioms HachiEquiv.GoldTransform.gold_inverse_spec
+#print axioms HachiEquiv.GoldDot.gold_mac_into_spec
+#print axioms HachiEquiv.GoldDot.gold_twist_cast
+#print axioms HachiEquiv.GoldDot.gold_terms_spec
+#print axioms HachiEquiv.GoldDot.gold_out_loop_spec
+#print axioms HachiEquiv.GoldDot.gold_untwist_spec
+#print axioms HachiEquiv.GoldDot.gold_untwist_cast
+#print axioms HachiEquiv.GoldDot.gpsi_ord
+#print axioms HachiEquiv.GoldDot.gpsi_inv
+#print axioms HachiEquiv.GoldDot.gninv_inv
+#print axioms HachiEquiv.GoldDot.gdoff_val
+#print axioms HachiEquiv.GoldDot.offConvSumD_lt_GP
+#print axioms HachiEquiv.GoldDot.gold_dot_spec
+#print axioms HachiEquiv.GoldDot.gold_prep_words_spec
+#print axioms HachiEquiv.GoldDot.gold_prep_append_spec
+#print axioms HachiEquiv.GoldDot.prepare_one_gold_spec
+#print axioms HachiEquiv.GoldDot.prepare_vec_gold_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_digits_gold_spec
 #print axioms HachiEquiv.Scheme.dot_prep_digits_gold_spec
 #print axioms HachiEquiv.Scheme.prepare_digits_gold_spec
@@ -2097,17 +2097,17 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- decision. `params_semantics.rs`'s `shift_t_is_the_binomial_table` and
 -- `the_shift_table_reproduces_the_range_polynomial` are the same claim on the
 -- Rust side.
-#print axioms HachiEquiv.AuxShift.st_nat
-#print axioms HachiEquiv.AuxShift.st_eq
-#print axioms HachiEquiv.AuxShift.st_zero
-#print axioms HachiEquiv.AuxShift.rangeProduct_eq_sum
-#print axioms HachiEquiv.AuxShift.shiftCoeff_range
-#print axioms HachiEquiv.AuxShift.rangeProduct_shift
-#print axioms HachiEquiv.AuxShift.shift_powers_spec
-#print axioms HachiEquiv.AuxShift.shift_inner_spec
-#print axioms HachiEquiv.AuxShift.shift_accum_spec
-#print axioms HachiEquiv.AuxShift.zero_fill_spec
-#print axioms HachiEquiv.AuxShift.pair_loop_spec
+#print axioms HachiEquiv.SumcheckShift.st_nat
+#print axioms HachiEquiv.SumcheckShift.st_eq
+#print axioms HachiEquiv.SumcheckShift.st_zero
+#print axioms HachiEquiv.SumcheckShift.rangeProduct_eq_sum
+#print axioms HachiEquiv.SumcheckShift.shiftCoeff_range
+#print axioms HachiEquiv.SumcheckShift.rangeProduct_shift
+#print axioms HachiEquiv.SumcheckShift.shift_powers_spec
+#print axioms HachiEquiv.SumcheckShift.shift_inner_spec
+#print axioms HachiEquiv.SumcheckShift.shift_accum_spec
+#print axioms HachiEquiv.SumcheckShift.zero_fill_spec
+#print axioms HachiEquiv.SumcheckShift.pair_loop_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
 
 end HachiEquiv.Check

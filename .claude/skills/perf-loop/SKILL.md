@@ -302,10 +302,11 @@ it, once per session, and stop with a report if any of it is missing:
    one fresh `CANDIDATE=1` run against the champion. Never chain deltas
    across candidates' separate runs.
 7. **Champion landing** (accepted winner):
-   * `hachi/lean/Opt.lean` def + lemma + the `#print axioms` line in
-     `hachi/lean/Check.lean` § 4 — pure additions. On the **first** accepted
-     champion this also creates `Opt.lean` and adds `Opt` to `roots` in
-     `hachi/lakefile.lean`; `lean-opt` owns that step and its failure mode;
+   * the `hachi/lean/Opt<Module>.lean` part's def + lemma + the `#print axioms`
+     line in `hachi/lean/Check.lean` § 4 — pure additions (`Opt.lean` is the
+     umbrella importing every part). The **first** accepted champion for a
+     module also creates its part, adds it to `roots` in `hachi/lakefile.lean`
+     and imports it from `Opt.lean`; `lean-opt` owns that step and its failure mode;
    * `hachi/src` swap. The item's `(spec: …)` clause keeps naming the **ArkLib**
      definition — the semantics did not change, which is exactly what
      `opt_eq_spec` says — and gains a pointer to the variant the body now is

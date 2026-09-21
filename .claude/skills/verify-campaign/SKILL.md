@@ -106,9 +106,10 @@ lose:
    purpose (`lean/Ring.lean` proves the loop invariants and totality against a
    small import surface; `lean/RqBridge.lean` does the `ofFinCoeff_coeff`
    bookkeeping on top), so a spec belongs at the level where its work is; and
-   the `Opt` definitions of a Lean-side champion live in `hachi/lean/Opt.lean`,
-   which **does not exist yet** — the first `lean-opt` run creates it *and*
-   adds `Opt` to `roots` in `hachi/lakefile.lean`. Lake builds a module only
+   the `Opt` definitions of a Lean-side champion live in the `hachi/lean/Opt<Module>.lean`
+   part for its module (`Opt.lean` is the umbrella); a module's first champion
+   creates that part, adds it to `roots` in `hachi/lakefile.lean` and imports it
+   from `Opt.lean`. Lake builds a module only
    when a root is a prefix of its name, so an unlisted file is silently not
    built and its `sorry`s are silently not reported.
 4. **Prove.** One `prove-sorry` run per sorried theorem — or one run over a

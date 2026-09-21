@@ -248,7 +248,21 @@ hachi/
     Generated.lean    the extracted model -- DERIVED by `make extract`, never hand-edit
     Field.lean        the base field `Fp` against `ZMod q` -- proved
     Ring.lean         the ring operations at the coefficient level -- proved
+    NttArith.lean     the transform's modular arithmetic at a runtime prime (Barrett) -- proved
+    NttMath.lean      the transform as mathematics: DIF/DIT stages over any ring, no code -- proved
+    NttCRT.lean       the three auxiliary primes and the exact Garner reconstruction -- proved
+    NttStage.lean     the extracted DIF stage against the word-level stage function -- proved
+    NttTransform.lean the extracted DIT stage, twist, pointwise and the two transform loops -- proved
+    NttProduct.lean   the per-prime pipeline and negconv_mod_p / negconv_mod_q -- proved
+    GoldArith.lean    the Goldilocks lane's arithmetic at p = 2^64 - 2^32 + 1 -- proved
+    GoldStage.lean    the Goldilocks DIF stage -- proved
+    GoldFusedStage.lean  two DIF stages in one pass (the radix-4 memory pattern) -- proved
+    GoldTransform.lean   the Goldilocks twiddles, twist, DIT stage and transform loops -- proved
+    GoldDot.lean      the Goldilocks digit-path dot: accumulation, offset, headline -- proved
+    RingShort.lean    multiplication by a short element, the word level -- proved
+    RingFused.lean    the fused dot product in the transform domain -- proved
     RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
+    Raw32.lean        the compact u32 raw-message carrier -- proved
     Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved
     EvalSplit.lean    the evalsplit module against ArkLib's split evaluation -- proved
     Balanced.lean     the balanced digit layer, up to the honest Hachi commitment -- proved
@@ -260,9 +274,16 @@ hachi/
     EndPiece.lean     the end piece's check, prover and witness map -- proved
     Rlin.lean         the `R^lin` adapter and the polynomial-level bridge -- proved
     Sumcheck.lean     the paired sumcheck: round polynomials, checks, loops, final check -- proved
+    SumcheckShift.lean  the Taylor-shift round polynomial (candidate T3) -- proved
     Chain.lean        the composed chain's honest `open` and `verify` -- proved
     LiftProver.lean   the honest lift prover, and the one unfolded `CPolynomial` carrier -- proved
-    Opt.lean          the optimization loop's `Foo.opt` variants and their `opt_eq_spec` lemmas -- proved
+    Opt.lean          umbrella over the optimization loop's `Foo.opt` variants and `opt_eq_spec` lemmas:
+    OptFold.lean        the fold lemmas the parts share -- proved
+    OptZeroCheck.lean   zerocheck's variants, and the two ringswitch evaluations of the α side -- proved
+    OptSumcheck.lean    sumcheck's variants -- proved
+    OptRingSwitch.lean  ringswitch::lift_commit's variant -- proved
+    OptEvalSplit.lean   evalsplit's two Rq-valued bases -- proved
+    OptRingShort.lean   the short multiply's algebra (MulShort) -- proved
     Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
   lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
                       -- currently EMPTY: every statement is proved and audited

@@ -1,5 +1,5 @@
 /-
-`AuxFused.lean` -- the fused dot product.
+`RingFused.lean` -- the fused dot product.
 
 `linalg::PolyVec::dot` used to call `ring::Rq::mul` per term, and each of those
 ran a complete three-prime transform pipeline. `ring::dot_fused` keeps the
@@ -10,7 +10,7 @@ pass per chunk rather than one per term.
 # What is new here, and what is not
 
 Almost nothing about the transform argument changes, which is the point of how
-`AuxProduct` was written:
+`NttProduct` was written:
 
 * `inv_value` already takes an **arbitrary** buffer `C`, so it applies verbatim
   once the accumulator is known to be `difRun … C` for the summed `C`;
@@ -20,7 +20,7 @@ Almost nothing about the transform argument changes, which is the point of how
   `untwist_cast`, `zeros_canon` are reused unchanged.
 
 The one genuinely new *mathematical* fact is that the inverse transform
-commutes with a finite sum -- `AuxNTT.ditRun_sum` -- which had to be proved
+commutes with a finite sum -- `NttMath.ditRun_sum` -- which had to be proved
 because the transforms here are butterfly networks rather than explicit sums.
 With it, every term of the accumulator reduces to the single-product argument.
 
@@ -38,7 +38,7 @@ length, and `DOT_CHUNK = 8192` is forced by `2·L·BOUND < P`, i.e. `L ≤ 12468
 The Rust-side oracle was checked to fail at exactly `n = 5` with the scaling
 removed, which is where the arithmetic says it must.
 -/
-import AuxProduct
+import NttProduct
 import Ring
 
 set_option autoImplicit false
@@ -47,10 +47,10 @@ set_option maxRecDepth 8192
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxFused
+namespace HachiEquiv.RingFused
 
-open HachiEquiv.AuxArith HachiEquiv.AuxCode HachiEquiv.AuxTransform HachiEquiv.AuxCRT
-open HachiEquiv.AuxProduct
+open HachiEquiv.NttArith HachiEquiv.NttStage HachiEquiv.NttTransform HachiEquiv.NttCRT
+open HachiEquiv.NttProduct
 
 /-! ## 1. The untwist, over a sum
 
@@ -62,10 +62,10 @@ theorem untwist_value_sum {p : ℕ} {ι : Type*} (psi psii ninvK : ZMod p)
     (hNinv : ((N : ℕ) : ZMod p) * ninvK = 1)
     (s : Finset ι) (A B : ι → ℕ → ZMod p) (t : ℕ) (ht : t < N) :
     ((N : ℕ) : ZMod p)
-          * (∑ j ∈ s, AuxNTT.cyclicConv N (AuxNTT.twistR psi (A j))
-              (AuxNTT.twistR psi (B j)) t)
+          * (∑ j ∈ s, NttMath.cyclicConv N (NttMath.twistR psi (A j))
+              (NttMath.twistR psi (B j)) t)
         * psii ^ t * ninvK
-      = ∑ j ∈ s, AuxNTT.negConvR N (A j) (B j) t := by
+      = ∑ j ∈ s, NttMath.negConvR N (A j) (B j) t := by
   rw [Finset.mul_sum, Finset.sum_mul, Finset.sum_mul]
   refine Finset.sum_congr rfl (fun j _ => ?_)
   exact untwist_value psi psii ninvK hord hpinv hNinv (A j) (B j) t ht
@@ -161,18 +161,18 @@ theorem words_a_spec (a : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
     (hn : nU.val = N) (hjb : jU.val < a.val.length)
     (haj : HachiEquiv.Ring.Wf (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)))
     (ht : tU.val ≤ N) (hlen : aw.val.length = tU.val)
-    (hred : ∀ u ∈ aw.val, u.val < HachiEquiv.AuxProduct.q)
+    (hred : ∀ u ∈ aw.val, u.val < HachiEquiv.NttProduct.q)
     (hval : ∀ t, t < tU.val → wordAt aw t
       = HachiEquiv.Ring.wordN (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t) :
     ring.dot_chunk_mod_p_loop0_loop0 a nU jU aw tU
-      ⦃ z => z.val.length = N ∧ (∀ u ∈ z.val, u.val < HachiEquiv.AuxProduct.q)
+      ⦃ z => z.val.length = N ∧ (∀ u ∈ z.val, u.val < HachiEquiv.NttProduct.q)
              ∧ ∀ t, t < N → wordAt z t
                  = HachiEquiv.Ring.wordN
                      (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t ⦄ := by
   rw [ring.dot_chunk_mod_p_loop0_loop0]
   apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
-      ∧ (∀ u ∈ r.1.val, u.val < HachiEquiv.AuxProduct.q)
+      ∧ (∀ u ∈ r.1.val, u.val < HachiEquiv.NttProduct.q)
       ∧ ∀ t, t < r.2.val → wordAt r.1 t
           = HachiEquiv.Ring.wordN
               (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t)
@@ -188,7 +188,7 @@ theorem words_a_spec (a : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
       have hrb : tt.val < r.val.length := by rw [hrv, haj.1]; exact httlt
       step as ⟨f, hf⟩
       step with HachiEquiv.Ring.to_u64_id f as ⟨w, hw⟩
-      have hwlt : w.val < HachiEquiv.AuxProduct.q := by
+      have hwlt : w.val < HachiEquiv.NttProduct.q := by
         rw [hw, hf]; exact haj.2 _ (by rw [← hrv]; exact List.getElem_mem hrb)
       have hwv : w.val = HachiEquiv.Ring.wordN
           (a.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) tt.val := by
@@ -223,18 +223,18 @@ theorem words_b_spec (b : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
     (hn : nU.val = N) (hjb : jU.val < b.val.length)
     (hbj : HachiEquiv.Ring.Wf (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)))
     (ht : tU.val ≤ N) (hlen : bw.val.length = tU.val)
-    (hred : ∀ u ∈ bw.val, u.val < HachiEquiv.AuxProduct.q)
+    (hred : ∀ u ∈ bw.val, u.val < HachiEquiv.NttProduct.q)
     (hval : ∀ t, t < tU.val → wordAt bw t
       = HachiEquiv.Ring.wordN (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t) :
     ring.dot_chunk_mod_p_loop0_loop1 b nU jU bw tU
-      ⦃ z => z.val.length = N ∧ (∀ u ∈ z.val, u.val < HachiEquiv.AuxProduct.q)
+      ⦃ z => z.val.length = N ∧ (∀ u ∈ z.val, u.val < HachiEquiv.NttProduct.q)
              ∧ ∀ t, t < N → wordAt z t
                  = HachiEquiv.Ring.wordN
                      (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t ⦄ := by
   rw [ring.dot_chunk_mod_p_loop0_loop1]
   apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
-      ∧ (∀ u ∈ r.1.val, u.val < HachiEquiv.AuxProduct.q)
+      ∧ (∀ u ∈ r.1.val, u.val < HachiEquiv.NttProduct.q)
       ∧ ∀ t, t < r.2.val → wordAt r.1 t
           = HachiEquiv.Ring.wordN
               (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t)
@@ -250,7 +250,7 @@ theorem words_b_spec (b : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
       have hrb : tt.val < r.val.length := by rw [hrv, hbj.1]; exact httlt
       step as ⟨f, hf⟩
       step with HachiEquiv.Ring.to_u64_id f as ⟨w, hw⟩
-      have hwlt : w.val < HachiEquiv.AuxProduct.q := by
+      have hwlt : w.val < HachiEquiv.NttProduct.q := by
         rw [hw, hf]; exact hbj.2 _ (by rw [← hrv]; exact List.getElem_mem hrb)
       have hwv : w.val = HachiEquiv.Ring.wordN
           (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) tt.val := by
@@ -284,9 +284,9 @@ theorem words_b_spec (b : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
 
 Per term: copy both operands' words, twist and forward-transform each, multiply
 pointwise, and add the result into the transform-domain accumulator. By
-`AuxProduct.prod_difRun` that pointwise product *is* the forward transform of
+`NttProduct.prod_difRun` that pointwise product *is* the forward transform of
 the term's cyclic convolution, so the accumulator is a sum of forward
-transforms -- and `AuxNTT.difRun_sum` will later pull the `difRun` outside the
+transforms -- and `NttMath.difRun_sum` will later pull the `difRun` outside the
 sum so that one inverse transform serves the whole chunk. -/
 
 /-- The `u`-th entry of a vector of ring elements, coefficientwise in `ZMod p`. -/
@@ -296,9 +296,9 @@ def entryK (pw : ℕ) (a : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod pw :=
 
 /-- One term's transform-domain contribution. -/
 def termFwd {pw : ℕ} (ps : ZMod pw) (a b : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod pw :=
-  AuxNTT.difRun (ps ^ 2) 10 1
-    (AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw a u))
-      (AuxNTT.twistR ps (entryK pw b u)))
+  NttMath.difRun (ps ^ 2) 10 1
+    (NttMath.cyclicConv N (NttMath.twistR ps (entryK pw a u))
+      (NttMath.twistR ps (entryK pw b u)))
 
 theorem terms_chunk_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
     (pw mw : Std.U64) (nU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
@@ -355,25 +355,25 @@ theorem terms_chunk_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
       -- the copied words *are* this term's coefficients, so the transforms are
       -- the ones `termFwd` names
       have hFA : ∀ t, t < N → resK pw.val v t
-          = AuxNTT.difRun (ps ^ 2) 10 1
-              (AuxNTT.twistR ps (entryK pw.val a jj.val)) t := by
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK pw.val a jj.val)) t := by
         intro t ht
         rw [hfwv t ht]
         refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val ta)
-          (AuxNTT.twistR ps (entryK pw.val a jj.val)) ?_ t ht
+          (NttMath.twistR ps (entryK pw.val a jj.val)) ?_ t ht
         intro e he
         rw [htav e he]
-        simp only [AuxNTT.twistR, entryK, hawv e he]
+        simp only [NttMath.twistR, entryK, hawv e he]
       have hFB : ∀ t, t < N → resK pw.val v2 t
-          = AuxNTT.difRun (ps ^ 2) 10 1
-              (AuxNTT.twistR ps (entryK pw.val b jj.val)) t := by
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK pw.val b jj.val)) t := by
         intro t ht
         rw [hgwv t ht]
         refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val tb)
-          (AuxNTT.twistR ps (entryK pw.val b jj.val)) ?_ t ht
+          (NttMath.twistR ps (entryK pw.val b jj.val)) ?_ t ht
         intro e he
         rw [htbv e he]
-        simp only [AuxNTT.twistR, entryK, hbwv e he]
+        simp only [NttMath.twistR, entryK, hbwv e he]
       have hprod : ∀ t, t < N → resK pw.val prod t = termFwd ps a b jj.val t := by
         intro t ht
         exact prod_difRun ps hord (entryK pw.val a jj.val) (entryK pw.val b jj.val)
@@ -394,7 +394,7 @@ theorem terms_chunk_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
       rw [hw t ht, heq]
   · exact ⟨hjs, hje, haccC, hscC, hval⟩
 
-/-- `zeros` with its *values*, which `AuxTransform.zeros_canon` does not give:
+/-- `zeros` with its *values*, which `NttTransform.zeros_canon` does not give:
 the fused chunk's initial accumulator has to be known zero, not merely
 canonical, because the invariant starts at an empty sum. -/
 theorem zeros_canon_zero (pp : ℕ) (hp : 0 < pp) :
@@ -414,10 +414,10 @@ theorem zeros_canon_zero (pp : ℕ) (hp : 0 < pp) :
 /-! ## 5. One chunk, at one prime
 
 The whole per-prime pipeline, fused. Three things happen here that
-`AuxProduct.negconv_mod_p_spec` does not do:
+`NttProduct.negconv_mod_p_spec` does not do:
 
-* `AuxNTT.difRun_sum` turns the accumulated pointwise products into **one**
-  forward transform of the summed convolution, so `AuxProduct.inv_value` -- which
+* `NttMath.difRun_sum` turns the accumulated pointwise products into **one**
+  forward transform of the summed convolution, so `NttProduct.inv_value` -- which
   already takes an arbitrary buffer -- applies verbatim;
 * [`untwist_value_sum`] distributes the untwist over the sum;
 * the offset is `L · boff` rather than `boff`, `L` being the chunk length. That
@@ -441,7 +441,7 @@ theorem dot_chunk_mod_p_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Us
     ring.dot_chunk_mod_p a b startU endU pw mw psi psiinv ninv boff
       ⦃ z => Canon pw.val z ∧ ∀ t, t < N → resK pw.val z t
               = (∑ u ∈ Finset.Ico startU.val endU.val,
-                  AuxNTT.negConvR N (entryK pw.val a u) (entryK pw.val b u) t)
+                  NttMath.negConvR N (entryK pw.val a u) (entryK pw.val b u) t)
                 + ((boff.val : ℕ) : ZMod pw.val)
                     * (((endU.val - startU.val : ℕ)) : ZMod pw.val) ⦄ := by
   have hppos : 0 < pw.val := h.pos
@@ -465,24 +465,24 @@ theorem dot_chunk_mod_p_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Us
   -- the accumulated products are ONE forward transform of the summed
   -- convolution: `difRun_sum` is what moves the transform outside the sum
   have hPR : ∀ t, t < N → resK pw.val acc1 t
-      = AuxNTT.difRun (ps ^ 2) 10 1
+      = NttMath.difRun (ps ^ 2) 10 1
           (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
-            AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-              (AuxNTT.twistR ps (entryK pw.val b u)) t') t := by
+            NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+              (NttMath.twistR ps (entryK pw.val b u)) t') t := by
     intro t ht
     -- the arguments are supplied because `fun t => ∑ j ∈ s, F j t` is a
     -- higher-order pattern and `rw` cannot solve for `F`
-    rw [hac1v t ht, AuxNTT.difRun_sum (ps ^ 2) 10 1
+    rw [hac1v t ht, NttMath.difRun_sum (ps ^ 2) 10 1
       (Finset.Ico startU.val endU.val)
-      (fun u => AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-        (AuxNTT.twistR ps (entryK pw.val b u)))]
+      (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+        (NttMath.twistR ps (entryK pw.val b u)))]
     simp only [termFwd, hpsdef]
   step with ntt_inverse_spec acc1 scratch it pw mw h hac1C hac2C hitC psii hitv
     as ⟨v, v5, hiv1, hiv2, hivv⟩
   have hIV := inv_value ps psii hpinv
     (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
-      AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-        (AuxNTT.twistR ps (entryK pw.val b u)) t')
+      NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+        (NttMath.twistR ps (entryK pw.val b u)) t')
     (resK pw.val acc1) (resK pw.val v) hPR hivv
   apply spec_mono (untwist_cast v it ninv scaled pw mw h hiv1 hitC hninv hsclt psii hitv)
   rintro z ⟨hzC, hzv⟩
@@ -501,7 +501,7 @@ theorem dot_chunk_mod_p_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Us
 
 /-! ## 6. The conversion loop, over an abstract reconstructed value
 
-`AuxCRT.garner_spec` is already stated for an arbitrary `x` with `x < P` as a
+`NttCRT.garner_spec` is already stated for an arbitrary `x` with `x < P` as a
 hypothesis, so nothing about the CRT step needs generalizing -- only this loop,
 which is a different extracted constant from `ntt::negconv_mod_q_loop`. Stating
 it over an abstract `X` keeps the *bound* a hypothesis rather than baking in a
@@ -511,25 +511,25 @@ summed value. -/
 theorem garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
     (r1 r2 r3 : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
     (tU : Std.Usize) (X : ℕ → ℕ)
-    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.AuxProduct.q)
-    (hXP : ∀ k, k < N → X k < AuxCRT.P)
-    (hv1 : ∀ k, k < N → wordAt r1 k = X k % AuxCRT.p1)
-    (hv2 : ∀ k, k < N → wordAt r2 k = X k % AuxCRT.p2)
-    (hv3 : ∀ k, k < N → wordAt r3 k = X k % AuxCRT.p3)
+    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.NttProduct.q)
+    (hXP : ∀ k, k < N → X k < NttCRT.P)
+    (hv1 : ∀ k, k < N → wordAt r1 k = X k % NttCRT.p1)
+    (hv2 : ∀ k, k < N → wordAt r2 k = X k % NttCRT.p2)
+    (hv3 : ∀ k, k < N → wordAt r3 k = X k % NttCRT.p3)
     (hl1 : r1.val.length = N) (hl2 : r2.val.length = N) (hl3 : r3.val.length = N)
     (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
     (hred : ∀ u ∈ out.val, HachiEquiv.Field.Red u)
     (hval : ∀ k, k < tU.val →
-      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.AuxProduct.q) :
+      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.NttProduct.q) :
     ring.dot_fused_loop0_loop0 degU qwU r1 r2 r3 out tU
       ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N →
-          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.AuxProduct.q ⦄ := by
+          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.NttProduct.q ⦄ := by
   rw [ring.dot_fused_loop0_loop0]
   apply loop.spec_decr_nat (fun r => N - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
       ∧ (∀ u ∈ r.1.val, HachiEquiv.Field.Red u)
       ∧ ∀ k, k < r.2.val →
-          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.AuxProduct.q)
+          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.NttProduct.q)
   · rintro ⟨o1, tt⟩ ⟨htt, hlen1, hred1, hval1⟩
     dsimp only at htt hlen1 hred1 hval1
     simp only [ring.dot_fused_loop0_loop0.body]
@@ -542,24 +542,24 @@ theorem garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
       step as ⟨x1, hx1⟩
       step as ⟨x2, hx2⟩
       step as ⟨x3, hx3⟩
-      have hx1v : x1.val = X tt.val % AuxCRT.p1 := by
+      have hx1v : x1.val = X tt.val % NttCRT.p1 := by
         rw [hx1, ← wordAt_of_lt (v := r1) (t := tt.val) hb1]; exact hv1 tt.val httlt
-      have hx2v : x2.val = X tt.val % AuxCRT.p2 := by
+      have hx2v : x2.val = X tt.val % NttCRT.p2 := by
         rw [hx2, ← wordAt_of_lt (v := r2) (t := tt.val) hb2]; exact hv2 tt.val httlt
-      have hx3v : x3.val = X tt.val % AuxCRT.p3 := by
+      have hx3v : x3.val = X tt.val % NttCRT.p3 := by
         rw [hx3, ← wordAt_of_lt (v := r3) (t := tt.val) hb3]; exact hv3 tt.val httlt
-      step with AuxCRT.garner_spec x1 x2 x3 (X tt.val) (hXP tt.val httlt)
+      step with NttCRT.garner_spec x1 x2 x3 (X tt.val) (hXP tt.val httlt)
         hx1v hx2v hx3v as ⟨g, hgv⟩
       step as ⟨md, hmd⟩
-      have hmdv : md.val = X tt.val % HachiEquiv.AuxProduct.q := by
+      have hmdv : md.val = X tt.val % HachiEquiv.NttProduct.q := by
         rw [hmd, hgv, hqwv]
-      have hmdlt : md.val < HachiEquiv.AuxProduct.q := by
-        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.AuxProduct.q])
+      have hmdlt : md.val < HachiEquiv.NttProduct.q := by
+        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
       have hcast : lift (UScalar.cast .U64 md)
           ⦃ y => y.val = md.val ⦄ :=
         UScalar.cast_inBounds_spec .U64 md (by
           have hq : md.val < 4294967197 := by
-            have := hmdlt; simpa [HachiEquiv.AuxProduct.q] using this
+            have := hmdlt; simpa [HachiEquiv.NttProduct.q] using this
           simp only [UScalar.max, UScalarTy.numBits]
           omega)
       step with hcast as ⟨w, hw⟩
@@ -582,10 +582,10 @@ theorem garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
         · have hkeq : k = o1.val.length := by omega
           rw [hkeq, ho2, getD_append_eq', hlen1]
           -- `Fp.new` on an already-reduced word is the identity on `.val`
-          have hwlt : w.val < HachiEquiv.AuxProduct.q := by rw [hw]; exact hmdlt
+          have hwlt : w.val < HachiEquiv.NttProduct.q := by rw [hw]; exact hmdlt
           have hfv : f.val = w.val := by
-            have h1 := HachiEquiv.AuxProduct.natCast_inj_of_lt
-              (n := HachiEquiv.AuxProduct.q) (x := f.val) (y := w.val) hfred hfval
+            have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+              (n := HachiEquiv.NttProduct.q) (x := f.val) (y := w.val) hfred hfval
             rwa [Nat.mod_eq_of_lt hwlt] at h1
           rw [hfv, hw, hmdv]
     · rw [if_neg hlt, WP.spec_ok]
@@ -597,15 +597,15 @@ theorem garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
 
 /-! ## 7. The antidiagonals, at the ring level
 
-`AuxProduct`'s `posW`/`negW` are over `Vec Std.U64` buffers read by `wordAt`;
+`NttProduct`'s `posW`/`negW` are over `Vec Std.U64` buffers read by `wordAt`;
 the fused dot's operands are `ring.Rq` entries read by `Ring.wordN`. Same
 definitions, same two cast lemmas, one type across. -/
 
 theorem ordConvQ_cast_pos (pp : ℕ) (x y : ring.Rq) (k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (fun u => ((HachiEquiv.Ring.wordN x u : ℕ) : ZMod pp))
+    NttMath.ordConv N (fun u => ((HachiEquiv.Ring.wordN x u : ℕ) : ZMod pp))
         (fun u => ((HachiEquiv.Ring.wordN y u : ℕ) : ZMod pp)) k
       = ((HachiEquiv.Ring.posSum x y k N : ℕ) : ZMod pp) := by
-  unfold AuxNTT.ordConv HachiEquiv.Ring.posSum
+  unfold NttMath.ordConv HachiEquiv.Ring.posSum
   push_cast
   refine Finset.sum_congr rfl (fun i hi => ?_)
   simp only [Finset.mem_range] at hi
@@ -614,10 +614,10 @@ theorem ordConvQ_cast_pos (pp : ℕ) (x y : ring.Rq) (k : ℕ) (hk : k < N) :
   · rw [if_neg (by omega : ¬(i ≤ k ∧ k - i < N)), if_neg hle]
 
 theorem ordConvQ_cast_neg (pp : ℕ) (x y : ring.Rq) (k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (fun u => ((HachiEquiv.Ring.wordN x u : ℕ) : ZMod pp))
+    NttMath.ordConv N (fun u => ((HachiEquiv.Ring.wordN x u : ℕ) : ZMod pp))
         (fun u => ((HachiEquiv.Ring.wordN y u : ℕ) : ZMod pp)) (N + k)
       = ((HachiEquiv.Ring.negSum x y k N : ℕ) : ZMod pp) := by
-  unfold AuxNTT.ordConv HachiEquiv.Ring.negSum
+  unfold NttMath.ordConv HachiEquiv.Ring.negSum
   push_cast
   refine Finset.sum_congr rfl (fun i hi => ?_)
   simp only [Finset.mem_range] at hi
@@ -636,7 +636,7 @@ def offConvSum (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) : ℕ :=
   (∑ u ∈ Finset.Ico st en,
       HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
            (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-    + (en - st) * HachiEquiv.AuxProduct.BOUND
+    + (en - st) * HachiEquiv.NttProduct.BOUND
   - ∑ u ∈ Finset.Ico st en,
       HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
            (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N
@@ -645,13 +645,13 @@ def offConvSum (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) : ℕ :=
 operand shape but does not unfold under `simp` (it is a plain `def` returning a
 function). -/
 theorem ordConv_entryK_pos (pp : ℕ) (a b : alloc.vec.Vec ring.Rq) (u k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (entryK pp a u) (entryK pp b u) k
+    NttMath.ordConv N (entryK pp a u) (entryK pp b u) k
       = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pp) :=
   ordConvQ_cast_pos pp _ _ k hk
 
 theorem ordConv_entryK_neg (pp : ℕ) (a b : alloc.vec.Vec ring.Rq) (u k : ℕ) (hk : k < N) :
-    AuxNTT.ordConv N (entryK pp a u) (entryK pp b u) (N + k)
+    NttMath.ordConv N (entryK pp a u) (entryK pp b u) (N + k)
       = ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pp) :=
   ordConvQ_cast_neg pp _ _ k hk
@@ -664,15 +664,15 @@ theorem negQ_sum_le (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
     (∑ u ∈ Finset.Ico st en,
         HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-      ≤ (en - st) * HachiEquiv.AuxProduct.BOUND := by
+      ≤ (en - st) * HachiEquiv.NttProduct.BOUND := by
   calc (∑ u ∈ Finset.Ico st en,
           HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-      ≤ ∑ _u ∈ Finset.Ico st en, HachiEquiv.AuxProduct.BOUND := by
+      ≤ ∑ _u ∈ Finset.Ico st en, HachiEquiv.NttProduct.BOUND := by
         refine Finset.sum_le_sum (fun u hu => ?_)
         simp only [Finset.mem_Ico] at hu
         exact HachiEquiv.Ring.negSum_le (hawf u hu.2) (hbwf u hu.2) k N
-    _ = (en - st) * HachiEquiv.AuxProduct.BOUND := by
+    _ = (en - st) * HachiEquiv.NttProduct.BOUND := by
         rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
 
 theorem posQ_sum_le (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
@@ -683,15 +683,15 @@ theorem posQ_sum_le (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
     (∑ u ∈ Finset.Ico st en,
         HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-      ≤ (en - st) * HachiEquiv.AuxProduct.BOUND := by
+      ≤ (en - st) * HachiEquiv.NttProduct.BOUND := by
   calc (∑ u ∈ Finset.Ico st en,
           HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-      ≤ ∑ _u ∈ Finset.Ico st en, HachiEquiv.AuxProduct.BOUND := by
+      ≤ ∑ _u ∈ Finset.Ico st en, HachiEquiv.NttProduct.BOUND := by
         refine Finset.sum_le_sum (fun u hu => ?_)
         simp only [Finset.mem_Ico] at hu
         exact HachiEquiv.Ring.posSum_le (hawf u hu.2) (hbwf u hu.2) k N
-    _ = (en - st) * HachiEquiv.AuxProduct.BOUND := by
+    _ = (en - st) * HachiEquiv.NttProduct.BOUND := by
         rw [Finset.sum_const, Nat.card_Ico, smul_eq_mul]
 
 /-- **The CRT fit.** `offConvSum ≤ 2 · L · BOUND`, and `2 · DOT_CHUNK · BOUND < P`
@@ -703,20 +703,20 @@ theorem offConvSum_lt_P (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
     (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hL : en - st ≤ 8192) :
-    offConvSum a b st en k < AuxCRT.P := by
+    offConvSum a b st en k < NttCRT.P := by
   have hp := posQ_sum_le a b st en k hawf hbwf
-  have hnum : 2 * 8192 * HachiEquiv.AuxProduct.BOUND < AuxCRT.P := by
-    simp only [HachiEquiv.AuxProduct.BOUND, HachiEquiv.AuxProduct.q, AuxCRT.P,
-      AuxCRT.p1, AuxCRT.p2, AuxCRT.p3]
+  have hnum : 2 * 8192 * HachiEquiv.NttProduct.BOUND < NttCRT.P := by
+    simp only [HachiEquiv.NttProduct.BOUND, HachiEquiv.NttProduct.q, NttCRT.P,
+      NttCRT.p1, NttCRT.p2, NttCRT.p3]
     norm_num
-  have hmul : (en - st) * HachiEquiv.AuxProduct.BOUND
-      ≤ 8192 * HachiEquiv.AuxProduct.BOUND := Nat.mul_le_mul_right _ hL
+  have hmul : (en - st) * HachiEquiv.NttProduct.BOUND
+      ≤ 8192 * HachiEquiv.NttProduct.BOUND := Nat.mul_le_mul_right _ hL
   unfold offConvSum
   omega
 
 /-! ## 8. One chunk, at the word level
 
-The summed analogue of `AuxProduct.negconv_mod_p_word`: the `ZMod p` statement
+The summed analogue of `NttProduct.negconv_mod_p_word`: the `ZMod p` statement
 [`dot_chunk_mod_p_spec`] delivers, read back as a residue of the natural number
 [`offConvSum`]. The one new step is the offset: `boff · L` on the `ZMod` side
 against `L · BOUND` in the natural, which agree because `boff = BOUND % p`. -/
@@ -728,7 +728,7 @@ theorem dot_chunk_word_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usi
     (hord : ((psi.val : ℕ) : ZMod pw.val) ^ N = -1)
     (hpinv : ((psi.val : ℕ) : ZMod pw.val) * ((psiinv.val : ℕ) : ZMod pw.val) = 1)
     (hNinv : ((N : ℕ) : ZMod pw.val) * ((ninv.val : ℕ) : ZMod pw.val) = 1)
-    (hboffv : boff.val = HachiEquiv.AuxProduct.BOUND % pw.val)
+    (hboffv : boff.val = HachiEquiv.NttProduct.BOUND % pw.val)
     (hawf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
@@ -752,13 +752,13 @@ theorem dot_chunk_word_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usi
       ≤ (∑ u ∈ Finset.Ico startU.val endU.val,
           HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-        + (endU.val - startU.val) * HachiEquiv.AuxProduct.BOUND :=
+        + (endU.val - startU.val) * HachiEquiv.NttProduct.BOUND :=
     le_trans hnb (Nat.le_add_left _ _)
   have hoff : ((offConvSum a b startU.val endU.val k : ℕ) : ZMod pw.val)
       = ((∑ u ∈ Finset.Ico startU.val endU.val,
             HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val)
-        + (((endU.val - startU.val) * HachiEquiv.AuxProduct.BOUND : ℕ) : ZMod pw.val)
+        + (((endU.val - startU.val) * HachiEquiv.NttProduct.BOUND : ℕ) : ZMod pw.val)
         - ((∑ u ∈ Finset.Ico startU.val endU.val,
             HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val) := by
@@ -770,20 +770,20 @@ theorem dot_chunk_word_spec (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usi
     rw [resK] at h1
     rw [h1, hoff]
     -- each term's `negConvR` is its two antidiagonals
-    have hterm : ∀ u, AuxNTT.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
+    have hterm : ∀ u, NttMath.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
         = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val)
           - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val) := by
       intro u
-      rw [AuxNTT.negConvR, ordConv_entryK_pos pw.val a b u k hk,
+      rw [NttMath.negConvR, ordConv_entryK_pos pw.val a b u k hk,
         ordConv_entryK_neg pw.val a b u k hk]
     rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
     push_cast
     rw [hboffv, ZMod.natCast_mod]
     push_cast
     ring
-  exact HachiEquiv.AuxProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
+  exact HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
 
 /-! ## 9. The chunk, read mod `q`
 
@@ -808,13 +808,13 @@ theorem offConvSum_cast_q (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) (hk : k 
       ≤ (∑ u ∈ Finset.Ico st en,
           HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-        + (en - st) * HachiEquiv.AuxProduct.BOUND := le_trans hle (Nat.le_add_left _ _)
+        + (en - st) * HachiEquiv.NttProduct.BOUND := le_trans hle (Nat.le_add_left _ _)
   unfold offConvSum
   rw [Nat.cast_sub hle', Nat.cast_add, Nat.cast_sum, Nat.cast_sum]
   -- `BOUND` is a multiple of `q`, so `L · BOUND` vanishes mod `q`
-  have hB : (((en - st) * HachiEquiv.AuxProduct.BOUND : ℕ) : ZMod HachiEquiv.Field.q) = 0 := by
-    have : HachiEquiv.AuxProduct.BOUND = 1024 * HachiEquiv.Field.q * HachiEquiv.Field.q := by
-      simp only [HachiEquiv.AuxProduct.BOUND, HachiEquiv.AuxProduct.q, HachiEquiv.Field.q]
+  have hB : (((en - st) * HachiEquiv.NttProduct.BOUND : ℕ) : ZMod HachiEquiv.Field.q) = 0 := by
+    have : HachiEquiv.NttProduct.BOUND = 1024 * HachiEquiv.Field.q * HachiEquiv.Field.q := by
+      simp only [HachiEquiv.NttProduct.BOUND, HachiEquiv.NttProduct.q, HachiEquiv.Field.q]
     rw [this]
     push_cast
     simp [ZMod.natCast_self]
@@ -839,7 +839,7 @@ theorem chunk_loop_spec (a b : alloc.vec.Vec ring.Rq) (nU degU : Std.Usize)
     (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
-    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.AuxProduct.q)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
     (hs : startU.val ≤ nU.val) (hacc : HachiEquiv.Ring.Wf acc)
     (hval : ∀ k, k < N → HachiEquiv.Ring.coeffK acc k
               = ∑ u ∈ Finset.range startU.val, HachiEquiv.Ring.negConv
@@ -902,33 +902,33 @@ theorem chunk_loop_spec (a b : alloc.vec.Vec ring.Rq) (nU degU : Std.Usize)
         fun u hu => hbw u (by omega)
       have hae : en.val ≤ a.val.length := le_trans hennU han
       have hbe : en.val ≤ b.val.length := le_trans hennU hbn
-      obtain ⟨hp1, hpi1, hn1, hb1⟩ := HachiEquiv.AuxProduct.aux1_lt
-      obtain ⟨hp2, hpi2, hn2, hb2⟩ := HachiEquiv.AuxProduct.aux2_lt
-      obtain ⟨hp3, hpi3, hn3, hb3⟩ := HachiEquiv.AuxProduct.aux3_lt
+      obtain ⟨hp1, hpi1, hn1, hb1⟩ := HachiEquiv.NttProduct.aux1_lt
+      obtain ⟨hp2, hpi2, hn2, hb2⟩ := HachiEquiv.NttProduct.aux2_lt
+      obtain ⟨hp3, hpi3, hn3, hb3⟩ := HachiEquiv.NttProduct.aux3_lt
       step with dot_chunk_word_spec a b st en ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
-        ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1 AuxCRT.magic1 hp1 hpi1 hn1 hb1
-        HachiEquiv.AuxProduct.psi1_ord HachiEquiv.AuxProduct.psi1_inv
-        HachiEquiv.AuxProduct.ninv1_inv HachiEquiv.AuxProduct.boff1_val
+        ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1 NttCRT.magic1 hp1 hpi1 hn1 hb1
+        HachiEquiv.NttProduct.psi1_ord HachiEquiv.NttProduct.psi1_inv
+        HachiEquiv.NttProduct.ninv1_inv HachiEquiv.NttProduct.boff1_val
         hawe hbwe hae hbe hsen
-        (by rw [AuxCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r1, hc1, hw1⟩
       step with dot_chunk_word_spec a b st en ntt.AUX_P2 ntt.AUX_M2 ntt.AUX_PSI2
-        ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_BOFF2 AuxCRT.magic2 hp2 hpi2 hn2 hb2
-        HachiEquiv.AuxProduct.psi2_ord HachiEquiv.AuxProduct.psi2_inv
-        HachiEquiv.AuxProduct.ninv2_inv HachiEquiv.AuxProduct.boff2_val
+        ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_BOFF2 NttCRT.magic2 hp2 hpi2 hn2 hb2
+        HachiEquiv.NttProduct.psi2_ord HachiEquiv.NttProduct.psi2_inv
+        HachiEquiv.NttProduct.ninv2_inv HachiEquiv.NttProduct.boff2_val
         hawe hbwe hae hbe hsen
-        (by rw [AuxCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r2, hc2, hw2⟩
       step with dot_chunk_word_spec a b st en ntt.AUX_P3 ntt.AUX_M3 ntt.AUX_PSI3
-        ntt.AUX_PSIINV3 ntt.AUX_NINV3 ntt.AUX_BOFF3 AuxCRT.magic3 hp3 hpi3 hn3 hb3
-        HachiEquiv.AuxProduct.psi3_ord HachiEquiv.AuxProduct.psi3_inv
-        HachiEquiv.AuxProduct.ninv3_inv HachiEquiv.AuxProduct.boff3_val
+        ntt.AUX_PSIINV3 ntt.AUX_NINV3 ntt.AUX_BOFF3 NttCRT.magic3 hp3 hpi3 hn3 hb3
+        HachiEquiv.NttProduct.psi3_ord HachiEquiv.NttProduct.psi3_inv
+        HachiEquiv.NttProduct.ninv3_inv HachiEquiv.NttProduct.boff3_val
         hawe hbwe hae hbe hsen
-        (by rw [AuxCRT.AUX_P3_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P3_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r3, hc3, hw3⟩
-      rw [AuxCRT.AUX_P1_val] at hw1
-      rw [AuxCRT.AUX_P2_val] at hw2
-      rw [AuxCRT.AUX_P3_val] at hw3
+      rw [NttCRT.AUX_P1_val] at hw1
+      rw [NttCRT.AUX_P2_val] at hw2
+      rw [NttCRT.AUX_P3_val] at hw3
       simp only [alloc.vec.Vec.with_capacity]
       step with garner_out_spec degU qwU r1 r2 r3 (alloc.vec.Vec.new cpoly.field.Fp)
         0#usize (fun k => offConvSum a b st.val en.val k) hdeg hqw
@@ -939,9 +939,9 @@ theorem chunk_loop_spec (a b : alloc.vec.Vec ring.Rq) (nU degU : Std.Usize)
       step with HachiEquiv.Ring.add_spec d out1 hdw ho1wf as ⟨acc1, hacwf, hacv⟩
       refine ⟨by omega, hacwf, ?_, by omega⟩
       intro k hk
-      -- `AuxProduct.q` and `Field.q` are the same numeral under two names, which
+      -- `NttProduct.q` and `Field.q` are the same numeral under two names, which
       -- `ZMod.natCast_mod` needs aligned before it will fire
-      have hqq : HachiEquiv.AuxProduct.q = HachiEquiv.Field.q := rfl
+      have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
       rw [hacv k hk, hdv k hk, HachiEquiv.Ring.coeffK_eq_cast_wordN, ho1v k hk,
         hqq, ZMod.natCast_mod,
         offConvSum_cast_q a b st.val en.val k hk hawe hbwe,
@@ -972,7 +972,7 @@ theorem dot_fused_spec (a b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
                   (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
   rw [ring.dot_fused]
   have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
-    UScalar.cast_inBounds_spec .U128 params.Q (AuxCRT.u64_le_u128_max _)
+    UScalar.cast_inBounds_spec .U128 params.Q (NttCRT.u64_le_u128_max _)
   step with hcq as ⟨qw, hqw⟩
   rw [HachiEquiv.Field.params_Q_val] at hqw
   step with HachiEquiv.Ring.zero_spec as ⟨z0, hz0wf, hz0v⟩
@@ -1262,8 +1262,8 @@ theorem prepare_one_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
              ∧ (∀ u ∈ z.val, u.val < pw.val)
              ∧ ∀ j, j < nU.val → ∀ t, t < N →
                  resK pw.val z (j * N + t)
-                   = AuxNTT.difRun (ps ^ 2) 10 1
-                       (AuxNTT.twistR ps (entryK pw.val a j)) t ⦄ := by
+                   = NttMath.difRun (ps ^ 2) 10 1
+                       (NttMath.twistR ps (entryK pw.val a j)) t ⦄ := by
   have hppos : 0 < pw.val := h.pos
   rw [ring.prepare_one]
   step with psi_table_cast psi pw mw h hpsi as ⟨pt, hptC, hptv⟩
@@ -1277,8 +1277,8 @@ theorem prepare_one_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
       ∧ (∀ u ∈ r.1.val, u.val < pw.val)
       ∧ ∀ u, u < r.2.val → ∀ t, t < N →
           resK pw.val r.1 (u * N + t)
-            = AuxNTT.difRun (ps ^ 2) 10 1
-                (AuxNTT.twistR ps (entryK pw.val a u)) t)
+            = NttMath.difRun (ps ^ 2) 10 1
+                (NttMath.twistR ps (entryK pw.val a u)) t)
   · rintro ⟨d, jj⟩ ⟨hjj, hdl, hdc, hdv⟩
     dsimp only at hjj hdl hdc hdv
     simp only [ring.prepare_one_loop0.body]
@@ -1329,10 +1329,10 @@ theorem prepare_one_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
         simp only [resK] at hf
         rw [hf]
         refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val tw)
-          (AuxNTT.twistR ps (entryK pw.val a jj.val)) ?_ t ht
+          (NttMath.twistR ps (entryK pw.val a jj.val)) ?_ t ht
         intro e he
         rw [htwv e he]
-        simp only [AuxNTT.twistR, entryK, hwv e he]
+        simp only [NttMath.twistR, entryK, hwv e he]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : jj.val = nU.val := by scalar_tac
@@ -1361,18 +1361,18 @@ theorem prep_words_b_spec (b : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
     (hn : nU.val = N) (hjb : jU.val < b.val.length)
     (hbj : HachiEquiv.Ring.Wf (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)))
     (hu : uU.val ≤ N) (hlen : bw.val.length = uU.val)
-    (hred : ∀ x ∈ bw.val, x.val < HachiEquiv.AuxProduct.q)
+    (hred : ∀ x ∈ bw.val, x.val < HachiEquiv.NttProduct.q)
     (hval : ∀ t, t < uU.val → wordAt bw t
       = HachiEquiv.Ring.wordN (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t) :
     ring.dot_prep_chunk_mod_p_loop0_loop0 b nU jU bw uU
-      ⦃ z => z.val.length = N ∧ (∀ x ∈ z.val, x.val < HachiEquiv.AuxProduct.q)
+      ⦃ z => z.val.length = N ∧ (∀ x ∈ z.val, x.val < HachiEquiv.NttProduct.q)
              ∧ ∀ t, t < N → wordAt z t
                  = HachiEquiv.Ring.wordN
                      (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t ⦄ := by
   rw [ring.dot_prep_chunk_mod_p_loop0_loop0]
   apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
-      ∧ (∀ x ∈ r.1.val, x.val < HachiEquiv.AuxProduct.q)
+      ∧ (∀ x ∈ r.1.val, x.val < HachiEquiv.NttProduct.q)
       ∧ ∀ t, t < r.2.val → wordAt r.1 t
           = HachiEquiv.Ring.wordN
               (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) t)
@@ -1388,7 +1388,7 @@ theorem prep_words_b_spec (b : alloc.vec.Vec ring.Rq) (nU jU : Std.Usize)
       have hrb : tt.val < r.val.length := by rw [hrv, hbj.1]; exact httlt
       step as ⟨f, hf⟩
       step with HachiEquiv.Ring.to_u64_id f as ⟨w, hw⟩
-      have hwlt : w.val < HachiEquiv.AuxProduct.q := by
+      have hwlt : w.val < HachiEquiv.NttProduct.q := by
         rw [hw, hf]; exact hbj.2 _ (by rw [← hrv]; exact List.getElem_mem hrb)
       have hwv : w.val = HachiEquiv.Ring.wordN
           (b.val.getD jU.val (alloc.vec.Vec.new cpoly.field.Fp)) tt.val := by
@@ -1434,8 +1434,8 @@ theorem prep_terms_chunk_spec (pfwd : alloc.vec.Vec Std.U64)
     (hpl : endU.val * N ≤ pfwd.val.length)
     (hpv : ∀ j, j < endU.val → ∀ t, t < N →
         resK pw.val pfwd (j * N + t)
-          = AuxNTT.difRun (ps ^ 2) 10 1
-              (AuxNTT.twistR ps (entryK pw.val a j)) t)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK pw.val a j)) t)
     (hpc : ∀ u ∈ pfwd.val, u.val < pw.val)
     (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
@@ -1495,8 +1495,8 @@ theorem prep_terms_chunk_spec (pfwd : alloc.vec.Vec Std.U64)
           simpa using hppos⟩
       -- the table's entry IS this term's left transform
       have hFA : ∀ t, t < N → resK pw.val af t
-          = AuxNTT.difRun (ps ^ 2) 10 1
-              (AuxNTT.twistR ps (entryK pw.val a jj.val)) t := by
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK pw.val a jj.val)) t := by
         intro t ht
         simp only [resK]
         rw [hafv t ht, hoffv]
@@ -1504,15 +1504,15 @@ theorem prep_terms_chunk_spec (pfwd : alloc.vec.Vec Std.U64)
         simp only [resK] at this
         exact this
       have hFB : ∀ t, t < N → resK pw.val v t
-          = AuxNTT.difRun (ps ^ 2) 10 1
-              (AuxNTT.twistR ps (entryK pw.val b jj.val)) t := by
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK pw.val b jj.val)) t := by
         intro t ht
         rw [hfwv t ht]
         refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK pw.val tb)
-          (AuxNTT.twistR ps (entryK pw.val b jj.val)) ?_ t ht
+          (NttMath.twistR ps (entryK pw.val b jj.val)) ?_ t ht
         intro e he
         rw [htbv e he]
-        simp only [AuxNTT.twistR, entryK, hbwv e he]
+        simp only [NttMath.twistR, entryK, hbwv e he]
       step with mac_into_spec d af v nU pw mw 0#usize (resK pw.val d)
         h hn (by simp) hcd hafC hfw1 (by intro t ht; simp) as ⟨acc1, hac1C, hac1v⟩
       step as ⟨jj1, hjj1⟩
@@ -1523,12 +1523,12 @@ theorem prep_terms_chunk_spec (pfwd : alloc.vec.Vec Std.U64)
       rw [hac1v t ht, hFA t ht, hFB t ht]
       unfold termFwd
       rw [← prod_difRun ps hord (entryK pw.val a jj.val) (entryK pw.val b jj.val)
-        (AuxNTT.difRun (ps ^ 2) 10 1 (AuxNTT.twistR ps (entryK pw.val a jj.val)))
-        (AuxNTT.difRun (ps ^ 2) 10 1 (AuxNTT.twistR ps (entryK pw.val b jj.val)))
-        (fun t' => AuxNTT.difRun (ps ^ 2) 10 1
-            (AuxNTT.twistR ps (entryK pw.val a jj.val)) t'
-          * AuxNTT.difRun (ps ^ 2) 10 1
-            (AuxNTT.twistR ps (entryK pw.val b jj.val)) t')
+        (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK pw.val a jj.val)))
+        (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK pw.val b jj.val)))
+        (fun t' => NttMath.difRun (ps ^ 2) 10 1
+            (NttMath.twistR ps (entryK pw.val a jj.val)) t'
+          * NttMath.difRun (ps ^ 2) 10 1
+            (NttMath.twistR ps (entryK pw.val b jj.val)) t')
         (fun t' _ => rfl) (fun t' _ => rfl) (fun t' _ => rfl) t ht]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1556,8 +1556,8 @@ theorem dot_prep_chunk_mod_p_spec (pfwd : alloc.vec.Vec Std.U64)
     (hpl : endU.val * N ≤ pfwd.val.length)
     (hpv : ∀ j, j < endU.val → ∀ t, t < N →
         resK pw.val pfwd (j * N + t)
-          = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-              (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
+          = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+              (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
     (hpc : ∀ u ∈ pfwd.val, u.val < pw.val)
     (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
@@ -1566,7 +1566,7 @@ theorem dot_prep_chunk_mod_p_spec (pfwd : alloc.vec.Vec Std.U64)
     ring.dot_prep_chunk_mod_p pfwd b startU endU pw mw psi psiinv ninv boff
       ⦃ z => Canon pw.val z ∧ ∀ t, t < N → resK pw.val z t
               = (∑ u ∈ Finset.Ico startU.val endU.val,
-                  AuxNTT.negConvR N (entryK pw.val a u) (entryK pw.val b u) t)
+                  NttMath.negConvR N (entryK pw.val a u) (entryK pw.val b u) t)
                 + ((boff.val : ℕ) : ZMod pw.val)
                     * (((endU.val - startU.val : ℕ)) : ZMod pw.val) ⦄ := by
   have hppos : 0 < pw.val := h.pos
@@ -1588,22 +1588,22 @@ theorem dot_prep_chunk_mod_p_spec (pfwd : alloc.vec.Vec Std.U64)
   have hlenlt : len.val < pw.val := by rw [hlenv]; exact hlenp
   step with aux_mul_lt boff len pw mw h hboff hlenlt as ⟨scaled, hscv, hsclt⟩
   have hPR : ∀ t, t < N → resK pw.val acc1 t
-      = AuxNTT.difRun (ps ^ 2) 10 1
+      = NttMath.difRun (ps ^ 2) 10 1
           (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
-            AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-              (AuxNTT.twistR ps (entryK pw.val b u)) t') t := by
+            NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+              (NttMath.twistR ps (entryK pw.val b u)) t') t := by
     intro t ht
-    rw [hac1v t ht, AuxNTT.difRun_sum (ps ^ 2) 10 1
+    rw [hac1v t ht, NttMath.difRun_sum (ps ^ 2) 10 1
       (Finset.Ico startU.val endU.val)
-      (fun u => AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-        (AuxNTT.twistR ps (entryK pw.val b u)))]
+      (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+        (NttMath.twistR ps (entryK pw.val b u)))]
     simp only [termFwd, hpsdef]
   step with ntt_inverse_spec acc1 scratch it pw mw h hac1C hac2C hitC psii hitv
     as ⟨v, v5, hiv1, hiv2, hivv⟩
   have hIV := inv_value ps psii hpinv
     (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
-      AuxNTT.cyclicConv N (AuxNTT.twistR ps (entryK pw.val a u))
-        (AuxNTT.twistR ps (entryK pw.val b u)) t')
+      NttMath.cyclicConv N (NttMath.twistR ps (entryK pw.val a u))
+        (NttMath.twistR ps (entryK pw.val b u)) t')
     (resK pw.val acc1) (resK pw.val v) hPR hivv
   apply spec_mono (untwist_cast v it ninv scaled pw mw h hiv1 hitC hninv hsclt psii hitv)
   rintro z ⟨hzC, hzv⟩
@@ -1630,33 +1630,33 @@ def PrepAt (pfwd : alloc.vec.Vec Std.U64) (a : alloc.vec.Vec ring.Rq) (n : ℕ)
   ∧ (∀ u ∈ pfwd.val, u.val < pw.val)
   ∧ ∀ j, j < n → ∀ t, t < N →
       resK pw.val pfwd (j * N + t)
-        = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-            (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t
+        = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+            (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t
 
 /-- The Garner conversion loop, for `dot_prepared`'s constant. [`garner_out_spec`]'s
 proof for the fifth byte-identical Rust loop in this development. -/
 theorem prep_garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
     (r1 r2 r3 : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
     (tU : Std.Usize) (X : ℕ → ℕ)
-    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.AuxProduct.q)
-    (hXP : ∀ k, k < N → X k < AuxCRT.P)
-    (hv1 : ∀ k, k < N → wordAt r1 k = X k % AuxCRT.p1)
-    (hv2 : ∀ k, k < N → wordAt r2 k = X k % AuxCRT.p2)
-    (hv3 : ∀ k, k < N → wordAt r3 k = X k % AuxCRT.p3)
+    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.NttProduct.q)
+    (hXP : ∀ k, k < N → X k < NttCRT.P)
+    (hv1 : ∀ k, k < N → wordAt r1 k = X k % NttCRT.p1)
+    (hv2 : ∀ k, k < N → wordAt r2 k = X k % NttCRT.p2)
+    (hv3 : ∀ k, k < N → wordAt r3 k = X k % NttCRT.p3)
     (hl1 : r1.val.length = N) (hl2 : r2.val.length = N) (hl3 : r3.val.length = N)
     (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
     (hred : ∀ u ∈ out.val, HachiEquiv.Field.Red u)
     (hval : ∀ k, k < tU.val →
-      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.AuxProduct.q) :
+      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.NttProduct.q) :
     ring.dot_prepared_loop0_loop0 degU qwU r1 r2 r3 out tU
       ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N →
-          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.AuxProduct.q ⦄ := by
+          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.NttProduct.q ⦄ := by
   rw [ring.dot_prepared_loop0_loop0]
   apply loop.spec_decr_nat (fun r => N - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
       ∧ (∀ u ∈ r.1.val, HachiEquiv.Field.Red u)
       ∧ ∀ k, k < r.2.val →
-          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.AuxProduct.q)
+          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.NttProduct.q)
   · rintro ⟨o1, tt⟩ ⟨htt, hlen1, hred1, hval1⟩
     dsimp only at htt hlen1 hred1 hval1
     simp only [ring.dot_prepared_loop0_loop0.body]
@@ -1669,23 +1669,23 @@ theorem prep_garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
       step as ⟨x1, hx1⟩
       step as ⟨x2, hx2⟩
       step as ⟨x3, hx3⟩
-      have hx1v : x1.val = X tt.val % AuxCRT.p1 := by
+      have hx1v : x1.val = X tt.val % NttCRT.p1 := by
         rw [hx1, ← wordAt_of_lt (v := r1) (t := tt.val) hb1]; exact hv1 tt.val httlt
-      have hx2v : x2.val = X tt.val % AuxCRT.p2 := by
+      have hx2v : x2.val = X tt.val % NttCRT.p2 := by
         rw [hx2, ← wordAt_of_lt (v := r2) (t := tt.val) hb2]; exact hv2 tt.val httlt
-      have hx3v : x3.val = X tt.val % AuxCRT.p3 := by
+      have hx3v : x3.val = X tt.val % NttCRT.p3 := by
         rw [hx3, ← wordAt_of_lt (v := r3) (t := tt.val) hb3]; exact hv3 tt.val httlt
-      step with AuxCRT.garner_spec x1 x2 x3 (X tt.val) (hXP tt.val httlt)
+      step with NttCRT.garner_spec x1 x2 x3 (X tt.val) (hXP tt.val httlt)
         hx1v hx2v hx3v as ⟨g, hgv⟩
       step as ⟨md, hmd⟩
-      have hmdv : md.val = X tt.val % HachiEquiv.AuxProduct.q := by
+      have hmdv : md.val = X tt.val % HachiEquiv.NttProduct.q := by
         rw [hmd, hgv, hqwv]
-      have hmdlt : md.val < HachiEquiv.AuxProduct.q := by
-        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.AuxProduct.q])
+      have hmdlt : md.val < HachiEquiv.NttProduct.q := by
+        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
       have hcast : lift (UScalar.cast .U64 md) ⦃ y => y.val = md.val ⦄ :=
         UScalar.cast_inBounds_spec .U64 md (by
           have hq : md.val < 4294967197 := by
-            have := hmdlt; simpa [HachiEquiv.AuxProduct.q] using this
+            have := hmdlt; simpa [HachiEquiv.NttProduct.q] using this
           simp only [UScalar.max, UScalarTy.numBits]
           omega)
       step with hcast as ⟨w, hw⟩
@@ -1707,10 +1707,10 @@ theorem prep_garner_out_spec (degU : Std.Usize) (qwU : Std.U128)
           exact hval1 k hklt
         · have hkeq : k = o1.val.length := by omega
           rw [hkeq, ho2, getD_append_eq', hlen1]
-          have hwlt : w.val < HachiEquiv.AuxProduct.q := by rw [hw]; exact hmdlt
+          have hwlt : w.val < HachiEquiv.NttProduct.q := by rw [hw]; exact hmdlt
           have hfv : f.val = w.val := by
-            have h1 := HachiEquiv.AuxProduct.natCast_inj_of_lt
-              (n := HachiEquiv.AuxProduct.q) (x := f.val) (y := w.val) hfred hfval
+            have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+              (n := HachiEquiv.NttProduct.q) (x := f.val) (y := w.val) hfred hfval
             rwa [Nat.mod_eq_of_lt hwlt] at h1
           rw [hfv, hw, hmdv]
     · rw [if_neg hlt, WP.spec_ok]
@@ -1730,12 +1730,12 @@ theorem dot_prep_chunk_word_spec (pfwd : alloc.vec.Vec Std.U64)
     (hord : ((psi.val : ℕ) : ZMod pw.val) ^ N = -1)
     (hpinv : ((psi.val : ℕ) : ZMod pw.val) * ((psiinv.val : ℕ) : ZMod pw.val) = 1)
     (hNinv : ((N : ℕ) : ZMod pw.val) * ((ninv.val : ℕ) : ZMod pw.val) = 1)
-    (hboffv : boff.val = HachiEquiv.AuxProduct.BOUND % pw.val)
+    (hboffv : boff.val = HachiEquiv.NttProduct.BOUND % pw.val)
     (hpl : endU.val * N ≤ pfwd.val.length)
     (hpv : ∀ j, j < endU.val → ∀ t, t < N →
         resK pw.val pfwd (j * N + t)
-          = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-              (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
+          = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+              (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
     (hpc : ∀ u ∈ pfwd.val, u.val < pw.val)
     (hawf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
@@ -1759,13 +1759,13 @@ theorem dot_prep_chunk_word_spec (pfwd : alloc.vec.Vec Std.U64)
       ≤ (∑ u ∈ Finset.Ico startU.val endU.val,
           HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
-        + (endU.val - startU.val) * HachiEquiv.AuxProduct.BOUND :=
+        + (endU.val - startU.val) * HachiEquiv.NttProduct.BOUND :=
     le_trans hnb (Nat.le_add_left _ _)
   have hoff : ((offConvSum a b startU.val endU.val k : ℕ) : ZMod pw.val)
       = ((∑ u ∈ Finset.Ico startU.val endU.val,
             HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val)
-        + (((endU.val - startU.val) * HachiEquiv.AuxProduct.BOUND : ℕ) : ZMod pw.val)
+        + (((endU.val - startU.val) * HachiEquiv.NttProduct.BOUND : ℕ) : ZMod pw.val)
         - ((∑ u ∈ Finset.Ico startU.val endU.val,
             HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val) := by
@@ -1776,20 +1776,20 @@ theorem dot_prep_chunk_word_spec (pfwd : alloc.vec.Vec Std.U64)
     have h1 := hval k hk
     rw [resK] at h1
     rw [h1, hoff]
-    have hterm : ∀ u, AuxNTT.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
+    have hterm : ∀ u, NttMath.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
         = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val)
           - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val) := by
       intro u
-      rw [AuxNTT.negConvR, ordConv_entryK_pos pw.val a b u k hk,
+      rw [NttMath.negConvR, ordConv_entryK_pos pw.val a b u k hk,
         ordConv_entryK_neg pw.val a b u k hk]
     rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
     push_cast
     rw [hboffv, ZMod.natCast_mod]
     push_cast
     ring
-  exact HachiEquiv.AuxProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
+  exact HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
 
 /-- **The prepared chunk loop.** [`chunk_loop_spec`] with the prepared chunk. -/
 theorem prep_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq)
@@ -1802,7 +1802,7 @@ theorem prep_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring
     (hp1 : PrepAt prep.fwd1 a nU.val ntt.AUX_P1 ntt.AUX_PSI1)
     (hp2 : PrepAt prep.fwd2 a nU.val ntt.AUX_P2 ntt.AUX_PSI2)
     (hp3 : PrepAt prep.fwd3 a nU.val ntt.AUX_P3 ntt.AUX_PSI3)
-    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.AuxProduct.q)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
     (hs : startU.val ≤ nU.val) (hacc : HachiEquiv.Ring.Wf acc)
     (hval : ∀ k, k < N → HachiEquiv.Ring.coeffK acc k
               = ∑ u ∈ Finset.range startU.val, HachiEquiv.Ring.negConv
@@ -1868,8 +1868,8 @@ theorem prep_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring
            ∧ (∀ u ∈ pf.val, u.val < pw.val)
            ∧ ∀ j, j < en.val → ∀ t, t < N →
                resK pw.val pf (j * N + t)
-                 = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-                     (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val)
+                 = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+                     (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val)
                        (entryK pw.val a j)) t) := by
         intro pf pw psi hpp
         refine ⟨le_trans (Nat.mul_le_mul_right N hennU) hpp.1, hpp.2.1, ?_⟩
@@ -1878,33 +1878,33 @@ theorem prep_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring
       obtain ⟨q1a, q1b, q1c⟩ := hmono prep.fwd1 ntt.AUX_P1 ntt.AUX_PSI1 hp1
       obtain ⟨q2a, q2b, q2c⟩ := hmono prep.fwd2 ntt.AUX_P2 ntt.AUX_PSI2 hp2
       obtain ⟨q3a, q3b, q3c⟩ := hmono prep.fwd3 ntt.AUX_P3 ntt.AUX_PSI3 hp3
-      obtain ⟨o1, oi1, on1, ob1⟩ := HachiEquiv.AuxProduct.aux1_lt
-      obtain ⟨o2, oi2, on2, ob2⟩ := HachiEquiv.AuxProduct.aux2_lt
-      obtain ⟨o3, oi3, on3, ob3⟩ := HachiEquiv.AuxProduct.aux3_lt
+      obtain ⟨o1, oi1, on1, ob1⟩ := HachiEquiv.NttProduct.aux1_lt
+      obtain ⟨o2, oi2, on2, ob2⟩ := HachiEquiv.NttProduct.aux2_lt
+      obtain ⟨o3, oi3, on3, ob3⟩ := HachiEquiv.NttProduct.aux3_lt
       step with dot_prep_chunk_word_spec prep.fwd1 a b st en ntt.AUX_P1 ntt.AUX_M1
-        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1 AuxCRT.magic1
-        o1 oi1 on1 ob1 HachiEquiv.AuxProduct.psi1_ord HachiEquiv.AuxProduct.psi1_inv
-        HachiEquiv.AuxProduct.ninv1_inv HachiEquiv.AuxProduct.boff1_val
+        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1 NttCRT.magic1
+        o1 oi1 on1 ob1 HachiEquiv.NttProduct.psi1_ord HachiEquiv.NttProduct.psi1_inv
+        HachiEquiv.NttProduct.ninv1_inv HachiEquiv.NttProduct.boff1_val
         q1a q1c q1b hawe hbwe hbe hsen
-        (by rw [AuxCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r1, hc1, hw1⟩
       step with dot_prep_chunk_word_spec prep.fwd2 a b st en ntt.AUX_P2 ntt.AUX_M2
-        ntt.AUX_PSI2 ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_BOFF2 AuxCRT.magic2
-        o2 oi2 on2 ob2 HachiEquiv.AuxProduct.psi2_ord HachiEquiv.AuxProduct.psi2_inv
-        HachiEquiv.AuxProduct.ninv2_inv HachiEquiv.AuxProduct.boff2_val
+        ntt.AUX_PSI2 ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_BOFF2 NttCRT.magic2
+        o2 oi2 on2 ob2 HachiEquiv.NttProduct.psi2_ord HachiEquiv.NttProduct.psi2_inv
+        HachiEquiv.NttProduct.ninv2_inv HachiEquiv.NttProduct.boff2_val
         q2a q2c q2b hawe hbwe hbe hsen
-        (by rw [AuxCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r2, hc2, hw2⟩
       step with dot_prep_chunk_word_spec prep.fwd3 a b st en ntt.AUX_P3 ntt.AUX_M3
-        ntt.AUX_PSI3 ntt.AUX_PSIINV3 ntt.AUX_NINV3 ntt.AUX_BOFF3 AuxCRT.magic3
-        o3 oi3 on3 ob3 HachiEquiv.AuxProduct.psi3_ord HachiEquiv.AuxProduct.psi3_inv
-        HachiEquiv.AuxProduct.ninv3_inv HachiEquiv.AuxProduct.boff3_val
+        ntt.AUX_PSI3 ntt.AUX_PSIINV3 ntt.AUX_NINV3 ntt.AUX_BOFF3 NttCRT.magic3
+        o3 oi3 on3 ob3 HachiEquiv.NttProduct.psi3_ord HachiEquiv.NttProduct.psi3_inv
+        HachiEquiv.NttProduct.ninv3_inv HachiEquiv.NttProduct.boff3_val
         q3a q3c q3b hawe hbwe hbe hsen
-        (by rw [AuxCRT.AUX_P3_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P3_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r3, hc3, hw3⟩
-      rw [AuxCRT.AUX_P1_val] at hw1
-      rw [AuxCRT.AUX_P2_val] at hw2
-      rw [AuxCRT.AUX_P3_val] at hw3
+      rw [NttCRT.AUX_P1_val] at hw1
+      rw [NttCRT.AUX_P2_val] at hw2
+      rw [NttCRT.AUX_P3_val] at hw3
       simp only [alloc.vec.Vec.with_capacity]
       step with prep_garner_out_spec degU qwU r1 r2 r3
         (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
@@ -1916,7 +1916,7 @@ theorem prep_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring
       step with HachiEquiv.Ring.add_spec d out1 hdw ho1wf as ⟨acc1, hacwf, hacv⟩
       refine ⟨by omega, hacwf, ?_, by omega⟩
       intro k hk
-      have hqq : HachiEquiv.AuxProduct.q = HachiEquiv.Field.q := rfl
+      have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
       rw [hacv k hk, hdv k hk, HachiEquiv.Ring.coeffK_eq_cast_wordN, ho1v k hk,
         hqq, ZMod.natCast_mod,
         offConvSum_cast_q a b st.val en.val k hk hawe hbwe,
@@ -1946,7 +1946,7 @@ theorem dot_prepared_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec ring.Rq
                   (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
   rw [ring.dot_prepared]
   have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
-    UScalar.cast_inBounds_spec .U128 params.Q (AuxCRT.u64_le_u128_max _)
+    UScalar.cast_inBounds_spec .U128 params.Q (NttCRT.u64_le_u128_max _)
   step with hcq as ⟨qw, hqw⟩
   rw [HachiEquiv.Field.params_Q_val] at hqw
   step with HachiEquiv.Ring.zero_spec as ⟨z0, hz0wf, hz0v⟩
@@ -1968,18 +1968,18 @@ theorem prepare_vec_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
              ∧ PrepAt z.fwd1 a nU.val ntt.AUX_P1 ntt.AUX_PSI1
              ∧ PrepAt z.fwd2 a nU.val ntt.AUX_P2 ntt.AUX_PSI2
              ∧ PrepAt z.fwd3 a nU.val ntt.AUX_P3 ntt.AUX_PSI3 ⦄ := by
-  obtain ⟨hp1, _, _, _⟩ := HachiEquiv.AuxProduct.aux1_lt
-  obtain ⟨hp2, _, _, _⟩ := HachiEquiv.AuxProduct.aux2_lt
-  obtain ⟨hp3, _, _, _⟩ := HachiEquiv.AuxProduct.aux3_lt
+  obtain ⟨hp1, _, _, _⟩ := HachiEquiv.NttProduct.aux1_lt
+  obtain ⟨hp2, _, _, _⟩ := HachiEquiv.NttProduct.aux2_lt
+  obtain ⟨hp3, _, _, _⟩ := HachiEquiv.NttProduct.aux3_lt
   rw [ring.prepare_vec]
   step with prepare_one_spec a nU ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
-    (((ntt.AUX_PSI1).val : ℕ) : ZMod (ntt.AUX_P1).val) AuxCRT.magic1 hp1 rfl
+    (((ntt.AUX_PSI1).val : ℕ) : ZMod (ntt.AUX_P1).val) NttCRT.magic1 hp1 rfl
     hawf han hmax as ⟨f1, hf1l, hf1c, hf1v⟩
   step with prepare_one_spec a nU ntt.AUX_P2 ntt.AUX_M2 ntt.AUX_PSI2
-    (((ntt.AUX_PSI2).val : ℕ) : ZMod (ntt.AUX_P2).val) AuxCRT.magic2 hp2 rfl
+    (((ntt.AUX_PSI2).val : ℕ) : ZMod (ntt.AUX_P2).val) NttCRT.magic2 hp2 rfl
     hawf han hmax as ⟨f2, hf2l, hf2c, hf2v⟩
   step with prepare_one_spec a nU ntt.AUX_P3 ntt.AUX_M3 ntt.AUX_PSI3
-    (((ntt.AUX_PSI3).val : ℕ) : ZMod (ntt.AUX_P3).val) AuxCRT.magic3 hp3 rfl
+    (((ntt.AUX_PSI3).val : ℕ) : ZMod (ntt.AUX_P3).val) NttCRT.magic3 hp3 rfl
     hawf han hmax as ⟨f3, hf3l, hf3c, hf3v⟩
   exact ⟨⟨le_of_eq hf1l.symm, hf1c, hf1v⟩, ⟨le_of_eq hf2l.symm, hf2c, hf2v⟩,
     ⟨le_of_eq hf3l.symm, hf3c, hf3v⟩⟩
@@ -2016,43 +2016,43 @@ theorem digitWf_of_mem {b : ring.Rq} (h : ∀ u ∈ b.val, u.val < 16) : DigitWf
 
 /-- The digit-bounded offset, `N · q · 16`.
 
-Like [`HachiEquiv.AuxProduct.BOUND`] it is asked for exactly two things, and is
+Like [`HachiEquiv.NttProduct.BOUND`] it is asked for exactly two things, and is
 this number rather than the tighter `N · (q−1) · 15` for exactly those reasons:
 it is the ceiling [`posSumD_le`]/[`negSumD_le`] prove, and `q ∣ BOUND_D`, so it
 is invisible mod `q` and the caller needs no correction term. -/
-abbrev BOUND_D : ℕ := 1024 * (HachiEquiv.AuxProduct.q * 16)
+abbrev BOUND_D : ℕ := 1024 * (HachiEquiv.NttProduct.q * 16)
 
 /-- Each `+` antidiagonal term is below `q · 16`, so `m` of them are below
 `m · (q · 16)`. [`HachiEquiv.Ring.posSum_le`]'s proof with the digit bound in
 place of the second `wordN_lt`. -/
 theorem posSumD_le {a b : ring.Rq} (ha : HachiEquiv.Ring.Wf a) (hb : DigitWf b) (k m : ℕ) :
-    HachiEquiv.Ring.posSum a b k m ≤ m * (HachiEquiv.AuxProduct.q * 16) := by
+    HachiEquiv.Ring.posSum a b k m ≤ m * (HachiEquiv.NttProduct.q * 16) := by
   unfold HachiEquiv.Ring.posSum
   calc ∑ t ∈ Finset.range m,
         (if t ≤ k then HachiEquiv.Ring.wordN a t * HachiEquiv.Ring.wordN b (k - t) else 0)
-      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.AuxProduct.q * 16 := by
+      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.NttProduct.q * 16 := by
         refine Finset.sum_le_sum (fun t _ => ?_)
         by_cases h : t ≤ k
         · rw [if_pos h]
           exact Nat.mul_le_mul (Nat.le_of_lt (HachiEquiv.Ring.wordN_lt ha t))
             (Nat.le_of_lt (hb _))
         · rw [if_neg h]; exact Nat.zero_le _
-    _ = m * (HachiEquiv.AuxProduct.q * 16) := by
+    _ = m * (HachiEquiv.NttProduct.q * 16) := by
         rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
 
 theorem negSumD_le {a b : ring.Rq} (ha : HachiEquiv.Ring.Wf a) (hb : DigitWf b) (k m : ℕ) :
-    HachiEquiv.Ring.negSum a b k m ≤ m * (HachiEquiv.AuxProduct.q * 16) := by
+    HachiEquiv.Ring.negSum a b k m ≤ m * (HachiEquiv.NttProduct.q * 16) := by
   unfold HachiEquiv.Ring.negSum
   calc ∑ t ∈ Finset.range m,
         (if t ≤ k then 0 else HachiEquiv.Ring.wordN a t * HachiEquiv.Ring.wordN b (N + k - t))
-      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.AuxProduct.q * 16 := by
+      ≤ ∑ _t ∈ Finset.range m, HachiEquiv.NttProduct.q * 16 := by
         refine Finset.sum_le_sum (fun t _ => ?_)
         by_cases h : t ≤ k
         · rw [if_pos h]; exact Nat.zero_le _
         · rw [if_neg h]
           exact Nat.mul_le_mul (Nat.le_of_lt (HachiEquiv.Ring.wordN_lt ha t))
             (Nat.le_of_lt (hb _))
-    _ = m * (HachiEquiv.AuxProduct.q * 16) := by
+    _ = m * (HachiEquiv.NttProduct.q * 16) := by
         rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
 
 /-- The digit-bounded twin of [`offConvSum`]: the same shifted convolution sum,
@@ -2115,10 +2115,10 @@ theorem offConvSumD_lt_P12 (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ)
       (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbd : ∀ u, u < en → DigitWf (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hL : en - st ≤ 2048) :
-    offConvSumD a b st en k < AuxCRT.P12 := by
+    offConvSumD a b st en k < NttCRT.P12 := by
   have hp := posQD_sum_le a b st en k hawf hbd
-  have hnum : 2 * 2048 * BOUND_D < AuxCRT.P12 := by
-    simp only [BOUND_D, HachiEquiv.AuxProduct.q, AuxCRT.P12, AuxCRT.p1, AuxCRT.p2]
+  have hnum : 2 * 2048 * BOUND_D < NttCRT.P12 := by
+    simp only [BOUND_D, HachiEquiv.NttProduct.q, NttCRT.P12, NttCRT.p1, NttCRT.p2]
     norm_num
   have hmul : (en - st) * BOUND_D ≤ 2048 * BOUND_D :=
     Nat.mul_le_mul_right BOUND_D hL
@@ -2151,7 +2151,7 @@ theorem offConvSumD_cast_q (a b : alloc.vec.Vec ring.Rq) (st en k : ℕ) (hk : k
   -- `BOUND_D = N · q · 16` is a multiple of `q`, so `L · BOUND_D` vanishes mod `q`
   have hB : (((en - st) * BOUND_D : ℕ) : ZMod HachiEquiv.Field.q) = 0 := by
     have : BOUND_D = 1024 * HachiEquiv.Field.q * 16 := by
-      simp only [BOUND_D, HachiEquiv.AuxProduct.q, HachiEquiv.Field.q]
+      simp only [BOUND_D, HachiEquiv.NttProduct.q, HachiEquiv.Field.q]
     rw [this]
     push_cast
     simp [ZMod.natCast_self]
@@ -2169,7 +2169,7 @@ The transforms are reused verbatim: [`dot_prep_chunk_mod_p_spec`] is generic in
 instantiating it at [`ntt.AUX_DOFF1`]/[`ntt.AUX_DOFF2`] costs nothing. What is
 genuinely different is below the transforms:
 
-* the reconstruction is [`AuxCRT.garner2_spec`], whose `hx` asks for `< p1·p2`
+* the reconstruction is [`NttCRT.garner2_spec`], whose `hx` asks for `< p1·p2`
   rather than `< P` -- that is [`offConvSumD_lt_P12`], the whole content of the
   change;
 * the remainder is taken in `u64`, because `garner2` returns a `u64`, so the
@@ -2188,8 +2188,8 @@ theorem dot_prep_chunk_word_digits_spec (pfwd : alloc.vec.Vec Std.U64)
     (hpl : endU.val * N ≤ pfwd.val.length)
     (hpv : ∀ j, j < endU.val → ∀ t, t < N →
         resK pw.val pfwd (j * N + t)
-          = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-              (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
+          = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+              (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val) (entryK pw.val a j)) t)
     (hpc : ∀ u ∈ pfwd.val, u.val < pw.val)
     (hawf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
       (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
@@ -2232,20 +2232,20 @@ theorem dot_prep_chunk_word_digits_spec (pfwd : alloc.vec.Vec Std.U64)
     have h1 := hval k hk
     rw [resK] at h1
     rw [h1, hoff]
-    have hterm : ∀ u, AuxNTT.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
+    have hterm : ∀ u, NttMath.negConvR N (entryK pw.val a u) (entryK pw.val b u) k
         = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val)
           - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod pw.val) := by
       intro u
-      rw [AuxNTT.negConvR, ordConv_entryK_pos pw.val a b u k hk,
+      rw [NttMath.negConvR, ordConv_entryK_pos pw.val a b u k hk,
         ordConv_entryK_neg pw.val a b u k hk]
     rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
     push_cast
     rw [hboffv, ZMod.natCast_mod]
     push_cast
     ring
-  exact HachiEquiv.AuxProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
+  exact HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
 
 /-- The two-prime Garner conversion loop. [`prep_garner_out_spec`] with two
 residues, and without the `u128` cast: `garner2` already returns a `u64`, so the
@@ -2253,24 +2253,24 @@ remainder is taken there. -/
 theorem prep2_garner_out_spec (degU : Std.Usize) (qwU : Std.U64)
     (r1 r2 : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
     (tU : Std.Usize) (X : ℕ → ℕ)
-    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.AuxProduct.q)
-    (hXP : ∀ k, k < N → X k < AuxCRT.P12)
-    (hv1 : ∀ k, k < N → wordAt r1 k = X k % AuxCRT.p1)
-    (hv2 : ∀ k, k < N → wordAt r2 k = X k % AuxCRT.p2)
+    (hdeg : degU.val = N) (hqwv : qwU.val = HachiEquiv.NttProduct.q)
+    (hXP : ∀ k, k < N → X k < NttCRT.P12)
+    (hv1 : ∀ k, k < N → wordAt r1 k = X k % NttCRT.p1)
+    (hv2 : ∀ k, k < N → wordAt r2 k = X k % NttCRT.p2)
     (hl1 : r1.val.length = N) (hl2 : r2.val.length = N)
     (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
     (hred : ∀ u ∈ out.val, HachiEquiv.Field.Red u)
     (hval : ∀ k, k < tU.val →
-      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.AuxProduct.q) :
+      HachiEquiv.Ring.wordN out k = X k % HachiEquiv.NttProduct.q) :
     ring.dot_prepared_digits_loop0_loop0 degU qwU r1 r2 out tU
       ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N →
-          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.AuxProduct.q ⦄ := by
+          HachiEquiv.Ring.wordN z k = X k % HachiEquiv.NttProduct.q ⦄ := by
   rw [ring.dot_prepared_digits_loop0_loop0]
   apply loop.spec_decr_nat (fun r => N - r.2.val)
     (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
       ∧ (∀ u ∈ r.1.val, HachiEquiv.Field.Red u)
       ∧ ∀ k, k < r.2.val →
-          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.AuxProduct.q)
+          HachiEquiv.Ring.wordN r.1 k = X k % HachiEquiv.NttProduct.q)
   · rintro ⟨o1, tt⟩ ⟨htt, hlen1, hred1, hval1⟩
     dsimp only at htt hlen1 hred1 hval1
     simp only [ring.dot_prepared_digits_loop0_loop0.body]
@@ -2281,17 +2281,17 @@ theorem prep2_garner_out_spec (degU : Std.Usize) (qwU : Std.U64)
       have hb2 : tt.val < r2.val.length := by rw [hl2]; exact httlt
       step as ⟨x1, hx1⟩
       step as ⟨x2, hx2⟩
-      have hx1v : x1.val = X tt.val % AuxCRT.p1 := by
+      have hx1v : x1.val = X tt.val % NttCRT.p1 := by
         rw [hx1, ← wordAt_of_lt (v := r1) (t := tt.val) hb1]; exact hv1 tt.val httlt
-      have hx2v : x2.val = X tt.val % AuxCRT.p2 := by
+      have hx2v : x2.val = X tt.val % NttCRT.p2 := by
         rw [hx2, ← wordAt_of_lt (v := r2) (t := tt.val) hb2]; exact hv2 tt.val httlt
-      step with AuxCRT.garner2_spec x1 x2 (X tt.val) (hXP tt.val httlt)
+      step with NttCRT.garner2_spec x1 x2 (X tt.val) (hXP tt.val httlt)
         hx1v hx2v as ⟨g, hgv⟩
       step as ⟨md, hmd⟩
-      have hmdv : md.val = X tt.val % HachiEquiv.AuxProduct.q := by
+      have hmdv : md.val = X tt.val % HachiEquiv.NttProduct.q := by
         rw [hmd, hgv, hqwv]
-      have hmdlt : md.val < HachiEquiv.AuxProduct.q := by
-        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.AuxProduct.q])
+      have hmdlt : md.val < HachiEquiv.NttProduct.q := by
+        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
       step with HachiEquiv.Field.fp_new_spec md as ⟨f, hfred, hfval⟩
       step as ⟨o2, ho2⟩
       step as ⟨tt1, htt1⟩
@@ -2311,8 +2311,8 @@ theorem prep2_garner_out_spec (degU : Std.Usize) (qwU : Std.U64)
         · have hkeq : k = o1.val.length := by omega
           rw [hkeq, ho2, getD_append_eq', hlen1]
           have hfv : f.val = md.val := by
-            have h1 := HachiEquiv.AuxProduct.natCast_inj_of_lt
-              (n := HachiEquiv.AuxProduct.q) (x := f.val) (y := md.val) hfred hfval
+            have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+              (n := HachiEquiv.NttProduct.q) (x := f.val) (y := md.val) hfred hfval
             rwa [Nat.mod_eq_of_lt hmdlt] at h1
           rw [hfv, hmdv]
     · rw [if_neg hlt, WP.spec_ok]
@@ -2323,7 +2323,7 @@ theorem prep2_garner_out_spec (degU : Std.Usize) (qwU : Std.U64)
   · exact ⟨ht, hlen, hred, hval⟩
 
 /-- `AUX_DOFF1` is `BOUND_D mod p1`. The kernel checks the literal, as
-`AuxProduct.boff1_val` does for the generic offset. -/
+`NttProduct.boff1_val` does for the generic offset. -/
 theorem doff1_val : (ntt.AUX_DOFF1).val = BOUND_D % (ntt.AUX_P1).val := by
   decide +kernel
 
@@ -2343,7 +2343,7 @@ theorem prep2_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec rin
     (han : nU.val ≤ a.val.length) (hbn : nU.val ≤ b.val.length)
     (hp1 : PrepAt prep.fwd1 a nU.val ntt.AUX_P1 ntt.AUX_PSI1)
     (hp2 : PrepAt prep.fwd2 a nU.val ntt.AUX_P2 ntt.AUX_PSI2)
-    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.AuxProduct.q)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
     (hs : startU.val ≤ nU.val) (hacc : HachiEquiv.Ring.Wf acc)
     (hval : ∀ k, k < N → HachiEquiv.Ring.coeffK acc k
               = ∑ u ∈ Finset.range startU.val, HachiEquiv.Ring.negConv
@@ -2411,8 +2411,8 @@ theorem prep2_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec rin
            ∧ (∀ u ∈ pf.val, u.val < pw.val)
            ∧ ∀ j, j < en.val → ∀ t, t < N →
                resK pw.val pf (j * N + t)
-                 = AuxNTT.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
-                     (AuxNTT.twistR ((psi.val : ℕ) : ZMod pw.val)
+                 = NttMath.difRun ((((psi.val : ℕ) : ZMod pw.val)) ^ 2) 10 1
+                     (NttMath.twistR ((psi.val : ℕ) : ZMod pw.val)
                        (entryK pw.val a j)) t) := by
         intro pf pw psi hpp
         refine ⟨le_trans (Nat.mul_le_mul_right N hennU) hpp.1, hpp.2.1, ?_⟩
@@ -2420,28 +2420,28 @@ theorem prep2_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec rin
         exact hpp.2.2 j (by omega) t ht
       obtain ⟨q1a, q1b, q1c⟩ := hmono prep.fwd1 ntt.AUX_P1 ntt.AUX_PSI1 hp1
       obtain ⟨q2a, q2b, q2c⟩ := hmono prep.fwd2 ntt.AUX_P2 ntt.AUX_PSI2 hp2
-      obtain ⟨o1, oi1, on1, _⟩ := HachiEquiv.AuxProduct.aux1_lt
-      obtain ⟨o2, oi2, on2, _⟩ := HachiEquiv.AuxProduct.aux2_lt
+      obtain ⟨o1, oi1, on1, _⟩ := HachiEquiv.NttProduct.aux1_lt
+      obtain ⟨o2, oi2, on2, _⟩ := HachiEquiv.NttProduct.aux2_lt
       have od1 : (ntt.AUX_DOFF1).val < (ntt.AUX_P1).val := by
-        rw [doff1_val]; exact Nat.mod_lt _ (by rw [AuxCRT.AUX_P1_val]; norm_num)
+        rw [doff1_val]; exact Nat.mod_lt _ (by rw [NttCRT.AUX_P1_val]; norm_num)
       have od2 : (ntt.AUX_DOFF2).val < (ntt.AUX_P2).val := by
-        rw [doff2_val]; exact Nat.mod_lt _ (by rw [AuxCRT.AUX_P2_val]; norm_num)
+        rw [doff2_val]; exact Nat.mod_lt _ (by rw [NttCRT.AUX_P2_val]; norm_num)
       step with dot_prep_chunk_word_digits_spec prep.fwd1 a b st en ntt.AUX_P1 ntt.AUX_M1
-        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_DOFF1 AuxCRT.magic1
-        o1 oi1 on1 od1 HachiEquiv.AuxProduct.psi1_ord HachiEquiv.AuxProduct.psi1_inv
-        HachiEquiv.AuxProduct.ninv1_inv doff1_val
+        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_DOFF1 NttCRT.magic1
+        o1 oi1 on1 od1 HachiEquiv.NttProduct.psi1_ord HachiEquiv.NttProduct.psi1_inv
+        HachiEquiv.NttProduct.ninv1_inv doff1_val
         q1a q1c q1b hawe hbwe hbde hbe hsen
-        (by rw [AuxCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P1_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r1, hc1, hw1⟩
       step with dot_prep_chunk_word_digits_spec prep.fwd2 a b st en ntt.AUX_P2 ntt.AUX_M2
-        ntt.AUX_PSI2 ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_DOFF2 AuxCRT.magic2
-        o2 oi2 on2 od2 HachiEquiv.AuxProduct.psi2_ord HachiEquiv.AuxProduct.psi2_inv
-        HachiEquiv.AuxProduct.ninv2_inv doff2_val
+        ntt.AUX_PSI2 ntt.AUX_PSIINV2 ntt.AUX_NINV2 ntt.AUX_DOFF2 NttCRT.magic2
+        o2 oi2 on2 od2 HachiEquiv.NttProduct.psi2_ord HachiEquiv.NttProduct.psi2_inv
+        HachiEquiv.NttProduct.ninv2_inv doff2_val
         q2a q2c q2b hawe hbwe hbde hbe hsen
-        (by rw [AuxCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
+        (by rw [NttCRT.AUX_P2_val]; exact lt_of_le_of_lt hL (by norm_num))
         as ⟨r2, hc2, hw2⟩
-      rw [AuxCRT.AUX_P1_val] at hw1
-      rw [AuxCRT.AUX_P2_val] at hw2
+      rw [NttCRT.AUX_P1_val] at hw1
+      rw [NttCRT.AUX_P2_val] at hw2
       simp only [alloc.vec.Vec.with_capacity]
       step with prep2_garner_out_spec degU qwU r1 r2
         (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
@@ -2453,7 +2453,7 @@ theorem prep2_chunk_loop_spec (prep : ring.PreparedVec) (a b : alloc.vec.Vec rin
       step with HachiEquiv.Ring.add_spec d out1 hdw ho1wf as ⟨acc1, hacwf, hacv⟩
       refine ⟨by omega, hacwf, ?_, by omega⟩
       intro k hk
-      have hqq : HachiEquiv.AuxProduct.q = HachiEquiv.Field.q := rfl
+      have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
       rw [hacv k hk, hdv k hk, HachiEquiv.Ring.coeffK_eq_cast_wordN, ho1v k hk,
         hqq, ZMod.natCast_mod,
         offConvSumD_cast_q a b st.val en.val k hk hawe hbwe hbde,
@@ -2499,15 +2499,15 @@ theorem prepare_vec_two_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
       ⦃ z => z.len = nU
              ∧ PrepAt z.fwd1 a nU.val ntt.AUX_P1 ntt.AUX_PSI1
              ∧ PrepAt z.fwd2 a nU.val ntt.AUX_P2 ntt.AUX_PSI2 ⦄ := by
-  obtain ⟨hp1, _, _, _⟩ := HachiEquiv.AuxProduct.aux1_lt
-  obtain ⟨hp2, _, _, _⟩ := HachiEquiv.AuxProduct.aux2_lt
+  obtain ⟨hp1, _, _, _⟩ := HachiEquiv.NttProduct.aux1_lt
+  obtain ⟨hp2, _, _, _⟩ := HachiEquiv.NttProduct.aux2_lt
   rw [ring.prepare_vec_two]
   step with prepare_one_spec a nU ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
-    (((ntt.AUX_PSI1).val : ℕ) : ZMod (ntt.AUX_P1).val) AuxCRT.magic1 hp1 rfl
+    (((ntt.AUX_PSI1).val : ℕ) : ZMod (ntt.AUX_P1).val) NttCRT.magic1 hp1 rfl
     hawf han hmax as ⟨f1, hf1l, hf1c, hf1v⟩
   step with prepare_one_spec a nU ntt.AUX_P2 ntt.AUX_M2 ntt.AUX_PSI2
-    (((ntt.AUX_PSI2).val : ℕ) : ZMod (ntt.AUX_P2).val) AuxCRT.magic2 hp2 rfl
+    (((ntt.AUX_PSI2).val : ℕ) : ZMod (ntt.AUX_P2).val) NttCRT.magic2 hp2 rfl
     hawf han hmax as ⟨f2, hf2l, hf2c, hf2v⟩
   exact ⟨⟨le_of_eq hf1l.symm, hf1c, hf1v⟩, ⟨le_of_eq hf2l.symm, hf2c, hf2v⟩⟩
 
-end HachiEquiv.AuxFused
+end HachiEquiv.RingFused

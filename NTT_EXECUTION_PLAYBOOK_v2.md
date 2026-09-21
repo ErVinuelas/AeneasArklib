@@ -742,12 +742,12 @@ Build a mathematical layer independent of generated Rust definitions.
 Suggested logical organization:
 
 ```text
-hachi/lean/AuxNTT/Params.lean
-hachi/lean/AuxNTT/Arithmetic.lean
-hachi/lean/AuxNTT/Butterfly.lean
-hachi/lean/AuxNTT/Transform.lean
-hachi/lean/AuxNTT/Convolution.lean
-hachi/lean/AuxNTT/CRT.lean
+hachi/lean/NttMath/Params.lean
+hachi/lean/NttMath/Arithmetic.lean
+hachi/lean/NttMath/Butterfly.lean
+hachi/lean/NttMath/Transform.lean
+hachi/lean/NttMath/Convolution.lean
+hachi/lean/NttMath/CRT.lean
 ```
 
 Adapt names to repository style.
@@ -834,7 +834,7 @@ Aeneas theorem
    |
 representation bridge
    |
-pure AuxNTT operation
+pure NttMath operation
 ```
 
 ## 12.1 Arithmetic

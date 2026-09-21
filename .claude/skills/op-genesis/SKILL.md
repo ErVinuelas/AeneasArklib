@@ -253,8 +253,7 @@ the plan interleaves:
 * **Freezing an already-optimized body.** The one failure invisible from the
   numbers forever after — `rust-bench` §1 owns the late-recovery procedure
   (`git show` the *original* text); at the composition level the trap is
-  starting stage 2 from `Opt.lean` (which does not exist yet — the first
-  `lean-opt` run creates it and adds `Opt` to `roots`) or "improving while
+  starting stage 2 from an `Opt<Module>.lean` part or "improving while
   translating".
 * **A shared semantics bug at birth.** The digest oracle is parity, not truth:
   it catches a stale or divergent *copy* (frozen ≠ src → panic on the first

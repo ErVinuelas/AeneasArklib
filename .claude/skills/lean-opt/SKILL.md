@@ -27,22 +27,29 @@ debt is unusually concrete: an accepted champion's Rust swap breaks the
 structure, and `make build` is a hard gate, so the proof layer is the thing
 standing between a champion and main.
 
-## `Opt.lean` does not exist yet — creating it is step zero
+## The `Opt` layer is split per module — a missing part is step zero
 
-`hachi/lean/` holds `Generated`, `Field`, `Ring`, `Check` and nothing else.
-The first candidate this skill produces therefore does two things upstream
-never had to:
+`hachi/lean/Opt.lean` is an **umbrella**: it imports one part per `hachi/src`
+module the loop has optimized (`OptZeroCheck`, `OptSumcheck`, `OptRingSwitch`,
+`OptEvalSplit`, `OptRingShort`, plus `OptFold` for the generic fold lemmas the
+parts share), and `Check.lean` imports `Opt`. Every part opens
+`namespace HachiEquiv.Opt`, so a lemma's fully qualified name does not say
+which file it lives in — the ledger's `opt:` fields and the `#print axioms`
+lines never move when a part is split or merged.
 
-1. **Create `hachi/lean/Opt.lean`** — importing `Field` and `Ring` (it is
-   stated against their `toK` / `coeffK` / `Wf` / `negConv`), with
-   `set_option autoImplicit false` at the top like every other file here.
-2. **Add `` `Opt `` to `roots` in `hachi/lakefile.lean`**, between `` `Ring ``
-   and `` `Check ``, and `import Opt` from `hachi/lean/Check.lean`.
+A candidate for a module that has no part yet does two things upstream never
+had to:
+
+1. **Create `hachi/lean/Opt<Module>.lean`** — importing that module's spec
+   file (and `OptFold` if it folds), with `set_option autoImplicit false` at
+   the top like every other file here, and `namespace HachiEquiv.Opt`.
+2. **Add the new module to `roots` in `hachi/lakefile.lean`** next to the
+   other `Opt*` entries, and `import` it from `hachi/lean/Opt.lean`.
 
 Step 2 is not bookkeeping. Lake counts a module as part of a library only when
 one of the `roots` is a *prefix* of its name, and this library's modules are
 flat under `srcDir := "lean"` with no module named after the library to reach
-the rest through — so an unlisted `Opt.lean` is **silently not built**. The
+the rest through — so an unlisted part is **silently not built**. The
 failure that produces is the worst available: a lemma that looks proved,
 sits in the audited directory, and is never checked again. It is the same
 mistake `hachi/lean-wip/` exists to keep visible (see its `README.md`, whose
@@ -52,10 +59,10 @@ lakefile's own comment on `roots` spells the rule out. Verify by reading
 
 ## The opt-contract (source of truth)
 
-Every candidate consists of a change to `hachi/lean/Opt.lean`, its
+Every candidate consists of a change to the target module's `hachi/lean/Opt<Module>.lean` part, its
 `hachi/lean/Check.lean` § 4 audit line, and a candidate note. In full:
 
-1. **Placement + naming.** `Foo.opt` is declared in `hachi/lean/Opt.lean`,
+1. **Placement + naming.** `Foo.opt` is declared in the `hachi/lean/Opt<Module>.lean` part for the item's module,
    inside `namespace HachiEquiv.Opt`, its name extending the **item** it
    replaces rather than the spec (`Rq.mul.opt` for `hachi::ring::Rq::mul`).
    That is a deliberate difference from upstream, where spec def and Rust item

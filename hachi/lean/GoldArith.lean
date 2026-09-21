@@ -3,15 +3,15 @@ The **Goldilocks lane**: modular arithmetic at `p = 2^64 − 2^32 + 1`
 (candidate T27).
 
 This is the bottom of a *second* transform layer, and it plays the role
-`AuxArith.lean` plays for the three 30-bit auxiliary primes. It exists because
+`NttArith.lean` plays for the three 30-bit auxiliary primes. It exists because
 of one number: a digit-path dot has one operand below `GADGET_BASE`, so its
 whole `8192`-term product is bounded by `1.081·10^18` against this prime's
 `1.845·10^19`. One lane covers what two 30-bit primes need two lanes and four
 chunks for — and with one lane there is no CRT step at all.
 
-## Why this is not `AuxArith` with a different constant
+## Why this is not `NttArith` with a different constant
 
-`AuxArith`'s theorems are stated for an arbitrary `(p, m)` satisfying `Magic`,
+`NttArith`'s theorems are stated for an arbitrary `(p, m)` satisfying `Magic`,
 and `Magic` **requires `p < 2^32`** — its own docstring says that is what keeps
 a product of two residues inside a `u64`. Goldilocks products need a `u128`, so
 the existing layer cannot be instantiated here and the arithmetic starts again.
@@ -40,7 +40,7 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxGold
+namespace HachiEquiv.GoldArith
 
 /-- The Goldilocks prime, as a natural number. -/
 abbrev GP : ℕ := 18446744069414584321
@@ -276,7 +276,7 @@ theorem gold_reduce_spec (x : Std.U128) :
 
 /-- **`gold_mul` is `· * · mod p`, for any two words.** The product of two
 residues needs a `u128` — which is exactly what `Magic`'s `p < 2^32` exists to
-avoid, and therefore exactly why this lane cannot reuse `AuxArith`.
+avoid, and therefore exactly why this lane cannot reuse `NttArith`.
 No precondition: it inherits that from [`gold_reduce_spec`], so a caller
 holding unreduced words gets the right answer too. -/
 @[step]
@@ -305,4 +305,4 @@ theorem gold_mul_spec (a b : Std.U64) :
   exact ⟨by rw [hr.1, hwv], hr.2⟩
 
 
-end HachiEquiv.AuxGold
+end HachiEquiv.GoldArith

@@ -1,6 +1,6 @@
 /-
 The **extracted transform**: `hachi.ntt`'s generated loops shown to compute the
-word-level stage functions, and those shown to be `AuxNTT`'s ring-level stages
+word-level stage functions, and those shown to be `NttMath`'s ring-level stages
 under the obvious reading of a buffer as a function `ℕ → ZMod p`.
 
 ## The two-step shape, and why
@@ -12,7 +12,7 @@ loop proof would carry a cast on every line. Instead:
   with `% p` -- and [`dif_stage_spec`] says the generated code computes it. That
   half is pure loop bookkeeping: three nested loops, a canonicality invariant
   and a frame condition.
-* [`difWord_cast`] says `difWord` *is* `AuxNTT.difStage` once the words are read
+* [`difWord_cast`] says `difWord` *is* `NttMath.difStage` once the words are read
   as elements of `ZMod p`. That half is pure algebra and has no loops in it.
 
 Composing the two is what the transform proof uses. Splitting them is what keeps
@@ -26,8 +26,8 @@ statements quantify over all indices rather than only over the in-range ones.
 [`Canon`] is the representation invariant: exactly `NTT_LEN` entries, every one
 a canonical residue below `p`.
 -/
-import AuxArith
-import AuxNTT
+import NttArith
+import NttMath
 import Mathlib.Data.ZMod.Basic
 
 set_option autoImplicit false
@@ -35,9 +35,9 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxCode
+namespace HachiEquiv.NttStage
 
-open HachiEquiv.AuxArith
+open HachiEquiv.NttArith
 
 /-- The transform length, `N = 1024`. -/
 abbrev N : ℕ := 1024
@@ -444,7 +444,7 @@ theorem dif_stage_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usize)
 /-! ## From words to the ring
 
 `resK p v` reads a buffer as a function into `ZMod p`, and the word-level stage
-becomes `AuxNTT.difStage` under it. The `ω` the ring-level stage runs on is the
+becomes `NttMath.difStage` under it. The `ω` the ring-level stage runs on is the
 *square* of the root the table holds, which is where the factor of two in the
 code's `step` goes: `tw[(idx − half) · 2 · (N/len)] = ψ^(2·(idx−half)·(N/len))
 = ω^((idx−half)·(N/len))`.
@@ -456,11 +456,11 @@ def resK (p : ℕ) (v : alloc.vec.Vec Std.U64) (t : ℕ) : ZMod p := ((wordAt v 
 /-
 B2 deliverable: `difWord_cast`.
 
-This is a FRAGMENT of `HachiEquiv/AuxCode.lean`, to be spliced in place of the
-old `difWord_cast` (i.e. after `def resK`, before `end HachiEquiv.AuxCode`).
+This is a FRAGMENT of `HachiEquiv/NttStage.lean`, to be spliced in place of the
+old `difWord_cast` (i.e. after `def resK`, before `end HachiEquiv.NttStage`).
 It needs nothing that file does not already have: the existing imports
-(`AuxArith`, `AuxNTT`, `Mathlib.Data.ZMod.Basic`), `open HachiEquiv.AuxCode`
-and `open HachiEquiv.AuxArith`.
+(`NttArith`, `NttMath`, `Mathlib.Data.ZMod.Basic`), `open HachiEquiv.NttStage`
+and `open HachiEquiv.NttArith`.
 
 NO new helper lemmas are required.
 
@@ -488,11 +488,11 @@ is the hypothesis added below. -/
 example : ¬ (∀ (p half step : ℕ) (psi : ZMod p) (sw tww : ℕ → ℕ),
     (∀ e, ((tww e : ℕ) : ZMod p) = psi ^ e) → ∀ (t : ℕ),
     ((difWord p half (2 * step) sw tww t : ℕ) : ZMod p)
-      = AuxNTT.difStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t) := by
+      = NttMath.difStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t) := by
   intro h
   have hbad := h 5 1 1 1 (fun u => if u = 1 then 7 else 0) (fun _ => 1)
     (by intro e; simp) 1
-  simp [difWord, AuxNTT.difStage] at hbad
+  simp [difWord, NttMath.difStage] at hbad
   revert hbad
   decide
 
@@ -508,8 +508,8 @@ above. -/
 theorem difWord_cast (p half step : ℕ) (psi : ZMod p) (sw tww : ℕ → ℕ)
     (htw : ∀ e, ((tww e : ℕ) : ZMod p) = psi ^ e) (hsw : ∀ u, sw u < p) (t : ℕ) :
     ((difWord p half (2 * step) sw tww t : ℕ) : ZMod p)
-      = AuxNTT.difStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t := by
-  unfold difWord AuxNTT.difStage
+      = NttMath.difStage half step (psi ^ 2) (fun u => ((sw u : ℕ) : ZMod p)) t := by
+  unfold difWord NttMath.difStage
   by_cases h : t % (2 * half) < half
   · rw [if_pos h, if_pos h, ZMod.natCast_mod, Nat.cast_add]
   · rw [if_neg h, if_neg h, ZMod.natCast_mod, Nat.cast_mul, ZMod.natCast_mod, htw]
@@ -532,6 +532,6 @@ theorem spec_and {α} {m : Result α} {P Q : Post α} (hp : m ⦃ P ⦄) (hq : m
   unfold WP.spec WP.theta WP.wp_return
   cases m <;> grind
 
-end HachiEquiv.AuxCode
+end HachiEquiv.NttStage
 
 

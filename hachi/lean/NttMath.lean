@@ -5,7 +5,7 @@ Everything here is about an arbitrary commutative ring and an arbitrary root of
 unity in it. That is deliberate: the transform argument is the same at all three
 auxiliary primes, and separating it from `ZMod p` means the induction is stated
 once and instantiated three times, with no `NeZero` instance threaded through it.
-`AuxCode.lean` is the other half -- the extracted `hachi.ntt` functions shown to
+`NttStage.lean` is the other half -- the extracted `hachi.ntt` functions shown to
 compute these functions.
 
 ## The model
@@ -42,7 +42,7 @@ import Mathlib.Tactic.Ring
 
 set_option autoImplicit false
 
-namespace HachiEquiv.AuxNTT
+namespace HachiEquiv.NttMath
 
 variable {R : Type*} [CommRing R]
 
@@ -681,5 +681,5 @@ theorem twistConv (n : ℕ) (psi : R) (hpsi : psi ^ n = -1) (a b : ℕ → R)
     rw [hp']
     ring
 
-end HachiEquiv.AuxNTT
+end HachiEquiv.NttMath
 

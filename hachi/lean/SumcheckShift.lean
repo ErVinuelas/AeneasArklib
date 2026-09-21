@@ -50,7 +50,7 @@ open CompPoly CompPoly.CPolynomial CompPoly.Extension ArkLib.Lattices
 open ArkLib.Lattices.CyclotomicModulus ArkLib.Lattices.Ajtai
 open hachi
 
-namespace HachiEquiv.AuxShift
+namespace HachiEquiv.SumcheckShift
 
 open HachiEquiv.Field HachiEquiv.Ext HachiEquiv.Ring HachiEquiv.ZeroCheck
 
@@ -257,10 +257,10 @@ theorem shift_powers_loop_spec (x : cpoly.field.Ext4) (hx : Reduced x)
       · intro e he
         rw [hkk1] at he
         rcases Nat.lt_or_ge e kk.val with helt | hege
-        · rw [ho1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+        · rw [ho1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
           exact hov1 e helt
         · have heq : e = o.val.length := by omega
-          rw [heq, ho1, HachiEquiv.AuxGoldTransform.getD_append_eq', hol, hcv1]
+          rw [heq, ho1, HachiEquiv.GoldTransform.getD_append_eq', hol, hcv1]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : kk.val = 32 := by have := shift_deg_val; scalar_tac
@@ -478,10 +478,10 @@ theorem zero_fill_spec (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4)
       · intro t ht
         rw [hii1] at ht
         rcases Nat.lt_or_ge t ii.val with hc | hc
-        · rw [ha1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+        · rw [ha1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
           exact hav' t hc
         · have heq : t = a.val.length := by omega
-          rw [heq, ha1, HachiEquiv.AuxGoldTransform.getD_append_eq']
+          rw [heq, ha1, HachiEquiv.GoldTransform.getD_append_eq']
           exact HachiEquiv.Ext.toExt_ZERO
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -564,7 +564,7 @@ theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize
   · exact ⟨hy, halen, har, hav⟩
 
 
-/-- `Usize.max` is at least `2^32 - 1`; a local copy, as `AuxShort` has. -/
+/-- `Usize.max` is at least `2^32 - 1`; a local copy, as `RingShort` has. -/
 private theorem usize_max_ge4' : (4294967295 : ℕ) ≤ Std.Usize.max := by
   rw [Std.Usize.max_def]
   rcases System.Platform.numBits_eq with h | h <;> simp [Std.Usize.numBits, h]
@@ -633,11 +633,11 @@ theorem shift_powers_base_loop_spec (x : cpoly.field.Fp) (hx : Red x)
         rw [hkk1] at he
         rcases Nat.lt_or_ge e kk.val with helt | hege
         · unfold coeffK
-          rw [ho1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+          rw [ho1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
           exact hov1 e helt
         · have heq : e = o.val.length := by omega
           unfold coeffK
-          rw [heq, ho1, HachiEquiv.AuxGoldTransform.getD_append_eq', hol]
+          rw [heq, ho1, HachiEquiv.GoldTransform.getD_append_eq', hol]
           exact hcv1
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -855,10 +855,10 @@ theorem zero_fill_base_spec (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext
       · intro t ht
         rw [hii1] at ht
         rcases Nat.lt_or_ge t ii.val with hc | hc
-        · rw [ha1, HachiEquiv.AuxGoldTransform.getD_append_lt' _ _ _ (by omega)]
+        · rw [ha1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
           exact hav' t hc
         · have heq : t = a.val.length := by omega
-          rw [heq, ha1, HachiEquiv.AuxGoldTransform.getD_append_eq']
+          rw [heq, ha1, HachiEquiv.GoldTransform.getD_append_eq']
           exact HachiEquiv.Ext.toExt_ZERO
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -933,4 +933,4 @@ theorem pair_loop_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
   · exact ⟨hy, halen, har, hav⟩
 
 
-end HachiEquiv.AuxShift
+end HachiEquiv.SumcheckShift

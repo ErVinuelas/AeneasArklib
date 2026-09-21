@@ -3,7 +3,7 @@ The **three auxiliary primes** and the exactness of `hachi.ntt`'s CRT
 reconstruction.
 
 Two things live here. First, the prime-specific constants: each `(pᵢ, mᵢ)` pair
-shown to satisfy `AuxArith.Magic`, each root shown to have exact order `2N`, and
+shown to satisfy `NttArith.Magic`, each root shown to have exact order `2N`, and
 each `NINVᵢ`/`BOFFᵢ` shown to be what it claims. All of it by `decide` or
 `norm_num` on numerals -- these are closed arithmetic facts about 30-bit
 integers, so there is nothing to prove beyond naming them.
@@ -14,7 +14,7 @@ construction rests on, because it is what turns "correct modulo three primes"
 into "correct as an integer", and it is why `ntt.rs` can offset by `N·q²` and
 have the answer come out right mod `q`.
 -/
-import AuxArith
+import NttArith
 import Mathlib.Tactic.NormNum.Prime
 
 set_option autoImplicit false
@@ -22,9 +22,9 @@ set_option autoImplicit false
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxCRT
+namespace HachiEquiv.NttCRT
 
-open HachiEquiv.AuxArith
+open HachiEquiv.NttArith
 
 /-! ## The constants -/
 
@@ -364,5 +364,5 @@ theorem garner2_spec (r1 r2 : Std.U64) (x : ℕ) (hx : x < P12)
   step as ⟨z, hz⟩
   rw [hz, hi, AUX_P1_val, ht1eq, hq1]
 
-end HachiEquiv.AuxCRT
+end HachiEquiv.NttCRT
 

@@ -1,38 +1,38 @@
 /-
-The **Goldilocks transform** (candidate T27): `AuxTransform.lean`'s twiddle
+The **Goldilocks transform** (candidate T27): `NttTransform.lean`'s twiddle
 table, twist, DIT stage and the two transform loops, ported to the single
 64-bit lane.
 
-As in `AuxGoldCode.lean`, nothing structural is restated: `wordAt`, `Canon`,
+As in `GoldStage.lean`, nothing structural is restated: `wordAt`, `Canon`,
 `resK`, `difWord`, `ditWord` and the two ring-level bridges `difWord_cast` and
 `ditWord_cast` are already generic in the prime and are used here unchanged.
 What this file supplies is the arithmetic, which moves from `aux_*_lt` at a
-`Magic` prime to `AuxGold`'s specs at `GP`.
+`Magic` prime to `GoldArith`'s specs at `GP`.
 
 The untwist is the one function with no counterpart above: the two-prime path
 untwists and then reconstructs with `garner2` against an offset, while one lane
 holds the signed coefficient whole and lifts it centred. It is specified in
-`AuxGoldDot.lean`, beside the dot that is its only caller.
+`GoldDot.lean`, beside the dot that is its only caller.
 -/
-import AuxTransform
-import AuxGold
-import AuxGoldCode
-import AuxGoldFused
+import NttTransform
+import GoldArith
+import GoldStage
+import GoldFusedStage
 
 set_option autoImplicit false
 
 open Aeneas Aeneas.Std Aeneas.Std.WP Result
 open hachi
 
-namespace HachiEquiv.AuxGoldTransform
+namespace HachiEquiv.GoldTransform
 
-open HachiEquiv.AuxCode HachiEquiv.AuxTransform HachiEquiv.AuxGold
-open HachiEquiv.AuxGoldCode
+open HachiEquiv.NttStage HachiEquiv.NttTransform HachiEquiv.GoldArith
+open HachiEquiv.GoldStage
 
 theorem GP_pos : 0 < GP := by norm_num
 theorem GP_two_le : 2 ≤ GP := by norm_num
 
-/-! ## `AuxTransform`'s private helpers, restated in source order
+/-! ## `NttTransform`'s private helpers, restated in source order
 
 Every one is already generic in the prime; they are `private` there, so they
 are repeated verbatim rather than generalised. -/
@@ -195,8 +195,8 @@ theorem stage_idx_lt (half t : ℕ) (hh : 0 < half) (hdvd : 2 * half ∣ N)
 theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : R)
     (hh : 0 < half) (hdvd : 2 * half ∣ N) (f f' : ℕ → R)
     (hff : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.difStage half step om f t = AuxNTT.difStage half step om f' t := by
-  unfold AuxNTT.difStage
+    NttMath.difStage half step om f t = NttMath.difStage half step om f' t := by
+  unfold NttMath.difStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hff t ht, hff (t + half) (stage_idx_lt half t hh hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hff t ht, hff (t - half) (by omega)]
@@ -205,15 +205,15 @@ theorem difStage_congr {R : Type*} [CommRing R] (half step : ℕ) (om : R)
 theorem ditStage_congr {R : Type*} [CommRing R] (half step : ℕ) (omi : R)
     (hh : 0 < half) (hdvd : 2 * half ∣ N) (f f' : ℕ → R)
     (hff : ∀ u, u < N → f u = f' u) (t : ℕ) (ht : t < N) :
-    AuxNTT.ditStage half step omi f t = AuxNTT.ditStage half step omi f' t := by
-  unfold AuxNTT.ditStage
+    NttMath.ditStage half step omi f t = NttMath.ditStage half step omi f' t := by
+  unfold NttMath.ditStage
   by_cases hc : t % (2 * half) < half
   · rw [if_pos hc, if_pos hc, hff t ht, hff (t + half) (stage_idx_lt half t hh hdvd ht hc)]
   · rw [if_neg hc, if_neg hc, hff t ht, hff (t - half) (by omega)]
 
 theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
     ∀ (k : ℕ), 2 ^ k ∣ N → ∀ (step : ℕ) (f f' : ℕ → R), (∀ u, u < N → f u = f' u) →
-      ∀ t, t < N → AuxNTT.difRun om k step f t = AuxNTT.difRun om k step f' t := by
+      ∀ t, t < N → NttMath.difRun om k step f t = NttMath.difRun om k step f' t := by
   intro k
   induction k with
   | zero => intro _ step f f' hff t ht; simpa using hff t ht
@@ -221,7 +221,7 @@ theorem difRun_congr {R : Type*} [CommRing R] (om : R) :
       intro hdvd step f f' hff t ht
       have hd2 : 2 * 2 ^ k ∣ N := by rw [show 2 * 2 ^ k = 2 ^ (k + 1) by ring]; exact hdvd
       have hdk : (2 : ℕ) ^ k ∣ N := dvd_trans (pow_dvd_pow 2 (Nat.le_succ k)) hdvd
-      rw [AuxNTT.difRun_succ, AuxNTT.difRun_succ]
+      rw [NttMath.difRun_succ, NttMath.difRun_succ]
       refine ih hdk (step * 2) _ _ ?_ t ht
       intro u hu
       exact difStage_congr (2 ^ k) step om (Nat.two_pow_pos k) hd2 f f' hff u hu
@@ -589,7 +589,7 @@ theorem gold_dit_stage_loop0_loop1_spec (src dst tw : alloc.vec.Vec Std.U64)
 
 /-- The outer loop of `dit_stage`: block starts below `start` already hold the
 stage's value, and the loop finishes the buffer. The mirror of
-`AuxCode.dif_stage_loop0_spec`. -/
+`NttStage.dif_stage_loop0_spec`. -/
 theorem gold_dit_stage_loop0_spec (src dst tw : alloc.vec.Vec Std.U64) (len : Std.Usize)
     (half step start : Std.Usize) 
     (hsrc : Canon GP src) (hdst : Canon GP dst) (htw : Canon GP tw)
@@ -713,7 +713,7 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
     (psi : ZMod GP) (hpsi : ∀ e, e < N → resK GP tw e = psi ^ e)
     (g : ℕ → ZMod GP)
     (hinv : ∀ t, t < N →
-      AuxNTT.difRun (psi ^ 2) (2 * k) (2 ^ (10 - 2 * k)) (resK GP cur) t = g t) :
+      NttMath.difRun (psi ^ 2) (2 * k) (2 ^ (10 - 2 * k)) (resK GP cur) t = g t) :
     ntt.gold_forward_loop tw cur tmp len
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N → resK GP z.1 t = g t ⦄ := by
@@ -723,7 +723,7 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
     (fun s => Canon GP s.1 ∧ Canon GP s.2.1
       ∧ ∃ i, i ≤ 5 ∧ s.2.2.val = 2 ^ (2 * i)
         ∧ ∀ t, t < N →
-            AuxNTT.difRun (psi ^ 2) (2 * i) (2 ^ (10 - 2 * i)) (resK GP s.1) t = g t)
+            NttMath.difRun (psi ^ 2) (2 * i) (2 ^ (10 - 2 * i)) (resK GP s.1) t = g t)
   · rintro ⟨c, d, l⟩ ⟨hc, hd, i, hi, hli, hvi⟩
     dsimp only at hc hd hli hvi
     simp only [ntt.gold_forward_loop.body]
@@ -738,7 +738,7 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
       have hm4 : m ≤ 4 := by omega
       have hk9 : 2 * m < 9 := by omega
       have hlk : l.val = 2 ^ (2 * m + 2) := by rw [hli]; congr 1
-      step with AuxGoldFused.gold_dif_stage2_spec c d tw l (2 * m) hk9 hlk hc hd htw
+      step with GoldFusedStage.gold_dif_stage2_spec c d tw l (2 * m) hk9 hlk hc hd htw
         as ⟨fl, hcf, hwf⟩
       step as ⟨l2, hl2⟩
       have hswc : ∀ u, wordAt c u < GP := fun u => wordAt_lt hc GP_pos u
@@ -758,8 +758,8 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
       -- the fused pass, read in the ring: two stages, not one
       have hres : ∀ t, t < N →
           resK GP fl t
-            = AuxNTT.difStage (2 ^ (2 * m)) (2 ^ (9 - 2 * m)) (psi ^ 2)
-                (AuxNTT.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2)
+            = NttMath.difStage (2 ^ (2 * m)) (2 ^ (9 - 2 * m)) (psi ^ 2)
+                (NttMath.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2)
                   (resK GP c)) t := by
         intro t ht
         have h1 : wordAt fl t
@@ -770,7 +770,7 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
           exact difWord_tw_congr GP (2 * m) (by omega) _ (wordAt tw) (psiRep psi) hag t
         have hmid : (fun u => ((difWord GP (2 ^ (2 * m + 1)) (2 * 2 ^ (8 - 2 * m))
               (wordAt c) (psiRep psi) u : ℕ) : ZMod GP))
-            = AuxNTT.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2) (resK GP c) :=
+            = NttMath.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2) (resK GP c) :=
           funext (fun u => difWord_cast GP (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) psi
             (wordAt c) (psiRep psi) (psiRep_cast GP_pos psi) hswc u)
         have hlt2 : ∀ u, difWord GP (2 ^ (2 * m + 1)) (2 * 2 ^ (8 - 2 * m))
@@ -781,20 +781,20 @@ theorem gold_forward_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
             (psiRep_cast GP_pos psi) hlt2 t, hmid]
       -- the invariant, advanced by TWO stages
       have hnext : ∀ t, t < N →
-          AuxNTT.difRun (psi ^ 2) (2 * m) (2 ^ (10 - 2 * m)) (resK GP fl) t = g t := by
+          NttMath.difRun (psi ^ 2) (2 * m) (2 ^ (10 - 2 * m)) (resK GP fl) t = g t := by
         intro t ht
         have hdvd : (2 : ℕ) ^ (2 * m) ∣ N := by
           rw [show N = 2 ^ 10 by norm_num]
           exact pow_dvd_pow 2 (by omega)
         rw [difRun_congr (psi ^ 2) (2 * m) hdvd (2 ^ (10 - 2 * m)) (resK GP fl)
-              (AuxNTT.difStage (2 ^ (2 * m)) (2 ^ (9 - 2 * m)) (psi ^ 2)
-                (AuxNTT.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2)
+              (NttMath.difStage (2 ^ (2 * m)) (2 ^ (9 - 2 * m)) (psi ^ 2)
+                (NttMath.difStage (2 ^ (2 * m + 1)) (2 ^ (8 - 2 * m)) (psi ^ 2)
                   (resK GP c))) hres t ht]
         rw [← hvi t ht, show 10 - 2 * (m + 1) = 8 - 2 * m by omega,
-          show 2 * (m + 1) = 2 * m + 1 + 1 by ring, AuxNTT.difRun_succ,
+          show 2 * (m + 1) = 2 * m + 1 + 1 by ring, NttMath.difRun_succ,
           show (2 : ℕ) ^ (8 - 2 * m) * 2 = 2 ^ (9 - 2 * m) by
             rw [show 9 - 2 * m = (8 - 2 * m) + 1 by omega, pow_succ],
-          AuxNTT.difRun_succ,
+          NttMath.difRun_succ,
           show (2 : ℕ) ^ (9 - 2 * m) * 2 = 2 ^ (10 - 2 * m) by
             rw [show 10 - 2 * m = (9 - 2 * m) + 1 by omega, pow_succ]]
       have hl2v : l2.val = 2 ^ (2 * m) := by
@@ -831,11 +831,11 @@ theorem gold_forward_spec (cur tmp tw : alloc.vec.Vec Std.U64)
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N →
                  resK GP z.1 t
-                   = AuxNTT.difRun (psi ^ 2) 10 1 (resK GP cur) t ⦄ := by
+                   = NttMath.difRun (psi ^ 2) 10 1 (resK GP cur) t ⦄ := by
   rw [ntt.gold_forward]
   exact gold_forward_loop_spec tw cur tmp ntt.NTT_LEN 5 (le_refl 5)
     (by rw [ntt_NTT_LEN_val]; norm_num) hcur htmp htw psi hpsi
-    (AuxNTT.difRun (psi ^ 2) 10 1 (resK GP cur)) (by intro t _; norm_num)
+    (NttMath.difRun (psi ^ 2) 10 1 (resK GP cur)) (by intro t _; norm_num)
 
 -- Insert before `gold_inverse_spec`.
 
@@ -852,18 +852,18 @@ theorem gold_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
     (psii : ZMod GP) (hpsi : ∀ e, e < N → resK GP tw e = psii ^ e)
     (f : ℕ → ZMod GP)
     (hinv : ∀ t, t < N →
-      resK GP cur t = AuxNTT.ditRun (psii ^ 2) k (2 ^ (10 - k)) f t) :
+      resK GP cur t = NttMath.ditRun (psii ^ 2) k (2 ^ (10 - k)) f t) :
     ntt.gold_inverse_loop tw cur tmp len
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N →
-                 resK GP z.1 t = AuxNTT.ditRun (psii ^ 2) 10 1 f t ⦄ := by
+                 resK GP z.1 t = NttMath.ditRun (psii ^ 2) 10 1 f t ⦄ := by
   have hag : ∀ e, e < N → wordAt tw e = psiRep psii e := tw_agree' GP tw GP_pos htw psii hpsi
   rw [ntt.gold_inverse_loop]
   apply loop.spec_decr_nat (fun s => 2 * N - s.2.2.val)
     (fun s => Canon GP s.1 ∧ Canon GP s.2.1
       ∧ ∃ i, i ≤ 10 ∧ s.2.2.val = 2 ^ (i + 1)
         ∧ ∀ t, t < N →
-            resK GP s.1 t = AuxNTT.ditRun (psii ^ 2) i (2 ^ (10 - i)) f t)
+            resK GP s.1 t = NttMath.ditRun (psii ^ 2) i (2 ^ (10 - i)) f t)
   · rintro ⟨c, d, l⟩ ⟨hc, hd, i, hi, hli, hvi⟩
     dsimp only at hc hd hli hvi
     simp only [ntt.gold_inverse_loop.body]
@@ -886,7 +886,7 @@ theorem gold_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
       have hstride : N / 2 ^ (i + 1) = 2 ^ (9 - i) := N_div_pow i hi9
       have hres : ∀ t, t < N →
           resK GP fl t
-            = AuxNTT.ditStage (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (resK GP c) t := by
+            = NttMath.ditStage (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (resK GP c) t := by
         intro t ht
         have h1 : wordAt fl t
             = ditWord GP (2 ^ i) (2 * (N / 2 ^ (i + 1))) (wordAt c) (psiRep psii) t := by
@@ -896,16 +896,16 @@ theorem gold_inverse_loop_spec (tw cur tmp : alloc.vec.Vec Std.U64)
         exact ditWord_cast GP (2 ^ i) (2 ^ (9 - i)) psii (wordAt c) (psiRep psii)
           (psiRep_cast GP_pos psii) hswc (psiRep_lt GP_pos psii) t
       have hnext : ∀ t, t < N →
-          resK GP fl t = AuxNTT.ditRun (psii ^ 2) (i + 1) (2 ^ (10 - (i + 1))) f t := by
+          resK GP fl t = NttMath.ditRun (psii ^ 2) (i + 1) (2 ^ (10 - (i + 1))) f t := by
         intro t ht
         have hd2 : 2 * 2 ^ i ∣ N := by
           rw [show 2 * 2 ^ i = 2 ^ (i + 1) by ring, show N = 2 ^ 10 by norm_num]
           exact pow_dvd_pow 2 (by omega)
         have he1 : (2 : ℕ) ^ (9 - i) * 2 = 2 ^ (10 - i) := by
           rw [show 10 - i = (9 - i) + 1 by omega, pow_succ]
-        rw [hres t ht, show 10 - (i + 1) = 9 - i by omega, AuxNTT.ditRun_succ, he1]
+        rw [hres t ht, show 10 - (i + 1) = 9 - i by omega, NttMath.ditRun_succ, he1]
         exact ditStage_congr (2 ^ i) (2 ^ (9 - i)) (psii ^ 2) (Nat.two_pow_pos i) hd2
-          (resK GP c) (AuxNTT.ditRun (psii ^ 2) i (2 ^ (10 - i)) f) hvi t ht
+          (resK GP c) (NttMath.ditRun (psii ^ 2) i (2 ^ (10 - i)) f) hvi t ht
       have hp2 : (2 : ℕ) ^ (i + 1 + 1) = 2 * 2 ^ (i + 1) := by ring
       have hl2v : l2.val = 2 ^ (i + 1 + 1) := by rw [hl2, hli]; ring
       exact ⟨hcf, hc, ⟨i + 1, by omega, hl2v, hnext⟩, by
@@ -937,11 +937,11 @@ theorem gold_inverse_spec (cur tmp tw : alloc.vec.Vec Std.U64)
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N →
                  resK GP z.1 t
-                   = AuxNTT.ditRun (psii ^ 2) 10 1 (resK GP cur) t ⦄ := by
+                   = NttMath.ditRun (psii ^ 2) 10 1 (resK GP cur) t ⦄ := by
   rw [ntt.gold_inverse]
   exact gold_inverse_loop_spec tw cur tmp 2#usize 0 (by norm_num)
     (by simp) hcur htmp htw psii hpsi (resK GP cur) (by intro t _; simp)
 
 
 
-end HachiEquiv.AuxGoldTransform
+end HachiEquiv.GoldTransform
