@@ -9773,3 +9773,51 @@ one more datapoint before anyone treats 39.8 s as real.
 
 **1170.8 → 521.3 is −55.5% for the day**, and puts the verified crate at
 **1.02–1.16×** the paper's own implementation at ℓ = 30 on this laptop.
+
+## Card G1: `gadget_decompose` was paying for its own growth (2026-09-21)
+
+The phase split put `gadget_decompose` at ~51 s of the prover, and it is run
+over the whole message **twice** — once in the commitment pass, once in the z
+pass. Those cannot share a result: the challenge that drives the z pass is not
+known when the commitment runs, so the recomputation is forced by the protocol
+order rather than by the code. That leaves making the function itself faster.
+
+T11 tried that in September and rejected on its own gate, attacking the digit
+arithmetic. It was right about the arithmetic — the extraction is shifts, not
+divisions — but it measured a test-side prototype, and 2026-09-20 showed what
+those are worth. The lever it did not pull is allocation:
+
+```rust
+let mut out: Vec<Rq> = Vec::new();          // rows * digits pushes of an 8 KiB Rq
+…
+    let mut coeffs: Vec<Fp> = Vec::new();   // rebuilt from empty, digits times per row
+```
+
+Pre-sizing both:
+
+| | `cand vs now` |
+|---|---|
+| `gadget/gadget_decompose/1024`, run 1 | **−6.5%** |
+| `gadget/gadget_decompose/1024`, run 2 | **−7.8%** |
+
+Two independent runs, because a single-row target needs them.
+
+### The half that was dropped
+
+The first cut also hoisted `x.get(i)` out of the coefficient loop. Measured
+*together*, the pair read −5.5% and −5.7%; `with_capacity` **alone** reads
+−6.5% and −7.8%. So the hoist contributed nothing measurable — and it moves
+the extracted loops' parameter lists, which broke three nested specs in
+`Scheme.lean`. Dropping it cost no performance and saved the proof. Worth
+remembering as a shape: when two changes ride together and the cheap one is
+doing all the work, measuring them apart is what reveals it.
+
+**The proof is four lines.** `Vec::with_capacity n` is definitionally
+`Vec.new`, so two `simp only [alloc.vec.Vec.with_capacity]` restore the shape
+the existing specs are stated at; the capacity multiply arrives as a discarded
+monadic step and takes one `step`.
+
+**The pin effect is not separately measured.** ~51 s × 7% is about 3.6 s,
+0.7% of the prover, and this profile demonstrated 4 s of phase variance on an
+untouched phase yesterday. Claiming a measured delta from a run that cannot
+resolve it would be worse than saying so; it rides in the next card's profile.

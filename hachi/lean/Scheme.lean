@@ -1910,6 +1910,7 @@ theorem gadget_decompose_digit_loop_spec {rows : ℕ} (x : linalg.PolyVec)
       have hinner := gadget_decompose_coeff_loop_spec x degree i e1
         (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hx hdeg hi helt (by simp) (by simp)
         (by intro u hu; simp at hu) (by intro t ht; simp at ht)
+      simp only [alloc.vec.Vec.with_capacity]
       step with hinner as ⟨cs, hcslen, hcsred, hcsval⟩
       step with RqBridge.from_coeffs_spec cs hcsred as ⟨rr, hWrr, hrr⟩
       step as ⟨o2, ho2⟩
@@ -2015,7 +2016,10 @@ theorem gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec) (hx : WfVec rows
   have hdig : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hdeg : (params.RING_DEGREE).val = N := by simp
   rw [gadget.gadget_decompose]
-  simp only [linalg.PolyVec.len, linalg.PolyVec.new, bind_ok_id]
+  simp only [linalg.PolyVec.len, linalg.PolyVec.new, bind_ok_id,
+    alloc.vec.Vec.with_capacity]
+  -- the pre-sizing multiply, whose result `with_capacity` discards
+  step as ⟨cap, hcap⟩
   apply spec_mono (gadget_decompose_outer_loop_spec x params.GADGET_DIGITS
     params.RING_DEGREE (alloc.vec.Vec.len x) (alloc.vec.Vec.new ring.Rq) 0#usize
     hx hmax hdig hdeg (by simpa using hx.1) (by simp) (by simp)

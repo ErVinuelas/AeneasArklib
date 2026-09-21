@@ -224,12 +224,18 @@ pub fn gadget_decompose(x: &PolyVec) -> PolyVec {
     let digits: usize = params::GADGET_DIGITS;
     let degree: usize = params::RING_DEGREE;
     let rows: usize = x.len();
-    let mut out: Vec<Rq> = Vec::new();
+    // Both accumulators are pre-sized. The old shape grew `out` from empty
+    // across `rows * digits` pushes -- each element an 8 KiB `Rq` -- and
+    // rebuilt `coeffs` from empty for each of the `digits` passes. Hoisting
+    // `x.get(i)` out of the coefficient loop was measured alongside this and
+    // dropped: it moves the extracted loops' parameters and so costs three
+    // nested specs in `Scheme.lean`, for a share of a win this already takes.
+    let mut out: Vec<Rq> = Vec::with_capacity(rows * digits);
     let mut i: usize = 0;
     while i < rows {
         let mut e: usize = 0;
         while e < digits {
-            let mut coeffs: Vec<Fp> = Vec::new();
+            let mut coeffs: Vec<Fp> = Vec::with_capacity(degree);
             let mut k: usize = 0;
             while k < degree {
                 coeffs.push(digit_at(x.get(i).coeff(k), e));
