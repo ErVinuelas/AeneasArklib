@@ -934,4 +934,86 @@ theorem limb_dot_loop_spec (prep : ring.PreparedVecL2)
       exact ⟨hdw, fun k hk => by rw [hdv k hk, heq]⟩
   · exact ⟨hs, hacc, hval⟩
 
+/-- **`ring::dot_prepared_limbs2`.** The value `dot_prepared_spec` computes,
+from one Goldilocks lane and two limbs instead of three primes and a CRT. The
+statement is `dot_prepared_spec`'s word for word. -/
+theorem dot_prepared_limbs2_spec (prep : ring.PreparedVecL2)
+    (a a0 a1 b : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbn : nU.val ≤ b.val.length)
+    (hl : LimbsOf a a0 a1 nU.val)
+    (hp0 : PrepAtLimb prep.f0 a0 nU.val) (hp1 : PrepAtLimb prep.f1 a1 nU.val) :
+    ring.dot_prepared_limbs2 prep b nU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  rw [ring.dot_prepared_limbs2]
+  have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q (HachiEquiv.NttCRT.u64_le_u128_max _)
+  step with hcq as ⟨qw, hqw⟩
+  rw [HachiEquiv.Field.params_Q_val] at hqw
+  step with HachiEquiv.Ring.zero_spec as ⟨z, hWz, hzv⟩
+  exact limb_dot_loop_spec prep a a0 a1 b nU params.RING_DEGREE qw z 0#usize
+    hbw hbn hl hp0 hp1 HachiEquiv.Ring.params_RING_DEGREE_val hqw (by simp) hWz
+    (by intro k hk; rw [hzv k]; simp)
+
+/-! ## Preparation
+
+`limb_at` twice, then the landed single-lane preparation twice. The only new
+content is assembling `LimbsOf` -- the two limbs reconstruct `a` -- out of
+`limb_at_spec`'s division form through `coeffK_of_limbs`. -/
+
+theorem prepare_vec_limbs2_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hmax : nU.val * N ≤ Std.Usize.max) :
+    ring.prepare_vec_limbs2 a nU
+      ⦃ prep => ∃ a0 a1, LimbsOf a a0 a1 nU.val
+          ∧ PrepAtLimb prep.f0 a0 nU.val ∧ PrepAtLimb prep.f1 a1 nU.val ⦄ := by
+  have hq : (0 : ℕ) < HachiEquiv.NttProduct.q := by
+    simp only [HachiEquiv.NttProduct.q]; norm_num
+  have hbq : (65536 : ℕ) ≤ HachiEquiv.NttProduct.q := by
+    simp only [HachiEquiv.NttProduct.q]; norm_num
+  rw [ring.prepare_vec_limbs2]
+  step with limb_at_spec a nU 1#u64 65536#u64 (by simp) (by simp) (by simpa using hbq)
+    han haw as ⟨l0, hl0len, hl0wf, hl0bd, hl0v⟩
+  step with limb_at_spec a nU 65536#u64 65536#u64 (by simp) (by simp)
+    (by simpa using hbq) han haw as ⟨l1, hl1len, hl1wf, hl1bd, hl1v⟩
+  have hmem : ∀ (v : alloc.vec.Vec ring.Rq), v.val.length = nU.val →
+      (∀ x ∈ v.val, HachiEquiv.Ring.Wf x) →
+      ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+        (v.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := by
+    intro v hvl hvw u hu
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    exact hvw _ (List.getElem_mem (by omega))
+  have hmemb : ∀ (v : alloc.vec.Vec ring.Rq), v.val.length = nU.val →
+      (∀ x ∈ v.val, BoundedWf 65536 x) →
+      ∀ u, u < nU.val → BoundedWf 65536
+        (v.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := by
+    intro v hvl hvw u hu
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    exact hvw _ (List.getElem_mem (by omega))
+  have hw0 := hmem l0 hl0len hl0wf
+  have hw1 := hmem l1 hl1len hl1wf
+  have hb0 := hmemb l0 hl0len hl0bd
+  have hb1 := hmemb l1 hl1len hl1bd
+  step with HachiEquiv.GoldDot.prepare_one_gold_spec l0 nU hw0 (by omega) hmax
+    as ⟨f0, hf0l, hf0c, hf0v⟩
+  step with HachiEquiv.GoldDot.prepare_one_gold_spec l1 nU hw1 (by omega) hmax
+    as ⟨f1, hf1l, hf1c, hf1v⟩
+  refine ⟨l0, l1, ⟨hw0, hw1, hb0, hb1, ?_⟩, ⟨by omega, hf0c, hf0v⟩,
+    ⟨by omega, hf1c, hf1v⟩⟩
+  intro u hu t
+  refine coeffK_of_limbs _ _ _ (haw u hu) ?_ ?_ ?_ ?_ t
+  · exact (hw0 u hu).1
+  · exact (hw1 u hu).1
+  · intro t' ht'
+    have := hl0v u hu t' ht'
+    simpa using this
+  · intro t' ht'
+    have := hl1v u hu t' ht'
+    simpa using this
+
 end HachiEquiv.RingLimb
