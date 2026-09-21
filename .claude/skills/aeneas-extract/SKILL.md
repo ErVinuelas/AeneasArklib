@@ -276,6 +276,8 @@ extract, and are still not worth it", "The cpoly dependency" are the record.
 
 | fused four-write inner loop: four `Vec.set`s per iteration at four separated indices (2026-09-20) | two loops, states `(dst, j)` and `(dst, start)` -- both still 2-tuples; zero axioms | measured on `ntt::gold_dif_stage2`; non-monotone write order costs the model nothing, and `j * step1` / `(j + quarter) * step1` index arithmetic extracts as ordinary monadic `Usize` multiplication (each doubling needs its operand bounded in context, or `step` leaves the overflow side goal behind) |
 
+| `match` on a custom enum, two variants carrying `Vec` payloads (2026-09-21) | a real `inductive` with `@[discriminant isize]`, and a native Lean `match`; zero axioms, nothing opaque | probed for wall W2's lazy `R^lin`, whose statement must be *either* a dense matrix *or* the ingredients it would have been assembled from. Returning a shared borrow out of a variant also works (`| Dense v => ok v`), and an arm that returns a constant allocates nothing, which is the point of the card |
+
 Unprobed (add a measured row on first contact — closures, const generics,
 generic functions, `u128` division, trait objects,
 …). And the permanent ceiling: no `unsafe` (the crate `forbid`s it), no SIMD
