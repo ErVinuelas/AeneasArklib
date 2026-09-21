@@ -472,3 +472,80 @@ theorem prep_garner_ga_out_spec (degU : Std.Usize) (qwU : Std.U128)
       exact ⟨⟨by rw [hlen1, heq], hred1⟩,
         fun k hk => hval1 k (by rw [heq]; exact hk)⟩
   · exact ⟨ht, hlen, hred, hval⟩
+
+/-! ## The chunk, at word level
+
+`RingFused.dot_prep_chunk_word_spec`'s conversion applied to the Goldilocks
+lane: the `ZMod GP` statement read back as a residue of `offConvSum`. The
+argument is the prime-independent one -- `offConvSum` is a natural number, its
+cast agrees with the lane's value, and the lane's words are canonical -- so
+only the offset identity is specific. -/
+
+@[simp] theorem GOLD_BOFF_val :
+    (ntt.GOLD_BOFF).val = HachiEquiv.NttProduct.BOUND % GP := by
+  simp only [ntt.GOLD_BOFF, HachiEquiv.NttProduct.BOUND]; decide +kernel
+
+set_option maxRecDepth 8192 in
+theorem dot_prep_chunk_gold_word_spec (pfwd : alloc.vec.Vec Std.U64)
+    (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
+    (hpl : endU.val * N ≤ pfwd.val.length)
+    (hpv : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP pfwd (j * N + t)
+          = NttMath.difRun ((((ntt.GOLD_PSI.val : ℕ) : ZMod GP)) ^ 2) 10 1
+              (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a j)) t)
+    (hpc : ∀ u ∈ pfwd.val, u.val < GP)
+    (hawf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbe : endU.val ≤ b.val.length)
+    (hse : startU.val ≤ endU.val) (hwidth : endU.val ≤ 8192) :
+    ring.dot_prep_chunk_gold pfwd b startU endU ntt.GOLD_BOFF
+      ⦃ z => Canon GP z ∧ ∀ k, k < N → wordAt z k
+              = offConvSum a b startU.val endU.val k % GP ⦄ := by
+  have hppos : 0 < GP := GoldDot.GP_pos
+  have hboffl : (ntt.GOLD_BOFF).val < GP := by
+    rw [GOLD_BOFF_val]; exact Nat.mod_lt _ GoldDot.GP_pos
+  apply spec_mono (dot_prep_chunk_gold_spec pfwd a b startU endU ntt.GOLD_BOFF
+    hboffl hpl hpv hpc hbwf hbe hse hwidth)
+  rintro z ⟨hcanon, hval⟩
+  refine ⟨hcanon, ?_⟩
+  intro k hk
+  have hnb := negQ_sum_le a b startU.val endU.val k hawf hbwf
+  have hle : (∑ u ∈ Finset.Ico startU.val endU.val,
+        HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+             (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+      ≤ (∑ u ∈ Finset.Ico startU.val endU.val,
+          HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+        + (endU.val - startU.val) * HachiEquiv.NttProduct.BOUND :=
+    le_trans hnb (Nat.le_add_left _ _)
+  have hoff : ((offConvSum a b startU.val endU.val k : ℕ) : ZMod GP)
+      = ((∑ u ∈ Finset.Ico startU.val endU.val,
+            HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                 (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP)
+        + (((endU.val - startU.val) * HachiEquiv.NttProduct.BOUND : ℕ) : ZMod GP)
+        - ((∑ u ∈ Finset.Ico startU.val endU.val,
+            HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                 (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP) := by
+    unfold offConvSum
+    rw [Nat.cast_sub hle, Nat.cast_add]
+  have hcast : ((wordAt z k : ℕ) : ZMod GP)
+      = ((offConvSum a b startU.val endU.val k : ℕ) : ZMod GP) := by
+    have h1 := hval k hk
+    rw [resK] at h1
+    rw [h1, hoff]
+    have hterm : ∀ u, NttMath.negConvR N (entryK GP a u) (entryK GP b u) k
+        = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP)
+          - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP) := by
+      intro u
+      rw [NttMath.negConvR, ordConv_entryK_pos GP a b u k hk,
+        ordConv_entryK_neg GP a b u k hk]
+    rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
+    push_cast
+    rw [GOLD_BOFF_val, ZMod.natCast_mod]
+    push_cast
+    ring
+  exact HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hcanon hppos k) hcast
