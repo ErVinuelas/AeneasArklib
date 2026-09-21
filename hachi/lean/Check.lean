@@ -1916,6 +1916,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.GoldDot.load_twisted_into_spec
 #print axioms HachiEquiv.GoldDot.gold_mac_off_spec
 #print axioms HachiEquiv.RingLimb.limb_terms_spec
+#print axioms HachiEquiv.RingLimb.lane_words_eq
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt

@@ -465,4 +465,57 @@ theorem limb_terms_spec (f0 f1 : alloc.vec.Vec Std.U64)
       exact ⟨hcd0, hcd1, hcsc, by rw [heq] at hw0; exact hw0, by rw [heq] at hw1; exact hw1⟩
   · exact ⟨hjs, hje, hacc0C, hacc1C, hscC, hbufl, hval0, hval1⟩
 
+/-! ## One lane's read-back
+
+`gold_dot_spec`'s `hwordv` step, factored so the two lanes share it: given an
+untwisted buffer whose residues are the offset convolution sum, its *words*
+are `offConvSumB`, because that natural number fits `GP` whole. -/
+
+theorem lane_words_eq (B C : ℕ) (a b : alloc.vec.Vec ring.Rq)
+    (words : alloc.vec.Vec Std.U64) (scaled : Std.U64) (st en : ℕ)
+    (hwC : Canon GP words)
+    (had : ∀ u, u < en → BoundedWf B (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hawf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbwf : ∀ u, u < en → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hL : en - st ≤ C) (hfit : 2 * C * BOUNDB B < GP)
+    (hscaled : ((scaled.val : ℕ) : ZMod GP) = (((en - st) * BOUNDB B : ℕ) : ZMod GP))
+    (hres : ∀ t, t < N → resK GP words t
+      = (∑ u ∈ Finset.Ico st en,
+          NttMath.negConvR N (entryK GP a u) (entryK GP b u) t)
+        + ((scaled.val : ℕ) : ZMod GP)) :
+    ∀ k, k < N → wordAt words k = offConvSumB B a b st en k := by
+  intro k hk
+  have hlt : offConvSumB B a b st en k < GP :=
+    offConvSumB_lt B C GP a b st en k had hbwf hL hfit
+  have hcast : ((wordAt words k : ℕ) : ZMod GP)
+      = ((offConvSumB B a b st en k : ℕ) : ZMod GP) := by
+    have hle := negQB_sum_le B a b st en k had hbwf
+    have hle' : (∑ u ∈ Finset.Ico st en,
+          HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+               (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+        ≤ (∑ u ∈ Finset.Ico st en,
+            HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                 (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+          + (en - st) * BOUNDB B := le_trans hle (Nat.le_add_left _ _)
+    have h1 := hres k hk
+    rw [resK] at h1
+    rw [h1]
+    unfold offConvSumB
+    rw [Nat.cast_sub hle', Nat.cast_add]
+    have hterm : ∀ u, NttMath.negConvR N (entryK GP a u) (entryK GP b u) k
+        = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP)
+          - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+              (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP) := by
+      intro u
+      rw [NttMath.negConvR, ordConv_entryK_pos GP a b u k hk,
+        ordConv_entryK_neg GP a b u k hk]
+    rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib, hscaled]
+    push_cast
+    ring
+  have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hwC HachiEquiv.GoldDot.GP_pos k) hcast
+  rwa [Nat.mod_eq_of_lt hlt] at h2
+
 end HachiEquiv.RingLimb
