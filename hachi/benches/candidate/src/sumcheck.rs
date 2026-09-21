@@ -281,17 +281,49 @@ pub fn shift_powers(x: Ext4) -> Vec<Ext4> {
 /// multiplications each, against nineteen for a quartic one. That is what makes
 /// the ~`b²/2` terms of this sum cheaper than the `2b + 1` range-factor
 /// evaluations they replace.
+///
+/// # Delayed reduction (Stage 6 candidate T36)
+///
+/// The sum is componentwise -- `Fp × Ext4` scales each coefficient and `+` adds
+/// them pairwise -- so the four components never interact and each is a plain
+/// integer dot product of at most [`params::SHIFT_ROWS`] terms. The `Fp`
+/// arithmetic reduced mod `q` twice per component per term, once for the
+/// multiply and once for the add: 8 reductions per term, ~64 per call. Here
+/// each component accumulates in a `u128` and is reduced once, at the end: 4
+/// per call.
+///
+/// **The bound, which is why this is exact and not merely usually right.**
+/// Every entry of [`params::SHIFT_T`] is already below `q` (they are built
+/// reduced, and `Fp::new` was a no-op on them), and every component of a
+/// reduced `Ext4` is below `q`, so a term is at most `(q−1)²` and the sum of
+/// at most `SHIFT_ROWS = 16` of them is at most `16·(q−1)² < 2^68`. A `u128`
+/// holds it with 60 bits to spare, so no intermediate wraps and the single
+/// `% q` at the end is the same residue the running reduction produced.
 pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
     let rows: usize = params::SHIFT_ROWS;
     let deg: usize = params::SHIFT_DEG;
-    let mut s: Ext4 = Ext4::ZERO;
+    let qw: u128 = params::Q as u128;
+    let mut a0: u128 = 0;
+    let mut a1: u128 = 0;
+    let mut a2: u128 = 0;
+    let mut a3: u128 = 0;
     let mut j: usize = m / 2;
     while j < rows {
         let k: usize = 2 * j + 1;
-        s = s + Fp::new(params::SHIFT_T[j * deg + m]) * lop[k - m];
+        let c: u128 = params::SHIFT_T[j * deg + m] as u128;
+        let x: Ext4 = lop[k - m];
+        a0 = a0 + c * (x.c0.to_u64() as u128);
+        a1 = a1 + c * (x.c1.to_u64() as u128);
+        a2 = a2 + c * (x.c2.to_u64() as u128);
+        a3 = a3 + c * (x.c3.to_u64() as u128);
         j += 1;
     }
-    s
+    Ext4::new(
+        Fp::new((a0 % qw) as u64),
+        Fp::new((a1 % qw) as u64),
+        Fp::new((a2 % qw) as u64),
+        Fp::new((a3 % qw) as u64),
+    )
 }
 
 /// One pair's contribution to the shifted coefficients: `acc[m] += e · Δ^m · S_m`

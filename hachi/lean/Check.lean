@@ -2158,6 +2158,16 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.shiftCoeff_range
 #print axioms HachiEquiv.SumcheckShift.rangeProduct_shift
 #print axioms HachiEquiv.SumcheckShift.shift_powers_spec
+-- Card T36's natural-number layer: the unreduced component sum the `u128`
+-- accumulators hold, the bound that says a `u128` holds it -- which is the
+-- card's entire correctness argument -- and the bridge back to `F`.
+-- `shift_inner_spec` itself is unchanged, which is why nothing above it moved.
+#print axioms HachiEquiv.SumcheckShift.stN_lt
+#print axioms HachiEquiv.SumcheckShift.shiftNat_le
+#print axioms HachiEquiv.SumcheckShift.shiftNat_lt_u128
+#print axioms HachiEquiv.SumcheckShift.shiftNat_cast
+#print axioms HachiEquiv.SumcheckShift.coeff_finset_sum
+#print axioms HachiEquiv.SumcheckShift.coeff_sum_eq_shiftNat
 #print axioms HachiEquiv.SumcheckShift.shift_inner_spec
 #print axioms HachiEquiv.SumcheckShift.shift_accum_spec
 #print axioms HachiEquiv.SumcheckShift.zero_fill_spec

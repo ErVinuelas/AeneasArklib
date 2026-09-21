@@ -4077,3 +4077,68 @@ fn the_round_g_halves() {
     eprintln!("[gsplit]   round_poly_alpha_split {:>9.2} ms   {:5.1}%", 1e3 * ta,
         100.0 * ta / (tz + ta));
 }
+
+/// **The oracle for card T36**: `shift_inner` at the top of its bound.
+///
+/// T36 replaced the running `Fp` reduction inside `shift_inner` with four
+/// `u128` component accumulators reduced once at the end. That is exact only
+/// because `16·(q−1)² < 2^68` fits a `u128`, and a bound argument is the kind
+/// of claim that passes on random inputs and fails at the corner: every
+/// intermediate here is *supposed* to exceed `q`, and the question is only
+/// whether it exceeds `2^128`.
+///
+/// `round_poly_zero_shift_admissible` already checks `shift_inner` indirectly,
+/// against an independently written copy that still uses the running
+/// reduction, which is the real semantic oracle. This test adds the corner it
+/// does not reach: every component of every entry at `q − 1`, and `m = 0`, the
+/// one `m` for which the loop runs all sixteen rows.
+#[test]
+fn shift_inner_is_exact_at_the_top_of_its_bound() {
+    let q = hachi::params::Q;
+    let deg = hachi::params::SHIFT_DEG;
+    let rows = hachi::params::SHIFT_ROWS;
+    let maxfp = cpoly::field::Fp::new(q - 1);
+    let maxe = Ext4::new(maxfp, maxfp, maxfp, maxfp);
+
+    // `lop` is read at `k − m` for `k = 2j+1`, so `2·rows` entries cover every
+    // index the loop can reach.
+    let lop: Vec<Ext4> = vec![maxe; 2 * rows];
+
+    // The reference: the running-reduction form, written out here so that the
+    // comparison is against arithmetic that never holds an unreduced value.
+    let reference = |m: usize| -> Ext4 {
+        let mut s: Ext4 = Ext4::ZERO;
+        let mut j: usize = m / 2;
+        while j < rows {
+            let k: usize = 2 * j + 1;
+            s = s + cpoly::field::Fp::new(hachi::params::SHIFT_T[j * deg + m]) * lop[k - m];
+            j += 1;
+        }
+        s
+    };
+
+    for m in 0..deg {
+        let got = hachi::sumcheck::shift_inner(&lop, m);
+        let want = reference(m);
+        assert!(
+            got == want,
+            "T36: delayed reduction disagrees with the running one at m = {m} \
+             (all coefficients at q-1, {} rows)",
+            rows - m / 2
+        );
+    }
+
+    // And the same at the other extreme, so the test is not only about the
+    // corner: a single row contributing, where the sum cannot overflow at all.
+    let one: Vec<Ext4> = vec![Ext4::ONE; 2 * rows];
+    for m in 0..deg {
+        let mut s: Ext4 = Ext4::ZERO;
+        let mut j: usize = m / 2;
+        while j < rows {
+            let k: usize = 2 * j + 1;
+            s = s + cpoly::field::Fp::new(hachi::params::SHIFT_T[j * deg + m]) * one[k - m];
+            j += 1;
+        }
+        assert!(hachi::sumcheck::shift_inner(&one, m) == s, "T36: unit case at m = {m}");
+    }
+}
