@@ -353,3 +353,37 @@ theorem dot_prep_chunk_gold_spec (pfwd : alloc.vec.Vec Std.U64)
       (fun u => entryK GP b u) t ht]
   congr 1
   rw [hscv, hlenv, ZMod.natCast_mod, Nat.cast_mul]
+
+/-! ## Preparation
+
+`PrepAtG` is stated over a `PreparedVecG`; the two-lane store keeps its
+Goldilocks table in a differently named field, so the predicate is restated
+over a bare table and `PrepAt` is reused unchanged for the Barrett lane. -/
+
+/-- [`GoldDot.PrepAtG`] over a bare prepared table. -/
+def PrepAtGV (pfwd : alloc.vec.Vec Std.U64) (a : alloc.vec.Vec ring.Rq) (n : ℕ) : Prop :=
+  n * N ≤ pfwd.val.length
+  ∧ (∀ u ∈ pfwd.val, u.val < GP)
+  ∧ ∀ j, j < n → ∀ t, t < N →
+      resK GP pfwd (j * N + t)
+        = NttMath.difRun (((ntt.GOLD_PSI.val : ℕ) : ZMod GP) ^ 2) 10 1
+            (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a j)) t
+
+/-- **Preparation in the two lanes.** Each lane is the preparation already
+proved for it: the Goldilocks table by `prepare_one_gold_spec`, the Barrett
+table by `prepare_one_spec` at `AUX_P1`. -/
+theorem prepare_vec_ga_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
+    (hawf : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (han : nU.val ≤ a.val.length) (hmax : nU.val * N ≤ Std.Usize.max) :
+    ring.prepare_vec_ga a nU
+      ⦃ z => z.len = nU ∧ PrepAtGV z.fwd_g a nU.val
+             ∧ PrepAt z.fwd_a a nU.val ntt.AUX_P1 ntt.AUX_PSI1 ⦄ := by
+  rw [ring.prepare_vec_ga]
+  step with prepare_one_gold_spec a nU hawf han hmax as ⟨fg, hgl, hgc, hgv⟩
+  have hpsi1 : (ntt.AUX_PSI1).val < (ntt.AUX_P1).val := by
+    simp only [ntt.AUX_PSI1, ntt.AUX_P1]; decide +kernel
+  step with prepare_one_spec a nU ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
+    _ magic1 hpsi1 rfl hawf han hmax as ⟨fa, hal, hac, hav⟩
+  exact ⟨show PrepAtGV fg a nU.val from ⟨le_of_eq hgl.symm, hgc, hgv⟩,
+    le_of_eq hal.symm, hac, hav⟩
