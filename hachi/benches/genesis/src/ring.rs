@@ -1130,10 +1130,10 @@ fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
 }
 
 
+// @genesis 6b39638 2026-09-21 — ring::load_twisted_into
 // Card T34 (2026-09-21): the prepared dot's shell stops allocating. Both
 // items are first translations and compose with the frozen Goldilocks
 // arithmetic above them.
-// @genesis PENDING 2026-09-21 — ring::load_twisted_into
 /// Load a ring element's canonical words into `out`, already ψ-twisted
 /// (card T34, part 1A+1C).
 ///
@@ -1157,7 +1157,7 @@ pub fn load_twisted_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64> {
     w
 }
 
-// @genesis PENDING 2026-09-21 — ring::mac_into_gold_off
+// @genesis 6b39638 2026-09-21 — ring::mac_into_gold_off
 /// `acc[k] += pfwd[base + k] · bf[k]` in the Goldilocks lane, reading the
 /// prepared table in place (card T34, part 1B).
 ///
