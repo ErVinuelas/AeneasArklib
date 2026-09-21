@@ -1909,6 +1909,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- right to left.
 #print axioms HachiEquiv.RingLimb.negConv_split
 #print axioms HachiEquiv.RingLimb.coeffK_of_limbs
+-- Layer 4's core: the two-accumulator chunk. One loop, one transform of the
+-- right operand, two MACs -- which is card T35's performance claim -- and on
+-- the proof side one invariant carrying two copies of the same `termFwd` sum.
+-- T34's two helper specs are carried onto this branch for it.
+#print axioms HachiEquiv.GoldDot.load_twisted_into_spec
+#print axioms HachiEquiv.GoldDot.gold_mac_off_spec
+#print axioms HachiEquiv.RingLimb.limb_terms_spec
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt

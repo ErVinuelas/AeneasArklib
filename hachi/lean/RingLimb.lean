@@ -20,6 +20,7 @@ congruence. Nothing here is mod `q`.
 -/
 import RingFused
 import GoldDot
+import GoldTransform
 
 set_option autoImplicit false
 
@@ -29,6 +30,7 @@ open hachi
 namespace HachiEquiv.RingLimb
 
 open HachiEquiv.NttArith HachiEquiv.NttStage HachiEquiv.RingFused
+open HachiEquiv.GoldArith HachiEquiv.GoldTransform HachiEquiv.GoldDot
 
 /-! ## The arithmetic identity -/
 
@@ -317,5 +319,150 @@ theorem coeffK_of_limbs (a a0 a1 : ring.Rq) (ha : HachiEquiv.Ring.Wf a)
       simp [cpoly.field.Fp.ZERO]
     rw [hz a ha.1, hz a0 hl0, hz a1 hl1]
     ring
+
+/-! ## The two-lane chunk
+
+[`GoldDot.gold_terms_spec`] with a second accumulator. The right operand is
+transformed **once** and multiply-accumulated into both prepared tables, which
+is the entire performance claim of card T35; on the proof side it means one
+loop whose invariant is two copies of the same `termFwd` sum, not two loops.
+
+The two prepared tables are the transforms of the two limbs, so the
+conclusion is stated over two abstract left operands `a0`, `a1` -- layer 5
+instantiates them at [`limb_at`]'s outputs. -/
+
+-- The chunk's context runs to forty-odd hypotheses and the elaborator's
+-- default depth does not survive it. `set_option` goes before the
+-- declaration, not between a docstring and it.
+set_option maxRecDepth 8000 in
+theorem limb_terms_spec (f0 f1 : alloc.vec.Vec Std.U64)
+    (a0 a1 b : alloc.vec.Vec ring.Rq) (startU endU nU : Std.Usize)
+    (pt : alloc.vec.Vec Std.U64) (acc0 acc1 scratch buf : alloc.vec.Vec Std.U64)
+    (jU : Std.Usize) (ps : ZMod GP)
+    (hn : nU.val = N) (hord : ps ^ N = -1)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hpl0 : endU.val * N ≤ f0.val.length) (hpl1 : endU.val * N ≤ f1.val.length)
+    (hpv0 : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP f0 (j * N + t)
+          = NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a0 j)) t)
+    (hpv1 : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP f1 (j * N + t)
+          = NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a1 j)) t)
+    (hpc0 : ∀ u ∈ f0.val, u.val < GP) (hpc1 : ∀ u ∈ f1.val, u.val < GP)
+    (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbe : endU.val ≤ b.val.length)
+    (hjs : startU.val ≤ jU.val) (hje : jU.val ≤ endU.val)
+    (hacc0C : Canon GP acc0) (hacc1C : Canon GP acc1) (hscC : Canon GP scratch)
+    (hbufl : buf.val.length = N)
+    (hval0 : ∀ t, t < N → resK GP acc0 t
+              = ∑ u ∈ Finset.Ico startU.val jU.val, termFwd ps a0 b u t)
+    (hval1 : ∀ t, t < N → resK GP acc1 t
+              = ∑ u ∈ Finset.Ico startU.val jU.val, termFwd ps a1 b u t) :
+    ring.dot_prep_chunk_limbs2_loop f0 f1 b endU nU pt acc0 acc1 scratch buf jU
+      ⦃ z => Canon GP z.1 ∧ Canon GP z.2.1 ∧ Canon GP z.2.2
+             ∧ (∀ t, t < N → resK GP z.1 t
+                 = ∑ u ∈ Finset.Ico startU.val endU.val, termFwd ps a0 b u t)
+             ∧ (∀ t, t < N → resK GP z.2.1 t
+                 = ∑ u ∈ Finset.Ico startU.val endU.val, termFwd ps a1 b u t) ⦄ := by
+  rw [ring.dot_prep_chunk_limbs2_loop]
+  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.2.val)
+    (fun r => startU.val ≤ r.2.2.2.2.val ∧ r.2.2.2.2.val ≤ endU.val
+      ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ Canon GP r.2.2.1
+      ∧ r.2.2.2.1.val.length = N
+      ∧ (∀ t, t < N → resK GP r.1 t
+              = ∑ u ∈ Finset.Ico startU.val r.2.2.2.2.val, termFwd ps a0 b u t)
+      ∧ (∀ t, t < N → resK GP r.2.1 t
+              = ∑ u ∈ Finset.Ico startU.val r.2.2.2.2.val, termFwd ps a1 b u t))
+  · rintro ⟨d0, d1, sc, bf, jj⟩ ⟨hjjs, hjje, hcd0, hcd1, hcsc, hbfl, hw0, hw1⟩
+    dsimp only at hjjs hjje hcd0 hcd1 hcsc hbfl hw0 hw1
+    simp only [ring.dot_prep_chunk_limbs2_loop.body]
+    by_cases hlt : jj < endU
+    · rw [if_pos hlt]
+      have hjjlt : jj.val < endU.val := by clear * - hlt; scalar_tac
+      have hjb : jj.val < b.val.length := by omega
+      step as ⟨rq, hrq⟩
+      have hrqv : rq = b.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+        rw [hrq, List.getD_eq_getElem _ _ hjb]
+      step with load_twisted_into_spec bf rq pt ps
+        (by rw [hrqv]; exact hbwf jj.val hjjlt) hbfl hptC hptv as ⟨tb, htbC, htbv⟩
+      step with gold_forward_spec tb sc pt htbC hcsc hptC ps hptv
+        as ⟨fw, hfw1, hfw2, hfwv⟩
+      obtain ⟨v, v1⟩ := fw
+      dsimp only at hfw1 hfw2 hfwv
+      step as ⟨off, hoff⟩
+      have hoffv : off.val = jj.val * N := by rw [hoff, hn]
+      have hsl : ∀ (f : alloc.vec.Vec Std.U64), endU.val * N ≤ f.val.length →
+          off.val + N ≤ f.val.length := by
+        intro f hf
+        rw [hoffv]
+        have h1 : (jj.val + 1) * N ≤ endU.val * N :=
+          Nat.mul_le_mul_right N (by clear * - hjjlt; omega)
+        have h2 : (jj.val + 1) * N = jj.val * N + N := by ring
+        clear * - h1 h2 hf
+        omega
+      have hFB : ∀ t, t < N → resK GP v t
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP b jj.val)) t := by
+        intro t ht
+        rw [hfwv t ht]
+        refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP tb)
+          (NttMath.twistR ps (entryK GP b jj.val)) ?_ t ht
+        intro e he
+        rw [htbv e he]
+        simp only [NttMath.twistR, entryK, hrqv]
+      have hFA0 : ∀ t, t < N → ((wordAt f0 (off.val + t) : ℕ) : ZMod GP)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a0 jj.val)) t := by
+        intro t ht
+        rw [hoffv]
+        simpa only [resK] using hpv0 jj.val hjjlt t ht
+      have hFA1 : ∀ t, t < N → ((wordAt f1 (off.val + t) : ℕ) : ZMod GP)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a1 jj.val)) t := by
+        intro t ht
+        rw [hoffv]
+        simpa only [resK] using hpv1 jj.val hjjlt t ht
+      step with gold_mac_off_spec d0 f0 v off nU 0#usize (resK GP d0)
+        (fun t => NttMath.difRun (ps ^ 2) 10 1
+          (NttMath.twistR ps (entryK GP a0 jj.val)) t)
+        hn (by simp) (hsl f0 hpl0) hcd0 hfw1 hpc0 hFA0 (by intro t ht; simp)
+        as ⟨e0, he0C, he0v⟩
+      step with gold_mac_off_spec d1 f1 v off nU 0#usize (resK GP d1)
+        (fun t => NttMath.difRun (ps ^ 2) 10 1
+          (NttMath.twistR ps (entryK GP a1 jj.val)) t)
+        hn (by simp) (hsl f1 hpl1) hcd1 hfw1 hpc1 hFA1 (by intro t ht; simp)
+        as ⟨e1, he1C, he1v⟩
+      step as ⟨jj1, hjj1⟩
+      have hjj1v : jj1.val = jj.val + 1 := by clear * - hjj1; scalar_tac
+      have hstep : ∀ (aa : alloc.vec.Vec ring.Rq) (dd ee : alloc.vec.Vec Std.U64),
+          (∀ t, t < N → resK GP dd t
+            = ∑ u ∈ Finset.Ico startU.val jj.val, termFwd ps aa b u t) →
+          (∀ t, t < N → resK GP ee t = resK GP dd t
+            + NttMath.difRun (ps ^ 2) 10 1
+                (NttMath.twistR ps (entryK GP aa jj.val)) t
+              * resK GP v t) →
+          ∀ t, t < N → resK GP ee t
+            = ∑ u ∈ Finset.Ico startU.val jj1.val, termFwd ps aa b u t := by
+        intro aa dd ee hdd hee t ht
+        rw [hjj1v, Finset.sum_Ico_succ_top (by omega), ← hdd t ht, hee t ht, hFB t ht]
+        unfold termFwd
+        rw [← HachiEquiv.NttProduct.prod_difRun ps hord (entryK GP aa jj.val)
+          (entryK GP b jj.val)
+          (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP aa jj.val)))
+          (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP b jj.val)))
+          (fun t' => NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP aa jj.val)) t'
+            * NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP b jj.val)) t')
+          (fun t' _ => rfl) (fun t' _ => rfl) (fun t' _ => rfl) t ht]
+      refine ⟨by omega, by omega, he0C, he1C, hfw2, hfw1.1, ?_, ?_, by omega⟩
+      · exact hstep a0 d0 e0 hw0 he0v
+      · exact hstep a1 d1 e1 hw1 he1v
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = endU.val := by clear * - hlt hjje; scalar_tac
+      exact ⟨hcd0, hcd1, hcsc, by rw [heq] at hw0; exact hw0, by rw [heq] at hw1; exact hw1⟩
+  · exact ⟨hjs, hje, hacc0C, hacc1C, hscC, hbufl, hval0, hval1⟩
 
 end HachiEquiv.RingLimb
