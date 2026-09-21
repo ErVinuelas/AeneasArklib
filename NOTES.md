@@ -10160,3 +10160,147 @@ three runs gives 518.0 → 455.0 (`lazy-rlin`, −12.2%) and 518.0 → 420.3
 are disjoint in what they touch — the carrier here, the commitment, rounds and
 R^lin there — so a merged tree is expected to land near 355 s, but that is a
 projection and stays labelled one until a merged profile exists.
+### Card T37's proof debt, specified
+
+`make build` on `champion/fused-stages` fails with **one** error, and the
+loop-state shape of the chunk loop did not change:
+
+```
+lean/GoldDot.lean:363:6: Could not unify the theorem with the target:
+- theorem: Std.bind (ring.load_twisted_into bf rq pt) ?k ⦃ ?Pₖ ⦄
+- target:  ring.gold_dot_one_fused rq bf sc d pt prep.fwd i
+```
+
+`gold_terms_spec`'s body took three steps — `load_twisted_into_spec`,
+`gold_forward_spec`, `gold_mac_off_spec` — and the Rust now takes one. Nothing
+else in the file, and nothing in any other file, moved. The debt is therefore
+exactly one new spec, `gold_dot_one_fused_spec`, with the same conclusion the
+three had in sequence.
+
+**The cheapest shape is a `Result` equality, not a re-derivation.**
+`load_twisted_into`, `gold_forward` and `mac_into_gold_off` are all still in
+the model (they are local `pub` items; what they lost is callers, not
+extraction), so the target is
+
+```lean
+ring.gold_dot_one_fused a cur0 tmp0 acc0 pt pfwd base
+  = (do let bf ← ring.load_twisted_into cur0 a pt
+        let fw ← ntt.gold_forward bf tmp0 pt
+        let ac ← ring.mac_into_gold_off acc0 pfwd base fw.1 N
+        ok (ac, fw.1, fw.2))
+```
+
+after which `gold_terms_spec` is repaired by one `rw` and keeps all three of
+its existing steps verbatim. Three sub-obligations, and they are **not** of
+equal cost:
+
+1. **(A) the twist stage.** `gold_dif_stage2_twist a dst len tw pt =
+   gold_dif_stage2 (load_twisted_into d a pt) dst len tw` for any `d` of
+   length `N`. Cheap: the fusion substitutes *reads*, the write order is
+   untouched, and `load_twisted_into` writes `0..N` in order so it totally
+   overwrites `d`. A pointwise read-substitution with no reordering.
+2. **(C) the middle loop.** `gold_dot_one_fused_loop` is `gold_forward`'s loop
+   with the first and last passes peeled. `gold_forward_loop_spec` is already
+   parameterised by a stage count (it is called at `NTT_LEN, 5`), so the
+   mirror at `NTT_LEN/4, 3` is a re-instantiation, plus peeling two concrete
+   iterations where `len` is a literal. Moderate.
+3. **(B) the MAC stage, and this is the expensive one.** The extracted body
+   does four `index_mut` read-modify-writes into `acc` per group, at
+   `start+j`, `start+j+quarter`, `start+half+j`, `start+half+quarter+j`.
+   `mac_into_gold_off` walks `k = 0..N` in order. So the equality is an
+   interleaved-versus-sequential **write permutation** argument: the four
+   indices are pairwise distinct for `j < quarter` and distinct across `j`
+   and across `start`, and writes at distinct indices commute. That is the
+   same shape and the same scale as the `fusedA`–`fusedD` machinery in
+   `GoldFusedStage.lean`, which was a card's worth of proof on its own.
+
+**There is no cheaper card hiding inside this one — measured, card T37a.**
+The obvious hope was that (A) alone, whose proof is a rewrite, carries most
+of the win and lets (B)'s budget go unspent. It does not. Same row, same
+baseline, same machine:
+
+| | raw `cand vs now` | recentered | verdict |
+|---|---|---|---|
+| T37a, twist only | −1.56% | −3.89% | noise |
+| T37, both halves | −3.82% / −3.61% | −6.46% / −5.86% | faster |
+
+The twist half carries about 1.6 of T37's 3.7 raw points; the MAC half
+carries the other 2.2. **The win is mostly in the half whose proof is
+expensive**, so taking the −6% means paying the write-permutation argument,
+and there is no subset of this card that is both worth having and cheap to
+prove. One run decided T37a rather than two: a single-row target needs both
+runs `faster`, so a `noise` already settles it, and running again until one
+reads `faster` is precisely what the accept rule forbids.
+
+That leaves the card's real question as a budget one, and it is the user's:
+pay (B)'s `fusedA`–`fusedD`-scale proof for 6% of the commitment phase, or
+revert T37 and keep `load_twisted_into` and `mac_into_gold_off` reachable.
+Nothing in the measurement decides it.
+
+Two further facts the implementation established, both recorded in the
+ceiling table's terms:
+
+* `ntt.gold_dif_stage2_mac_loop0_loop0` keeps the **2-tuple** `(acc1, j1)` —
+  the fused read-modify-write does not grow the state.
+* `ring.gold_dif_stage2_twist_loop0_loop0` is a **3-tuple** `(a1, dst1, j1)`:
+  the borrowed `&Rq` operand is threaded, exactly as `add_loop` and
+  `sub_loop` thread `rhs`. So (A), which I called the contained half before
+  extracting, is the half whose loop shape changed, and (B), which I called
+  risky, is the one that kept its shape. The risk is real but it is in the
+  write permutation, not the state.
+
+### Card T37's proof debt, paid (2026-09-22)
+
+`champion/fused-stages` merged into `main` after `lazy-rlin` and
+`limb-carrier`, and the (B) half's budget was spent. The shape is **not** the
+one the note above specified. That note priced (B) as an
+interleaved-versus-sequential write permutation because it aimed at a
+`Result` equality between `gold_dot_one_fused` and the three functions it
+replaced. Nothing here proves two loop programs equal as programs; every
+existing loop proof is a direct `⦃·⦄` spec against a mathematical value, and
+the fused MAC has one of those for the asking: it is
+`GoldFusedStage.gold_dif_stage2_loop0_loop0_spec` with its four writes turned
+into read-modify-writes. So `hachi/lean/GoldFusedBoundary.lean` states three
+direct specs and composes them:
+
+* **(A) `gold_dif_stage2_twist_spec`** -- `GoldFusedStage`'s proof with the
+  four `src` reads replaced by `a.0[i].to_u64() · pt[i]`; the conclusion is
+  `difWord ∘ difWord` of `twSrc a pt`, the twisted words, and `twSrc_cast`
+  is the one-line bridge to `twistR`. The loop state is the 3-tuple
+  `(a, dst, j)`, and the invariant conjunct `s.1 = a` needs care: after
+  `subst` it becomes `aa = aa`, which `simp only [body]` closes silently, so
+  the `refine` has one slot fewer than the conjunct count suggests (the same
+  quirk `load_twisted_into_loop_spec` recorded).
+* **(B) `gold_dif_stage2_mac_spec`** -- the same proof with writes replaced
+  by `acc[o] = acc[o] + pfwd[base+o] · v`. The only new ingredient is four
+  *pending* clauses in the inner invariant: the block's positions not yet
+  written still hold the entry accumulator's words, which is what each
+  group's four reads of `acc` between its four writes need. The
+  distinctness facts were already in the fused-stage proof; the reads reuse
+  them with `.symm`. Conclusion: `macAt (wordAt acc) (pfW pfwd base) t
+  (difWord ∘ difWord …)`, cast to the ring by `macAt_cast`.
+* **(C) `gold_dot_one_fused_loop_spec`** -- `gold_forward_loop_spec` with the
+  exit moved from `len > 1` to `len > 4`, delivering `difRun … 2 (2^8)` of
+  its output instead of `difRun … 0`.
+
+`gold_dot_one_fused_spec` composes (A), (C), (B) in `ZMod GP`: the twist stage
+is stage `k = 8` of the transform, the middle loop runs `k = 4` down to
+`k = 1`, and the MAC stage is `k = 0`; `difRun_succ` being `rfl` is what makes
+the three splices `rfl`. Its conclusion is what `load_twisted_into_spec`,
+`gold_forward_spec` and `gold_mac_off_spec` gave in sequence, so
+`gold_terms_spec` now takes one `step` where it took three, its statement and
+everything above it unchanged; `Check.lean` § 4 gains six lines, all on the
+three standard axioms. The (A)-only experiment the note proposed (card T37a)
+had already been run and rejected on the branch: the win is mostly in (B).
+
+Two mechanical facts worth keeping. `step`'s automatic `scalar_tac` for an
+add's `hmax` side goal gives up late in a long body (the context is the
+problem, not the goal); `try (case hmax => scalar_tac)` after the step is
+robust in both outcomes. And `maxHeartbeats` is per declaration: the MAC
+inner loop, at four read-modify-writes, needs 4 000 000 where the fused
+stage's four writes fit in 1 000 000.
+
+Also recorded: merging `fused-stages` after `limb-carrier` cut
+`garner_ga`'s closing brace in `hachi/benches/genesis/src/ntt.rs` -- the
+conflict hunk ended one line early on both sides. `make test` caught it,
+and the `rustitems` scanner in `make bench-check` caught it independently.

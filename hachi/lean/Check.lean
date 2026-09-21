@@ -2199,6 +2199,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.GoldDot.gold_mac_off_spec
 #print axioms HachiEquiv.GoldDot.gold_twist_cast
 #print axioms HachiEquiv.GoldDot.gold_terms_spec
+-- Card T37 (2026-09-21): the transform's boundary passes fused with the twist
+-- and the multiply-accumulate. `gold_terms_spec` takes one step where it took
+-- three; its statement, and everything above it, did not move.
+#print axioms HachiEquiv.GoldFusedBoundary.twist_loop0_loop0_spec
+#print axioms HachiEquiv.GoldFusedBoundary.gold_dif_stage2_twist_spec
+#print axioms HachiEquiv.GoldFusedBoundary.mac_loop0_loop0_spec
+#print axioms HachiEquiv.GoldFusedBoundary.gold_dif_stage2_mac_spec
+#print axioms HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_loop_spec
+#print axioms HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_spec
 #print axioms HachiEquiv.GoldDot.gold_out_loop_spec
 #print axioms HachiEquiv.GoldDot.gold_untwist_spec
 #print axioms HachiEquiv.GoldDot.gold_untwist_cast

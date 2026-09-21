@@ -1193,20 +1193,21 @@ pub fn dot_prepared_digits_gold(prep: &PreparedVecG, b: &Vec<Rq>, n: usize) -> R
     // iteration's transform output, so the loop allocates nothing per
     // polynomial. `gold_forward` already threads its scratch pair; this
     // extends the same discipline to the twist input.
-    let mut buf: Vec<u64> = crate::ntt::zeros(deg);
+    // Card T37: the twist buffer is gone with the twist pass, so the loop
+    // carries the transform's own pair and nothing else.
+    let mut cur: Vec<u64> = crate::ntt::zeros(deg);
     let mut j: usize = 0;
     while j < n {
-        buf = load_twisted_into(buf, &b[j], &pt);
-        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(buf, scratch, &pt);
         // `j * deg` is an ABSOLUTE offset into the prepared table, exactly as
-        // `dot_prep_chunk_mod_p` does it. Card T34 part 1B: the offset is the
-        // helper's argument now, so the 8 KiB `slice_out` copy is gone. The
-        // tuple's part is still bound out before the call rather than indexed
-        // in place -- indexing `fwb.0[k]` inside this loop is what made aeneas
-        // report "Not an open binder or an ignored pattern".
-        acc = mac_into_gold_off(acc, &prep.fwd, j * deg, &fwb.0, deg);
-        buf = fwb.0;
-        scratch = fwb.1;
+        // `dot_prep_chunk_mod_p` does it. Card T34 part 1B put the offset in
+        // the argument so the 8 KiB `slice_out` copy went; card T37 puts the
+        // multiply-accumulate itself in the transform's last pass, so the
+        // 8 KiB buffer it used to read back goes too.
+        let r: (Vec<u64>, Vec<u64>, Vec<u64>) =
+            gold_dot_one_fused(&b[j], cur, scratch, acc, &pt, &prep.fwd, j * deg);
+        acc = r.0;
+        cur = r.1;
+        scratch = r.2;
         j += 1;
     }
     // the offset is one per term, exactly as `dot_prep_chunk_mod_p` scales
@@ -1269,6 +1270,98 @@ pub fn mac_into_gold_off(acc: Vec<u64>, pfwd: &Vec<u64>, base: usize, bf: &Vec<u
         k += 1;
     }
     out
+}
+
+/// [`crate::ntt::gold_dif_stage2`] with the ψ twist folded into its reads
+/// (card T37, A).
+///
+/// The first pass of the transform is the only one that reads the operand
+/// rather than a previous pass's output, so it is the only one that can
+/// absorb the twist. Card T34 removed the *allocation* the separate twist
+/// made; what is left to remove is the pass itself -- an 8 KiB write followed
+/// immediately by an 8 KiB read of the same words.
+///
+/// It lives here rather than in `ntt` for the reason [`load_twisted_into`]
+/// does: it reads an [`Rq`], and `ntt` is the word layer. That also lets it
+/// absorb `to_u64`, so the loop needs no twist buffer at all -- one fewer
+/// 8 KiB live vector per call.
+///
+/// Arithmetic unchanged: the same `NTT_LEN` twist multiplies happen, inside
+/// the butterfly's operand reads instead of in a pass of their own. The body
+/// is `gold_dif_stage2` verbatim with the four `src[i]` reads replaced by
+/// `gold_mul(a.0[i].to_u64(), pt[i])`, which is what makes the composition
+/// lemma a rewrite rather than a re-proof.
+pub fn gold_dif_stage2_twist(a: &Rq, out: Vec<u64>, len: usize, tw: &Vec<u64>, pt: &Vec<u64>)
+    -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut dst: Vec<u64> = out;
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        while j < quarter {
+            let i0: usize = start + j;
+            let i1: usize = start + j + quarter;
+            let i2: usize = start + j + half;
+            let i3: usize = start + j + half + quarter;
+            let a0: u64 = crate::ntt::gold_mul(a.0[i0].to_u64(), pt[i0]);
+            let a1: u64 = crate::ntt::gold_mul(a.0[i1].to_u64(), pt[i1]);
+            let a2: u64 = crate::ntt::gold_mul(a.0[i2].to_u64(), pt[i2]);
+            let a3: u64 = crate::ntt::gold_mul(a.0[i3].to_u64(), pt[i3]);
+            let b0: u64 = crate::ntt::gold_add(a0, a2);
+            let b1: u64 = crate::ntt::gold_add(a1, a3);
+            let d0: u64 = crate::ntt::gold_sub(a0, a2);
+            let b2: u64 = crate::ntt::gold_mul(d0, tw[j * step1]);
+            let d1: u64 = crate::ntt::gold_sub(a1, a3);
+            let b3: u64 = crate::ntt::gold_mul(d1, tw[(j + quarter) * step1]);
+            dst[start + j] = crate::ntt::gold_add(b0, b1);
+            let e0: u64 = crate::ntt::gold_sub(b0, b1);
+            dst[start + j + quarter] = crate::ntt::gold_mul(e0, tw[j * step2]);
+            dst[start + half + j] = crate::ntt::gold_add(b2, b3);
+            let e1: u64 = crate::ntt::gold_sub(b2, b3);
+            dst[start + half + quarter + j] = crate::ntt::gold_mul(e1, tw[j * step2]);
+            j += 1;
+        }
+        start += len;
+    }
+    dst
+}
+
+/// One right-hand term of the prepared Goldilocks dot -- twist, transform,
+/// multiply-accumulate -- with the first and last passes fused (card T37).
+///
+/// `NTT_LEN = 1024 = 4^5`, so the transform is five radix-4 pair passes at
+/// `len = 1024, 256, 64, 16, 4`. The first is [`gold_dif_stage2_twist`], the
+/// last [`crate::ntt::gold_dif_stage2_mac`], and the three between them are
+/// the ordinary stage. Seven passes over an 8 KiB buffer become five, and the
+/// twist buffer is gone. The multiplication count does not change.
+///
+/// Returns `(acc, cur, tmp)`: the accumulator and both buffers, so the caller
+/// recycles them exactly as card T34 taught it to.
+pub fn gold_dot_one_fused(
+    a: &Rq,
+    cur0: Vec<u64>,
+    tmp0: Vec<u64>,
+    acc0: Vec<u64>,
+    pt: &Vec<u64>,
+    pfwd: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut cur: Vec<u64> = gold_dif_stage2_twist(a, cur0, n, pt, pt);
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = n / 4;
+    while len > 4 {
+        let filled: Vec<u64> = crate::ntt::gold_dif_stage2(&cur, tmp, len, pt);
+        tmp = cur;
+        cur = filled;
+        len = len / 4;
+    }
+    let acc: Vec<u64> = crate::ntt::gold_dif_stage2_mac(&cur, acc0, 4, pt, pfwd, base);
+    (acc, cur, tmp)
 }
 
 /// `acc[k] += af[k] · bf[k]` in the Goldilocks lane, the counterpart of

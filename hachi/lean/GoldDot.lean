@@ -17,6 +17,7 @@ Only the ceiling is restated, at the new radix.
 import RingFused
 import GoldArith
 import GoldTransform
+import GoldFusedBoundary
 
 set_option autoImplicit false
 
@@ -28,7 +29,7 @@ set_option maxRecDepth 8192
 namespace HachiEquiv.GoldDot
 
 open HachiEquiv.NttStage HachiEquiv.RingFused HachiEquiv.GoldArith
-open HachiEquiv.GoldTransform
+open HachiEquiv.GoldTransform HachiEquiv.GoldFusedBoundary
 
 theorem GP_pos : 0 < GP := by norm_num
 
@@ -322,7 +323,7 @@ theorem gold_twist_cast (v pt : alloc.vec.Vec Std.U64)
 theorem gold_terms_spec (prep : ring.PreparedVecG)
     (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
     (nU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
-    (acc scratch buf : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
+    (acc scratch cur : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
     (hn : nU.val = N) (hord : ps ^ N = -1)
     (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
     (hpl : endU.val * N ≤ prep.fwd.val.length)
@@ -335,21 +336,21 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
       (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (hbe : endU.val ≤ b.val.length)
     (hjs : startU.val ≤ jU.val) (hje : jU.val ≤ endU.val)
-    (haccC : Canon GP acc) (hscC : Canon GP scratch) (hbufl : buf.val.length = N)
+    (haccC : Canon GP acc) (hscC : Canon GP scratch) (hcurC : Canon GP cur)
     (hval : ∀ t, t < N → resK GP acc t
               = ∑ u ∈ Finset.Ico startU.val jU.val, termFwd ps a b u t) :
-    ring.dot_prepared_digits_gold_loop0 prep b endU nU pt acc scratch buf jU
+    ring.dot_prepared_digits_gold_loop0 prep b endU nU pt acc scratch cur jU
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N → resK GP z.1 t
                  = ∑ u ∈ Finset.Ico startU.val endU.val, termFwd ps a b u t ⦄ := by
   rw [ring.dot_prepared_digits_gold_loop0]
   apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.val)
     (fun r => startU.val ≤ r.2.2.2.val ∧ r.2.2.2.val ≤ endU.val
-      ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ r.2.2.1.val.length = N
+      ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ Canon GP r.2.2.1
       ∧ ∀ t, t < N → resK GP r.1 t
               = ∑ u ∈ Finset.Ico startU.val r.2.2.2.val, termFwd ps a b u t)
-  · rintro ⟨d, sc, bf, jj⟩ ⟨hjjs, hjje, hcd, hcsc, hbfl, hw⟩
-    dsimp only at hjjs hjje hcd hcsc hbfl hw
+  · rintro ⟨d, sc, cu, jj⟩ ⟨hjjs, hjje, hcd, hcsc, hcuC, hw⟩
+    dsimp only at hjjs hjje hcd hcsc hcuC hw
     simp only [ring.dot_prepared_digits_gold_loop0.body]
     by_cases hlt : jj < endU
     · rw [if_pos hlt]
@@ -358,13 +359,6 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
       step as ⟨rq, hrq⟩
       have hrqv : rq = b.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
         rw [hrq, List.getD_eq_getElem _ _ hjb]
-      -- card T34 part 1A+1C: one loader where there were a gather and a twist
-      step with load_twisted_into_spec bf rq pt ps
-        (by rw [hrqv]; exact hbwf jj.val hjjlt) hbfl hptC hptv as ⟨tb, htbC, htbv⟩
-      step with gold_forward_spec tb sc pt htbC hcsc hptC ps hptv
-        as ⟨fw, hfw1, hfw2, hfwv⟩
-      obtain ⟨v, v1⟩ := fw
-      dsimp only at hfw1 hfw2 hfwv
       step as ⟨off, hoff⟩
       have hoffv : off.val = jj.val * N := by rw [hoff, hn]
       have hslb : off.val + N ≤ prep.fwd.val.length := by
@@ -382,27 +376,24 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
         rw [hoffv]
         have := hpv jj.val hjjlt t ht
         simpa only [resK] using this
-      have hFB : ∀ t, t < N → resK GP v t
-          = NttMath.difRun (ps ^ 2) 10 1
-              (NttMath.twistR ps (entryK GP b jj.val)) t := by
-        intro t ht
-        rw [hfwv t ht]
-        refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP tb)
-          (NttMath.twistR ps (entryK GP b jj.val)) ?_ t ht
-        intro e he
-        rw [htbv e he]
-        simp only [NttMath.twistR, entryK, hrqv]
-      step with gold_mac_off_spec d prep.fwd v off nU 0#usize (resK GP d)
+      -- card T37: twist, transform and multiply-accumulate in one fused term,
+      -- with the first and last passes of the transform fused into their
+      -- neighbours. One step where cards T34 and T27 took three.
+      step with gold_dot_one_fused_spec rq cu sc d pt prep.fwd off ps
         (fun t => NttMath.difRun (ps ^ 2) 10 1
           (NttMath.twistR ps (entryK GP a jj.val)) t)
-        hn (by simp) hslb hcd hfw1 hpc hFA (by intro t ht; simp)
-        as ⟨acc1, hac1C, hac1v⟩
+        (by rw [hrqv]; exact hbwf jj.val hjjlt) hcuC hcsc hcd hptC hptv hslb hFA
+        as ⟨acc1, cur1, sc1, hac1C, hcu1C, hsc1C, hac1v⟩
+      have hFB : NttMath.twistR ps
+            (fun u => ((HachiEquiv.Ring.wordN rq u : ℕ) : ZMod GP))
+          = NttMath.twistR ps (entryK GP b jj.val) := by
+        rw [hrqv]; rfl
       step as ⟨jj1, hjj1⟩
-      refine ⟨by rw [hjj1]; omega, by rw [hjj1]; omega, hac1C, hfw2, hfw1.1, ?_,
+      refine ⟨by rw [hjj1]; omega, by rw [hjj1]; omega, hac1C, hsc1C, hcu1C, ?_,
         by rw [hjj1]; omega⟩
       intro t ht
       rw [hjj1, Finset.sum_Ico_succ_top (by omega), ← hw t ht]
-      rw [hac1v t ht, hFB t ht]
+      rw [hac1v t ht, hFB]
       unfold termFwd
       rw [← HachiEquiv.NttProduct.prod_difRun ps hord (entryK GP a jj.val) (entryK GP b jj.val)
         (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a jj.val)))
@@ -418,7 +409,7 @@ theorem gold_terms_spec (prep : ring.PreparedVecG)
       refine ⟨hcd, hcsc, ?_⟩
       intro t ht
       rw [hw t ht, heq]
-  · exact ⟨hjs, hje, haccC, hscC, hbufl, hval⟩
+  · exact ⟨hjs, hje, haccC, hscC, hcurC, hval⟩
 
 theorem gold_out_loop_spec (degU : Std.Usize) (qwU : Std.U64)
     (words : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
@@ -672,7 +663,7 @@ theorem gold_dot_spec (prep : ring.PreparedVecG) (a b : alloc.vec.Vec ring.Rq)
   step with zeros_canon_zero GP GP_pos as ⟨acc0, hacc0C, hacc0v⟩
   step with gold_terms_spec prep a b 0#usize nU ntt.NTT_LEN pt acc0 acc0 acc0
     0#usize ps ntt_NTT_LEN_val hord hptC hptv hpl hpv hpc hbw hbn
-    (by simp) (by simp) hacc0C hacc0C hacc0C.1
+    (by simp) (by simp) hacc0C hacc0C hacc0C
     (by intro t ht; rw [hacc0v t ht]; simp)
     as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
   -- the offset, scaled by the term count
