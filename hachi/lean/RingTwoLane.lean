@@ -21,6 +21,7 @@ Garner reconstruction.
 -/
 import NttCRT
 import GoldArith
+import GoldDot
 
 set_option autoImplicit false
 
@@ -30,6 +31,7 @@ open hachi
 namespace HachiEquiv.RingTwoLane
 
 open HachiEquiv.NttArith HachiEquiv.NttCRT HachiEquiv.GoldArith
+open HachiEquiv.NttStage HachiEquiv.RingFused HachiEquiv.GoldTransform HachiEquiv.GoldDot
 
 /-- The two-lane modulus, `GOLD_P · p1`. -/
 abbrev PGA : ℕ := GP * p1
@@ -146,3 +148,132 @@ theorem garner_ga_spec (rg ra : Std.U64) (x : ℕ) (hx : x < PGA)
     refine hfin d (by omega) ?_
     rw [hd, hiv, Nat.cast_sub (by omega), Nat.cast_add]
     simp
+
+/-! ## The Goldilocks lane of the general chunk
+
+`dot_prep_chunk_gold` is `dot_prep_chunk_mod_p`'s body with the Goldilocks
+operations in place of the Barrett ones, so its term loop is the digit
+path's `gold_terms_spec` over a bare prepared table rather than a
+`PreparedVecG`. This is that proof with `prep.fwd` read as `pfwd`. -/
+
+/-- The word gather is again the *same loop*, so `prep_words_b_spec` is reused
+rather than re-proved -- the chunk writes it exactly as the two-prime path
+does, and nothing in it mentions a prime. -/
+theorem gold_chunk_words_eq (b : alloc.vec.Vec ring.Rq) (n j : Std.Usize)
+    (w : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+    ring.dot_prep_chunk_gold_loop0_loop0 b n j w u
+      = ring.dot_prep_chunk_mod_p_loop0_loop0 b n j w u := rfl
+
+set_option maxRecDepth 8192 in
+theorem gold_chunk_terms_spec (pfwd : alloc.vec.Vec Std.U64)
+    (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize)
+    (nU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+    (acc scratch : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
+    (hn : nU.val = N) (hord : ps ^ N = -1)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hpl : endU.val * N ≤ pfwd.val.length)
+    (hpv : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP pfwd (j * N + t)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a j)) t)
+    (hpc : ∀ u ∈ pfwd.val, u.val < GP)
+    (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbe : endU.val ≤ b.val.length)
+    (hjs : startU.val ≤ jU.val) (hje : jU.val ≤ endU.val)
+    (haccC : Canon GP acc) (hscC : Canon GP scratch)
+    (hval : ∀ t, t < N → resK GP acc t
+              = ∑ u ∈ Finset.Ico startU.val jU.val, termFwd ps a b u t) :
+    ring.dot_prep_chunk_gold_loop0 pfwd b endU nU pt acc scratch jU
+      ⦃ z => Canon GP z.1 ∧ Canon GP z.2
+             ∧ ∀ t, t < N → resK GP z.1 t
+                 = ∑ u ∈ Finset.Ico startU.val endU.val, termFwd ps a b u t ⦄ := by
+  rw [ring.dot_prep_chunk_gold_loop0]
+  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.val)
+    (fun r => startU.val ≤ r.2.2.val ∧ r.2.2.val ≤ endU.val
+      ∧ Canon GP r.1 ∧ Canon GP r.2.1
+      ∧ ∀ t, t < N → resK GP r.1 t
+              = ∑ u ∈ Finset.Ico startU.val r.2.2.val, termFwd ps a b u t)
+  · rintro ⟨d, sc, jj⟩ ⟨hjjs, hjje, hcd, hcsc, hw⟩
+    dsimp only at hjjs hjje hcd hcsc hw
+    simp only [ring.dot_prep_chunk_gold_loop0.body]
+    by_cases hlt : jj < endU
+    · rw [if_pos hlt]
+      have hjjlt : jj.val < endU.val := by scalar_tac
+      have hjb : jj.val < b.val.length := by omega
+      simp only [alloc.vec.Vec.with_capacity]
+      rw [gold_chunk_words_eq]
+      step with prep_words_b_spec b nU jj (alloc.vec.Vec.new Std.U64) 0#usize hn hjb
+        (hbwf jj.val hjjlt) (by simp) (by simp) (by intro u hu; simp at hu)
+        (by intro t ht; simp at ht) as ⟨bw, hbwl, hbwr, hbwv⟩
+      step with gold_twist_cast bw pt hbwl hptC ps hptv as ⟨tb, htbC, htbv⟩
+      step with gold_forward_spec tb sc pt htbC hcsc hptC ps hptv
+        as ⟨fw, hfw1, hfw2, hfwv⟩
+      obtain ⟨v, v1⟩ := fw
+      dsimp only at hfw1 hfw2 hfwv
+      step as ⟨off, hoff⟩
+      have hoffv : off.val = jj.val * N := by rw [hoff, hn]
+      have hslb : off.val + N ≤ pfwd.val.length := by
+        rw [hoffv]
+        have h1 : (jj.val + 1) * N ≤ endU.val * N := Nat.mul_le_mul_right N (by omega)
+        have h2 : (jj.val + 1) * N = jj.val * N + N := by ring
+        omega
+      step with slice_out_top_spec pfwd off nU hn hslb as ⟨af, hafl, hafv⟩
+      -- `pfwd` is `endU * N` long, so `Canon` does not apply to it; the bound
+      -- comes from `hpc` directly, with the out-of-range default handled
+      have hafC : Canon GP af := ⟨hafl, fun x hx => by
+        obtain ⟨t, ht, hteq⟩ := List.getElem_of_mem hx
+        have hb : wordAt af t = wordAt pfwd (off.val + t) :=
+          hafv t (by rw [← hafl]; exact ht)
+        rw [wordAt_of_lt ht] at hb
+        rw [← hteq, hb]
+        unfold wordAt
+        by_cases hin : off.val + t < pfwd.val.length
+        · rw [List.getD_eq_getElem _ _ hin]
+          exact hpc _ (List.getElem_mem hin)
+        · rw [List.getD_eq_default _ _ (by omega)]
+          simpa using GP_pos⟩
+      -- the table's entry IS this term's left transform
+      have hFA : ∀ t, t < N → resK GP af t
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a jj.val)) t := by
+        intro t ht
+        simp only [resK]
+        rw [hafv t ht, hoffv]
+        have := hpv jj.val hjjlt t ht
+        simp only [resK] at this
+        exact this
+      have hFB : ∀ t, t < N → resK GP v t
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP b jj.val)) t := by
+        intro t ht
+        rw [hfwv t ht]
+        refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP tb)
+          (NttMath.twistR ps (entryK GP b jj.val)) ?_ t ht
+        intro e he
+        rw [htbv e he]
+        simp only [NttMath.twistR, entryK, hbwv e he]
+      step with gold_mac_into_spec d af v nU 0#usize (resK GP d)
+        hn (by simp) hcd hafC hfw1 (by intro t ht; simp) as ⟨acc1, hac1C, hac1v⟩
+      step as ⟨jj1, hjj1⟩
+      refine ⟨by rw [hjj1]; omega, by rw [hjj1]; omega, hac1C, hfw2, ?_,
+        by rw [hjj1]; omega⟩
+      intro t ht
+      rw [hjj1, Finset.sum_Ico_succ_top (by omega), ← hw t ht]
+      rw [hac1v t ht, hFA t ht, hFB t ht]
+      unfold termFwd
+      rw [← HachiEquiv.NttProduct.prod_difRun ps hord (entryK GP a jj.val) (entryK GP b jj.val)
+        (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a jj.val)))
+        (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP b jj.val)))
+        (fun t' => NttMath.difRun (ps ^ 2) 10 1
+            (NttMath.twistR ps (entryK GP a jj.val)) t'
+          * NttMath.difRun (ps ^ 2) 10 1
+            (NttMath.twistR ps (entryK GP b jj.val)) t')
+        (fun t' _ => rfl) (fun t' _ => rfl) (fun t' _ => rfl) t ht]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = endU.val := by scalar_tac
+      refine ⟨hcd, hcsc, ?_⟩
+      intro t ht
+      rw [hw t ht, heq]
+  · exact ⟨hjs, hje, haccC, hscC, hval⟩
