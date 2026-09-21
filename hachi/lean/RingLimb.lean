@@ -652,4 +652,118 @@ theorem limb_chunk_spec (f0 f1 : alloc.vec.Vec Std.U64)
         HachiEquiv.GoldDot.gninv_inv (Finset.Ico startU.val endU.val)
         (fun u => entryK GP a1 u) (fun u => entryK GP b u) t ht]
 
+/-! ## The recombination
+
+`r₀ + 2¹⁶·r₁ mod q`, one coefficient at a time. Both lane words are below
+`GP < 2^64`, so `w₀ + 2¹⁶·w₁ < 2^80` and the `u128` holds it with room; the
+`% q` at the end is the only reduction in the whole dot. -/
+
+set_option maxRecDepth 8000 in
+theorem limb_out_loop_spec (degU : Std.Usize) (qwU : Std.U128)
+    (w0 w1 : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
+    (tU : Std.Usize) (X0 X1 : ℕ → ℕ)
+    (hdeg : degU.val = N) (hqw : qwU.val = HachiEquiv.NttProduct.q)
+    (hw0 : ∀ k, k < N → wordAt w0 k = X0 k) (hw1 : ∀ k, k < N → wordAt w1 k = X1 k)
+    (hc0 : Canon GP w0) (hc1 : Canon GP w1)
+    (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
+    (hred : ∀ x ∈ out.val, x.val < HachiEquiv.NttProduct.q)
+    (hval : ∀ k, k < tU.val → HachiEquiv.Ring.coeffK out k
+      = ((X0 k : ℕ) : ZMod HachiEquiv.NttProduct.q)
+        + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+          * ((X1 k : ℕ) : ZMod HachiEquiv.NttProduct.q)) :
+    ring.dot_prepared_limbs2_loop0_loop0 degU qwU (w0, w1) out tU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+          = ((X0 k : ℕ) : ZMod HachiEquiv.NttProduct.q)
+            + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+              * ((X1 k : ℕ) : ZMod HachiEquiv.NttProduct.q) ⦄ := by
+  have hqpos : 0 < HachiEquiv.NttProduct.q := by
+    simp only [HachiEquiv.NttProduct.q]; norm_num
+  rw [ring.dot_prepared_limbs2_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.val)
+    (fun s => s.2.val ≤ N ∧ s.1.val.length = s.2.val
+      ∧ (∀ x ∈ s.1.val, x.val < HachiEquiv.NttProduct.q)
+      ∧ ∀ k, k < s.2.val → HachiEquiv.Ring.coeffK s.1 k
+          = ((X0 k : ℕ) : ZMod HachiEquiv.NttProduct.q)
+            + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+              * ((X1 k : ℕ) : ZMod HachiEquiv.NttProduct.q))
+  · rintro ⟨o1, t1⟩ ⟨ht1, hl1, hr1, hv1⟩
+    dsimp only at ht1 hl1 hr1 hv1
+    simp only [ring.dot_prepared_limbs2_loop0_loop0.body]
+    by_cases hlt : t1 < degU
+    · rw [if_pos hlt]
+      have htlt : t1.val < N := by rw [← hdeg]; clear * - hlt hdeg; scalar_tac
+      have hb0 : t1.val < w0.val.length := by rw [hc0.1]; exact htlt
+      have hb1 : t1.val < w1.val.length := by rw [hc1.1]; exact htlt
+      step as ⟨x0, hx0⟩
+      have hx0v : x0.val = X0 t1.val := by
+        rw [hx0, ← wordAt_of_lt (v := w0) (t := t1.val) hb0, hw0 t1.val htlt]
+      have hcast0 : lift (UScalar.cast .U128 x0) ⦃ y => y.val = x0.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 x0 (HachiEquiv.NttCRT.u64_le_u128_max x0)
+      step with hcast0 as ⟨y0, hy0⟩
+      step as ⟨x1, hx1⟩
+      have hx1v : x1.val = X1 t1.val := by
+        rw [hx1, ← wordAt_of_lt (v := w1) (t := t1.val) hb1, hw1 t1.val htlt]
+      have hcast1 : lift (UScalar.cast .U128 x1) ⦃ y => y.val = x1.val ⦄ :=
+        UScalar.cast_inBounds_spec .U128 x1 (HachiEquiv.NttCRT.u64_le_u128_max x1)
+      step with hcast1 as ⟨y1, hy1⟩
+      -- both lane words are below `GP < 2^64`, so the shifted sum fits a `u128`
+      have hx0lt : x0.val < GP := by
+        rw [hx0]; exact hc0.2 _ (List.getElem_mem hb0)
+      have hx1lt : x1.val < GP := by
+        rw [hx1]; exact hc1.2 _ (List.getElem_mem hb1)
+      have hu128 : (Std.U128.max : ℕ) = 340282366920938463463374607431768211455 := by
+        simp only [Std.U128.max, UScalar.max, Std.U128.numBits]
+        norm_num
+      have hGP : (GP : ℕ) = 18446744069414584321 := rfl
+      have hmul : 65536 * y1.val ≤ Std.U128.max := by rw [hy1]; omega
+      step as ⟨p1, hp1⟩
+      have hadd : y0.val + p1.val ≤ Std.U128.max := by rw [hp1, hy0, hy1]; omega
+      step as ⟨sm, hsm⟩
+      have hqwpos : 0 < qwU.val := by rw [hqw]; exact hqpos
+      step as ⟨rd, hrd⟩
+      have hrdv : rd.val = (x0.val + 65536 * x1.val) % HachiEquiv.NttProduct.q := by
+        rw [hrd, hsm, hp1, hy0, hy1, hqw]
+      have hrdlt : rd.val < HachiEquiv.NttProduct.q := by
+        rw [hrdv]; exact Nat.mod_lt _ hqpos
+      have hcast2 : lift (UScalar.cast .U64 rd) ⦃ y => y.val = rd.val ⦄ :=
+        UScalar.cast_inBounds_spec .U64 rd (by
+          have hm : (UScalar.max UScalarTy.U64 : ℕ) = 18446744073709551615 := by
+            simp only [UScalar.max, UScalarTy.numBits]; norm_num
+          have : HachiEquiv.NttProduct.q = 4294967197 := rfl
+          omega)
+      step with hcast2 as ⟨rw64, hrw64⟩
+      step with fp_new_rep' rw64 as ⟨f, hf⟩
+      have hfv : f.val = rd.val := by
+        rw [hf, hrw64, Nat.mod_eq_of_lt hrdlt]
+      step as ⟨o2, ho2⟩
+      step as ⟨t2, ht2⟩
+      have ht2v : t2.val = t1.val + 1 := by clear * - ht2; scalar_tac
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [ho2, ht2v, List.length_append, hl1]; simp
+      · intro x hx
+        rw [ho2] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hr1 x h
+        · rw [List.mem_singleton.mp h, hfv]; exact hrdlt
+      · intro k hk
+        rw [ht2v] at hk
+        rcases Nat.lt_or_ge k t1.val with hklt | hkge
+        · simp only [HachiEquiv.Ring.coeffK]
+          rw [ho2, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
+          exact hv1 k hklt
+        · have hkeq : k = o1.val.length := by omega
+          simp only [HachiEquiv.Ring.coeffK]
+          rw [hkeq, ho2, HachiEquiv.GoldTransform.getD_append_eq', hl1]
+          simp only [HachiEquiv.Field.toK, hfv, hrdv, hx0v, hx1v]
+          rw [ZMod.natCast_mod]
+          push_cast
+          ring
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : t1.val = N := by
+        have : degU.val ≤ t1.val := by clear * - hlt; scalar_tac
+        omega
+      exact ⟨⟨by rw [hl1, heq], hr1⟩, fun k hk => hv1 k (by rw [heq]; exact hk)⟩
+  · exact ⟨ht, hlen, hred, hval⟩
+
 end HachiEquiv.RingLimb
