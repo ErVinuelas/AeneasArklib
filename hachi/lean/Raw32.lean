@@ -622,6 +622,31 @@ theorem honest_z_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
 other six consumers' are in `QuadEvalProtocol.lean`, beside the specifications
 they inherit. -/
 
+/-- General form of `commit_streamed_32_spec` (arbitrary `ir mr or bl`); the pinned statement below is its instance at `1 1024 1 1024`.
+**`commit_streamed_32` commits the message its words denote.** -/
+theorem commit_streamed_32_specG (ir mr or bl : ℕ) (pp : commit.PublicParams)
+    (raw32 : alloc.vec.Vec linalg.RawVec32) (m : alloc.vec.Vec linalg.PolyVec)
+    (hex : ExpandsTo raw32 m) (hpp : WfParamsG ir mr or bl pp)
+    (hm : m.val.length = bl ∧ ∀ x ∈ m.val, WfVec mr x)
+    (hir : 0 < ir) (hmr8 : mr * 8 ≤ 8192) (hir8 : 8 * ir ≤ Usize.max) (hsz : bl * (ir * 8) ≤ Usize.max) :
+    commit.commit_streamed_32 pp raw32
+      ⦃ z => WfVec or z.1 ∧ z.2.val.length = bl
+        ∧ (∀ y ∈ z.2.val, WfVec (ir * 8) y)
+        ∧ (∀ j : Fin bl,
+            toVec (k := ir * 8) (z.2.val.getD j.val (alloc.vec.Vec.new ring.Rq))
+              = (InnerOuter.generateDecomps Φ
+                  (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParamsG ir mr or bl pp)
+                  (fun i : Fin bl => toVec (k := mr)
+                    (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))).innerDecomp j)
+        ∧ toVec (k := or) z.1
+            = InnerOuter.commitWithDecomps Φ (toParamsG ir mr or bl pp)
+                (InnerOuter.generateDecomps Φ
+                  (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParamsG ir mr or bl pp)
+                  (fun i : Fin bl => toVec (k := mr)
+                    (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
+  rw [commit_streamed_32_eq pp hex]
+  exact commit_streamed_specG ir mr or bl pp m hpp hm hir hmr8 hir8 hsz
+
 /-- **`commit_streamed_32` commits the message its words denote.** -/
 theorem commit_streamed_32_spec (pp : commit.PublicParams)
     (raw32 : alloc.vec.Vec linalg.RawVec32) (m : alloc.vec.Vec linalg.PolyVec)
@@ -642,7 +667,7 @@ theorem commit_streamed_32_spec (pp : commit.PublicParams)
                   (InnerOuter.Decomposition.ofDigits Φ dd dd) (toParams pp)
                   (fun i : Fin 1024 => toVec (k := 1024)
                     (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
-  rw [commit_streamed_32_eq pp hex]
-  exact commit_streamed_spec pp m hpp hm
+  exact commit_streamed_32_specG 1 1024 1 1024 pp raw32 m hex hpp hm (by norm_num) (by norm_num)
+    (by have := usize_max_ge'; omega) (by have := usize_max_ge'; omega)
 
 end HachiEquiv.Raw32

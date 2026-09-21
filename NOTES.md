@@ -9879,3 +9879,80 @@ the Taylor shift, and no audited spec reached the lemma). The Rust
 bench case call it as their own interpolation oracle, so it is test
 scaffolding, not dead code — the overview of 09-21 that called it dead was
 wrong on that point.
+
+## Abstracting the parameters: the honest path at arbitrary dimensions (2026-09-21)
+
+Asked: state the equivalence at abstract parameters rather than at the pin.
+Where the pin actually enters, measured before anything moved:
+
+* **The extracted model is not parametric.** 85 of the 304 `pub fn`s in
+  `hachi/src` read a `params::` constant (`RING_DEGREE` in 36 of them,
+  `GADGET_DIGITS` 22, `Q` 10, `SHIFT_*` 12, `ROUND_NODES*` 10, `MESSAGE_ROWS` 7,
+  `ML_*` 6, `GADGET_BASE` 4, `BLOCKS` 2, …), so `Generated.lean` carries `1024#usize` where the Rust does.
+  A statement generic in a dimension the code hard-wires would be false for every
+  other value; genuine abstraction there is a Rust change (arguments or const
+  generics — the latter unprobed by the extraction ceiling table) followed by
+  re-extraction and re-proof, per function.
+* **The Lean side pins in two places.** Globally, through `q`, `N`, `α`, `Φ`,
+  `dd`/`ddBal` (base 16, eight digits), `μR`/`nR`; and locally, in **60 of 580**
+  `_spec` statements that carry `1024`, `2 ^ 10`, `1 * 8`, `33` or `8192`
+  (QuadEvalProtocol 22, Scheme 16, EvalSplit 5, Sumcheck 4, Balanced 3, Rlin 3,
+  Chain 2, one each in GoldDot, RingShort, Raw32, RqBridge). The arithmetic layers
+  (`q`, the three auxiliary primes, Goldilocks) are theorems about specific
+  numbers, mostly by `decide`, and have no abstract form to state.
+
+What can be abstracted honestly is the case where the Rust is already
+parametric and only the Lean statement was not. The inner-outer honest path is
+exactly that: `generate_decomps` takes the block count from the message's
+length and every other dimension from the vectors it is handed, and so do
+`commit_with_decomps`, `commit`, `commit_streamed`, `Opening::honest`, and the
+balanced twins `generate_decomps_balanced`/`commit_balanced`. This entry lands
+that:
+
+* `Scheme.lean` § "The same representation, at arbitrary dimensions":
+  `WfParamsG`, `WfDecompG`, `toParamsG`, `toDecompSpecG` over
+  `(ir mr or bl : ℕ)` — inner rows, message rows, outer rows, blocks — each
+  equal to the pinned definition at `1 1024 1 1024` by `rfl`.
+* Twelve `…specG` theorems (eight in `Scheme.lean`, three in `Balanced.lean`, one in
+  `Raw32.lean`),
+  stated over `ir mr or bl` with the side conditions the abstraction surfaces
+  as **last** hypotheses, and each **pinned statement re-derived from its
+  general form** by `exact fooG 1 1024 1 1024 … (by norm_num) …`, byte for
+  byte unchanged — checked against the previous tree, so nothing downstream
+  (Raw32, QuadEvalProtocol, the chain) noticed. `Check.lean` § 4 prints the
+  twelve new axiom lines.
+* The proofs generalized mechanically: every `1024` was one of two things
+  (blocks or message rows), every `1` one of two (inner or outer rows), and
+  the loop invariants were already stated through `blocks.val`; the only
+  proof text that changed is where a `(by norm_num)`/`(by scalar_tac)` on a
+  literal became a named hypothesis.
+
+**What the abstraction surfaced.** Three side conditions that the literals
+had been hiding:
+
+* `mr * 8 ≤ 8192` — the Goldilocks digit path (`apply_digits_gold_spec`'s
+  `hwidth`) reconstructs a row in one chunk only while `2·L·BOUND_D < GOLD_P`,
+  `L = mr·8`. At the pin this is `8192 ≤ 8192`: the crate sits *exactly* on
+  the bound, and a message one row wider would silently need the chunked
+  two-prime path instead. That fact was invisible while the statement said
+  `1024 * 8`.
+* `8 * ir ≤ Usize.max` and `bl * (ir * 8) ≤ Usize.max` — the `Vec` length
+  invariants of the inner decomposition and its flattening (the latter is
+  `flatten_blocks_spec`'s `hsize`, already known to be *necessary*: without it
+  the model's final `push` can fail).
+* `0 < ir` — `prepare_digits_gold` needs at least one row to prepare.
+
+**What stays pinned, and why.** The digit count `8` in every `…G` statement:
+`gadget::gadget_decompose` reads `params::GADGET_DIGITS`, so it is a property
+of the extracted code, and `dd` is the eight-digit decomposition. The verifier
+side (`verify_weak`, `verify`, `derived_message`): the Rust reads `BETA_SQ`,
+`GAMMA`, `KAPPA`, `INNER_ROWS`, `MESSAGE_ROWS`. And everything above the
+scheme: QuadEvalProtocol's twenty-two pinned statements sit on
+`Hachi.PublicParamsD Φ 1 (2^10) 8 1 (2^10) 8 1` and `μR = rlinCols 1 8 8 5 10 10`;
+its carriers are parameter-free Rust and are the next candidates for the same
+treatment, but the honest prover (`honest_z*`, `j_mul`, `rel_out`) reads
+`MESSAGE_ROWS`/`GADGET_DIGITS`/`BLOCKS`, so that layer generalizes only in
+part without touching the Rust.
+
+The pattern to extend it — general form with side conditions last, pinned
+statement kept verbatim and proved by instantiation — is now the house shape.

@@ -672,45 +672,47 @@ theorem rho_digits_spec (rho : ring.Rq) (u : Std.Usize) (hrho : Wf rho) :
 
 /-! ## The balanced committer -/
 
-/-- The loop of `commit::generate_decomps_balanced`: per block `sᵢ = G⁻¹(mᵢ)`
+/-- General form of `generate_decomps_balanced_loop_spec` (arbitrary `ir mr or bl`); the pinned statement below is its instance at `1 1024 1 1024`.
+The loop of `commit::generate_decomps_balanced`: per block `sᵢ = G⁻¹(mᵢ)`
 and `t̂ᵢ = G⁻¹(A sᵢ)`, at the balanced digit map. -/
-theorem generate_decomps_balanced_loop_spec (pp : commit.PublicParams)
+theorem generate_decomps_balanced_loop_specG (ir mr or bl : ℕ) (pp : commit.PublicParams)
     (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
     (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
-    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
-    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
+    (hpp : WfParamsG ir mr or bl pp) (hm : m.val.length = bl ∧ ∀ x ∈ m.val, WfVec mr x)
+    (hb : blocks.val = bl) (hi : i.val ≤ bl)
     (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
-    (hWss : ∀ y ∈ ss.val, WfVec (1024 * 8) y) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
-    (hvss : ∀ j < i.val, toVec (k := 1024 * 8) (ss.val.getD j (alloc.vec.Vec.new ring.Rq))
-      = gadgetDecompose Φ ddBal (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
-    (hvts : ∀ j < i.val, toVec (k := 1 * 8) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
+    (hWss : ∀ y ∈ ss.val, WfVec (mr * 8) y) (hWts : ∀ y ∈ ts.val, WfVec (ir * 8) y)
+    (hvss : ∀ j < i.val, toVec (k := mr * 8) (ss.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetDecompose Φ ddBal (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
+    (hvts : ∀ j < i.val, toVec (k := ir * 8) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
       = gadgetDecompose Φ ddBal (ArkLib.Lattices.matVecMul
-          (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+          (toMat (rows := ir) (cols := mr * 8) pp.inner_matrix)
           (gadgetDecompose Φ ddBal
-            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
+            (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))))
+    (hmr8 : 8 * mr ≤ Usize.max) (hir8 : 8 * ir ≤ Usize.max) :
     commit.generate_decomps_balanced_loop pp m blocks ss ts i
-      ⦃ r => r.1.val.length = 1024 ∧ r.2.val.length = 1024 ∧
-        (∀ y ∈ r.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ r.2.val, WfVec (1 * 8) y) ∧
-        (∀ j < 1024, toVec (k := 1024 * 8) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+      ⦃ r => r.1.val.length = bl ∧ r.2.val.length = bl ∧
+        (∀ y ∈ r.1.val, WfVec (mr * 8) y) ∧ (∀ y ∈ r.2.val, WfVec (ir * 8) y) ∧
+        (∀ j < bl, toVec (k := mr * 8) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
           = gadgetDecompose Φ ddBal
-              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
-        (∀ j < 1024, toVec (k := 1 * 8) (r.2.val.getD j (alloc.vec.Vec.new ring.Rq))
+              (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
+        (∀ j < bl, toVec (k := ir * 8) (r.2.val.getD j (alloc.vec.Vec.new ring.Rq))
           = gadgetDecompose Φ ddBal (ArkLib.Lattices.matVecMul
-              (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+              (toMat (rows := ir) (cols := mr * 8) pp.inner_matrix)
               (gadgetDecompose Φ ddBal
-                (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) ⦄ := by
+                (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) ⦄ := by
   rw [commit.generate_decomps_balanced_loop]
   apply loop.spec_decr_nat (fun s => blocks.val - s.2.2.val)
-    (fun s => s.2.2.val ≤ 1024 ∧ s.1.val.length = s.2.2.val ∧ s.2.1.val.length = s.2.2.val ∧
-      (∀ y ∈ s.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ s.2.1.val, WfVec (1 * 8) y) ∧
-      (∀ j < s.2.2.val, toVec (k := 1024 * 8) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+    (fun s => s.2.2.val ≤ bl ∧ s.1.val.length = s.2.2.val ∧ s.2.1.val.length = s.2.2.val ∧
+      (∀ y ∈ s.1.val, WfVec (mr * 8) y) ∧ (∀ y ∈ s.2.1.val, WfVec (ir * 8) y) ∧
+      (∀ j < s.2.2.val, toVec (k := mr * 8) (s.1.val.getD j (alloc.vec.Vec.new ring.Rq))
         = gadgetDecompose Φ ddBal
-            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
-      (∀ j < s.2.2.val, toVec (k := 1 * 8) (s.2.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+            (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
+      (∀ j < s.2.2.val, toVec (k := ir * 8) (s.2.1.val.getD j (alloc.vec.Vec.new ring.Rq))
         = gadgetDecompose Φ ddBal (ArkLib.Lattices.matVecMul
-            (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+            (toMat (rows := ir) (cols := mr * 8) pp.inner_matrix)
             (gadgetDecompose Φ ddBal
-              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))))
+              (toVec (k := mr) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))))
   · rintro ⟨s1, t1, i1⟩ ⟨hi1, hs1, ht1, hWs1, hWt1, hvs1, hvt1⟩
     dsimp only at hi1 hs1 ht1 hWs1 hWt1 hvs1 hvt1
     simp only [commit.generate_decomps_balanced_loop.body]
@@ -718,13 +720,13 @@ theorem generate_decomps_balanced_loop_spec (pp : commit.PublicParams)
     · rw [if_pos hlt]
       have hilt : i1.val < m.val.length := by rw [hm.1, ← hb]; scalar_tac
       step as ⟨pv, hpv⟩
-      have hWpv : WfVec 1024 pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
-      step with balanced_gadget_decompose_spec (rows := 1024) pv hWpv (by scalar_tac)
+      have hWpv : WfVec mr pv := by rw [hpv]; exact hm.2 _ (List.getElem_mem hilt)
+      step with balanced_gadget_decompose_spec (rows := mr) pv hWpv hmr8
         as ⟨s, hWs, hs⟩
       simp only [commit.PublicParams.impl.inner_matrix]
-      step with mat_vec_mul_spec (rows := 1) (cols := 1024 * 8) pp.inner_matrix s
+      step with mat_vec_mul_spec (rows := ir) (cols := mr * 8) pp.inner_matrix s
         hpp.1 hWs as ⟨inner, hWinner, hinner⟩
-      step with balanced_gadget_decompose_spec (rows := 1) inner hWinner (by scalar_tac)
+      step with balanced_gadget_decompose_spec (rows := ir) inner hWinner hir8
         as ⟨t, hWt, ht⟩
       step as ⟨t2, ht2⟩
       step as ⟨s2, hs2⟩
@@ -759,10 +761,70 @@ theorem generate_decomps_balanced_loop_spec (pp : commit.PublicParams)
       · scalar_tac
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : i1.val = 1024 := by rw [← hb] at hi1 ⊢; scalar_tac
+      have heq : i1.val = bl := by rw [← hb] at hi1 ⊢; scalar_tac
       rw [heq] at hs1 ht1 hvs1 hvt1
       exact ⟨hs1, ht1, hWs1, hWt1, hvs1, hvt1⟩
   · exact ⟨hi, hss, hts, hWss, hWts, hvss, hvts⟩
+
+/-- The loop of `commit::generate_decomps_balanced`: per block `sᵢ = G⁻¹(mᵢ)`
+and `t̂ᵢ = G⁻¹(A sᵢ)`, at the balanced digit map. -/
+theorem generate_decomps_balanced_loop_spec (pp : commit.PublicParams)
+    (m : alloc.vec.Vec linalg.PolyVec) (blocks : Std.Usize)
+    (ss ts : alloc.vec.Vec linalg.PolyVec) (i : Std.Usize)
+    (hpp : WfParams pp) (hm : m.val.length = 1024 ∧ ∀ x ∈ m.val, WfVec 1024 x)
+    (hb : blocks.val = 1024) (hi : i.val ≤ 1024)
+    (hss : ss.val.length = i.val) (hts : ts.val.length = i.val)
+    (hWss : ∀ y ∈ ss.val, WfVec (1024 * 8) y) (hWts : ∀ y ∈ ts.val, WfVec (1 * 8) y)
+    (hvss : ∀ j < i.val, toVec (k := 1024 * 8) (ss.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetDecompose Φ ddBal (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq))))
+    (hvts : ∀ j < i.val, toVec (k := 1 * 8) (ts.val.getD j (alloc.vec.Vec.new ring.Rq))
+      = gadgetDecompose Φ ddBal (ArkLib.Lattices.matVecMul
+          (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+          (gadgetDecompose Φ ddBal
+            (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) :
+    commit.generate_decomps_balanced_loop pp m blocks ss ts i
+      ⦃ r => r.1.val.length = 1024 ∧ r.2.val.length = 1024 ∧
+        (∀ y ∈ r.1.val, WfVec (1024 * 8) y) ∧ (∀ y ∈ r.2.val, WfVec (1 * 8) y) ∧
+        (∀ j < 1024, toVec (k := 1024 * 8) (r.1.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = gadgetDecompose Φ ddBal
+              (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))) ∧
+        (∀ j < 1024, toVec (k := 1 * 8) (r.2.val.getD j (alloc.vec.Vec.new ring.Rq))
+          = gadgetDecompose Φ ddBal (ArkLib.Lattices.matVecMul
+              (toMat (rows := 1) (cols := 1024 * 8) pp.inner_matrix)
+              (gadgetDecompose Φ ddBal
+                (toVec (k := 1024) (m.val.getD j (alloc.vec.Vec.new ring.Rq)))))) ⦄ := by
+  exact generate_decomps_balanced_loop_specG 1 1024 1 1024 pp m blocks ss ts i hpp hm hb hi hss hts hWss hWts hvss hvts (by have := usize_max_ge'; omega) (by have := usize_max_ge'; omega)
+
+/-- General form of `generate_decomps_balanced_spec` (arbitrary `ir mr or bl`); the pinned statement below is its instance at `1 1024 1 1024`.
+`commit::generate_decomps_balanced` — ArkLib's `generateDecomps` at
+`Decomposition.ofDigits ddBal ddBal`. The unsigned twin's statement with `ddBal`
+for `dd`, which is the whole of the difference on the specification side too:
+`generateDecomps` takes the decomposition as a parameter. -/
+theorem generate_decomps_balanced_specG (ir mr or bl : ℕ) (pp : commit.PublicParams)
+    (m : alloc.vec.Vec linalg.PolyVec) (hpp : WfParamsG ir mr or bl pp)
+    (hm : m.val.length = bl ∧ ∀ x ∈ m.val, WfVec mr x)
+    (hmr8 : 8 * mr ≤ Usize.max) (hir8 : 8 * ir ≤ Usize.max) :
+    commit.generate_decomps_balanced pp m
+      ⦃ d => WfDecompG ir mr bl d ∧ toDecompSpecG ir mr bl d
+        = InnerOuter.generateDecomps Φ
+            (InnerOuter.Decomposition.ofDigits Φ ddBal ddBal) (toParamsG ir mr or bl pp)
+            (fun i : Fin bl => toVec (k := mr) (m.val.getD i.val
+              (alloc.vec.Vec.new ring.Rq))) ⦄ := by
+  rw [commit.generate_decomps_balanced]
+  simp only [commit.Decomp.new]
+  step with generate_decomps_balanced_loop_specG ir mr or bl pp m (alloc.vec.Vec.len m)
+    (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
+    hpp hm (by simpa using hm.1) (by simp) (by simp) (by simp)
+    (by intro y hy; simp at hy) (by intro y hy; simp at hy)
+    (by intro j hj; simp at hj) (by intro j hj; simp at hj) hmr8 hir8
+    as ⟨ss, ts, hsl, htl, hWs, hWt, hvs, hvt⟩
+  refine ⟨⟨⟨hsl, hWs⟩, ⟨htl, hWt⟩⟩, ?_⟩
+  show (toDecompSpecG ir mr bl ⟨ss, ts⟩ : InnerOuter.Decomp Φ ir mr 8 bl 8) = _
+  simp only [toDecompSpecG, InnerOuter.generateDecomps, InnerOuter.Decomposition.ofDigits,
+    InnerOuter.Decomp.mk.injEq]
+  constructor
+  · funext i; exact hvs i.val i.isLt
+  · funext i; exact hvt i.val i.isLt
 
 /-- `commit::generate_decomps_balanced` — ArkLib's `generateDecomps` at
 `Decomposition.ofDigits ddBal ddBal`. The unsigned twin's statement with `ddBal`
@@ -777,21 +839,30 @@ theorem generate_decomps_balanced_spec (pp : commit.PublicParams)
             (InnerOuter.Decomposition.ofDigits Φ ddBal ddBal) (toParams pp)
             (fun i : Fin 1024 => toVec (k := 1024) (m.val.getD i.val
               (alloc.vec.Vec.new ring.Rq))) ⦄ := by
-  rw [commit.generate_decomps_balanced]
-  simp only [commit.Decomp.new]
-  step with generate_decomps_balanced_loop_spec pp m (alloc.vec.Vec.len m)
-    (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize
-    hpp hm (by simpa using hm.1) (by simp) (by simp) (by simp)
-    (by intro y hy; simp at hy) (by intro y hy; simp at hy)
-    (by intro j hj; simp at hj) (by intro j hj; simp at hj)
-    as ⟨ss, ts, hsl, htl, hWs, hWt, hvs, hvt⟩
-  refine ⟨⟨⟨hsl, hWs⟩, ⟨htl, hWt⟩⟩, ?_⟩
-  show (toDecompSpec ⟨ss, ts⟩ : InnerOuter.Decomp Φ 1 1024 8 1024 8) = _
-  simp only [toDecompSpec, InnerOuter.generateDecomps, InnerOuter.Decomposition.ofDigits,
-    InnerOuter.Decomp.mk.injEq]
-  constructor
-  · funext i; exact hvs i.val i.isLt
-  · funext i; exact hvt i.val i.isLt
+  exact generate_decomps_balanced_specG 1 1024 1 1024 pp m hpp hm (by have := usize_max_ge'; omega) (by have := usize_max_ge'; omega)
+
+/-- General form of `commit_balanced_spec` (arbitrary `ir mr or bl`); the pinned statement below is its instance at `1 1024 1 1024`.
+**The honest Hachi commitment.** `commit::commit_balanced` is ArkLib's
+`commitmentScheme.commit` at the balanced decomposition — which, composed with
+`Hachi.toMatrix`, is `Hachi.commit` itself (`Commitment.lean`). This is the
+statement that makes the extracted crate a translation of the *paper's*
+committer rather than of the unsigned building block underneath it. -/
+theorem commit_balanced_specG (ir mr or bl : ℕ) (pp : commit.PublicParams)
+    (m : alloc.vec.Vec linalg.PolyVec) (hpp : WfParamsG ir mr or bl pp)
+    (hm : m.val.length = bl ∧ ∀ x ∈ m.val, WfVec mr x)
+    (hmr8 : 8 * mr ≤ Usize.max) (hir8 : 8 * ir ≤ Usize.max) (hsz : bl * (ir * 8) ≤ Usize.max) :
+    commit.commit_balanced pp m
+      ⦃ z => WfVec or z.1 ∧ WfDecompG ir mr bl z.2 ∧
+        toDecompSpecG ir mr bl z.2 = InnerOuter.generateDecomps Φ
+            (InnerOuter.Decomposition.ofDigits Φ ddBal ddBal) (toParamsG ir mr or bl pp)
+            (fun i : Fin bl => toVec (k := mr) (m.val.getD i.val
+              (alloc.vec.Vec.new ring.Rq))) ∧
+        toVec (k := or) z.1
+          = InnerOuter.commitWithDecomps Φ (toParamsG ir mr or bl pp) (toDecompSpecG ir mr bl z.2) ⦄ := by
+  rw [commit.commit_balanced]
+  step with generate_decomps_balanced_specG ir mr or bl pp m hpp hm hmr8 hir8 as ⟨d, hWd, hdspec⟩
+  step with commit_with_decomps_specG ir mr or bl pp d hpp hWd hsz as ⟨u, hWu, huspec⟩
+  exact ⟨hWu, hWd, hdspec, huspec⟩
 
 /-- **The honest Hachi commitment.** `commit::commit_balanced` is ArkLib's
 `commitmentScheme.commit` at the balanced decomposition — which, composed with
@@ -809,9 +880,6 @@ theorem commit_balanced_spec (pp : commit.PublicParams)
               (alloc.vec.Vec.new ring.Rq))) ∧
         toVec (k := 1) z.1
           = InnerOuter.commitWithDecomps Φ (toParams pp) (toDecompSpec z.2) ⦄ := by
-  rw [commit.commit_balanced]
-  step with generate_decomps_balanced_spec pp m hpp hm as ⟨d, hWd, hdspec⟩
-  step with commit_with_decomps_spec pp d hpp hWd as ⟨u, hWu, huspec⟩
-  exact ⟨hWu, hWd, hdspec, huspec⟩
+  exact commit_balanced_specG 1 1024 1 1024 pp m hpp hm (by have := usize_max_ge'; omega) (by have := usize_max_ge'; omega) (by have := usize_max_ge'; omega)
 
 end HachiEquiv.Balanced

@@ -1072,6 +1072,10 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Balanced.rho_digits_spec
 #print axioms HachiEquiv.Balanced.generate_decomps_balanced_spec
 #print axioms HachiEquiv.Balanced.commit_balanced_spec
+-- ... and the same three at arbitrary dimensions (the pinned ones are their instances).
+#print axioms HachiEquiv.Balanced.generate_decomps_balanced_loop_specG
+#print axioms HachiEquiv.Balanced.generate_decomps_balanced_specG
+#print axioms HachiEquiv.Balanced.commit_balanced_specG
 
 -- The QuadEval fold (`lean/QuadEval.lean`): the `z`-side gadget siblings at
 -- `τ = 5` and their conditional round trip, the carrier entry, `tensorG1`, and
@@ -1255,6 +1259,20 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- is the single line whose axiom set summarises the whole development.
 #print axioms HachiEquiv.Scheme.honest_verifies
 #print axioms HachiEquiv.Scheme.honest_verifies_full
+
+-- The honest path at arbitrary dimensions (`Scheme.lean` § "The same representation,
+-- at arbitrary dimensions"): the eight statements above that carried `1024` and `1`
+-- are instances of these, at `ir mr or bl := 1 1024 1 1024`. The digit count stays
+-- `8` because `gadget::gadget_decompose` reads it from `params.rs`; the one side
+-- condition the abstraction surfaces is the Goldilocks chunk bound `mr * 8 ≤ 8192`.
+#print axioms HachiEquiv.Scheme.generate_decomps_loop_specG
+#print axioms HachiEquiv.Scheme.generate_decomps_specG
+#print axioms HachiEquiv.Scheme.commit_with_decomps_specG
+#print axioms HachiEquiv.Scheme.commit_specG
+#print axioms HachiEquiv.Scheme.commit_streamed_loop_specG
+#print axioms HachiEquiv.Scheme.commit_streamed_specG
+#print axioms HachiEquiv.Scheme.honest_loop_specG
+#print axioms HachiEquiv.Scheme.honest_specG
 
 -- The multilinear evaluation layer (`lean/EvalSplit.lean`): the `evalsplit`
 -- module and `linalg::split_form`, against ArkLib's split-evaluation definitions
@@ -1538,6 +1556,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Raw32.commit_streamed_32_loop_eq
 #print axioms HachiEquiv.Raw32.commit_streamed_32_eq
 #print axioms HachiEquiv.Raw32.commit_streamed_32_spec
+#print axioms HachiEquiv.Raw32.commit_streamed_32_specG
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_loop_eq
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_eq
 #print axioms HachiEquiv.Raw32.honest_z_from_raw_32_loop1_eq

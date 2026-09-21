@@ -263,7 +263,8 @@ hachi/
     RingFused.lean    the fused dot product in the transform domain -- proved
     RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
     Raw32.lean        the compact u32 raw-message carrier -- proved
-    Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved
+    Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved; the honest
+                      path also at arbitrary rows/blocks (`...specG`), the pinned specs its instances
     EvalSplit.lean    the evalsplit module against ArkLib's split evaluation -- proved
     Balanced.lean     the balanced digit layer, up to the honest Hachi commitment -- proved
     QuadEval.lean     the QuadEval fold's gadget, carrier and Eq. (20) decisions -- proved
