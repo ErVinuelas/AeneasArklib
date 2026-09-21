@@ -205,4 +205,24 @@ theorem apply_ga_loop_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixGA)
       exact ⟨by rw [hlen1, heq, hn], hwf1, by intro j hj; exact hval1 j (by rw [heq, hn]; exact hj)⟩
   · exact ⟨hi, hlen, hwf, hval⟩
 
+theorem apply_ga_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixGA)
+    (m : linalg.PolyMatrix) (v : linalg.PolyVec)
+    (ha : WfMat rows cols m) (hv : WfVec cols v) (hp : WfPrepGA rows cols pm m) :
+    linalg.PreparedMatrixGA.apply_ga pm v
+      ⦃ z => WfVec rows z ∧ toVec (k := rows) z
+        = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
+            (toVec (k := cols) v) ⦄ := by
+  rw [linalg.PreparedMatrixGA.apply_ga]
+  have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
+  have hcl : pm.cols.val = cols := hp.1
+  simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
+  apply spec_mono (apply_ga_loop_spec pm m v (alloc.vec.Vec.len pm.rows) pm.cols
+    (alloc.vec.Vec.new ring.Rq) 0#usize ha hv hp (by simp [hp.2.1]) hcl
+    (by simp) (by simp) (by intro y hy; simp at hy) (by intro j hj; simp at hj))
+  rintro z ⟨hzlen, hzwf, hzval⟩
+  refine ⟨⟨hzlen, hzwf⟩, ?_⟩
+  funext i
+  rw [ArkLib.Lattices.matVecMul_apply, toMat_apply]
+  exact hzval i.val i.isLt
+
 end HachiEquiv.SchemeTwoLane

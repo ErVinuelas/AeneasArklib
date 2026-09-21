@@ -1933,6 +1933,23 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingFused.dot_prep_chunk_word_spec
 #print axioms HachiEquiv.RingFused.prep_chunk_loop_spec
 #print axioms HachiEquiv.RingFused.dot_prepared_spec
+-- Candidate G2: the general path in TWO lanes, one Goldilocks and one 31-bit
+-- Barrett, where it ran three 31-bit ones. `chunk_fits` is the card: the chunk
+-- bound is 2^87 and GOLD_P*p1 is 2^92.8, the same margin three primes gave, so
+-- no second 64-bit prime and no Montgomery representation change. Every
+-- statement below is its three-lane counterpart's, word for word.
+#print axioms HachiEquiv.RingTwoLane.chunk_fits
+#print axioms HachiEquiv.RingTwoLane.garner_ga_spec
+#print axioms HachiEquiv.RingTwoLane.gold_chunk_terms_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prep_chunk_gold_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prep_chunk_gold_word_spec
+#print axioms HachiEquiv.RingTwoLane.prep_garner_ga_out_spec
+#print axioms HachiEquiv.RingTwoLane.prepare_vec_ga_spec
+#print axioms HachiEquiv.RingTwoLane.prep_chunk_ga_loop_spec
+#print axioms HachiEquiv.RingTwoLane.dot_prepared_ga_spec
+#print axioms HachiEquiv.SchemeTwoLane.dot_prepared_ga_rq_spec
+#print axioms HachiEquiv.SchemeTwoLane.prepare_ga_spec
+#print axioms HachiEquiv.SchemeTwoLane.apply_ga_spec
 #print axioms HachiEquiv.RingFused.prepare_vec_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_spec
 #print axioms HachiEquiv.Scheme.dot_prep_spec
