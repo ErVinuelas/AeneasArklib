@@ -409,11 +409,11 @@ pub fn carrier_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
     let mut rows: Vec<PolyVec> = Vec::new();
     rows.push(a.copy());
     let am: PolyMatrix = PolyMatrix::new(rows);
-    let prep: crate::linalg::PreparedMatrix = am.prepare();
+    let prep: crate::linalg::PreparedMatrixGA = am.prepare_ga();
     let mut out: Vec<Rq> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
-        let r: PolyVec = prep.apply(&raw[i]);
+        let r: PolyVec = prep.apply_ga(&raw[i]);
         out.push(r.get(0).copy());
         i += 1;
     }
@@ -481,12 +481,12 @@ pub fn carrier_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec 
     let mut rows: Vec<PolyVec> = Vec::new();
     rows.push(a.copy());
     let am: PolyMatrix = PolyMatrix::new(rows);
-    let prep: crate::linalg::PreparedMatrix = am.prepare();
+    let prep: crate::linalg::PreparedMatrixGA = am.prepare_ga();
     let mut out: Vec<Rq> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
         let block: PolyVec = raw[i].expand();
-        let r: PolyVec = prep.apply(&block);
+        let r: PolyVec = prep.apply_ga(&block);
         out.push(r.get(0).copy());
         i += 1;
     }

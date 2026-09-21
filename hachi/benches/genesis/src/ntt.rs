@@ -911,3 +911,40 @@ pub fn gold_untwist_off(src: &Vec<u64>, it: &Vec<u64>, off: u64) -> Vec<u64> {
     }
     out
 }
+
+
+// @genesis b97d6dd 2026-09-21 — ntt::GOLD_BOFF
+// Card G2 (2026-09-21): the general path in two lanes instead of three.
+// Appended as first translations; the three-lane path above is untouched.
+/// `BOUND = N · q²` reduced mod [`GOLD_P`]: the Goldilocks lane's per-term
+/// offset on the **general** path, where the digit path uses [`GOLD_DOFF`].
+pub const GOLD_BOFF: u64 = 18_445_877_654_261_932_033;
+
+// @genesis b97d6dd 2026-09-21 — ntt::GA_GINV
+/// The inverse of [`GOLD_P`] mod [`AUX_P1`], for the two-lane Garner.
+pub const GA_GINV: u64 = 4_091_113;
+
+// @genesis b97d6dd 2026-09-21 — ntt::garner_ga
+/// CRT across [`GOLD_P`] and [`AUX_P1`] -- the general path's two lanes.
+///
+/// The general path cannot use one Goldilocks lane: its right operand is the
+/// raw message, so a chunk needs `N·cols·(q−1)² = 1.55·10^26 ≈ 2^87` and one
+/// lane carries `1.84·10^19`. It does not need two *64-bit* lanes either,
+/// which is what made this card look like it required a second Montgomery
+/// prime and a representation change: `GOLD_P · AUX_P1 = 8.67·10^27 ≈ 2^92.8`
+/// clears the bound with 56× to spare -- the same margin the three 31-bit
+/// lanes give. So two lanes, and the second one is a prime the crate already
+/// has.
+///
+/// Garner: `x = rg + GOLD_P · t` with `t = (ra − rg)·GOLD_P⁻¹ mod AUX_P1`, so
+/// `x ≡ rg (mod GOLD_P)`, `x ≡ ra (mod AUX_P1)`, and `x < GOLD_P·AUX_P1`
+/// which is why the result is a `u128`.
+pub fn garner_ga(rg: u64, ra: u64) -> u128 {
+    let p1: u64 = AUX_P1;
+    let rgm: u64 = rg % p1;
+    let diff: u64 = if ra >= rgm { ra - rgm } else { ra + p1 - rgm };
+    let t: u64 = aux_mul(diff, GA_GINV, p1, AUX_M1);
+    let g: u128 = GOLD_P as u128;
+    let tw: u128 = t as u128;
+    (rg as u128) + g * tw
+}
