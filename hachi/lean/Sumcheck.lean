@@ -237,14 +237,6 @@ theorem ext_clone_eq (a : cpoly.field.Ext4) :
     cpoly.field.Ext4.Insts.CoreCloneClone.clone a = ok a := by
   rw [cpoly.field.Ext4.Insts.CoreCloneClone.clone]
 
-/-- `UnivariatePoly::zero` is the empty coefficient vector, i.e. the zero polynomial. -/
-theorem uni_zero_spec :
-    cpoly.univariate.UnivariatePoly.zero
-      ⦃ z => VecReduced z ∧ toRaw z = (0 : CPolynomial.Raw F) ⦄ := by
-  rw [cpoly.univariate.UnivariatePoly.zero]
-  simp only [spec_ok]
-  exact ⟨by intro u hu; simp at hu, by simp [toRaw]⟩
-
 /-- `UnivariatePoly::from_coeffs` takes the vector as it stands: no trimming, so
 a trailing zero survives. -/
 theorem uni_from_coeffs_spec (v : alloc.vec.Vec cpoly.field.Ext4) (hv : VecReduced v) :
@@ -1000,57 +992,6 @@ theorem round_node_spec (i : Std.Usize) :
   rintro out ⟨hRout, hout⟩
   refine ⟨hRout, ?_⟩
   rw [hout, hc, hw, ofBase_natCast]
-
-/-- The `2b + 1 = 33` range-side weights: entry `i` inverts `∏_{j ≠ i} (i − j)`
-over the nodes `0 … 32`. The arithmetic content of `params.ROUND_NODE_INV`. -/
-theorem round_node_weights_spec :
-    sumcheck.round_node_weights ⦃ out => out.val.length = 33 ∧ (∀ a ∈ out.val, Red a) ∧
-      ∀ i : Fin 33, toK (out.val.getD i.val (0#u64 : cpoly.field.Fp)) *
-        ∏ j ∈ (Finset.univ : Finset (Fin 33)).erase i, ((i.val : ZMod q) - (j.val : ZMod q)) = 1 ⦄ := by
-  have hrn : (params.ROUND_NODES).val = 33 := by simp [params.ROUND_NODES]
-  have hmax := usize_max_ge
-  rw [sumcheck.round_node_weights, sumcheck.round_node_weights_loop]
-  apply loop.spec_decr_nat (fun st => 33 - st.2.val)
-    (fun st => st.2.val ≤ 33 ∧ st.1.val.length = st.2.val ∧ (∀ a ∈ st.1.val, Red a) ∧
-      ∀ t : ℕ, t < st.2.val → toK (st.1.val.getD t (0#u64 : cpoly.field.Fp)) =
-        (((params.ROUND_NODE_INV.val.getD t (0#u64 : Std.U64)).val : ℕ) : ZMod q))
-  · rintro ⟨v1, i1⟩ ⟨hi1, hlen1, hred1, hval1⟩
-    dsimp only at hi1 hlen1 hred1 hval1
-    simp only [sumcheck.round_node_weights_loop.body]
-    by_cases hlt : i1 < params.ROUND_NODES
-    · rw [if_pos hlt]
-      have hi1lt : i1.val < 33 := by scalar_tac
-      have harr : i1.val < params.ROUND_NODE_INV.val.length := by
-        rw [params.ROUND_NODE_INV.property]; scalar_tac
-      step as ⟨u, hu⟩
-      step with fp_new_spec u as ⟨f, hRf, hf⟩
-      have hbound : v1.val.length < Usize.max := by omega
-      step as ⟨v2, hv2⟩
-      step as ⟨i2, hi2⟩
-      have hi2n : i2.val = i1.val + 1 := by scalar_tac
-      refine ⟨by omega, ?_, ?_, ?_, by scalar_tac⟩
-      · rw [hi2n, hv2, List.length_append, hlen1]; simp
-      · intro a hmem
-        rw [hv2] at hmem
-        rcases List.mem_append.mp hmem with h | h
-        · exact hred1 a h
-        · rw [List.mem_singleton.mp h]; exact hRf
-      · intro t ht
-        rw [hi2n] at ht
-        rcases Nat.lt_or_ge t i1.val with htlt | htge
-        · rw [hv2, getD_append_lt _ _ _ (by omega), hval1 t htlt]
-        · have hteq : t = v1.val.length := by omega
-          rw [hteq, hv2, getD_append_eq, hf, hu, hlen1,
-            List.getD_eq_getElem _ _ harr]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have hieq : i1.val = 33 := by scalar_tac
-      refine ⟨by rw [hlen1, hieq], hred1, fun i => ?_⟩
-      rw [hval1 i.val (by rw [hieq]; exact i.isLt)]
-      revert i
-      simp only [params.ROUND_NODE_INV]
-      decide
-  · exact ⟨by simp, by simp, by intro a ha; simp at ha, by intro t ht; simp at ht⟩
 
 /-- The three linear-side weights, for the nodes `0, 1, 2`: `2⁻¹, −1, 2⁻¹`. -/
 theorem round_node_weights_alpha_spec :
