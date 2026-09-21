@@ -277,3 +277,79 @@ theorem gold_chunk_terms_spec (pfwd : alloc.vec.Vec Std.U64)
       intro t ht
       rw [hw t ht, heq]
   · exact ⟨hjs, hje, haccC, hscC, hval⟩
+
+/-! ## The chunk
+
+The Goldilocks counterpart of `RingFused.dot_prep_chunk_mod_p_spec`, with the
+same conclusion at `GP`: the chunk's words are the negacyclic convolution sum
+over `[start, end)`, offset by `boff · (end − start)`. The offset is what lets
+the two lanes be reconstructed as a natural number; `BOUND = N·q²` is a
+multiple of `q`, so it vanishes when the caller reduces. -/
+set_option maxRecDepth 8192 in
+theorem dot_prep_chunk_gold_spec (pfwd : alloc.vec.Vec Std.U64)
+    (a b : alloc.vec.Vec ring.Rq) (startU endU : Std.Usize) (boff : Std.U64)
+    (hboff : boff.val < GP)
+    (hpl : endU.val * N ≤ pfwd.val.length)
+    (hpv : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP pfwd (j * N + t)
+          = NttMath.difRun
+              ((((ntt.GOLD_PSI.val : ℕ) : ZMod GP)) ^ 2) 10 1
+              (NttMath.twistR ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) (entryK GP a j)) t)
+    (hpc : ∀ u ∈ pfwd.val, u.val < GP)
+    (hbwf : ∀ u, u < endU.val → HachiEquiv.Ring.Wf
+      (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hbe : endU.val ≤ b.val.length) (hse : startU.val ≤ endU.val)
+    (hwidth : endU.val ≤ 8192) :
+    ring.dot_prep_chunk_gold pfwd b startU endU boff
+      ⦃ z => Canon GP z ∧ ∀ t, t < N → resK GP z t
+              = (∑ u ∈ Finset.Ico startU.val endU.val,
+                  NttMath.negConvR N (entryK GP a u) (entryK GP b u) t)
+                + ((boff.val : ℕ) : ZMod GP)
+                    * (((endU.val - startU.val : ℕ)) : ZMod GP) ⦄ := by
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  set psii : ZMod GP := ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) with hpsiidef
+  have hord : ps ^ N = -1 := gpsi_ord
+  have hpinv : ps * psii = 1 := gpsi_inv
+  rw [ring.dot_prep_chunk_gold]
+  step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
+  step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
+  step with zeros_canon_zero GP GoldDot.GP_pos as ⟨acc0, hacc0C, hacc0v⟩
+  step with gold_chunk_terms_spec pfwd a b startU endU ntt.NTT_LEN pt acc0 acc0
+    startU ps ntt_NTT_LEN_val hord hptC hptv hpl hpv hpc hbwf hbe
+    (le_refl _) hse hacc0C hacc0C
+    (by intro t ht; rw [hacc0v t ht]; simp) as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
+  -- the offset, scaled by this chunk's term count
+  step as ⟨i, hi⟩
+  have hcn : lift (UScalar.cast .U64 i) ⦃ y => y.val = i.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 i (by scalar_tac)
+  step with hcn as ⟨len, hlen⟩
+  have hlenv : len.val = endU.val - startU.val := by rw [hlen, hi]
+  step with gold_mul_spec boff len as ⟨scaled, hscv, hsclt⟩
+  -- the inverse transform, and the value it carries
+  have hPR : ∀ t, t < N → resK GP acc1 t
+      = NttMath.difRun (ps ^ 2) 10 1
+          (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
+            NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+              (NttMath.twistR ps (entryK GP b u)) t') t := by
+    intro t ht
+    rw [hac1v t ht, NttMath.difRun_sum (ps ^ 2) 10 1 (Finset.Ico startU.val endU.val)
+      (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+        (NttMath.twistR ps (entryK GP b u)))]
+    simp only [termFwd, hpsdef]
+  step with gold_inverse_spec acc1 scratch it hac1C hac2C hitC psii hitv
+    as ⟨v, v5, hiv1, hiv2, hivv⟩
+  have hIV := HachiEquiv.NttProduct.inv_value ps psii hpinv
+    (fun t' => ∑ u ∈ Finset.Ico startU.val endU.val,
+      NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+        (NttMath.twistR ps (entryK GP b u)) t')
+    (resK GP acc1) (resK GP v) hPR hivv
+  step with gold_untwist_cast v it scaled hiv1 hitC hsclt psii hitv
+    as ⟨words, hwC, hwv⟩
+  refine ⟨hwC, ?_⟩
+  intro t ht
+  rw [hwv t ht, hIV t ht,
+    untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+      gninv_inv (Finset.Ico startU.val endU.val) (fun u => entryK GP a u)
+      (fun u => entryK GP b u) t ht]
+  congr 1
+  rw [hscv, hlenv, ZMod.natCast_mod, Nat.cast_mul]
