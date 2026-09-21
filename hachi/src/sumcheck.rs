@@ -564,15 +564,48 @@ pub fn round_node_weights_alpha() -> Vec<Fp> {
     out
 }
 
-/// The linear summand as a polynomial: its node values, interpolated
-/// (spec: `computableRoundPoly Φ … (sumcheckPolyAlpha …) i cs`).
+/// The linear summand as a polynomial (spec: `computableRoundPoly Φ …
+/// (sumcheckPolyAlpha …) i cs`).
 ///
-/// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand,
-/// interpolated.
+/// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand.
+///
+/// # The coefficients directly (Stage 6 candidate T38)
+///
+/// The summand is a product of two *affine* folds, so it is a quadratic in `T`
+/// whose coefficients are available without ever evaluating it. Per pair,
+/// writing `W(T) = w₀ + T·(w₁ − w₀)` and `A(T) = a₀ + T·(a₁ − a₀)`:
+///
+/// ```text
+/// W·A = w₀a₀ + T·[w₁a₁ − w₀a₀ − (w₁−w₀)(a₁−a₀)] + T²·(w₁−w₀)(a₁−a₀)
+/// ```
+///
+/// -- three `Ext4` products, `p₀ = w₀a₀`, `p₁ = w₁a₁`, `p₂ = (w₁−w₀)(a₁−a₀)`,
+/// and the middle coefficient is `p₁ − p₀ − p₂`. The old form evaluated at
+/// three nodes, which is three folds of two products each plus a product, and
+/// then ran [`interpolate`] over the results.
+///
+/// **This is not candidate A1**, which was rejected as noise on 2026-09-20.
+/// A1 re-ordered the three-node evaluation; this removes it.
 pub fn round_poly_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> UnivariatePoly {
-    let values: Vec<Ext4> = round_values_alpha(w, a_tab);
-    let weights: Vec<Fp> = round_node_weights_alpha();
-    interpolate(&values, &weights)
+    let half: usize = w.len() / 2;
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let p0: Ext4 = w[2 * y] * a_tab[2 * y];
+        let p1: Ext4 = w[2 * y + 1] * a_tab[2 * y + 1];
+        let p2: Ext4 = (w[2 * y + 1] - w[2 * y]) * (a_tab[2 * y + 1] - a_tab[2 * y]);
+        c0 = c0 + p0;
+        c1 = c1 + (p1 - p0 - p2);
+        c2 = c2 + p2;
+        y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
 }
 
 // ---------------------------------------------------------------------------
@@ -1033,11 +1066,36 @@ pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>
     out
 }
 
-/// [`round_poly_alpha`] on the two factors.
+/// [`round_poly_alpha`] on the two factors, direct coefficients and all
+/// (Stage 6 candidate T38).
+///
+/// This is the one the pin runs: `honest_compute_g_split` calls it for every
+/// round from 1 on. `Ã`'s entry `j` is `low[j % l] · high[j / l]`, so the two
+/// tensor reads replace the two table reads and the quadratic identity above
+/// is unchanged.
 pub fn round_poly_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
-    let values: Vec<Ext4> = round_values_alpha_split(w, low, high);
-    let weights: Vec<Fp> = round_node_weights_alpha();
-    interpolate(&values, &weights)
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let a0: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let a1: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let p0: Ext4 = w[2 * y] * a0;
+        let p1: Ext4 = w[2 * y + 1] * a1;
+        let p2: Ext4 = (w[2 * y + 1] - w[2 * y]) * (a1 - a0);
+        c0 = c0 + p0;
+        c1 = c1 + (p1 - p0 - p2);
+        c2 = c2 + p2;
+        y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
 }
 
 /// [`round_value_alpha_base`] (round 0, base-field witness table) with `Ã`
