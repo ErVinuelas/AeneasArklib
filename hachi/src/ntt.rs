@@ -619,10 +619,10 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
 /// radix-4 butterfly permutes its four outputs, so it agrees with the radix-2
 /// transform only up to base-4 digit reversal, and proving it would mean a
 /// radix-4 theory of its own -- a `dif4Run`, its multiplicativity, its
-/// inverse. Fusing the *pair* instead leaves [`AuxNTT.difRun`] alone: one pass
+/// inverse. Fusing the *pair* instead leaves [`NttMath.difRun`] alone: one pass
 /// here is `difRun om (k+2) step = difRun om k (step*4)` by `difRun_succ`
 /// twice, so `gold_forward_spec`'s statement does not move and everything
-/// above it -- `AuxProduct.prod_difRun`, `inv_value`, `gold_dot_spec` -- is
+/// above it -- `NttProduct.prod_difRun`, `inv_value`, `gold_dot_spec` -- is
 /// untouched.
 ///
 /// The gain is the memory pattern, which is the radix-4 one either way: four
@@ -694,6 +694,37 @@ pub fn gold_inverse(cur0: Vec<u64>, tmp0: Vec<u64>, tw: &Vec<u64>) -> (Vec<u64>,
     (cur, tmp)
 }
 
+/// `BOUND = N · q²` reduced mod [`GOLD_P`]: the Goldilocks lane's per-term
+/// offset on the **general** path, where the digit path uses [`GOLD_DOFF`].
+pub const GOLD_BOFF: u64 = 18_445_877_654_261_932_033;
+
+/// The inverse of [`GOLD_P`] mod [`AUX_P1`], for the two-lane Garner.
+pub const GA_GINV: u64 = 4_091_113;
+
+/// CRT across [`GOLD_P`] and [`AUX_P1`] -- the general path's two lanes.
+///
+/// The general path cannot use one Goldilocks lane: its right operand is the
+/// raw message, so a chunk needs `N·cols·(q−1)² = 1.55·10^26 ≈ 2^87` and one
+/// lane carries `1.84·10^19`. It does not need two *64-bit* lanes either,
+/// which is what made this card look like it required a second Montgomery
+/// prime and a representation change: `GOLD_P · AUX_P1 = 8.67·10^27 ≈ 2^92.8`
+/// clears the bound with 56× to spare -- the same margin the three 31-bit
+/// lanes give. So two lanes, and the second one is a prime the crate already
+/// has.
+///
+/// Garner: `x = rg + GOLD_P · t` with `t = (ra − rg)·GOLD_P⁻¹ mod AUX_P1`, so
+/// `x ≡ rg (mod GOLD_P)`, `x ≡ ra (mod AUX_P1)`, and `x < GOLD_P·AUX_P1`
+/// which is why the result is a `u128`.
+pub fn garner_ga(rg: u64, ra: u64) -> u128 {
+    let p1: u64 = AUX_P1;
+    let rgm: u64 = rg % p1;
+    let diff: u64 = if ra >= rgm { ra - rgm } else { ra + p1 - rgm };
+    let t: u64 = aux_mul(diff, GA_GINV, p1, AUX_M1);
+    let g: u128 = GOLD_P as u128;
+    let tw: u128 = t as u128;
+    (rg as u128) + g * tw
+}
+
 /// `BOUND_D = N · q · GADGET_BASE`, the per-term offset of the digit path,
 /// which is already below [`GOLD_P`] so it needs no reduction.
 pub const GOLD_DOFF: u64 = 70_368_742_555_648;
@@ -704,7 +735,7 @@ pub const GOLD_DOFF: u64 = 70_368_742_555_648;
 /// The offset rather than a centred lift, deliberately. A centred lift is the
 /// obvious thing for one lane (the signed coefficient fits the prime whole,
 /// `1.081·10^18` against `1.845·10^19`) and it is what the first cut did, but
-/// the *offset* is what `AuxFused`'s `offConvSumD` machinery is already stated
+/// the *offset* is what `RingFused`'s `offConvSumD` machinery is already stated
 /// and proved against — `BOUND_D` is a multiple of `q`, so it vanishes in the
 /// reduction, and the whole bound argument carries over with only the radix
 /// changed. One modular add per coefficient buys roughly two hundred lines of

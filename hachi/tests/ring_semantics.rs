@@ -993,3 +993,25 @@ fn the_compact_raw_block_round_trips() {
         }
     }
 }
+
+/// The two-lane general dot is the three-lane one (candidate G2).
+///
+/// The property the lane reduction rests on is a bound: a chunk needs
+/// `N·cols·(q-1)^2 ~ 2^87`, three 31-bit primes give `2^93`, and
+/// `GOLD_P * AUX_P1` gives `2^92.8`. This checks the consequence directly --
+/// same value, every coefficient -- at widths where a wrong offset or a wrong
+/// Garner constant cannot cancel.
+#[test]
+fn the_two_lane_dot_agrees_with_the_three_lane_one() {
+    let mut r = support::Lcg::new(0x6A2E_0001);
+    for width in [1usize, 2, 7, 33] {
+        let a: Vec<hachi::ring::Rq> = (0..width).map(|_| r.next_rq()).collect();
+        let b: Vec<hachi::ring::Rq> = (0..width).map(|_| r.next_rq()).collect();
+        let three = hachi::ring::dot_prepared(
+            &hachi::ring::prepare_vec(&a, width), &b, width);
+        let two = hachi::ring::dot_prepared_ga(
+            &hachi::ring::prepare_vec_ga(&a, width), &b, width);
+        assert!(three.equals(&two),
+            "two-lane and three-lane dots disagree at width {width}");
+    }
+}
