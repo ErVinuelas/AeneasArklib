@@ -403,6 +403,27 @@ macro_rules! define_cases {
                 )
             }
 
+            /// The same carrier, from the **compact** raw message -- the shape
+            /// `honest_compute_v_from_raw_32` actually hands the prover.
+            ///
+            /// Same seeds as [`carrier_from_raw`] on purpose: the two rows
+            /// compute the same value from the same draw, so their digests
+            /// must agree, and a candidate that changes what the compact path
+            /// computes is caught by the oracle rather than by reading it.
+            pub fn carrier_from_raw_32(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0013, blocks, hc::params::MESSAGE_ROWS);
+                let mut packed = Vec::with_capacity(blocks);
+                for b in &raw {
+                    packed.push(hc::linalg::RawVec32::compact(b));
+                }
+                let a = vec_of(0x2117_0000_0000_0014, hc::params::MESSAGE_ROWS);
+                support::run(
+                    m,
+                    || hc::quadeval::carrier_from_raw_32(black_box(&a), black_box(&packed)),
+                    d_polyvec,
+                )
+            }
+
             /// [`honest_z_short`] with the whole budget in **one** coefficient:
             /// the same `ℓ₁` total, one descriptor entry rather than sixteen.
             pub fn honest_z_short_heavy(m: Mode<'_, '_>, blocks: usize) -> u64 {
@@ -558,6 +579,11 @@ fn quadeval_benches(c: &mut Criterion) {
     // samples of that is 16 minutes for one row.
     // @covers quadeval::carrier_from_raw
     bench_case!(c, "quadeval/carrier_from_raw", carrier_from_raw, [reduced_blocks],
+                samples: honest_z_samples);
+    // Card T39's row. `samples:` for the reason above -- the frozen genesis
+    // variant of this case runs the same schoolbook recomposition per block.
+    // @covers quadeval::carrier_from_raw_32
+    bench_case!(c, "quadeval/carrier_from_raw_32", carrier_from_raw_32, [reduced_blocks],
                 samples: honest_z_samples);
     // @covers quadeval::tensor_g_matrix
     bench_case!(c, "quadeval/tensor_g_matrix", tensor_g_matrix, [reduced_blocks]);
