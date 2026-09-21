@@ -913,8 +913,8 @@ pub fn gold_untwist_off(src: &Vec<u64>, it: &Vec<u64>, off: u64) -> Vec<u64> {
 }
 
 
+// @genesis 334d09b 2026-09-21 — ntt::gold_dif_stage2_mac
 // Card T37 (2026-09-21): the transform's boundary passes, fused.
-// @genesis PENDING 2026-09-21 — ntt::gold_dif_stage2_mac
 /// [`gold_dif_stage2`] with the prepared multiply-accumulate folded into the
 /// writes (card T37, B).
 ///

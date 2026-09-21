@@ -1184,9 +1184,9 @@ pub fn mac_into_gold_off(acc: Vec<u64>, pfwd: &Vec<u64>, base: usize, bf: &Vec<u
 }
 
 
+// @genesis 334d09b 2026-09-21 — ring::gold_dif_stage2_twist
 // Card T37 (2026-09-21): the twist folded into the transform's first
 // pass, and the driver that pairs it with the fused last pass.
-// @genesis PENDING 2026-09-21 — ring::gold_dif_stage2_twist
 /// [`crate::ntt::gold_dif_stage2`] with the ψ twist folded into its reads
 /// (card T37, A).
 ///
@@ -1245,7 +1245,7 @@ pub fn gold_dif_stage2_twist(a: &Rq, out: Vec<u64>, len: usize, tw: &Vec<u64>, p
     dst
 }
 
-// @genesis PENDING 2026-09-21 — ring::gold_dot_one_fused
+// @genesis 334d09b 2026-09-21 — ring::gold_dot_one_fused
 /// One right-hand term of the prepared Goldilocks dot -- twist, transform,
 /// multiply-accumulate -- with the first and last passes fused (card T37).
 ///
