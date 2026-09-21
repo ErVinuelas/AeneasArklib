@@ -10,6 +10,7 @@ import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import SchemeTwoLane
 import QuadEvalProtocol
 import RingSwitch
 import ZeroCheck
@@ -1924,6 +1925,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingLimb.limb_dot_loop_spec
 #print axioms HachiEquiv.RingLimb.dot_prepared_limbs2_spec
 #print axioms HachiEquiv.RingLimb.prepare_vec_limbs2_spec
+-- Layer 6, the linalg layer: the two-limb store carried up to `matVecMul`,
+-- statement for statement the one the three-lane and two-lane stores already
+-- prove. A prepared row here does not name its limbs -- `prepare_vec_limbs2`
+-- makes them and `dot_prepared_limbs2` reads them, and nothing in between --
+-- so `PrepRowL2` quantifies over them and the row spec re-opens the pair.
+#print axioms HachiEquiv.SchemeLimb.dot_prepared_limbs2_rq_spec
+#print axioms HachiEquiv.SchemeLimb.dot_prep_limbs2_spec
+#print axioms HachiEquiv.SchemeLimb.prepare_limbs2_spec
+#print axioms HachiEquiv.SchemeLimb.apply_limbs2_spec
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt

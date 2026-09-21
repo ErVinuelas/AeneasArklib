@@ -970,7 +970,7 @@ theorem prepare_vec_limbs2_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
       (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
     (han : nU.val ≤ a.val.length) (hmax : nU.val * N ≤ Std.Usize.max) :
     ring.prepare_vec_limbs2 a nU
-      ⦃ prep => ∃ a0 a1, LimbsOf a a0 a1 nU.val
+      ⦃ prep => prep.len = nU ∧ ∃ a0 a1, LimbsOf a a0 a1 nU.val
           ∧ PrepAtLimb prep.f0 a0 nU.val ∧ PrepAtLimb prep.f1 a1 nU.val ⦄ := by
   have hq : (0 : ℕ) < HachiEquiv.NttProduct.q := by
     simp only [HachiEquiv.NttProduct.q]; norm_num
@@ -1003,17 +1003,22 @@ theorem prepare_vec_limbs2_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
     as ⟨f0, hf0l, hf0c, hf0v⟩
   step with HachiEquiv.GoldDot.prepare_one_gold_spec l1 nU hw1 (by omega) hmax
     as ⟨f1, hf1l, hf1c, hf1v⟩
-  refine ⟨l0, l1, ⟨hw0, hw1, hb0, hb1, ?_⟩, ⟨by omega, hf0c, hf0v⟩,
+  have hrec : ∀ u, u < nU.val → ∀ t, HachiEquiv.Ring.coeffK
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t
+    = HachiEquiv.Ring.coeffK (l0.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t
+      + ((65536 : ℕ) : ZMod HachiEquiv.NttProduct.q)
+        * HachiEquiv.Ring.coeffK (l1.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) t := by
+    intro u hu t
+    refine coeffK_of_limbs _ _ _ (haw u hu) ?_ ?_ ?_ ?_ t
+    · exact (hw0 u hu).1
+    · exact (hw1 u hu).1
+    · intro t' ht'
+      have := hl0v u hu t' ht'
+      simpa using this
+    · intro t' ht'
+      have := hl1v u hu t' ht'
+      simpa using this
+  exact ⟨l0, l1, ⟨hw0, hw1, hb0, hb1, hrec⟩, ⟨by omega, hf0c, hf0v⟩,
     ⟨by omega, hf1c, hf1v⟩⟩
-  intro u hu t
-  refine coeffK_of_limbs _ _ _ (haw u hu) ?_ ?_ ?_ ?_ t
-  · exact (hw0 u hu).1
-  · exact (hw1 u hu).1
-  · intro t' ht'
-    have := hl0v u hu t' ht'
-    simpa using this
-  · intro t' ht'
-    have := hl1v u hu t' ht'
-    simpa using this
 
 end HachiEquiv.RingLimb
