@@ -60,6 +60,6 @@ package «HachiEquiv» where
 @[default_target]
 lean_lib «HachiEquiv» where
   srcDir := "lean"
-  roots := #[`Generated, `Field, `Ext, `NttArith, `GoldArith, `NttMath, `NttCRT, `NttStage, `NttTransform, `GoldStage, `GoldFusedStage, `GoldTransform, `NttProduct, `SumcheckShift, `Ring, `RingShort, `RingFused, `RingTwoLane, `GoldDot, `RqBridge, `Scheme, `SchemeTwoLane, `Raw32, `EvalSplit, `Balanced,
+  roots := #[`Generated, `Field, `Ext, `NttArith, `GoldArith, `NttMath, `NttCRT, `NttStage, `NttTransform, `GoldStage, `GoldFusedStage, `GoldTransform, `NttProduct, `SumcheckShift, `Ring, `RingShort, `RingFused, `RingLimb, `RingTwoLane, `GoldDot, `RqBridge, `Scheme, `SchemeTwoLane, `Raw32, `EvalSplit, `Balanced,
              `QuadEval, `QuadEvalProtocol, `RingSwitch, `ZeroCheck, `EndPiece, `Rlin, `Sumcheck,
              `Chain, `LiftProver, `OptFold, `OptZeroCheck, `OptSumcheck, `OptRingSwitch, `OptEvalSplit, `OptRingShort, `Opt, `Check]

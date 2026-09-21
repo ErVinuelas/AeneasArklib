@@ -1894,6 +1894,15 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- `BOUNDB 16 = BOUND_D` hold by `rfl`, so the existing path is literally an
 -- instance and cannot drift from the general one. Both cards' numeric
 -- premises are checked here rather than asserted at their use sites.
+-- Card T35 layer 2: what `limb_at` computes, and the identity that makes the
+-- split exact. `limb_recon` is division, not a congruence -- the limbs are
+-- naturals below the radix and the coefficient is below its square, so
+-- nothing here is mod q.
+#print axioms HachiEquiv.RingLimb.limb_recon
+#print axioms HachiEquiv.RingLimb.limb_recon_q
+#print axioms HachiEquiv.RingLimb.limb_at_inner_spec
+#print axioms HachiEquiv.RingLimb.limb_at_outer_spec
+#print axioms HachiEquiv.RingLimb.limb_at_spec
 #print axioms HachiEquiv.RingFused.posSumB_le
 #print axioms HachiEquiv.RingFused.posQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_lt
