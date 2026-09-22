@@ -297,8 +297,8 @@ pub fn lift_witness_short(w: &LiftedWitness) -> bool {
 /// **Not a prepared path, deliberately.** `D_ROWS = 1`, so every key entry is
 /// read exactly once per commitment and a prepared store would be 470 MiB
 /// written to be used once. The key is transformed in the stream beside the
-/// witness; both buffers and both scratches are recycled across terms in card
-/// T34's discipline, so the loop allocates nothing per term.
+/// witness; three buffers are recycled across terms in card T34's discipline,
+/// so the loop allocates nothing per term.
 ///
 /// The concatenation `z ‖ digits(ρ)` is still never built -- candidate E's
 /// removal of wall W3 stands. The two segments are walked in turn into one
@@ -314,41 +314,44 @@ fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
     let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
     let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
     let mut acc: Vec<u64> = crate::ntt::zeros(n);
-    let mut kbuf: Vec<u64> = crate::ntt::zeros(n);
-    let mut ksc: Vec<u64> = crate::ntt::zeros(n);
-    let mut wbuf: Vec<u64> = crate::ntt::zeros(n);
-    let mut wsc: Vec<u64> = crate::ntt::zeros(n);
+    // THREE buffers, not four. `gold_forward` hands back both of the vectors
+    // it was given -- the transform and the spare -- and the two transforms
+    // here are sequential, so the key's spare is the witness's scratch. That
+    // is 24 KiB of live buffers against 32, which matters because the twiddle
+    // table shares the same L1 (card T37's lesson), and it is one component
+    // less in the extracted loop's state tuple.
+    let mut b1: Vec<u64> = crate::ntt::zeros(n);
+    let mut b2: Vec<u64> = crate::ntt::zeros(n);
+    let mut b3: Vec<u64> = crate::ntt::zeros(n);
     let mut j: usize = 0;
     while j < z_len {
-        kbuf = crate::ring::load_twisted_into(kbuf, row.get(j), &pt);
-        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(kbuf, ksc, &pt);
-        wbuf = crate::ring::load_twisted_signed_into(wbuf, w.z().get(j), &pt);
-        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(wbuf, wsc, &pt);
+        b1 = crate::ring::load_twisted_into(b1, row.get(j), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b1, b2, &pt);
+        b3 = crate::ring::load_twisted_signed_into(b3, w.z().get(j), &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b3, fk.1, &pt);
         acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
-        kbuf = fk.0;
-        ksc = fk.1;
-        wbuf = fw.0;
-        wsc = fw.1;
+        b1 = fk.0;
+        b2 = fw.0;
+        b3 = fw.1;
         j += 1;
     }
     let mut k: usize = 0;
     while k < rho_len {
         let digit: Rq = rho_digit_as_rq(w.rho(), k);
-        kbuf = crate::ring::load_twisted_into(kbuf, row.get(z_len + k), &pt);
-        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(kbuf, ksc, &pt);
-        wbuf = crate::ring::load_twisted_signed_into(wbuf, &digit, &pt);
-        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(wbuf, wsc, &pt);
+        b1 = crate::ring::load_twisted_into(b1, row.get(z_len + k), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b1, b2, &pt);
+        b3 = crate::ring::load_twisted_signed_into(b3, &digit, &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b3, fk.1, &pt);
         acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
-        kbuf = fk.0;
-        ksc = fk.1;
-        wbuf = fw.0;
-        wsc = fw.1;
+        b1 = fk.0;
+        b2 = fw.0;
+        b3 = fw.1;
         k += 1;
     }
     // one offset per term, exactly as the digit path scales `GOLD_DOFF`
     let terms: u64 = (z_len + rho_len) as u64;
     let scaled: u64 = crate::ntt::gold_mul(crate::ntt::GOLD_SOFF, terms);
-    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, ksc, &it);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, b2, &it);
     let words: Vec<u64> = crate::ntt::gold_untwist_off(&inv.0, &it, scaled);
     let mut out: Vec<Fp> = Vec::with_capacity(deg);
     let mut t: usize = 0;
