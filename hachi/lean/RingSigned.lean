@@ -399,8 +399,9 @@ theorem lift_gold_loop0_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVe
     (hval : ∀ t, t < N → resK GP acc t
       = ∑ u ∈ Finset.range jU.val, termFwdS ps row w.z u t) :
     ringswitch.lift_commit_row_gold_loop0 w row nU z_lenU pt acc b1 b2 b3 jU
-      ⦃ r => Canon GP r.1 ∧ ∀ t, t < N → resK GP r.1 t
-          = ∑ u ∈ Finset.range z_lenU.val, termFwdS ps row w.z u t ⦄ := by
+      ⦃ r => Canon GP r.1 ∧ Canon GP r.2.1 ∧ Canon GP r.2.2.1 ∧ Canon GP r.2.2.2
+          ∧ ∀ t, t < N → resK GP r.1 t
+              = ∑ u ∈ Finset.range z_lenU.val, termFwdS ps row w.z u t ⦄ := by
   rw [ringswitch.lift_commit_row_gold_loop0]
   apply loop.spec_decr_nat (fun r => z_lenU.val - r.2.2.2.2.val)
     (fun r => r.2.2.2.2.val ≤ z_lenU.val ∧ Canon GP r.1 ∧ Canon GP r.2.1
@@ -472,7 +473,7 @@ theorem lift_gold_loop0_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVe
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : j1.val = z_lenU.val := by scalar_tac
-      exact ⟨hA, by intro t ht; rw [hv1 t ht, heq]⟩
+      exact ⟨hA, hC1, hC2, hC3, by intro t ht; rw [hv1 t ht, heq]⟩
   · exact ⟨hj, haccC, hb1C, hb2C, hb3C, hval⟩
 
 set_option maxHeartbeats 2000000 in
@@ -646,6 +647,33 @@ theorem lift_gold_out_loop_spec (degU : Std.Usize) (qwU : Std.U64)
         fun k hk => hval1 k (by rw [heq]; exact hk)⟩
   · exact ⟨ht, hlen, hred, hval⟩
 
+/-! ## The row as one sum
+
+The row's two segments are `z` and the `ρ` digits, and the digits are not a
+vector -- that is wall W3, removed by candidate E. So the row is indexed by a
+*function* into `ring.Rq`, and the sum runs over `range (z_len + rho_len)`
+with the segment boundary inside the operand function rather than in the
+index set. `sConvSum` above is this with both sides vectors; the two agree
+where both apply and the function form is what the top-level spec uses. -/
+
+/-- The row's signed value at coefficient `k`, over operands given as
+functions. -/
+def sConvSumF (KA WB : ℕ → ring.Rq) (n k : ℕ) : ℤ :=
+  ∑ u ∈ Finset.range n, sConv (KA u) (WB u) k
+
+theorem sConvSumF_abs_le {G : ℕ} (KA WB : ℕ → ring.Rq) (n k : ℕ)
+    (ha : ∀ u, u < n → Wf (KA u)) (hb : ∀ u, u < n → CenteredWf G (WB u)) :
+    |sConvSumF KA WB n k| ≤ (n : ℤ) * ((SBOUND G : ℕ) : ℤ) := by
+  refine le_trans (Finset.abs_sum_le_sum_abs _ _) ?_
+  calc ∑ u ∈ Finset.range n, |sConv (KA u) (WB u) k|
+      ≤ ∑ _u ∈ Finset.range n, ((SBOUND G : ℕ) : ℤ) := by
+        refine Finset.sum_le_sum (fun u hu => ?_)
+        have hun : u < n := Finset.mem_range.mp hu
+        have := sConv_abs_le (ha u hun) (hb u hun) k
+        simpa only [SBOUND, Nat.cast_mul] using this
+    _ = (n : ℤ) * ((SBOUND G : ℕ) : ℤ) := by
+        rw [Finset.sum_const, Finset.card_range]; simp
+
 /-! ## From the transform domain back to the integers
 
 `RingFused.ordConv_entryK_pos` and `_neg` cast the ordinary convolution's two
@@ -775,5 +803,230 @@ theorem offS_mod_q (terms G : ℕ) (S : ℤ) (hS : |S| ≤ (terms : ℤ) * (SBOU
     ring
   rw [this]
   ring
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 16000 in
+/-- **`lift_commit_row_gold` computes the row**, on one signed lane.
+
+`RingSwitch.lift_commit_row_spec`'s value in this file's vocabulary: the two
+segments' negacyclic convolution sums, coefficientwise in `ZMod q`. The
+signed encoding does not appear in the conclusion, and `sConv_cast_q` is why
+-- it is machinery for keeping the lane's value inside `GOLD_P`, not a change
+to what is computed.
+
+`D` is the digit function and `hD` its spec, for the same reason
+[`lift_gold_loop1_spec`] takes them: there is no vector of digits. -/
+theorem lift_commit_row_gold_spec (d_key : linalg.PolyMatrix)
+    (w : ringswitch.LiftedWitness) (iU : Std.Usize) (z_len rho_len : ℕ)
+    (D : ℕ → ring.Rq)
+    (hi : iU.val < d_key.val.length)
+    (hzlen : w.z.val.length = z_len)
+    (hrholen : w.rho.val.length * 8 = rho_len)
+    (hmax : z_len + rho_len ≤ Std.Usize.max)
+    (hrowlen : z_len + rho_len
+      ≤ (d_key.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.length)
+    (hrowwf : ∀ u, u < z_len + rho_len → Wf
+      ((d_key.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD u
+        (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hzwf : ∀ u, u < z_len → Wf (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hzc : ∀ u, u < z_len → CenteredWf 15
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hDwf : ∀ j, j < rho_len → Wf (D j))
+    (hDc : ∀ j, j < rho_len → CenteredWf 15 (D j))
+    (hD : ∀ kk : Std.Usize, kk.val < rho_len →
+      ringswitch.rho_digit_as_rq w.rho kk ⦃ d => d = D kk.val ⦄)
+    (hfit : 2 * (z_len + rho_len) * SBOUND 15 < GP) :
+    ringswitch.lift_commit_row_gold d_key w iU
+      ⦃ z => Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+          = (∑ u ∈ Finset.range z_len, HachiEquiv.Ring.negConv
+              ((d_key.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD u
+                (alloc.vec.Vec.new cpoly.field.Fp))
+              (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k)
+          + (∑ j ∈ Finset.range rho_len, HachiEquiv.Ring.negConv
+              ((d_key.val.getD iU.val (alloc.vec.Vec.new ring.Rq)).val.getD (z_len + j)
+                (alloc.vec.Vec.new cpoly.field.Fp)) (D j) k) ⦄ := by
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  set psii : ZMod GP := ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) with hpsiidef
+  have hord : ps ^ N = -1 := gpsi_ord
+  have hpinv : ps * psii = 1 := gpsi_inv
+  set KR : linalg.PolyVec := d_key.val.getD iU.val (alloc.vec.Vec.new ring.Rq) with hKR
+  -- the witness, as one function over the two segments
+  set WB : ℕ → ring.Rq := fun u =>
+    if u < z_len then w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)
+    else D (u - z_len) with hWB
+  set KA : ℕ → ring.Rq := fun u => KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp) with hKA
+  have hKAwf : ∀ u, u < z_len + rho_len → Wf (KA u) := hrowwf
+  have hWBwf : ∀ u, u < z_len + rho_len → Wf (WB u) := by
+    intro u hu
+    simp only [hWB]
+    by_cases hlt : u < z_len
+    · rw [if_pos hlt]; exact hzwf u hlt
+    · rw [if_neg hlt]; exact hDwf (u - z_len) (by omega)
+  have hWBc : ∀ u, u < z_len + rho_len → CenteredWf 15 (WB u) := by
+    intro u hu
+    simp only [hWB]
+    by_cases hlt : u < z_len
+    · rw [if_pos hlt]; exact hzc u hlt
+    · rw [if_neg hlt]; exact hDc (u - z_len) (by omega)
+  have hRN : params.RING_DEGREE = ntt.NTT_LEN := by decide +kernel
+  rw [ringswitch.lift_commit_row_gold, hRN]
+  simp only [linalg.PolyMatrix.row]
+  step as ⟨row, hrowEq⟩
+  have hrow : row = KR := by rw [hKR, List.getD_eq_getElem _ _ hi, hrowEq]
+  simp only [ringswitch.LiftedWitness.impl.z, ringswitch.LiftedWitness.impl.rho,
+    linalg.PolyVec.len, bind_tc_ok]
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have hrhomax : w.rho.val.length * 8 ≤ Std.Usize.max := by omega
+  step as ⟨rl, hrl⟩
+  have hzlv : (alloc.vec.Vec.len w.z).val = z_len := by simpa using hzlen
+  have hrlv : rl.val = rho_len := by rw [hrl, hgd, ← hrholen]; simp
+  step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
+  step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
+  step with zeros_canon_zero GP HachiEquiv.GoldTransform.GP_pos as ⟨acc0, hacc0C, hacc0v⟩
+  step with lift_gold_loop0_spec w row ntt.NTT_LEN (alloc.vec.Vec.len w.z) pt
+      acc0 acc0 acc0 acc0 0#usize ps ntt_NTT_LEN_val hord hptC hptv
+      (by rw [hrow, hzlv]; omega)
+      (by intro u hu; rw [hrow]; exact hrowwf u (by rw [hzlv] at hu; omega))
+      (by rw [hzlv, hzlen])
+      (by intro u hu; exact hzwf u (by rw [hzlv] at hu; exact hu))
+      (by simp) hacc0C hacc0C hacc0C hacc0C
+      (by intro t ht; rw [hacc0v t ht]; simp)
+    as ⟨acc1, bb1, bb2, bb3, hA1, hB1, hB2, hB3, hA1v⟩
+  step with lift_gold_loop1_spec w row ntt.NTT_LEN (alloc.vec.Vec.len w.z) rl pt
+      acc1 bb1 bb2 bb3 0#usize ps (fun k => sCoeff (D k))
+      (fun t => ∑ u ∈ Finset.range z_len, termFwdS ps row w.z u t)
+      ntt_NTT_LEN_val hord hptC hptv
+      (by rw [hzlv, hrlv]; exact hmax)
+      (by rw [hrow, hzlv, hrlv]; exact hrowlen)
+      (by intro u hu; rw [hrow]; exact hrowwf u (by rw [hzlv, hrlv] at hu; exact hu))
+      (by
+        intro kk hkk
+        apply spec_mono (hD kk (by rw [hrlv] at hkk; exact hkk))
+        intro d hd
+        exact ⟨hd ▸ hDwf kk.val (by rw [hrlv] at hkk; exact hkk), by rw [hd]⟩)
+      (by simp) hA1 hB1 hB2 hB3
+      (by intro t ht; rw [hA1v t ht, hzlv]; simp only [hpsdef]; simp)
+    as ⟨acc2, bb21, hA2, hB21, hA2v⟩
+  simp only [← hpsdef, hzlv, hrlv] at hA2v
+  -- the two segments, as one sum over `range (z_len + rho_len)`
+  have hsplit : ∀ t, t < N → resK GP acc2 t
+      = ∑ u ∈ Finset.range (z_len + rho_len),
+          termFwdF ps (entryK GP row u) (sCoeff (WB u)) t := by
+    intro t ht
+    have h1 : ∑ u ∈ Finset.range z_len, termFwdS ps row w.z u t
+        = ∑ u ∈ Finset.range z_len, termFwdF ps (entryK GP row u) (sCoeff (WB u)) t :=
+      Finset.sum_congr rfl (fun u hu => by
+        have hul : u < z_len := Finset.mem_range.mp hu
+        simp only [termFwdS, sEntryK_eq, hWB, if_pos hul])
+    have h2 : ∑ j ∈ Finset.range rho_len,
+          termFwdF ps (entryK GP row (z_len + j)) (sCoeff (D j)) t
+        = ∑ j ∈ Finset.range rho_len,
+          termFwdF ps (entryK GP row (z_len + j)) (sCoeff (WB (z_len + j))) t :=
+      Finset.sum_congr rfl (fun j _ => by
+        simp only [hWB, if_neg (by omega : ¬ z_len + j < z_len), Nat.add_sub_cancel_left])
+    rw [hA2v t ht, Finset.sum_range_add, h1, h2]
+  step as ⟨i2, hi2⟩
+  have hi2v : i2.val = z_len + rho_len := by rw [hi2, hzlv, hrlv]
+  have hcn : lift (UScalar.cast .U64 i2) ⦃ y => y.val = i2.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 i2 (by
+      -- the card's own fit already bounds the term count far below `2^64`
+      have h := hfit
+      simp only [SBOUND, N, HachiEquiv.NttProduct.q, GP] at h
+      rw [hi2v]
+      simp only [Std.UScalar.max, Std.UScalarTy.numBits]
+      omega)
+  step with hcn as ⟨terms, hterms⟩
+  step with gold_mul_spec ntt.GOLD_SOFF terms as ⟨scaled, hscv, hsclt⟩
+  have hKArow : ∀ u, entryK GP row u = fun v => ((wordN (KA u) v : ℕ) : ZMod GP) := by
+    intro u; rw [hrow]; rfl
+  -- the transform argument, unchanged from the digit path
+  have hPR : ∀ t, t < N → resK GP acc2 t
+      = NttMath.difRun (ps ^ 2) 10 1
+          (fun t' => ∑ u ∈ Finset.range (z_len + rho_len),
+            NttMath.cyclicConv N (NttMath.twistR ps (entryK GP row u))
+              (NttMath.twistR ps (sCoeff (WB u))) t') t := by
+    intro t ht
+    rw [hsplit t ht, NttMath.difRun_sum (ps ^ 2) 10 1 (Finset.range (z_len + rho_len))
+      (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK GP row u))
+        (NttMath.twistR ps (sCoeff (WB u))))]
+    simp only [termFwdF]
+  step with gold_inverse_spec acc2 bb21 it hA2 hB21 hitC psii hitv
+    as ⟨v1, v2, hiv1, hiv2, hivv⟩
+  have hIV := HachiEquiv.NttProduct.inv_value ps psii hpinv
+    (fun t' => ∑ u ∈ Finset.range (z_len + rho_len),
+      NttMath.cyclicConv N (NttMath.twistR ps (entryK GP row u))
+        (NttMath.twistR ps (sCoeff (WB u))) t')
+    (resK GP acc2) (resK GP v1) hPR hivv
+  step with gold_untwist_cast v1 it scaled hiv1 hitC hsclt psii hitv
+    as ⟨words, hwC, hwv⟩
+  -- the offset is the row's ceiling, and it did not wrap
+  have hsoff : scaled.val = (z_len + rho_len) * SBOUND 15 := by
+    rw [hscv, hterms, hi2v, gold_soff_val]
+    have hlt : SBOUND 15 * (z_len + rho_len) < GP := by
+      -- `omega` is linear, so the product needs to be one atom (as in `offS_lt`)
+      have h : 2 * ((z_len + rho_len) * SBOUND 15) < GP := by
+        rw [← Nat.mul_assoc]; exact hfit
+      rw [Nat.mul_comm]
+      omega
+    rw [Nat.mod_eq_of_lt hlt, Nat.mul_comm]
+  have hbnd : ∀ t, |sConvSumF KA WB (z_len + rho_len) t|
+      ≤ ((z_len + rho_len : ℕ) : ℤ) * ((SBOUND 15 : ℕ) : ℤ) :=
+    fun t => sConvSumF_abs_le KA WB (z_len + rho_len) t hKAwf hWBc
+  have hres : ∀ t, t < N → resK GP words t
+      = (((offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) t) : ℕ)) : ZMod GP) := by
+    intro t ht
+    rw [hwv t ht, hIV t ht,
+      untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+        gninv_inv (Finset.range (z_len + rho_len)) (fun u => entryK GP row u)
+        (fun u => sCoeff (WB u)) t ht]
+    have hsum : ∑ u ∈ Finset.range (z_len + rho_len),
+          NttMath.negConvR N (entryK GP row u) (sCoeff (WB u)) t
+        = ((sConvSumF KA WB (z_len + rho_len) t : ℤ) : ZMod GP) := by
+      unfold sConvSumF
+      push_cast
+      refine Finset.sum_congr rfl (fun u _ => ?_)
+      rw [hKArow u]
+      exact negConvR_sConv (KA u) (WB u) t ht
+    rw [hsum, hsoff]
+    have hc := offS_cast (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) t) (hbnd t)
+    have : (((offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) t) : ℕ)) : ZMod GP)
+        = ((((offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) t) : ℕ) : ℤ)) : ZMod GP) := by
+      push_cast; ring
+    rw [this, hc]
+    push_cast
+    ring
+  have hwordv : ∀ k, k < N →
+      wordAt words k = offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) k) := by
+    intro k hk
+    have hlt : offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) k) < GP := by
+      exact offS_lt _ _ _ (hbnd k) hfit
+    have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt
+      (wordAt_lt hwC HachiEquiv.GoldTransform.GP_pos k)
+      (by simpa only [resK] using hres k hk)
+    rwa [Nat.mod_eq_of_lt hlt] at h2
+  have hfin := lift_gold_out_loop_spec ntt.NTT_LEN params.Q words
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
+    (fun k => offS (z_len + rho_len) 15 (sConvSumF KA WB (z_len + rho_len) k))
+    ntt_NTT_LEN_val HachiEquiv.Field.params_Q_val hwordv hwC.1
+    (by simp) (by simp) (by simp) (by simp)
+  rw [alloc.vec.Vec.with_capacity]
+  step with hfin as ⟨o1, ho1w, ho1v⟩
+  step with HachiEquiv.Ring.from_coeffs_spec o1 ho1w.2 as ⟨z, hzw, hzv⟩
+  refine ⟨hzw, fun k hk => ?_⟩
+  rw [hzv k hk, HachiEquiv.Ring.coeffK_eq_cast_wordN, ho1v k hk]
+  rw [offS_mod_q _ _ _ (hbnd k)]
+  unfold sConvSumF
+  push_cast
+  rw [Finset.sum_range_add]
+  congr 1
+  · refine Finset.sum_congr rfl (fun u hu => ?_)
+    have hul : u < z_len := Finset.mem_range.mp hu
+    rw [sConv_cast_q (hKAwf u (by omega)) (hWBwf u (by omega)) hk]
+    simp only [hKA, hWB, hrow, if_pos hul]
+  · refine Finset.sum_congr rfl (fun j hj => ?_)
+    have hjl : j < rho_len := Finset.mem_range.mp hj
+    rw [sConv_cast_q (hKAwf (z_len + j) (by omega)) (hWBwf (z_len + j) (by omega)) hk]
+    simp only [hKA, hWB, hrow, if_neg (by omega : ¬ z_len + j < z_len),
+      Nat.add_sub_cancel_left]
 
 end HachiEquiv.RingSigned

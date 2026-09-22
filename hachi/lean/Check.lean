@@ -2020,6 +2020,10 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingSigned.negConvR_sConv
 #print axioms HachiEquiv.RingSigned.sInt_cast_q
 #print axioms HachiEquiv.RingSigned.sConv_cast_q
+#print axioms HachiEquiv.RingSigned.sConvSumF_abs_le
+-- The row, assembled: both term loops, the inverse, the untwist with the
+-- scaled offset, the output loop and the reduction.
+#print axioms HachiEquiv.RingSigned.lift_commit_row_gold_spec
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
