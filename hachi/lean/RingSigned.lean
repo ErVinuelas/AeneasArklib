@@ -581,4 +581,123 @@ theorem lift_gold_loop1_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVe
       exact ⟨hA, hC2, by intro t ht; rw [hv1 t ht, heq]⟩
   · exact ⟨hk, haccC, hb1C, hb2C, hb3C, hval⟩
 
+/-- **The output loop**, `words[t] % q` pushed as an `Fp`.
+
+`GoldDot.gold_out_loop_spec` for the other extracted copy of the same body:
+the two loops are byte-identical in the Rust and distinct functions in the
+model, so the lemma is repeated rather than reused. -/
+theorem lift_gold_out_loop_spec (degU : Std.Usize) (qwU : Std.U64)
+    (words : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
+    (tU : Std.Usize) (X : ℕ → ℕ)
+    (hdeg : degU.val = N) (hqwv : qwU.val = q)
+    (hv : ∀ k, k < N → wordAt words k = X k)
+    (hl : words.val.length = N)
+    (ht : tU.val ≤ N) (hlen : out.val.length = tU.val)
+    (hred : ∀ u ∈ out.val, HachiEquiv.Field.Red u)
+    (hval : ∀ k, k < tU.val → wordN out k = X k % q) :
+    ringswitch.lift_commit_row_gold_loop2 degU qwU words out tU
+      ⦃ z => Wf z ∧ ∀ k, k < N → wordN z k = X k % q ⦄ := by
+  rw [ringswitch.lift_commit_row_gold_loop2]
+  apply loop.spec_decr_nat (fun r => N - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val
+      ∧ (∀ u ∈ r.1.val, HachiEquiv.Field.Red u)
+      ∧ ∀ k, k < r.2.val → wordN r.1 k = X k % q)
+  · rintro ⟨o1, tt⟩ ⟨htt, hlen1, hred1, hval1⟩
+    dsimp only at htt hlen1 hred1 hval1
+    simp only [ringswitch.lift_commit_row_gold_loop2.body]
+    by_cases hlt : tt < degU
+    · rw [if_pos hlt]
+      have httlt : tt.val < N := by rw [← hdeg]; scalar_tac
+      have hb1 : tt.val < words.val.length := by rw [hl]; exact httlt
+      step as ⟨g, hg⟩
+      have hgv : g.val = X tt.val := by
+        rw [hg, ← wordAt_of_lt (v := words) (t := tt.val) hb1]; exact hv tt.val httlt
+      step as ⟨md, hmd⟩
+      have hmdv : md.val = X tt.val % q := by rw [hmd, hgv, hqwv]
+      have hmdlt : md.val < q := by
+        rw [hmdv]; exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
+      step with HachiEquiv.Field.fp_new_spec md as ⟨f, hfred, hfval⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨tt1, htt1⟩
+      refine ⟨by rw [htt1]; omega, ?_, ?_, ?_, by rw [htt1]; omega⟩
+      · rw [ho2, htt1, List.length_append, hlen1]; simp
+      · intro u hu
+        rw [ho2] at hu
+        rcases List.mem_append.mp hu with hm | hm
+        · exact hred1 u hm
+        · rw [List.mem_singleton.mp hm]; exact hfred
+      · intro k hk
+        rw [htt1] at hk
+        simp only [wordN] at hval1 ⊢
+        rcases Nat.lt_or_ge k tt.val with hklt | hkge
+        · rw [ho2, getD_append_lt' _ _ _ (by omega)]
+          exact hval1 k hklt
+        · have hkeq : k = o1.val.length := by omega
+          rw [hkeq, ho2, getD_append_eq', hlen1]
+          have hfv : f.val = md.val := by
+            have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+              (n := q) (x := f.val) (y := md.val) hfred hfval
+            rwa [Nat.mod_eq_of_lt hmdlt] at h1
+          rw [hfv, hmdv]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = N := by rw [← hdeg]; scalar_tac
+      exact ⟨⟨by rw [hlen1, heq], hred1⟩,
+        fun k hk => hval1 k (by rw [heq]; exact hk)⟩
+  · exact ⟨ht, hlen, hred, hval⟩
+
+/-! ## The read-back
+
+The lane's accumulator holds a *signed* integer; the words it is read out of
+are naturals. [`offS`] is the bridge: add the row's ceiling, which layer 2
+proved the value cannot exceed, so the sum is non-negative and below `GOLD_P`
+-- and which is a multiple of `q`, so it vanishes in the final reduction.
+The digit path does the same with `offConvSumD`, in `ℕ` throughout because
+its operand is unsigned. -/
+
+/-- The offset form of a signed row value. -/
+def offS (terms G : ℕ) (S : ℤ) : ℕ := (S + (terms : ℤ) * (SBOUND G : ℕ)).toNat
+
+theorem offS_cast (terms G : ℕ) (S : ℤ) (hS : |S| ≤ (terms : ℤ) * (SBOUND G : ℕ)) :
+    ((offS terms G S : ℕ) : ℤ) = S + (terms : ℤ) * (SBOUND G : ℕ) := by
+  unfold offS
+  refine Int.toNat_of_nonneg ?_
+  have := abs_le.mp hS
+  omega
+
+/-- **The offset fits.** Twice the ceiling below `GOLD_P` is exactly the
+card's one-chunk condition, and [`sbound_fit_lift`] is its instance at the
+pin. -/
+theorem offS_lt (terms G : ℕ) (S : ℤ) (hS : |S| ≤ (terms : ℤ) * (SBOUND G : ℕ))
+    (hfit : 2 * terms * SBOUND G < GP) : offS terms G S < GP := by
+  -- `omega` is linear and `terms * SBOUND G` is a product of two variables,
+  -- so the chain only closes once that product is a single atom. Same shape
+  -- as `RingFused.offConvSumB_lt`.
+  have hc := offS_cast terms G S hS
+  have habs := abs_le.mp hS
+  have hfitZ : 2 * ((terms : ℤ) * (SBOUND G : ℕ)) < (GP : ℤ) := by
+    have : (2 : ℤ) * (terms : ℤ) * (SBOUND G : ℕ) < (GP : ℤ) := by exact_mod_cast hfit
+    linarith
+  set M : ℤ := (terms : ℤ) * (SBOUND G : ℕ) with hM
+  omega
+
+/-- **And it vanishes mod `q`.** `SBOUND G = N · q · G` is a multiple of `q`,
+so reducing the offset word recovers the signed value itself. -/
+theorem offS_mod_q (terms G : ℕ) (S : ℤ) (hS : |S| ≤ (terms : ℤ) * (SBOUND G : ℕ)) :
+    ((offS terms G S % q : ℕ) : ZMod q) = ((S : ℤ) : ZMod q) := by
+  rw [ZMod.natCast_mod]
+  have hc : ((offS terms G S : ℕ) : ℤ) = S + (terms : ℤ) * (SBOUND G : ℕ) :=
+    offS_cast terms G S hS
+  have hz : ((offS terms G S : ℕ) : ZMod q) = (((offS terms G S : ℕ) : ℤ) : ZMod q) := by
+    push_cast; ring
+  rw [hz, hc]
+  push_cast
+  have hq0 : ((q : ℕ) : ZMod q) = 0 := ZMod.natCast_self q
+  have : ((SBOUND G : ℕ) : ZMod q) = 0 := by
+    simp only [SBOUND, Nat.cast_mul]
+    rw [hq0]
+    ring
+  rw [this]
+  ring
+
 end HachiEquiv.RingSigned

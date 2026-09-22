@@ -2006,6 +2006,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- five-tuple `(acc, b1, b2, b3, j)`.
 #print axioms HachiEquiv.RingSigned.lift_gold_loop0_spec
 #print axioms HachiEquiv.RingSigned.lift_gold_loop1_spec
+#print axioms HachiEquiv.RingSigned.lift_gold_out_loop_spec
+-- The read-back. `offS` adds the row's ceiling, which layer 2 proved the
+-- value cannot exceed, so the sum is non-negative and below GOLD_P -- and
+-- which is a multiple of q, so it vanishes in the reduction.
+#print axioms HachiEquiv.RingSigned.offS_cast
+#print axioms HachiEquiv.RingSigned.offS_lt
+#print axioms HachiEquiv.RingSigned.offS_mod_q
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
