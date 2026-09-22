@@ -32,6 +32,7 @@ obligation when the verifier first consumes the fold challenge.
 -/
 
 import QuadEval
+import RingSigned
 import ArkLib.Commitments.Functional.Hachi.RingSwitch.Reduction
 import ArkLib.Commitments.Functional.Hachi.EndPiece.Reduction
 
@@ -570,6 +571,83 @@ theorem lift_commit_row_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
         * digitRq w.rho t) hfz hfd
     rw [rhoDigitCount_eq] at hsplit
     rw [hout, hsplit]
+
+/-! ## Card T40a: the same row on the signed Goldilocks lane
+
+`RingSigned` proves what `lift_commit_row_gold` computes, coefficientwise in
+`ZMod q`. Two bridges carry that into this file's vocabulary: one from a
+coefficientwise sum to a `toRq` product sum, and one from `RingSigned`'s
+`sAbs` to the `ZMod.valMinAbs` that `Scheme.centered_abs_spec` speaks. -/
+
+/-- [`RqBridge.dot_sum_toRq`] with the operands given as functions rather than
+vectors. The `ρ` digits are not a vector -- that is wall W3 -- so the row's
+second segment can only be summed this way. -/
+theorem toRq_of_coeffK_sumF (m : ℕ) (KA WB : ℕ → ring.Rq) (z : ring.Rq)
+    (hKA : ∀ u, u < m → Wf (KA u)) (hWB : ∀ u, u < m → Wf (WB u))
+    (hzval : ∀ k, k < N → coeffK z k
+      = ∑ u ∈ Finset.range m, HachiEquiv.Ring.negConv (KA u) (WB u) k) :
+    toRq z = ∑ u ∈ Finset.range m, toRq (KA u) * toRq (WB u) := by
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [coeff_sum]
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hzval k hk]
+    refine Finset.sum_congr rfl (fun u hu => ?_)
+    simp only [Finset.mem_range] at hu
+    exact (coeff_toRq_mul _ _ (hKA u hu) (hWB u hu) hk).symm
+  · rw [toRq_coeff, if_neg hk]
+    refine (Finset.sum_eq_zero (fun u _ => ?_)).symm
+    exact Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)
+
+/-- `RingSigned.sAbs` is the magnitude `Scheme.centered_abs_spec` returns.
+Both are the same case split on `q / 2`; this is the one place they meet. -/
+theorem sAbs_eq_valMinAbs (c : cpoly.field.Fp) (hc : Red c) :
+    HachiEquiv.RingSigned.sAbs c.val = (toK c).valMinAbs.natAbs := by
+  have hcv : (toK c).val = c.val := by
+    simp only [toK, ZMod.val_natCast]
+    exact Nat.mod_eq_of_lt hc
+  have hmin : (toK c).valMinAbs
+      = if c.val ≤ q / 2 then (c.val : ℤ) else (c.val : ℤ) - (q : ℤ) := by
+    rw [ZMod.valMinAbs_def_pos, hcv]
+  rw [hmin]
+  unfold HachiEquiv.RingSigned.sAbs HachiEquiv.RingSigned.sInt
+  by_cases h : c.val ≤ q / 2 <;> simp [h]
+
+/-- **Every `ρ` digit the row reads exists as a value**, so the row's second
+segment can be named by a function even though no vector of digits is built
+-- which is what `RingSigned.lift_commit_row_gold_spec` asks for, and what
+wall W3's removal makes necessary.
+
+Determinism does the work: `rho_digit_as_rq` reads its index only through
+`val`, and a `Usize` is determined by that (`UScalar.eq_of_val_eq`). The
+choice is `Classical.choice`, already in the audit's standard triple. -/
+theorem exists_digitFun {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRow)
+    (m : ℕ) (hrho : WfRho n rho) (hm : m ≤ n * 8) :
+    ∃ D : ℕ → ring.Rq, ∀ kk : Std.Usize, kk.val < m →
+      ringswitch.rho_digit_as_rq rho kk = ok (D kk.val) := by
+  classical
+  have hok : ∀ kk : Std.Usize, kk.val < m →
+      ∃ d, ringswitch.rho_digit_as_rq rho kk = ok d := by
+    intro kk hkk
+    have hs := rho_digit_as_rq_raw_spec (n := n) rho kk hrho (by omega)
+    cases h : ringswitch.rho_digit_as_rq rho kk with
+    | ok d => exact ⟨d, rfl⟩
+    | fail e => rw [h] at hs; simp at hs
+    | div => rw [h] at hs; simp at hs
+  refine ⟨fun j => if h : ∃ kk : Std.Usize, kk.val = j ∧ kk.val < m
+    then (hok h.choose h.choose_spec.2).choose
+    else alloc.vec.Vec.new cpoly.field.Fp, ?_⟩
+  intro kk hkk
+  have hex : ∃ kk' : Std.Usize, kk'.val = kk.val ∧ kk'.val < m := ⟨kk, rfl, hkk⟩
+  dsimp only
+  rw [dif_pos hex]
+  have heq : hex.choose = kk := Std.UScalar.eq_of_val_eq hex.choose_spec.1
+  -- rewriting inside `h1` would move a term the choice's proof depends on,
+  -- so the index is moved on the goal side instead
+  calc ringswitch.rho_digit_as_rq rho kk
+      = ringswitch.rho_digit_as_rq rho hex.choose := by rw [heq]
+    _ = _ := (hok hex.choose hex.choose_spec.2).choose_spec
 
 /-- The loop of `lift_commit`: entry `t` already written is row `t` of the
 concrete Ajtai lift commitment, and the length is the counter. -/
