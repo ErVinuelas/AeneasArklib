@@ -26,8 +26,14 @@ open hachi
 
 namespace HachiEquiv.RingSigned
 
-open HachiEquiv.Ring HachiEquiv.GoldArith
+open HachiEquiv.GoldArith
+open HachiEquiv.NttStage HachiEquiv.RingFused HachiEquiv.GoldTransform
 open HachiEquiv.NttProduct (q)
+open HachiEquiv.Ring (wordN Wf wordN_lt)
+
+/-- `Ring.N` and `NttStage.N` are both `1024`; this file opens `NttStage`, so
+`N` below is that one and the two are interchangeable by `rfl`. -/
+theorem N_eq : N = HachiEquiv.Ring.N := rfl
 
 /-! ## The encoding
 
@@ -176,5 +182,165 @@ against `2^64`, margin x2.44. This is the one-chunk claim, and it is why
 `lift_commit_row_gold` has no chunk loop. -/
 theorem sbound_fit_lift : 2 * 57384 * SBOUND 15 < GP := by
   simp only [SBOUND, N, HachiEquiv.NttProduct.q, GP]; norm_num
+
+/-! ## The loader
+
+`ring::load_twisted_signed_into` is [`ring::load_twisted_into`] with the
+branch of [`sgnWord`] on the read. The loop state is the same 3-tuple
+`(a, w, t)` -- the borrowed operand rides along, as in `add_loop`. -/
+
+/-- The word the loader forms before the twist IS [`sgnWord`] of the
+coefficient: the Rust's `if v <= q/2 { v } else { GOLD_P - (q - v) }` and the
+definition above are the same branch on the same test. -/
+theorem sgnWord_lt {c : ℕ} (hc : c < q) : sgnWord c < GP := by
+  unfold sgnWord
+  by_cases h : c ≤ q / 2
+  · rw [if_pos h]; exact lt_trans hc q_lt_GP
+  · rw [if_neg h]
+    have h1 : 0 < q - c := by omega
+    have h2 : 0 < GP := by simp only [GP]; norm_num
+    omega
+
+/-- **The loader's branch.** The extracted `if v <= half then v else
+GOLD_P - (q - v)` returns exactly [`sgnWord`] of the word. Factored out
+because the two arms have different monadic shapes -- the second does two
+checked subtractions -- and inlining them duplicates the whole tail of the
+loop body. -/
+theorem sgn_branch_spec (v qU halfU : Std.U64) (hq : qU.val = q)
+    (hhalf : halfU.val = q / 2) (hv : v.val < q) :
+    (if v ≤ halfU then ok v else do let i ← qU - v; ntt.GOLD_P - i)
+      ⦃ g => g.val = sgnWord v.val ⦄ := by
+  by_cases hvh : v ≤ halfU
+  · rw [if_pos hvh, WP.spec_ok]
+    have : v.val ≤ q / 2 := by scalar_tac
+    unfold sgnWord; rw [if_pos this]
+  · rw [if_neg hvh]
+    have hgt : q / 2 < v.val := by scalar_tac
+    step as ⟨i, hi⟩
+    have hiGP : i.val ≤ (ntt.GOLD_P).val := by
+      rw [hi, hq, GOLD_P_val]
+      have := q_lt_GP
+      omega
+    step as ⟨g, hgv⟩
+    unfold sgnWord
+    rw [if_neg (by omega)]
+    rw [hgv, hi, hq, GOLD_P_val]
+
+theorem load_twisted_signed_into_loop_spec (a : ring.Rq)
+    (pt : alloc.vec.Vec Std.U64) (nU : Std.Usize) (qU halfU : Std.U64)
+    (w : alloc.vec.Vec Std.U64) (tU : Std.Usize) (ps : ZMod GP)
+    (hn : nU.val = N) (hq : qU.val = q) (hhalf : halfU.val = q / 2)
+    (hwf : HachiEquiv.Ring.Wf a)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (ht : tU.val ≤ N) (hwl : w.val.length = N)
+    (hwc : ∀ e, e < tU.val → (wordAt w e) < GP)
+    (hwv : ∀ e, e < tU.val → resK GP w e
+      = NttMath.twistR ps (fun u => ((sgnWord (HachiEquiv.Ring.wordN a u) : ℕ) : ZMod GP)) e) :
+    ring.load_twisted_signed_into_loop a pt nU qU halfU w tU
+      ⦃ z => Canon GP z ∧ ∀ e, e < N → resK GP z e
+               = NttMath.twistR ps
+                   (fun u => ((sgnWord (HachiEquiv.Ring.wordN a u) : ℕ) : ZMod GP)) e ⦄ := by
+  rw [ring.load_twisted_signed_into_loop]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.2.val)
+    (fun r => r.2.2.val ≤ N ∧ r.1 = a ∧ r.2.1.val.length = N
+      ∧ (∀ e, e < r.2.2.val → (wordAt r.2.1 e) < GP)
+      ∧ ∀ e, e < r.2.2.val → resK GP r.2.1 e
+          = NttMath.twistR ps
+              (fun u => ((sgnWord (HachiEquiv.Ring.wordN a u) : ℕ) : ZMod GP)) e)
+  · rintro ⟨aa, d, tt⟩ ⟨htt, haa, hdl, hdc, hdv⟩
+    dsimp only at htt haa hdl hdc hdv
+    subst haa
+    simp only [ring.load_twisted_signed_into_loop.body]
+    by_cases hlt : tt < nU
+    · rw [if_pos hlt]
+      have httlt : tt.val < N := by rw [← hn]; scalar_tac
+      have hab : tt.val < aa.val.length := by rw [hwf.1]; exact httlt
+      have hpb : tt.val < pt.val.length := by rw [hptC.1]; exact httlt
+      have hdb : tt.val < d.val.length := by rw [hdl]; exact httlt
+      step as ⟨f, hf⟩
+      step with HachiEquiv.Ring.to_u64_id f as ⟨v, hv⟩
+      have hvv : v.val = HachiEquiv.Ring.wordN aa tt.val := by
+        rw [hv, hf]
+        unfold HachiEquiv.Ring.wordN
+        rw [List.getD_eq_getElem _ _ hab]
+      have hvq : v.val < q := by
+        rw [hv, hf]; exact hwf.2 _ (List.getElem_mem hab)
+      step with sgn_branch_spec v qU halfU hq hhalf hvq as ⟨g, hgv⟩
+      have hglt : g.val < GP := by rw [hgv]; exact sgnWord_lt hvq
+      step as ⟨y, hy⟩
+      have hyv : y.val = wordAt pt tt.val := by
+        rw [hy, ← wordAt_of_lt (v := pt) (t := tt.val) hpb]
+      have hylt : y.val < GP := by rw [hyv]; exact wordAt_lt hptC GP_pos _
+      step with gold_mul_spec g y as ⟨pr, hprv, hprlt⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨tt1, htt1⟩
+      rw [hback]
+      refine ⟨by rw [htt1]; omega, ?_, ?_, ?_, by rw [htt1]; omega⟩
+      · simpa using hdl
+      · intro e he
+        rw [htt1] at he
+        by_cases heq : e = tt.val
+        · rw [heq, wordAt_set_eq hdb]; exact hprlt
+        · rw [wordAt_set_ne heq]; exact hdc e (by omega)
+      · intro e he
+        rw [htt1] at he
+        by_cases heq : e = tt.val
+        · rw [heq]
+          simp only [resK]
+          rw [wordAt_set_eq hdb, hprv, hgv, hvv, hyv]
+          simp only [NttMath.twistR, resK] at hptv ⊢
+          rw [ZMod.natCast_mod]
+          push_cast
+          rw [hptv tt.val httlt]
+        · simp only [resK]
+          rw [wordAt_set_ne heq]
+          have := hdv e (by omega)
+          simpa only [resK] using this
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = N := by rw [← hn]; scalar_tac
+      refine ⟨⟨hdl, ?_⟩, fun e he => hdv e (by rw [heq]; exact he)⟩
+      intro u hu
+      obtain ⟨e, he, hee⟩ := List.getElem_of_mem hu
+      have := hdc e (by rw [heq]; omega)
+      rw [wordAt_of_lt he] at this
+      rw [← hee]; exact this
+  · exact ⟨ht, rfl, hwl, hwc, hwv⟩
+
+/-- [`load_twisted_signed_into`] at its entry point. -/
+theorem load_twisted_signed_into_spec (w : alloc.vec.Vec Std.U64) (a : ring.Rq)
+    (pt : alloc.vec.Vec Std.U64) (ps : ZMod GP)
+    (hwf : Wf a) (hwl : w.val.length = N)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e) :
+    ring.load_twisted_signed_into w a pt
+      ⦃ z => Canon GP z ∧ ∀ e, e < N → resK GP z e
+               = NttMath.twistR ps
+                   (fun u => ((sgnWord (wordN a u) : ℕ) : ZMod GP)) e ⦄ := by
+  rw [ring.load_twisted_signed_into]
+  step as ⟨half, hhalf⟩
+  exact load_twisted_signed_into_loop_spec a pt ntt.NTT_LEN params.Q half w 0#usize ps
+    ntt_NTT_LEN_val HachiEquiv.Field.params_Q_val
+    (by rw [hhalf, HachiEquiv.Field.params_Q_val]) hwf hptC hptv (by simp) hwl
+    (by intro e he; simp at he) (by intro e he; simp at he)
+
+/-- **The loader, in the form the bound layer wants.** The same statement with
+[`sgnWord`] replaced by the integer it denotes -- [`sgnWord_cast`] applied
+coefficientwise. Everything above this line is about words; everything below
+is about the integers they stand for, and this is the seam. -/
+theorem load_twisted_signed_into_sInt (w : alloc.vec.Vec Std.U64) (a : ring.Rq)
+    (pt : alloc.vec.Vec Std.U64) (ps : ZMod GP)
+    (hwf : Wf a) (hwl : w.val.length = N)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e) :
+    ring.load_twisted_signed_into w a pt
+      ⦃ z => Canon GP z ∧ ∀ e, e < N → resK GP z e
+               = NttMath.twistR ps
+                   (fun u => ((sInt (wordN a u) : ℤ) : ZMod GP)) e ⦄ := by
+  apply spec_mono (load_twisted_signed_into_spec w a pt ps hwf hwl hptC hptv)
+  rintro z ⟨hzC, hzv⟩
+  refine ⟨hzC, fun e he => ?_⟩
+  rw [hzv e he]
+  congr 1
+  funext u
+  exact sgnWord_cast (wordN_lt hwf u)
 
 end HachiEquiv.RingSigned

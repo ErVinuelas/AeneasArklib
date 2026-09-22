@@ -1990,6 +1990,16 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingSigned.sConvSum_abs_le
 #print axioms HachiEquiv.RingSigned.gold_soff_val
 #print axioms HachiEquiv.RingSigned.sbound_fit_lift
+-- Layer 3, the loader: `ring::load_twisted_signed_into` writes the twisted
+-- signed words. `sgn_branch_spec` is the extracted `if v <= q/2 { v } else
+-- { GOLD_P - (q - v) }`, and `load_twisted_signed_into_sInt` is the seam --
+-- above it the statements are about words, below about the integers they
+-- stand for.
+#print axioms HachiEquiv.RingSigned.sgnWord_lt
+#print axioms HachiEquiv.RingSigned.sgn_branch_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_loop_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_sInt
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
