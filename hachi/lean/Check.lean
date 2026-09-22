@@ -2024,6 +2024,20 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- The row, assembled: both term loops, the inverse, the untwist with the
 -- scaled offset, the output loop and the reduction.
 #print axioms HachiEquiv.RingSigned.lift_commit_row_gold_spec
+#print axioms HachiEquiv.RingSigned.centeredWf_of_lt
+-- Card T40a in RingSwitch: the three bridges, the guard, and the row in the
+-- specification's own vocabulary. lift_commit_spec and lift_commit_row_spec
+-- are UNCHANGED and are re-audited below with everything else.
+#print axioms HachiEquiv.RingSwitch.toRq_of_coeffK_sumF
+#print axioms HachiEquiv.RingSwitch.sAbs_eq_valMinAbs
+#print axioms HachiEquiv.RingSwitch.exists_usize
+#print axioms HachiEquiv.RingSwitch.exists_digitFun
+#print axioms HachiEquiv.RingSwitch.lwshort_inner_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_inner1_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_outer0_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_outer1_spec
+#print axioms HachiEquiv.RingSwitch.lift_witness_short_spec
+#print axioms HachiEquiv.RingSwitch.lift_commit_row_gold_arklib_spec
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf

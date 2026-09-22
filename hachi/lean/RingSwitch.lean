@@ -1018,10 +1018,11 @@ theorem lwshort_outer1_spec {n : ℕ} (w : ringswitch.LiftedWitness) (gamma : St
 path's bound needs. A `false` answer is not characterised, because nothing
 needs it: the generic row runs and the value is the same. -/
 theorem lift_witness_short_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
-    (hz : WfVec μ w.z) (hrho : WfRho n w.rho) (hmax : n * 8 ≤ Usize.max) :
+    (hz : WfVec μ w.z) (hrho : WfRho n w.rho) (hmax : μ + n * 8 ≤ Usize.max) :
     ringswitch.lift_witness_short w
       ⦃ b => b = true →
-          (∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+          μ + n * 8 ≤ (ringswitch.LIFT_GOLD_MAX).val
+          ∧ (∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
             (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
           ∧ (∀ kk : Std.Usize, kk.val < n * 8 →
               ringswitch.rho_digit_as_rq w.rho kk
@@ -1040,34 +1041,51 @@ theorem lift_witness_short_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
     linalg.PolyVec.len, bind_tc_ok]
   step as ⟨rl, hrl⟩
   have hrlv : rl.val = n * 8 := by rw [hrl, hgd]; simp [hrho.1]
+  have hzv : (alloc.vec.Vec.len w.z).val = μ := by simpa using hz.1
+  step as ⟨tot, htot⟩
+  have htotv : tot.val = μ + n * 8 := by rw [htot, hrlv, hzv]
   step with lwshort_outer0_spec (μ := μ) w params.CHAIN_GAMMA
-    (alloc.vec.Vec.len w.z) params.RING_DEGREE true 0#usize 15 hgv
-    HachiEquiv.Ring.params_RING_DEGREE_val hz (by simpa using hz.1) (by simp)
+    (alloc.vec.Vec.len w.z) params.RING_DEGREE _ 0#usize 15 hgv
+    HachiEquiv.Ring.params_RING_DEGREE_val hz hzv (by simp)
     (by intro _ u hu; simp at hu) as ⟨s1, hs1⟩
   apply spec_mono (lwshort_outer1_spec (n := n) w params.CHAIN_GAMMA rl
     params.RING_DEGREE s1 0#usize 15 D hgv
     HachiEquiv.Ring.params_RING_DEGREE_val hrlv (by simp) hDeq hDwf
     (by intro _ j hj; simp at hj))
-  intro b hb
-  intro hbt
+  intro b hb hbt
   obtain ⟨hs1t, hallD⟩ := hb hbt
-  refine ⟨hs1 hs1t, fun kk hkk => ?_⟩
-  rw [hDeq kk hkk, WP.spec_ok]
-  exact hallD kk.val hkk
+  obtain ⟨hwidth, hzall⟩ := hs1 hs1t
+  refine ⟨?_, hzall, fun kk hkk => ?_⟩
+  · -- the guard's seed is the width test, so a `true` answer carries it
+    have : tot ≤ ringswitch.LIFT_GOLD_MAX := by
+      by_contra hc
+      rw [decide_eq_true_eq] at hwidth
+      exact hc hwidth
+    rw [← htotv]
+    scalar_tac
+  · rw [hDeq kk hkk, WP.spec_ok]
+    exact hallD kk.val hkk
 
 /-- The loop of `lift_commit`: entry `t` already written is row `t` of the
 concrete Ajtai lift commitment, and the length is the counter. -/
 theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
     (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
-    (rows : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (rows : Std.Usize) (short : Bool) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (hD : WfMat dRows (μ + n * 8) dKey) (hw : RepLiftedWitness w sw)
     (hmax : μ + n * 8 ≤ Usize.max) (hrows : rows.val = dRows) (hi : i.val ≤ dRows)
+    (hzc : short = true → ∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hdc : short = true → ∀ kk : Std.Usize, kk.val < n * 8 →
+      ringswitch.rho_digit_as_rq w.rho kk
+        ⦃ d => HachiEquiv.RingSigned.CenteredWf 15 d ⦄)
+    (hfit : short = true → 2 * (μ + n * 8) * HachiEquiv.RingSigned.SBOUND 15
+      < HachiEquiv.GoldArith.GP)
     (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
     (hval : ∀ t : Fin dRows, t.val < i.val →
       toRq (out.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
         = (InnerOuter.hachiLiftCom Φ 15 16
             (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw t) :
-    ringswitch.lift_commit_loop dKey w rows out i
+    ringswitch.lift_commit_loop dKey w rows short out i
       ⦃ o => o.val.length = dRows ∧ (∀ y ∈ o.val, Wf y) ∧
         ∀ t : Fin dRows, toRq (o.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
           = (InnerOuter.hachiLiftCom Φ 15 16
@@ -1085,9 +1103,27 @@ theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
     by_cases hlt : i1 < rows
     · rw [if_pos hlt]
       have hilt : i1.val < dRows := by rw [← hrows]; scalar_tac
-      step with lift_commit_row_spec dKey w sw i1 hD hw hmax hilt as ⟨r, hWr, hr⟩
       have hbound : o1.val.length < Usize.max := by scalar_tac
-      step as ⟨o2, ho2⟩
+      -- one `have` for the whole branch, so the tail below is written once
+      have hif : (if short
+          then do let r ← ringswitch.lift_commit_row_gold dKey w i1
+                  alloc.vec.Vec.push o1 r
+          else do let r ← ringswitch.lift_commit_row dKey w i1
+                  alloc.vec.Vec.push o1 r)
+          ⦃ o => ∃ r : ring.Rq, Wf r ∧ toRq r = (InnerOuter.hachiLiftCom Φ 15 16
+              (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⟨i1.val, hilt⟩
+              ∧ o.val = o1.val ++ [r] ⦄ := by
+        by_cases hs : short
+        · rw [if_pos hs]
+          step with lift_commit_row_gold_arklib_spec dKey w sw i1 hD hw hmax
+            hilt (hzc hs) (hdc hs) (hfit hs) as ⟨r, hWr, hr⟩
+          step as ⟨o2, ho2⟩
+          exact ⟨r, hWr, hr, ho2⟩
+        · rw [if_neg hs]
+          step with lift_commit_row_spec dKey w sw i1 hD hw hmax hilt as ⟨r, hWr, hr⟩
+          step as ⟨o2, ho2⟩
+          exact ⟨r, hWr, hr, ho2⟩
+      step with hif as ⟨o2, r, hWr, hr, ho2⟩
       step as ⟨i2, hi2⟩
       refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
       · rw [ho2, hi2, List.length_append, hlen1]; simp
@@ -1124,9 +1160,21 @@ theorem lift_commit_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
   rw [ringswitch.lift_commit]
   simp only [linalg.PolyMatrix.rows, linalg.PolyVec.new, alloc.vec.Vec.with_capacity,
     bind_tc_ok, bind_ok_id]
+  step with lift_witness_short_spec (μ := μ) (n := n) w hw.1 hw.2.1 hmax
+    as ⟨sh, hsh⟩
   apply spec_mono (lift_commit_loop_spec (dRows := dRows) (μ := μ) (n := n) dKey w sw
-    (alloc.vec.Vec.len dKey) (alloc.vec.Vec.new ring.Rq) 0#usize hD hw hmax
-    (by simp [hD.1]) (by simp) (by simp) (by intro y hy; simp at hy)
+    (alloc.vec.Vec.len dKey) sh (alloc.vec.Vec.new ring.Rq) 0#usize hD hw hmax
+    (by simp [hD.1]) (by simp)
+    (fun h => (hsh h).2.1) (fun h => (hsh h).2.2)
+    (fun h => by
+      -- the guard's width test is exactly the one-chunk bound
+      have hb := (hsh h).1
+      have hL : (ringswitch.LIFT_GOLD_MAX).val = 131072 := by decide +kernel
+      rw [hL] at hb
+      simp only [HachiEquiv.RingSigned.SBOUND, HachiEquiv.NttStage.N,
+        HachiEquiv.NttProduct.q, HachiEquiv.GoldArith.GP]
+      omega)
+    (by simp) (by intro y hy; simp at hy)
     (by intro t ht; simp at ht))
   rintro out ⟨hlen, hwf, hvals⟩
   refine ⟨⟨hlen, hwf⟩, ?_⟩

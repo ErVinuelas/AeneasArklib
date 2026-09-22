@@ -712,7 +712,7 @@ def linalg.PolyVec := alloc.vec.Vec ring.Rq
 def linalg.PolyMatrix := alloc.vec.Vec linalg.PolyVec
 
 /-- [hachi::ringswitch::RlinBlocks]
-    Source: 'src/ringswitch.rs', lines 413:0-428:1
+    Source: 'src/ringswitch.rs', lines 429:0-444:1
     Visibility: public -/
 structure ringswitch.RlinBlocks where
   d : linalg.PolyMatrix
@@ -731,7 +731,7 @@ structure ringswitch.RlinBlocks where
   zero : ring.Rq
 
 /-- [hachi::ringswitch::RlinMat]
-    Source: 'src/ringswitch.rs', lines 461:0-466:1
+    Source: 'src/ringswitch.rs', lines 477:0-482:1
     Visibility: public -/
 @[discriminant isize]
 inductive ringswitch.RlinMat where
@@ -739,7 +739,7 @@ inductive ringswitch.RlinMat where
 | Lazy : ringswitch.RlinBlocks → ringswitch.RlinMat
 
 /-- [hachi::ringswitch::RlinStatement]
-    Source: 'src/ringswitch.rs', lines 548:0-552:1
+    Source: 'src/ringswitch.rs', lines 564:0-568:1
     Visibility: public -/
 structure ringswitch.RlinStatement where
   m : ringswitch.RlinMat
@@ -1011,7 +1011,7 @@ def ring.Rq.coeff
 @[global_simps, irreducible] def params.RING_DEGREE : Std.Usize := 1024#usize
 
 /-- [hachi::ringswitch::c_eval_at]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 607:4-611:5
+    Source: 'src/ringswitch.rs', lines 623:4-627:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_eval_at_loop.body
@@ -1032,7 +1032,7 @@ def ringswitch.c_eval_at_loop.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_eval_at]: loop 0:
-    Source: 'src/ringswitch.rs', lines 607:4-611:5
+    Source: 'src/ringswitch.rs', lines 623:4-627:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_eval_at_loop
@@ -1046,7 +1046,7 @@ def ringswitch.c_eval_at_loop
     (acc, pw, k)
 
 /-- [hachi::ringswitch::c_eval_at]:
-    Source: 'src/ringswitch.rs', lines 602:0-613:1
+    Source: 'src/ringswitch.rs', lines 618:0-629:1
     Visibility: public -/
 @[reducible]
 def ringswitch.c_eval_at
@@ -1055,7 +1055,7 @@ def ringswitch.c_eval_at
     cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::yvec]:
-    Source: 'src/ringswitch.rs', lines 571:4-573:5
+    Source: 'src/ringswitch.rs', lines 587:4-589:5
     Visibility: public -/
 def ringswitch.RlinStatement.impl.yvec
   (self : ringswitch.RlinStatement) : Result linalg.PolyVec := do
@@ -1319,7 +1319,7 @@ def zerocheck.alpha_pow_table
   zerocheck.alpha_pow_table_loop alpha d out cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::ringswitch::c_eval_at_modulus]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 635:4-638:5
+    Source: 'src/ringswitch.rs', lines 651:4-654:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_eval_at_modulus_loop.body
@@ -1335,7 +1335,7 @@ def ringswitch.c_eval_at_modulus_loop.body
   else ok (done pw)
 
 /-- [hachi::ringswitch::c_eval_at_modulus]: loop 0:
-    Source: 'src/ringswitch.rs', lines 635:4-638:5
+    Source: 'src/ringswitch.rs', lines 651:4-654:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_eval_at_modulus_loop
@@ -1349,7 +1349,7 @@ def ringswitch.c_eval_at_modulus_loop
     (pw, k)
 
 /-- [hachi::ringswitch::c_eval_at_modulus]:
-    Source: 'src/ringswitch.rs', lines 631:0-640:1
+    Source: 'src/ringswitch.rs', lines 647:0-656:1
     Visibility: public -/
 def ringswitch.c_eval_at_modulus
   (alpha : cpoly.field.Ext4) : Result cpoly.field.Ext4 := do
@@ -1359,7 +1359,7 @@ def ringswitch.c_eval_at_modulus
   cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add pw cpoly.field.Ext4.ONE
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::m]:
-    Source: 'src/ringswitch.rs', lines 566:4-568:5
+    Source: 'src/ringswitch.rs', lines 582:4-584:5
     Visibility: public -/
 def ringswitch.RlinStatement.impl.m
   (self : ringswitch.RlinStatement) : Result ringswitch.RlinMat := do
@@ -1374,7 +1374,7 @@ def linalg.PolyMatrix.row
     self i
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinMat}::entry]:
-    Source: 'src/ringswitch.rs', lines 488:4-530:5
+    Source: 'src/ringswitch.rs', lines 504:4-546:5
     Visibility: public -/
 def ringswitch.RlinMat.entry
   (self : ringswitch.RlinMat) (i : Std.Usize) (j : Std.Usize) :
@@ -1458,7 +1458,7 @@ def linalg.PolyMatrix.cols (self : linalg.PolyMatrix) : Result Std.Usize := do
     linalg.PolyVec.len pv
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinMat}::cols]:
-    Source: 'src/ringswitch.rs', lines 478:4-483:5
+    Source: 'src/ringswitch.rs', lines 494:4-499:5
     Visibility: public -/
 def ringswitch.RlinMat.cols
   (self : ringswitch.RlinMat) : Result Std.Usize := do
@@ -1474,7 +1474,7 @@ def linalg.PolyMatrix.rows (self : linalg.PolyMatrix) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinMat}::rows]:
-    Source: 'src/ringswitch.rs', lines 470:4-475:5
+    Source: 'src/ringswitch.rs', lines 486:4-491:5
     Visibility: public -/
 def ringswitch.RlinMat.rows
   (self : ringswitch.RlinMat) : Result Std.Usize := do
@@ -1996,7 +1996,7 @@ def sumcheck.eq_prefix
   sumcheck.eq_prefix_loop tau0 challenges i cpoly.field.Ext4.ONE 0#usize
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::bound]:
-    Source: 'src/ringswitch.rs', lines 576:4-578:5
+    Source: 'src/ringswitch.rs', lines 592:4-594:5
     Visibility: public -/
 def ringswitch.RlinStatement.impl.bound
   (self : ringswitch.RlinStatement) : Result Std.U64 := do
@@ -2058,7 +2058,7 @@ structure ringswitch.LiftedWitness where
   rho : alloc.vec.Vec ringswitch.QuotientRow
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::new_lazy]:
-    Source: 'src/ringswitch.rs', lines 561:4-563:5
+    Source: 'src/ringswitch.rs', lines 577:4-579:5
     Visibility: public -/
 def ringswitch.RlinStatement.new_lazy
   (b : ringswitch.RlinBlocks) (yvec : linalg.PolyVec) (bound : Std.U64) :
@@ -2104,7 +2104,7 @@ def ring.Rq.zero : Result ring.Rq := do
   ok out
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinBlocks}::new]:
-    Source: 'src/ringswitch.rs', lines 433:4-452:5
+    Source: 'src/ringswitch.rs', lines 449:4-468:5
     Visibility: public -/
 def ringswitch.RlinBlocks.new
   (d : linalg.PolyMatrix) (bmat : linalg.PolyMatrix) (g_b : linalg.PolyVec)
@@ -5274,7 +5274,7 @@ def ntt.GOLD_PSIINV : Std.U64 := 8548973421900915981#u64
 def ntt.GOLD_PSI : Std.U64 := 455906449640507599#u64
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 327:4-337:5 -/
+    Source: 'src/ringswitch.rs', lines 343:4-353:5 -/
 @[rust_loop_body]
 def ringswitch.lift_commit_row_gold_loop0.body
   (w : ringswitch.LiftedWitness) (row : linalg.PolyVec) (n : Std.Usize)
@@ -5302,7 +5302,7 @@ def ringswitch.lift_commit_row_gold_loop0.body
   else ok (done (acc, b1, b2, b3))
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop 0:
-    Source: 'src/ringswitch.rs', lines 327:4-337:5 -/
+    Source: 'src/ringswitch.rs', lines 343:4-353:5 -/
 @[rust_loop]
 def ringswitch.lift_commit_row_gold_loop0
   (w : ringswitch.LiftedWitness) (row : linalg.PolyVec) (n : Std.Usize)
@@ -5319,7 +5319,7 @@ def ringswitch.lift_commit_row_gold_loop0
     (acc, b1, b2, b3, j)
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 339:4-350:5 -/
+    Source: 'src/ringswitch.rs', lines 355:4-366:5 -/
 @[rust_loop_body]
 def ringswitch.lift_commit_row_gold_loop1.body
   (w : ringswitch.LiftedWitness) (row : linalg.PolyVec) (n : Std.Usize)
@@ -5347,7 +5347,7 @@ def ringswitch.lift_commit_row_gold_loop1.body
   else ok (done (acc, b2))
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop 1:
-    Source: 'src/ringswitch.rs', lines 339:4-350:5 -/
+    Source: 'src/ringswitch.rs', lines 355:4-366:5 -/
 @[rust_loop]
 def ringswitch.lift_commit_row_gold_loop1
   (w : ringswitch.LiftedWitness) (row : linalg.PolyVec) (n : Std.Usize)
@@ -5363,7 +5363,7 @@ def ringswitch.lift_commit_row_gold_loop1
     (acc, b1, b2, b3, k)
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 358:4-361:5 -/
+    Source: 'src/ringswitch.rs', lines 374:4-377:5 -/
 @[rust_loop_body]
 def ringswitch.lift_commit_row_gold_loop2.body
   (deg : Std.Usize) (qw : Std.U64) (words : alloc.vec.Vec Std.U64)
@@ -5384,7 +5384,7 @@ def ringswitch.lift_commit_row_gold_loop2.body
   else ok (done out)
 
 /-- [hachi::ringswitch::lift_commit_row_gold]: loop 2:
-    Source: 'src/ringswitch.rs', lines 358:4-361:5 -/
+    Source: 'src/ringswitch.rs', lines 374:4-377:5 -/
 @[rust_loop]
 def ringswitch.lift_commit_row_gold_loop2
   (deg : Std.Usize) (qw : Std.U64) (words : alloc.vec.Vec Std.U64)
@@ -5397,7 +5397,7 @@ def ringswitch.lift_commit_row_gold_loop2
     (out, t)
 
 /-- [hachi::ringswitch::lift_commit_row_gold]:
-    Source: 'src/ringswitch.rs', lines 307:0-365:1 -/
+    Source: 'src/ringswitch.rs', lines 323:0-381:1 -/
 def ringswitch.lift_commit_row_gold
   (d_key : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) (i : Std.Usize) :
   Result ring.Rq
@@ -5428,6 +5428,12 @@ def ringswitch.lift_commit_row_gold
       0#usize
   ring.Rq.from_coeffs out1
 
+/-- [hachi::ringswitch::LIFT_GOLD_MAX]
+    Source: 'src/ringswitch.rs', lines 249:0-249:41
+    Visibility: public -/
+@[global_simps, irreducible]
+def ringswitch.LIFT_GOLD_MAX : Std.Usize := 131072#usize
+
 /-- [hachi::params::CHAIN_GAMMA]
     Source: 'src/params.rs', lines 602:0-602:32
     Visibility: public -/
@@ -5444,7 +5450,7 @@ def commit.centered_abs (c : cpoly.field.Fp) : Result Std.U64 := do
   else params.Q - v
 
 /-- [hachi::ringswitch::lift_witness_short]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 256:8-261:9
+    Source: 'src/ringswitch.rs', lines 272:8-277:9
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.lift_witness_short_loop0_loop0.body
@@ -5464,7 +5470,7 @@ def ringswitch.lift_witness_short_loop0_loop0.body
   else ok (done short)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop 1:
-    Source: 'src/ringswitch.rs', lines 256:8-261:9
+    Source: 'src/ringswitch.rs', lines 272:8-277:9
     Visibility: public -/
 @[rust_loop]
 def ringswitch.lift_witness_short_loop0_loop0
@@ -5478,7 +5484,7 @@ def ringswitch.lift_witness_short_loop0_loop0
     (short, k)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 253:4-263:5
+    Source: 'src/ringswitch.rs', lines 269:4-279:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.lift_witness_short_loop0.body
@@ -5497,7 +5503,7 @@ def ringswitch.lift_witness_short_loop0.body
   else ok (done short)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop 0:
-    Source: 'src/ringswitch.rs', lines 253:4-263:5
+    Source: 'src/ringswitch.rs', lines 269:4-279:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.lift_witness_short_loop0
@@ -5511,7 +5517,7 @@ def ringswitch.lift_witness_short_loop0
     (short, j)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop body 3:
-    Source: 'src/ringswitch.rs', lines 268:8-273:9
+    Source: 'src/ringswitch.rs', lines 284:8-289:9
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.lift_witness_short_loop1_loop0.body
@@ -5531,7 +5537,7 @@ def ringswitch.lift_witness_short_loop1_loop0.body
   else ok (done short)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop 3:
-    Source: 'src/ringswitch.rs', lines 268:8-273:9
+    Source: 'src/ringswitch.rs', lines 284:8-289:9
     Visibility: public -/
 @[rust_loop]
 def ringswitch.lift_witness_short_loop1_loop0
@@ -5545,7 +5551,7 @@ def ringswitch.lift_witness_short_loop1_loop0
     (short, k)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 265:4-275:5
+    Source: 'src/ringswitch.rs', lines 281:4-291:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.lift_witness_short_loop1.body
@@ -5564,7 +5570,7 @@ def ringswitch.lift_witness_short_loop1.body
   else ok (done short)
 
 /-- [hachi::ringswitch::lift_witness_short]: loop 2:
-    Source: 'src/ringswitch.rs', lines 265:4-275:5
+    Source: 'src/ringswitch.rs', lines 281:4-291:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.lift_witness_short_loop1
@@ -5578,7 +5584,7 @@ def ringswitch.lift_witness_short_loop1
     (short, u)
 
 /-- [hachi::ringswitch::lift_witness_short]:
-    Source: 'src/ringswitch.rs', lines 246:0-277:1
+    Source: 'src/ringswitch.rs', lines 261:0-293:1
     Visibility: public -/
 def ringswitch.lift_witness_short
   (w : ringswitch.LiftedWitness) : Result Bool := do
@@ -5587,9 +5593,10 @@ def ringswitch.lift_witness_short
   let v ← ringswitch.LiftedWitness.impl.rho w
   let i := alloc.vec.Vec.len v
   let rho_len ← i * params.GADGET_DIGITS
+  let i1 ← z_len + rho_len
   let short ←
     ringswitch.lift_witness_short_loop0 w params.CHAIN_GAMMA z_len
-      params.RING_DEGREE true 0#usize
+      params.RING_DEGREE (i1 <= ringswitch.LIFT_GOLD_MAX) 0#usize
   ringswitch.lift_witness_short_loop1 w params.CHAIN_GAMMA rho_len
     params.RING_DEGREE short 0#usize
 
@@ -5721,7 +5728,7 @@ def ringswitch.lift_commit_row
   ringswitch.lift_commit_row_loop1 w row z_len rho_len acc1 0#usize
 
 /-- [hachi::ringswitch::lift_commit]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 389:4-398:5
+    Source: 'src/ringswitch.rs', lines 405:4-414:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.lift_commit_loop.body
@@ -5747,7 +5754,7 @@ def ringswitch.lift_commit_loop.body
   else ok (done out)
 
 /-- [hachi::ringswitch::lift_commit]: loop 0:
-    Source: 'src/ringswitch.rs', lines 389:4-398:5
+    Source: 'src/ringswitch.rs', lines 405:4-414:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.lift_commit_loop
@@ -5761,7 +5768,7 @@ def ringswitch.lift_commit_loop
     (out, i)
 
 /-- [hachi::ringswitch::lift_commit]:
-    Source: 'src/ringswitch.rs', lines 381:0-400:1
+    Source: 'src/ringswitch.rs', lines 397:0-416:1
     Visibility: public -/
 def ringswitch.lift_commit
   (d_key : linalg.PolyMatrix) (w : ringswitch.LiftedWitness) :
@@ -16286,7 +16293,7 @@ def ringswitch.lift_message
   linalg.PolyVec.new out2
 
 /-- [hachi::ringswitch::{hachi::ringswitch::RlinStatement}::new]:
-    Source: 'src/ringswitch.rs', lines 556:4-558:5
+    Source: 'src/ringswitch.rs', lines 572:4-574:5
     Visibility: public -/
 def ringswitch.RlinStatement.new
   (m : linalg.PolyMatrix) (yvec : linalg.PolyVec) (bound : Std.U64) :
@@ -16295,7 +16302,7 @@ def ringswitch.RlinStatement.new
   ok { m := (ringswitch.RlinMat.Dense m), yvec, bound }
 
 /-- [hachi::ringswitch::long_mul]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 707:8-712:9 -/
+    Source: 'src/ringswitch.rs', lines 723:8-728:9 -/
 @[rust_loop_body]
 def ringswitch.long_mul_loop0_loop0.body
   (a : ring.Rq) (b : ring.Rq) (k : Std.Usize) (hi : Std.Usize) (acc : Std.U128)
@@ -16318,7 +16325,7 @@ def ringswitch.long_mul_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::long_mul]: loop 1:
-    Source: 'src/ringswitch.rs', lines 707:8-712:9 -/
+    Source: 'src/ringswitch.rs', lines 723:8-728:9 -/
 @[rust_loop]
 def ringswitch.long_mul_loop0_loop0
   (a : ring.Rq) (b : ring.Rq) (k : Std.Usize) (hi : Std.Usize) (acc : Std.U128)
@@ -16330,7 +16337,7 @@ def ringswitch.long_mul_loop0_loop0
     (acc, i)
 
 /-- [hachi::ringswitch::long_mul]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 694:4-715:5 -/
+    Source: 'src/ringswitch.rs', lines 710:4-731:5 -/
 @[rust_loop_body]
 def ringswitch.long_mul_loop0.body
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (width : Std.Usize)
@@ -16357,7 +16364,7 @@ def ringswitch.long_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::ringswitch::long_mul]: loop 0:
-    Source: 'src/ringswitch.rs', lines 694:4-715:5 -/
+    Source: 'src/ringswitch.rs', lines 710:4-731:5 -/
 @[rust_loop]
 def ringswitch.long_mul_loop0
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (width : Std.Usize)
@@ -16369,7 +16376,7 @@ def ringswitch.long_mul_loop0
     (out, k)
 
 /-- [hachi::ringswitch::long_mul]:
-    Source: 'src/ringswitch.rs', lines 688:0-717:1 -/
+    Source: 'src/ringswitch.rs', lines 704:0-733:1 -/
 def ringswitch.long_mul
   (a : ring.Rq) (b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := do
   let i ← 2#usize * params.RING_DEGREE
@@ -16379,7 +16386,7 @@ def ringswitch.long_mul
   ringswitch.long_mul_loop0 a b params.RING_DEGREE width q out 0#usize
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 735:4-738:5
+    Source: 'src/ringswitch.rs', lines 751:4-754:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop0.body
@@ -16395,7 +16402,7 @@ def ringswitch.c_row_sum_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 0:
-    Source: 'src/ringswitch.rs', lines 735:4-738:5
+    Source: 'src/ringswitch.rs', lines 751:4-754:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop0
@@ -16407,7 +16414,7 @@ def ringswitch.c_row_sum_loop0
     (acc, k)
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 758:12-761:13
+    Source: 'src/ringswitch.rs', lines 774:12-777:13
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop1_loop0.body
@@ -16434,7 +16441,7 @@ def ringswitch.c_row_sum_loop1_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 2:
-    Source: 'src/ringswitch.rs', lines 758:12-761:13
+    Source: 'src/ringswitch.rs', lines 774:12-777:13
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop1_loop0
@@ -16448,7 +16455,7 @@ def ringswitch.c_row_sum_loop1_loop0
     (acc, t)
 
 /-- [hachi::ringswitch::c_row_sum]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 740:4-764:5
+    Source: 'src/ringswitch.rs', lines 756:4-780:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_loop1.body
@@ -16475,7 +16482,7 @@ def ringswitch.c_row_sum_loop1.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum]: loop 1:
-    Source: 'src/ringswitch.rs', lines 740:4-764:5
+    Source: 'src/ringswitch.rs', lines 756:4-780:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_row_sum_loop1
@@ -16490,7 +16497,7 @@ def ringswitch.c_row_sum_loop1
     (acc, j)
 
 /-- [hachi::ringswitch::c_row_sum]:
-    Source: 'src/ringswitch.rs', lines 729:0-766:1
+    Source: 'src/ringswitch.rs', lines 745:0-782:1
     Visibility: public -/
 def ringswitch.c_row_sum
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
@@ -16505,7 +16512,7 @@ def ringswitch.c_row_sum
   ringswitch.c_row_sum_loop1 s z i width cols acc 0#usize
 
 /-- [hachi::ringswitch::long_mul_high]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 789:8-794:9 -/
+    Source: 'src/ringswitch.rs', lines 805:8-810:9 -/
 @[rust_loop_body]
 def ringswitch.long_mul_high_loop0_loop0.body
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (k : Std.Usize) (acc : Std.U128)
@@ -16528,7 +16535,7 @@ def ringswitch.long_mul_high_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::long_mul_high]: loop 1:
-    Source: 'src/ringswitch.rs', lines 789:8-794:9 -/
+    Source: 'src/ringswitch.rs', lines 805:8-810:9 -/
 @[rust_loop]
 def ringswitch.long_mul_high_loop0_loop0
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (k : Std.Usize) (acc : Std.U128)
@@ -16541,7 +16548,7 @@ def ringswitch.long_mul_high_loop0_loop0
     (acc, i)
 
 /-- [hachi::ringswitch::long_mul_high]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 785:4-797:5 -/
+    Source: 'src/ringswitch.rs', lines 801:4-813:5 -/
 @[rust_loop_body]
 def ringswitch.long_mul_high_loop0.body
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (width : Std.Usize)
@@ -16563,7 +16570,7 @@ def ringswitch.long_mul_high_loop0.body
   else ok (done out)
 
 /-- [hachi::ringswitch::long_mul_high]: loop 0:
-    Source: 'src/ringswitch.rs', lines 785:4-797:5 -/
+    Source: 'src/ringswitch.rs', lines 801:4-813:5 -/
 @[rust_loop]
 def ringswitch.long_mul_high_loop0
   (a : ring.Rq) (b : ring.Rq) (n : Std.Usize) (width : Std.Usize)
@@ -16576,7 +16583,7 @@ def ringswitch.long_mul_high_loop0
     (out, k)
 
 /-- [hachi::ringswitch::long_mul_high]:
-    Source: 'src/ringswitch.rs', lines 779:0-799:1 -/
+    Source: 'src/ringswitch.rs', lines 795:0-815:1 -/
 def ringswitch.long_mul_high
   (a : ring.Rq) (b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := do
   let i ← 2#usize * params.RING_DEGREE
@@ -16587,7 +16594,7 @@ def ringswitch.long_mul_high
     params.RING_DEGREE
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 815:4-818:5 -/
+    Source: 'src/ringswitch.rs', lines 831:4-834:5 -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_high_loop0.body
   (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
@@ -16603,7 +16610,7 @@ def ringswitch.c_row_sum_high_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop 0:
-    Source: 'src/ringswitch.rs', lines 815:4-818:5 -/
+    Source: 'src/ringswitch.rs', lines 831:4-834:5 -/
 @[rust_loop]
 def ringswitch.c_row_sum_high_loop0
   (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize) :
@@ -16614,7 +16621,7 @@ def ringswitch.c_row_sum_high_loop0
     (acc, k)
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 825:12-828:13 -/
+    Source: 'src/ringswitch.rs', lines 841:12-844:13 -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_high_loop1_loop0.body
   (n : Std.Usize) (prod : alloc.vec.Vec cpoly.field.Fp)
@@ -16641,7 +16648,7 @@ def ringswitch.c_row_sum_high_loop1_loop0.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop 2:
-    Source: 'src/ringswitch.rs', lines 825:12-828:13 -/
+    Source: 'src/ringswitch.rs', lines 841:12-844:13 -/
 @[rust_loop]
 def ringswitch.c_row_sum_high_loop1_loop0
   (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Fp)
@@ -16654,7 +16661,7 @@ def ringswitch.c_row_sum_high_loop1_loop0
     (acc, t)
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 820:4-831:5 -/
+    Source: 'src/ringswitch.rs', lines 836:4-847:5 -/
 @[rust_loop_body]
 def ringswitch.c_row_sum_high_loop1.body
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize)
@@ -16680,7 +16687,7 @@ def ringswitch.c_row_sum_high_loop1.body
   else ok (done acc)
 
 /-- [hachi::ringswitch::c_row_sum_high]: loop 1:
-    Source: 'src/ringswitch.rs', lines 820:4-831:5 -/
+    Source: 'src/ringswitch.rs', lines 836:4-847:5 -/
 @[rust_loop]
 def ringswitch.c_row_sum_high_loop1
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize)
@@ -16694,7 +16701,7 @@ def ringswitch.c_row_sum_high_loop1
     (acc, j)
 
 /-- [hachi::ringswitch::c_row_sum_high]:
-    Source: 'src/ringswitch.rs', lines 810:0-833:1 -/
+    Source: 'src/ringswitch.rs', lines 826:0-849:1 -/
 def ringswitch.c_row_sum_high
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
   Result (alloc.vec.Vec cpoly.field.Fp)
@@ -16707,7 +16714,7 @@ def ringswitch.c_row_sum_high
   ringswitch.c_row_sum_high_loop1 s z i params.RING_DEGREE cols acc 0#usize
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 860:4-863:5 -/
+    Source: 'src/ringswitch.rs', lines 876:4-879:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop0.body
   (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -16727,7 +16734,7 @@ def ringswitch.div_by_modulus_loop0.body
   else ok (done rem)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 0:
-    Source: 'src/ringswitch.rs', lines 860:4-863:5 -/
+    Source: 'src/ringswitch.rs', lines 876:4-879:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop0
   (p : alloc.vec.Vec cpoly.field.Fp) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -16739,7 +16746,7 @@ def ringswitch.div_by_modulus_loop0
     (rem, t)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 1:
-    Source: 'src/ringswitch.rs', lines 866:4-869:5 -/
+    Source: 'src/ringswitch.rs', lines 882:4-885:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop1.body
   (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
@@ -16754,7 +16761,7 @@ def ringswitch.div_by_modulus_loop1.body
   else ok (done quot)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 1:
-    Source: 'src/ringswitch.rs', lines 866:4-869:5 -/
+    Source: 'src/ringswitch.rs', lines 882:4-885:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop1
   (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp) (u : Std.Usize) :
@@ -16765,7 +16772,7 @@ def ringswitch.div_by_modulus_loop1
     (quot, u)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop body 2:
-    Source: 'src/ringswitch.rs', lines 871:4-878:5 -/
+    Source: 'src/ringswitch.rs', lines 887:4-894:5 -/
 @[rust_loop_body]
 def ringswitch.div_by_modulus_loop2.body
   (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -16800,7 +16807,7 @@ def ringswitch.div_by_modulus_loop2.body
   else ok (done quot)
 
 /-- [hachi::ringswitch::div_by_modulus]: loop 2:
-    Source: 'src/ringswitch.rs', lines 871:4-878:5 -/
+    Source: 'src/ringswitch.rs', lines 887:4-894:5 -/
 @[rust_loop]
 def ringswitch.div_by_modulus_loop2
   (n : Std.Usize) (rem : alloc.vec.Vec cpoly.field.Fp)
@@ -16813,7 +16820,7 @@ def ringswitch.div_by_modulus_loop2
     (rem, quot, k)
 
 /-- [hachi::ringswitch::div_by_modulus]:
-    Source: 'src/ringswitch.rs', lines 856:0-880:1 -/
+    Source: 'src/ringswitch.rs', lines 872:0-896:1 -/
 def ringswitch.div_by_modulus
   (p : alloc.vec.Vec cpoly.field.Fp) :
   Result (alloc.vec.Vec cpoly.field.Fp)
@@ -16828,7 +16835,7 @@ def ringswitch.div_by_modulus
   ringswitch.div_by_modulus_loop2 params.RING_DEGREE rem quot k
 
 /-- [hachi::ringswitch::c_quotient]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 911:4-914:5
+    Source: 'src/ringswitch.rs', lines 927:4-930:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.c_quotient_loop.body
@@ -16849,7 +16856,7 @@ def ringswitch.c_quotient_loop.body
   else ok (done quot)
 
 /-- [hachi::ringswitch::c_quotient]: loop 0:
-    Source: 'src/ringswitch.rs', lines 911:4-914:5
+    Source: 'src/ringswitch.rs', lines 927:4-930:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.c_quotient_loop
@@ -16862,7 +16869,7 @@ def ringswitch.c_quotient_loop
     (quot, k)
 
 /-- [hachi::ringswitch::c_quotient]:
-    Source: 'src/ringswitch.rs', lines 892:0-918:1
+    Source: 'src/ringswitch.rs', lines 908:0-934:1
     Visibility: public -/
 def ringswitch.c_quotient
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
@@ -16875,7 +16882,7 @@ def ringswitch.c_quotient
   ringswitch.QuotientRow.new quot2
 
 /-- [hachi::ringswitch::honest_lift_witness]: loop body 0:
-    Source: 'src/ringswitch.rs', lines 936:4-939:5
+    Source: 'src/ringswitch.rs', lines 952:4-955:5
     Visibility: public -/
 @[rust_loop_body]
 def ringswitch.honest_lift_witness_loop.body
@@ -16893,7 +16900,7 @@ def ringswitch.honest_lift_witness_loop.body
   else ok (done rho)
 
 /-- [hachi::ringswitch::honest_lift_witness]: loop 0:
-    Source: 'src/ringswitch.rs', lines 936:4-939:5
+    Source: 'src/ringswitch.rs', lines 952:4-955:5
     Visibility: public -/
 @[rust_loop]
 def ringswitch.honest_lift_witness_loop
@@ -16907,7 +16914,7 @@ def ringswitch.honest_lift_witness_loop
     (rho, i)
 
 /-- [hachi::ringswitch::honest_lift_witness]:
-    Source: 'src/ringswitch.rs', lines 932:0-941:1
+    Source: 'src/ringswitch.rs', lines 948:0-957:1
     Visibility: public -/
 def ringswitch.honest_lift_witness
   (s : ringswitch.RlinStatement) (z : linalg.PolyVec) :

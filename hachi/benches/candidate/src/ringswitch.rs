@@ -233,6 +233,21 @@ fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
     acc
 }
 
+/// The widest row the signed Goldilocks lane is exact for.
+///
+/// The lane accumulates the whole row in one chunk, so it is correct only
+/// while twice the row's ceiling stays below `GOLD_P`:
+/// `2 · T · N · q · CHAIN_GAMMA < GOLD_P` gives `T ≤ 139_810`. This is the
+/// nearest power of two below that, `2^17`, which is **2.28×** the pin's
+/// `LIFT_COLS = 57_384`.
+///
+/// It is checked at run time rather than assumed, because
+/// [`lift_commit`]'s specification is generic in the witness width and its
+/// only size constraint is `Usize::MAX`. Without this the fast path would
+/// silently wrap for a witness wider than `139_810` -- a defect the proof
+/// found and no test could, since it needs a witness 2400× the pin's width.
+pub const LIFT_GOLD_MAX: usize = 131_072;
+
 /// Is every coefficient of `z ‖ digits(ρ)` centred below `CHAIN_GAMMA`?
 ///
 /// The guard on card T40's fast path, and **not** a new precondition on
@@ -248,7 +263,8 @@ pub fn lift_witness_short(w: &LiftedWitness) -> bool {
     let z_len: usize = w.z().len();
     let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
     let deg: usize = params::RING_DEGREE;
-    let mut short: bool = true;
+    // the width guard: the one-chunk bound, refused rather than assumed
+    let mut short: bool = z_len + rho_len <= LIFT_GOLD_MAX;
     let mut j: usize = 0;
     while j < z_len {
         let e: &Rq = w.z().get(j);
