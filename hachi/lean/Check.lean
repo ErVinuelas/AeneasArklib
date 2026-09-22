@@ -10,6 +10,7 @@ import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import RingSigned
 import SchemeTwoLane
 import QuadEvalProtocol
 import RingSwitch
@@ -1974,6 +1975,21 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingFused.negSumB_le
 #print axioms HachiEquiv.RingFused.negQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_cast_q
+-- Card T40's signed layer: the lift commitment's right operand is CENTRED
+-- below CHAIN_GAMMA, not bounded below a base, so `RingFused.BoundedWf` is
+-- false for it and this is a parallel development rather than an instance.
+-- `sgnWord_cast` is the whole bridge: the word the Rust writes and the
+-- integer it denotes agree in `ZMod GP`. `gold_soff_val` pins `ntt::GOLD_SOFF`
+-- to the bound this layer proves, so the constant cannot drift from its
+-- justification, and `sbound_fit_lift` is the one-chunk claim.
+#print axioms HachiEquiv.RingSigned.sgnWord_cast
+#print axioms HachiEquiv.RingSigned.sAbs_eq
+#print axioms HachiEquiv.RingSigned.abs_sInt
+#print axioms HachiEquiv.RingSigned.sConv_term_abs_le
+#print axioms HachiEquiv.RingSigned.sConv_abs_le
+#print axioms HachiEquiv.RingSigned.sConvSum_abs_le
+#print axioms HachiEquiv.RingSigned.gold_soff_val
+#print axioms HachiEquiv.RingSigned.sbound_fit_lift
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
