@@ -1029,4 +1029,26 @@ theorem lift_commit_row_gold_spec (d_key : linalg.PolyMatrix)
     simp only [hKA, hWB, hrow, if_neg (by omega : ¬ z_len + j < z_len),
       Nat.add_sub_cancel_left]
 
+/-- `CenteredWf` quantifies over every index; past `N` the word is the
+default `0`, so checking below `N` is enough. -/
+theorem centeredWf_of_lt {G : ℕ} {b : ring.Rq} (hb : Wf b)
+    (h : ∀ k, k < N → sAbs (wordN b k) ≤ G) : CenteredWf G b := by
+  intro t
+  by_cases ht : t < N
+  · exact h t ht
+  · have hlen : b.val.length ≤ t := by
+      have hN := N_eq
+      rw [hb.1]; omega
+    have h0 : wordN b t = 0 := by
+      unfold wordN
+      rw [List.getD_eq_default _ _ hlen]
+      decide +kernel
+    rw [h0]
+    have : sAbs 0 = 0 := by
+      unfold sAbs sInt
+      rw [if_pos (by omega)]
+      simp
+    rw [this]
+    exact Nat.zero_le _
+
 end HachiEquiv.RingSigned
