@@ -646,6 +646,82 @@ theorem lift_gold_out_loop_spec (degU : Std.Usize) (qwU : Std.U64)
         fun k hk => hval1 k (by rw [heq]; exact hk)⟩
   · exact ⟨ht, hlen, hred, hval⟩
 
+/-! ## From the transform domain back to the integers
+
+`RingFused.ordConv_entryK_pos` and `_neg` cast the ordinary convolution's two
+halves to `posSum` and `negSum`, both naturals. With a signed right operand
+the two halves do not split that way -- the wrap carries a minus sign into
+the *value*, not just into the indexing -- so the pair collapses into one
+lemma over `ℤ`. -/
+
+theorem ordConvS_pos (x y : ring.Rq) (k : ℕ) (hk : k < N) :
+    NttMath.ordConv N (fun v => ((wordN x v : ℕ) : ZMod GP)) (sCoeff y) k
+      = (((∑ t ∈ Finset.range N,
+            if t ≤ k then (wordN x t : ℤ) * sInt (wordN y (k - t)) else 0) : ℤ)
+          : ZMod GP) := by
+  unfold NttMath.ordConv sCoeff
+  push_cast
+  refine Finset.sum_congr rfl (fun i hi => ?_)
+  simp only [Finset.mem_range] at hi
+  by_cases hle : i ≤ k
+  · rw [if_pos (And.intro hle (by omega : k - i < N)), if_pos hle]
+  · rw [if_neg (by omega : ¬(i ≤ k ∧ k - i < N)), if_neg hle]
+
+theorem ordConvS_neg (x y : ring.Rq) (k : ℕ) (hk : k < N) :
+    NttMath.ordConv N (fun v => ((wordN x v : ℕ) : ZMod GP)) (sCoeff y) (N + k)
+      = (((∑ t ∈ Finset.range N,
+            if t ≤ k then 0 else (wordN x t : ℤ) * sInt (wordN y (N + k - t))) : ℤ)
+          : ZMod GP) := by
+  unfold NttMath.ordConv sCoeff
+  push_cast
+  refine Finset.sum_congr rfl (fun i hi => ?_)
+  simp only [Finset.mem_range] at hi
+  by_cases hle : i ≤ k
+  · rw [if_neg (by omega : ¬(i ≤ N + k ∧ N + k - i < N)), if_pos hle]
+  · rw [if_pos (And.intro (by omega) (by omega : N + k - i < N)), if_neg hle]
+
+/-- **The seam, closed.** One output coefficient of the negacyclic
+convolution in `ZMod GP` is the image of the signed integer [`sConv`]. -/
+theorem negConvR_sConv (x y : ring.Rq) (k : ℕ) (hk : k < N) :
+    NttMath.negConvR N (fun v => ((wordN x v : ℕ) : ZMod GP)) (sCoeff y) k
+      = ((sConv x y k : ℤ) : ZMod GP) := by
+  unfold NttMath.negConvR sConv
+  rw [ordConvS_pos x y k hk, ordConvS_neg x y k hk]
+  push_cast
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl (fun i _ => ?_)
+  by_cases hle : i ≤ k <;> simp [hle]
+
+/-! ## Mod `q`, the sign is invisible
+
+The whole signed apparatus exists to keep the *lane's* value inside
+`GOLD_P`. Once the value is reduced mod `q` the encoding disappears, because
+`sInt c` is `c` or `c − q` and `q ≡ 0`. That is why the headline statement
+of the card is the digit path's, unchanged: `negConv` is a `ZMod q` notion
+and cannot see the difference. -/
+
+theorem sInt_cast_q (c : ℕ) : ((sInt c : ℤ) : ZMod q) = ((c : ℕ) : ZMod q) := by
+  unfold sInt
+  by_cases h : c ≤ q / 2
+  · rw [if_pos h]; push_cast; ring
+  · rw [if_neg h]
+    push_cast
+    ring
+
+/-- **The card's conclusion, coefficientwise.** The signed convolution, read
+mod `q`, is the ordinary `negConv` -- so nothing above this line has to know
+the operand was centred. -/
+theorem sConv_cast_q {x y : ring.Rq} (hx : Wf x) (hy : Wf y) {k : ℕ} (hk : k < N) :
+    ((sConv x y k : ℤ) : ZMod q) = HachiEquiv.Ring.negConv x y k := by
+  rw [HachiEquiv.Ring.negConv, ← HachiEquiv.Ring.posSum_cast hx hy hk,
+    ← HachiEquiv.Ring.negSum_cast hx hy hk]
+  unfold sConv HachiEquiv.Ring.posSum HachiEquiv.Ring.negSum
+  push_cast
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl (fun i _ => ?_)
+  by_cases hle : i ≤ k <;>
+    simp [hle, sInt_cast_q, HachiEquiv.Ring.coeffK_eq_cast_wordN]
+
 /-! ## The read-back
 
 The lane's accumulator holds a *signed* integer; the words it is read out of

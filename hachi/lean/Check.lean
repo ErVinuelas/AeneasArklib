@@ -2013,6 +2013,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingSigned.offS_cast
 #print axioms HachiEquiv.RingSigned.offS_lt
 #print axioms HachiEquiv.RingSigned.offS_mod_q
+-- The two seams back to the ordinary vocabulary. negConvR_sConv is the one
+-- in ZMod GP, where the sign is real; sConv_cast_q is the one in ZMod q,
+-- where it is invisible -- which is why the card's headline statement is the
+-- digit path's, unchanged.
+#print axioms HachiEquiv.RingSigned.negConvR_sConv
+#print axioms HachiEquiv.RingSigned.sInt_cast_q
+#print axioms HachiEquiv.RingSigned.sConv_cast_q
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf
