@@ -181,10 +181,18 @@ impl WEvalStatement {
 /// (the target-6 brief § "Strategy candidates"), and a baseline that
 /// had already done it would report that win as zero forever.
 pub fn end_piece_check(d_key: &PolyMatrix, stmt: &WEvalStatement, w: &LiftedWitness) -> bool {
-    let com: PolyVec = lift_commit(d_key, w);
+    // Card T40b: the shortness test FIRST. `&&` short-circuits and every
+    // conjunct is total, so the value is the one the old order computed --
+    // `Bool.and` is commutative and that is the whole proof obligation. What
+    // changes is what a *dishonest* prover costs the verifier: a witness that
+    // fails the bound used to be rejected only after a full `lift_commit`,
+    // which is 17.9 s at the pin. Now it is rejected before that runs.
+    //
+    // It is also the conjunct T40a's fast path is guarded on, so on the
+    // honest path the test is one the verifier was going to run anyway.
     let m0: usize = stmt.point().len();
-    com.equals(stmt.t())
-        && lift_short_check(w)
+    lift_short_check(w)
+        && lift_commit(d_key, w).equals(stmt.t())
         && w_table_mle_eval(w, m0, stmt.point()) == stmt.value()
 }
 

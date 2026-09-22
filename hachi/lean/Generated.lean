@@ -6111,21 +6111,21 @@ def endpiece.lift_short_check
   else ok false
 
 /-- [hachi::endpiece::end_piece_check]:
-    Source: 'src/endpiece.rs', lines 183:0-189:1
+    Source: 'src/endpiece.rs', lines 183:0-197:1
     Visibility: public -/
 def endpiece.end_piece_check
   (d_key : linalg.PolyMatrix) (stmt : endpiece.WEvalStatement)
   (w : ringswitch.LiftedWitness) :
   Result Bool
   := do
-  let com ← ringswitch.lift_commit d_key w
   let v ← endpiece.WEvalStatement.impl.point stmt
   let m0 := alloc.vec.Vec.len v
-  let pv ← endpiece.WEvalStatement.impl.t stmt
-  let b ← linalg.PolyVec.equals com pv
+  let b ← endpiece.lift_short_check w
   if b
   then
-    let b1 ← endpiece.lift_short_check w
+    let pv ← ringswitch.lift_commit d_key w
+    let pv1 ← endpiece.WEvalStatement.impl.t stmt
+    let b1 ← linalg.PolyVec.equals pv pv1
     if b1
     then
       let e ← zerocheck.w_table_mle_eval w m0 v
@@ -10469,14 +10469,14 @@ def commit.verify
     else ok false
 
 /-- [hachi::endpiece::end_piece_prove]:
-    Source: 'src/endpiece.rs', lines 203:0-205:1
+    Source: 'src/endpiece.rs', lines 211:0-213:1
     Visibility: public -/
 def endpiece.end_piece_prove
   (w : ringswitch.LiftedWitness) : Result ringswitch.LiftedWitness := do
   ok w
 
 /-- [hachi::endpiece::end_piece_witness]:
-    Source: 'src/endpiece.rs', lines 219:0-221:1
+    Source: 'src/endpiece.rs', lines 227:0-229:1
     Visibility: public -/
 def endpiece.end_piece_witness
   (_stmt : endpiece.WEvalStatement) (message : ringswitch.LiftedWitness) :
