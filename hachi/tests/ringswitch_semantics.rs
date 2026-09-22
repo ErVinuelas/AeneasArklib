@@ -283,21 +283,6 @@ fn horner_ref(alpha: Ext4, p: &Rq) -> Ext4 {
     acc
 }
 
-/// `αⁿ` by repeated squaring -- again a different algorithm from the repeated
-/// multiplication the crate uses.
-fn pow_by_squaring(alpha: Ext4, mut n: usize) -> Ext4 {
-    let mut acc = Ext4::ONE;
-    let mut base = alpha;
-    while n > 0 {
-        if n % 2 == 1 {
-            acc = acc * base;
-        }
-        base = base * base;
-        n /= 2;
-    }
-    acc
-}
-
 /// `cEvalAt φF α p = p.eval₂ φF α`: the `Zq[X]` polynomial evaluated at a point
 /// of the extension field, against Horner.
 #[test]
@@ -325,17 +310,18 @@ fn c_eval_at_is_additive_in_the_polynomial() {
     );
 }
 
-/// `cEvalAt φF α Φ.φ` at `Φ.φ = X^d + 1` is `α^d + 1`, checked against ten
-/// squarings. The genesis body computed the specification's `d + 1`-term sum
-/// the long way round; since Stage 6 iteration 1 the body is a running power
-/// plus one (`Opt.c_eval_at_modulus.opt`), and this test is the independent
-/// reference both bodies were pinned against.
+/// `cEvalAt φF α Φ.φ` at `Φ.φ = X^d + 1` is `α^d + 1`. Check the ten-squaring
+/// implementation against an independent sequential product of `d` factors.
 #[test]
 fn c_eval_at_modulus_is_alpha_to_the_d_plus_one() {
     let mut rng = Lcg::new(0x8047_0000_0000_0033);
     for _ in 0..2 {
         let alpha = ext4(&mut rng);
-        let expected = pow_by_squaring(alpha, RING_DEGREE) + Ext4::ONE;
+        let mut power = Ext4::ONE;
+        for _ in 0..RING_DEGREE {
+            power = power * alpha;
+        }
+        let expected = power + Ext4::ONE;
         assert_eq!(c_eval_at_modulus(alpha), expected);
     }
 }
@@ -384,8 +370,8 @@ fn lift_commit_is_the_matrix_product_of_lift_message() {
 }
 
 /// At `(bDig, bound) = (16, 15)` every balanced quotient digit is at most 8,
-/// so this check is provably true for arbitrary quotient rows. The computation
-/// is retained and tested even though its false branch is unreachable here.
+/// so this check is provably true for arbitrary quotient rows. The guarded
+/// fast path's correctness comes from Lean; this Boolean test is a smoke check.
 #[test]
 fn rho_digits_short_check_is_true_at_the_pinned_parameters() {
     let mut rng = Lcg::new(0x8047_0000_0000_0014);

@@ -119,7 +119,7 @@ pub fn round_node(i: usize) -> Ext4 {
 #[allow(clippy::vec_init_then_push)]
 pub fn interpolate(values: &Vec<Ext4>, inv_weights: &Vec<Fp>) -> UnivariatePoly {
     let n: usize = values.len();
-    let mut acc: Vec<Ext4> = Vec::new();
+    let mut acc: Vec<Ext4> = Vec::with_capacity(n);
     let mut k: usize = 0;
     while k < n {
         acc.push(Ext4::ZERO);
@@ -128,13 +128,13 @@ pub fn interpolate(values: &Vec<Ext4>, inv_weights: &Vec<Fp>) -> UnivariatePoly 
     let mut i: usize = 0;
     while i < n {
         // basis_i = ∏_{j ≠ i} (X - x_j), built in place: multiply by (X - x_j).
-        let mut basis: Vec<Ext4> = Vec::new();
+        let mut basis: Vec<Ext4> = Vec::with_capacity(n);
         basis.push(Ext4::ONE);
         let mut j: usize = 0;
         while j < n {
             if j != i {
                 let xj: Ext4 = round_node(j);
-                let mut next: Vec<Ext4> = Vec::new();
+                let mut next: Vec<Ext4> = Vec::with_capacity(n);
                 let mut t: usize = 0;
                 while t < basis.len() + 1 {
                     let shifted: Ext4 = if t > 0 { basis[t - 1] } else { Ext4::ZERO };
@@ -168,7 +168,7 @@ pub fn interpolate(values: &Vec<Ext4>, inv_weights: &Vec<Fp>) -> UnivariatePoly 
 /// `0 … 2b`.
 pub fn round_node_weights() -> Vec<Fp> {
     let n: usize = params::ROUND_NODES;
-    let mut out: Vec<Fp> = Vec::new();
+    let mut out: Vec<Fp> = Vec::with_capacity(n);
     let mut i: usize = 0;
     while i < n {
         out.push(Fp::new(params::ROUND_NODE_INV[i]));
@@ -218,7 +218,7 @@ pub fn round_value_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>, node: Ext4) -> Ext4 {
 /// for on the proof side.
 pub fn round_values_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         // [`round_value_zero`]'s body, with the node kept in the **base field**
@@ -502,7 +502,7 @@ pub fn eq_suffix_table(tau0: &Vec<Ext4>, i: usize) -> Vec<Ext4> {
 // use that macro anywhere the extraction sees: see [`interpolate`].
 #[allow(clippy::vec_init_then_push)]
 pub fn eq_free_factor(t: Ext4) -> UnivariatePoly {
-    let mut coeffs: Vec<Ext4> = Vec::new();
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(2);
     coeffs.push(Ext4::ONE - t);
     coeffs.push(t + t - Ext4::ONE);
     UnivariatePoly::from_coeffs(coeffs)
@@ -539,7 +539,7 @@ pub fn round_value_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>, node: Ext4) -> Ext4 {
 /// Mirrors `computableRoundPoly` at the `sumcheckPolyAlpha` summand.
 pub fn round_values_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         out.push(round_value_alpha(w, a_tab, round_node(t)));
@@ -555,7 +555,7 @@ pub fn round_values_alpha(w: &Vec<Ext4>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
 /// depend on the whole set, not on a prefix of it.
 pub fn round_node_weights_alpha() -> Vec<Fp> {
     let n: usize = params::ROUND_NODES_ALPHA;
-    let mut out: Vec<Fp> = Vec::new();
+    let mut out: Vec<Fp> = Vec::with_capacity(n);
     let mut i: usize = 0;
     while i < n {
         out.push(Fp::new(params::ROUND_NODE_INV_ALPHA[i]));
@@ -666,7 +666,7 @@ pub fn round_value_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>, node: Fp) -> Ext4 {
 /// agree.
 pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         out.push(round_value_zero_base(w, eq, Fp::new(t as u64)));
@@ -776,7 +776,7 @@ pub fn round_value_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>, node: Fp) -> Ext4 
 /// [`round_values_alpha`] with the node as `Fp::new(t)`.
 pub fn round_values_alpha_base(w: &Vec<Fp>, a_tab: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         out.push(round_value_alpha_base(w, a_tab, Fp::new(t as u64)));
@@ -1057,7 +1057,7 @@ pub fn round_value_alpha_split(
 /// [`round_values_alpha`] on the two factors.
 pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         out.push(round_value_alpha_split(w, low, high, round_node(t)));
@@ -1127,7 +1127,7 @@ pub fn round_value_alpha_base_split(
 /// [`round_values_alpha_base`] on the two factors.
 pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> Vec<Ext4> {
     let nodes: usize = params::ROUND_NODES_ALPHA;
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(nodes);
     let mut t: usize = 0;
     while t < nodes {
         out.push(round_value_alpha_base_split(w, low, high, Fp::new(t as u64)));
@@ -1643,7 +1643,7 @@ pub fn honest_round_messages(
         m0,
     );
     let mut current: RoundStatement = stmt;
-    let mut out: Vec<RoundMsg> = Vec::new();
+    let mut out: Vec<RoundMsg> = Vec::with_capacity(m0);
     if 0 < m0 {
         let w_fp: Vec<Fp> = crate::zerocheck::c_w_table_fp(w, m0);
         let g0: RoundMsg = honest_compute_g_base_split(&current, &w_fp, &low, &high);

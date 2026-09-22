@@ -1,0 +1,642 @@
+==> lake build
+⚠ [1540/1706] Replayed Aeneas.Std.Slice
+warning: Aeneas/Std/Slice.lean:353:4: declaration uses `sorry`
+warning: Aeneas/Std/Slice.lean:576:8: declaration uses `sorry`
+⚠ [1619/1706] Replayed Aeneas.Std.StringIter
+warning: Aeneas/Std/StringIter.lean:15:4: declaration uses `sorry`
+warning: Aeneas/Std/StringIter.lean:18:4: declaration uses `sorry`
+⚠ [2330/2335] Replayed RingFused
+warning: lean/RingFused.lean:616:60: Variable name `hk` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hk
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingFused.lean:820:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:1801:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingFused.lean:2302:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:2341:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:2527:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [2331/2335] Replayed GoldFusedBoundary
+warning: lean/GoldFusedBoundary.lean:779:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:783:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:779:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+warning: lean/GoldFusedBoundary.lean:783:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+warning: lean/GoldFusedBoundary.lean:1085:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:1085:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+⚠ [2332/2335] Replayed RingShort
+warning: lean/RingShort.lean:1341:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+⚠ [2333/2335] Replayed GoldDot
+warning: lean/GoldDot.lean:334:5: Variable name `hpc` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hpc
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/GoldDot.lean:646:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3525/3653] Replayed ArkLib.Data.Fin.Basic
+warning: ArkLib/Data/Fin/Basic.lean:323:4: declaration uses `sorry`
+ℹ [3526/3653] Replayed ArkLib.Data.Fin.Fold
+info: ArkLib/Data/Fin/Fold.lean:190:0: 3
+info: ArkLib/Data/Fin/Fold.lean:191:0: 3
+⚠ [3537/3653] Replayed ArkLib.OracleReduction.Prelude
+warning: ArkLib/OracleReduction/Prelude.lean:91:2: Left-hand side of simp theorem has a variable as head symbol. This means the theorem will be tried on every simp step, which can be expensive. This may be acceptable for `local` or `scoped` simp lemmas.
+Use `set_option warning.simp.varHead false` to disable this warning.
+warning: ArkLib/OracleReduction/Prelude.lean:95:2: Left-hand side of simp theorem has a variable as head symbol. This means the theorem will be tried on every simp step, which can be expensive. This may be acceptable for `local` or `scoped` simp lemmas.
+Use `set_option warning.simp.varHead false` to disable this warning.
+⚠ [3747/3865] Replayed ArkLib.OracleReduction.OracleInterface
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:353:2: `intro p hp p' hp' hNe`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:357:20: `intro h`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:357:20: `intro h`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:8: `intro h'`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:18: `contrapose! hNe`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:35: `exact sub_eq_zero.mp h'`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:361:6: `exact sub_eq_zero.mp h.2`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:362:2: `conv =>
+  enter [1, 1]
+  apply Finset.filter_congr this`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:371:4: `simp at this` is a flexible tactic modifying `this`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:371:4: Try this:
+  [apply] simp only [gt_iff_lt] at this
+info: ArkLib/OracleReduction/OracleInterface.lean:371:18: `exact this`
+uses `this`, which was modified by the flexible tactic `simp` on line 371!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:372:2: `refine Nat.le_sub_one_of_lt (lt_of_le_of_lt ?_ this)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:373:2: `apply Multiset.card_le_card`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:374:2: `rw [Multiset.le_iff_subset]`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:4: `intro x hx`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:375:16: `simp at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:16: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub] at hx
+info: ArkLib/OracleReduction/OracleInterface.lean:375:28: `exact hx`
+uses `hx`, which was modified by the flexible tactic `simp` on line 375!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:28: `exact hx`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:377:4: `intro a`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+⚠ [3748/3865] Replayed ArkLib.OracleReduction.ProtocolSpec.Basic
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: Try this:
+  [apply] simp only [mk.injEq]
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:49: `(funext i; exact Fin.elim0 i)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 275!
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: Try this:
+  [apply] simp only [mk.injEq]
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:49: `(funext i; exact Fin.elim0 i)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 275!
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:820:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+⚠ [3751/3865] Replayed ArkLib.OracleReduction.Basic
+warning: ArkLib/OracleReduction/Basic.lean:502:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Basic.lean:543:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:575:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+⚠ [3775/3865] Replayed ArkLib.OracleReduction.Execution
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:591:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:591:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:593:4: `contradiction`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:595:4: `funext a`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:597:4: `funext i`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:600:4: `exact Transcript.concat_last a.1 (default : pSpec.Transcript 0)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:612:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:612:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:615:4: `funext challenge`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:617:4: `funext f`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:620:6: `funext i`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:623:6: `exact Transcript.concat_last challenge (default : pSpec.Transcript 0)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:624:6: `trivial`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:627:4: `contradiction`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+⚠ [3776/3865] Replayed ArkLib.OracleReduction.Security.Basic
+info: ArkLib/OracleReduction/Security/Basic.lean:126:2: Try these:
+  [apply] [grind
+    .] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #2, @LE.le `[ℝ≥0] `[NNReal.instPartialOrder.toLE] #3 #2]
+  [apply] [grind
+    →] for pattern: [@LE.le `[ℝ≥0] `[NNReal.instPartialOrder.toLE] #3 #2, @completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #3]
+  [apply] [grind
+    <=] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #2, @completeness _ _ _ _ _ _ #12 #11 _ _ #8 #7 #6 #5 #4 #3]
+info: ArkLib/OracleReduction/Security/Basic.lean:139:8: Try these:
+  [apply] [grind
+    .] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #2 #5 #4 #3, @LE.le _ _ #2 #6]
+  [apply] [grind
+    →] for pattern: [@LE.le _ _ #2 #6, @completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #3]
+  [apply] [grind
+    <=] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #2 #5 #4 #3, @completeness _ _ _ _ _ _ #12 #11 _ _ #8 #7 #6 #5 #4 #3]
+warning: ArkLib/OracleReduction/Security/Basic.lean:152:0: Please, write a comment here or remove this line, but do not place empty lines within commands!
+Context:
+     ↓
+  ⏎-/⏎⏎theorem completeness_relOut_mono {ε : ℝ≥0} {relOut' : Set (StmtOut × WitOut)}⏎
+
+Note: This linter can be disabled with `set_option linter.style.emptyLine false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:532:15: please avoid 'open (scoped) Classical' statements: this can hide theorem statements which would be better stated with explicit decidability statements.
+Instead, use `open Classical in` for definitions or instances, the `classical` tactic for proofs.
+For theorem statements, either add missing decidability assumptions or use `open Classical in`.
+
+Note: This linter can be disabled with `set_option linter.style.openClassical false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:560:21: please avoid 'open (scoped) Classical' statements: this can hide theorem statements which would be better stated with explicit decidability statements.
+Instead, use `open Classical in` for definitions or instances, the `classical` tactic for proofs.
+For theorem statements, either add missing decidability assumptions or use `open Classical in`.
+
+Note: This linter can be disabled with `set_option linter.style.openClassical false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:641:4: `simp [map_pure, support_pure] at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/Basic.lean:642:4: `cases hx`
+uses `hx`, which was modified by the flexible tactic `simp` on line 641!
+warning: ArkLib/OracleReduction/Security/Basic.lean:641:4: `simp [map_pure, support_pure] at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/Basic.lean:643:4: `exact ⟨hIn, rfl⟩`
+uses `hx`, which was modified by the flexible tactic `simp` on line 641!
+⚠ [3790/3865] Replayed ArkLib.OracleReduction.Composition.Sequential.Append
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:589:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:619:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:703:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:804:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:846:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:857:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:870:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:885:8: declaration uses `sorry`
+⚠ [3792/3865] Replayed ArkLib.OracleReduction.Security.CoordinateWiseSpecialSoundness.SingleRound
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:208:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:208:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:209:2: `exact eq_of_heq (cast_heq _ _)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 208!
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:218:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:218:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:219:2: `exact eq_of_heq ((cast_heq _ _).trans (cast_heq _ _))`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 218!
+⚠ [3799/3865] Replayed ArkLib.OracleReduction.Composition.Sequential.General
+warning: ArkLib/OracleReduction/Composition/Sequential/General.lean:445:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/General.lean:477:8: declaration uses `sorry`
+⚠ [3820/3865] Replayed ArkLib.Commitments.Functional.Hachi.Commitment
+warning: ArkLib/Commitments/Functional/Hachi/Commitment.lean:136:4: declaration uses `sorry`
+⚠ [3824/3865] Replayed ArkLib.OracleReduction.Security.CoordinateWiseSpecialSoundness.ScalarRound
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:239:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:239:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:240:2: `exact eq_of_heq (cast_heq _ _)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 239!
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:249:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:249:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:250:2: `exact eq_of_heq ((cast_heq _ _).trans (cast_heq _ _))`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 249!
+⚠ [3833/3865] Replayed ArkLib.Data.MvPolynomial.Interpolation
+warning: ArkLib/Data/MvPolynomial/Interpolation.lean:247:14: declaration uses `sorry`
+⚠ [3858/3898] Replayed ArkLib.Commitments.Functional.Hachi.ZeroCheck.Reduction
+warning: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:295:8: `simp [Transcript.concat, Fin.snoc, jm]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:295:8: Try this:
+  [apply] simp only [Fin.val_succ, Fin.eta]
+info: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:296:8: `exact eq_of_heq (cast_heq _ _).symm`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 295!
+⚠ [3864/3898] Replayed ArkLib.Commitments.Functional.Hachi.Sumcheck.Completeness
+warning: ArkLib/Commitments/Functional/Hachi/Sumcheck/Completeness.lean:174:0: `roundReduction_verifier` does not use the following hypothesis in its type:
+  • [DecidableEq F] (#13)
+
+Consider removing this hypothesis and using `classical` in the proof instead. For terms, consider using `open scoped Classical in` at the term level (not the command level).
+
+Note: This linter can be disabled with `set_option linter.unusedDecidableInType false`
+warning: ArkLib/Commitments/Functional/Hachi/Sumcheck/Completeness.lean:369:0: `roundsReduction_verifier` does not use the following hypothesis in its type:
+  • [DecidableEq F] (#13)
+
+Consider removing this hypothesis and using `classical` in the proof instead. For terms, consider using `open scoped Classical in` at the term level (not the command level).
+
+Note: This linter can be disabled with `set_option linter.unusedDecidableInType false`
+⚠ [3872/3898] Replayed QuadEval
+warning: lean/QuadEval.lean:417:35: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/QuadEval.lean:468:51: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/QuadEval.lean:484:55: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3873/3898] Replayed RingSwitch
+warning: lean/RingSwitch.lean:879:50: Variable name `hrho` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hrho
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3874/3898] Replayed RingLimb
+warning: lean/RingLimb.lean:41:30: Variable name `hd` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hd
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingLimb.lean:478:5: Variable name `hawf` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hawf
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingLimb.lean:715:33: This simp argument is unused:
+  UScalar.max
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [Std.U128.max, Std.U128.numBits]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+⚠ [3875/3898] Replayed RingTwoLane
+warning: lean/RingTwoLane.lean:235:10: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: lean/RingTwoLane.lean:291:5: Variable name `hboff` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hboff
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingTwoLane.lean:564:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3879/3898] Replayed EvalSplit
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.mul_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.mul_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.sub_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.sub_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.one_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.one_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.copy_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.copy_spec.mvcgen_spec'
+⚠ [3880/3898] Replayed QuadEvalProtocol
+warning: lean/QuadEvalProtocol.lean:367:5: Variable name `ha` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _ha
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3885/3898] Built ZeroCheck (46s)
+warning: lean/ZeroCheck.lean:679:21: Variable name `ha` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _ha
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/ZeroCheck.lean:3600:35: Variable name `m₁` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _m₁
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [3886/3898] Built OptFold (7.9s)
+⚠ [3887/3898] Built EndPiece (17s)
+warning: lean/EndPiece.lean:185:5: Variable name `hstmt` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hstmt
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+✔ [3888/3898] Built OptRingSwitch (28s)
+✔ [3889/3898] Built OptZeroCheck (44s)
+✔ [3890/3898] Built LiftProver (63s)
+⚠ [3891/3898] Built SumcheckShift (70s)
+warning: lean/SumcheckShift.lean:105:2: Unused tactic linter: `push_cast` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/SumcheckShift.lean:108:2: Unused tactic linter: `push_cast` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/SumcheckShift.lean:561:5: Variable name `hlen` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hlen
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/SumcheckShift.lean:672:23: Variable name `her` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _her
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3892/3898] Built Rlin (82s)
+warning: lean/Rlin.lean:2236:4: This simp argument is unused:
+  linalg.PolyMatrix.rows
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [quadeval.PublicParamsD.impl.inner, commit.PublicParams.impl.outer_matrix, bind_tc_ok]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/Rlin.lean:2392:34: This simp argument is unused:
+  toVec
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [toMatRlin, rlinAt, InnerOuter.rlinStmt, Hachi.jMatrix, hcvec]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+✖ [3893/3898] Building Sumcheck (67s)
+trace: .> LEAN_PATH=/home/alh/vrust/AeneasArklib/hachi/.lake/packages/cslib/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/batteries/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/Qq/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/aesop/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/proofwidgets/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/importGraph/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/LeanSearchClient/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/plausible/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/loom2/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/PolyFun/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/MD4Lean/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/BibtexQuery/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/UnicodeBasic/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/Cli/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/leansqlite/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/mathlib/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/VCVio/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/doc-gen4/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/checkdecls/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/CompPoly/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/aeneas/backends/lean/.lake/build/lib/lean:/home/alh/vrust/AeneasArklib/hachi/.lake/packages/Arklib/.lake/build/lib/lean:/tmp/aeneasarklib-current-candidate/hachi/.lake/build/lib/lean /home/alh/.elan/toolchains/leanprover--lean4---v4.33.1/bin/lean /tmp/aeneasarklib-current-candidate/hachi/lean/Sumcheck.lean -o /tmp/aeneasarklib-current-candidate/hachi/.lake/build/lib/lean/Sumcheck.olean -i /tmp/aeneasarklib-current-candidate/hachi/.lake/build/lib/lean/Sumcheck.ilean -c /tmp/aeneasarklib-current-candidate/hachi/.lake/build/ir/Sumcheck.c --setup /tmp/aeneasarklib-current-candidate/hachi/.lake/build/ir/Sumcheck.setup.json --json
+warning: lean/Sumcheck.lean:3073:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: lean/Sumcheck.lean:6897:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+error: lean/Sumcheck.lean:7777:18: Unknown identifier `out1.val.length`
+error: lean/Sumcheck.lean:7777:48: Unknown identifier `hout1`
+error: lean/Sumcheck.lean:7780:9: Unknown identifier `out1.val.getD`
+error: lean/Sumcheck.lean:7787:14: Unknown identifier `out1.val.getD`
+error: lean/Sumcheck.lean:7789:10: Unknown identifier `hout1`
+error: lean/Sumcheck.lean:7792:6: Failed to rewrite using equation theorems for `sumcheck.honest_round_messages_loop`
+error: Lean exited with code 1
+Some required targets logged failures:
+- Sumcheck
+error: build failed
+make: *** [Makefile:244: build] Error 1

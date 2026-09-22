@@ -65,7 +65,7 @@ use crate::ring::Rq;
 /// `liftShort` range check pass at [`params::CHAIN_GAMMA`]` = 15`.
 pub fn rho_digits(rho: &Rq, u: usize) -> Rq {
     let degree: usize = params::RING_DEGREE;
-    let mut coeffs: Vec<Fp> = Vec::new();
+    let mut coeffs: Vec<Fp> = Vec::with_capacity(degree);
     let mut k: usize = 0;
     while k < degree {
         coeffs.push(gadget::balanced_digit_at(rho.coeff(k), u));
@@ -483,17 +483,18 @@ pub fn c_eval_at(alpha: cpoly::Ext4, p: &Rq) -> cpoly::Ext4 {
 /// coefficients and does not fit an [`Rq`], whose invariant is exactly `d` of
 /// them -- hence a separate entry point rather than a call to [`c_eval_at`].
 /// Its `eval₂` sum has exactly two non-zero terms, `1` and `α^d`, so the body
-/// is a running power of `d` multiplications and one addition;
+/// uses `RING_LOG_DEGREE` squarings and one addition;
 /// `c_eval_at_modulus.opt_eq_spec` (`lean/Opt.lean`) proves it equal to the
 /// specification's `d + 1`-term sum, which the frozen baseline computed
-/// literally, with a recomputed power per term. Ten squarings would do it
-/// too; that is a different loop shape and a later candidate.
+/// literally, with a recomputed power per term. At the checked `d = 2^10`
+/// profile, ten squarings replace 1024 multiplications. The extracted loop
+/// is proved directly by `ZeroCheck.c_eval_at_modulus_spec`.
 pub fn c_eval_at_modulus(alpha: cpoly::Ext4) -> cpoly::Ext4 {
-    let degree: usize = params::RING_DEGREE;
-    let mut pw: cpoly::Ext4 = cpoly::Ext4::ONE;
+    let log_degree: usize = params::RING_LOG_DEGREE;
+    let mut pw: cpoly::Ext4 = alpha;
     let mut k: usize = 0;
-    while k < degree {
-        pw = pw * alpha;
+    while k < log_degree {
+        pw = pw * pw;
         k += 1;
     }
     pw + cpoly::Ext4::ONE
@@ -670,7 +671,7 @@ fn long_mul_high(a: &Rq, b: &Rq) -> Vec<Fp> {
 fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
     let cols: usize = s.m().cols();
-    let mut acc: Vec<Fp> = Vec::new();
+    let mut acc: Vec<Fp> = Vec::with_capacity(n);
     let mut k: usize = 0;
     while k < n - 1 {
         acc.push(Fp::ZERO);
@@ -715,13 +716,13 @@ fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
 /// hypothesis. Private: a helper of [`c_quotient`] alone, measured through it.
 fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
-    let mut rem: Vec<Fp> = Vec::new();
+    let mut rem: Vec<Fp> = Vec::with_capacity(p.len());
     let mut t: usize = 0;
     while t < p.len() {
         rem.push(p[t]);
         t += 1;
     }
-    let mut quot: Vec<Fp> = Vec::new();
+    let mut quot: Vec<Fp> = Vec::with_capacity(n);
     let mut u: usize = 0;
     while u < n {
         quot.push(Fp::ZERO);
@@ -791,7 +792,7 @@ pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
 /// the witness owns its block and `clone` has no model.
 pub fn honest_lift_witness(s: &RlinStatement, z: &PolyVec) -> LiftedWitness {
     let rows: usize = s.m().rows();
-    let mut rho: Vec<QuotientRow> = Vec::new();
+    let mut rho: Vec<QuotientRow> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
         rho.push(c_quotient(s, z, i));

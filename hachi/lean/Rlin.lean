@@ -443,6 +443,7 @@ theorem unflatten_outer_loop_spec {blocks width : ℕ} (v : linalg.PolyVec) (w t
   · rintro ⟨o1, base1⟩ ⟨hbase1, hnb1, hwf1, hval1⟩
     dsimp only at hbase1 hnb1 hwf1 hval1
     simp only [quadeval.unflatten_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : base1 < total
     · rw [if_pos hlt]
       have hlen1lt : o1.val.length < blocks := by
@@ -820,6 +821,7 @@ theorem tensor_g_matrix_spec {k digits blocks : ℕ} (kk dd : Std.Usize) (c : li
         toMat (rows := k) (cols := blocks * (k * digits)) out
           = InnerOuter.tensorGMatrix Φ (16 : ZMod q) k digits blocks (toVec (k := blocks) c) ⦄ := by
   rw [quadeval.tensor_g_matrix]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.len]
   step with tensor_g_matrix_outer_loop_spec kk dd c (alloc.vec.Vec.len c)
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hc hk hd (by simpa using hc.1) hfit
@@ -1316,6 +1318,7 @@ theorem unstack_spec (zeta : linalg.PolyVec) (cw ct innerWidth : Std.Usize)
   have hcwv : cw.val = 2 ^ 10 * 8 := hcw
   have hctv : ct.val = 2 ^ 10 * (1 * 8) := hct
   rw [quadeval.unstack]
+  simp only [alloc.vec.Vec.with_capacity]
   step with unstack_head_loop_spec (mu := InnerOuter.rlinCols 1 8 8 5 10 10) zeta cw
     (alloc.vec.Vec.new ring.Rq) 0#usize hz (by rw [hcwv]; norm_num [InnerOuter.rlinCols])
     (by simp) (by simp) (by intro y hy; simp at hy) (by intro t ht; simp at ht)
@@ -1941,6 +1944,7 @@ theorem rlin_c1_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [quadeval.rlin_stmt_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < d_rows
     · rw [if_pos hlt]
       have hi1lt : i1.val < rows := by rw [← hdr]; scalar_tac
@@ -2007,6 +2011,7 @@ theorem rlin_c2_outer_loop_spec {rows cols : ℕ} (pp : quadeval.PublicParamsD)
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [quadeval.rlin_stmt_loop1.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < b_rows
     · rw [if_pos hlt]
       have hi1lt : i1.val < rows := by rw [← hbr]; scalar_tac
@@ -2073,6 +2078,7 @@ theorem rlin_c5_outer_loop_spec {rowsA zd : ℕ} (pp : quadeval.PublicParamsD)
   · rintro ⟨o1, p1⟩ ⟨hp1, hlen1, hwf1, hval1⟩
     dsimp only at hp1 hlen1 hwf1 hval1
     simp only [quadeval.rlin_stmt_loop3.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : p1 < innerRowsU
     · rw [if_pos hlt]
       have hp1lt : p1.val < innerRowsU.val := by scalar_tac
@@ -2195,6 +2201,7 @@ theorem rlin_stmt_spec
   have hWA : WfMat 1 (1024 * 8) pp.inner.inner_matrix := hWinner.1
   have hWB : WfMat 1 (1024 * (1 * 8)) pp.inner.outer_matrix := hWinner.2
   rw [quadeval.rlin_stmt]
+  simp only [alloc.vec.Vec.with_capacity]
   step with rlin_cw_spec b md hb hmd (by scalar_tac) as ⟨cw, hcwv⟩
   step with rlin_ct_spec b ir idg hb hir hidg (by scalar_tac) (by scalar_tac) as ⟨ct, hctv⟩
   step with rlin_cz_spec mr md zd hmr hmd hzd (by scalar_tac) (by scalar_tac) as ⟨cz, hczv⟩

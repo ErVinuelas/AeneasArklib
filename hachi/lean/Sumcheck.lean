@@ -1001,6 +1001,7 @@ theorem round_node_weights_alpha_spec :
   have hrn : (params.ROUND_NODES_ALPHA).val = 3 := by simp [params.ROUND_NODES_ALPHA]
   have hmax := usize_max_ge
   rw [sumcheck.round_node_weights_alpha, sumcheck.round_node_weights_alpha_loop]
+  simp only [alloc.vec.Vec.with_capacity]
   apply loop.spec_decr_nat (fun st => 3 - st.2.val)
     (fun st => st.2.val ≤ 3 ∧ st.1.val.length = st.2.val ∧ (∀ a ∈ st.1.val, Red a) ∧
       ∀ t : ℕ, t < st.2.val → toK (st.1.val.getD t (0#u64 : cpoly.field.Fp)) =
@@ -1298,6 +1299,7 @@ theorem interpolate_basis_loop_spec {n : ℕ} (nn iu : Std.Usize)
   · rintro ⟨b1, j1⟩ ⟨hb1, hj1, hlen1, hc1⟩
     dsimp only at hb1 hj1 hlen1 hc1
     simp only [sumcheck.interpolate_loop1_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : j1 < nn
     · rw [if_pos hlt]
       have hjlt : j1.val < n := by scalar_tac
@@ -1508,6 +1510,7 @@ theorem interpolate_outer_loop_spec {n : ℕ} (values : alloc.vec.Vec cpoly.fiel
   · rintro ⟨a1, i1⟩ ⟨ha1, hl1, hi1, hc1⟩
     dsimp only at ha1 hl1 hi1 hc1
     simp only [sumcheck.interpolate_loop1.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < nn
     · rw [if_pos hlt]
       have hilt : i1.val < n := by scalar_tac
@@ -1665,6 +1668,7 @@ theorem interpolate_spec {n : ℕ} (values : alloc.vec.Vec cpoly.field.Ext4)
   have hnmax : n ≤ Usize.max := by rw [← hvlen]; exact values.property
   have hnn : (alloc.vec.Vec.len values).val = n := by simpa using hvlen
   rw [sumcheck.interpolate]
+  simp only [alloc.vec.Vec.with_capacity]
   step with interpolate_zeros_loop_spec (n := n) (alloc.vec.Vec.len values) hnn hnmax
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize (by intro u hu; simp at hu) (by simp) (by simp)
     (by intro j; simp [toRaw]) as ⟨acc0, hacc0red, hacc0len, hacc0z⟩
@@ -1964,6 +1968,7 @@ theorem round_values_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
   have hmax := usize_max_ge
   have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
   rw [sumcheck.round_values_zero, sumcheck.round_values_zero_loop0]
+  simp only [alloc.vec.Vec.with_capacity]
   apply loop.spec_decr_nat (fun s => 33 - s.2.val)
     (fun s => s.2.val ≤ 33 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
       ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
@@ -2218,6 +2223,7 @@ theorem round_values_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
   have hrn : (params.ROUND_NODES).val = 33 := by simp [params.ROUND_NODES]
   have hmax := usize_max_ge
   rw [sumcheck.round_values_zero_base, sumcheck.round_values_zero_base_loop]
+  simp only [alloc.vec.Vec.with_capacity]
   apply loop.spec_decr_nat (fun s => 33 - s.2.val)
     (fun s => s.2.val ≤ 33 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
       ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
@@ -2721,6 +2727,7 @@ theorem eq_free_factor_spec (t : cpoly.field.Ext4) (ht : Reduced t) :
         ∀ x : F, CPolynomial.eval x (toUni out) = (1 - toExt t) * (1 - x) + toExt t * x ⦄ := by
   have hR1 : Reduced cpoly.field.Ext4.ONE := reduced_ONE
   rw [sumcheck.eq_free_factor]
+  simp only [alloc.vec.Vec.with_capacity]
   step as ⟨a, hRa, ha⟩
   step as ⟨c1, hc1⟩
   step as ⟨d, hRd, hd⟩
@@ -2843,6 +2850,7 @@ theorem round_values_alpha_spec {k : ℕ} (w a_tab : alloc.vec.Vec cpoly.field.E
   have hrn : (params.ROUND_NODES_ALPHA).val = 3 := by simp [params.ROUND_NODES_ALPHA]
   have hmax := usize_max_ge
   rw [sumcheck.round_values_alpha, sumcheck.round_values_alpha_loop]
+  simp only [alloc.vec.Vec.with_capacity]
   apply loop.spec_decr_nat (fun s => 3 - s.2.val)
     (fun s => s.2.val ≤ 3 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
       ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
@@ -3191,6 +3199,7 @@ theorem round_values_alpha_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp
   have hrn : (params.ROUND_NODES_ALPHA).val = 3 := by simp [params.ROUND_NODES_ALPHA]
   have hmax := usize_max_ge
   rw [sumcheck.round_values_alpha_base, sumcheck.round_values_alpha_base_loop]
+  simp only [alloc.vec.Vec.with_capacity]
   apply loop.spec_decr_nat (fun s => 3 - s.2.val)
     (fun s => s.2.val ≤ 3 ∧ s.1.val.length = s.2.val ∧ VecReduced s.1 ∧
       ∀ t : ℕ, t < s.2.val → toExt (s.1.val.getD t cpoly.field.Ext4.ZERO) =
@@ -6691,6 +6700,7 @@ theorem round_values_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
             (reidx hjk (tensorTable (tableFn (m := k) low) (tableFn (m := j) high)))
             (t.val : F) ⦄ := by
   rw [sumcheck.round_values_alpha_split]
+  simp only [alloc.vec.Vec.with_capacity]
   apply spec_mono (round_values_alpha_split_loop_spec hjk w low high
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize hw hlow hhigh (by simp) (by simp)
     (by intro u hu; simp at hu) (by intro u hu; simp at hu))
@@ -7142,6 +7152,7 @@ theorem round_values_alpha_base_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
             (reidx hjk (tensorTable (tableFn (m := k) low) (tableFn (m := j) high)))
             (t.val : F) ⦄ := by
   rw [sumcheck.round_values_alpha_base_split]
+  simp only [alloc.vec.Vec.with_capacity]
   apply spec_mono (round_values_alpha_base_split_loop_spec hjk w low high
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize hw hlow hhigh (by simp) (by simp)
     (by intro u hu; simp at hu) (by intro u hu; simp at hu))
@@ -7686,7 +7697,8 @@ theorem honest_round_messages_spec {n μ M m₁ dRows : ℕ} (stmt : sumcheck.Ro
   have hkle : min (M + 1) 10 ≤ M + 1 := alphaSplit_le (M + 1)
   have hjk0 : (M + 1 - min (M + 1) 10) + min (M + 1) 10 = M + 1 := Nat.sub_add_cancel hkle
   obtain ⟨k0', hk0'⟩ : ∃ t, min (M + 1) 10 = t + 1 := ⟨min (M + 1) 10 - 1, by omega⟩
-  simp only [sumcheck.honest_round_messages, sumcheck.RoundStatement.impl.zc,
+  simp only [sumcheck.honest_round_messages, alloc.vec.Vec.with_capacity,
+    sumcheck.RoundStatement.impl.zc,
     sumcheck.NestedZeroCheckStmt.impl.tau0, sumcheck.NestedZeroCheckStmt.impl.rlin,
     sumcheck.NestedZeroCheckStmt.impl.alpha, sumcheck.NestedZeroCheckStmt.impl.tau1,
     bind_tc_ok]

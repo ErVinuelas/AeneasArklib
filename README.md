@@ -27,6 +27,12 @@ ArkLib counterpart. What *is* trusted is enumerated under
 This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
 in structure and in method, and depends on it for the coefficient field.
 
+> **Optimization review: do not merge until proper controlled benchmarking is
+> completed and reviewed.** The current-upstream allocation and fast-path changes
+> are proved in Lean; runtime acceptance remains pending. The
+> [full report](docs/optimization-current/REPORT.md) records all components,
+> validation evidence, and the explicitly approved terminal shortness shortcut.
+
 > **Status: the commitment scheme and every link of the protocol layer are
 > implemented, tested, extracted, and proved equivalent to the specification —
 > build-enforced, up to perfect correctness of the scheme and the composed
@@ -50,18 +56,19 @@ in structure and in method, and depends on it for the coefficient field.
 > paired sumcheck's round polynomials, checks and loops),
 > [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
 > conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
-> `verify` over the proved links). 232 tests pass, including perfect correctness
-> and every rejection path of the verifier; 49 more are `#[ignore]`d, each
-> reason opening with a tag that says which kind it is: **24 `instrument:`**
+> `verify` over the proved links). 236 tests pass, including perfect correctness
+> and every rejection path of the verifier; 50 more are `#[ignore]`d, each
+> reason opening with a tag that says which kind it is: **25 `instrument:`**
 > (timing gates, kill-gates and the profile, which must never join a
 > correctness sweep), **8 `scale:`** (correctness at the paper's constants,
-> run by `make test-scale` — green in 25 minutes on 2026-09-20) and **17
+> run by `make test-scale` — historically green in 25 minutes on 2026-09-20;
+> see the current report for this branch's run) and **17
 > `scale-xl:`** (past this machine, each carrying the measurement that put it
 > there). `scripts/scale_tests.py --check` fails an untagged one. `make extract` produces a model with
 > no axioms and no opaque bodies; every mirrored item is benched or excluded by
-> name, and the 444 frozen baseline items are verified against git. The
-> optimization loop has run to a standstill: `logs/ledger.jsonl` holds 72
-> within-run verdicts, accepted and rejected, and the pin-scale prover has gone
+> name, and the 478 frozen baseline items are verified against git. The
+> measured campaign history, including accepted and rejected candidates, is in
+> `logs/ledger.jsonl`. Earlier campaigns reduced the pin-scale prover
 > from 1170.8 s to **598.4 s** (−48.9%) at an unchanged 5453 MiB peak. Every
 > accepted champion is proof-carrying — some as an optimized definition in
 > [`lean/Opt.lean`](hachi/lean/Opt.lean) with its `opt_eq_spec`, the rest as a
@@ -128,9 +135,9 @@ in structure and in method, and depends on it for the coefficient field.
 >
 > [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
 > discharge the specification's side conditions, and prints the axiom dependencies
-> of every proved spec — 499 `#print axioms` lines, headline specs, the
+> of every proved spec — 585 `#print axioms` lines, headline specs, the
 > `opt_eq_spec`/length lemmas and the helper specs alike: the three Lean kernel
-> axioms, nothing else. `make spec-check` reports 156 mirrored items, 156
+> axioms or subsets thereof, nothing else. `make spec-check` reports 156 mirrored items, 156
 > stated, 0 owed.
 > [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
 > proved — is **empty**; its [README](hachi/lean-wip/README.md) holds the

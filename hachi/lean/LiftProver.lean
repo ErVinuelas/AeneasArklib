@@ -832,6 +832,7 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
           = (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩).coeff (N + t) ⦄ := by
   obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
   rw [ringswitch.c_row_sum_high]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
   step with ZeroCheck.rlin_cols_spec (n := n) (μ := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
   step with c_row_sum_high_zero_loop_spec params.RING_DEGREE params_RING_DEGREE_val
@@ -1056,6 +1057,7 @@ theorem div_by_modulus_spec (p : alloc.vec.Vec cpoly.field.Fp) (hp : WfWords (2 
     ringswitch.div_by_modulus p
       ⦃ out => WfWords N out ∧ toCPolyK out = (toCPolyK p).divByMonic Φ.φ ⦄ := by
   rw [ringswitch.div_by_modulus]
+  simp only [alloc.vec.Vec.with_capacity]
   step with div_by_modulus_copy_loop_spec p (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
     (by simp) (by simp) as ⟨rem, hrem⟩
   step with div_by_modulus_zero_loop_spec params.RING_DEGREE
@@ -1590,6 +1592,7 @@ theorem poly_vec_copy_loop_spec {k : ℕ} (v : linalg.PolyVec) (n : Std.Usize)
 theorem poly_vec_copy_spec {k : ℕ} (v : linalg.PolyVec) (hv : WfVec k v) :
     linalg.PolyVec.copy v ⦃ z => WfVec k z ∧ toVec (k := k) z = toVec (k := k) v ⦄ := by
   rw [linalg.PolyVec.copy]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [bind_ok_id]
   apply spec_mono (poly_vec_copy_loop_spec v (alloc.vec.Vec.len v)
     (alloc.vec.Vec.new ring.Rq) 0#usize hv (by simp [hv.1]) (by simp) (by simp)
@@ -1611,6 +1614,7 @@ theorem honest_lift_witness_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z 
       ⦃ out => RepLiftedWitness (μ := μ) (n := n) out
         (InnerOuter.honestLiftWitnessC Φ hd rs (toVec (k := μ) z)) ⦄ := by
   rw [ringswitch.honest_lift_witness]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
   step with ZeroCheck.rlin_rows_spec (n := n) (μ := μ) s.m hs.1 as ⟨rows, hrows⟩
   step with honest_lift_witness_loop_spec s z rows

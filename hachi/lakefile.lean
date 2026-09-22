@@ -7,8 +7,7 @@ open Lake DSL
 -- Keeping them together is what lets Aeneas write its output straight into the
 -- library, with no copy of the generated model to keep in sync.
 
--- The local 4.33 port of the Aeneas Lean backend, pinned by commit -- a git
--- require against the sibling checkout, not (yet) a published fork.
+-- The published 4.33 port of the Aeneas Lean backend, pinned by commit.
 --
 -- ArkLib main moved to Mathlib v4.33.1 and upstream aeneas releases stop at
 -- v4.31.0. The port that bridges the gap is commit 6125cb9e ("bump to 4.33"),
@@ -20,12 +19,11 @@ open Lake DSL
 -- models it against. `make setup`'s backend check accepts descendants of
 -- `AENEAS_COMMIT`, so it reads this pin as "3a8586f + 1 commit(s)".
 --
--- The manifest records the resolved commit, which is what makes the build
--- reproducible -- on this machine: a `file://` URL does not travel. When the
--- port lands on a public fork or upstream, move only the URL, keeping the
--- rev pin, with `lake update aeneas`.
+-- The public fork contains the same commit as the original developer-local
+-- checkout. Keep the URL and revision synchronized with lake-manifest.json;
+-- changing the source location does not change the backend or extraction pin.
 require aeneas from git
-  "file:///home/pablo/Documents/internship-eth/aeneas" @ "6125cb9e191aa500cac5b3de4df643002818b03a"
+  "https://github.com/ErVinuelas/aeneas.git" @ "6125cb9e191aa500cac5b3de4df643002818b03a"
     / "backends" / "lean"
 
 -- The specification side. Pinned to a commit rather than to `main`, because the

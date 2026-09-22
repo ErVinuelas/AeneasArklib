@@ -771,6 +771,7 @@ theorem to_matrix_outer_loop_spec (p : evalsplit.MlPoly) (rows cols : Std.Usize)
   · rintro ⟨s1, o1, i1⟩ ⟨rfl, hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [evalsplit.MlPoly.to_matrix_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < rows
     · rw [if_pos hlt]
       have hilt : i1.val < 2 ^ nl := by rw [← hrows]; scalar_tac
@@ -817,6 +818,7 @@ theorem to_matrix_spec (p : evalsplit.MlPoly) (hp : WfVec (2 ^ (nl + nh)) p) :
   have hlow : (params.ML_LOW_LEN).val = 2 ^ nl := by norm_num [params.ML_LOW_LEN]
   have hhigh : (params.ML_HIGH_LEN).val = 2 ^ nh := by norm_num [params.ML_HIGH_LEN]
   rw [evalsplit.MlPoly.to_matrix]
+  simp only [alloc.vec.Vec.with_capacity]
   step with to_matrix_outer_loop_spec p params.ML_LOW_LEN params.ML_HIGH_LEN
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hp hlow hhigh (by simp [hlow])
     (by simp) (by intro r hr; simp at hr) (by intro s hs; simp at hs)
@@ -909,6 +911,7 @@ theorem to_polynomial_spec (m : linalg.PolyMatrix) (hm : WfMat (2 ^ nl) (2 ^ nh)
   have hpoly : (params.ML_POLY_LEN).val = 2 ^ (nl + nh) := by
     norm_num [params.ML_POLY_LEN]
   rw [evalsplit.to_polynomial]
+  simp only [alloc.vec.Vec.with_capacity]
   step with to_polynomial_loop_spec m params.ML_POLY_LEN (alloc.vec.Vec.new ring.Rq) 0#usize
     hm hpoly (by simp) (by simp) (by intro y hy; simp at hy) (by intro t ht; simp at ht)
     as ⟨z, hzlen, hzwf, hzval⟩
@@ -1013,6 +1016,7 @@ theorem to_matrix_eval_outer_loop_spec (p : evalsplit.MlEvals) (rows cols : Std.
   · rintro ⟨s1, o1, i1⟩ ⟨rfl, hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [evalsplit.MlEvals.to_matrix_eval_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < rows
     · rw [if_pos hlt]
       have hilt : i1.val < 2 ^ nl := by rw [← hrows]; scalar_tac
@@ -1059,6 +1063,7 @@ theorem to_matrix_eval_spec (p : evalsplit.MlEvals) (hp : WfVec (2 ^ (nl + nh)) 
   have hlow : (params.ML_LOW_LEN).val = 2 ^ nl := by norm_num [params.ML_LOW_LEN]
   have hhigh : (params.ML_HIGH_LEN).val = 2 ^ nh := by norm_num [params.ML_HIGH_LEN]
   rw [evalsplit.MlEvals.to_matrix_eval]
+  simp only [alloc.vec.Vec.with_capacity]
   step with to_matrix_eval_outer_loop_spec p params.ML_LOW_LEN params.ML_HIGH_LEN
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hp hlow hhigh (by simp [hlow])
     (by simp) (by intro r hr; simp at hr) (by intro s hs; simp at hs)

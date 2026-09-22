@@ -1,0 +1,13 @@
+{
+  "recorded_utc": "2026-09-22T10:52:21.159607+00:00",
+  "status": "runtime_acceptance_pending",
+  "accepted_timing_runs": 0,
+  "reason": "User requested a visible PR that must not merge before proper benchmarking; scale correctness tests and other build work were active during validation. No concurrent timing run was launched.",
+  "host_build_process_counts": {
+    "cargo": 1,
+    "lake": 2
+  },
+  "baseline_commit": "681c7be0e432103328aab2ae263c9597d9ea96ff",
+  "candidate_code_commit": "171f0f6e28cd8c9675b6330664346746f4c63b31",
+  "required_before_merge": "Follow REPRODUCE.md on an otherwise idle host; archive full controlled comparisons and end-to-end profiling, review regressions and unusable rows."
+}

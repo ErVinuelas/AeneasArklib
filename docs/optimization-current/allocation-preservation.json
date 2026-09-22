@@ -1,0 +1,12 @@
+{
+  "generated_sha256": "e9fb2f23419a234cd99dc0acf6d01f045aa0d4638846f0288a5fde9e383a474c",
+  "definitions": 1513,
+  "identical_data_declarations": 76,
+  "preserved_theorem_types": 1060,
+  "total_declarations": 2649,
+  "identical_imported_kernel_declarations": 347586,
+  "positive_adversarial_fixtures_passed": 6,
+  "boundary": "Equality in Aeneas model, not physical allocations/OOM.",
+  "checkpoint_patch_sha256": "40b551d0efedcee77f5744d9727f1164eab11e968e1a71098922540c9031d6a8",
+  "reproduce": "Apply gzip-decompressed allocation-only.patch.gz to baseline 681c7be, using the pinned public backend URL. Build both Generated models, then run scripts/CheckAllocationPreservation.lean in the candidate Lake environment with HACHI_BASELINE_LEAN_PATH set to the baseline .lake/build/lib/lean directory."
+}

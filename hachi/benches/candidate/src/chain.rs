@@ -198,7 +198,7 @@ pub fn chain_verify(
 /// needs the same point in two carriers. Written as a loop because `clone` is a
 /// trait call with no extracted model.
 fn copy_point(p: &Vec<Ext4>) -> Vec<Ext4> {
-    let mut out: Vec<Ext4> = Vec::new();
+    let mut out: Vec<Ext4> = Vec::with_capacity(p.len());
     let mut i: usize = 0;
     while i < p.len() {
         out.push(p[i]);

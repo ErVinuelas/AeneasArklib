@@ -1,0 +1,61 @@
+   Compiling hachi v0.1.0 (/tmp/aeneasarklib-current-candidate/hachi)
+   Compiling hachi-candidate v0.0.0 (/tmp/aeneasarklib-current-candidate/hachi/benches/candidate)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:717:4
+    |
+717 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 1 warning
+warning: function `pow_by_squaring` is never used
+   --> tests/ringswitch_semantics.rs:288:4
+    |
+288 | fn pow_by_squaring(alpha: Ext4, mut n: usize) -> Ext4 {
+    |    ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (test "ringswitch_semantics") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 5.69s
+     Running tests/endpiece_semantics.rs (hachi/target/release/deps/endpiece_semantics-d44b791b5a6d6167)
+
+running 9 tests
+test w_eval_statement_carries_its_three_fields ... ok
+test end_piece_witness_is_the_message ... ok
+test end_piece_prove_returns_the_witness_unchanged ... ok
+test end_piece_check_rejects_a_wrong_value ... ok
+test end_piece_check_accepts_an_honest_claim ... ok
+test end_piece_check_rejects_a_perturbed_commitment ... ok
+test end_piece_check_pins_the_z_norm_boundary ... ok
+test end_piece_check_decides_the_conjunction ... ok
+test end_piece_check_with_a_quotient_row ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/ringswitch_semantics.rs (hachi/target/release/deps/ringswitch_semantics-e4f138d67de2a12d)
+
+running 20 tests
+test c_eval_at_modulus_is_alpha_to_the_d_plus_one ... ok
+test c_eval_at_evaluates_the_polynomial_at_alpha ... ok
+test c_eval_at_is_additive_in_the_polynomial ... ok
+test lift_short_check_accepts_and_rejects_on_the_z_norm ... ok
+test quotient_digits_past_the_count_are_minus_half_base ... ok
+test lift_message_appends_all_quotient_digits_after_z ... ok
+test rho_as_rq_preserves_the_quotient_row_coefficients ... ok
+test rho_digits_are_short ... ok
+test rho_digits_at_is_the_balanced_digit_of_that_row ... ok
+test rho_digit_as_rq_uses_row_major_digit_indices ... ok
+test rho_digits_have_the_full_ring_width ... ok
+test rho_digits_short_check_is_true_at_the_pinned_parameters ... ok
+test rho_digits_at_agrees_with_the_flat_index ... ok
+test rho_digits_reconstruct_the_row ... ok
+test rho_digits_are_the_balanced_digits_of_each_coefficient ... ok
+test the_honest_lift_witness_is_z_and_the_row_quotients ... ok
+test the_quotient_times_the_modulus_plus_the_reduced_defect_is_the_defect ... ok
+test an_honest_right_hand_side_leaves_no_remainder ... ok
+test c_row_sum_is_the_unreduced_row_convolution ... ok
+test lift_commit_is_the_matrix_product_of_lift_message ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s

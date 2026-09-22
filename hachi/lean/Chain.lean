@@ -133,6 +133,7 @@ own length. -/
 theorem copy_point_spec (p : alloc.vec.Vec cpoly.field.Ext4) :
     chain.copy_point p ⦃ z => z.val = p.val ⦄ := by
   rw [chain.copy_point]
+  simp only [alloc.vec.Vec.with_capacity]
   exact copy_point_loop_spec p (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize (by simp) (by simp)
 
 /-! ## The statement thread and the verdict -/

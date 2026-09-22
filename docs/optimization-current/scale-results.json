@@ -1,0 +1,50 @@
+{
+  "result": "all eight scale correctness cases passed across the original sweep and standalone retry",
+  "passed": [
+    {
+      "test": "chain_semantics::a_transcript_whose_rounds_do_not_sum_is_rejected",
+      "elapsed_seconds": 4,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "chain_semantics::chain_open_produces_the_messages_the_verifier_reads",
+      "elapsed_seconds": 99,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "chain_semantics::an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only",
+      "elapsed_seconds": 73,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "chain_semantics::the_honest_chain_verifies",
+      "elapsed_seconds": 538,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "evalsplit_semantics::lagrange_basis_sums_to_one",
+      "elapsed_seconds": 1254,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "evalsplit_semantics::to_matrix_places_coefficients_along_the_split",
+      "elapsed_seconds": 13,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "evalsplit_semantics::to_matrix_eval_places_values_along_the_split",
+      "elapsed_seconds": 12,
+      "rust_toolchain": "stable / rustc 1.96.0"
+    },
+    {
+      "test": "evalsplit_semantics::eval_split_eval_interpolates_the_hypercube",
+      "rust_toolchain": "nightly-2026-06-01 / rustc 1.98.0-nightly (14210df0e)",
+      "execution": "scale-final-execution.json"
+    }
+  ],
+  "original_sweep_exit_code": 2,
+  "original_last_case": "deliberately interrupted with SIGTERM after 587 seconds, not a correctness pass or assertion failure",
+  "timeout_override": "scale-timeout-override.json",
+  "final_retry_exit_code": 0,
+  "note": "Correctness evidence only. Different compiler invocations and elapsed times are not runtime acceptance. The 25 instrument and 17 scale-xl cases were not run."
+}

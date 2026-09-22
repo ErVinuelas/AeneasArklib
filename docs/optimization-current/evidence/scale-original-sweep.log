@@ -1,0 +1,62 @@
+    (no systemd-run --user: running unguarded, so use an idle machine)
+==> building the test binaries
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:717:4
+    |
+717 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `pow_by_squaring` is never used
+   --> tests/ringswitch_semantics.rs:288:4
+    |
+288 | fn pow_by_squaring(alpha: Ext4, mut n: usize) -> Ext4 {
+    |    ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+==> scale sweep: 1800s and 22 GiB per test, one at a time
+  PASS          4s  chain_semantics::a_transcript_whose_rounds_do_not_sum_is_rejected
+  PASS         99s  chain_semantics::chain_open_produces_the_messages_the_verifier_reads
+  PASS         73s  chain_semantics::an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only
+  PASS        538s  chain_semantics::the_honest_chain_verifies
+  PASS       1254s  evalsplit_semantics::lagrange_basis_sums_to_one
+  PASS         13s  evalsplit_semantics::to_matrix_places_coefficients_along_the_split
+  PASS         12s  evalsplit_semantics::to_matrix_eval_places_values_along_the_split
+Terminated
+  FAIL 143    587s  evalsplit_semantics::eval_split_eval_interpolates_the_hypercube
+==> 8 scale test(s), 1 failing
+make: *** [Makefile:537: test-scale] Error 1

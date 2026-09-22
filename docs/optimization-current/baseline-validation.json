@@ -1,0 +1,32 @@
+{
+  "commit": "681c7be0e432103328aab2ae263c9597d9ea96ff",
+  "full_lean_build": "passed",
+  "build_jobs": 3898,
+  "rust_tests": {
+    "passed": 236,
+    "failed": 0,
+    "ignored": 50,
+    "command": "make test",
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "profile": "debug"
+  },
+  "fresh_extraction": "byte-identical to committed model",
+  "axiom_audit_entries": 585,
+  "distinct_audited_declarations": 577,
+  "axiom_free_entries": 1,
+  "axiom_sets": [
+    [],
+    [
+      "propext"
+    ],
+    [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    [
+      "propext",
+      "Quot.sound"
+    ]
+  ]
+}

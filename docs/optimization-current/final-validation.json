@@ -1,0 +1,41 @@
+{
+  "full_lean_build": "passed",
+  "build_jobs": 3898,
+  "axiom_sets": [
+    [],
+    [
+      "propext"
+    ],
+    [
+      "propext",
+      "Classical.choice",
+      "Quot.sound"
+    ],
+    [
+      "propext",
+      "Quot.sound"
+    ]
+  ],
+  "proof_repair_retries": 2,
+  "public_specification_changes": 0,
+  "changed_internal_loop_specification": "ZeroCheck.c_eval_at_modulus_loop_spec",
+  "final_generated_sha256": "8dbc555060eb0149f4ce835e8ab274a2ccd9c74dc9d94b4c15194c864035bed6",
+  "scale_tests": {
+    "passed": 8,
+    "failed_assertions": 0,
+    "execution_history": "scale-results.json",
+    "note": "Seven original-sweep passes plus one standalone retry; original final-case invocation deliberately interrupted."
+  },
+  "axiom_audit_entries": 585,
+  "distinct_audited_declarations": 577,
+  "axiom_free_entries": 1,
+  "candidate_code_commit": "171f0f6e28cd8c9675b6330664346746f4c63b31",
+  "rust_tests": {
+    "command": "cargo +nightly-2026-06-01 test --release --manifest-path hachi/Cargo.toml",
+    "passed": 236,
+    "failed": 0,
+    "ignored": 50,
+    "rustc": "1.98.0-nightly (14210df0e 2026-05-31)",
+    "profile": "release"
+  }
+}

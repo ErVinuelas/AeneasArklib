@@ -1,0 +1,123 @@
+{
+  "recorded_utc": "2026-09-22T09:55:17.382394+00:00",
+  "repo": "681c7be0e432103328aab2ae263c9597d9ea96ff",
+  "historical_checkpoint": "b6c4f69",
+  "rust_dependency": "d7e26bb42feb80a1d96f904d3c14f85786751513",
+  "lean_toolchain": "leanprover/lean4:v4.33.1",
+  "lean_packages": {
+    "Arklib": {
+      "url": "https://github.com/Verified-zkEVM/ArkLib.git",
+      "rev": "d51d8bc3c22062bf21385bd15b39d390b0fe4584"
+    },
+    "aeneas": {
+      "url": "https://github.com/ErVinuelas/aeneas.git",
+      "rev": "6125cb9e191aa500cac5b3de4df643002818b03a"
+    },
+    "CompPoly": {
+      "url": "https://github.com/Verified-zkEVM/CompPoly",
+      "rev": "a09455a22fea4623a2a1c5b363cf6efc61486a83"
+    },
+    "checkdecls": {
+      "url": "https://github.com/PatrickMassot/checkdecls.git",
+      "rev": "3d425859e73fcfbef85b9638c2a91708ef4a22d4"
+    },
+    "\u00abdoc-gen4\u00bb": {
+      "url": "https://github.com/leanprover/doc-gen4",
+      "rev": "e2af49a7b7e5e1a9224008c1f15e7aa4f58a4015"
+    },
+    "VCVio": {
+      "url": "https://github.com/Verified-zkEVM/VCVio",
+      "rev": "f9dc47d9dacfc5cb51dae9f92f1e34cb5ce2cc24"
+    },
+    "mathlib": {
+      "url": "https://github.com/leanprover-community/mathlib4",
+      "rev": "0df444a360eaa60ab8c11dca51a86af692955474"
+    },
+    "leansqlite": {
+      "url": "https://github.com/leanprover/leansqlite",
+      "rev": "6168b7549738a19bc837a1625c60c5d1e5dd8aeb"
+    },
+    "Cli": {
+      "url": "https://github.com/leanprover/lean4-cli",
+      "rev": "6130a47896ce867c6a4a55373441e59e565bad0f"
+    },
+    "UnicodeBasic": {
+      "url": "https://github.com/fgdorais/lean4-unicode-basic",
+      "rev": "37e7d8cb7316a88cd3e91208385c9ec6ae780019"
+    },
+    "BibtexQuery": {
+      "url": "https://github.com/dupuisf/BibtexQuery",
+      "rev": "852edafa268eb038a7158551fd580ee8433847b0"
+    },
+    "MD4Lean": {
+      "url": "https://github.com/acmepjz/md4lean",
+      "rev": "31907cc18f48a95384f99cee5582c00fb39e0f67"
+    },
+    "PolyFun": {
+      "url": "https://github.com/Verified-zkEVM/PolyFun.git",
+      "rev": "c0c923693fc827a41d17116579a0c16ed4873b19"
+    },
+    "loom2": {
+      "url": "https://github.com/quangvdao/loom2",
+      "rev": "2f65f311fae959c302586b07aa45390999b935d4"
+    },
+    "plausible": {
+      "url": "https://github.com/leanprover-community/plausible",
+      "rev": "b7eb3304aeae834b12dda98993a37f6a41f6f0bb"
+    },
+    "LeanSearchClient": {
+      "url": "https://github.com/leanprover-community/LeanSearchClient",
+      "rev": "5f4d51b81cbd3f6b32b156bfad9056621a040404"
+    },
+    "importGraph": {
+      "url": "https://github.com/leanprover-community/import-graph",
+      "rev": "16f02aa7642864af59f1ff0e384a015994db9118"
+    },
+    "proofwidgets": {
+      "url": "https://github.com/leanprover-community/ProofWidgets4",
+      "rev": "4be2e3d5087eeb272cf5a8853b8f9dd025ef5957"
+    },
+    "aesop": {
+      "url": "https://github.com/leanprover-community/aesop",
+      "rev": "3448c0bcc5ce01b2d1546e483ec3620e32df3d0e"
+    },
+    "Qq": {
+      "url": "https://github.com/leanprover-community/quote4",
+      "rev": "92c15be17b7caf78c2ad767ec40f89052d908d81"
+    },
+    "batteries": {
+      "url": "https://github.com/leanprover-community/batteries",
+      "rev": "4488d40d070b9700d4d5a6aa342f0d40c31b2a2d"
+    },
+    "cslib": {
+      "url": "https://github.com/leanprover/cslib",
+      "rev": "98e395a701f2027a413ad24729e1a11a6c772eb4"
+    }
+  },
+  "cargo_lock_sha256": "9d20452d5123707a3d090d2e1f01396f247ce244f2a3db8e95c6ddab62ebcb40",
+  "baseline_generated_sha256": "7452f50dd0f9c06493de1eec4c7aa56bedccc242911d5b29184c9cbe27ac9a84",
+  "phase": "final implementation proved; eight scale correctness cases passed; controlled timing acceptance pending",
+  "guidance": {
+    "repository": "lean-eq-rust-gen",
+    "revision": "3a6b8550c142244d0ef2a3cbf2febf961e98f1dc",
+    "remote_refresh": "fetched origin; local HEAD is three commits ahead and zero behind origin/main; checkout left unchanged",
+    "skills": [
+      "skills/verified-rust-optimization/SKILL.md",
+      "skills/extractable-rust/SKILL.md",
+      "skills/rust-crypto-refinement/SKILL.md",
+      "skills/lean-to-rust-hachi/SKILL.md"
+    ]
+  },
+  "candidate_code_commit": "171f0f6e28cd8c9675b6330664346746f4c63b31",
+  "rust_toolchains": {
+    "extraction_benchmark_and_final_rust_tests": {
+      "channel": "nightly-2026-06-01",
+      "rustc": "1.98.0-nightly (14210df0e 2026-05-31)"
+    },
+    "baseline_default_tests_original_scale_sweep_and_clippy": {
+      "channel": "stable (host default at execution)",
+      "rustc": "1.96.0 (ac68faa20 2026-05-25)"
+    },
+    "performance_comparison": "No runtime acceptance or cross-compiler speedup comparison made."
+  }
+}

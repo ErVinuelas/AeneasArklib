@@ -1,0 +1,12 @@
+{
+  "method": "Textual declaration header comparison through first :=; navigation audit, not a Lean parser or proof certificate. Full build is authoritative.",
+  "baseline_theorem_lemma_count": 1396,
+  "changes": [
+    {
+      "file": "hachi/lean/ZeroCheck.lean",
+      "name": "c_eval_at_modulus_loop_spec",
+      "before": "theorem c_eval_at_modulus_loop_spec (alpha : cpoly.field.Ext4) (pw : cpoly.field.Ext4)\n    (k : Std.Usize) (ha : Reduced alpha) (hpw : Reduced pw) (hk : k.val \u2264 N)\n    (hpwv : toExt pw = toExt alpha ^ k.val) :\n    ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE pw k\n      \u2983 out => Reduced out \u2227 toExt out = toExt alpha ^ N \u2984",
+      "after": "theorem c_eval_at_modulus_loop_spec (alpha : cpoly.field.Ext4) (pw : cpoly.field.Ext4)\n    (k : Std.Usize) (ha : Reduced alpha) (hpw : Reduced pw) (hk : k.val \u2264 10)\n    (hpwv : toExt pw = toExt alpha ^ (2 ^ k.val)) :\n    ringswitch.c_eval_at_modulus_loop params.RING_LOG_DEGREE pw k\n      \u2983 out => Reduced out \u2227 toExt out = toExt alpha ^ N \u2984"
+    }
+  ]
+}

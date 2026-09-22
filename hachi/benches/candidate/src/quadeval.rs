@@ -200,7 +200,7 @@ pub fn carrier_entry(a: &PolyVec, s: &PolyVec) -> Rq {
 /// Mirrors ArkLib's `carrier`.
 pub fn carrier(a: &PolyVec, s: &Vec<PolyVec>) -> PolyVec {
     let blocks: usize = s.len();
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         out.push(carrier_entry(a, &s[i]));
@@ -406,11 +406,11 @@ pub fn carrier_from_raw(a: &PolyVec, raw: &Vec<PolyVec>) -> PolyVec {
     // stands: `PreparedMatrix::apply` at one row *is* the dot against that row
     // (`matVecMul` at `rows = 1`), which is why this needs no new item and no
     // new specification -- only a different composition of landed ones.
-    let mut rows: Vec<PolyVec> = Vec::new();
+    let mut rows: Vec<PolyVec> = Vec::with_capacity(1);
     rows.push(a.copy());
     let am: PolyMatrix = PolyMatrix::new(rows);
     let prep: crate::linalg::PreparedMatrixL2 = am.prepare_limbs2();
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let r: PolyVec = prep.apply_limbs2(&raw[i]);
@@ -478,11 +478,11 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
 /// [`carrier_from_raw`] over the compact raw carrier.
 pub fn carrier_from_raw_32(a: &PolyVec, raw: &Vec<linalg::RawVec32>) -> PolyVec {
     let blocks: usize = raw.len();
-    let mut rows: Vec<PolyVec> = Vec::new();
+    let mut rows: Vec<PolyVec> = Vec::with_capacity(1);
     rows.push(a.copy());
     let am: PolyMatrix = PolyMatrix::new(rows);
     let prep: crate::linalg::PreparedMatrixL2 = am.prepare_limbs2();
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let block: PolyVec = raw[i].expand();
@@ -549,7 +549,7 @@ pub fn honest_compute_resp_from_raw_32(
     let carrier_dec: PolyVec = carrier_dec.copy();
     let z: PolyVec = honest_z_from_raw_32(raw, c);
     let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
-    let mut inner: Vec<PolyVec> = Vec::new();
+    let mut inner: Vec<PolyVec> = Vec::with_capacity(inner_decomp.len());
     let mut i: usize = 0;
     while i < inner_decomp.len() {
         inner.push(inner_decomp[i].copy());
@@ -603,7 +603,7 @@ pub fn honest_compute_resp(
     let carrier_dec: PolyVec = carrier_decomp(stmt.avec(), message);
     let z: PolyVec = honest_z(message, c);
     let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
-    let mut inner: Vec<PolyVec> = Vec::new();
+    let mut inner: Vec<PolyVec> = Vec::with_capacity(inner_decomp.len());
     let mut i: usize = 0;
     while i < inner_decomp.len() {
         inner.push(inner_decomp[i].copy());
@@ -630,7 +630,7 @@ pub fn honest_compute_resp_from_raw(
     let carrier_dec: PolyVec = carrier_decomp_from_raw(stmt.avec(), raw);
     let z: PolyVec = honest_z_from_raw(raw, c);
     let z_dec: PolyVec = gadget::bounded_z_gadget_decompose(&z);
-    let mut inner: Vec<PolyVec> = Vec::new();
+    let mut inner: Vec<PolyVec> = Vec::with_capacity(inner_decomp.len());
     let mut i: usize = 0;
     while i < inner_decomp.len() {
         inner.push(inner_decomp[i].copy());
@@ -968,7 +968,7 @@ pub fn unflatten(v: &PolyVec, width: usize) -> Vec<PolyVec> {
     let mut out: Vec<PolyVec> = Vec::new();
     let mut base: usize = 0;
     while base < total {
-        let mut block: Vec<Rq> = Vec::new();
+        let mut block: Vec<Rq> = Vec::with_capacity(width);
         let mut w: usize = 0;
         while w < width {
             block.push(v.get(base + w).copy());
@@ -996,7 +996,7 @@ pub fn unflatten(v: &PolyVec, width: usize) -> Vec<PolyVec> {
 /// this one is holdable where c4's product is not.
 pub fn tensor_g_matrix(k: usize, digits: usize, c: &PolyVec) -> PolyMatrix {
     let blocks: usize = c.len();
-    let mut rows: Vec<PolyVec> = Vec::new();
+    let mut rows: Vec<PolyVec> = Vec::with_capacity(k);
     let mut p: usize = 0;
     while p < k {
         let mut row: Vec<Rq> = Vec::new();
@@ -1062,13 +1062,13 @@ pub fn stack(resp: &QuadEvalResponse) -> PolyVec {
 /// the `rlinCols` layout and nothing in `ζ` records where the boundaries are —
 /// the specification recovers them from the type indices, which erase.
 pub fn unstack(zeta: &PolyVec, cw: usize, ct: usize, inner_width: usize) -> QuadEvalResponse {
-    let mut carrier: Vec<Rq> = Vec::new();
+    let mut carrier: Vec<Rq> = Vec::with_capacity(cw);
     let mut i: usize = 0;
     while i < cw {
         carrier.push(zeta.get(i).copy());
         i += 1;
     }
-    let mut middle: Vec<Rq> = Vec::new();
+    let mut middle: Vec<Rq> = Vec::with_capacity(ct);
     let mut j: usize = 0;
     while j < ct {
         middle.push(zeta.get(cw + j).copy());
@@ -1305,10 +1305,10 @@ pub fn rlin_stmt(
     // built and each non-zero block is stored once instead of being copied
     // into a row.
     let d_rows: usize = pp.d_matrix().rows();
-    let mut drows: Vec<PolyVec> = Vec::new();
+    let mut drows: Vec<PolyVec> = Vec::with_capacity(d_rows);
     let mut di: usize = 0;
     while di < d_rows {
-        let mut row: Vec<Rq> = Vec::new();
+        let mut row: Vec<Rq> = Vec::with_capacity(cw);
         let mut k: usize = 0;
         while k < cw {
             row.push(pp.d_matrix().row(di).get(k).copy());
@@ -1319,10 +1319,10 @@ pub fn rlin_stmt(
     }
 
     let b_rows: usize = pp.inner().outer_matrix().rows();
-    let mut brows: Vec<PolyVec> = Vec::new();
+    let mut brows: Vec<PolyVec> = Vec::with_capacity(b_rows);
     let mut bi: usize = 0;
     while bi < b_rows {
-        let mut row: Vec<Rq> = Vec::new();
+        let mut row: Vec<Rq> = Vec::with_capacity(ct);
         let mut k: usize = 0;
         while k < ct {
             row.push(pp.inner().outer_matrix().row(bi).get(k).copy());
@@ -1333,19 +1333,19 @@ pub fn rlin_stmt(
     }
 
     // the two negated blocks, negated once here so `entry` can borrow them
-    let mut njga: Vec<Rq> = Vec::new();
+    let mut njga: Vec<Rq> = Vec::with_capacity(cz);
     let mut k4z: usize = 0;
     while k4z < cz {
         njga.push(jt_g_a.get(k4z).neg());
         k4z += 1;
     }
 
-    let mut ajrows: Vec<PolyVec> = Vec::new();
+    let mut ajrows: Vec<PolyVec> = Vec::with_capacity(inner_rows);
     let mut p: usize = 0;
     while p < inner_rows {
         let aj: PolyVec =
             gadget::gadget_transpose_mul(inner_cols, z_digits, pp.inner().inner_matrix().row(p));
-        let mut row: Vec<Rq> = Vec::new();
+        let mut row: Vec<Rq> = Vec::with_capacity(cz);
         let mut kz: usize = 0;
         while kz < cz {
             row.push(aj.get(kz).neg());

@@ -510,8 +510,8 @@ fn end_piece_check_decides_the_conjunction() {
 /// The first shape whose witness has a digit block: `(μ, n) = (1, 1)` at
 /// `m₀ = 14`, where the key is `1 × 9`, the lifted message is `z₀` followed by
 /// the eight balanced digits of `ρ₀`, and the cube holds those nine ring
-/// elements and `7·1024` zeros. All three conjuncts rebuild the digit block on
-/// this path, and each is pinned against the independent digit: the honest
+/// elements and `7·1024` zeros. The quotient-digit bound uses its proved fast
+/// path; the remaining checks use the independent digit: the honest
 /// claim accepts, and moving the claimed value or the commitment rejects.
 ///
 /// Live rather than `#[ignore]`d: conjunct C rebuilds a `1024`-wide digit

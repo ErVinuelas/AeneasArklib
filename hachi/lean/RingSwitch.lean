@@ -879,12 +879,11 @@ theorem rho_digits_short_check_spec {n : ℕ}
     (rho : alloc.vec.Vec ringswitch.QuotientRow) (hrho : WfRho n rho) :
     endpiece.rho_digits_short_check rho
       ⦃ b => (b = true ↔ InnerOuter.RhoDigitsShort Φ 15 16 (toRho (n := n) rho)) ⦄ := by
-  have hrows : (alloc.vec.Vec.len rho).val = n := by simpa using hrho.1
-  rw [endpiece.rho_digits_short_check]
-  apply spec_mono (short_row_loop_spec rho (alloc.vec.Vec.len rho) 0#usize true hrho hrows
-    (by simp) (by simp))
-  intro b hb
-  rw [hb, rhoDigitsShort_iff]
+  have hshort : InnerOuter.RhoDigitsShort Φ 15 16 (toRho (n := n) rho) :=
+    InnerOuter.rhoDigitsShort_of_half_le Φ (by decide) (by norm_num [q])
+      (by decide) (toRho (n := n) rho)
+  simp [endpiece.rho_digits_short_check, params.Q, params.GADGET_BASE,
+    params.GADGET_DIGITS, params.HALF_BASE, params.CHAIN_GAMMA, hshort, WP.spec_ok]
 
 /-- The Rust boolean decides `liftShort` at the concrete chain parameters.
 

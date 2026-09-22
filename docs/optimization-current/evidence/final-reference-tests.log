@@ -1,0 +1,77 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling zerocopy v0.8.56
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling autocfg v1.5.1
+   Compiling cfg-if v1.0.4
+   Compiling clap_lex v1.1.0
+   Compiling regex-syntax v0.8.11
+   Compiling ciborium-io v0.2.2
+   Compiling anstyle v1.0.14
+   Compiling memchr v2.8.3
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling itoa v1.0.18
+   Compiling either v1.17.0
+   Compiling clap_builder v4.6.6
+   Compiling same-file v1.0.6
+   Compiling cast v0.3.0
+   Compiling oorandom v11.1.5
+   Compiling walkdir v2.5.0
+   Compiling anes v0.1.6
+   Compiling num-traits v0.2.19
+   Compiling itertools v0.13.0
+   Compiling hachi-candidate v0.0.0 (/home/alh/vrust/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/alh/vrust/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi v0.1.0 (/home/alh/vrust/AeneasArklib/hachi)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:717:4
+    |
+717 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling regex-automata v0.4.18
+   Compiling criterion-plot v0.6.0
+   Compiling clap v4.6.6
+   Compiling regex v1.13.1
+warning: `hachi` (lib) generated 1 warning
+   Compiling serde_derive v1.0.229
+   Compiling zerocopy-derive v0.8.56
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.7.0
+    Finished `release` profile [optimized] target(s) in 31.96s
+     Running tests/ringswitch_semantics.rs (hachi/target/release/deps/ringswitch_semantics-e4f138d67de2a12d)
+
+running 20 tests
+test c_eval_at_modulus_is_alpha_to_the_d_plus_one ... ok
+test c_eval_at_evaluates_the_polynomial_at_alpha ... ok
+test c_eval_at_is_additive_in_the_polynomial ... ok
+test lift_short_check_accepts_and_rejects_on_the_z_norm ... ok
+test quotient_digits_past_the_count_are_minus_half_base ... ok
+test rho_as_rq_preserves_the_quotient_row_coefficients ... ok
+test rho_digit_as_rq_uses_row_major_digit_indices ... ok
+test rho_digits_are_short ... ok
+test lift_message_appends_all_quotient_digits_after_z ... ok
+test rho_digits_at_is_the_balanced_digit_of_that_row ... ok
+test rho_digits_short_check_is_true_at_the_pinned_parameters ... ok
+test rho_digits_have_the_full_ring_width ... ok
+test rho_digits_at_agrees_with_the_flat_index ... ok
+test rho_digits_reconstruct_the_row ... ok
+test rho_digits_are_the_balanced_digits_of_each_coefficient ... ok
+test the_honest_lift_witness_is_z_and_the_row_quotients ... ok
+test c_row_sum_is_the_unreduced_row_convolution ... ok
+test the_quotient_times_the_modulus_plus_the_reduced_defect_is_the_defect ... ok
+test an_honest_right_hand_side_leaves_no_remainder ... ok
+test lift_commit_is_the_matrix_product_of_lift_message ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s

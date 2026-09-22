@@ -25,9 +25,9 @@ SHELL := /bin/bash
 # check it rather than assume it -- bumping one side without the other would
 # otherwise silently invalidate the proofs.
 #
-# Unlike AeneasCompPoly, this repository tracks *upstream* aeneas and needs no
-# fork: this nightly's Lean backend requires Lean/Mathlib v4.31.0, which is
-# exactly ArkLib's pin. See NOTES.md § "Upstream aeneas, no fork".
+# The generated code uses the upstream nightly. The pinned Lean backend is
+# its 4.33.1 compatibility port (6125cb9e), one commit above this upstream
+# revision; lakefile.lean records the public fork and exact revision.
 AENEAS_TAG    := nightly-2026.07.26-3a8586f
 AENEAS_COMMIT := 3a8586f
 
@@ -452,7 +452,7 @@ run-bench: bench-toolchain
 	@set -euo pipefail; \
 	python3 '$(HARNESS)' check-genesis
 	@set -euo pipefail; \
-	$(if $(filter 1,$(CANDIDATE)),echo '==> candidate slot: filled by the loop -- not checked under CANDIDATE=1; the report fingerprints it',python3 '$(HARNESS)' check-candidate)
+	python3 '$(HARNESS)' check-candidate $(if $(filter 1,$(CANDIDATE)),--active,)
 	@set -euo pipefail; \
 	python3 '$(HARNESS)' coverage || true
 	@set -euo pipefail; \

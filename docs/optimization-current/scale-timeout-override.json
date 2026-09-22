@@ -1,0 +1,13 @@
+{
+  "recorded_utc": "2026-09-22T11:07:49.909018+00:00",
+  "test": "evalsplit_semantics::eval_split_eval_interpolates_the_hypercube",
+  "original_timeout_seconds": 1800,
+  "retry_timeout_seconds": 3600,
+  "action": "Deliberately terminated only the identified task-owned timeout process group and restarted this case. The original interrupted result is not a correctness failure or a pass.",
+  "reason": "Observed scale cases take longer on this host than upstream historical durations; allow enough wall time for the final full-size correctness case without changing assertions or inputs.",
+  "prior_completed_cases": 7,
+  "address_space_limit_bytes": 23622320128,
+  "original_rust_toolchain": "stable / rustc 1.96.0",
+  "retry_rust_toolchain": "nightly-2026-06-01 / rustc 1.98.0-nightly (14210df0e)",
+  "original_case_elapsed_seconds_before_deliberate_termination": 587
+}
