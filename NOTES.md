@@ -10304,3 +10304,44 @@ Also recorded: merging `fused-stages` after `limb-carrier` cut
 `garner_ga`'s closing brace in `hachi/benches/genesis/src/ntt.rs` -- the
 conflict hunk ended one line early on both sides. `make test` caught it,
 and the `rustitems` scanner in `make bench-check` caught it independently.
+
+### The pin profile of the merged tree (2026-09-22)
+
+`logs/runs/pin-profile-20260922-merged.log`, `BLOCKS=1024`, HEAD `aeaf37d`
+(= lazy-rlin + limb-carrier + fused-stages), control CPU spread within run
+**−2.0%**. Baseline is card A2's (`pin-profile-20260920-epow.log`, spread
+−0.4%), the same one both branch profiles were read against. "prover" is
+the sum of the timed prover phases plus `lift_commit`, the rounds and
+`honest_compute_y`, as in the two tables above.
+
+| | A2 baseline | merged | | branch that owns it |
+|---|---|---|---|---|
+| commitment | 156.1 s | **135.7 s** | **−13.1%** | T34 (−11.1% alone) + T37 |
+| **`carrier_decomp_from_raw`** | 97.6 s | **21.4 s** | **−78.1%** | G2 + T35, exactly as on limb-carrier |
+| `honest_compute_v_from_decomp` | 1.3 s | 1.3 s | 0 | |
+| `honest_compute_resp` + stack | 81.4 s | **53.4 s** | **−34.4%** | W2 (−25.8%) and G2/T35 (−31.6%), overlapping |
+| R^lin statement assembled | 0.413 s | 0.177 s | −57% | W2 |
+| lifted witness | 39.8 s | 32.8 s | −17.6% | W2's blocks, plus the general path |
+| `lift_commit` | 17.9 s | 17.9 s | 0 | |
+| `honest_round_messages` | 124.7 s | **98.3 s** | **−21.2%** | T36 + T38, as on lazy-rlin (98.9 s) |
+| **prover** | **521.3 s** | **362.9 s** | **−30.4%** | |
+| peak RSS | 5453 MiB | 5453 MiB | 0 | |
+| `chain_verify` (whole) | 28.2 s | 26.6 s | −5.7% | |
+
+**The two branches add, and T37 is visible on top.** lazy-rlin alone read
+453.0 s (−13.1%) and limb-carrier alone 423.1 s (−18.8%); the two deltas
+together are −166.5 s, and the merged tree is −158.4 s. The 8 s gap is
+`honest_compute_resp`, where W2's block structure and G2/T35's cheaper
+general path attack the same phase and cannot both take full credit -- the
+branch profiles already said so (60.4 s and 55.7 s, now 53.4 s). The
+commitment phase is where T37 shows: lazy-rlin had it at 138.7 s (T34
+alone), the merged tree at 135.7 s, −2.2% of the phase for the card whose
+row read −6% of `commit_streamed`. That is the expected dilution: the row
+measures the prepared dot, and the phase also carries the streaming
+decomposition around it.
+
+Stage 6 exit criterion (a), then, reads: prover 1170.8 s at the stage's
+opening, 598.4 s when the board was first declared empty (−48.9%), **362.9 s
+now (−69.0% overall, −39.4% since the reopening)**, zero axioms, every
+landed card proved. `chain_verify` at 26.6 s has not been a target of any
+card and has moved only with the shared helpers.
