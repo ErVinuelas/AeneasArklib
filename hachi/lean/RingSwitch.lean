@@ -649,6 +649,143 @@ theorem exists_digitFun {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRow)
       = ringswitch.rho_digit_as_rq rho hex.choose := by rw [heq]
     _ = _ := (hok hex.choose hex.choose_spec.2).choose_spec
 
+/-- Any natural below `Usize.max` is some `Usize`'s value. Needed because
+`RingSigned`'s digit hypothesis is indexed by `Usize` and the row's sum by
+`ℕ`. -/
+theorem exists_usize {j : ℕ} (hj : j < Std.Usize.max) :
+    ∃ kk : Std.Usize, kk.val = j := by
+  have hb : j < 2 ^ Std.UScalarTy.Usize.numBits := by
+    have h1 : Std.UScalar.max Std.UScalarTy.Usize = Std.Usize.max :=
+      Std.UScalar.max_USize_eq
+    have h2 := Std.UScalar.max_def Std.UScalarTy.Usize
+    have hp : 0 < 2 ^ Std.UScalarTy.Usize.numBits := Nat.two_pow_pos _
+    omega
+  exact ⟨Std.UScalar.ofNatCore j hb, Std.UScalar.ofNatCore_val_eq hb⟩
+
+set_option maxHeartbeats 1000000 in
+/-- **The signed-lane row, in the specification's vocabulary.**
+[`lift_commit_row_spec`]'s conclusion, verbatim -- which is the point of card
+T40a: the lane changed and the value did not. -/
+theorem lift_commit_row_gold_arklib_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
+    (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
+    (i : Std.Usize) (hDk : WfMat dRows (μ + n * 8) dKey)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hi : i.val < dRows)
+    (hzc : ∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hdc : ∀ kk : Std.Usize, kk.val < n * 8 →
+      ringswitch.rho_digit_as_rq w.rho kk
+        ⦃ d => HachiEquiv.RingSigned.CenteredWf 15 d ⦄)
+    (hfit : 2 * (μ + n * 8) * HachiEquiv.RingSigned.SBOUND 15
+      < HachiEquiv.GoldArith.GP) :
+    ringswitch.lift_commit_row_gold dKey w i
+      ⦃ r => Wf r ∧ toRq r = (InnerOuter.hachiLiftCom Φ 15 16
+        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⟨i.val, hi⟩ ⦄ := by
+  obtain ⟨hWz, hWrho, hzeq, hrhoeq⟩ := hw
+  have hrholen : w.rho.val.length = n := hWrho.1
+  have hzlen : w.z.val.length = μ := hWz.1
+  have hilt : i.val < dKey.val.length := by rw [hDk.1]; exact hi
+  set KR : linalg.PolyVec := dKey.val.getD i.val (alloc.vec.Vec.new ring.Rq) with hKRdef
+  have hKRwf : WfVec (μ + n * 8) KR := by
+    rw [hKRdef, List.getD_eq_getElem _ _ hilt]
+    exact hDk.2 _ (List.getElem_mem hilt)
+  obtain ⟨D, hDeq⟩ := exists_digitFun (n := n) w.rho (n * 8) hWrho (le_refl _)
+  have hDraw : ∀ j, j < n * 8 → Wf (D j) ∧ toRq (D j) = digitRq w.rho j := by
+    intro j hj
+    obtain ⟨kk, hkk⟩ := exists_usize (j := j) (by scalar_tac)
+    have h1 := rho_digit_as_rq_raw_spec (n := n) w.rho kk hWrho (by rw [hkk]; exact hj)
+    rw [hDeq kk (by rw [hkk]; exact hj)] at h1
+    rw [WP.spec_ok] at h1
+    rw [← hkk]
+    exact h1
+  have hDc : ∀ j, j < n * 8 → HachiEquiv.RingSigned.CenteredWf 15 (D j) := by
+    intro j hj
+    obtain ⟨kk, hkk⟩ := exists_usize (j := j) (by scalar_tac)
+    have h1 := hdc kk (by rw [hkk]; exact hj)
+    rw [hDeq kk (by rw [hkk]; exact hj), WP.spec_ok] at h1
+    rw [← hkk]; exact h1
+  apply spec_mono (HachiEquiv.RingSigned.lift_commit_row_gold_spec dKey w i μ (n * 8) D
+    hilt hzlen (by rw [hrholen]) hmax
+    (by rw [← hKRdef]; exact le_of_eq hKRwf.1.symm)
+    (by intro u hu; rw [← hKRdef]; exact wf_getD hKRwf hu)
+    (by intro u hu; exact wf_getD hWz hu)
+    hzc
+    (fun j hj => (hDraw j hj).1) hDc
+    (by intro kk hkk; rw [hDeq kk hkk, WP.spec_ok])
+    hfit)
+  rintro r ⟨hWr, hrv⟩
+  refine ⟨hWr, ?_⟩
+  -- the coefficientwise sums become one `toRq` product sum, then split again
+  have hKAwf : ∀ u, u < μ + n * 8 →
+      Wf (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+    fun u hu => wf_getD hKRwf hu
+  have hWBwf : ∀ u, u < μ + n * 8 → Wf (if u < μ then
+      w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp) else D (u - μ)) := by
+    intro u hu
+    by_cases h : u < μ
+    · rw [if_pos h]; exact wf_getD hWz h
+    · rw [if_neg h]; exact (hDraw (u - μ) (by omega)).1
+  have hone := toRq_of_coeffK_sumF (μ + n * 8)
+    (fun u => KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+    (fun u => if u < μ then w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)
+      else D (u - μ)) r hKAwf hWBwf
+    (by
+      intro k hk
+      rw [hrv k hk, ← hKRdef, Finset.sum_range_add]
+      congr 1
+      · exact Finset.sum_congr rfl (fun u hu => by
+          rw [if_pos (Finset.mem_range.mp hu)])
+      · exact Finset.sum_congr rfl (fun j _ => by
+          rw [if_neg (by omega : ¬ μ + j < μ), Nat.add_sub_cancel_left]))
+  rw [Finset.sum_range_add] at hone
+  have hz2 : ∑ u ∈ Finset.range μ,
+        toRq (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (if u < μ then w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)
+              else D (u - μ))
+      = ∑ u ∈ Finset.range μ,
+        toRq (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+    Finset.sum_congr rfl (fun u hu => by rw [if_pos (Finset.mem_range.mp hu)])
+  have hd2 : ∑ j ∈ Finset.range (n * 8),
+        toRq (KR.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (if μ + j < μ then w.z.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp)
+              else D (μ + j - μ))
+      = ∑ j ∈ Finset.range (n * 8),
+        toRq (KR.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp))
+          * digitRq w.rho j :=
+    Finset.sum_congr rfl (fun j hj => by
+      rw [if_neg (by omega : ¬ μ + j < μ), Nat.add_sub_cancel_left,
+        (hDraw j (Finset.mem_range.mp hj)).2])
+  rw [hz2, hd2] at hone
+  -- and the ArkLib split, exactly as on the generic path
+  have hfz : ∀ j : Fin μ,
+      toRq (KR.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+        * toRq (w.z.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+      = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+          (Fin.castAdd (n * InnerOuter.rhoDigitCount q 16) j) * sw.z j := by
+    intro j
+    rw [← hzeq, hKRdef]
+    rfl
+  have hfd : ∀ j : Fin (n * InnerOuter.rhoDigitCount q 16),
+      toRq (KR.val.getD (μ + j.val) (alloc.vec.Vec.new cpoly.field.Fp))
+        * digitRq w.rho j.val
+      = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+          (Fin.natAdd μ j) * InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j := by
+    intro j
+    have h2 : InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j = digitRq w.rho j.val := by
+      rw [← hrhoeq]
+      exact rhoDigitAsRq_eq_digitRq (n := n) w.rho j.val j.isLt
+    rw [h2, hKRdef]
+    rfl
+  have hsplit := hachiLiftCom_com_split (dRows := dRows) (μ := μ) (n := n)
+    (toMat (rows := dRows) (cols := μ + n * 8) dKey) sw ⟨i.val, hi⟩
+    (fun t => toRq (KR.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+      * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
+    (fun t => toRq (KR.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+      * digitRq w.rho t) hfz hfd
+  rw [rhoDigitCount_eq] at hsplit
+  rw [hone, hsplit]
+
 /-- The loop of `lift_commit`: entry `t` already written is row `t` of the
 concrete Ajtai lift commitment, and the length is the counter. -/
 theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
