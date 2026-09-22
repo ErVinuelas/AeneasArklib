@@ -2005,6 +2005,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- is reused, `NttProduct.prod_difRun` included. The loop carries the
 -- five-tuple `(acc, b1, b2, b3, j)`.
 #print axioms HachiEquiv.RingSigned.lift_gold_loop0_spec
+#print axioms HachiEquiv.RingSigned.lift_gold_loop1_spec
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf

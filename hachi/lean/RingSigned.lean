@@ -359,11 +359,24 @@ coefficients denote. [`RingFused.entryK`]'s signed counterpart. -/
 def sEntryK (b : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod GP :=
   fun v => ((sInt (wordN (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) v) : ℤ) : ZMod GP)
 
+/-- One ring element's coefficients as the integers they denote. -/
+def sCoeff (b : ring.Rq) : ℕ → ZMod GP :=
+  fun v => ((sInt (wordN b v) : ℤ) : ZMod GP)
+
+theorem sEntryK_eq (b : alloc.vec.Vec ring.Rq) (u : ℕ) :
+    sEntryK b u = sCoeff (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := rfl
+
+/-- One term's transform-domain contribution, from the two coefficient
+functions directly. The `ρ`-digit segment needs this form: its right operand
+is built per term by `rho_digit_as_rq` and there is no vector of digits to
+index -- removing that vector was wall W3. -/
+def termFwdF (ps : ZMod GP) (A B : ℕ → ZMod GP) : ℕ → ZMod GP :=
+  NttMath.difRun (ps ^ 2) 10 1
+    (NttMath.cyclicConv N (NttMath.twistR ps A) (NttMath.twistR ps B))
+
 /-- One term's transform-domain contribution, right operand signed. -/
 def termFwdS (ps : ZMod GP) (a b : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod GP :=
-  NttMath.difRun (ps ^ 2) 10 1
-    (NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
-      (NttMath.twistR ps (sEntryK b u)))
+  termFwdF ps (entryK GP a u) (sEntryK b u)
 
 set_option maxHeartbeats 2000000 in
 set_option maxRecDepth 8000 in
@@ -455,11 +468,117 @@ theorem lift_gold_loop0_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVe
           simp only [sEntryK, hr1, List.getD_eq_getElem _ _ hjz])
         (fun t' _ => rfl) t ht
       rw [hprod]
-      simp only [termFwdS]
+      simp only [termFwdS, termFwdF, sEntryK]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : j1.val = z_lenU.val := by scalar_tac
       exact ⟨hA, by intro t ht; rw [hv1 t ht, heq]⟩
   · exact ⟨hj, haccC, hb1C, hb2C, hb3C, hval⟩
+
+set_option maxHeartbeats 2000000 in
+set_option maxRecDepth 8000 in
+/-- **The `ρ`-digit segment's term loop.** The same body as
+[`lift_gold_loop0_spec`] with the right operand built per term by
+`rho_digit_as_rq` and the key index shifted by `z_len`.
+
+The digit is abstracted as `DF` with `hD` supplying its spec, because there
+is no vector of digits to index -- building one was wall W3 and removing it
+was candidate E. That also keeps this file free of the ArkLib digit
+machinery: the caller in `RingSwitch` discharges `hD` from
+`rho_digit_as_rq_raw_spec`.
+
+`init` is arbitrary, so this is a statement about accumulating in place on
+top of whatever the `z` segment left. -/
+theorem lift_gold_loop1_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVec)
+    (nU z_lenU rho_lenU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+    (acc b1 b2 b3 : alloc.vec.Vec Std.U64) (kU : Std.Usize) (ps : ZMod GP)
+    (DF : ℕ → ℕ → ZMod GP) (init : ℕ → ZMod GP)
+    (hn : nU.val = N) (hord : ps ^ N = -1)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hmax : z_lenU.val + rho_lenU.val ≤ Std.Usize.max)
+    (hrown : z_lenU.val + rho_lenU.val ≤ row.val.length)
+    (hrowwf : ∀ u, u < z_lenU.val + rho_lenU.val →
+      Wf (row.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hD : ∀ kk : Std.Usize, kk.val < rho_lenU.val →
+      ringswitch.rho_digit_as_rq w.rho kk ⦃ d => Wf d ∧ sCoeff d = DF kk.val ⦄)
+    (hk : kU.val ≤ rho_lenU.val)
+    (haccC : Canon GP acc) (hb1C : Canon GP b1) (hb2C : Canon GP b2) (hb3C : Canon GP b3)
+    (hval : ∀ t, t < N → resK GP acc t
+      = init t + ∑ k ∈ Finset.range kU.val,
+          termFwdF ps (entryK GP row (z_lenU.val + k)) (DF k) t) :
+    ringswitch.lift_commit_row_gold_loop1 w row nU z_lenU rho_lenU pt acc b1 b2 b3 kU
+      ⦃ r => Canon GP r.1 ∧ Canon GP r.2 ∧ ∀ t, t < N → resK GP r.1 t
+          = init t + ∑ k ∈ Finset.range rho_lenU.val,
+              termFwdF ps (entryK GP row (z_lenU.val + k)) (DF k) t ⦄ := by
+  rw [ringswitch.lift_commit_row_gold_loop1]
+  apply loop.spec_decr_nat (fun r => rho_lenU.val - r.2.2.2.2.val)
+    (fun r => r.2.2.2.2.val ≤ rho_lenU.val ∧ Canon GP r.1 ∧ Canon GP r.2.1
+      ∧ Canon GP r.2.2.1 ∧ Canon GP r.2.2.2.1
+      ∧ ∀ t, t < N → resK GP r.1 t
+          = init t + ∑ k ∈ Finset.range r.2.2.2.2.val,
+              termFwdF ps (entryK GP row (z_lenU.val + k)) (DF k) t)
+  · rintro ⟨a1, c1, c2, c3, k1⟩ ⟨hk1, hA, hC1, hC2, hC3, hv1⟩
+    dsimp only at hk1 hA hC1 hC2 hC3 hv1
+    simp only [ringswitch.lift_commit_row_gold_loop1.body]
+    by_cases hlt : k1 < rho_lenU
+    · rw [if_pos hlt]
+      have hklt : k1.val < rho_lenU.val := by scalar_tac
+      simp only [ringswitch.LiftedWitness.impl.rho, bind_tc_ok]
+      step with hD k1 hklt as ⟨digit, hWd, hdv⟩
+      step as ⟨idx, hidx⟩
+      have hidxv : idx.val = z_lenU.val + k1.val := by scalar_tac
+      have hjrow : idx.val < row.val.length := by omega
+      simp only [linalg.PolyVec.get]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by
+        rw [hr, ← List.getD_eq_getElem _ _ hjrow]; exact hrowwf _ (by omega)
+      step with load_twisted_into_spec c1 r pt ps hWr hC1.1 hptC hptv as ⟨kb, hkbC, hkbv⟩
+      step with gold_forward_spec kb c2 pt hkbC hC2 hptC ps hptv
+        as ⟨fk, hfk1, hfk2, hfkv⟩
+      obtain ⟨kf, ksp⟩ := fk
+      dsimp only at hfk1 hfk2 hfkv
+      step with load_twisted_signed_into_sInt c3 digit pt ps hWd hC3.1 hptC hptv
+        as ⟨wb, hwbC, hwbv⟩
+      step with gold_forward_spec wb ksp pt hwbC hfk2 hptC ps hptv
+        as ⟨wf, wsp, hfw1, hfw2, hfwv⟩
+      step with gold_mac_off_spec a1 kf wf 0#usize nU 0#usize (resK GP a1)
+        (resK GP kf) hn (by simp) (by simp [hfk1.1]) hA hfw1 hfk1.2
+        (by intro t _; simp [resK]) (by intro t _; simp)
+        as ⟨a2, hA2, hA2v⟩
+      step as ⟨k2, hk2⟩
+      refine ⟨by scalar_tac, hA2, hfk1, hfw1, hfw2, ?_, by scalar_tac⟩
+      intro t ht
+      rw [hA2v t ht, hv1 t ht, hk2, Finset.sum_range_succ, add_assoc]
+      congr 1
+      have hprod := HachiEquiv.NttProduct.prod_difRun ps hord
+        (entryK GP row idx.val) (sCoeff digit)
+        (resK GP kf) (resK GP wf)
+        (fun t' => resK GP kf t' * resK GP wf t')
+        (by
+          intro t' ht'
+          rw [hfkv t' ht']
+          refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP kb)
+            (NttMath.twistR ps (entryK GP row idx.val)) ?_ t' ht'
+          intro e he
+          rw [hkbv e he]
+          congr 1
+          funext u
+          simp only [entryK, hr, List.getD_eq_getElem _ _ hjrow])
+        (by
+          intro t' ht'
+          rw [hfwv t' ht']
+          refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP wb)
+            (NttMath.twistR ps (sCoeff digit)) ?_ t' ht'
+          intro e he
+          rw [hwbv e he]
+          rfl)
+        (fun t' _ => rfl) t ht
+      rw [hprod, ← hidxv, ← hdv]
+      simp only [termFwdF]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = rho_lenU.val := by scalar_tac
+      exact ⟨hA, hC2, by intro t ht; rw [hv1 t ht, heq]⟩
+  · exact ⟨hk, haccC, hb1C, hb2C, hb3C, hval⟩
 
 end HachiEquiv.RingSigned
