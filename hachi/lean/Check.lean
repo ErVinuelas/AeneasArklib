@@ -2000,6 +2000,11 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingSigned.load_twisted_signed_into_loop_spec
 #print axioms HachiEquiv.RingSigned.load_twisted_signed_into_spec
 #print axioms HachiEquiv.RingSigned.load_twisted_signed_into_sInt
+-- Layer 4, the dot. `termFwdS` is `RingFused.termFwd` with the right operand
+-- read through `sInt`; the transform argument itself is the digit path's and
+-- is reused, `NttProduct.prod_difRun` included. The loop carries the
+-- five-tuple `(acc, b1, b2, b3, j)`.
+#print axioms HachiEquiv.RingSigned.lift_gold_loop0_spec
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf

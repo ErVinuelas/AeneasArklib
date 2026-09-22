@@ -28,6 +28,7 @@ namespace HachiEquiv.RingSigned
 
 open HachiEquiv.GoldArith
 open HachiEquiv.NttStage HachiEquiv.RingFused HachiEquiv.GoldTransform
+open HachiEquiv.GoldDot
 open HachiEquiv.NttProduct (q)
 open HachiEquiv.Ring (wordN Wf wordN_lt)
 
@@ -270,7 +271,8 @@ theorem load_twisted_signed_into_loop_spec (a : ring.Rq)
       step as ⟨y, hy⟩
       have hyv : y.val = wordAt pt tt.val := by
         rw [hy, ← wordAt_of_lt (v := pt) (t := tt.val) hpb]
-      have hylt : y.val < GP := by rw [hyv]; exact wordAt_lt hptC GP_pos _
+      have hylt : y.val < GP := by
+        rw [hyv]; exact wordAt_lt hptC HachiEquiv.GoldTransform.GP_pos _
       step with gold_mul_spec g y as ⟨pr, hprv, hprlt⟩
       step as ⟨elem, back, helem, hback⟩
       step as ⟨tt1, htt1⟩
@@ -342,5 +344,122 @@ theorem load_twisted_signed_into_sInt (w : alloc.vec.Vec Std.U64) (a : ring.Rq)
   congr 1
   funext u
   exact sgnWord_cast (wordN_lt hwf u)
+
+/-! ## The dot
+
+The lane transforms the key entry and the witness entry, multiplies them
+pointwise into the accumulator, and takes one inverse for the whole row.
+`termFwdS` is [`RingFused.termFwd`] with the right operand read through
+[`sInt`] instead of as an unsigned word; everything else about the transform
+argument is the digit path's and is reused, `NttProduct.prod_difRun`
+included. -/
+
+/-- The `u`-th entry of a vector, coefficientwise as the *integers* its
+coefficients denote. [`RingFused.entryK`]'s signed counterpart. -/
+def sEntryK (b : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod GP :=
+  fun v => ((sInt (wordN (b.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) v) : ℤ) : ZMod GP)
+
+/-- One term's transform-domain contribution, right operand signed. -/
+def termFwdS (ps : ZMod GP) (a b : alloc.vec.Vec ring.Rq) (u : ℕ) : ℕ → ZMod GP :=
+  NttMath.difRun (ps ^ 2) 10 1
+    (NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+      (NttMath.twistR ps (sEntryK b u)))
+
+set_option maxHeartbeats 2000000 in
+set_option maxRecDepth 8000 in
+/-- **The `z` segment's term loop.** Five-tuple state `(acc, b1, b2, b3, j)`:
+the accumulator and the three recycled buffers. The buffers carry `Canon`
+rather than a length, because `gold_forward` needs it of both arguments and
+hands it back of both results, so the same predicate opens and closes the
+body. -/
+theorem lift_gold_loop0_spec (w : ringswitch.LiftedWitness) (row : linalg.PolyVec)
+    (nU z_lenU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+    (acc b1 b2 b3 : alloc.vec.Vec Std.U64) (jU : Std.Usize) (ps : ZMod GP)
+    (hn : nU.val = N) (hord : ps ^ N = -1)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hrown : z_lenU.val ≤ row.val.length)
+    (hrowwf : ∀ u, u < z_lenU.val → Wf (row.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hzn : z_lenU.val ≤ w.z.val.length)
+    (hzwf : ∀ u, u < z_lenU.val → Wf (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hj : jU.val ≤ z_lenU.val)
+    (haccC : Canon GP acc) (hb1C : Canon GP b1) (hb2C : Canon GP b2) (hb3C : Canon GP b3)
+    (hval : ∀ t, t < N → resK GP acc t
+      = ∑ u ∈ Finset.range jU.val, termFwdS ps row w.z u t) :
+    ringswitch.lift_commit_row_gold_loop0 w row nU z_lenU pt acc b1 b2 b3 jU
+      ⦃ r => Canon GP r.1 ∧ ∀ t, t < N → resK GP r.1 t
+          = ∑ u ∈ Finset.range z_lenU.val, termFwdS ps row w.z u t ⦄ := by
+  rw [ringswitch.lift_commit_row_gold_loop0]
+  apply loop.spec_decr_nat (fun r => z_lenU.val - r.2.2.2.2.val)
+    (fun r => r.2.2.2.2.val ≤ z_lenU.val ∧ Canon GP r.1 ∧ Canon GP r.2.1
+      ∧ Canon GP r.2.2.1 ∧ Canon GP r.2.2.2.1
+      ∧ ∀ t, t < N → resK GP r.1 t
+          = ∑ u ∈ Finset.range r.2.2.2.2.val, termFwdS ps row w.z u t)
+  · rintro ⟨a1, c1, c2, c3, j1⟩ ⟨hj1, hA, hC1, hC2, hC3, hv1⟩
+    dsimp only at hj1 hA hC1 hC2 hC3 hv1
+    simp only [ringswitch.lift_commit_row_gold_loop0.body]
+    by_cases hlt : j1 < z_lenU
+    · rw [if_pos hlt]
+      have hjlt : j1.val < z_lenU.val := by scalar_tac
+      have hjrow : j1.val < row.val.length := by omega
+      have hjz : j1.val < w.z.val.length := by omega
+      simp only [linalg.PolyVec.get, ringswitch.LiftedWitness.impl.z, bind_tc_ok]
+      step as ⟨r, hr⟩
+      have hWr : Wf r := by
+        rw [hr, ← List.getD_eq_getElem _ _ hjrow]; exact hrowwf _ hjlt
+      step with load_twisted_into_spec c1 r pt ps hWr hC1.1 hptC hptv as ⟨kb, hkbC, hkbv⟩
+      step with gold_forward_spec kb c2 pt hkbC hC2 hptC ps hptv
+        as ⟨fk, hfk1, hfk2, hfkv⟩
+      obtain ⟨kf, ksp⟩ := fk
+      dsimp only at hfk1 hfk2 hfkv
+      step as ⟨r1, hr1⟩
+      have hWr1 : Wf r1 := by
+        rw [hr1, ← List.getD_eq_getElem _ _ hjz]; exact hzwf _ hjlt
+      step with load_twisted_signed_into_sInt c3 r1 pt ps hWr1 hC3.1 hptC hptv
+        as ⟨wb, hwbC, hwbv⟩
+      step with gold_forward_spec wb ksp pt hwbC hfk2 hptC ps hptv
+        as ⟨wf, wsp, hfw1, hfw2, hfwv⟩
+      -- the MAC, with the key's transform as the abstract left factor
+      step with gold_mac_off_spec a1 kf wf 0#usize nU 0#usize (resK GP a1)
+        (resK GP kf) hn (by simp) (by simp [hfk1.1]) hA hfw1 hfk1.2
+        (by intro t _; simp [resK]) (by intro t _; simp)
+        as ⟨a2, hA2, hA2v⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, hA2, hfk1, hfw1, hfw2, ?_, by scalar_tac⟩
+      intro t ht
+      rw [hA2v t ht, hv1 t ht, hj2, Finset.sum_range_succ]
+      congr 1
+      -- the product of the two transforms IS the term's contribution
+      have hprod := HachiEquiv.NttProduct.prod_difRun ps hord
+        (entryK GP row j1.val) (sEntryK w.z j1.val)
+        (resK GP kf) (resK GP wf)
+        (fun t' => resK GP kf t' * resK GP wf t')
+        (by
+          intro t' ht'
+          rw [hfkv t' ht']
+          refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP kb)
+            (NttMath.twistR ps (entryK GP row j1.val)) ?_ t' ht'
+          intro e he
+          rw [hkbv e he]
+          congr 1
+          funext u
+          simp only [entryK, hr, List.getD_eq_getElem _ _ hjrow])
+        (by
+          intro t' ht'
+          rw [hfwv t' ht']
+          refine difRun_congr (ps ^ 2) 10 (by norm_num) 1 (resK GP wb)
+            (NttMath.twistR ps (sEntryK w.z j1.val)) ?_ t' ht'
+          intro e he
+          rw [hwbv e he]
+          congr 1
+          funext u
+          simp only [sEntryK, hr1, List.getD_eq_getElem _ _ hjz])
+        (fun t' _ => rfl) t ht
+      rw [hprod]
+      simp only [termFwdS]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = z_lenU.val := by scalar_tac
+      exact ⟨hA, by intro t ht; rw [hv1 t ht, heq]⟩
+  · exact ⟨hj, haccC, hb1C, hb2C, hb3C, hval⟩
 
 end HachiEquiv.RingSigned
