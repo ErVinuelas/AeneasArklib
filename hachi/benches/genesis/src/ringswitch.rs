@@ -805,9 +805,9 @@ impl RlinStatement {
 }
 
 
+// @genesis 2db0eae 2026-09-22 — ringswitch::lift_witness_short
 // Card T40 (2026-09-22): the lift commitment on the signed bounded
 // Goldilocks lane, and the guard that selects it.
-// @genesis PENDING 2026-09-22 — ringswitch::lift_witness_short
 /// Is every coefficient of `z ‖ digits(ρ)` centred below `CHAIN_GAMMA`?
 ///
 /// The guard on card T40's fast path, and **not** a new precondition on
@@ -851,7 +851,7 @@ pub fn lift_witness_short(w: &LiftedWitness) -> bool {
     short
 }
 
-// @genesis PENDING 2026-09-22 — ringswitch::lift_commit_row_gold
+// @genesis 2db0eae 2026-09-22 — ringswitch::lift_commit_row_gold
 /// One row of the lift commitment on the **signed bounded Goldilocks lane**
 /// (card T40).
 ///

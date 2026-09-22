@@ -1533,9 +1533,9 @@ pub fn gold_dot_one_fused(
 
 
 
+// @genesis 2db0eae 2026-09-22 — ring::load_twisted_signed_into
 // Card T40 (2026-09-22): the lift commitment on the signed bounded
 // Goldilocks lane, and the guard that selects it.
-// @genesis PENDING 2026-09-22 — ring::load_twisted_signed_into
 /// [`load_twisted_into`] for a **centred** operand (card T40).
 ///
 /// The lift commitment's right operand is `z ‖ digits(ρ)`, whose coefficients

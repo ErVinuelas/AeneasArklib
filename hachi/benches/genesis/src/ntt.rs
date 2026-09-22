@@ -1020,9 +1020,9 @@ pub fn gold_dif_stage2_mac(
 }
 
 
+// @genesis 2db0eae 2026-09-22 — ntt::GOLD_SOFF
 // Card T40 (2026-09-22): the lift commitment on the signed bounded
 // Goldilocks lane, and the guard that selects it.
-// @genesis PENDING 2026-09-22 — ntt::GOLD_SOFF
 /// `N · q · CHAIN_GAMMA`, the per-term offset of the **signed short** path
 /// (card T40), which is below [`GOLD_P`] so it needs no reduction.
 ///
