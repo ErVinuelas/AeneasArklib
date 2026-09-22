@@ -939,8 +939,8 @@ fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
 
 
 
+// @genesis 107f555 2026-09-22 — ringswitch::LIFT_GOLD_MAX
 // Card T40a (2026-09-22): the width guard the proof forced.
-// @genesis PENDING 2026-09-22 — ringswitch::LIFT_GOLD_MAX
 /// The widest row the signed Goldilocks lane is exact for.
 ///
 /// The lane accumulates the whole row in one chunk, so it is correct only
