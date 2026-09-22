@@ -1,0 +1,403 @@
+[
+  {
+    "function": "linalg::PolyVec::copy",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyVec::scalar_mul",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyMatrix::mat_vec_mul",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyMatrix::prepare",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyMatrix::prepare_digits",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyMatrix::prepare_ga",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PreparedMatrixGA::apply_ga",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PolyMatrix::prepare_digits_gold",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PreparedMatrixG::apply_digits_gold",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PreparedMatrix::apply",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "linalg::PreparedMatrix::apply_digits",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "gadget::digit_decompose",
+    "capacities": [
+      "digits"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "gadget::gadget_matrix",
+    "capacities": [
+      "rows",
+      "cols"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "gadget::gadget_mul",
+    "capacities": [
+      "rows"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "gadget::balanced_digit_decompose",
+    "capacities": [
+      "digits"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "gadget::balanced_gadget_decompose",
+    "capacities": [
+      "rows",
+      "degree"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "gadget::bounded_z_gadget_decompose",
+    "capacities": [
+      "rows",
+      "degree"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "gadget::gadget_mul_z",
+    "capacities": [
+      "rows"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "commit::Opening::honest",
+    "capacities": [
+      "blocks"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "commit::derived_message",
+    "capacities": [
+      "blocks"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "commit::generate_decomps",
+    "capacities": [
+      "blocks",
+      "blocks"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "commit::commit_streamed",
+    "capacities": [
+      "blocks"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "commit::commit_streamed_32",
+    "capacities": [
+      "blocks"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "commit::generate_decomps_balanced",
+    "capacities": [
+      "blocks",
+      "blocks"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "evalsplit::MlPoly::to_matrix",
+    "capacities": [
+      "rows",
+      "cols"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "evalsplit::to_polynomial",
+    "capacities": [
+      "len"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "evalsplit::MlEvals::to_matrix_eval",
+    "capacities": [
+      "rows",
+      "cols"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "ringswitch::rho_digits",
+    "capacities": [
+      "degree"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "ringswitch::c_row_sum_high",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "ringswitch::div_by_modulus",
+    "capacities": [
+      "p.len()",
+      "n"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "ringswitch::honest_lift_witness",
+    "capacities": [
+      "rows"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::carrier",
+    "capacities": [
+      "blocks"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::carrier_from_raw",
+    "capacities": [
+      "1",
+      "blocks"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "quadeval::carrier_from_raw_32",
+    "capacities": [
+      "1",
+      "blocks"
+    ],
+    "sites": 2
+  },
+  {
+    "function": "quadeval::honest_compute_resp_from_raw_32",
+    "capacities": [
+      "inner_decomp.len()"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::honest_compute_resp",
+    "capacities": [
+      "inner_decomp.len()"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::honest_compute_resp_from_raw",
+    "capacities": [
+      "inner_decomp.len()"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::unflatten",
+    "capacities": [
+      null,
+      "width"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::tensor_g_matrix",
+    "capacities": [
+      "k",
+      null
+    ],
+    "sites": 1
+  },
+  {
+    "function": "quadeval::unstack",
+    "capacities": [
+      "cw",
+      "ct",
+      null
+    ],
+    "sites": 2
+  },
+  {
+    "function": "quadeval::rlin_stmt",
+    "capacities": [
+      "d_rows",
+      "cw",
+      "b_rows",
+      "ct",
+      "cz",
+      "inner_rows",
+      "cz",
+      null
+    ],
+    "sites": 7
+  },
+  {
+    "function": "zerocheck::h_alpha",
+    "capacities": [
+      "size"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::interpolate",
+    "capacities": [
+      "n",
+      "n",
+      "n"
+    ],
+    "sites": 3
+  },
+  {
+    "function": "sumcheck::round_node_weights",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_zero",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::eq_free_factor",
+    "capacities": [
+      "2"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_alpha",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_node_weights_alpha",
+    "capacities": [
+      "n"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_zero_base",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_alpha_base",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_alpha_split",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::round_values_alpha_base_split",
+    "capacities": [
+      "nodes"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "sumcheck::honest_round_messages",
+    "capacities": [
+      "m0"
+    ],
+    "sites": 1
+  },
+  {
+    "function": "chain::copy_point",
+    "capacities": [
+      "p.len()"
+    ],
+    "sites": 1
+  }
+]

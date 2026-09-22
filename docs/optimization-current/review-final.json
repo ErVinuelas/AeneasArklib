@@ -1,0 +1,18 @@
+{
+  "reviewer": "capacity_review",
+  "result": "no material consistency blocker",
+  "checked": [
+    "all 13 baseline and candidate source-module fingerprints",
+    "candidate-slot identity",
+    "final Generated and allocation-checkpoint hashes",
+    "instrumentation source hash",
+    "all 26 retained raw-log hashes",
+    "claims and proof boundaries against code/evidence",
+    "no remaining proof adaptations inside historical Lean comments"
+  ],
+  "corrections_applied": [
+    "explicit ulimit command for recorded scale ceiling",
+    "make bench-toolchain instead of baseline Lean setup for benchmark staging"
+  ],
+  "note": "Review occurred while scale sweep was still running; final results are recorded separately."
+}

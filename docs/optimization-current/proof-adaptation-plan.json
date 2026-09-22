@@ -1,0 +1,326 @@
+{
+  "changed_generated_definitions": [
+    "chain.copy_point",
+    "commit.Opening.honest",
+    "commit.commit_streamed",
+    "commit.commit_streamed_32",
+    "commit.derived_message",
+    "commit.generate_decomps",
+    "commit.generate_decomps_balanced",
+    "evalsplit.MlEvals.to_matrix_eval",
+    "evalsplit.MlEvals.to_matrix_eval_loop0.body",
+    "evalsplit.MlPoly.to_matrix",
+    "evalsplit.MlPoly.to_matrix_loop0.body",
+    "evalsplit.to_polynomial",
+    "gadget.balanced_digit_decompose",
+    "gadget.balanced_gadget_decompose",
+    "gadget.balanced_gadget_decompose_loop0_loop0.body",
+    "gadget.bounded_z_gadget_decompose",
+    "gadget.bounded_z_gadget_decompose_loop0_loop0.body",
+    "gadget.digit_decompose",
+    "gadget.gadget_matrix",
+    "gadget.gadget_matrix_loop0.body",
+    "gadget.gadget_mul",
+    "gadget.gadget_mul_z",
+    "linalg.PolyMatrix.mat_vec_mul",
+    "linalg.PolyMatrix.prepare",
+    "linalg.PolyMatrix.prepare_digits",
+    "linalg.PolyMatrix.prepare_digits_gold",
+    "linalg.PolyMatrix.prepare_ga",
+    "linalg.PolyVec.copy",
+    "linalg.PolyVec.scalar_mul",
+    "linalg.PreparedMatrix.apply",
+    "linalg.PreparedMatrix.apply_digits",
+    "linalg.PreparedMatrixG.apply_digits_gold",
+    "linalg.PreparedMatrixGA.apply_ga",
+    "quadeval.carrier",
+    "quadeval.carrier_from_raw",
+    "quadeval.carrier_from_raw_32",
+    "quadeval.honest_compute_resp",
+    "quadeval.honest_compute_resp_from_raw",
+    "quadeval.honest_compute_resp_from_raw_32",
+    "quadeval.rlin_stmt",
+    "quadeval.rlin_stmt_loop0.body",
+    "quadeval.rlin_stmt_loop1.body",
+    "quadeval.rlin_stmt_loop3.body",
+    "quadeval.tensor_g_matrix",
+    "quadeval.unflatten_loop0.body",
+    "quadeval.unstack",
+    "ringswitch.c_row_sum_high",
+    "ringswitch.div_by_modulus",
+    "ringswitch.honest_lift_witness",
+    "ringswitch.rho_digits",
+    "sumcheck.eq_free_factor",
+    "sumcheck.honest_round_messages",
+    "sumcheck.interpolate",
+    "sumcheck.interpolate_loop1.body",
+    "sumcheck.interpolate_loop1_loop0.body",
+    "sumcheck.round_node_weights",
+    "sumcheck.round_node_weights_alpha",
+    "sumcheck.round_values_alpha",
+    "sumcheck.round_values_alpha_base",
+    "sumcheck.round_values_alpha_base_split",
+    "sumcheck.round_values_alpha_split",
+    "sumcheck.round_values_zero",
+    "sumcheck.round_values_zero_base",
+    "zerocheck.h_alpha"
+  ],
+  "simplifications": [
+    {
+      "file": "Raw32.lean",
+      "after": "rw [commit.commit_streamed_32, commit.commit_streamed, hex.len_eq]"
+    },
+    {
+      "file": "Raw32.lean",
+      "after": "rw [quadeval.carrier_from_raw_32, quadeval.carrier_from_raw, hex.len_eq]"
+    },
+    {
+      "file": "LiftProver.lean",
+      "after": "rw [ringswitch.c_row_sum_high]"
+    },
+    {
+      "file": "LiftProver.lean",
+      "after": "rw [ringswitch.div_by_modulus]"
+    },
+    {
+      "file": "LiftProver.lean",
+      "after": "rw [linalg.PolyVec.copy]"
+    },
+    {
+      "file": "LiftProver.lean",
+      "after": "rw [ringswitch.honest_lift_witness]"
+    },
+    {
+      "file": "QuadEval.lean",
+      "after": "simp only [gadget.bounded_z_gadget_decompose_loop0_loop0.body]"
+    },
+    {
+      "file": "QuadEval.lean",
+      "after": "rw [gadget.bounded_z_gadget_decompose]"
+    },
+    {
+      "file": "QuadEval.lean",
+      "after": "rw [gadget.gadget_mul_z]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PolyVec.scalar_mul]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PolyMatrix.mat_vec_mul]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PolyMatrix.prepare]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PreparedMatrix.apply]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PolyMatrix.prepare_digits]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PreparedMatrix.apply_digits]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PolyMatrix.prepare_digits_gold]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [linalg.PreparedMatrixG.apply_digits_gold]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "simp only [gadget.digit_decompose]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "simp only [gadget.gadget_matrix_loop0.body]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [gadget.gadget_matrix]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [gadget.gadget_mul]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [commit.generate_decomps]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [commit.derived_message]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [commit.commit_streamed]"
+    },
+    {
+      "file": "Scheme.lean",
+      "after": "rw [commit.Opening.honest]"
+    },
+    {
+      "file": "Chain.lean",
+      "after": "rw [chain.copy_point]"
+    },
+    {
+      "file": "ZeroCheck.lean",
+      "after": "rw [zerocheck.h_alpha]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [linalg.PolyVec.copy]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [quadeval.carrier]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [quadeval.carrier_from_raw]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [quadeval.honest_compute_resp]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [quadeval.honest_compute_resp_from_raw]"
+    },
+    {
+      "file": "QuadEvalProtocol.lean",
+      "after": "rw [quadeval.honest_compute_resp_from_raw_32]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "simp only [quadeval.unflatten_loop0.body]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "rw [quadeval.tensor_g_matrix]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "rw [quadeval.unstack]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "simp only [quadeval.rlin_stmt_loop0.body]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "simp only [quadeval.rlin_stmt_loop1.body]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "simp only [quadeval.rlin_stmt_loop3.body]"
+    },
+    {
+      "file": "Rlin.lean",
+      "after": "rw [quadeval.rlin_stmt]"
+    },
+    {
+      "file": "EvalSplit.lean",
+      "after": "simp only [evalsplit.MlPoly.to_matrix_loop0.body]"
+    },
+    {
+      "file": "EvalSplit.lean",
+      "after": "rw [evalsplit.MlPoly.to_matrix]"
+    },
+    {
+      "file": "EvalSplit.lean",
+      "after": "rw [evalsplit.to_polynomial]"
+    },
+    {
+      "file": "EvalSplit.lean",
+      "after": "simp only [evalsplit.MlEvals.to_matrix_eval_loop0.body]"
+    },
+    {
+      "file": "EvalSplit.lean",
+      "after": "rw [evalsplit.MlEvals.to_matrix_eval]"
+    },
+    {
+      "file": "SchemeTwoLane.lean",
+      "after": "rw [linalg.PolyMatrix.prepare_ga]"
+    },
+    {
+      "file": "SchemeTwoLane.lean",
+      "after": "rw [linalg.PreparedMatrixGA.apply_ga]"
+    },
+    {
+      "file": "Balanced.lean",
+      "after": "simp only [gadget.balanced_digit_decompose]"
+    },
+    {
+      "file": "Balanced.lean",
+      "after": "simp only [gadget.balanced_gadget_decompose_loop0_loop0.body]"
+    },
+    {
+      "file": "Balanced.lean",
+      "after": "rw [gadget.balanced_gadget_decompose]"
+    },
+    {
+      "file": "Balanced.lean",
+      "after": "rw [ringswitch.rho_digits]"
+    },
+    {
+      "file": "Balanced.lean",
+      "after": "rw [commit.generate_decomps_balanced]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_node_weights_alpha, sumcheck.round_node_weights_alpha_loop]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "simp only [sumcheck.interpolate_loop1_loop0.body]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "simp only [sumcheck.interpolate_loop1.body]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.interpolate]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_zero, sumcheck.round_values_zero_loop0]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_zero_base, sumcheck.round_values_zero_base_loop]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.eq_free_factor]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_alpha, sumcheck.round_values_alpha_loop]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_alpha_base, sumcheck.round_values_alpha_base_loop]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_alpha_split]"
+    },
+    {
+      "file": "Sumcheck.lean",
+      "after": "rw [sumcheck.round_values_alpha_base_split]"
+    }
+  ],
+  "final_replay": "passed",
+  "additional_normalizations": [
+    "Sumcheck.honest_round_messages_spec: unfold alloc.vec.Vec.with_capacity in multiline simplification"
+  ]
+}

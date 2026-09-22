@@ -1,0 +1,15 @@
+{
+  "reviewer": "capacity_review",
+  "verdict": "no blocking source/spec-contract issue; full replay pending",
+  "scope": [
+    "guarded rho_digits_short_check",
+    "c_eval_at_modulus repeated squaring"
+  ],
+  "findings": [
+    "Headline specifications unchanged; z-norm and surrounding decision checks retained.",
+    "The squaring invariant matches alpha^(2^k); parameter power-of-two equality is already checked.",
+    "Terminal Boolean benchmark remains oracle-void; allocation preservation does not cover these algorithm changes.",
+    "Formal claims are confined to the pinned profile.",
+    "Stale terminal/test comments corrected; modulus test now uses an independent sequential product."
+  ]
+}

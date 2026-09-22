@@ -1,0 +1,16 @@
+     Locking 3 packages to latest compatible versions
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling hachi-candidate v0.0.0 (/home/alh/vrust/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/home/alh/vrust/AeneasArklib/hachi)
+warning: function `div_by_modulus` is never used
+   --> /home/alh/vrust/AeneasArklib/hachi/src/ringswitch.rs:716:4
+    |
+716 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 1 warning
+   Compiling hachi-allocation-audit v0.0.0 (/tmp/hachi-allocation-audit-uato4ubx)
+    Finished `release` profile [optimized] target(s) in 8.68s
+docs/optimization-current/allocations-verified-source.json

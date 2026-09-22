@@ -1,0 +1,8 @@
+{
+  "toolchain": "stable (rustc 1.96.0; pinned nightly lacks clippy component)",
+  "baseline_warning_count": 267,
+  "candidate_warning_count": 267,
+  "new_warning_messages": {},
+  "removed_warning_messages": {},
+  "note": "One local allowance documents deliberate eager pure Boolean guards in the terminal fast path."
+}

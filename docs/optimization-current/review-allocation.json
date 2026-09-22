@@ -1,0 +1,12 @@
+{
+  "reviewer": "capacity_review",
+  "scope": "73 reservations / 54 functions / 9 modules against 681c7be",
+  "verdict": "no blocking source issue; proof and performance acceptance pending",
+  "findings": [
+    "Every changed Rust line only replaces Vec::new with Vec::with_capacity using existing locals, lengths or literals.",
+    "No new arithmetic, ring/NTT algorithm, parameter, representation or fairness-control change.",
+    "Capacities may be partial or upper bounds, including interpolation intermediate vectors; no universal speed or memory claim.",
+    "Physical allocation/OOM behavior is outside the Lean model.",
+    "Process monitoring detects known competing work but does not establish complete host isolation."
+  ]
+}

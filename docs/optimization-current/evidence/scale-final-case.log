@@ -1,0 +1,18 @@
+   Compiling hachi-candidate v0.0.0 (/tmp/aeneasarklib-current-candidate/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/tmp/aeneasarklib-current-candidate/hachi)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:717:4
+    |
+717 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 3.33s
+     Running tests/evalsplit_semantics.rs (hachi/target/release/deps/evalsplit_semantics-ba88e946f070bb1c)
+
+running 1 test
+test eval_split_eval_interpolates_the_hypercube ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 1051.39s

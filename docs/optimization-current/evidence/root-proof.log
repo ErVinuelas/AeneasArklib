@@ -1,0 +1,1233 @@
+==> lake build
+⚠ [1540/1663] Replayed Aeneas.Std.Slice
+warning: Aeneas/Std/Slice.lean:353:4: declaration uses `sorry`
+warning: Aeneas/Std/Slice.lean:576:8: declaration uses `sorry`
+⚠ [1619/1663] Replayed Aeneas.Std.StringIter
+warning: Aeneas/Std/StringIter.lean:15:4: declaration uses `sorry`
+warning: Aeneas/Std/StringIter.lean:18:4: declaration uses `sorry`
+⚠ [2330/2427] Replayed RingFused
+warning: lean/RingFused.lean:616:60: Variable name `hk` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hk
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingFused.lean:820:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:1801:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingFused.lean:2302:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:2341:10: This simp argument is unused:
+  ZMod.natCast_self
+
+Hint: Omit it from the simp argument list.
+  [apply] simp
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/RingFused.lean:2527:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [2331/2427] Replayed GoldFusedBoundary
+warning: lean/GoldFusedBoundary.lean:779:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:783:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:779:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+warning: lean/GoldFusedBoundary.lean:783:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+warning: lean/GoldFusedBoundary.lean:1085:24: Unused tactic linter: `scalar_tac` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/GoldFusedBoundary.lean:1085:24: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+⚠ [2332/2427] Replayed RingShort
+warning: lean/RingShort.lean:1341:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+⚠ [2333/2427] Replayed GoldDot
+warning: lean/GoldDot.lean:334:5: Variable name `hpc` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hpc
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/GoldDot.lean:646:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3525/3538] Replayed ArkLib.Data.Fin.Basic
+warning: ArkLib/Data/Fin/Basic.lean:323:4: declaration uses `sorry`
+ℹ [3526/3538] Replayed ArkLib.Data.Fin.Fold
+info: ArkLib/Data/Fin/Fold.lean:190:0: 3
+info: ArkLib/Data/Fin/Fold.lean:191:0: 3
+⚠ [3537/3538] Replayed ArkLib.OracleReduction.Prelude
+warning: ArkLib/OracleReduction/Prelude.lean:91:2: Left-hand side of simp theorem has a variable as head symbol. This means the theorem will be tried on every simp step, which can be expensive. This may be acceptable for `local` or `scoped` simp lemmas.
+Use `set_option warning.simp.varHead false` to disable this warning.
+warning: ArkLib/OracleReduction/Prelude.lean:95:2: Left-hand side of simp theorem has a variable as head symbol. This means the theorem will be tried on every simp step, which can be expensive. This may be acceptable for `local` or `scoped` simp lemmas.
+Use `set_option warning.simp.varHead false` to disable this warning.
+⚠ [3747/3796] Replayed ArkLib.OracleReduction.OracleInterface
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:353:2: `intro p hp p' hp' hNe`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:357:20: `intro h`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:357:20: `intro h`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:8: `intro h'`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:18: `contrapose! hNe`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:359:35: `exact sub_eq_zero.mp h'`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:356:4: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:356:4: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
+info: ArkLib/OracleReduction/OracleInterface.lean:361:6: `exact sub_eq_zero.mp h.2`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 356!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:362:2: `conv =>
+  enter [1, 1]
+  apply Finset.filter_congr this`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:371:4: `simp at this` is a flexible tactic modifying `this`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:371:4: Try this:
+  [apply] simp only [gt_iff_lt] at this
+info: ArkLib/OracleReduction/OracleInterface.lean:371:18: `exact this`
+uses `this`, which was modified by the flexible tactic `simp` on line 371!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:372:2: `refine Nat.le_sub_one_of_lt (lt_of_le_of_lt ?_ this)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:373:2: `apply Multiset.card_le_card`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:374:2: `rw [Multiset.le_iff_subset]`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:4: `intro x hx`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:375:16: `simp at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:16: Try this:
+  [apply] simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub] at hx
+info: ArkLib/OracleReduction/OracleInterface.lean:375:28: `exact hx`
+uses `hx`, which was modified by the flexible tactic `simp` on line 375!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:375:28: `exact hx`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+warning: ArkLib/OracleReduction/OracleInterface.lean:352:2: `simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/OracleInterface.lean:377:4: `intro a`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 352!
+⚠ [3748/3796] Replayed ArkLib.OracleReduction.ProtocolSpec.Basic
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: Try this:
+  [apply] simp only [mk.injEq]
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:49: `(funext i; exact Fin.elim0 i)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 275!
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: `simp` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:27: Try this:
+  [apply] simp only [mk.injEq]
+info: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:275:49: `(funext i; exact Fin.elim0 i)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 275!
+warning: ArkLib/OracleReduction/ProtocolSpec/Basic.lean:820:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+⚠ [3751/3796] Replayed ArkLib.OracleReduction.Basic
+warning: ArkLib/OracleReduction/Basic.lean:502:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Basic.lean:543:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:588:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:588:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:588:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 588!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `hi`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+uses `hi`, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:591:40: `simp [h] at hi ⊢` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Basic.lean:591:40: Try this:
+  [apply] simp only [Message] at hi ⊢
+info: ArkLib/OracleReduction/Basic.lean:591:61: `exact hi`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 591!
+warning: ArkLib/OracleReduction/Basic.lean:575:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+⚠ [3775/3796] Replayed ArkLib.OracleReduction.Execution
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:591:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:591:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:593:4: `contradiction`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:595:4: `funext a`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:597:4: `funext i`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:589:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:589:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, Message, Fin.succ_zero_eq_one, liftComp_eq_liftM,
+    Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:600:4: `exact Transcript.concat_last a.1 (default : pSpec.Transcript 0)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 589!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:612:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:612:12: `rename_i hDir`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:615:4: `funext challenge`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:617:4: `funext f`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:620:6: `funext i`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:623:6: `exact Transcript.concat_last challenge (default : pSpec.Transcript 0)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:624:6: `trivial`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+warning: ArkLib/OracleReduction/Execution.lean:610:2: `simp [Prover.runToRound, Prover.processRound]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Execution.lean:610:2: Try this:
+  [apply] simp only [ChallengeIdx, Challenge, Fin.isValue, HasQuery.instOfMonadLift_query, Fin.succ_zero_eq_one,
+    liftComp_eq_liftM, Nat.reduceAdd, Fin.coe_ofNat_eq_mod, Nat.reduceMod, take_Type, bind_pure_comp]
+info: ArkLib/OracleReduction/Execution.lean:627:4: `contradiction`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 610!
+⚠ [3776/3796] Replayed ArkLib.OracleReduction.Security.Basic
+info: ArkLib/OracleReduction/Security/Basic.lean:126:2: Try these:
+  [apply] [grind
+    .] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #2, @LE.le `[ℝ≥0] `[NNReal.instPartialOrder.toLE] #3 #2]
+  [apply] [grind
+    →] for pattern: [@LE.le `[ℝ≥0] `[NNReal.instPartialOrder.toLE] #3 #2, @completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #3]
+  [apply] [grind
+    <=] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #2, @completeness _ _ _ _ _ _ #12 #11 _ _ #8 #7 #6 #5 #4 #3]
+info: ArkLib/OracleReduction/Security/Basic.lean:139:8: Try these:
+  [apply] [grind
+    .] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #2 #5 #4 #3, @LE.le _ _ #2 #6]
+  [apply] [grind
+    →] for pattern: [@LE.le _ _ #2 #6, @completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #6 #5 #4 #3]
+  [apply] [grind
+    <=] for pattern: [@completeness #18 #17 #16 #15 #14 #13 #12 #11 #10 #9 #8 #7 #2 #5 #4 #3, @completeness _ _ _ _ _ _ #12 #11 _ _ #8 #7 #6 #5 #4 #3]
+warning: ArkLib/OracleReduction/Security/Basic.lean:152:0: Please, write a comment here or remove this line, but do not place empty lines within commands!
+Context:
+     ↓
+  ⏎-/⏎⏎theorem completeness_relOut_mono {ε : ℝ≥0} {relOut' : Set (StmtOut × WitOut)}⏎
+
+Note: This linter can be disabled with `set_option linter.style.emptyLine false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:532:15: please avoid 'open (scoped) Classical' statements: this can hide theorem statements which would be better stated with explicit decidability statements.
+Instead, use `open Classical in` for definitions or instances, the `classical` tactic for proofs.
+For theorem statements, either add missing decidability assumptions or use `open Classical in`.
+
+Note: This linter can be disabled with `set_option linter.style.openClassical false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:560:21: please avoid 'open (scoped) Classical' statements: this can hide theorem statements which would be better stated with explicit decidability statements.
+Instead, use `open Classical in` for definitions or instances, the `classical` tactic for proofs.
+For theorem statements, either add missing decidability assumptions or use `open Classical in`.
+
+Note: This linter can be disabled with `set_option linter.style.openClassical false`
+warning: ArkLib/OracleReduction/Security/Basic.lean:641:4: `simp [map_pure, support_pure] at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/Basic.lean:642:4: `cases hx`
+uses `hx`, which was modified by the flexible tactic `simp` on line 641!
+warning: ArkLib/OracleReduction/Security/Basic.lean:641:4: `simp [map_pure, support_pure] at hx` is a flexible tactic modifying `hx`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/Basic.lean:643:4: `exact ⟨hIn, rfl⟩`
+uses `hx`, which was modified by the flexible tactic `simp` on line 641!
+⚠ [3790/3796] Replayed ArkLib.OracleReduction.Composition.Sequential.Append
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:589:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:619:4: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:703:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:804:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:846:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:857:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:870:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/Append.lean:885:8: declaration uses `sorry`
+⚠ [3792/3796] Replayed ArkLib.OracleReduction.Security.CoordinateWiseSpecialSoundness.SingleRound
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:208:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:208:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:209:2: `exact eq_of_heq (cast_heq _ _)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 208!
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:218:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:218:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/SingleRound.lean:219:2: `exact eq_of_heq ((cast_heq _ _).trans (cast_heq _ _))`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 218!
+⚠ [3800/3898] Replayed ArkLib.OracleReduction.Composition.Sequential.General
+warning: ArkLib/OracleReduction/Composition/Sequential/General.lean:445:8: declaration uses `sorry`
+warning: ArkLib/OracleReduction/Composition/Sequential/General.lean:477:8: declaration uses `sorry`
+⚠ [3821/3898] Replayed ArkLib.Commitments.Functional.Hachi.Commitment
+warning: ArkLib/Commitments/Functional/Hachi/Commitment.lean:136:4: declaration uses `sorry`
+⚠ [3825/3898] Replayed ArkLib.OracleReduction.Security.CoordinateWiseSpecialSoundness.ScalarRound
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:239:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:239:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:240:2: `exact eq_of_heq (cast_heq _ _)`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 239!
+warning: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:249:2: `simp [Fin.snoc]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:249:2: Try this:
+  [apply] simp only [Fin.vcons_fin_zero, Nat.reduceAdd, Fin.isValue, Fin.coe_ofNat_eq_mod, Nat.reduceMod,
+    Fin.succ_one_eq_two, take_Type, Nat.zero_mod, Fin.succ_zero_eq_one]
+info: ArkLib/OracleReduction/Security/CoordinateWiseSpecialSoundness/ScalarRound.lean:250:2: `exact eq_of_heq ((cast_heq _ _).trans (cast_heq _ _))`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 249!
+⚠ [3834/3898] Replayed ArkLib.Data.MvPolynomial.Interpolation
+warning: ArkLib/Data/MvPolynomial/Interpolation.lean:247:14: declaration uses `sorry`
+⚠ [3858/3898] Replayed ArkLib.Commitments.Functional.Hachi.ZeroCheck.Reduction
+warning: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:295:8: `simp [Transcript.concat, Fin.snoc, jm]` is a flexible tactic modifying `⊢`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:295:8: Try this:
+  [apply] simp only [Fin.val_succ, Fin.eta]
+info: ArkLib/Commitments/Functional/Hachi/ZeroCheck/Reduction.lean:296:8: `exact eq_of_heq (cast_heq _ _).symm`
+modifies the current goal, which was modified by the flexible tactic `simp` on line 295!
+⚠ [3864/3898] Replayed ArkLib.Commitments.Functional.Hachi.Sumcheck.Completeness
+warning: ArkLib/Commitments/Functional/Hachi/Sumcheck/Completeness.lean:174:0: `roundReduction_verifier` does not use the following hypothesis in its type:
+  • [DecidableEq F] (#13)
+
+Consider removing this hypothesis and using `classical` in the proof instead. For terms, consider using `open scoped Classical in` at the term level (not the command level).
+
+Note: This linter can be disabled with `set_option linter.unusedDecidableInType false`
+warning: ArkLib/Commitments/Functional/Hachi/Sumcheck/Completeness.lean:369:0: `roundsReduction_verifier` does not use the following hypothesis in its type:
+  • [DecidableEq F] (#13)
+
+Consider removing this hypothesis and using `classical` in the proof instead. For terms, consider using `open scoped Classical in` at the term level (not the command level).
+
+Note: This linter can be disabled with `set_option linter.unusedDecidableInType false`
+⚠ [3872/3898] Replayed QuadEval
+warning: lean/QuadEval.lean:417:35: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/QuadEval.lean:468:51: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/QuadEval.lean:484:55: Variable name `hmax` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hmax
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3873/3898] Replayed RingSwitch
+warning: lean/RingSwitch.lean:879:50: Variable name `hrho` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hrho
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3874/3898] Replayed ZeroCheck
+warning: lean/ZeroCheck.lean:679:21: Variable name `ha` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _ha
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/ZeroCheck.lean:3600:35: Variable name `m₁` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _m₁
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3875/3898] Replayed SumcheckShift
+warning: lean/SumcheckShift.lean:105:2: Unused tactic linter: `push_cast` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/SumcheckShift.lean:108:2: Unused tactic linter: `push_cast` does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: lean/SumcheckShift.lean:561:5: Variable name `hlen` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hlen
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/SumcheckShift.lean:672:23: Variable name `her` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _her
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3876/3898] Replayed RingLimb
+warning: lean/RingLimb.lean:41:30: Variable name `hd` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hd
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingLimb.lean:478:5: Variable name `hawf` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hawf
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingLimb.lean:715:33: This simp argument is unused:
+  UScalar.max
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [Std.U128.max, Std.U128.numBits]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+⚠ [3877/3898] Replayed RingTwoLane
+warning: lean/RingTwoLane.lean:235:10: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: lean/RingTwoLane.lean:291:5: Variable name `hboff` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hboff
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+warning: lean/RingTwoLane.lean:564:5: Variable name `han` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _han
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3881/3898] Replayed EvalSplit
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.mul_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.mul_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.sub_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.sub_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.one_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.one_spec.mvcgen_spec'
+warning: lean/EvalSplit.lean:56:17: Could not generate mvcgen spec for HachiEquiv.RqBridge.copy_spec: (kernel) constant has already been declared 'HachiEquiv.RqBridge.copy_spec.mvcgen_spec'
+⚠ [3882/3898] Replayed QuadEvalProtocol
+warning: lean/QuadEvalProtocol.lean:367:5: Variable name `ha` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _ha
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3883/3898] Replayed EndPiece
+warning: lean/EndPiece.lean:185:5: Variable name `hstmt` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _hstmt
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+⚠ [3884/3898] Replayed Rlin
+warning: lean/Rlin.lean:2236:4: This simp argument is unused:
+  linalg.PolyMatrix.rows
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [quadeval.PublicParamsD.impl.inner, commit.PublicParams.impl.outer_matrix, bind_tc_ok]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: lean/Rlin.lean:2392:34: This simp argument is unused:
+  toVec
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [toMatRlin, rlinAt, InnerOuter.rlinStmt, Hachi.jMatrix, hcvec]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+⚠ [3893/3898] Built Sumcheck (180s)
+warning: lean/Sumcheck.lean:3073:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+warning: lean/Sumcheck.lean:6897:4: try 'simp' instead of 'simpa'
+
+Note: This linter can be disabled with `set_option linter.unnecessarySimpa false`
+✔ [3894/3898] Built OptSumcheck (7.7s)
+✔ [3895/3898] Built Chain (9.4s)
+✔ [3896/3898] Built Opt (5.4s)
+ℹ [3897/3898] Built Check (7.7s)
+info: lean/Check.lean:1079:0: 'HachiEquiv.Balanced.balanced_digit_at_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1080:0: 'HachiEquiv.Balanced.balanced_digit_decompose_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1081:0: 'HachiEquiv.Balanced.balanced_gadget_decompose_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1082:0: 'HachiEquiv.Balanced.balanced_digit_at_natAbs_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1083:0: 'HachiEquiv.Balanced.bounded_z_digit_at_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1084:0: 'HachiEquiv.Balanced.bounded_z_digit_at_natAbs_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1085:0: 'HachiEquiv.Balanced.rho_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1086:0: 'HachiEquiv.Balanced.generate_decomps_balanced_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1087:0: 'HachiEquiv.Balanced.commit_balanced_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1089:0: 'HachiEquiv.Balanced.generate_decomps_balanced_loop_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1090:0: 'HachiEquiv.Balanced.generate_decomps_balanced_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1091:0: 'HachiEquiv.Balanced.commit_balanced_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1097:0: 'HachiEquiv.QuadEval.bounded_z_gadget_decompose_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1098:0: 'HachiEquiv.QuadEval.gadget_mul_z_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1099:0: 'HachiEquiv.QuadEval.gadget_mul_z_inverts_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1100:0: 'HachiEquiv.QuadEval.carrier_entry_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1101:0: 'HachiEquiv.QuadEval.tensor_g1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1102:0: 'HachiEquiv.QuadEval.in_sb_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1103:0: 'HachiEquiv.QuadEval.vec_in_sb_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1104:0: 'HachiEquiv.QuadEval.paper_rel_out_implies_rel_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1114:0: 'HachiEquiv.RingSwitch.rho_as_rq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1115:0: 'HachiEquiv.RingSwitch.rho_digit_as_rq_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1116:0: 'HachiEquiv.RingSwitch.rho_digit_as_rq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1117:0: 'HachiEquiv.RingSwitch.lift_message_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1118:0: 'HachiEquiv.RingSwitch.lift_commit_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1119:0: 'HachiEquiv.RingSwitch.rho_digits_at_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1120:0: 'HachiEquiv.RingSwitch.rho_digits_short_check_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1121:0: 'HachiEquiv.RingSwitch.lift_short_check_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1123:0: 'HachiEquiv.Field.fp_add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1124:0: 'HachiEquiv.Field.fp_sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1125:0: 'HachiEquiv.Field.fp_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1126:0: 'HachiEquiv.Field.fp_neg_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1127:0: 'HachiEquiv.Field.fp_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1128:0: 'HachiEquiv.Field.toK_inj_of_Red' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1141:0: 'HachiEquiv.Field.red_mul_fits_u64' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1142:0: 'HachiEquiv.Field.u64_size_toK' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1143:0: 'HachiEquiv.Field.overflowing_add_toK' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1144:0: 'HachiEquiv.Field.add_product_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1145:0: 'HachiEquiv.Field.add_double_product_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1146:0: 'HachiEquiv.Field.reduce_wide_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1153:0: 'HachiEquiv.Ring.zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1154:0: 'HachiEquiv.Ring.add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1155:0: 'HachiEquiv.Ring.sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1156:0: 'HachiEquiv.Ring.neg_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1157:0: 'HachiEquiv.Ring.scalar_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1158:0: 'HachiEquiv.Ring.mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1168:0: 'HachiEquiv.Ring.accBound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1169:0: 'HachiEquiv.Ring.wordN_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1170:0: 'HachiEquiv.Ring.posSum_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1171:0: 'HachiEquiv.Ring.negSum_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1172:0: 'HachiEquiv.Ring.posSum_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1173:0: 'HachiEquiv.Ring.negSum_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1174:0: 'HachiEquiv.Ring.negConv_eq_sums' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1175:0: 'HachiEquiv.Ring.mul_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1176:0: 'HachiEquiv.Ring.mul_loop1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1177:0: 'HachiEquiv.Ring.mul_loop2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1178:0: 'HachiEquiv.Ring.posW_eq_posSum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1179:0: 'HachiEquiv.Ring.negW_eq_negSum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1183:0: 'HachiEquiv.Ring.constant_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1184:0: 'HachiEquiv.Ring.one_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1185:0: 'HachiEquiv.Ring.from_coeffs_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1186:0: 'HachiEquiv.Ring.coeff_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1187:0: 'HachiEquiv.Ring.equals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1188:0: 'HachiEquiv.Ring.is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1189:0: 'HachiEquiv.Ring.copy_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1195:0: 'HachiEquiv.RqBridge.zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1196:0: 'HachiEquiv.RqBridge.add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1197:0: 'HachiEquiv.RqBridge.sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1198:0: 'HachiEquiv.RqBridge.neg_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1199:0: 'HachiEquiv.RqBridge.scalar_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1200:0: 'HachiEquiv.RqBridge.mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1202:0: 'HachiEquiv.RqBridge.constant_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1203:0: 'HachiEquiv.RqBridge.one_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1204:0: 'HachiEquiv.RqBridge.from_coeffs_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1205:0: 'HachiEquiv.RqBridge.coeff_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1206:0: 'HachiEquiv.RqBridge.equals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1207:0: 'HachiEquiv.RqBridge.is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1208:0: 'HachiEquiv.RqBridge.copy_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1214:0: 'HachiEquiv.Scheme.dot_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1215:0: 'HachiEquiv.Scheme.vec_add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1216:0: 'HachiEquiv.Scheme.vec_sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1217:0: 'HachiEquiv.Scheme.scalar_vec_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1218:0: 'HachiEquiv.Scheme.mat_vec_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1219:0: 'HachiEquiv.Scheme.flatten_blocks_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1220:0: 'HachiEquiv.Scheme.poly_vec_equals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1229:0: 'HachiEquiv.Scheme.digit_at_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1230:0: 'HachiEquiv.Scheme.digit_decompose_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1231:0: 'HachiEquiv.Scheme.base_pow_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1232:0: 'HachiEquiv.Scheme.gadget_entry_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1233:0: 'HachiEquiv.Scheme.gadget_matrix_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1234:0: 'HachiEquiv.Scheme.gadget_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1235:0: 'HachiEquiv.Scheme.gadget_decompose_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1241:0: 'HachiEquiv.Scheme.gadget_round_trip' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1248:0: 'HachiEquiv.Scheme.centered_abs_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1249:0: 'HachiEquiv.Scheme.l1_norm_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1250:0: 'HachiEquiv.Scheme.l_infty_norm_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1251:0: 'HachiEquiv.Scheme.l2_norm_sq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1252:0: 'HachiEquiv.Scheme.vec_l2_norm_sq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1253:0: 'HachiEquiv.Scheme.vec_l_infty_norm_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1260:0: 'HachiEquiv.Scheme.generate_decomps_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1261:0: 'HachiEquiv.Scheme.derived_message_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1262:0: 'HachiEquiv.Scheme.commit_with_decomps_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1263:0: 'HachiEquiv.Scheme.verify_weak_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1264:0: 'HachiEquiv.Scheme.verify_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1265:0: 'HachiEquiv.Scheme.commit_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1266:0: 'HachiEquiv.Scheme.honest_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1273:0: 'HachiEquiv.Scheme.honest_verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1274:0: 'HachiEquiv.Scheme.honest_verifies_full' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1281:0: 'HachiEquiv.Scheme.generate_decomps_loop_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1282:0: 'HachiEquiv.Scheme.generate_decomps_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1283:0: 'HachiEquiv.Scheme.commit_with_decomps_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1284:0: 'HachiEquiv.Scheme.commit_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1285:0: 'HachiEquiv.Scheme.commit_streamed_loop_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1286:0: 'HachiEquiv.Scheme.commit_streamed_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1287:0: 'HachiEquiv.Scheme.honest_loop_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1288:0: 'HachiEquiv.Scheme.honest_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1300:0: 'HachiEquiv.EvalSplit.two_pow_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1301:0: 'HachiEquiv.EvalSplit.test_bit_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1302:0: 'HachiEquiv.EvalSplit.split_equiv_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1303:0: 'HachiEquiv.EvalSplit.split_equiv_inv_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1304:0: 'HachiEquiv.EvalSplit.monomial_basis_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1305:0: 'HachiEquiv.EvalSplit.lagrange_basis_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1306:0: 'HachiEquiv.EvalSplit.split_form_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1307:0: 'HachiEquiv.EvalSplit.to_matrix_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1308:0: 'HachiEquiv.EvalSplit.to_polynomial_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1309:0: 'HachiEquiv.EvalSplit.to_matrix_eval_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1310:0: 'HachiEquiv.EvalSplit.eval_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1311:0: 'HachiEquiv.EvalSplit.eval_split_eval_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1330:0: 'HachiEquiv.Ext.fp_is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1331:0: 'HachiEquiv.Ext.ext_add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1332:0: 'HachiEquiv.Ext.ext_sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1333:0: 'HachiEquiv.Ext.ext_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1334:0: 'HachiEquiv.Ext.ext_from_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1335:0: 'HachiEquiv.Ext.ext_is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1354:0: 'HachiEquiv.QuadEvalProtocol.PublicParamsD_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1355:0: 'HachiEquiv.QuadEvalProtocol.QuadEvalStatement_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1356:0: 'HachiEquiv.QuadEvalProtocol.QuadEvalResponse_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1357:0: 'HachiEquiv.QuadEvalProtocol.carrier_decomp_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1358:0: 'HachiEquiv.QuadEvalProtocol.carrier_commit_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1359:0: 'HachiEquiv.QuadEvalProtocol.j_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1360:0: 'HachiEquiv.QuadEvalProtocol.honest_z_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1361:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_v_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1362:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_resp_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1363:0: 'HachiEquiv.QuadEvalProtocol.rel_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1364:0: 'HachiEquiv.QuadEvalProtocol.paper_rel_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1380:0: 'HachiEquiv.ZeroCheck.c_eval_at_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1381:0: 'HachiEquiv.ZeroCheck.c_eval_at_modulus_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1382:0: 'HachiEquiv.ZeroCheck.RlinStatement_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1389:0: 'HachiEquiv.ZeroCheck.rlin_entry_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1390:0: 'HachiEquiv.ZeroCheck.rlin_rows_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1391:0: 'HachiEquiv.ZeroCheck.rlin_cols_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1392:0: 'HachiEquiv.ZeroCheck.rlin_cols_le_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1393:0: 'HachiEquiv.ZeroCheck.rlin_rows_le_max' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1394:0: 'HachiEquiv.ZeroCheck.RlinBlocks_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1395:0: 'HachiEquiv.ZeroCheck.RlinStatement_new_lazy_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1396:0: 'HachiEquiv.ZeroCheck.poly_matrix_row_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1397:0: 'HachiEquiv.ZeroCheck.poly_vec_get_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1398:0: 'HachiEquiv.ZeroCheck.range_product_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1399:0: 'HachiEquiv.ZeroCheck.w_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1400:0: 'HachiEquiv.ZeroCheck.w_table_flat_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1401:0: 'HachiEquiv.ZeroCheck.c_w_table_mle_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1402:0: 'HachiEquiv.ZeroCheck.w_table_mle_eval_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1403:0: 'HachiEquiv.ZeroCheck.h_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1404:0: 'HachiEquiv.ZeroCheck.h_zero_is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1405:0: 'HachiEquiv.ZeroCheck.alpha_tilde_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1406:0: 'HachiEquiv.ZeroCheck.eq_weight_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1407:0: 'HachiEquiv.ZeroCheck.below_two_pow_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1408:0: 'HachiEquiv.ZeroCheck.poly_matrix_cols_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1409:0: 'HachiEquiv.ZeroCheck.m_alpha_tilde_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1410:0: 'HachiEquiv.ZeroCheck.alpha_public_evals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1411:0: 'HachiEquiv.ZeroCheck.zc_target_alpha_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1412:0: 'HachiEquiv.ZeroCheck.alpha_contract_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1413:0: 'HachiEquiv.ZeroCheck.alpha_defect_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1414:0: 'HachiEquiv.ZeroCheck.h_alpha_evals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1415:0: 'HachiEquiv.ZeroCheck.h_alpha_evals_eq_hAlphaEvals_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1416:0: 'HachiEquiv.ZeroCheck.h_alpha_evals_flat_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1417:0: 'HachiEquiv.ZeroCheck.h_alpha_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1418:0: 'HachiEquiv.ZeroCheck.h_alpha_is_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1428:0: 'HachiEquiv.EndPiece.WEvalStatement_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1429:0: 'HachiEquiv.EndPiece.end_piece_check_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1430:0: 'HachiEquiv.EndPiece.end_piece_prove_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1431:0: 'HachiEquiv.EndPiece.end_piece_witness_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1445:0: 'HachiEquiv.Rlin.gadget_transpose_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1446:0: 'HachiEquiv.Rlin.rlin_cw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1447:0: 'HachiEquiv.Rlin.rlin_ct_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1448:0: 'HachiEquiv.Rlin.rlin_cz_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1449:0: 'HachiEquiv.Rlin.rlin_cols_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1450:0: 'HachiEquiv.Rlin.rlin_rows_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1451:0: 'HachiEquiv.Rlin.unflatten_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1452:0: 'HachiEquiv.Rlin.tensor_g_matrix_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1453:0: 'HachiEquiv.Rlin.stack_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1454:0: 'HachiEquiv.Rlin.unstack_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1455:0: 'HachiEquiv.Rlin.PolyEvalStatement_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1456:0: 'HachiEquiv.Rlin.to_quad_eval_statement_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1457:0: 'HachiEquiv.Rlin.rlin_stmt_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1471:0: 'HachiEquiv.Sumcheck.NestedZeroCheckStmt_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1472:0: 'HachiEquiv.Sumcheck.RoundMsg_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1473:0: 'HachiEquiv.Sumcheck.RoundStatement_new_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1474:0: 'HachiEquiv.Sumcheck.interpolate_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1475:0: 'HachiEquiv.Sumcheck.round_node_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1476:0: 'HachiEquiv.Sumcheck.round_value_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1477:0: 'HachiEquiv.Sumcheck.round_values_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1478:0: 'HachiEquiv.Sumcheck.round_poly_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1485:0: 'HachiEquiv.SumcheckShift.stK_phi' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1486:0: 'HachiEquiv.SumcheckShift.shiftCoeffK_phi' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1487:0: 'HachiEquiv.SumcheckShift.shift_powers_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1488:0: 'HachiEquiv.SumcheckShift.shift_inner_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1489:0: 'HachiEquiv.SumcheckShift.shift_accum_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1490:0: 'HachiEquiv.SumcheckShift.zero_fill_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1491:0: 'HachiEquiv.SumcheckShift.pair_loop_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1492:0: 'HachiEquiv.Sumcheck.round_poly_zero_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1493:0: 'HachiEquiv.Sumcheck.eq_prefix_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1494:0: 'HachiEquiv.Sumcheck.eq_suffix_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1495:0: 'HachiEquiv.Sumcheck.eq_free_factor_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1496:0: 'HachiEquiv.Sumcheck.round_value_alpha_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1497:0: 'HachiEquiv.Sumcheck.round_values_alpha_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1502:0: 'HachiEquiv.Sumcheck.pair_quadratic' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1503:0: 'HachiEquiv.Sumcheck.round_poly_alpha_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1504:0: 'HachiEquiv.Sumcheck.round_poly_alpha_split_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1505:0: 'HachiEquiv.Sumcheck.round_poly_alpha_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1506:0: 'HachiEquiv.Sumcheck.alpha_public_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1507:0: 'HachiEquiv.Sumcheck.honest_compute_g_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1508:0: 'HachiEquiv.Sumcheck.round_check_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1509:0: 'HachiEquiv.Sumcheck.round_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1510:0: 'HachiEquiv.Sumcheck.final_check_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1511:0: 'HachiEquiv.Sumcheck.honest_compute_y_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1512:0: 'HachiEquiv.Sumcheck.nested_to_round_statement_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1513:0: 'HachiEquiv.Sumcheck.round_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1514:0: 'HachiEquiv.Sumcheck.honest_round_messages_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1515:0: 'HachiEquiv.Sumcheck.round_verify_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1522:0: 'HachiEquiv.Chain.chain_verify_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1523:0: 'HachiEquiv.Chain.chain_open_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1572:0: 'HachiEquiv.GoldArith.GOLD_P_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1573:0: 'HachiEquiv.GoldArith.cast_trunc_spec' depends on axioms: [propext]
+info: lean/Check.lean:1574:0: 'HachiEquiv.GoldArith.pow96_succ' depends on axioms: [propext]
+info: lean/Check.lean:1575:0: 'HachiEquiv.GoldArith.gold_add_bounded' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1576:0: 'HachiEquiv.GoldArith.gold_add_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1577:0: 'HachiEquiv.GoldArith.gold_sub_bounded' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1578:0: 'HachiEquiv.GoldArith.gold_sub_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1579:0: 'HachiEquiv.GoldArith.gold_reduce_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1580:0: 'HachiEquiv.GoldArith.gold_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1581:0: 'HachiEquiv.Raw32.eq_ok_of_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1582:0: 'HachiEquiv.Raw32.loop_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1583:0: 'HachiEquiv.Raw32.fp_new_id' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1584:0: 'HachiEquiv.Raw32.from_coeffs_id' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1585:0: 'HachiEquiv.Raw32.compact_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1586:0: 'HachiEquiv.Raw32.expand_loop_rep' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1587:0: 'HachiEquiv.Raw32.rawrq32_round_trip' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1588:0: 'HachiEquiv.Raw32.rawvec32_compact_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1589:0: 'HachiEquiv.Raw32.rawvec32_round_trip' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1590:0: 'HachiEquiv.Raw32.rawvec32_expand_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1591:0: 'HachiEquiv.Raw32.commit_streamed_32_loop_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1592:0: 'HachiEquiv.Raw32.commit_streamed_32_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1593:0: 'HachiEquiv.Raw32.commit_streamed_32_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1594:0: 'HachiEquiv.Raw32.commit_streamed_32_specG' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1595:0: 'HachiEquiv.Raw32.carrier_from_raw_32_loop_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1596:0: 'HachiEquiv.Raw32.carrier_from_raw_32_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1597:0: 'HachiEquiv.Raw32.honest_z_from_raw_32_loop1_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1598:0: 'HachiEquiv.Raw32.honest_z_from_raw_32_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1599:0: 'HachiEquiv.QuadEvalProtocol.carrier_from_raw_32_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1600:0: 'HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_32_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1601:0: 'HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_32_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1602:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1603:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_32_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:1604:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_32_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:1629:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_v_from_decomp_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:1630:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_v_from_decomp_honest' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:1642:0: 'HachiEquiv.LiftProver.long_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1649:0: 'HachiEquiv.LiftProver.longSum_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1650:0: 'HachiEquiv.LiftProver.longSum_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1651:0: 'HachiEquiv.LiftProver.long_mul_loop0_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1652:0: 'HachiEquiv.LiftProver.long_mul_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1653:0: 'HachiEquiv.LiftProver.div_by_modulus_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1654:0: 'HachiEquiv.LiftProver.c_row_sum_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1655:0: 'HachiEquiv.LiftProver.c_quotient_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1663:0: 'HachiEquiv.LiftProver.mul_coeff_of_high' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1664:0: 'HachiEquiv.LiftProver.cRowSum_coeff_of_high' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1665:0: 'HachiEquiv.LiftProver.divByMonic_of_high' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1666:0: 'HachiEquiv.LiftProver.long_mul_high_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1667:0: 'HachiEquiv.LiftProver.c_row_sum_high_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1668:0: 'HachiEquiv.LiftProver.c_quotient_copy_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1669:0: 'HachiEquiv.LiftProver.honest_lift_witness_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1674:0: 'HachiEquiv.Opt.c_eval_at.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1675:0: 'HachiEquiv.Opt.c_eval_at.opt_eq_spec_toRq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1676:0: 'HachiEquiv.Opt.c_eval_at_modulus.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1677:0: 'HachiEquiv.Opt.c_eval_at_modulus.opt_eq_pow_add_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1679:0: 'HachiEquiv.Opt.c_w_table_mle.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1680:0: 'HachiEquiv.Opt.h_zero.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1681:0: 'HachiEquiv.Opt.h_zero_is_zero.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1682:0: 'HachiEquiv.Opt.w_table_mle_eval.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1685:0: 'HachiEquiv.ZeroCheck.w_table_row_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1686:0: 'HachiEquiv.ZeroCheck.c_w_table_mle_values_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1688:0: 'HachiEquiv.Opt.alpha_public_table.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1689:0: 'HachiEquiv.Opt.alpha_public_table.opt_length' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1692:0: 'HachiEquiv.ZeroCheck.alpha_pow_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1693:0: 'HachiEquiv.ZeroCheck.eq_weight_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1694:0: 'HachiEquiv.ZeroCheck.m_alpha_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1696:0: 'HachiEquiv.Opt.lift_commit.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1697:0: 'HachiEquiv.Opt.lift_commit.opt_eq_spec_hachi' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1699:0: 'HachiEquiv.RingSwitch.lift_commit_row_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1701:0: 'HachiEquiv.Opt.range_product.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1702:0: 'HachiEquiv.Opt.range_product.opt_eq_spec_16' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1710:0: 'HachiEquiv.ZeroCheck.rangeQ_eq_prod' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1711:0: 'HachiEquiv.ZeroCheck.rangeQ_sq_eq_rangeProduct' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1712:0: 'HachiEquiv.ZeroCheck.range_product_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1713:0: 'HachiEquiv.Opt.range_product.optPS_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1714:0: 'HachiEquiv.Opt.range_product.optPS_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1720:0: 'HachiEquiv.Opt.round_values_zero.optFold_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1721:0: 'HachiEquiv.Sumcheck.round_values_zero_loop0_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1722:0: 'HachiEquiv.Sumcheck.round_values_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1724:0: 'HachiEquiv.Opt.phiF_range_product_base' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1725:0: 'HachiEquiv.Opt.h_zero.opt2_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1726:0: 'HachiEquiv.Opt.h_zero_is_zero.opt2_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1729:0: 'HachiEquiv.ZeroCheck.range_product_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1731:0: 'HachiEquiv.Opt.phiF_foldBase' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1732:0: 'HachiEquiv.Opt.rangeSumZeroBase.loop_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1733:0: 'HachiEquiv.Opt.rangeSumZeroBase_eq_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1734:0: 'HachiEquiv.Opt.rangeSumZeroBase_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1735:0: 'HachiEquiv.Opt.roundValuesZeroBase_length' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1736:0: 'HachiEquiv.Opt.roundValuesZeroBase_getD' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1737:0: 'HachiEquiv.Opt.phiF_natCast_node' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1738:0: 'HachiEquiv.Opt.roundValuesZeroBase_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1739:0: 'HachiEquiv.Opt.evalMleLayerBase_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1740:0: 'HachiEquiv.Opt.linSumAlphaBase_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1741:0: 'HachiEquiv.Opt.roundValuesZeroBase_eq_all' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1746:0: 'HachiEquiv.Sumcheck.mle_tensor_split' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1747:0: 'HachiEquiv.Sumcheck.alphaSplit_eval_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1748:0: 'HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1749:0: 'HachiEquiv.Opt.alpha_public_mle_eval.opt_eq_spec'' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1757:0: 'HachiEquiv.Sumcheck.tensorTable_apply' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1758:0: 'HachiEquiv.Sumcheck.tensorTable_eq_of_split' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1759:0: 'HachiEquiv.Sumcheck.fold_tensorTable_low' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1760:0: 'HachiEquiv.Sumcheck.fold_tensorTable_scalar' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1761:0: 'HachiEquiv.Sumcheck.alphaPublicEvals_eq_tensorTable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1762:0: 'HachiEquiv.Sumcheck.linSumAlpha_tensor' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1763:0: 'HachiEquiv.Sumcheck.fold_tensorTable_read' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1764:0: 'HachiEquiv.Sumcheck.fold_tensorTable_read_scalar' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1765:0: 'HachiEquiv.Sumcheck.foldIter_tensorTable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1766:0: 'HachiEquiv.Opt.honest_round_messages.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1771:0: 'HachiEquiv.Sumcheck.alpha_public_mle_eval_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1777:0: 'HachiEquiv.Sumcheck.poly_mul_inner_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1778:0: 'HachiEquiv.Sumcheck.poly_mul_outer_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1779:0: 'HachiEquiv.Sumcheck.poly_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1786:0: 'HachiEquiv.Ext.fp_ext_mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1787:0: 'HachiEquiv.ZeroCheck.c_w_table_fp_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1788:0: 'HachiEquiv.Sumcheck.round_value_zero_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1789:0: 'HachiEquiv.Sumcheck.round_values_zero_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1790:0: 'HachiEquiv.Sumcheck.round_poly_zero_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1791:0: 'HachiEquiv.Sumcheck.round_value_alpha_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1792:0: 'HachiEquiv.Sumcheck.round_values_alpha_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1793:0: 'HachiEquiv.Sumcheck.round_poly_alpha_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1794:0: 'HachiEquiv.Sumcheck.eval_mle_layer_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1795:0: 'HachiEquiv.Sumcheck.honest_compute_g_base_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1803:0: 'HachiEquiv.Sumcheck.tensorRead_eq_tensorTable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1804:0: 'HachiEquiv.Sumcheck.tensorRead_eq_reidx' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1805:0: 'HachiEquiv.Sumcheck.linSumAlphaSplit_eq_sum_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1806:0: 'HachiEquiv.Sumcheck.linSumAlphaSplitFp_eq_sum_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1807:0: 'HachiEquiv.Sumcheck.alpha_split_low_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1808:0: 'HachiEquiv.Sumcheck.alpha_split_high_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1809:0: 'HachiEquiv.Sumcheck.alpha_split_fold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1810:0: 'HachiEquiv.Sumcheck.round_value_alpha_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1811:0: 'HachiEquiv.Sumcheck.round_values_alpha_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1812:0: 'HachiEquiv.Sumcheck.round_poly_alpha_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1813:0: 'HachiEquiv.Sumcheck.round_value_alpha_base_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1814:0: 'HachiEquiv.Sumcheck.round_values_alpha_base_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1815:0: 'HachiEquiv.Sumcheck.round_poly_alpha_base_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1816:0: 'HachiEquiv.Sumcheck.honest_compute_g_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1817:0: 'HachiEquiv.Sumcheck.honest_compute_g_base_split_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1826:0: 'HachiEquiv.Opt.monomial_basis.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1827:0: 'HachiEquiv.Opt.monomial_basis.opt_getD' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1828:0: 'HachiEquiv.Opt.monomial_basis.opt_length' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1829:0: 'HachiEquiv.EvalSplit.monomial_basis_inner_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1830:0: 'HachiEquiv.EvalSplit.monomial_basis_outer_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1835:0: 'HachiEquiv.Opt.lagrange_basis.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1836:0: 'HachiEquiv.Opt.lagrange_basis.optLoop_getD' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1837:0: 'HachiEquiv.Opt.lagrange_basis.optLoop_length' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1838:0: 'HachiEquiv.EvalSplit.lagrange_basis_inner_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1839:0: 'HachiEquiv.EvalSplit.lagrange_basis_outer_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1855:0: 'HachiEquiv.Opt.MulShort.opt_eq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1856:0: 'HachiEquiv.Opt.MulShort.opt_eq_negConvF' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1857:0: 'HachiEquiv.Opt.MulShort.passLoop_eq' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1858:0: 'HachiEquiv.RingShort.negConvF_single' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1859:0: 'HachiEquiv.RingShort.negConvF_add_left' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1860:0: 'HachiEquiv.RingShort.negConvF_coeffK' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1861:0: 'HachiEquiv.RingShort.inner_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1862:0: 'HachiEquiv.RingShort.pass_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1863:0: 'HachiEquiv.RingShort.terms_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1864:0: 'HachiEquiv.RingShort.termsSum_eq_negConvF' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1865:0: 'HachiEquiv.RingShort.mul_short_desc_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1866:0: 'HachiEquiv.RingShort.classify_short_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1867:0: 'HachiEquiv.RingShort.classify_short_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1868:0: 'HachiEquiv.RingShort.write_invariant_fp' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1882:0: 'HachiEquiv.RingShort.offStep_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1883:0: 'HachiEquiv.RingShort.bnd_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1888:0: 'HachiEquiv.RingShort.offWrite_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1889:0: 'HachiEquiv.RingShort.short_pass_off_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1890:0: 'HachiEquiv.RingShort.short_pass_off_loop1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1891:0: 'HachiEquiv.RingShort.short_pass_off_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1892:0: 'HachiEquiv.RingShort.short_reduce_buf_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1893:0: 'HachiEquiv.RingShort.short_chunk_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1894:0: 'HachiEquiv.RingShort.short_terms_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1895:0: 'HachiEquiv.RingShort.short_seed_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1896:0: 'HachiEquiv.RingShort.short_write_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1897:0: 'HachiEquiv.RingShort.mul_short_add_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1898:0: 'HachiEquiv.RqBridge.mul_short_desc_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1899:0: 'HachiEquiv.RqBridge.mul_short_add_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1900:0: 'HachiEquiv.QuadEvalProtocol.honest_z_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1901:0: 'HachiEquiv.QuadEvalProtocol.honest_z_loop1_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1902:0: 'HachiEquiv.QuadEvalProtocol.honest_z_loop1_loop1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1903:0: 'HachiEquiv.QuadEvalProtocol.honest_z_loop1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1904:0: 'HachiEquiv.QuadEvalProtocol.honest_z_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1923:0: 'HachiEquiv.NttMath.difRun_add' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1924:0: 'HachiEquiv.NttMath.ditRun_add' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:1925:0: 'HachiEquiv.NttMath.difRun_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1926:0: 'HachiEquiv.NttMath.ditRun_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1936:0: 'HachiEquiv.RingLimb.limb_recon' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1937:0: 'HachiEquiv.RingLimb.limb_recon_q' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1938:0: 'HachiEquiv.RingLimb.limb_at_inner_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1939:0: 'HachiEquiv.RingLimb.limb_at_outer_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1940:0: 'HachiEquiv.RingLimb.limb_at_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1945:0: 'HachiEquiv.RingLimb.negConv_split' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1946:0: 'HachiEquiv.RingLimb.coeffK_of_limbs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1951:0: 'HachiEquiv.GoldDot.load_twisted_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1952:0: 'HachiEquiv.GoldDot.gold_mac_off_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1953:0: 'HachiEquiv.RingLimb.limb_terms_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1954:0: 'HachiEquiv.RingLimb.lane_words_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1955:0: 'HachiEquiv.RingLimb.gold_loff2_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1956:0: 'HachiEquiv.RingLimb.limb_chunk_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1957:0: 'HachiEquiv.RingLimb.limb_out_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1958:0: 'HachiEquiv.RingLimb.limb_chunk_value' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1959:0: 'HachiEquiv.RingLimb.limb_dot_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1960:0: 'HachiEquiv.RingLimb.dot_prepared_limbs2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1961:0: 'HachiEquiv.RingLimb.prepare_vec_limbs2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1967:0: 'HachiEquiv.SchemeLimb.dot_prepared_limbs2_rq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1968:0: 'HachiEquiv.SchemeLimb.dot_prep_limbs2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1969:0: 'HachiEquiv.SchemeLimb.prepare_limbs2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1970:0: 'HachiEquiv.SchemeLimb.apply_limbs2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1971:0: 'HachiEquiv.RingFused.posSumB_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1972:0: 'HachiEquiv.RingFused.posQB_sum_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1973:0: 'HachiEquiv.RingFused.offConvSumB_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1974:0: 'HachiEquiv.RingFused.negSumB_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1975:0: 'HachiEquiv.RingFused.negQB_sum_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1976:0: 'HachiEquiv.RingFused.offConvSumB_cast_q' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1977:0: 'HachiEquiv.RingFused.boundB_fit_limb2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1978:0: 'HachiEquiv.RingFused.boundB_fit_digits' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1979:0: 'HachiEquiv.RingFused.digitWf_eq_boundedWf' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1980:0: 'HachiEquiv.RingFused.boundB_16' does not depend on any axioms
+info: lean/Check.lean:1981:0: 'HachiEquiv.RingFused.untwist_value_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1982:0: 'HachiEquiv.RingFused.accum_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1983:0: 'HachiEquiv.RingFused.words_a_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1984:0: 'HachiEquiv.RingFused.words_b_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1985:0: 'HachiEquiv.RingFused.terms_chunk_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1986:0: 'HachiEquiv.RingFused.dot_chunk_mod_p_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1987:0: 'HachiEquiv.RingFused.garner_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1988:0: 'HachiEquiv.RingFused.offConvSum_lt_P' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1989:0: 'HachiEquiv.RingFused.offConvSum_cast_q' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1990:0: 'HachiEquiv.RingFused.dot_chunk_word_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1991:0: 'HachiEquiv.RingFused.chunk_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1992:0: 'HachiEquiv.RingFused.dot_fused_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1993:0: 'HachiEquiv.RqBridge.dot_fused_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:1994:0: 'HachiEquiv.Scheme.dot_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2016:0: 'HachiEquiv.RingFused.slice_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2017:0: 'HachiEquiv.RingFused.mac_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2018:0: 'HachiEquiv.RingFused.prep_append_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2019:0: 'HachiEquiv.RingFused.prepare_one_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2020:0: 'HachiEquiv.RingFused.prep_terms_chunk_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2021:0: 'HachiEquiv.RingFused.dot_prep_chunk_mod_p_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2022:0: 'HachiEquiv.RingFused.dot_prep_chunk_word_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2023:0: 'HachiEquiv.RingFused.prep_chunk_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2024:0: 'HachiEquiv.RingFused.dot_prepared_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2030:0: 'HachiEquiv.RingTwoLane.chunk_fits' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2031:0: 'HachiEquiv.RingTwoLane.garner_ga_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2032:0: 'HachiEquiv.RingTwoLane.gold_chunk_terms_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2033:0: 'HachiEquiv.RingTwoLane.dot_prep_chunk_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2034:0: 'HachiEquiv.RingTwoLane.dot_prep_chunk_gold_word_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2035:0: 'HachiEquiv.RingTwoLane.prep_garner_ga_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2036:0: 'HachiEquiv.RingTwoLane.prepare_vec_ga_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2037:0: 'HachiEquiv.RingTwoLane.prep_chunk_ga_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2038:0: 'HachiEquiv.RingTwoLane.dot_prepared_ga_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2039:0: 'HachiEquiv.SchemeTwoLane.dot_prepared_ga_rq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2040:0: 'HachiEquiv.SchemeTwoLane.prepare_ga_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2041:0: 'HachiEquiv.SchemeTwoLane.apply_ga_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2042:0: 'HachiEquiv.RingFused.prepare_vec_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2043:0: 'HachiEquiv.RqBridge.dot_prepared_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2044:0: 'HachiEquiv.Scheme.dot_prep_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2045:0: 'HachiEquiv.Scheme.cols_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2046:0: 'HachiEquiv.Scheme.prepare_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2047:0: 'HachiEquiv.Scheme.apply_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2076:0: 'HachiEquiv.NttStage.spec_and' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2077:0: 'HachiEquiv.NttCRT.garner2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2078:0: 'HachiEquiv.Scheme.dd_digit_val_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2079:0: 'HachiEquiv.Scheme.digit_at_lt_base' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2080:0: 'HachiEquiv.Scheme.gadget_decompose_digit_words' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2081:0: 'HachiEquiv.RingFused.posSumD_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2082:0: 'HachiEquiv.RingFused.negSumD_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2083:0: 'HachiEquiv.RingFused.offConvSumD_lt_P12' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2084:0: 'HachiEquiv.RingFused.offConvSumD_cast_q' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2085:0: 'HachiEquiv.RingFused.doff1_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2086:0: 'HachiEquiv.RingFused.doff2_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2087:0: 'HachiEquiv.RingFused.dot_prep_chunk_word_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2088:0: 'HachiEquiv.RingFused.prep2_garner_out_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2089:0: 'HachiEquiv.RingFused.prep2_chunk_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2090:0: 'HachiEquiv.RingFused.dot_prepared_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2091:0: 'HachiEquiv.RingFused.prepare_vec_two_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2092:0: 'HachiEquiv.RqBridge.dot_prepared_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2093:0: 'HachiEquiv.Scheme.dot_prep_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2094:0: 'HachiEquiv.Scheme.prepare_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2095:0: 'HachiEquiv.Scheme.apply_digits_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2123:0: 'HachiEquiv.Scheme.commit_streamed_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2124:0: 'HachiEquiv.Scheme.commit_streamed_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2125:0: 'HachiEquiv.QuadEvalProtocol.carrier_from_raw_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2126:0: 'HachiEquiv.QuadEvalProtocol.carrier_from_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2127:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2128:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_loop0_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:2129:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_loop1_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:2130:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_loop1_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2131:0: 'HachiEquiv.QuadEvalProtocol.honest_z_from_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2145:0: 'HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2146:0: 'HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2147:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2148:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_loop_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:2149:0: 'HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_spec' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+info: lean/Check.lean:2150:0: 'HachiEquiv.Chain.chain_open_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2162:0: 'HachiEquiv.QuadEvalProtocol.dot_eq_carrierEntry_of_decomp' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2172:0: 'HachiEquiv.GoldTransform.gold_psi_table_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2173:0: 'HachiEquiv.GoldTransform.gold_psi_table_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2174:0: 'HachiEquiv.GoldTransform.gold_twist_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2175:0: 'HachiEquiv.GoldStage.gold_dif_stage_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2181:0: 'HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2182:0: 'HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2183:0: 'HachiEquiv.GoldFusedStage.gold_dif_stage2_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2184:0: 'HachiEquiv.GoldFusedStage.fusedA' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:2185:0: 'HachiEquiv.GoldFusedStage.fusedB' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:2186:0: 'HachiEquiv.GoldFusedStage.fusedC' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:2187:0: 'HachiEquiv.GoldFusedStage.fusedD' depends on axioms: [propext, Quot.sound]
+info: lean/Check.lean:2188:0: 'HachiEquiv.GoldTransform.gold_dit_stage_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2189:0: 'HachiEquiv.GoldTransform.gold_forward_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2190:0: 'HachiEquiv.GoldTransform.gold_inverse_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2191:0: 'HachiEquiv.GoldDot.gold_mac_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2197:0: 'HachiEquiv.GoldDot.load_twisted_into_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2198:0: 'HachiEquiv.GoldDot.load_twisted_into_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2199:0: 'HachiEquiv.GoldDot.gold_mac_off_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2200:0: 'HachiEquiv.GoldDot.gold_twist_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2201:0: 'HachiEquiv.GoldDot.gold_terms_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2205:0: 'HachiEquiv.GoldFusedBoundary.twist_loop0_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2206:0: 'HachiEquiv.GoldFusedBoundary.gold_dif_stage2_twist_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2207:0: 'HachiEquiv.GoldFusedBoundary.mac_loop0_loop0_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2208:0: 'HachiEquiv.GoldFusedBoundary.gold_dif_stage2_mac_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2209:0: 'HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2210:0: 'HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2211:0: 'HachiEquiv.GoldDot.gold_out_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2212:0: 'HachiEquiv.GoldDot.gold_untwist_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2213:0: 'HachiEquiv.GoldDot.gold_untwist_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2214:0: 'HachiEquiv.GoldDot.gpsi_ord' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2215:0: 'HachiEquiv.GoldDot.gpsi_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2216:0: 'HachiEquiv.GoldDot.gninv_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2217:0: 'HachiEquiv.GoldDot.gdoff_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2218:0: 'HachiEquiv.GoldDot.offConvSumD_lt_GP' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2219:0: 'HachiEquiv.GoldDot.gold_dot_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2220:0: 'HachiEquiv.GoldDot.gold_prep_words_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2221:0: 'HachiEquiv.GoldDot.gold_prep_append_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2222:0: 'HachiEquiv.GoldDot.prepare_one_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2223:0: 'HachiEquiv.GoldDot.prepare_vec_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2224:0: 'HachiEquiv.RqBridge.dot_prepared_digits_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2225:0: 'HachiEquiv.Scheme.dot_prep_digits_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2226:0: 'HachiEquiv.Scheme.prepare_digits_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2227:0: 'HachiEquiv.Scheme.apply_digits_gold_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2242:0: 'HachiEquiv.SumcheckShift.st_nat' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2243:0: 'HachiEquiv.SumcheckShift.st_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2244:0: 'HachiEquiv.SumcheckShift.st_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2245:0: 'HachiEquiv.SumcheckShift.rangeProduct_eq_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2246:0: 'HachiEquiv.SumcheckShift.shiftCoeff_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2247:0: 'HachiEquiv.SumcheckShift.rangeProduct_shift' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2248:0: 'HachiEquiv.SumcheckShift.shift_powers_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2253:0: 'HachiEquiv.SumcheckShift.stN_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2254:0: 'HachiEquiv.SumcheckShift.shiftNat_le' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2255:0: 'HachiEquiv.SumcheckShift.shiftNat_lt_u128' depends on axioms: [propext]
+info: lean/Check.lean:2256:0: 'HachiEquiv.SumcheckShift.shiftNat_cast' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2257:0: 'HachiEquiv.SumcheckShift.coeff_finset_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2258:0: 'HachiEquiv.SumcheckShift.coeff_sum_eq_shiftNat' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2259:0: 'HachiEquiv.SumcheckShift.shift_inner_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2260:0: 'HachiEquiv.SumcheckShift.shift_accum_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2261:0: 'HachiEquiv.SumcheckShift.zero_fill_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2262:0: 'HachiEquiv.SumcheckShift.pair_loop_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: lean/Check.lean:2263:0: 'HachiEquiv.Sumcheck.round_poly_zero_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+Build completed successfully (3898 jobs).
+==> proofs check out: no errors, no `sorry`

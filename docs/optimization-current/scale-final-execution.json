@@ -1,0 +1,24 @@
+{
+  "command": [
+    "timeout",
+    "3600",
+    "cargo",
+    "+nightly-2026-06-01",
+    "test",
+    "--release",
+    "--manifest-path",
+    "hachi/Cargo.toml",
+    "--test",
+    "evalsplit_semantics",
+    "--",
+    "--ignored",
+    "--exact",
+    "--test-threads=1",
+    "eval_split_eval_interpolates_the_hypercube"
+  ],
+  "start_utc": "2026-09-22T11:08:17.071787+00:00",
+  "end_utc": "2026-09-22T11:25:51.828214+00:00",
+  "exit_code": 0,
+  "address_space_limit_bytes": 23622320128,
+  "note": "Correctness run only; no performance acceptance claim."
+}

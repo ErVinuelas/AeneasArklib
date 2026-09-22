@@ -1,0 +1,251 @@
+{
+  "note": "Allocation calls, not timings or peak memory. Reduced shapes; see source. Zero-check checksum is not an oracle.",
+  "repetitions": 3,
+  "identical_repetitions": true,
+  "rows": [
+    {
+      "variant": "baseline",
+      "case": "ring/add/1024",
+      "allocations": 1,
+      "reallocations": 0,
+      "requested_bytes": 8192,
+      "checksum": 1989090135807394816
+    },
+    {
+      "variant": "baseline",
+      "case": "linalg/add/8",
+      "allocations": 9,
+      "reallocations": 0,
+      "requested_bytes": 65728,
+      "checksum": 13821239978226972680
+    },
+    {
+      "variant": "baseline",
+      "case": "linalg/copy/8",
+      "allocations": 9,
+      "reallocations": 1,
+      "requested_bytes": 65824,
+      "checksum": 16133995437532411912
+    },
+    {
+      "variant": "baseline",
+      "case": "gadget/decompose/8",
+      "allocations": 129,
+      "reallocations": 0,
+      "requested_bytes": 1050112,
+      "checksum": 4515148937086014496
+    },
+    {
+      "variant": "baseline",
+      "case": "gadget/balanced_decompose/8",
+      "allocations": 129,
+      "reallocations": 516,
+      "requested_bytes": 1573792,
+      "checksum": 14642978754215126048
+    },
+    {
+      "variant": "baseline",
+      "case": "commit/honest_opening/8_reduced",
+      "allocations": 9,
+      "reallocations": 1,
+      "requested_bytes": 65824,
+      "checksum": 17202570737097891576
+    },
+    {
+      "variant": "baseline",
+      "case": "evalsplit/monomial_basis/3",
+      "allocations": 156,
+      "reallocations": 1,
+      "requested_bytes": 1270048,
+      "checksum": 3436572349846153915
+    },
+    {
+      "variant": "baseline",
+      "case": "ringswitch/rho_digits/1024",
+      "allocations": 2,
+      "reallocations": 8,
+      "requested_bytes": 24544,
+      "checksum": 0
+    },
+    {
+      "variant": "baseline",
+      "case": "quadeval/carrier/2x8",
+      "allocations": 503,
+      "reallocations": 146,
+      "requested_bytes": 4243552,
+      "checksum": 11963485103649922882
+    },
+    {
+      "variant": "baseline",
+      "case": "endpiece/rho_digits_short_check/1",
+      "allocations": 16,
+      "reallocations": 64,
+      "requested_bytes": 196352,
+      "checksum": 1
+    },
+    {
+      "variant": "baseline",
+      "case": "zerocheck/c_w_table_mle/12",
+      "allocations": 8,
+      "reallocations": 24,
+      "requested_bytes": 212896,
+      "checksum": 0
+    },
+    {
+      "variant": "baseline",
+      "case": "sumcheck/round_node_weights/33",
+      "allocations": 1,
+      "reallocations": 4,
+      "requested_bytes": 992,
+      "checksum": 7543486397324446698
+    },
+    {
+      "variant": "baseline",
+      "case": "sumcheck/interpolate/33",
+      "allocations": 1090,
+      "reallocations": 2380,
+      "requested_bytes": 1452800,
+      "checksum": 50168044
+    },
+    {
+      "variant": "candidate",
+      "case": "ring/add/1024",
+      "allocations": 1,
+      "reallocations": 0,
+      "requested_bytes": 8192,
+      "checksum": 1989090135807394816
+    },
+    {
+      "variant": "candidate",
+      "case": "linalg/add/8",
+      "allocations": 9,
+      "reallocations": 0,
+      "requested_bytes": 65728,
+      "checksum": 13821239978226972680
+    },
+    {
+      "variant": "candidate",
+      "case": "linalg/copy/8",
+      "allocations": 9,
+      "reallocations": 0,
+      "requested_bytes": 65728,
+      "checksum": 16133995437532411912
+    },
+    {
+      "variant": "candidate",
+      "case": "gadget/decompose/8",
+      "allocations": 129,
+      "reallocations": 0,
+      "requested_bytes": 1050112,
+      "checksum": 4515148937086014496
+    },
+    {
+      "variant": "candidate",
+      "case": "gadget/balanced_decompose/8",
+      "allocations": 129,
+      "reallocations": 3,
+      "requested_bytes": 1051456,
+      "checksum": 14642978754215126048
+    },
+    {
+      "variant": "candidate",
+      "case": "commit/honest_opening/8_reduced",
+      "allocations": 9,
+      "reallocations": 0,
+      "requested_bytes": 65728,
+      "checksum": 17202570737097891576
+    },
+    {
+      "variant": "candidate",
+      "case": "evalsplit/monomial_basis/3",
+      "allocations": 156,
+      "reallocations": 1,
+      "requested_bytes": 1270048,
+      "checksum": 3436572349846153915
+    },
+    {
+      "variant": "candidate",
+      "case": "ringswitch/rho_digits/1024",
+      "allocations": 2,
+      "reallocations": 0,
+      "requested_bytes": 16384,
+      "checksum": 0
+    },
+    {
+      "variant": "candidate",
+      "case": "quadeval/carrier/2x8",
+      "allocations": 503,
+      "reallocations": 144,
+      "requested_bytes": 4243312,
+      "checksum": 11963485103649922882
+    },
+    {
+      "variant": "candidate",
+      "case": "endpiece/rho_digits_short_check/1",
+      "allocations": 0,
+      "reallocations": 0,
+      "requested_bytes": 0,
+      "checksum": 1
+    },
+    {
+      "variant": "candidate",
+      "case": "zerocheck/c_w_table_mle/12",
+      "allocations": 8,
+      "reallocations": 0,
+      "requested_bytes": 188416,
+      "checksum": 0
+    },
+    {
+      "variant": "candidate",
+      "case": "sumcheck/round_node_weights/33",
+      "allocations": 1,
+      "reallocations": 0,
+      "requested_bytes": 264,
+      "checksum": 7543486397324446698
+    },
+    {
+      "variant": "candidate",
+      "case": "sumcheck/interpolate/33",
+      "allocations": 1090,
+      "reallocations": 0,
+      "requested_bytes": 1151040,
+      "checksum": 50168044
+    }
+  ],
+  "source_sha256": {
+    "baseline": {
+      "chain.rs": "0a3ea33f76faee3a139d063429394a0f8d4f1bb1202bcceb2f298a95238589f1",
+      "commit.rs": "5ddd75c631bf68c1c362af1c3c53b4874e54b6b45a4643cc1868115ad2fea817",
+      "endpiece.rs": "dcbf680e3d18952d1e83b325dfa4285d08dcdbc53cd9a91ae887b5f2c25428ae",
+      "evalsplit.rs": "aeded22df1bdb9c38f083312da6e0d4f5d0f741691e9cfda46d32ae1152674a8",
+      "gadget.rs": "e4cf27d35b5c03707e6a46704fc111c67dfadead7b51dfec57a7c50877cc2843",
+      "lib.rs": "5501e8f311f6c9e91f7f0b79cdc6ce4f31960c3c2ebdbcd7de60d51e956d01bc",
+      "linalg.rs": "2aa4764600b7a1462734957bdd6b6d3955b82febfbd2fcebcb44776a0778f0db",
+      "ntt.rs": "35d562f968f50a4e5abd0218f299dbcb0b18df99797562f5884c7f022280a0d6",
+      "params.rs": "b5b7c02947159c1e9108a21ae92a8cbcdc4481df079c6e2b91335a5deb6a7d76",
+      "quadeval.rs": "8d4fe09f6c3c14fddb91202963495a146f74a817a4445a23bf6694c9c0ba0885",
+      "ring.rs": "38496120a0a80267024c1c83bec40d46462856aef47f4f83f8fa990b89c0ee21",
+      "ringswitch.rs": "342d1f6c6d75ad833ef997fa6c8d67a90ad5e0101bf2c4880084a802705dda7f",
+      "sumcheck.rs": "ef0afc95533480d68f7e30537517200802aa9686b71db2089388ae32b601a0fb",
+      "zerocheck.rs": "11d589d042f0f4adcd304e392d2aa67d90c91291e55194c84716cc306acdd22f"
+    },
+    "candidate": {
+      "chain.rs": "162edf58cd117ebd248ed1eebf7334174a99d09cde7886b130b6b3034d2ce63d",
+      "commit.rs": "210a4c3549fe79e082ad4df3e1f4dafeaec4f4674b7b80707fa295476c38ec28",
+      "endpiece.rs": "7f9aa2d904738878b3de13e70ca066a4f59a1d9c5c61d5b59a71f1b5bb408be5",
+      "evalsplit.rs": "36d9373da3b127934bc59f5e949e85c6a342d6f077f28ad7bf164e9b3d523a3c",
+      "gadget.rs": "8b33938817b30139c94616341b0c837e8fe30f8eda102f94e86dc6c509ad5244",
+      "lib.rs": "5e6940c2de713976b325db5aa910814be38b5356a29dd91d25beb89af9d3f5d9",
+      "linalg.rs": "a09c1aa24a3986850d0e7a0ac26ee6790efa42d84f9baedf11228f414043960e",
+      "ntt.rs": "35d562f968f50a4e5abd0218f299dbcb0b18df99797562f5884c7f022280a0d6",
+      "params.rs": "b5b7c02947159c1e9108a21ae92a8cbcdc4481df079c6e2b91335a5deb6a7d76",
+      "quadeval.rs": "8febeafa2ab7b446c2d7de452a8d12680e0436145a5efbfd7fda5f9d72cc6d81",
+      "ring.rs": "38496120a0a80267024c1c83bec40d46462856aef47f4f83f8fa990b89c0ee21",
+      "ringswitch.rs": "aca9acb3d6e310848297b6e1f9c4b11046074bec27518d77b0596073ef984c90",
+      "sumcheck.rs": "1521f9fdf74c0e9f11131c83f82c3443406febc90d4e0245568cef9a99e9b535",
+      "zerocheck.rs": "24d4a8db599ab547974ad0c9e6727775fe8e28d2947db6ed118c7ab53cb18732"
+    }
+  },
+  "instrument_sha256": "7dcd1eaf547a989a0bb5c71091c8bd3e8eaed9106ae894c642308b75e32eba67",
+  "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)\nbinary: rustc\ncommit-hash: 14210df0e27ccd7d9e6a05b8085cbd438e4bbc65\ncommit-date: 2026-05-31\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0-nightly\nLLVM version: 22.1.6\n"
+}

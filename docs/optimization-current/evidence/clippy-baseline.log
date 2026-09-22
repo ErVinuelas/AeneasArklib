@@ -1,0 +1,2169 @@
+    Checking cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+    Checking hachi v0.1.0 (/home/alh/vrust/AeneasArklib/hachi)
+warning: long literal lacking separators
+   --> src/params.rs:202:5
+    |
+202 |     3482634775, 3482634775, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `3_482_634_775`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+    = note: `-W clippy::unreadable-literal` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::unreadable_literal)]`
+
+warning: long literal lacking separators
+   --> src/params.rs:202:17
+    |
+202 |     3482634775, 3482634775, 0, 0,
+    |                 ^^^^^^^^^^ help: consider: `3_482_634_775`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:211:5
+    |
+211 |     2503758464, 3216308195, 3216308195, 2503758464,
+    |     ^^^^^^^^^^ help: consider: `2_503_758_464`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:211:17
+    |
+211 |     2503758464, 3216308195, 3216308195, 2503758464,
+    |                 ^^^^^^^^^^ help: consider: `3_216_308_195`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:211:29
+    |
+211 |     2503758464, 3216308195, 3216308195, 2503758464,
+    |                             ^^^^^^^^^^ help: consider: `3_216_308_195`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:211:41
+    |
+211 |     2503758464, 3216308195, 3216308195, 2503758464,
+    |                                         ^^^^^^^^^^ help: consider: `2_503_758_464`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:220:5
+    |
+220 |     2571177710, 4265954156, 4236941115, 4236941115,
+    |     ^^^^^^^^^^ help: consider: `2_571_177_710`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:220:17
+    |
+220 |     2571177710, 4265954156, 4236941115, 4236941115,
+    |                 ^^^^^^^^^^ help: consider: `4_265_954_156`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:220:29
+    |
+220 |     2571177710, 4265954156, 4236941115, 4236941115,
+    |                             ^^^^^^^^^^ help: consider: `4_236_941_115`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:220:41
+    |
+220 |     2571177710, 4265954156, 4236941115, 4236941115,
+    |                                         ^^^^^^^^^^ help: consider: `4_236_941_115`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:221:5
+    |
+221 |     4265954156, 2571177710, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `4_265_954_156`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:221:17
+    |
+221 |     4265954156, 2571177710, 0, 0,
+    |                 ^^^^^^^^^^ help: consider: `2_571_177_710`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:229:5
+    |
+229 |     2088262913, 1732938800, 903849203, 74759606,
+    |     ^^^^^^^^^^ help: consider: `2_088_262_913`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:229:17
+    |
+229 |     2088262913, 1732938800, 903849203, 74759606,
+    |                 ^^^^^^^^^^ help: consider: `1_732_938_800`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:229:29
+    |
+229 |     2088262913, 1732938800, 903849203, 74759606,
+    |                             ^^^^^^^^^ help: consider: `903_849_203`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:229:40
+    |
+229 |     2088262913, 1732938800, 903849203, 74759606,
+    |                                        ^^^^^^^^ help: consider: `74_759_606`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:230:5
+    |
+230 |     74759606, 903849203, 1732938800, 2088262913,
+    |     ^^^^^^^^ help: consider: `74_759_606`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:230:15
+    |
+230 |     74759606, 903849203, 1732938800, 2088262913,
+    |               ^^^^^^^^^ help: consider: `903_849_203`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:230:26
+    |
+230 |     74759606, 903849203, 1732938800, 2088262913,
+    |                          ^^^^^^^^^^ help: consider: `1_732_938_800`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:230:38
+    |
+230 |     74759606, 903849203, 1732938800, 2088262913,
+    |                                      ^^^^^^^^^^ help: consider: `2_088_262_913`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:238:5
+    |
+238 |     1336916483, 3442313953, 884354221, 631837450,
+    |     ^^^^^^^^^^ help: consider: `1_336_916_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:238:17
+    |
+238 |     1336916483, 3442313953, 884354221, 631837450,
+    |                 ^^^^^^^^^^ help: consider: `3_442_313_953`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:238:29
+    |
+238 |     1336916483, 3442313953, 884354221, 631837450,
+    |                             ^^^^^^^^^ help: consider: `884_354_221`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:238:40
+    |
+238 |     1336916483, 3442313953, 884354221, 631837450,
+    |                                        ^^^^^^^^^ help: consider: `631_837_450`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:239:5
+    |
+239 |     947756175, 947756175, 631837450, 884354221,
+    |     ^^^^^^^^^ help: consider: `947_756_175`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:239:16
+    |
+239 |     947756175, 947756175, 631837450, 884354221,
+    |                ^^^^^^^^^ help: consider: `947_756_175`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:239:27
+    |
+239 |     947756175, 947756175, 631837450, 884354221,
+    |                           ^^^^^^^^^ help: consider: `631_837_450`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:239:38
+    |
+239 |     947756175, 947756175, 631837450, 884354221,
+    |                                      ^^^^^^^^^ help: consider: `884_354_221`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:240:5
+    |
+240 |     3442313953, 1336916483, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `3_442_313_953`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:240:17
+    |
+240 |     3442313953, 1336916483, 0, 0,
+    |                 ^^^^^^^^^^ help: consider: `1_336_916_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:247:5
+    |
+247 |     2390189385, 522280053, 2611400265, 3539233598,
+    |     ^^^^^^^^^^ help: consider: `2_390_189_385`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:247:17
+    |
+247 |     2390189385, 522280053, 2611400265, 3539233598,
+    |                 ^^^^^^^^^ help: consider: `522_280_053`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:247:28
+    |
+247 |     2390189385, 522280053, 2611400265, 3539233598,
+    |                            ^^^^^^^^^^ help: consider: `2_611_400_265`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:247:40
+    |
+247 |     2390189385, 522280053, 2611400265, 3539233598,
+    |                                        ^^^^^^^^^^ help: consider: `3_539_233_598`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:248:5
+    |
+248 |     2783499999, 460926241, 460926241, 2783499999,
+    |     ^^^^^^^^^^ help: consider: `2_783_499_999`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:248:17
+    |
+248 |     2783499999, 460926241, 460926241, 2783499999,
+    |                 ^^^^^^^^^ help: consider: `460_926_241`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:248:28
+    |
+248 |     2783499999, 460926241, 460926241, 2783499999,
+    |                            ^^^^^^^^^ help: consider: `460_926_241`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:248:39
+    |
+248 |     2783499999, 460926241, 460926241, 2783499999,
+    |                                       ^^^^^^^^^^ help: consider: `2_783_499_999`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:249:5
+    |
+249 |     3539233598, 2611400265, 522280053, 2390189385,
+    |     ^^^^^^^^^^ help: consider: `3_539_233_598`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:249:17
+    |
+249 |     3539233598, 2611400265, 522280053, 2390189385,
+    |                 ^^^^^^^^^^ help: consider: `2_611_400_265`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:249:29
+    |
+249 |     3539233598, 2611400265, 522280053, 2390189385,
+    |                             ^^^^^^^^^ help: consider: `522_280_053`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:249:40
+    |
+249 |     3539233598, 2611400265, 522280053, 2390189385,
+    |                                        ^^^^^^^^^^ help: consider: `2_390_189_385`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:256:5
+    |
+256 |     593857483, 3425180082, 3371211704, 2339519455,
+    |     ^^^^^^^^^ help: consider: `593_857_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:256:16
+    |
+256 |     593857483, 3425180082, 3371211704, 2339519455,
+    |                ^^^^^^^^^^ help: consider: `3_425_180_082`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:256:28
+    |
+256 |     593857483, 3425180082, 3371211704, 2339519455,
+    |                            ^^^^^^^^^^ help: consider: `3_371_211_704`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:256:40
+    |
+256 |     593857483, 3425180082, 3371211704, 2339519455,
+    |                                        ^^^^^^^^^^ help: consider: `2_339_519_455`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:257:5
+    |
+257 |     3701315039, 4085386752, 1152215139, 1152215139,
+    |     ^^^^^^^^^^ help: consider: `3_701_315_039`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:257:17
+    |
+257 |     3701315039, 4085386752, 1152215139, 1152215139,
+    |                 ^^^^^^^^^^ help: consider: `4_085_386_752`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:257:29
+    |
+257 |     3701315039, 4085386752, 1152215139, 1152215139,
+    |                             ^^^^^^^^^^ help: consider: `1_152_215_139`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:257:41
+    |
+257 |     3701315039, 4085386752, 1152215139, 1152215139,
+    |                                         ^^^^^^^^^^ help: consider: `1_152_215_139`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:258:5
+    |
+258 |     4085386752, 3701315039, 2339519455, 3371211704,
+    |     ^^^^^^^^^^ help: consider: `4_085_386_752`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:258:17
+    |
+258 |     4085386752, 3701315039, 2339519455, 3371211704,
+    |                 ^^^^^^^^^^ help: consider: `3_701_315_039`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:258:29
+    |
+258 |     4085386752, 3701315039, 2339519455, 3371211704,
+    |                             ^^^^^^^^^^ help: consider: `2_339_519_455`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:258:41
+    |
+258 |     4085386752, 3701315039, 2339519455, 3371211704,
+    |                                         ^^^^^^^^^^ help: consider: `3_371_211_704`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:259:5
+    |
+259 |     3425180082, 593857483, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `3_425_180_082`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:259:17
+    |
+259 |     3425180082, 593857483, 0, 0,
+    |                 ^^^^^^^^^ help: consider: `593_857_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:265:5
+    |
+265 |     4019711691, 166134607, 1162942249, 3607760680,
+    |     ^^^^^^^^^^ help: consider: `4_019_711_691`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:265:17
+    |
+265 |     4019711691, 166134607, 1162942249, 3607760680,
+    |                 ^^^^^^^^^ help: consider: `166_134_607`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:265:28
+    |
+265 |     4019711691, 166134607, 1162942249, 3607760680,
+    |                            ^^^^^^^^^^ help: consider: `1_162_942_249`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:265:40
+    |
+265 |     4019711691, 166134607, 1162942249, 3607760680,
+    |                                        ^^^^^^^^^^ help: consider: `3_607_760_680`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:266:5
+    |
+266 |     2233347646, 2336384503, 1030662707, 2552271251,
+    |     ^^^^^^^^^^ help: consider: `2_233_347_646`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:266:17
+    |
+266 |     2233347646, 2336384503, 1030662707, 2552271251,
+    |                 ^^^^^^^^^^ help: consider: `2_336_384_503`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:266:29
+    |
+266 |     2233347646, 2336384503, 1030662707, 2552271251,
+    |                             ^^^^^^^^^^ help: consider: `1_030_662_707`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:266:41
+    |
+266 |     2233347646, 2336384503, 1030662707, 2552271251,
+    |                                         ^^^^^^^^^^ help: consider: `2_552_271_251`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:267:5
+    |
+267 |     2552271251, 1030662707, 2336384503, 2233347646,
+    |     ^^^^^^^^^^ help: consider: `2_552_271_251`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:267:17
+    |
+267 |     2552271251, 1030662707, 2336384503, 2233347646,
+    |                 ^^^^^^^^^^ help: consider: `1_030_662_707`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:267:29
+    |
+267 |     2552271251, 1030662707, 2336384503, 2233347646,
+    |                             ^^^^^^^^^^ help: consider: `2_336_384_503`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:267:41
+    |
+267 |     2552271251, 1030662707, 2336384503, 2233347646,
+    |                                         ^^^^^^^^^^ help: consider: `2_233_347_646`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:268:5
+    |
+268 |     3607760680, 1162942249, 166134607, 4019711691,
+    |     ^^^^^^^^^^ help: consider: `3_607_760_680`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:268:17
+    |
+268 |     3607760680, 1162942249, 166134607, 4019711691,
+    |                 ^^^^^^^^^^ help: consider: `1_162_942_249`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:268:29
+    |
+268 |     3607760680, 1162942249, 166134607, 4019711691,
+    |                             ^^^^^^^^^ help: consider: `166_134_607`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:268:40
+    |
+268 |     3607760680, 1162942249, 166134607, 4019711691,
+    |                                        ^^^^^^^^^^ help: consider: `4_019_711_691`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:274:5
+    |
+274 |     895573040, 2339840089, 1538851924, 3399292423,
+    |     ^^^^^^^^^ help: consider: `895_573_040`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:274:16
+    |
+274 |     895573040, 2339840089, 1538851924, 3399292423,
+    |                ^^^^^^^^^^ help: consider: `2_339_840_089`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:274:28
+    |
+274 |     895573040, 2339840089, 1538851924, 3399292423,
+    |                            ^^^^^^^^^^ help: consider: `1_538_851_924`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:274:40
+    |
+274 |     895573040, 2339840089, 1538851924, 3399292423,
+    |                                        ^^^^^^^^^^ help: consider: `3_399_292_423`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:275:5
+    |
+275 |     1160105488, 1298287390, 2596574780, 1012498085,
+    |     ^^^^^^^^^^ help: consider: `1_160_105_488`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:275:17
+    |
+275 |     1160105488, 1298287390, 2596574780, 1012498085,
+    |                 ^^^^^^^^^^ help: consider: `1_298_287_390`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:275:29
+    |
+275 |     1160105488, 1298287390, 2596574780, 1012498085,
+    |                             ^^^^^^^^^^ help: consider: `2_596_574_780`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:275:41
+    |
+275 |     1160105488, 1298287390, 2596574780, 1012498085,
+    |                                         ^^^^^^^^^^ help: consider: `1_012_498_085`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:276:5
+    |
+276 |     191880807, 191880807, 1012498085, 2596574780,
+    |     ^^^^^^^^^ help: consider: `191_880_807`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:276:16
+    |
+276 |     191880807, 191880807, 1012498085, 2596574780,
+    |                ^^^^^^^^^ help: consider: `191_880_807`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:276:27
+    |
+276 |     191880807, 191880807, 1012498085, 2596574780,
+    |                           ^^^^^^^^^^ help: consider: `1_012_498_085`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:276:39
+    |
+276 |     191880807, 191880807, 1012498085, 2596574780,
+    |                                       ^^^^^^^^^^ help: consider: `2_596_574_780`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:277:5
+    |
+277 |     1298287390, 1160105488, 3399292423, 1538851924,
+    |     ^^^^^^^^^^ help: consider: `1_298_287_390`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:277:17
+    |
+277 |     1298287390, 1160105488, 3399292423, 1538851924,
+    |                 ^^^^^^^^^^ help: consider: `1_160_105_488`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:277:29
+    |
+277 |     1298287390, 1160105488, 3399292423, 1538851924,
+    |                             ^^^^^^^^^^ help: consider: `3_399_292_423`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:277:41
+    |
+277 |     1298287390, 1160105488, 3399292423, 1538851924,
+    |                                         ^^^^^^^^^^ help: consider: `1_538_851_924`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:278:5
+    |
+278 |     2339840089, 895573040, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `2_339_840_089`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:278:17
+    |
+278 |     2339840089, 895573040, 0, 0,
+    |                 ^^^^^^^^^ help: consider: `895_573_040`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:283:5
+    |
+283 |     2269934483, 179083207, 1611748863, 543309163,
+    |     ^^^^^^^^^^ help: consider: `2_269_934_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:283:17
+    |
+283 |     2269934483, 179083207, 1611748863, 543309163,
+    |                 ^^^^^^^^^ help: consider: `179_083_207`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:283:28
+    |
+283 |     2269934483, 179083207, 1611748863, 543309163,
+    |                            ^^^^^^^^^^ help: consider: `1_611_748_863`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:283:40
+    |
+283 |     2269934483, 179083207, 1611748863, 543309163,
+    |                                        ^^^^^^^^^ help: consider: `543_309_163`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:284:5
+    |
+284 |     2173236652, 2224742759, 2327754973, 2482273294,
+    |     ^^^^^^^^^^ help: consider: `2_173_236_652`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:284:17
+    |
+284 |     2173236652, 2224742759, 2327754973, 2482273294,
+    |                 ^^^^^^^^^^ help: consider: `2_224_742_759`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:284:29
+    |
+284 |     2173236652, 2224742759, 2327754973, 2482273294,
+    |                             ^^^^^^^^^^ help: consider: `2_327_754_973`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:284:41
+    |
+284 |     2173236652, 2224742759, 2327754973, 2482273294,
+    |                                         ^^^^^^^^^^ help: consider: `2_482_273_294`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:285:5
+    |
+285 |     3723409941, 3119178640, 3119178640, 3723409941,
+    |     ^^^^^^^^^^ help: consider: `3_723_409_941`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:285:17
+    |
+285 |     3723409941, 3119178640, 3119178640, 3723409941,
+    |                 ^^^^^^^^^^ help: consider: `3_119_178_640`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:285:29
+    |
+285 |     3723409941, 3119178640, 3119178640, 3723409941,
+    |                             ^^^^^^^^^^ help: consider: `3_119_178_640`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:285:41
+    |
+285 |     3723409941, 3119178640, 3119178640, 3723409941,
+    |                                         ^^^^^^^^^^ help: consider: `3_723_409_941`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:286:5
+    |
+286 |     2482273294, 2327754973, 2224742759, 2173236652,
+    |     ^^^^^^^^^^ help: consider: `2_482_273_294`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:286:17
+    |
+286 |     2482273294, 2327754973, 2224742759, 2173236652,
+    |                 ^^^^^^^^^^ help: consider: `2_327_754_973`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:286:29
+    |
+286 |     2482273294, 2327754973, 2224742759, 2173236652,
+    |                             ^^^^^^^^^^ help: consider: `2_224_742_759`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:286:41
+    |
+286 |     2482273294, 2327754973, 2224742759, 2173236652,
+    |                                         ^^^^^^^^^^ help: consider: `2_173_236_652`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:287:5
+    |
+287 |     543309163, 1611748863, 179083207, 2269934483,
+    |     ^^^^^^^^^ help: consider: `543_309_163`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:287:16
+    |
+287 |     543309163, 1611748863, 179083207, 2269934483,
+    |                ^^^^^^^^^^ help: consider: `1_611_748_863`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:287:28
+    |
+287 |     543309163, 1611748863, 179083207, 2269934483,
+    |                            ^^^^^^^^^ help: consider: `179_083_207`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:287:39
+    |
+287 |     543309163, 1611748863, 179083207, 2269934483,
+    |                                       ^^^^^^^^^^ help: consider: `2_269_934_483`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:292:5
+    |
+292 |     1661002130, 521307154, 918104343, 1519693642,
+    |     ^^^^^^^^^^ help: consider: `1_661_002_130`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:292:17
+    |
+292 |     1661002130, 521307154, 918104343, 1519693642,
+    |                 ^^^^^^^^^ help: consider: `521_307_154`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:292:28
+    |
+292 |     1661002130, 521307154, 918104343, 1519693642,
+    |                            ^^^^^^^^^ help: consider: `918_104_343`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:292:39
+    |
+292 |     1661002130, 521307154, 918104343, 1519693642,
+    |                                       ^^^^^^^^^^ help: consider: `1_519_693_642`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:293:5
+    |
+293 |     2543654192, 2635470177, 2732953275, 947794507,
+    |     ^^^^^^^^^^ help: consider: `2_543_654_192`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:293:17
+    |
+293 |     2543654192, 2635470177, 2732953275, 947794507,
+    |                 ^^^^^^^^^^ help: consider: `2_635_470_177`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:293:29
+    |
+293 |     2543654192, 2635470177, 2732953275, 947794507,
+    |                             ^^^^^^^^^^ help: consider: `2_732_953_275`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:293:41
+    |
+293 |     2543654192, 2635470177, 2732953275, 947794507,
+    |                                         ^^^^^^^^^ help: consider: `947_794_507`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:294:5
+    |
+294 |     584898588, 844853516, 2731811098, 2731811098,
+    |     ^^^^^^^^^ help: consider: `584_898_588`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:294:16
+    |
+294 |     584898588, 844853516, 2731811098, 2731811098,
+    |                ^^^^^^^^^ help: consider: `844_853_516`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:294:27
+    |
+294 |     584898588, 844853516, 2731811098, 2731811098,
+    |                           ^^^^^^^^^^ help: consider: `2_731_811_098`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:294:39
+    |
+294 |     584898588, 844853516, 2731811098, 2731811098,
+    |                                       ^^^^^^^^^^ help: consider: `2_731_811_098`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:295:5
+    |
+295 |     844853516, 584898588, 947794507, 2732953275,
+    |     ^^^^^^^^^ help: consider: `844_853_516`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:295:16
+    |
+295 |     844853516, 584898588, 947794507, 2732953275,
+    |                ^^^^^^^^^ help: consider: `584_898_588`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:295:27
+    |
+295 |     844853516, 584898588, 947794507, 2732953275,
+    |                           ^^^^^^^^^ help: consider: `947_794_507`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:295:38
+    |
+295 |     844853516, 584898588, 947794507, 2732953275,
+    |                                      ^^^^^^^^^^ help: consider: `2_732_953_275`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:296:5
+    |
+296 |     2635470177, 2543654192, 1519693642, 918104343,
+    |     ^^^^^^^^^^ help: consider: `2_635_470_177`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:296:17
+    |
+296 |     2635470177, 2543654192, 1519693642, 918104343,
+    |                 ^^^^^^^^^^ help: consider: `2_543_654_192`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:296:29
+    |
+296 |     2635470177, 2543654192, 1519693642, 918104343,
+    |                             ^^^^^^^^^^ help: consider: `1_519_693_642`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:296:41
+    |
+296 |     2635470177, 2543654192, 1519693642, 918104343,
+    |                                         ^^^^^^^^^ help: consider: `918_104_343`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:297:5
+    |
+297 |     521307154, 1661002130, 0, 0,
+    |     ^^^^^^^^^ help: consider: `521_307_154`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:297:16
+    |
+297 |     521307154, 1661002130, 0, 0,
+    |                ^^^^^^^^^^ help: consider: `1_661_002_130`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:301:5
+    |
+301 |     2173484420, 2745502493, 135757044, 950299308,
+    |     ^^^^^^^^^^ help: consider: `2_173_484_420`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:301:17
+    |
+301 |     2173484420, 2745502493, 135757044, 950299308,
+    |                 ^^^^^^^^^^ help: consider: `2_745_502_493`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:301:29
+    |
+301 |     2173484420, 2745502493, 135757044, 950299308,
+    |                             ^^^^^^^^^ help: consider: `135_757_044`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:301:40
+    |
+301 |     2173484420, 2745502493, 135757044, 950299308,
+    |                                        ^^^^^^^^^ help: consider: `950_299_308`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:302:5
+    |
+302 |     456529343, 875818064, 2627454192, 2699559726,
+    |     ^^^^^^^^^ help: consider: `456_529_343`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:302:16
+    |
+302 |     456529343, 875818064, 2627454192, 2699559726,
+    |                ^^^^^^^^^ help: consider: `875_818_064`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:302:27
+    |
+302 |     456529343, 875818064, 2627454192, 2699559726,
+    |                           ^^^^^^^^^^ help: consider: `2_627_454_192`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:302:39
+    |
+302 |     456529343, 875818064, 2627454192, 2699559726,
+    |                                       ^^^^^^^^^^ help: consider: `2_699_559_726`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:303:5
+    |
+303 |     1104152255, 408598026, 4008010994, 832224632,
+    |     ^^^^^^^^^^ help: consider: `1_104_152_255`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:303:17
+    |
+303 |     1104152255, 408598026, 4008010994, 832224632,
+    |                 ^^^^^^^^^ help: consider: `408_598_026`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:303:28
+    |
+303 |     1104152255, 408598026, 4008010994, 832224632,
+    |                            ^^^^^^^^^^ help: consider: `4_008_010_994`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:303:40
+    |
+303 |     1104152255, 408598026, 4008010994, 832224632,
+    |                                        ^^^^^^^^^ help: consider: `832_224_632`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:304:5
+    |
+304 |     832224632, 4008010994, 408598026, 1104152255,
+    |     ^^^^^^^^^ help: consider: `832_224_632`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:304:16
+    |
+304 |     832224632, 4008010994, 408598026, 1104152255,
+    |                ^^^^^^^^^^ help: consider: `4_008_010_994`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:304:28
+    |
+304 |     832224632, 4008010994, 408598026, 1104152255,
+    |                            ^^^^^^^^^ help: consider: `408_598_026`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:304:39
+    |
+304 |     832224632, 4008010994, 408598026, 1104152255,
+    |                                       ^^^^^^^^^^ help: consider: `1_104_152_255`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:305:5
+    |
+305 |     2699559726, 2627454192, 875818064, 456529343,
+    |     ^^^^^^^^^^ help: consider: `2_699_559_726`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:305:17
+    |
+305 |     2699559726, 2627454192, 875818064, 456529343,
+    |                 ^^^^^^^^^^ help: consider: `2_627_454_192`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:305:29
+    |
+305 |     2699559726, 2627454192, 875818064, 456529343,
+    |                             ^^^^^^^^^ help: consider: `875_818_064`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:305:40
+    |
+305 |     2699559726, 2627454192, 875818064, 456529343,
+    |                                        ^^^^^^^^^ help: consider: `456_529_343`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:306:5
+    |
+306 |     950299308, 135757044, 2745502493, 2173484420,
+    |     ^^^^^^^^^ help: consider: `950_299_308`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:306:16
+    |
+306 |     950299308, 135757044, 2745502493, 2173484420,
+    |                ^^^^^^^^^ help: consider: `135_757_044`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:306:27
+    |
+306 |     950299308, 135757044, 2745502493, 2173484420,
+    |                           ^^^^^^^^^^ help: consider: `2_745_502_493`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:306:39
+    |
+306 |     950299308, 135757044, 2745502493, 2173484420,
+    |                                       ^^^^^^^^^^ help: consider: `2_173_484_420`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:310:5
+    |
+310 |     4077588997, 3155479394, 3506015152, 2541302049,
+    |     ^^^^^^^^^^ help: consider: `4_077_588_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:310:17
+    |
+310 |     4077588997, 3155479394, 3506015152, 2541302049,
+    |                 ^^^^^^^^^^ help: consider: `3_155_479_394`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:310:29
+    |
+310 |     4077588997, 3155479394, 3506015152, 2541302049,
+    |                             ^^^^^^^^^^ help: consider: `3_506_015_152`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:310:41
+    |
+310 |     4077588997, 3155479394, 3506015152, 2541302049,
+    |                                         ^^^^^^^^^^ help: consider: `2_541_302_049`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:311:5
+    |
+311 |     3239743277, 4157993930, 2406733908, 2851163010,
+    |     ^^^^^^^^^^ help: consider: `3_239_743_277`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:311:17
+    |
+311 |     3239743277, 4157993930, 2406733908, 2851163010,
+    |                 ^^^^^^^^^^ help: consider: `4_157_993_930`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:311:29
+    |
+311 |     3239743277, 4157993930, 2406733908, 2851163010,
+    |                             ^^^^^^^^^^ help: consider: `2_406_733_908`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:311:41
+    |
+311 |     3239743277, 4157993930, 2406733908, 2851163010,
+    |                                         ^^^^^^^^^^ help: consider: `2_851_163_010`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:312:5
+    |
+312 |     4267633174, 1380024800, 2208039680, 3010963200,
+    |     ^^^^^^^^^^ help: consider: `4_267_633_174`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:312:17
+    |
+312 |     4267633174, 1380024800, 2208039680, 3010963200,
+    |                 ^^^^^^^^^^ help: consider: `1_380_024_800`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:312:29
+    |
+312 |     4267633174, 1380024800, 2208039680, 3010963200,
+    |                             ^^^^^^^^^^ help: consider: `2_208_039_680`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:312:41
+    |
+312 |     4267633174, 1380024800, 2208039680, 3010963200,
+    |                                         ^^^^^^^^^^ help: consider: `3_010_963_200`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:313:5
+    |
+313 |     3512790400, 3512790400, 3010963200, 2208039680,
+    |     ^^^^^^^^^^ help: consider: `3_512_790_400`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:313:17
+    |
+313 |     3512790400, 3512790400, 3010963200, 2208039680,
+    |                 ^^^^^^^^^^ help: consider: `3_512_790_400`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:313:29
+    |
+313 |     3512790400, 3512790400, 3010963200, 2208039680,
+    |                             ^^^^^^^^^^ help: consider: `3_010_963_200`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:313:41
+    |
+313 |     3512790400, 3512790400, 3010963200, 2208039680,
+    |                                         ^^^^^^^^^^ help: consider: `2_208_039_680`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:314:5
+    |
+314 |     1380024800, 4267633174, 2851163010, 2406733908,
+    |     ^^^^^^^^^^ help: consider: `1_380_024_800`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:314:17
+    |
+314 |     1380024800, 4267633174, 2851163010, 2406733908,
+    |                 ^^^^^^^^^^ help: consider: `4_267_633_174`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:314:29
+    |
+314 |     1380024800, 4267633174, 2851163010, 2406733908,
+    |                             ^^^^^^^^^^ help: consider: `2_851_163_010`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:314:41
+    |
+314 |     1380024800, 4267633174, 2851163010, 2406733908,
+    |                                         ^^^^^^^^^^ help: consider: `2_406_733_908`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:315:5
+    |
+315 |     4157993930, 3239743277, 2541302049, 3506015152,
+    |     ^^^^^^^^^^ help: consider: `4_157_993_930`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:315:17
+    |
+315 |     4157993930, 3239743277, 2541302049, 3506015152,
+    |                 ^^^^^^^^^^ help: consider: `3_239_743_277`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:315:29
+    |
+315 |     4157993930, 3239743277, 2541302049, 3506015152,
+    |                             ^^^^^^^^^^ help: consider: `2_541_302_049`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:315:41
+    |
+315 |     4157993930, 3239743277, 2541302049, 3506015152,
+    |                                         ^^^^^^^^^^ help: consider: `3_506_015_152`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:316:5
+    |
+316 |     3155479394, 4077588997, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `3_155_479_394`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:316:17
+    |
+316 |     3155479394, 4077588997, 0, 0,
+    |                 ^^^^^^^^^^ help: consider: `4_077_588_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:319:5
+    |
+319 |     679644, 18350388, 238555044, 1987958700,
+    |     ^^^^^^ help: consider: `679_644`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:319:13
+    |
+319 |     679644, 18350388, 238555044, 1987958700,
+    |             ^^^^^^^^ help: consider: `18_350_388`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:319:23
+    |
+319 |     679644, 18350388, 238555044, 1987958700,
+    |                       ^^^^^^^^^ help: consider: `238_555_044`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:319:34
+    |
+319 |     679644, 18350388, 238555044, 1987958700,
+    |                                  ^^^^^^^^^^ help: consider: `1_987_958_700`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:320:5
+    |
+320 |     3337817806, 3328053756, 3612929378, 2248853740,
+    |     ^^^^^^^^^^ help: consider: `3_337_817_806`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:320:17
+    |
+320 |     3337817806, 3328053756, 3612929378, 2248853740,
+    |                 ^^^^^^^^^^ help: consider: `3_328_053_756`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:320:29
+    |
+320 |     3337817806, 3328053756, 3612929378, 2248853740,
+    |                             ^^^^^^^^^^ help: consider: `3_612_929_378`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:320:41
+    |
+320 |     3337817806, 3328053756, 3612929378, 2248853740,
+    |                                         ^^^^^^^^^^ help: consider: `2_248_853_740`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:321:5
+    |
+321 |     1327167153, 2801797323, 4184241742, 609781969,
+    |     ^^^^^^^^^^ help: consider: `1_327_167_153`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:321:17
+    |
+321 |     1327167153, 2801797323, 4184241742, 609781969,
+    |                 ^^^^^^^^^^ help: consider: `2_801_797_323`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:321:29
+    |
+321 |     1327167153, 2801797323, 4184241742, 609781969,
+    |                             ^^^^^^^^^^ help: consider: `4_184_241_742`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:321:41
+    |
+321 |     1327167153, 2801797323, 4184241742, 609781969,
+    |                                         ^^^^^^^^^ help: consider: `609_781_969`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:322:5
+    |
+322 |     3676354090, 277361922, 277361922, 3676354090,
+    |     ^^^^^^^^^^ help: consider: `3_676_354_090`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:322:17
+    |
+322 |     3676354090, 277361922, 277361922, 3676354090,
+    |                 ^^^^^^^^^ help: consider: `277_361_922`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:322:28
+    |
+322 |     3676354090, 277361922, 277361922, 3676354090,
+    |                            ^^^^^^^^^ help: consider: `277_361_922`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:322:39
+    |
+322 |     3676354090, 277361922, 277361922, 3676354090,
+    |                                       ^^^^^^^^^^ help: consider: `3_676_354_090`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:323:5
+    |
+323 |     609781969, 4184241742, 2801797323, 1327167153,
+    |     ^^^^^^^^^ help: consider: `609_781_969`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:323:16
+    |
+323 |     609781969, 4184241742, 2801797323, 1327167153,
+    |                ^^^^^^^^^^ help: consider: `4_184_241_742`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:323:28
+    |
+323 |     609781969, 4184241742, 2801797323, 1327167153,
+    |                            ^^^^^^^^^^ help: consider: `2_801_797_323`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:323:40
+    |
+323 |     609781969, 4184241742, 2801797323, 1327167153,
+    |                                        ^^^^^^^^^^ help: consider: `1_327_167_153`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:324:5
+    |
+324 |     2248853740, 3612929378, 3328053756, 3337817806,
+    |     ^^^^^^^^^^ help: consider: `2_248_853_740`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:324:17
+    |
+324 |     2248853740, 3612929378, 3328053756, 3337817806,
+    |                 ^^^^^^^^^^ help: consider: `3_612_929_378`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:324:29
+    |
+324 |     2248853740, 3612929378, 3328053756, 3337817806,
+    |                             ^^^^^^^^^^ help: consider: `3_328_053_756`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:324:41
+    |
+324 |     2248853740, 3612929378, 3328053756, 3337817806,
+    |                                         ^^^^^^^^^^ help: consider: `3_337_817_806`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:325:5
+    |
+325 |     1987958700, 238555044, 18350388, 679644,
+    |     ^^^^^^^^^^ help: consider: `1_987_958_700`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:325:17
+    |
+325 |     1987958700, 238555044, 18350388, 679644,
+    |                 ^^^^^^^^^ help: consider: `238_555_044`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:325:28
+    |
+325 |     1987958700, 238555044, 18350388, 679644,
+    |                            ^^^^^^^^ help: consider: `18_350_388`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:325:38
+    |
+325 |     1987958700, 238555044, 18350388, 679644,
+    |                                      ^^^^^^ help: consider: `679_644`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:328:5
+    |
+328 |     4294965957, 4294931237, 4294463757, 4290436237,
+    |     ^^^^^^^^^^ help: consider: `4_294_965_957`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:328:17
+    |
+328 |     4294965957, 4294931237, 4294463757, 4290436237,
+    |                 ^^^^^^^^^^ help: consider: `4_294_931_237`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:328:29
+    |
+328 |     4294965957, 4294931237, 4294463757, 4290436237,
+    |                             ^^^^^^^^^^ help: consider: `4_294_463_757`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:328:41
+    |
+328 |     4294965957, 4294931237, 4294463757, 4290436237,
+    |                                         ^^^^^^^^^^ help: consider: `4_290_436_237`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:329:5
+    |
+329 |     4265515957, 4147710997, 3705942397, 2359599997,
+    |     ^^^^^^^^^^ help: consider: `4_265_515_957`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:329:17
+    |
+329 |     4265515957, 4147710997, 3705942397, 2359599997,
+    |                 ^^^^^^^^^^ help: consider: `4_147_710_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:329:29
+    |
+329 |     4265515957, 4147710997, 3705942397, 2359599997,
+    |                             ^^^^^^^^^^ help: consider: `3_705_942_397`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:329:41
+    |
+329 |     4265515957, 4147710997, 3705942397, 2359599997,
+    |                                         ^^^^^^^^^^ help: consider: `2_359_599_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:330:5
+    |
+330 |     3267674594, 466295391, 932590782, 49032370,
+    |     ^^^^^^^^^^ help: consider: `3_267_674_594`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:330:17
+    |
+330 |     3267674594, 466295391, 932590782, 49032370,
+    |                 ^^^^^^^^^ help: consider: `466_295_391`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:330:28
+    |
+330 |     3267674594, 466295391, 932590782, 49032370,
+    |                            ^^^^^^^^^ help: consider: `932_590_782`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:330:39
+    |
+330 |     3267674594, 466295391, 932590782, 49032370,
+    |                                       ^^^^^^^^ help: consider: `49_032_370`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:331:5
+    |
+331 |     73548555, 1748089340, 2611383131, 2611383131,
+    |     ^^^^^^^^ help: consider: `73_548_555`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:331:15
+    |
+331 |     73548555, 1748089340, 2611383131, 2611383131,
+    |               ^^^^^^^^^^ help: consider: `1_748_089_340`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:331:27
+    |
+331 |     73548555, 1748089340, 2611383131, 2611383131,
+    |                           ^^^^^^^^^^ help: consider: `2_611_383_131`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:331:39
+    |
+331 |     73548555, 1748089340, 2611383131, 2611383131,
+    |                                       ^^^^^^^^^^ help: consider: `2_611_383_131`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:332:5
+    |
+332 |     1748089340, 73548555, 49032370, 932590782,
+    |     ^^^^^^^^^^ help: consider: `1_748_089_340`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:332:17
+    |
+332 |     1748089340, 73548555, 49032370, 932590782,
+    |                 ^^^^^^^^ help: consider: `73_548_555`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:332:27
+    |
+332 |     1748089340, 73548555, 49032370, 932590782,
+    |                           ^^^^^^^^ help: consider: `49_032_370`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:332:37
+    |
+332 |     1748089340, 73548555, 49032370, 932590782,
+    |                                     ^^^^^^^^^ help: consider: `932_590_782`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:333:5
+    |
+333 |     466295391, 3267674594, 2359599997, 3705942397,
+    |     ^^^^^^^^^ help: consider: `466_295_391`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:333:16
+    |
+333 |     466295391, 3267674594, 2359599997, 3705942397,
+    |                ^^^^^^^^^^ help: consider: `3_267_674_594`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:333:28
+    |
+333 |     466295391, 3267674594, 2359599997, 3705942397,
+    |                            ^^^^^^^^^^ help: consider: `2_359_599_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:333:40
+    |
+333 |     466295391, 3267674594, 2359599997, 3705942397,
+    |                                        ^^^^^^^^^^ help: consider: `3_705_942_397`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:334:5
+    |
+334 |     4147710997, 4265515957, 4290436237, 4294463757,
+    |     ^^^^^^^^^^ help: consider: `4_147_710_997`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:334:17
+    |
+334 |     4147710997, 4265515957, 4290436237, 4294463757,
+    |                 ^^^^^^^^^^ help: consider: `4_265_515_957`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:334:29
+    |
+334 |     4147710997, 4265515957, 4290436237, 4294463757,
+    |                             ^^^^^^^^^^ help: consider: `4_290_436_237`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:334:41
+    |
+334 |     4147710997, 4265515957, 4290436237, 4294463757,
+    |                                         ^^^^^^^^^^ help: consider: `4_294_463_757`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:335:5
+    |
+335 |     4294931237, 4294965957, 0, 0,
+    |     ^^^^^^^^^^ help: consider: `4_294_931_237`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:335:17
+    |
+335 |     4294931237, 4294965957, 0, 0,
+    |                 ^^^^^^^^^^ help: consider: `4_294_965_957`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:338:12
+    |
+338 |     31465, 169911, 736281, 2629575,
+    |            ^^^^^^ help: consider: `169_911`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:338:20
+    |
+338 |     31465, 169911, 736281, 2629575,
+    |                    ^^^^^^ help: consider: `736_281`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:338:28
+    |
+338 |     31465, 169911, 736281, 2629575,
+    |                            ^^^^^^^ help: consider: `2_629_575`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:339:5
+    |
+339 |     7888725, 20160075, 44352165, 84672315,
+    |     ^^^^^^^ help: consider: `7_888_725`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:339:14
+    |
+339 |     7888725, 20160075, 44352165, 84672315,
+    |              ^^^^^^^^ help: consider: `20_160_075`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:339:24
+    |
+339 |     7888725, 20160075, 44352165, 84672315,
+    |                        ^^^^^^^^ help: consider: `44_352_165`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:339:34
+    |
+339 |     7888725, 20160075, 44352165, 84672315,
+    |                                  ^^^^^^^^ help: consider: `84_672_315`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:340:5
+    |
+340 |     141120525, 206253075, 265182525, 300540195,
+    |     ^^^^^^^^^ help: consider: `141_120_525`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:340:16
+    |
+340 |     141120525, 206253075, 265182525, 300540195,
+    |                ^^^^^^^^^ help: consider: `206_253_075`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:340:27
+    |
+340 |     141120525, 206253075, 265182525, 300540195,
+    |                           ^^^^^^^^^ help: consider: `265_182_525`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:340:38
+    |
+340 |     141120525, 206253075, 265182525, 300540195,
+    |                                      ^^^^^^^^^ help: consider: `300_540_195`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:341:5
+    |
+341 |     300540195, 265182525, 206253075, 141120525,
+    |     ^^^^^^^^^ help: consider: `300_540_195`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:341:16
+    |
+341 |     300540195, 265182525, 206253075, 141120525,
+    |                ^^^^^^^^^ help: consider: `265_182_525`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:341:27
+    |
+341 |     300540195, 265182525, 206253075, 141120525,
+    |                           ^^^^^^^^^ help: consider: `206_253_075`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:341:38
+    |
+341 |     300540195, 265182525, 206253075, 141120525,
+    |                                      ^^^^^^^^^ help: consider: `141_120_525`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:342:5
+    |
+342 |     84672315, 44352165, 20160075, 7888725,
+    |     ^^^^^^^^ help: consider: `84_672_315`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:342:15
+    |
+342 |     84672315, 44352165, 20160075, 7888725,
+    |               ^^^^^^^^ help: consider: `44_352_165`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:342:25
+    |
+342 |     84672315, 44352165, 20160075, 7888725,
+    |                         ^^^^^^^^ help: consider: `20_160_075`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:342:35
+    |
+342 |     84672315, 44352165, 20160075, 7888725,
+    |                                   ^^^^^^^ help: consider: `7_888_725`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:343:5
+    |
+343 |     2629575, 736281, 169911, 31465,
+    |     ^^^^^^^ help: consider: `2_629_575`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:343:14
+    |
+343 |     2629575, 736281, 169911, 31465,
+    |              ^^^^^^ help: consider: `736_281`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: long literal lacking separators
+   --> src/params.rs:343:22
+    |
+343 |     2629575, 736281, 169911, 31465,
+    |                      ^^^^^^ help: consider: `169_911`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#unreadable_literal
+
+warning: binding's name is too similar to existing binding
+    --> src/quadeval.rs:1308:13
+     |
+1308 |     let mut drows: Vec<PolyVec> = Vec::new();
+     |             ^^^^^
+     |
+note: existing binding defined here
+    --> src/quadeval.rs:1307:9
+     |
+1307 |     let d_rows: usize = pp.d_matrix().rows();
+     |         ^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#similar_names
+     = note: `-W clippy::similar-names` implied by `-W clippy::pedantic`
+     = help: to override `-W clippy::pedantic` add `#[allow(clippy::similar_names)]`
+
+warning: binding's name is too similar to existing binding
+    --> src/quadeval.rs:1322:13
+     |
+1322 |     let mut brows: Vec<PolyVec> = Vec::new();
+     |             ^^^^^
+     |
+note: existing binding defined here
+    --> src/quadeval.rs:1321:9
+     |
+1321 |     let b_rows: usize = pp.inner().outer_matrix().rows();
+     |         ^^^^^^
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#similar_names
+
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:716:4
+    |
+716 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: this argument is passed by value, but not consumed in the function body
+   --> src/ring.rs:616:26
+    |
+616 | fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
+    |                          ^^^^^^^^ help: consider changing the type to: `&[u64]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#needless_pass_by_value
+    = note: `-W clippy::needless-pass-by-value` implied by `-W clippy::pedantic`
+    = help: to override `-W clippy::pedantic` add `#[allow(clippy::needless_pass_by_value)]`
+
+warning: large size difference between variants
+   --> src/ringswitch.rs:321:1
+    |
+321 | / pub enum RlinMat {
+322 | |     /// The matrix as assembled, entry by entry.
+323 | |     Dense(PolyMatrix),
+    | |     ----------------- the second-largest variant contains at least 24 bytes
+324 | |     /// The blocks it would have been assembled from.
+325 | |     Lazy(RlinBlocks),
+    | |     ---------------- the largest variant contains at least 240 bytes
+326 | | }
+    | |_^ the entire enum is at least 240 bytes
+    |
+help: consider boxing the large fields or introducing indirection in some other way to reduce the total size of the enum
+   --> src/ringswitch.rs:325:5
+    |
+325 |     Lazy(RlinBlocks),
+    |     ^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.96.0/index.html#large_enum_variant
+    = note: `#[warn(clippy::large_enum_variant)]` on by default
+
+warning: `hachi` (lib) generated 267 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.32s

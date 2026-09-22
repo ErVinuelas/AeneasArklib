@@ -1,0 +1,426 @@
+    Blocking waiting for file lock on build directory
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling hachi-candidate v0.0.0 (/home/alh/vrust/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/alh/vrust/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi v0.1.0 (/home/alh/vrust/AeneasArklib/hachi)
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:716:4
+    |
+716 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 1 warning
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (lib test) generated 1 warning (1 duplicate)
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics" -p hachi` to apply 4 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.01s
+     Running unittests src/lib.rs (target/debug/deps/hachi-1b0246afb3ec1171)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/chain_semantics.rs (target/debug/deps/chain_semantics-54d0f5d8ddf69af3)
+
+running 31 tests
+test a_transcript_whose_rounds_do_not_sum_is_rejected ... ignored, scale: materializes the 2.2 GiB R^lin matrix; 3 s (measured 2026-09-20) -- make test-scale
+test an_honest_run_over_a_non_solution_is_rejected_at_the_first_round_only ... ignored, scale: materializes the 2.2 GiB R^lin matrix twice; 118 s (measured 2026-09-20) -- make test-scale
+test chain_open_produces_the_messages_the_verifier_reads ... ignored, scale: materializes the 2.2 GiB R^lin matrix; 117 s (measured 2026-09-20) -- make test-scale
+test the_big_table_walk_under_huge_pages ... ignored, instrument: pin-width memory walk -- run with cargo test --release -- --ignored
+test the_commitment_and_z_pass_split_per_block ... ignored, instrument: pin-width timing, several minutes -- run with cargo test --release -- --ignored
+test the_decomposer_kernel_against_its_kill_gate ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test the_gather_form_against_its_kill_gate ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test the_general_path_lane_count_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_goldilocks_lane_at_the_caller ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test the_honest_chain_profile ... ignored, instrument: the pin-scale prover replayed piece by piece, tens of minutes -- make run-profile
+test the_honest_chain_verifies ... ignored, scale: the honest transcript end to end, one block and otherwise the pin; 221 s (measured 2026-09-20, against 2202 s before Stage 6) -- make test-scale
+test the_lift_high_half_against_the_full_product ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test the_lift_high_half_diagnostic ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test the_lift_single_product_diagnostic ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_radix4_fused_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_radix4_fused_gate_general ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_radix4_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_radix4_general_runtime_prime_diagnostic ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_round_g_halves ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_rounds_split_per_phase ... ignored, instrument: pin-width timing, several minutes -- run with cargo test --release -- --ignored
+test the_short_multiply_deferred_reduction_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_short_multiply_per_call_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_short_multiply_u128_gate ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_taylor_shift_against_the_real_round_mix ... ignored, instrument: prototype timing -- run with cargo test --release -- --ignored
+test the_taylor_shift_at_round_zero ... ignored, instrument: timing -- run with cargo test --release -- --ignored
+test the_taylor_shift_in_its_admissible_shape ... ignored, instrument: prototype timing -- run with cargo test --release -- --ignored
+test the_taylor_shift_round_poly_against_its_kill_gate ... ignored, instrument: prototype timing -- run with cargo test --release -- --ignored
+test the_taylor_shift_with_an_in_place_accumulator ... ignored, instrument: prototype timing -- run with cargo test --release -- --ignored
+test the_u32_transform_at_the_caller ... ignored, instrument: pin-width timing -- run with cargo test --release -- --ignored
+test shift_inner_is_exact_at_the_top_of_its_bound ... ok
+test dense_eval_agrees_with_the_nested_form ... ok
+
+test result: ok. 2 passed; 0 failed; 29 ignored; 0 measured; 0 filtered out; finished in 1.83s
+
+     Running tests/commit_semantics.rs (target/debug/deps/commit_semantics-da28e86ad55884c1)
+
+running 23 tests
+test a_long_inner_decomposition_is_rejected_even_when_the_relation_holds ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test a_tampered_inner_decomposition_is_rejected ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test a_tampered_message_decomposition_is_rejected ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test an_opening_does_not_verify_against_the_wrong_commitment ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test an_overlong_message_decomposition_is_rejected ... ignored, scale-xl: a ~64 GiB decomposition, far past a 30 GiB machine. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test commit_agrees_with_commit_with_decomps ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test commit_balanced_agrees_with_commit_with_decomps ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test honest_balanced_commitments_verify ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test honest_commitments_verify ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test inadmissible_challenges_are_rejected ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test the_full_verifier_checks_the_claimed_message ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test the_honest_decomposition_meets_the_verifier_bounds ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test the_message_is_derived_from_the_balanced_decomposition ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test the_message_is_derived_from_the_decomposition ... ignored, scale-xl: a full-const message (~8 GiB) and its decomposition held together, past a 30 GiB machine -- honest_commitments_verify exhausted this one on 2026-09-20. The wall is memory; the hours of schoolbook mul the reason used to claim went away with the NTT
+test the_l2_check_can_fire_at_these_dimensions ... ok
+test centered_abs_folds_the_upper_half ... ok
+test l2_norm_sq_does_not_overflow_at_the_maximum ... ok
+test norms_of_simple_elements ... ok
+test norms_are_invariant_under_negation ... ok
+test the_slot_rewrite_preserves_the_relation_but_not_shortness ... ok
+test a_tampered_digit_slot_changes_the_recomposition ... ok
+test the_balanced_decomposition_is_the_shorter_one ... ok
+test commit_streamed_agrees_with_commit ... ok
+
+test result: ok. 9 passed; 0 failed; 14 ignored; 0 measured; 0 filtered out; finished in 36.39s
+
+     Running tests/endpiece_semantics.rs (target/debug/deps/endpiece_semantics-7e98ea982b2f6583)
+
+running 9 tests
+test w_eval_statement_carries_its_three_fields ... ok
+test end_piece_witness_is_the_message ... ok
+test end_piece_prove_returns_the_witness_unchanged ... ok
+test end_piece_check_rejects_a_wrong_value ... ok
+test end_piece_check_accepts_an_honest_claim ... ok
+test end_piece_check_rejects_a_perturbed_commitment ... ok
+test end_piece_check_pins_the_z_norm_boundary ... ok
+test end_piece_check_decides_the_conjunction ... ok
+test end_piece_check_with_a_quotient_row ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+
+     Running tests/evalsplit_semantics.rs (target/debug/deps/evalsplit_semantics-52bcb5a8e4af1e7b)
+
+running 15 tests
+test eval_split_agrees_with_a_direct_monomial_sum ... ignored, scale-xl: full-const, a 2^20-term direct sum of ring products; past 1800 s (measured 2026-09-20)
+test eval_split_eval_agrees_with_a_direct_lagrange_sum ... ignored, scale-xl: full-const, a 2^20-term direct sum of ring products; past 1800 s (measured 2026-09-20)
+test eval_split_eval_interpolates_the_hypercube ... ignored, scale: full-const, a 2^20-ring-element vector and ~2^20 ring products; 667 s (measured 2026-09-20) -- make test-scale
+test lagrange_basis_sums_to_one ... ignored, scale: full-const, a 2^20-ring-element basis; 370 s (measured 2026-09-20) -- make test-scale
+test bases_of_the_empty_point_are_one ... ok
+test to_matrix_eval_places_values_along_the_split ... ignored, scale: full-const, a 2^20-ring-element vector; 10 s at a 13 GiB peak (measured 2026-09-20) -- make test-scale
+test to_matrix_places_coefficients_along_the_split ... ignored, scale: full-const, a 2^20-ring-element polynomial; 11 s (measured 2026-09-20) -- make test-scale
+test to_polynomial_inverts_to_matrix ... ignored, scale-xl: full-const, two 2^20-ring-element structures; past 900 s at a 17 GiB peak (measured 2026-09-20)
+test split_equiv_matches_the_le_bit_layout ... ok
+test monomial_basis_is_the_tensor_of_the_point ... ok
+test split_equiv_round_trips ... ok
+test lagrange_basis_matches_the_kernel_formula ... ok
+test lagrange_basis_sums_to_one_at_a_small_point ... ok
+test monomial_basis_agrees_with_the_n_factor_oracle ... ok
+test lagrange_basis_agrees_with_the_n_factor_oracle ... ok
+
+test result: ok. 8 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/gadget_semantics.rs (target/debug/deps/gadget_semantics-4b8918edbd51118a)
+
+running 24 tests
+test balanced_digits_lie_in_the_paper_box ... ok
+test balanced_digit_decompose_agrees_with_balanced_digit_at ... ok
+test base_pow_is_modular ... ok
+test balanced_digits_reconstruct_the_element ... ok
+test bounded_z_digits_do_not_reconstruct_long_elements ... ok
+test balanced_digit_is_the_shifted_unsigned_digit_recentered ... ok
+test bounded_z_digit_centres_before_shifting ... ok
+test bounded_z_digits_lie_in_the_paper_box_unconditionally ... ok
+test bounded_z_digits_reconstruct_short_elements ... ok
+test digit_decompose_agrees_with_digit_at ... ok
+test digits_are_the_plain_base_b_digits_of_the_representative ... ok
+test digits_reconstruct_the_element ... ok
+test the_raw_u64_shift_would_be_a_different_function ... ok
+test digit_at_agrees_with_the_division_chain_at_every_index ... ok
+test decomposition_of_simple_inputs ... ok
+test decomposition_slots_hold_the_right_digits ... ok
+test gadget_matrix_has_the_tensor_layout ... ok
+test the_balanced_decomposition_is_shorter_than_the_unsigned_one ... ok
+test gadget_mul_inverts_balanced_gadget_decompose ... ok
+test balanced_decomposition_slots_hold_the_right_digits ... ok
+test gadget_mul_agrees_with_the_materialized_matrix ... ok
+test the_decomposition_meets_the_l2_bound ... ok
+test the_decomposition_is_l_infty_short ... ok
+test gadget_mul_inverts_gadget_decompose ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/linalg_semantics.rs (target/debug/deps/linalg_semantics-51ea465d4e46116f)
+
+running 13 tests
+test flatten_blocks_handles_degenerate_shapes ... ok
+test flatten_blocks_is_block_major ... ok
+test vector_equality_examines_every_entry ... ok
+test matrix_shape_accessors ... ok
+test mat_vec_mul_multiplies_in_the_ring_not_just_the_field ... ok
+test dot_of_empty_and_zero_vectors_is_zero ... ok
+test mat_vec_mul_matches_a_hand_computation ... ok
+test mat_vec_mul_is_additive ... ok
+test mat_vec_mul_commutes_with_scaling ... ok
+test split_form_is_the_double_sum ... ok
+test dot_is_symmetric_and_bilinear ... ok
+test a_prepared_matrix_applies_like_mat_vec_mul ... ok
+test the_goldilocks_lane_agrees_with_the_two_prime_digit_path has been running for over 60 seconds
+test the_goldilocks_lane_agrees_with_the_two_prime_digit_path ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 69.32s
+
+     Running tests/params_semantics.rs (target/debug/deps/params_semantics-bcd1ffd532db3bc3)
+
+running 30 tests
+test balanced_shift_is_half_base_times_the_ones_value ... ok
+test beta_sq_admits_the_honest_decomposition ... ok
+test beta_sq_is_the_weak_opening_bound ... ok
+test digit_bound_side_condition_holds ... ok
+test chain_range_parameters_are_the_pinned_digit_base ... ok
+test dimensions_are_nondegenerate ... ok
+test evalsplit_shape_constants_are_consistent ... ok
+test ext_degree_is_four ... ok
+test ext_w_is_a_non_square ... ok
+test gadget_base_exceeds_one ... ok
+test gadget_digits_cover_the_modulus ... ok
+test gadget_digits_are_minimal ... ok
+test gamma_is_the_weak_opening_bound ... ok
+test kappa_is_legal_for_invertibility ... ok
+test kappa_is_twice_omega ... ok
+test q_agrees_with_the_field_layer ... ok
+test lift_cols_is_rlin_cols_plus_the_quotient_digits ... ok
+test q_fits_in_32_bits ... ok
+test q_is_five_mod_eight ... ok
+test rlin_block_widths_are_consistent ... ok
+test q_is_one_mod_four ... ok
+test sumcheck_cube_covers_the_table_minimally ... ok
+test shift_t_is_the_binomial_table ... ok
+test range_q_coeffs_are_the_product_form ... ok
+test ring_degree_is_a_power_of_two ... ok
+test the_honest_challenge_is_admissible ... ok
+test q_is_prime ... ok
+test z_digits_are_minimal_for_the_honest_bound ... ok
+test zero_check_cube_covers_the_quotient_rows_minimally ... ok
+test the_shift_table_reproduces_the_range_polynomial ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/quadeval_semantics.rs (target/debug/deps/quadeval_semantics-53b29802a2412351)
+
+running 24 tests
+test in_sb_is_asymmetric ... ok
+test tensor_g_of_no_blocks_is_zero ... ok
+test stack_and_unstack_are_inverse ... ok
+test the_bounded_z_round_trip_fails_on_long_inputs ... ok
+test the_bounded_z_round_trip_holds_on_short_inputs ... ok
+test tensor_g1_is_the_challenge_weighted_recomposition ... ok
+test the_honest_balanced_decomposition_is_in_the_box ... ok
+test the_box_is_strictly_stronger_than_the_ball ... ok
+test rlin_row_agrees_with_rlin_stmt ... ok
+test the_unsigned_decomposition_fails_the_box ... ok
+test unflatten_inverts_flatten_blocks ... ok
+test tensor_g_is_the_blockwise_weighted_sum ... ok
+test carrier_is_carrier_entry_per_block ... ok
+test carrier_entry_agrees_with_the_materialized_matrix ... ok
+test the_transposed_gadget_matches_the_materialized_transpose ... ok
+test the_c5_block_matrix_reproduces_tensor_g ... ok
+test the_bridge_bases_reproduce_the_polynomial_evaluation ... ok
+test the_assembled_rlin_system_has_the_specified_blocks ... ok
+test the_reshaped_c4_block_equals_the_naive_matrix_product ... ok
+test j_mul_is_gadget_mul_z_at_the_scheme_width ... ok
+test the_compact_carrier_equals_the_expanded_one ... ok
+test carrier_from_raw_agrees_with_carrier ... ok
+test honest_z_from_raw_agrees_with_honest_z has been running for over 60 seconds
+test sharing_the_carrier_decomposition_leaves_v_and_the_response_unchanged has been running for over 60 seconds
+test sharing_the_carrier_decomposition_leaves_v_and_the_response_unchanged ... ok
+test honest_z_from_raw_agrees_with_honest_z ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 292.94s
+
+     Running tests/ring_semantics.rs (target/debug/deps/ring_semantics-05561d5099c4b1fa)
+
+running 35 tests
+test constants_occupy_only_the_zeroth_slot ... ok
+test auxiliary_moduli_are_ntt_friendly_primes ... ok
+test coeff_of_from_coeffs_round_trips ... ok
+test coefficient_arithmetic_reduces_modulo_q ... ok
+test copy_preserves_the_element ... ok
+test equality_examines_every_coefficient ... ok
+test from_coeffs_truncates_an_overlong_input ... ok
+test from_coeffs_zero_pads_a_short_input ... ok
+test barrett_reduction_is_modular_reduction ... ok
+test auxiliary_arithmetic_is_field_arithmetic ... ok
+test ntt_length_is_the_ring_degree ... ok
+test roots_have_exact_order_and_correct_inverses ... ok
+test addition_is_commutative_and_associative ... ok
+test garner_reconstruction_is_exact ... ok
+test psi_table_is_the_powers_of_psi ... ok
+test short_multiplication_in_place_accumulates ... ok
+test ntt_product_coefficients_are_reduced ... ok
+test the_crt_offset_fits_and_vanishes_mod_q ... ok
+test the_negacyclic_relation_holds ... ok
+test the_compact_raw_carrier_round_trips ... ok
+test the_compact_raw_block_round_trips ... ok
+test zero_and_one_have_the_expected_coefficients ... ok
+test transform_round_trips_up_to_the_length_factor ... ok
+test monomial_products_wrap_with_a_sign ... ok
+test short_multiplication_agrees_with_the_generic_one ... ok
+test scalar_mul_agrees_with_multiplication_by_a_constant ... ok
+test poly_vec_dot_matches_the_fused_dot ... ok
+test multiplication_is_commutative_associative_and_distributive ... ok
+test the_two_lane_dot_agrees_with_the_three_lane_one ... ok
+test ntt_product_agrees_with_the_schoolbook_oracle ... ok
+test limb_dots_agree_with_the_fused_dot ... ok
+test the_bounded_dot_survives_its_worst_case ... ok
+test bounded_prepared_dot_agrees_with_the_fused_dot has been running for over 60 seconds
+test fused_dot_agrees_with_summed_products has been running for over 60 seconds
+test prepared_dot_agrees_with_the_fused_dot has been running for over 60 seconds
+test bounded_prepared_dot_agrees_with_the_fused_dot ... ok
+test prepared_dot_agrees_with_the_fused_dot ... ok
+test fused_dot_agrees_with_summed_products ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 614.48s
+
+     Running tests/ringswitch_semantics.rs (target/debug/deps/ringswitch_semantics-74a3811c08b23e6c)
+
+running 20 tests
+test rho_digits_are_short ... ok
+test rho_digits_at_agrees_with_the_flat_index ... ok
+test rho_digit_as_rq_uses_row_major_digit_indices ... ok
+test rho_as_rq_preserves_the_quotient_row_coefficients ... ok
+test quotient_digits_past_the_count_are_minus_half_base ... ok
+test rho_digits_are_the_balanced_digits_of_each_coefficient ... ok
+test c_eval_at_modulus_is_alpha_to_the_d_plus_one ... ok
+test lift_short_check_accepts_and_rejects_on_the_z_norm ... ok
+test c_eval_at_is_additive_in_the_polynomial ... ok
+test rho_digits_have_the_full_ring_width ... ok
+test rho_digits_reconstruct_the_row ... ok
+test c_eval_at_evaluates_the_polynomial_at_alpha ... ok
+test rho_digits_short_check_is_true_at_the_pinned_parameters ... ok
+test rho_digits_at_is_the_balanced_digit_of_that_row ... ok
+test lift_message_appends_all_quotient_digits_after_z ... ok
+test c_row_sum_is_the_unreduced_row_convolution ... ok
+test the_quotient_times_the_modulus_plus_the_reduced_defect_is_the_defect ... ok
+test an_honest_right_hand_side_leaves_no_remainder ... ok
+test lift_commit_is_the_matrix_product_of_lift_message ... ok
+test the_honest_lift_witness_is_z_and_the_row_quotients ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.92s
+
+     Running tests/sumcheck_semantics.rs (target/debug/deps/sumcheck_semantics-1ee19be889d12399)
+
+running 27 tests
+test interpolation_weights_invert_their_denominators ... ok
+test linear_interpolation_weights_invert_their_denominators ... ok
+test c_w_table_fp_is_the_committed_table_before_embedding ... ok
+test eq_prefix_over_the_whole_point_is_eq_tilde ... ok
+test round_check_accepts_the_honest_message_and_rejects_moved_targets ... ok
+test honest_compute_g_linear_component_is_the_specifications_partial_sum ... ok
+test round_node_count_is_two_b_plus_one ... ok
+test honest_compute_g_range_component_is_the_specifications_partial_sum ... ok
+test round_message_degrees_are_two_b_and_two_exactly ... ok
+test interpolant_agrees_off_the_nodes_with_the_polynomial_it_came_from ... ok
+test honest_round_messages_with_round_zero_peeled_is_the_unpeeled_loop ... ok
+test round_out_extends_the_challenges_and_moves_both_targets ... ok
+test final_check_needs_all_three_conjuncts ... ok
+test round_poly_has_degree_at_most_two_b ... ok
+test round_value_is_the_eq_weighted_range_sum ... ok
+test alpha_public_mle_eval_is_the_table_mle_at_the_point ... ok
+test the_three_equality_pieces_reconstruct_the_kernel ... ok
+test round_poly_evaluates_to_its_node_values ... ok
+test alpha_split_factors_tensor_to_the_public_table ... ok
+test interpolant_reproduces_its_values_at_every_node ... ok
+test alpha_public_table_is_alpha_public_evals_tabulated ... ok
+test final_check_with_the_split_agrees_with_the_tabulated_check ... ok
+test round_zero_base_field_items_agree_with_the_extension_items ... ok
+test the_bridge_installs_zero_and_the_alpha_target ... ok
+test round_verify_loop_rejects_a_spliced_message_at_its_own_round ... ok
+test round_verify_loop_accepts_the_honest_messages_and_agrees_with_round_loop ... ok
+test split_round_pieces_agree_with_the_flat_table_through_the_rounds ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.39s
+
+     Running tests/zerocheck_semantics.rs (target/debug/deps/zerocheck_semantics-c94053a681d1ca5a)
+
+running 35 tests
+test eq_weight_table_is_eq_weight_with_the_guard ... ok
+test alpha_pow_table_is_alpha_tilde_tabulated ... ok
+test alpha_tilde_is_the_power ... ok
+test alpha_public_evals_vanishes_on_the_padding ... ok
+test below_two_pow_decides_the_cube_guard_at_every_width ... ok
+test c_w_table_mle_tabulates_w_table ... ok
+test c_w_table_mle_truncates_a_partial_row_block ... ok
+test eq_weight_at_a_boolean_point_is_the_indicator ... ok
+test eq_weight_reads_only_the_low_m1_bits ... ok
+test a_seventy_variable_boolean_point_still_selects_row_k ... ok
+test eq_weights_sum_to_one ... ok
+test h_alpha_pads_above_the_real_rows ... ok
+test the_cube_guard_drops_rows_above_the_cube ... ok
+test h_zero_is_the_range_factor_of_the_table ... ok
+test the_running_quotient_agrees_with_the_power_form ... ok
+test the_cube_guard_survives_a_width_whose_cube_size_does_not_fit ... ok
+test w_table_is_zero_above_the_committed_rows ... ok
+test alpha_public_evals_is_the_weighted_column_contraction ... ok
+test range_product_base_embeds_to_range_product ... ok
+test w_table_mle_eval_is_the_lagrange_sum ... ok
+test w_table_reads_the_message_block_coefficientwise ... ok
+test range_product_does_not_vanish_just_outside_the_range ... ok
+test h_zero_is_zero_agrees_with_h_zero_across_rows ... ok
+test zc_target_alpha_is_the_weighted_sum_of_the_right_hand_side ... ok
+test range_product_matches_an_independent_product ... ok
+test zc_target_alpha_at_a_boolean_point_selects_one_row ... ok
+test w_table_row_is_the_table_read_by_rows ... ok
+test range_product_vanishes_on_the_whole_symmetric_range ... ok
+test c_w_table_mle_stops_at_the_cube_not_the_table ... ok
+test h_zero_is_zero_exactly_when_every_coefficient_is_in_range ... ok
+test m_alpha_tilde_has_the_three_specified_cases ... ok
+test w_table_reads_the_quotient_block_digit_major ... ok
+test m_alpha_table_is_m_alpha_tilde_tabulated ... ok
+test alpha_contract_is_the_double_sum_either_way_round has been running for over 60 seconds
+test alpha_defect_vanishes_exactly_on_an_honest_lift has been running for over 60 seconds
+test alpha_contract_is_the_double_sum_either_way_round ... ok
+test alpha_defect_vanishes_exactly_on_an_honest_lift ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 129.26s
+
+   Doc-tests hachi
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

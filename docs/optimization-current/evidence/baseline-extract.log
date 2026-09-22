@@ -1,0 +1,31 @@
+==> charon
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the toolchain 'nightly-2026-06-01-x86_64-unknown-linux-gnu'.
+help: run `rustup component add --toolchain nightly-2026-06-01-x86_64-unknown-linux-gnu miri` to install it
+   Compiling hachi v0.1.0 (/home/alh/vrust/AeneasArklib/hachi)
+warning: `cargo miri setup` failed for target `x86_64-unknown-linux-gnu`; falling back to rustc's default sysroot: error: 'cargo-miri' is not installed for the toolchain 'nightly-2026-06-01-x86_64-unknown-linux-gnu'.
+help: run `rustup component add --toolchain nightly-2026-06-01-x86_64-unknown-linux-gnu miri` to install it
+warning: function `div_by_modulus` is never used
+   --> src/ringswitch.rs:716:4
+    |
+716 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+    |    ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.27s
+==> aeneas
+[Info ] Imported: generated.llbc
+
+
+
+
+
+
+
+
+[Info ] Generated: lean/Generated.lean
+[Info ] Total execution time: 31.358602 seconds
+==> lean/Generated.lean unchanged
+==> now re-check the proofs: make build
