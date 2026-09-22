@@ -38,7 +38,8 @@ use hachi::params::{
 use hachi::ring::Rq;
 use hachi::ringswitch::{
     c_eval_at, c_eval_at_modulus, lift_commit, lift_message, rho_digit_as_rq, rho_digits,
-    rho_digits_at, LiftedWitness, QuotientRow, RlinStatement, c_quotient, c_row_sum, honest_lift_witness};
+    rho_digits_at, lift_witness_short, LiftedWitness, QuotientRow, RlinStatement, c_quotient,
+    c_row_sum, honest_lift_witness};
 use support::{coeffs_of, rq_from_u64s, show, Lcg};
 
 /// `Nat.digits b n`, the whole little-endian list.
@@ -383,7 +384,88 @@ fn lift_commit_is_the_matrix_product_of_lift_message() {
     assert!(lift_commit(&d_key, &witness).equals(&expected));
 }
 
-/// At `(bDig, bound) = (16, 15)` every balanced quotient digit is at most 8,
+/// **Card T40's fast path computes what the generic one does, at the corner.**
+///
+/// The pre-existing `lift_commit` test draws `z` at random from `[1, q)`,
+/// which is *not* short, so it exercises the fallback and would pass with the
+/// one-lane path broken. This drives the fast path deliberately and puts
+/// every coefficient of `z` at a value the bound argument has to survive:
+/// `+CHAIN_GAMMA`, `−CHAIN_GAMMA` (i.e. `q − 15`), `0`, and `±1` — a bound
+/// argument passes on random inputs and fails only at the corner.
+///
+/// The key is left at full width `[1, q)`, because the bound is
+/// `terms · N · q · CHAIN_GAMMA` and it is the *key* side that supplies the
+/// `q`. Two `dRows` and both segments non-empty, so a row helper ignoring `i`
+/// and an offset scaled by only one segment both fail here.
+#[test]
+fn the_signed_gold_lift_commitment_matches_the_generic_one_at_the_bound_corner() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0040);
+    let extremes: [u64; 5] = [CHAIN_GAMMA, Q - CHAIN_GAMMA, 0, 1, Q - 1 - (Q - 1 - CHAIN_GAMMA)];
+    let mut zs = Vec::new();
+    for e in 0..3usize {
+        let mut coeffs = Vec::new();
+        for k in 0..RING_DEGREE {
+            // cycle the extremes so adjacent coefficients differ in sign:
+            // a convolution that dropped a sign would cancel on a constant
+            let v = extremes[(k + e) % extremes.len()];
+            coeffs.push(Fp::new(v));
+        }
+        zs.push(Rq::from_coeffs(&coeffs));
+    }
+    let z = PolyVec::new(zs);
+    let rho_a = rng.next_rq();
+    let rho_b = rng.next_rq();
+    let witness = LiftedWitness::new(z, vec![quotient_row(&rho_a), quotient_row(&rho_b)]);
+
+    assert!(
+        lift_witness_short(&witness),
+        "the fixture must take the fast path, or this test proves nothing"
+    );
+    assert!(lift_short_check(&witness), "and the spec-side predicate agrees");
+
+    let width = 3 + 2 * GADGET_DIGITS;
+    let d_key = rng.next_poly_matrix(2, width);
+    let expected = d_key.mat_vec_mul(&lift_message(&witness));
+    let got = lift_commit(&d_key, &witness);
+    assert_eq!(got.len(), expected.len(), "same width");
+    for i in 0..expected.len() {
+        assert!(
+            got.get(i).equals(expected.get(i)),
+            "signed Goldilocks lift row {i} differs from the generic product"
+        );
+    }
+}
+
+/// **And the guard sends a non-short witness down the generic path.**
+///
+/// One coefficient at `CHAIN_GAMMA + 1` is enough to break the bound, so the
+/// fast path must not run. The answer is still the matrix product — that is
+/// what keeps `lift_commit_spec` free of a new hypothesis.
+#[test]
+fn a_witness_one_over_the_bound_falls_back_and_is_still_correct() {
+    let mut rng = Lcg::new(0x8047_0000_0000_0041);
+    let mut coeffs = Vec::new();
+    for k in 0..RING_DEGREE {
+        coeffs.push(Fp::new(if k == 7 { CHAIN_GAMMA + 1 } else { CHAIN_GAMMA }));
+    }
+    let z = PolyVec::new(vec![Rq::from_coeffs(&coeffs)]);
+    let rho_a = rng.next_rq();
+    let witness = LiftedWitness::new(z, vec![quotient_row(&rho_a)]);
+
+    assert!(
+        !lift_witness_short(&witness),
+        "one coefficient over CHAIN_GAMMA must fail the guard"
+    );
+    let width = 1 + GADGET_DIGITS;
+    let d_key = rng.next_poly_matrix(1, width);
+    let expected = d_key.mat_vec_mul(&lift_message(&witness));
+    let got = lift_commit(&d_key, &witness);
+    for i in 0..expected.len() {
+        assert!(got.get(i).equals(expected.get(i)), "fallback row {i}");
+    }
+}
+
+/// At `(bDig, bound) = (16, 15)` every balanced quotient digit is at most 8,/// At `(bDig, bound) = (16, 15)` every balanced quotient digit is at most 8,
 /// so this check is provably true for arbitrary quotient rows. The computation
 /// is retained and tested even though its false branch is unreachable here.
 #[test]

@@ -793,6 +793,22 @@ pub fn garner_ga(rg: u64, ra: u64) -> u128 {
     (rg as u128) + g * tw
 }
 
+/// `N · q · CHAIN_GAMMA`, the per-term offset of the **signed short** path
+/// (card T40), which is below [`GOLD_P`] so it needs no reduction.
+///
+/// [`GOLD_DOFF`]'s sibling one base down: the digit path's operand is an
+/// unsigned digit below `GADGET_BASE = 16`, this path's is a *centred* value
+/// of magnitude at most `CHAIN_GAMMA = 15`, so the same `N · q · bound`
+/// arithmetic applies with the bound one smaller. A multiple of `q`, so it
+/// vanishes in the final reduction exactly as `GOLD_DOFF` does.
+///
+/// Scaled by the term count at the call site, as the digit path scales
+/// [`GOLD_DOFF`]: at the pin's `LIFT_COLS = 57 384` that is `2^61.72`, against
+/// `GOLD_P / 2 = 2^63` for signed recovery and `GOLD_P` for the offset form.
+/// Margin x2.44 either way, and the whole row therefore fits **one** chunk --
+/// there is no chunk loop on this path.
+pub const GOLD_SOFF: u64 = 65_970_696_145_920;
+
 /// `BOUND_D = N · q · GADGET_BASE`, the per-term offset of the digit path,
 /// which is already below [`GOLD_P`] so it needs no reduction.
 pub const GOLD_DOFF: u64 = 70_368_742_555_648;

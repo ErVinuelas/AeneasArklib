@@ -1531,3 +1531,38 @@ pub fn gold_dot_one_fused(
     (acc, cur, tmp)
 }
 
+
+
+// Card T40 (2026-09-22): the lift commitment on the signed bounded
+// Goldilocks lane, and the guard that selects it.
+// @genesis PENDING 2026-09-22 — ring::load_twisted_signed_into
+/// [`load_twisted_into`] for a **centred** operand (card T40).
+///
+/// The lift commitment's right operand is `z ‖ digits(ρ)`, whose coefficients
+/// are centred values of magnitude at most `params::CHAIN_GAMMA = 15` -- so
+/// each is either small or just below `q`, and reading it as the unsigned
+/// residue would make the convolution's bound `N · q²` per term instead of
+/// `N · q · 15`, which is the difference between one Goldilocks chunk and none.
+///
+/// `s ≥ 0 ↦ s`, `s < 0 ↦ GOLD_P − |s|`: the field's own representation of
+/// the negative, so the lane computes the *signed* integer convolution mod
+/// `GOLD_P`, which the offset then makes non-negative before the reduction
+/// mod `q`. Compare [`crate::commit::centered_abs`], which takes the same
+/// branch to get the magnitude; this keeps the sign.
+///
+/// `out` is overwritten, not appended to, exactly as in [`load_twisted_into`].
+pub fn load_twisted_signed_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let q: u64 = params::Q;
+    let half: u64 = q / 2;
+    let mut w: Vec<u64> = out;
+    let mut t: usize = 0;
+    while t < n {
+        let v: u64 = a.0[t].to_u64();
+        let g: u64 = if v <= half { v } else { crate::ntt::GOLD_P - (q - v) };
+        w[t] = crate::ntt::gold_mul(g, pt[t]);
+        t += 1;
+    }
+    w
+}
+
