@@ -49,9 +49,10 @@ use crate::zerocheck::w_table_mle_eval;
 /// Mirrors `rhoDigitsShortCheck`.
 ///
 /// At the fixed parameters the result is always `true`, since balanced base-16
-/// digits have centered magnitude at most 8 and `CHAIN_GAMMA = 15`. The loop is
-/// retained as the direct translation so a future parameter change cannot
-/// silently remove the verifier check.
+/// digits have centered magnitude at most 8 and `CHAIN_GAMMA = 15`. A guarded
+/// fast path uses this theorem (`InnerOuter.rhoDigitsShort_of_half_le`), proved
+/// against the extracted code in `RingSwitch.rho_digits_short_check_spec`.
+/// Other parameter profiles retain the coefficient check below.
 ///
 /// The three nested loops are the specification's three quantifiers, in its
 /// order: `∀ i` over the rows, `∀ u < δ` over the digits, `∀ k < d` over the
@@ -66,10 +67,18 @@ use crate::zerocheck::w_table_mle_eval;
 /// `rho_digits_short_check_spec` and, through the caller,
 /// `lift_short_check_spec`. Forming no product removes the hypothesis instead
 /// of assuming it away. The frozen genesis copy still has the old shape, so
-/// this operation's `vs genesis` column now contains a **faithfulness repair
-/// and not an optimization**; see NOTES.md § "The flat index the specification
-/// does not have".
+/// `vs genesis` includes that earlier faithfulness repair. Measure against the
+/// current baseline; see NOTES.md's explanation of the flat-index repair.
+#[allow(clippy::needless_bitwise_bool)] // Pure guards; one Boolean expression in Lean.
 pub fn rho_digits_short_check(rho: &Vec<QuotientRow>) -> bool {
+    if (params::Q == 4_294_967_197)
+        & (params::GADGET_BASE == 16)
+        & (params::GADGET_DIGITS == 8)
+        & (params::HALF_BASE == 8)
+        & (params::CHAIN_GAMMA >= 8)
+    {
+        return true;
+    }
     let rows: usize = rho.len();
     let mut i: usize = 0;
     let mut short: bool = true;
@@ -173,13 +182,13 @@ impl WEvalStatement {
 /// The two walls fire in one function, and they are removed by different
 /// champions; the bench file keeps them stated separately.
 ///
-/// Nothing is hoisted: the digit block of `w.rho()` is rebuilt inside conjunct A
-/// (`lift_message`), inside conjunct B (`rho_digits_short_check`) and inside
-/// conjunct C (`w_table`), three times over, because that is where the
-/// specification's three definitions each compute it. Sharing one pre-sized
-/// digit block across the conjuncts is the brief's highest-ratio optimization
-/// (the target-6 brief § "Strategy candidates"), and a baseline that
-/// had already done it would report that win as zero forever.
+/// The pinned profile's conjunct B uses the proved quotient-digit bound and
+/// checks only the norm of `z` at runtime. Other profiles retain the quotient
+/// coefficient checks. Conjunct A computes the lifted commitment; conjunct C
+/// evaluates the witness table. They retain their own digit access paths.
+/// Sharing digit storage across these consumers is a separate optimization
+/// requiring a proof and measurements. The terminal shortcut neither removes
+/// the commitment/evaluation checks nor relaxes the bound on `z`.
 pub fn end_piece_check(d_key: &PolyMatrix, stmt: &WEvalStatement, w: &LiftedWitness) -> bool {
     let com: PolyVec = lift_commit(d_key, w);
     let m0: usize = stmt.point().len();

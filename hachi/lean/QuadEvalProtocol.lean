@@ -263,6 +263,7 @@ theorem poly_vec_copy_loop_spec {k : ℕ} (v : linalg.PolyVec) (n : Std.Usize)
 theorem poly_vec_copy_spec {k : ℕ} (v : linalg.PolyVec) (hv : WfVec k v) :
     linalg.PolyVec.copy v ⦃ z => WfVec k z ∧ toVec (k := k) z = toVec (k := k) v ⦄ := by
   rw [linalg.PolyVec.copy]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [bind_ok_id]
   apply spec_mono (poly_vec_copy_loop_spec v (alloc.vec.Vec.len v)
     (alloc.vec.Vec.new ring.Rq) 0#usize hv (by simp [hv.1]) (by simp) (by simp)
@@ -335,6 +336,7 @@ theorem carrier_spec {rows blocks : ℕ} (a : linalg.PolyVec)
         = Hachi.carrier Φ (16 : ZMod q) (toVec (k := rows) a)
             (toBlocks (blocks := blocks) (width := rows * 8) s) ⦄ := by
   rw [quadeval.carrier]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (carrier_loop_spec a s (alloc.vec.Vec.len s) (alloc.vec.Vec.new ring.Rq)
     0#usize ha hs hmax (by simpa using hs.1) (by simp) (by simp)
@@ -475,6 +477,7 @@ theorem carrier_from_raw_spec {rows blocks : ℕ} (a : linalg.PolyVec)
             (fun i : Fin blocks => gadgetDecompose Φ dd
               (toVec (k := rows) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
   rw [quadeval.carrier_from_raw]
+  simp only [alloc.vec.Vec.with_capacity]
   -- `a` as a one-row matrix, prepared once
   step with poly_vec_copy_spec (k := rows) a ha as ⟨ac, hWac, hac⟩
   step as ⟨rws, hrws⟩
@@ -1620,6 +1623,7 @@ theorem honest_compute_resp_spec (stmt : quadeval.QuadEvalStatement)
         (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
   obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
   rw [quadeval.honest_compute_resp]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [quadeval.QuadEvalStatement.impl.avec, bind_tc_ok]
   step with carrier_decomp_spec stmt.avec message hWa hWm as ⟨cdec, hCwf, hCval⟩
   step with honest_z_spec message c wo hc hm hWm hWc as ⟨zz, hZwf, hZval⟩
@@ -1777,6 +1781,7 @@ theorem honest_compute_resp_from_raw_spec (stmt : quadeval.QuadEvalStatement)
         (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
   obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
   rw [quadeval.honest_compute_resp_from_raw]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [quadeval.QuadEvalStatement.impl.avec, bind_tc_ok]
   step with carrier_decomp_from_raw_spec stmt.avec raw hWa hWraw as ⟨cdec, hCwf, hCval⟩
   step with honest_z_from_raw_spec raw c wo hc hm hWraw hWc as ⟨zz, hZwf, hZval⟩
@@ -1953,6 +1958,7 @@ theorem honest_compute_resp_from_raw_32_spec (carrier_dec : linalg.PolyVec)
       ⦃ out => RepResp out
         (InnerOuter.honestComputeResp Φ ddBal bddZ ss wo (toChals c hc)) ⦄ := by
   rw [quadeval.honest_compute_resp_from_raw_32]
+  simp only [alloc.vec.Vec.with_capacity]
   step with poly_vec_copy_spec (k := 2 ^ 10 * 8) carrier_dec hWcd as ⟨cdec, hCwf, hCval⟩
   step with honest_z_from_raw_32_spec raw32 raw c wo hex hc hm hWraw hWc as ⟨zz, hZwf, hZval⟩
   step with QuadEval.bounded_z_gadget_decompose_spec (rows := 2 ^ 10 * 8) zz hZwf (by scalar_tac)

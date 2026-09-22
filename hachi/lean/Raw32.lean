@@ -511,6 +511,7 @@ theorem commit_streamed_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
             (alloc.vec.Vec.new linalg.PolyVec) 0#usize :=
     fun prep => commit_streamed_32_loop_eq _ prep _ _ hex (by simp)
   rw [commit.commit_streamed_32, commit.commit_streamed, hex.len_eq]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [hL]
 
 /-- **`carrier_from_raw_32` is `carrier_from_raw` on the message it denotes.** -/
@@ -546,6 +547,7 @@ theorem carrier_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
             (alloc.vec.Vec.new ring.Rq) 0#usize :=
     fun prep => carrier_from_raw_32_loop_eq _ prep _ _ hex (by simp)
   rw [quadeval.carrier_from_raw_32, quadeval.carrier_from_raw, hex.len_eq]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [hL]
 
 theorem carrier_decomp_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}

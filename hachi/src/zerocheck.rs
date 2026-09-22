@@ -815,7 +815,7 @@ pub fn h_alpha(
     m1: usize,
 ) -> MultilinearEvals {
     let size: usize = two_pow(m1);
-    let mut values: Vec<Ext4> = Vec::new();
+    let mut values: Vec<Ext4> = Vec::with_capacity(size);
     let mut i: usize = 0;
     while i < size {
         values.push(h_alpha_evals(s, alpha, w, i));

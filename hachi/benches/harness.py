@@ -6,7 +6,8 @@
     check-genesis   prove every frozen item, attributes included, is byte-for-byte
                     what `hachi/src` held at the commit its annotation names
     check-candidate prove the candidate slot (`benches/candidate/src`) is a null
-                    candidate: byte-copies of `hachi/src`, module for module
+                    candidate, or validate its structure and unchanged control
+                    dependencies with --active while measuring a candidate
     coverage        pair every `Mirrors ArkLib.X` item with a bench case or an
                     explicit, reasoned exclusion
     report          read criterion's output and compare each operation against
@@ -442,9 +443,10 @@ def cmd_check_candidate(args) -> int:
       loop's overwrite would then write through it into `hachi/src` itself.
       No entry in the slot may be a symlink.
     * An extra file in `src/` is reachable from a redirected `lib.rs`, so the
-      directory must contain exactly the four expected files.
+      directory must contain exactly the expected module files and lib.rs.
     """
     problems: list[str] = []
+    active = getattr(args, "active", False)
 
     expected = {f"{m}.rs" for m in MODULES} | {"lib.rs"}
     if CANDIDATE_SRC.exists():
@@ -472,7 +474,7 @@ def cmd_check_candidate(args) -> int:
             )
         elif frozen.is_symlink():
             pass  # already reported above
-        elif live.read_bytes() != frozen.read_bytes():
+        elif not active and live.read_bytes() != frozen.read_bytes():
             problems.append(
                 f"{module}: benches/candidate/src/{module}.rs differs from hachi/src/{module}.rs. "
                 f"The slot is null at rest — restore it with "
@@ -501,15 +503,62 @@ def cmd_check_candidate(args) -> int:
                 f"loop edits."
             )
 
+    # The timed control is PolyVec::zeros -> Rq::zero -> RING_DEGREE/Fp::ZERO.
+    # Its source must agree across all three crates before interpreting a delta
+    # as measurement bias. A small real control change could evade the 10% veto.
+    if active and not problems:
+        # Fail closed on attribute edits anywhere in the control's modules.
+        # This also covers multiline attributes, comments between an attribute
+        # and its item, and enclosing impl/module attributes. The item scanner
+        # intentionally does not parse the complete Rust attribute grammar.
+        for module in ("ring", "linalg", "params"):
+            attributes = []
+            for directory in (SRC, CANDIDATE_SRC, ROOT / "hachi/benches/genesis/src"):
+                source = (directory / f"{module}.rs").read_text()
+                mask = R.code_mask(source)
+                spans = []
+                for match in re.finditer(r"#\s*!?\s*\[", source):
+                    if not mask[match.start()]:
+                        continue
+                    depth = 1
+                    end = match.end()
+                    while end < len(source) and depth:
+                        if mask[end]:
+                            depth += (source[end] == "[") - (source[end] == "]")
+                        end += 1
+                    spans.append(source[match.start():end])
+                attributes.append(spans)
+            if attributes[0] != attributes[1] or attributes[0] != attributes[2]:
+                problems.append(f"{module}: attributes in a fairness-control module differ")
+        for module, path in (("ring", "ring::Rq::zero"),
+                             ("linalg", "linalg::PolyVec::zeros"),
+                             ("ring", "ring::Rq"),
+                             ("linalg", "linalg::PolyVec"),
+                             ("params", "params::RING_DEGREE")):
+            copies = []
+            for directory in (SRC, CANDIDATE_SRC, ROOT / "hachi/benches/genesis/src"):
+                source = (directory / f"{module}.rs").read_text()
+                items = R.flatten(R.scan(source, module))
+                item = next((it for it in items if it.path == path), None)
+                copies.append(_frozen_text(source.splitlines(keepends=True), item)
+                              if item is not None else None)
+            if any(copy is None for copy in copies) or len(set(copies)) != 1:
+                problems.append(f"{path}: fairness control dependency differs or is missing; "
+                                "use a separately validated control before optimizing it")
+
     if problems:
         print("==> candidate slot check FAILED", file=sys.stderr)
         for p in problems:
             print(f"  - {p}", file=sys.stderr)
         return 1
-    print(
-        f"==> candidate slot null: {len(MODULES)} module(s) byte-identical to hachi/src, "
-        f"lib.rs+Cargo.toml git-pinned, no extras, no symlinks"
-    )
+    if active:
+        print("==> active candidate slot valid: control dependencies identical, "
+              "lib.rs+Cargo.toml git-pinned, no extras, no symlinks")
+    else:
+        print(
+            f"==> candidate slot null: {len(MODULES)} module(s) byte-identical to hachi/src, "
+            f"lib.rs+Cargo.toml git-pinned, no extras, no symlinks"
+        )
     return 0
 
 
@@ -1333,6 +1382,8 @@ def main() -> int:
     s.set_defaults(func=cmd_check_genesis)
 
     s = sub.add_parser("check-candidate")
+    s.add_argument("--active", action="store_true",
+                   help="allow candidate module changes, retaining structure and control checks")
     s.set_defaults(func=cmd_check_candidate)
 
     s = sub.add_parser("coverage")

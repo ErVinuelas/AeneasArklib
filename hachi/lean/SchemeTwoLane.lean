@@ -136,6 +136,7 @@ theorem prepare_ga_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
     (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
     linalg.PolyMatrix.prepare_ga m ⦃ z => WfPrepGA rows cols z m ⦄ := by
   rw [linalg.PolyMatrix.prepare_ga]
+  simp only [alloc.vec.Vec.with_capacity]
   step with cols_spec m ha hrows as ⟨c, hc⟩
   step with prepare_ga_loop_spec m (alloc.vec.Vec.len m) c
     (alloc.vec.Vec.new ring.PreparedVecGA) 0#usize ha (by simp [ha.1]) hc hmax
@@ -213,6 +214,7 @@ theorem apply_ga_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixGA)
         = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
             (toVec (k := cols) v) ⦄ := by
   rw [linalg.PreparedMatrixGA.apply_ga]
+  simp only [alloc.vec.Vec.with_capacity]
   have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
   have hcl : pm.cols.val = cols := hp.1
   simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]

@@ -673,48 +673,45 @@ theorem cEvalAt_phi_eq_pow_add_one (a : F) :
   rw [InnerOuter.cEvalAt_eq_sum_range phiF a hdeg, Finset.sum_range_succ, hhead, htail]
   exact add_comm _ _
 
-/-- The loop of `c_eval_at_modulus`: a bare running power over the state
-`(pw, k)`, so the accumulator *is* `α ^ k` and the loop returns `α ^ N`. No
-coefficient branch and no `from_base`: the two non-zero terms of the modulus'
-`eval₂` sum are handled by the caller's single addition. -/
+/-- Repeated squaring: after `k` steps the accumulator is `alpha^(2^k)`.
+The checked parameter profile has `RING_DEGREE = 2^RING_LOG_DEGREE = 1024`. -/
 theorem c_eval_at_modulus_loop_spec (alpha : cpoly.field.Ext4) (pw : cpoly.field.Ext4)
-    (k : Std.Usize) (ha : Reduced alpha) (hpw : Reduced pw) (hk : k.val ≤ N)
-    (hpwv : toExt pw = toExt alpha ^ k.val) :
-    ringswitch.c_eval_at_modulus_loop alpha params.RING_DEGREE pw k
+    (k : Std.Usize) (ha : Reduced alpha) (hpw : Reduced pw) (hk : k.val ≤ 10)
+    (hpwv : toExt pw = toExt alpha ^ (2 ^ k.val)) :
+    ringswitch.c_eval_at_modulus_loop params.RING_LOG_DEGREE pw k
       ⦃ out => Reduced out ∧ toExt out = toExt alpha ^ N ⦄ := by
-  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  have hlog : (params.RING_LOG_DEGREE).val = 10 := by simp [params.RING_LOG_DEGREE]
   rw [ringswitch.c_eval_at_modulus_loop]
-  apply loop.spec_decr_nat (fun s => N - s.2.val)
-    (fun s => s.2.val ≤ N ∧ Reduced s.1 ∧ toExt s.1 = toExt alpha ^ s.2.val)
+  apply loop.spec_decr_nat (fun s => 10 - s.2.val)
+    (fun s => s.2.val ≤ 10 ∧ Reduced s.1 ∧ toExt s.1 = toExt alpha ^ (2 ^ s.2.val))
   · rintro ⟨w1, k1⟩ ⟨hk1, hR1, hv1⟩
     dsimp only at hk1 hR1 hv1
     simp only [ringswitch.c_eval_at_modulus_loop.body]
-    by_cases hlt : k1 < params.RING_DEGREE
+    by_cases hlt : k1 < params.RING_LOG_DEGREE
     · rw [if_pos hlt]
-      step with ext_mul_spec w1 alpha hR1 ha as ⟨w2, hR2, hw2⟩
+      step with ext_mul_spec w1 w1 hR1 hR1 as ⟨w2, hR2, hw2⟩
       step as ⟨k2, hk2⟩
       have hk2n : k2.val = k1.val + 1 := by scalar_tac
       refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
-      rw [hw2, hv1, hk2n, pow_succ]
+      rw [hw2, hv1, hk2n, Nat.pow_succ, pow_mul, pow_two]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : k1.val = N := by scalar_tac
-      exact ⟨hR1, by rw [hv1, heq]⟩
+      have heq : k1.val = 10 := by scalar_tac
+      exact ⟨hR1, by simpa [heq, N] using hv1⟩
   · exact ⟨hk, hpw, hpwv⟩
 
 /-- `c_eval_at_modulus` computes `cEvalAt φF α Φ.φ`, the `φ(α)` factor of
 `mAlphaTilde` (`ZeroCheck/Constraints.lean:519`).
 
 A separate entry point because `Φ.φ = X^d + 1` has `d + 1` coefficients and no
-`Rq` can hold it -- the invariant is exactly `d` of them. The extracted body is
-the translation of `HachiEquiv.Opt.c_eval_at_modulus.opt` (`lean/Opt.lean`): a
-running power of `N` multiplications, then one addition of `1`, which
+`Rq` can hold it -- the invariant is exactly `d` of them. The extracted body uses
+repeated squaring through `log₂ N` steps, then one addition of `1`, which
 `cEvalAt_phi_eq_pow_add_one` matches to the specification's `N + 1`-term sum. -/
 theorem c_eval_at_modulus_spec (alpha : cpoly.field.Ext4) (ha : Reduced alpha) :
     ringswitch.c_eval_at_modulus alpha
       ⦃ out => Reduced out ∧ toExt out = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ ⦄ := by
   rw [ringswitch.c_eval_at_modulus]
-  step with c_eval_at_modulus_loop_spec alpha cpoly.field.Ext4.ONE 0#usize ha reduced_ONE
+  step with c_eval_at_modulus_loop_spec alpha alpha 0#usize ha ha
     (by simp) (by simp) as ⟨pw, hRpw, hpwv⟩
   step with ext_add_spec pw cpoly.field.Ext4.ONE hRpw reduced_ONE as ⟨out, hRout, hout⟩
   refine ⟨hRout, ?_⟩
@@ -3753,6 +3750,7 @@ theorem h_alpha_spec {n μ m₀ : ℕ} (s : ringswitch.RlinStatement)
       ⦃ out => WfEvals m1.val out ∧ toEvals (m := m1.val) out =
         InnerOuter.hAlpha Φ m1.val phiF 16 rs (toExt alpha) sw ⦄ := by
   rw [zerocheck.h_alpha]
+  simp only [alloc.vec.Vec.with_capacity]
   step with two_pow_spec m1 hm1 as ⟨size, hsize⟩
   step with h_alpha_loop_spec (m₀ := m₀) (m₁ := m1.val) s rs alpha w sw size
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize hs ha hw hd hmn hm0 hm1 hsize (by simp)

@@ -115,7 +115,7 @@ pub fn digit_at(c: Fp, e: usize) -> Fp {
 /// records that this holds here.
 pub fn digit_decompose(c: Fp) -> Vec<Fp> {
     let digits: usize = params::GADGET_DIGITS;
-    let mut out: Vec<Fp> = Vec::new();
+    let mut out: Vec<Fp> = Vec::with_capacity(digits);
     let mut e: usize = 0;
     while e < digits {
         out.push(digit_at(c, e));
@@ -166,10 +166,10 @@ pub fn gadget_entry(i: usize, j: usize) -> Rq {
 pub fn gadget_matrix(rows: usize) -> PolyMatrix {
     let digits: usize = params::GADGET_DIGITS;
     let cols: usize = rows * digits;
-    let mut out: Vec<PolyVec> = Vec::new();
+    let mut out: Vec<PolyVec> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
-        let mut row: Vec<Rq> = Vec::new();
+        let mut row: Vec<Rq> = Vec::with_capacity(cols);
         let mut j: usize = 0;
         while j < cols {
             row.push(gadget_entry(i, j));
@@ -194,7 +194,7 @@ pub fn gadget_matrix(rows: usize) -> PolyMatrix {
 /// `v` is expected to have `rows · digits` entries.
 pub fn gadget_mul(rows: usize, v: &PolyVec) -> PolyVec {
     let digits: usize = params::GADGET_DIGITS;
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
         let mut acc: Rq = Rq::zero();
@@ -303,7 +303,7 @@ pub fn balanced_digit_at(c: Fp, e: usize) -> Fp {
 /// does not make it.
 pub fn balanced_digit_decompose(c: Fp) -> Vec<Fp> {
     let digits: usize = params::GADGET_DIGITS;
-    let mut out: Vec<Fp> = Vec::new();
+    let mut out: Vec<Fp> = Vec::with_capacity(digits);
     let mut e: usize = 0;
     while e < digits {
         out.push(balanced_digit_at(c, e));
@@ -332,12 +332,12 @@ pub fn balanced_gadget_decompose(x: &PolyVec) -> PolyVec {
     let digits: usize = params::GADGET_DIGITS;
     let degree: usize = params::RING_DEGREE;
     let rows: usize = x.len();
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
         let mut e: usize = 0;
         while e < digits {
-            let mut coeffs: Vec<Fp> = Vec::new();
+            let mut coeffs: Vec<Fp> = Vec::with_capacity(degree);
             let mut k: usize = 0;
             while k < degree {
                 coeffs.push(balanced_digit_at(x.get(i).coeff(k), e));
@@ -437,12 +437,12 @@ pub fn bounded_z_gadget_decompose(x: &PolyVec) -> PolyVec {
     let digits: usize = params::Z_DIGITS;
     let degree: usize = params::RING_DEGREE;
     let rows: usize = x.len();
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
         let mut e: usize = 0;
         while e < digits {
-            let mut coeffs: Vec<Fp> = Vec::new();
+            let mut coeffs: Vec<Fp> = Vec::with_capacity(degree);
             let mut k: usize = 0;
             while k < degree {
                 coeffs.push(bounded_z_digit_at(x.get(i).coeff(k), e));
@@ -472,7 +472,7 @@ pub fn bounded_z_gadget_decompose(x: &PolyVec) -> PolyVec {
 /// implementation and not an optimization.
 pub fn gadget_mul_z(rows: usize, v: &PolyVec) -> PolyVec {
     let digits: usize = params::Z_DIGITS;
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
         let mut acc: Rq = Rq::zero();

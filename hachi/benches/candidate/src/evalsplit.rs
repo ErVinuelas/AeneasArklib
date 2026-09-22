@@ -246,10 +246,10 @@ impl MlPoly {
     pub fn to_matrix(&self) -> PolyMatrix {
         let rows: usize = params::ML_LOW_LEN;
         let cols: usize = params::ML_HIGH_LEN;
-        let mut out: Vec<PolyVec> = Vec::new();
+        let mut out: Vec<PolyVec> = Vec::with_capacity(rows);
         let mut i: usize = 0;
         while i < rows {
-            let mut row: Vec<Rq> = Vec::new();
+            let mut row: Vec<Rq> = Vec::with_capacity(cols);
             let mut j: usize = 0;
             while j < cols {
                 let k: usize = split_equiv(j, i);
@@ -292,7 +292,7 @@ impl MlPoly {
 /// 221`) are what make the two reshapes a bijection.
 pub fn to_polynomial(m: &PolyMatrix) -> MlPoly {
     let len: usize = params::ML_POLY_LEN;
-    let mut out: Vec<Rq> = Vec::new();
+    let mut out: Vec<Rq> = Vec::with_capacity(len);
     let mut k: usize = 0;
     while k < len {
         let xy: (usize, usize) = split_equiv_inv(k);
@@ -331,10 +331,10 @@ impl MlEvals {
     pub fn to_matrix_eval(&self) -> PolyMatrix {
         let rows: usize = params::ML_LOW_LEN;
         let cols: usize = params::ML_HIGH_LEN;
-        let mut out: Vec<PolyVec> = Vec::new();
+        let mut out: Vec<PolyVec> = Vec::with_capacity(rows);
         let mut i: usize = 0;
         while i < rows {
-            let mut row: Vec<Rq> = Vec::new();
+            let mut row: Vec<Rq> = Vec::with_capacity(cols);
             let mut j: usize = 0;
             while j < cols {
                 let k: usize = split_equiv(j, i);

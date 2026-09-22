@@ -284,7 +284,7 @@ impl Opening {
     /// (`Scheme.lean:228`).
     pub fn honest(decomp: Decomp) -> Opening {
         let blocks: usize = decomp.blocks();
-        let mut ones: Vec<Rq> = Vec::new();
+        let mut ones: Vec<Rq> = Vec::with_capacity(blocks);
         let mut i: usize = 0;
         while i < blocks {
             ones.push(Rq::one());
@@ -323,7 +323,7 @@ impl Opening {
 pub fn derived_message(decomp: &Decomp) -> Vec<PolyVec> {
     let blocks: usize = decomp.blocks();
     let rows: usize = params::MESSAGE_ROWS;
-    let mut out: Vec<PolyVec> = Vec::new();
+    let mut out: Vec<PolyVec> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         out.push(gadget::gadget_mul(rows, decomp.message(i)));
@@ -359,8 +359,8 @@ pub fn generate_decomps(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     // chunking and no Garner recombination. See `ring::dot_prepared_digits_gold`
     // and candidate T27.
     let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
-    let mut ss: Vec<PolyVec> = Vec::new();
-    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut ss: Vec<PolyVec> = Vec::with_capacity(blocks);
+    let mut ts: Vec<PolyVec> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
@@ -416,7 +416,7 @@ pub fn commit(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Decomp) {
 pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<PolyVec>) {
     let blocks: usize = m.len();
     let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
-    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut ts: Vec<PolyVec> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::gadget_decompose(&m[i]);
@@ -442,7 +442,7 @@ pub fn commit_streamed_32(
 ) -> (PolyVec, Vec<PolyVec>) {
     let blocks: usize = m.len();
     let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
-    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut ts: Vec<PolyVec> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let block: PolyVec = m[i].expand();
@@ -479,8 +479,8 @@ pub fn commit_streamed_32(
 /// [`generate_decomps`] records.
 pub fn generate_decomps_balanced(pp: &PublicParams, m: &Vec<PolyVec>) -> Decomp {
     let blocks: usize = m.len();
-    let mut ss: Vec<PolyVec> = Vec::new();
-    let mut ts: Vec<PolyVec> = Vec::new();
+    let mut ss: Vec<PolyVec> = Vec::with_capacity(blocks);
+    let mut ts: Vec<PolyVec> = Vec::with_capacity(blocks);
     let mut i: usize = 0;
     while i < blocks {
         let s: PolyVec = gadget::balanced_gadget_decompose(&m[i]);

@@ -347,6 +347,7 @@ theorem scalar_vec_mul_spec {k : ℕ} (c : ring.Rq) (v : linalg.PolyVec)
       ⦃ z => WfVec k z ∧ toVec (k := k) z = ArkLib.Lattices.scalarVecMul (toRq c)
         (toVec (k := k) v) ⦄ := by
   rw [linalg.PolyVec.scalar_mul]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [bind_ok_id]
   apply spec_mono (scalar_vec_mul_loop_spec v c (alloc.vec.Vec.len v)
     (alloc.vec.Vec.new ring.Rq) 0#usize hc hv (by simp [hv.1]) (by simp)
@@ -434,6 +435,7 @@ theorem mat_vec_mul_spec {rows cols : ℕ} (a : linalg.PolyMatrix) (v : linalg.P
         = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) a)
             (toVec (k := cols) v) ⦄ := by
   rw [linalg.PolyMatrix.mat_vec_mul]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [bind_ok_id]
   apply spec_mono (mat_vec_mul_loop_spec a v (alloc.vec.Vec.len a)
     (alloc.vec.Vec.new ring.Rq) 0#usize ha hv (by simp [ha.1]) (by simp)
@@ -563,6 +565,7 @@ theorem prepare_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
     (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
     linalg.PolyMatrix.prepare m ⦃ z => WfPrep rows cols z m ⦄ := by
   rw [linalg.PolyMatrix.prepare]
+  simp only [alloc.vec.Vec.with_capacity]
   step with cols_spec m ha hrows as ⟨c, hc⟩
   step with prepare_loop_spec m (alloc.vec.Vec.len m) c
     (alloc.vec.Vec.new ring.PreparedVec) 0#usize ha (by simp [ha.1]) hc hmax
@@ -643,6 +646,7 @@ theorem apply_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
         = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
             (toVec (k := cols) v) ⦄ := by
   rw [linalg.PreparedMatrix.apply]
+  simp only [alloc.vec.Vec.with_capacity]
   have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
   have hcl : pm.cols.val = cols := hp.1
   simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
@@ -744,6 +748,7 @@ theorem prepare_digits_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
     (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
     linalg.PolyMatrix.prepare_digits m ⦃ z => WfPrep2 rows cols z m ⦄ := by
   rw [linalg.PolyMatrix.prepare_digits]
+  simp only [alloc.vec.Vec.with_capacity]
   step with cols_spec m ha hrows as ⟨c, hc⟩
   step with prepare_digits_loop_spec m (alloc.vec.Vec.len m) c
     (alloc.vec.Vec.new ring.PreparedVec) 0#usize ha (by simp [ha.1]) hc hmax
@@ -824,6 +829,7 @@ theorem apply_digits_spec {rows cols : ℕ} (pm : linalg.PreparedMatrix)
         = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
             (toVec (k := cols) v) ⦄ := by
   rw [linalg.PreparedMatrix.apply_digits]
+  simp only [alloc.vec.Vec.with_capacity]
   have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
   have hcl : pm.cols.val = cols := hp.1
   simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
@@ -925,6 +931,7 @@ theorem prepare_digits_gold_spec {rows cols : ℕ} (m : linalg.PolyMatrix)
     (ha : WfMat rows cols m) (hrows : 0 < rows) (hmax : cols * N ≤ Std.Usize.max) :
     linalg.PolyMatrix.prepare_digits_gold m ⦃ z => WfPrepG rows cols z m ⦄ := by
   rw [linalg.PolyMatrix.prepare_digits_gold]
+  simp only [alloc.vec.Vec.with_capacity]
   step with cols_spec m ha hrows as ⟨c, hc⟩
   step with prepare_digits_gold_loop_spec m (alloc.vec.Vec.len m) c
     (alloc.vec.Vec.new ring.PreparedVecG) 0#usize ha (by simp [ha.1]) hc hmax
@@ -1005,6 +1012,7 @@ theorem apply_digits_gold_spec {rows cols : ℕ} (pm : linalg.PreparedMatrixG)
         = ArkLib.Lattices.matVecMul (toMat (rows := rows) (cols := cols) m)
             (toVec (k := cols) v) ⦄ := by
   rw [linalg.PreparedMatrixG.apply_digits_gold]
+  simp only [alloc.vec.Vec.with_capacity]
   have hvl : (alloc.vec.Vec.len v).val = cols := by simp [hv.1]
   have hcl : pm.cols.val = cols := hp.1
   simp only [if_pos (by scalar_tac : pm.cols ≤ alloc.vec.Vec.len v), bind_ok_id]
@@ -1413,6 +1421,7 @@ theorem digit_decompose_spec (c : cpoly.field.Fp) (hc : Red c) :
       ⦃ z => z.val.length = 8 ∧ (∀ u ∈ z.val, Red u) ∧
         ∀ e : Fin 8, coeffK z e.val = dd.digit (toK c) e ⦄ := by
   simp only [gadget.digit_decompose]
+  simp only [alloc.vec.Vec.with_capacity]
   apply spec_mono (digit_decompose_loop_spec c params.GADGET_DIGITS
     (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hc (by simp [params.GADGET_DIGITS])
     (by simp) (by simp) (by intro u hu; simp at hu) (by intro t ht h; simp at h))
@@ -1586,6 +1595,7 @@ theorem gadget_matrix_loop0_spec {rows : ℕ} (r cols : Std.Usize)
   · rintro ⟨o1, i1⟩ ⟨hi1, hlen1, hwf1, hval1⟩
     dsimp only at hi1 hlen1 hwf1 hval1
     simp only [gadget.gadget_matrix_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : i1 < r
     · rw [if_pos hlt]
       have hi1lt : i1.val < rows := by rw [← hr]; scalar_tac
@@ -1640,6 +1650,7 @@ theorem gadget_matrix_spec {rows : ℕ} (r : Std.Usize) (hr : r.val = rows)
         toMat (rows := rows) (cols := rows * 8) a
           = gadgetMatrix Φ (16 : ZMod q) rows 8 ⦄ := by
   rw [gadget.gadget_matrix]
+  simp only [alloc.vec.Vec.with_capacity]
   have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hfit : r.val * (params.GADGET_DIGITS).val ≤ Usize.max := by rw [hgd, hr]; exact hmax
   step as ⟨cols, hcols⟩
@@ -1771,6 +1782,7 @@ theorem gadget_mul_spec {rows : ℕ} (r : Std.Usize) (v : linalg.PolyVec)
         = gadgetMul Φ (16 : ZMod q) (toVec (k := rows * 8) v) ⦄ := by
   have hdg : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   rw [gadget.gadget_mul]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (gadget_mul_outer_loop_spec r v params.GADGET_DIGITS
     (alloc.vec.Vec.new ring.Rq) 0#usize hv hdg hr (by simp) (by simp)
@@ -2821,6 +2833,7 @@ theorem generate_decomps_specG (ir mr or bl : ℕ) (pp : commit.PublicParams) (m
             (fun i : Fin bl => toVec (k := mr) (m.val.getD i.val
               (alloc.vec.Vec.new ring.Rq))) ⦄ := by
   rw [commit.generate_decomps]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [commit.Decomp.new, commit.PublicParams.impl.inner_matrix]
   -- the one prepared matrix, hoisted above the block loop: 192 MiB paid once
   step with prepare_digits_gold_spec (rows := ir) (cols := mr * 8) pp.inner_matrix hpp.1 hir
@@ -2913,6 +2926,7 @@ theorem derived_message_spec (d : commit.Decomp) (hd : WfDecomp d) :
         (fun i : Fin 1024 => toVec (k := 1024) (out.val.getD i.val (alloc.vec.Vec.new ring.Rq)))
           = InnerOuter.derivedMessage Φ (16 : ZMod q) (toDecompSpec d) ⦄ := by
   rw [commit.derived_message]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [commit.Decomp.blocks]
   apply spec_mono (derived_message_loop_spec d (alloc.vec.Vec.len d.message)
     (alloc.vec.Vec.new linalg.PolyVec) 0#usize hd (by simpa using hd.1.1) (by simp)
@@ -3310,6 +3324,7 @@ theorem commit_streamed_specG (ir mr or bl : ℕ) (pp : commit.PublicParams) (m 
                   (fun i : Fin bl => toVec (k := mr)
                     (m.val.getD i.val (alloc.vec.Vec.new ring.Rq)))) ⦄ := by
   rw [commit.commit_streamed]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [commit.PublicParams.impl.inner_matrix, commit.PublicParams.impl.outer_matrix]
   step with prepare_digits_gold_spec (rows := ir) (cols := mr * 8) pp.inner_matrix hpp.1 hir
     (by have h := usize_max_ge'; norm_num [N]; omega) as ⟨prep, hprep⟩
@@ -3418,6 +3433,7 @@ theorem honest_specG (ir mr bl : ℕ) (d : commit.Decomp) (hd : WfDecompG ir mr 
       ⦃ o => o.decomp = d ∧ WfVec bl o.challenge ∧
         toVec (k := bl) o.challenge = (fun _ => 1 : PolyVec (Rq Φ) bl) ⦄ := by
   rw [commit.Opening.honest]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [commit.Decomp.blocks, linalg.PolyVec.new]
   step with honest_loop_specG bl (alloc.vec.Vec.len d.message) (alloc.vec.Vec.new ring.Rq) 0#usize
     (by simpa using hd.1.1) (by simp) (by simp) (by intro x hx; simp at hx)

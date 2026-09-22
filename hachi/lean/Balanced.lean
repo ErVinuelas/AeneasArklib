@@ -219,6 +219,7 @@ theorem balanced_digit_decompose_spec (c : cpoly.field.Fp) (hc : Red c) :
       ⦃ z => z.val.length = 8 ∧ (∀ u ∈ z.val, Red u) ∧
         ∀ e : Fin 8, coeffK z e.val = ddBal.digit (toK c) e ⦄ := by
   simp only [gadget.balanced_digit_decompose]
+  simp only [alloc.vec.Vec.with_capacity]
   apply spec_mono (balanced_digit_decompose_loop_spec c params.GADGET_DIGITS
     (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hc (by simp [params.GADGET_DIGITS])
     (by simp) (by simp) (by intro u hu; simp at hu) (by intro t ht h; simp at h))
@@ -324,6 +325,7 @@ theorem balanced_gadget_decompose_digit_loop_spec {rows : ℕ} (x : linalg.PolyV
   · rintro ⟨o1, e1⟩ ⟨he1, hlen1, hwf1, hval1⟩
     dsimp only at he1 hlen1 hwf1 hval1
     simp only [gadget.balanced_gadget_decompose_loop0_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : e1 < digits
     · rw [if_pos hlt]
       have helt : e1.val < 8 := by rw [← hdig]; scalar_tac
@@ -422,6 +424,7 @@ theorem balanced_gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec)
   have hdig : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
   have hdeg : (params.RING_DEGREE).val = N := by simp
   rw [gadget.balanced_gadget_decompose]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.len, linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (balanced_gadget_decompose_outer_loop_spec x params.GADGET_DIGITS
     params.RING_DEGREE (alloc.vec.Vec.len x) (alloc.vec.Vec.new ring.Rq) 0#usize
@@ -661,6 +664,7 @@ theorem rho_digits_spec (rho : ring.Rq) (u : Std.Usize) (hrho : Wf rho) :
             = InnerOuter.balancedDigit 16 (InnerOuter.rhoDigitCount q 16) (coeffK rho k.val) u.val ⦄ := by
   have hdeg : (params.RING_DEGREE).val = N := by simp
   rw [ringswitch.rho_digits]
+  simp only [alloc.vec.Vec.with_capacity]
   step with rho_digits_loop_spec rho u params.RING_DEGREE
     (alloc.vec.Vec.new cpoly.field.Fp) 0#usize hrho hdeg (by simp) (by simp)
     (by intro x hx; simp at hx) (by intro t ht; simp at ht) as ⟨cs, hcslen, hcsred, hcsval⟩
@@ -811,6 +815,7 @@ theorem generate_decomps_balanced_specG (ir mr or bl : ℕ) (pp : commit.PublicP
             (fun i : Fin bl => toVec (k := mr) (m.val.getD i.val
               (alloc.vec.Vec.new ring.Rq))) ⦄ := by
   rw [commit.generate_decomps_balanced]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [commit.Decomp.new]
   step with generate_decomps_balanced_loop_specG ir mr or bl pp m (alloc.vec.Vec.len m)
     (alloc.vec.Vec.new linalg.PolyVec) (alloc.vec.Vec.new linalg.PolyVec) 0#usize

@@ -95,7 +95,7 @@ impl PolyVec {
     /// An independent copy (hand-rolled; see [`Rq::copy`]).
     pub fn copy(&self) -> PolyVec {
         let n: usize = self.0.len();
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i].copy());
@@ -170,7 +170,7 @@ impl PolyVec {
     /// This is the `cᵢ •ᵥ sᵢ` of the weak verifier's shortness check.
     pub fn scalar_mul(&self, c: &Rq) -> PolyVec {
         let n: usize = self.0.len();
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(c.mul(&self.0[i]));
@@ -236,7 +236,7 @@ impl PolyMatrix {
     /// (`Ajtai/Simple/Scheme.lean:38`).
     pub fn mat_vec_mul(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.0.len();
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(self.0[i].dot(v));
@@ -356,7 +356,7 @@ impl PolyMatrix {
     pub fn prepare(&self) -> PreparedMatrix {
         let n: usize = self.0.len();
         let c: usize = self.cols();
-        let mut rows: Vec<crate::ring::PreparedVec> = Vec::new();
+        let mut rows: Vec<crate::ring::PreparedVec> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             rows.push(crate::ring::prepare_vec(&self.0[i].0, c));
@@ -374,7 +374,7 @@ impl PolyMatrix {
     pub fn prepare_digits(&self) -> PreparedMatrix {
         let n: usize = self.0.len();
         let c: usize = self.cols();
-        let mut rows: Vec<crate::ring::PreparedVec> = Vec::new();
+        let mut rows: Vec<crate::ring::PreparedVec> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             rows.push(crate::ring::prepare_vec_two(&self.0[i].0, c));
@@ -400,7 +400,7 @@ impl PolyMatrix {
     pub fn prepare_ga(&self) -> PreparedMatrixGA {
         let n: usize = self.0.len();
         let c: usize = self.cols();
-        let mut rows: Vec<crate::ring::PreparedVecGA> = Vec::new();
+        let mut rows: Vec<crate::ring::PreparedVecGA> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             rows.push(crate::ring::prepare_vec_ga(&self.0[i].0, c));
@@ -417,7 +417,7 @@ impl PreparedMatrixGA {
     pub fn apply_ga(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.rows.len();
         let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(crate::ring::dot_prepared_ga(&self.rows[i], &v.0, w));
@@ -438,7 +438,7 @@ impl PolyMatrix {
     pub fn prepare_digits_gold(&self) -> PreparedMatrixG {
         let n: usize = self.0.len();
         let c: usize = self.cols();
-        let mut rows: Vec<crate::ring::PreparedVecG> = Vec::new();
+        let mut rows: Vec<crate::ring::PreparedVecG> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             rows.push(crate::ring::prepare_vec_gold(&self.0[i].0, c));
@@ -458,7 +458,7 @@ impl PreparedMatrixG {
     pub fn apply_digits_gold(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.rows.len();
         let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(crate::ring::dot_prepared_digits_gold(&self.rows[i], &v.0, w));
@@ -480,7 +480,7 @@ impl PreparedMatrix {
     pub fn apply(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.rows.len();
         let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(crate::ring::dot_prepared(&self.rows[i], &v.0, w));
@@ -501,7 +501,7 @@ impl PreparedMatrix {
     pub fn apply_digits(&self, v: &PolyVec) -> PolyVec {
         let n: usize = self.rows.len();
         let w: usize = if self.cols <= v.0.len() { self.cols } else { v.0.len() };
-        let mut out: Vec<Rq> = Vec::new();
+        let mut out: Vec<Rq> = Vec::with_capacity(n);
         let mut i: usize = 0;
         while i < n {
             out.push(crate::ring::dot_prepared_digits(&self.rows[i], &v.0, w));

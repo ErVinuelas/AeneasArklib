@@ -178,6 +178,7 @@ theorem bounded_z_gadget_decompose_digit_loop_spec {rows : ℕ} (x : linalg.Poly
   · rintro ⟨o1, e1⟩ ⟨he1, hlen1, hwf1, hval1⟩
     dsimp only at he1 hlen1 hwf1 hval1
     simp only [gadget.bounded_z_gadget_decompose_loop0_loop0.body]
+    simp only [alloc.vec.Vec.with_capacity]
     by_cases hlt : e1 < digits
     · rw [if_pos hlt]
       have helt : e1.val < 5 := by rw [← hdig]; scalar_tac
@@ -272,6 +273,7 @@ theorem bounded_z_gadget_decompose_spec {rows : ℕ} (x : linalg.PolyVec)
   have hdig : (params.Z_DIGITS).val = 5 := by simp [params.Z_DIGITS]
   have hdeg : (params.RING_DEGREE).val = N := by simp
   rw [gadget.bounded_z_gadget_decompose]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.len, linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (bounded_z_gadget_decompose_outer_loop_spec x params.Z_DIGITS
     params.RING_DEGREE (alloc.vec.Vec.len x) (alloc.vec.Vec.new ring.Rq) 0#usize
@@ -418,6 +420,7 @@ theorem gadget_mul_z_spec (rows : Std.Usize) (v : linalg.PolyVec)
         = gadgetMul Φ (16 : ZMod q) (toVec (k := rows.val * 5) v) ⦄ := by
   have hdg : (params.Z_DIGITS).val = 5 := by simp [params.Z_DIGITS]
   rw [gadget.gadget_mul_z]
+  simp only [alloc.vec.Vec.with_capacity]
   simp only [linalg.PolyVec.new, bind_ok_id]
   apply spec_mono (gadget_mul_z_outer_loop_spec (rows := rows.val) rows v params.Z_DIGITS
     (alloc.vec.Vec.new ring.Rq) 0#usize hv hdg rfl (by simp) (by simp)
