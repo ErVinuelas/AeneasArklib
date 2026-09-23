@@ -1421,6 +1421,7 @@ pub fn honest_compute_v_from_decomp(d_matrix: &PolyMatrix, carrier_dec: &PolyVec
 }
 
 
+// @genesis febf4f0 2026-09-23 — quadeval::Z_PAD
 // ---------------------------------------------------------------------------
 // Card T43 (2026-09-22): the fused z pass. The two constants, the local
 // description type and the five kernel items are first translations;
@@ -1440,6 +1441,7 @@ pub fn honest_compute_v_from_decomp(d_matrix: &PolyMatrix, carrier_dec: &PolyVec
 /// modulo 4 KiB.
 pub const Z_PAD: usize = 16;
 
+// @genesis febf4f0 2026-09-23 — quadeval::Z_CHUNK
 /// How many signed passes the short path's accumulator absorbs between two
 /// reductions.
 ///
@@ -1451,6 +1453,7 @@ pub const Z_PAD: usize = 16;
 /// fires: the buffer is reduced once, at the end.
 pub const Z_CHUNK: u64 = 16_777_216;
 
+// @genesis febf4f0 2026-09-23 — quadeval::ZTerms
 /// The nonzero centred coefficients of a short challenge, as three parallel
 /// vectors: `idx[t]` is the coefficient position, `mag[t]` its centred
 /// magnitude and `neg[t]` its sign (`true` = the centred value is `-mag[t]`).
@@ -1463,6 +1466,7 @@ pub struct ZTerms {
     neg: Vec<bool>,
 }
 
+// @genesis febf4f0 2026-09-23 — quadeval::z_terms
 /// Describe `c` as a short element, or decline: `ring::classify_short`'s
 /// rule, at this module's own type.
 ///
@@ -1500,6 +1504,7 @@ fn z_terms(c: &Rq) -> Option<ZTerms> {
     Some(ZTerms { idx, mag, neg })
 }
 
+// @genesis febf4f0 2026-09-23 — quadeval::z_pass
 /// One signed negacyclic pass of the fused z kernel: the `k`-shifted **eight
 /// digit polynomials** of one message row, added (or subtracted) into the
 /// eight regions of the unreduced accumulator that belong to that row.
@@ -1642,6 +1647,7 @@ fn z_pass(words: &Vec<u64>, k: usize, negt: bool, buf: Vec<u64>, rbase: usize) -
     out
 }
 
+// @genesis febf4f0 2026-09-23 — quadeval::z_reduce
 /// Every slot of the short path's accumulator, reduced mod `q`, in place.
 fn z_reduce(buf: Vec<u64>) -> Vec<u64> {
     let q: u64 = params::Q;
@@ -1657,6 +1663,7 @@ fn z_reduce(buf: Vec<u64>) -> Vec<u64> {
     out
 }
 
+// @genesis febf4f0 2026-09-23 — quadeval::z_apply_terms
 /// All of `terms` applied to the eight digit regions of one row:
 /// `mul_short_add_into`'s term and pass loops, over the fused pass.
 ///
@@ -1681,6 +1688,7 @@ fn z_apply_terms(terms: &ZTerms, words: &Vec<u64>, buf: Vec<u64>, rbase: usize) 
     out
 }
 
+// @genesis febf4f0 2026-09-23 — quadeval::z_row
 /// One message row's contribution to `z`: `+= c · digitₑ(row)` into the
 /// accumulator regions `8r + e` for all eight digits `e`, without ever
 /// forming `digitₑ(row)`.
