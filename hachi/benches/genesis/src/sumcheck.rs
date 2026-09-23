@@ -1592,6 +1592,7 @@ pub fn round_poly_zero_base_plain(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly
 }
 
 
+// @genesis a597d38 2026-09-23 — sumcheck::round_poly_zero_fold1
 // ---------------------------------------------------------------------------
 // Card T46b (2026-09-23): round 1's zero side as its own item, born as the naive
 // composition round_poly_zero(eval_mle_layer_base(w_fp, a0), eq) so that the
