@@ -1198,3 +1198,30 @@ fn round_one_bucketed_branch_is_the_composition() {
         }
     }
 }
+
+/// Card T41b1: round 0's α side by direct quadratic coefficients is the
+/// interpolant of its three node values -- the pre-T41b1 body, still in the
+/// crate as `round_values_alpha_base_split` + `interpolate` -- on random,
+/// honest-alphabet and zero-heavy base tables, at tensor shapes from `l = 1`
+/// to the pin's `l = 1024`.
+#[test]
+fn round_zero_alpha_direct_coefficients_are_the_interpolant() {
+    use hachi::sumcheck::{interpolate, round_node_weights_alpha, round_poly_alpha_base_split,
+                          round_values_alpha_base_split};
+    let mut r = Lcg::new(0x7410_B100);
+    for &(l, hl) in &[(1usize, 64usize), (2, 32), (4, 16), (1024, 2), (512, 8), (3, 7)] {
+        for kind in 0..3 {
+            let w: Vec<Fp> = (0..l * hl)
+                .map(|i| match kind {
+                    0 => r.next_fp(),
+                    1 => digit_fp((r.next_fp().to_u64() % 24) as i64 - 8),
+                    _ => if i % 3 == 0 { Fp::ZERO } else { r.next_fp() },
+                })
+                .collect();
+            let low: Vec<Ext4> = (0..l).map(|_| ext4(&mut r)).collect();
+            let high: Vec<Ext4> = (0..hl).map(|_| ext4(&mut r)).collect();
+            let want = interpolate(&round_values_alpha_base_split(&w, &low, &high), &round_node_weights_alpha());
+            assert_eq!(round_poly_alpha_base_split(&w, &low, &high), want, "l = {l}, high = {hl}, kind {kind}");
+        }
+    }
+}

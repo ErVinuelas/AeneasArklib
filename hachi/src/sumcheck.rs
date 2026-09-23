@@ -1387,9 +1387,36 @@ pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ex
 
 /// [`round_poly_alpha_base`] on the two factors.
 pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
-    let values: Vec<Ext4> = round_values_alpha_base_split(w, low, high);
-    let weights: Vec<Fp> = round_node_weights_alpha();
-    interpolate(&values, &weights)
+    // Card T41b1: [`round_poly_alpha_split`]'s direct quadratic coefficients
+    // (candidate T38) at round 0, where the witness table is still `Fp`: the
+    // round polynomial is `Σ_y W_y(T)·Ã_y(T)` with both factors linear in
+    // `T`, so its three coefficients are `Σ w₀a₀`, `Σ (w₁a₁ − w₀a₀ − Δw·Δa)`
+    // and `Σ Δw·Δa` -- no node values and no interpolation. The `w` factors
+    // stay in `Fp` (the mixed `Fp × Ext4` product, `Fp` on the left).
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let a0: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let a1: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let w0: Fp = w[2 * y];
+        let w1: Fp = w[2 * y + 1];
+        let p0: Ext4 = w0 * a0;
+        let p1: Ext4 = w1 * a1;
+        let p2: Ext4 = (w1 - w0) * (a1 - a0);
+        c0 = c0 + p0;
+        c1 = c1 + (p1 - p0 - p2);
+        c2 = c2 + p2;
+        y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
 }
 
 /// The product of two univariate polynomials over `Ext4` (spec:

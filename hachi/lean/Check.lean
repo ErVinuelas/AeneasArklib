@@ -1890,6 +1890,12 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_split_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_base_split_spec
+-- Card T41b1 -- `round_poly_alpha_base_split` on card T38's direct-coefficient
+-- loop at round 0, the `w̃` factors still in `Fp` (mixed `Fp × Ext4` products).
+-- The node-free identity at an extension point and the loop that accumulates
+-- it; `round_poly_alpha_base_split_spec` above keeps its statement.
+#print axioms HachiEquiv.Sumcheck.linSumAlphaSplitFp_eq_sum_range_ext
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_loop_spec
 
 -- Candidate M (Stage 6, `evalsplit::monomial_basis`) -- the doubling build. Two
 -- independent proofs of one identity, and the dependency between the files

@@ -71,6 +71,15 @@ const R0_HALF: usize = 1 << 20;
 /// `samples: 10` on the registration.
 const R1_HALF: usize = 1 << 22;
 
+/// The pair count the two α-split rows run at: **REDUCED** to `2^16` pairs
+/// from the pin's `2^25` (round 0) and `2^24` (round 1), at the pin's tensor
+/// shapes -- round 0 reads `Ã` through `low` of `2^10` and `high` of the rest,
+/// round 1 through `2^9` and the rest -- so every pair takes the same tensor
+/// reads it takes at the pin (card T41). No other row calls either function
+/// directly; `honest_compute_g_split` and `honest_round_messages` see them
+/// diluted to a few percent.
+const ALPHA_SPLIT_HALF: usize = 1 << 16;
+
 /// The cube the `alpha_public_table` row runs at: **REDUCED** from the pinned
 /// `M_ZERO = 26` to `7`, i.e. `128` entries, all in table row `0` (the matrix
 /// branch of `m_alpha_tilde`). The size is set by the **genesis** variant, not
@@ -503,6 +512,35 @@ macro_rules! define_cases {
                 )
             }
 
+            /// The α side of a round from 1 on at the round-1 tensor shape:
+            /// `round_poly_alpha_split` over `half` pairs, `low` of `2^9`.
+            pub fn round_poly_alpha_split(m: Mode<'_, '_>, half: usize) -> u64 {
+                let l = 512usize;
+                let w = ext_table(0x5A17_7050, 2 * half);
+                let low = ext_table(0x5A17_7051, l);
+                let high = ext_table(0x5A17_7052, (2 * half) / l);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_alpha_split(black_box(&w), black_box(&low), black_box(&high)),
+                    d_poly,
+                )
+            }
+
+            /// Round 0's α side at the round-0 tensor shape:
+            /// `round_poly_alpha_base_split` over `half` pairs of an honest
+            /// digit table, `low` of `2^10`.
+            pub fn round_poly_alpha_base_split(m: Mode<'_, '_>, half: usize) -> u64 {
+                let l = 1024usize;
+                let w = pin_digit_table(0x5A17_7053, 2 * half);
+                let low = ext_table(0x5A17_7054, l);
+                let high = ext_table(0x5A17_7055, (2 * half) / l);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_alpha_base_split(black_box(&w), black_box(&low), black_box(&high)),
+                    d_poly,
+                )
+            }
+
             /// One node of the **linear** summand: two folds and one product
             /// per remaining cube point, against the range side's fold plus
             /// `range_product`. The pair is what makes the `2b + 1` versus `3`
@@ -884,6 +922,10 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_poly_zero_base_pin", round_poly_zero_base_pin, [R0_HALF]);
     // @covers sumcheck::round_poly_zero_fold1
     bench_case!(c, "sumcheck/round_poly_zero_fold1", round_poly_zero_fold1, [R1_HALF], samples: 10);
+    // @covers sumcheck::round_poly_alpha_split
+    bench_case!(c, "sumcheck/round_poly_alpha_split", round_poly_alpha_split, [ALPHA_SPLIT_HALF]);
+    // @covers sumcheck::round_poly_alpha_base_split
+    bench_case!(c, "sumcheck/round_poly_alpha_base_split", round_poly_alpha_base_split, [ALPHA_SPLIT_HALF]);
 
     // @covers sumcheck::round_value_alpha
     bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);

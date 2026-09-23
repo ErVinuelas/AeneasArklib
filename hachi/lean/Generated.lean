@@ -747,7 +747,7 @@ structure ringswitch.RlinStatement where
   bound : Std.U64
 
 /-- [hachi::sumcheck::NestedZeroCheckStmt]
-    Source: 'src/sumcheck.rs', lines 1458:0-1464:1
+    Source: 'src/sumcheck.rs', lines 1485:0-1491:1
     Visibility: public -/
 structure sumcheck.NestedZeroCheckStmt where
   rlin : ringswitch.RlinStatement
@@ -757,7 +757,7 @@ structure sumcheck.NestedZeroCheckStmt where
   tau1 : alloc.vec.Vec cpoly.field.Ext4
 
 /-- [hachi::sumcheck::RoundStatement]
-    Source: 'src/sumcheck.rs', lines 1551:0-1556:1
+    Source: 'src/sumcheck.rs', lines 1578:0-1583:1
     Visibility: public -/
 structure sumcheck.RoundStatement where
   zc : sumcheck.NestedZeroCheckStmt
@@ -766,28 +766,28 @@ structure sumcheck.RoundStatement where
   target_alpha : cpoly.field.Ext4
 
 /-- [hachi::sumcheck::RoundMsg]
-    Source: 'src/sumcheck.rs', lines 1520:0-1523:1
+    Source: 'src/sumcheck.rs', lines 1547:0-1550:1
     Visibility: public -/
 structure sumcheck.RoundMsg where
   g_zero : cpoly.univariate.UnivariatePoly
   g_alpha : cpoly.univariate.UnivariatePoly
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::g_alpha]:
-    Source: 'src/sumcheck.rs', lines 1537:4-1539:5
+    Source: 'src/sumcheck.rs', lines 1564:4-1566:5
     Visibility: public -/
 def sumcheck.RoundMsg.impl.g_alpha
   (self : sumcheck.RoundMsg) : Result cpoly.univariate.UnivariatePoly := do
   ok self.g_alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::g_zero]:
-    Source: 'src/sumcheck.rs', lines 1532:4-1534:5
+    Source: 'src/sumcheck.rs', lines 1559:4-1561:5
     Visibility: public -/
 def sumcheck.RoundMsg.impl.g_zero
   (self : sumcheck.RoundMsg) : Result cpoly.univariate.UnivariatePoly := do
   ok self.g_zero
 
 /-- [hachi::sumcheck::round_out]:
-    Source: 'src/sumcheck.rs', lines 1733:0-1744:1
+    Source: 'src/sumcheck.rs', lines 1760:0-1771:1
     Visibility: public -/
 def sumcheck.round_out
   (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg)
@@ -802,21 +802,21 @@ def sumcheck.round_out
   ok { stmt with challenges, target_zero, target_alpha }
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::target_alpha]:
-    Source: 'src/sumcheck.rs', lines 1590:4-1592:5
+    Source: 'src/sumcheck.rs', lines 1617:4-1619:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.target_alpha
   (self : sumcheck.RoundStatement) : Result cpoly.field.Ext4 := do
   ok self.target_alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::target_zero]:
-    Source: 'src/sumcheck.rs', lines 1585:4-1587:5
+    Source: 'src/sumcheck.rs', lines 1612:4-1614:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.target_zero
   (self : sumcheck.RoundStatement) : Result cpoly.field.Ext4 := do
   ok self.target_zero
 
 /-- [hachi::sumcheck::round_check]:
-    Source: 'src/sumcheck.rs', lines 1717:0-1721:1
+    Source: 'src/sumcheck.rs', lines 1744:0-1748:1
     Visibility: public -/
 def sumcheck.round_check
   (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg) : Result Bool := do
@@ -837,14 +837,14 @@ def sumcheck.round_check
   else ok false
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::zc]:
-    Source: 'src/sumcheck.rs', lines 1575:4-1577:5
+    Source: 'src/sumcheck.rs', lines 1602:4-1604:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.zc
   (self : sumcheck.RoundStatement) : Result sumcheck.NestedZeroCheckStmt := do
   ok self.zc
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::tau0]:
-    Source: 'src/sumcheck.rs', lines 1501:4-1503:5
+    Source: 'src/sumcheck.rs', lines 1528:4-1530:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.tau0
   (self : sumcheck.NestedZeroCheckStmt) :
@@ -853,7 +853,7 @@ def sumcheck.NestedZeroCheckStmt.impl.tau0
   ok self.tau0
 
 /-- [hachi::sumcheck::round_verify_loop]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1984:4-1994:1
+    Source: 'src/sumcheck.rs', lines 2011:4-2021:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_verify_loop_loop.body
@@ -881,7 +881,7 @@ def sumcheck.round_verify_loop_loop.body
   else ok (done (some current))
 
 /-- [hachi::sumcheck::round_verify_loop]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1984:4-1994:1
+    Source: 'src/sumcheck.rs', lines 2011:4-2021:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_verify_loop_loop
@@ -896,7 +896,7 @@ def sumcheck.round_verify_loop_loop
     (current, i)
 
 /-- [hachi::sumcheck::round_verify_loop]:
-    Source: 'src/sumcheck.rs', lines 1976:0-1994:1
+    Source: 'src/sumcheck.rs', lines 2003:0-2021:1
     Visibility: public -/
 def sumcheck.round_verify_loop
   (stmt : sumcheck.RoundStatement) (msgs : alloc.vec.Vec sumcheck.RoundMsg)
@@ -1132,7 +1132,7 @@ def zerocheck.zc_target_alpha
     0#usize
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::new]:
-    Source: 'src/sumcheck.rs', lines 1560:4-1572:5
+    Source: 'src/sumcheck.rs', lines 1587:4-1599:5
     Visibility: public -/
 def sumcheck.RoundStatement.new
   (zc : sumcheck.NestedZeroCheckStmt)
@@ -1143,7 +1143,7 @@ def sumcheck.RoundStatement.new
   ok { zc, challenges, target_zero, target_alpha }
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::tau1]:
-    Source: 'src/sumcheck.rs', lines 1506:4-1508:5
+    Source: 'src/sumcheck.rs', lines 1533:4-1535:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.tau1
   (self : sumcheck.NestedZeroCheckStmt) :
@@ -1152,21 +1152,21 @@ def sumcheck.NestedZeroCheckStmt.impl.tau1
   ok self.tau1
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::alpha]:
-    Source: 'src/sumcheck.rs', lines 1496:4-1498:5
+    Source: 'src/sumcheck.rs', lines 1523:4-1525:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.alpha
   (self : sumcheck.NestedZeroCheckStmt) : Result cpoly.field.Ext4 := do
   ok self.alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::rlin]:
-    Source: 'src/sumcheck.rs', lines 1486:4-1488:5
+    Source: 'src/sumcheck.rs', lines 1513:4-1515:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.rlin
   (self : sumcheck.NestedZeroCheckStmt) : Result ringswitch.RlinStatement := do
   ok self.rlin
 
 /-- [hachi::sumcheck::nested_to_round_statement]:
-    Source: 'src/sumcheck.rs', lines 1861:0-1864:1
+    Source: 'src/sumcheck.rs', lines 1888:0-1891:1
     Visibility: public -/
 def sumcheck.nested_to_round_statement
   (zc : sumcheck.NestedZeroCheckStmt) : Result sumcheck.RoundStatement := do
@@ -1266,7 +1266,7 @@ def zerocheck.range_product
   cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul v acc1
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::challenges]:
-    Source: 'src/sumcheck.rs', lines 1580:4-1582:5
+    Source: 'src/sumcheck.rs', lines 1607:4-1609:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.challenges
   (self : sumcheck.RoundStatement) :
@@ -2094,7 +2094,7 @@ def ringswitch.RlinStatement.impl.bound
   ok self.bound
 
 /-- [hachi::sumcheck::final_check]:
-    Source: 'src/sumcheck.rs', lines 1787:0-1794:1
+    Source: 'src/sumcheck.rs', lines 1814:0-1821:1
     Visibility: public -/
 def sumcheck.final_check
   (stmt : sumcheck.RoundStatement) (y_prime : cpoly.field.Ext4)
@@ -2125,7 +2125,7 @@ def sumcheck.final_check
   else ok false
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::new]:
-    Source: 'src/sumcheck.rs', lines 1469:4-1483:5
+    Source: 'src/sumcheck.rs', lines 1496:4-1510:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.new
   (rlin : ringswitch.RlinStatement) (t : linalg.PolyVec)
@@ -6395,7 +6395,7 @@ def zerocheck.c_w_table_fp
   zerocheck.c_w_table_fp_loop0 w size params.RING_DEGREE values 0#usize 0#usize
 
 /-- [hachi::sumcheck::poly_mul]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1437:8-1442:9
+    Source: 'src/sumcheck.rs', lines 1464:8-1469:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.poly_mul_loop0_loop0.body
@@ -6428,7 +6428,7 @@ def sumcheck.poly_mul_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::sumcheck::poly_mul]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1437:8-1442:9
+    Source: 'src/sumcheck.rs', lines 1464:8-1469:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.poly_mul_loop0_loop0
@@ -6442,7 +6442,7 @@ def sumcheck.poly_mul_loop0_loop0
     (out, j)
 
 /-- [hachi::sumcheck::poly_mul]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1435:4-1444:5
+    Source: 'src/sumcheck.rs', lines 1462:4-1471:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.poly_mul_loop0.body
@@ -6460,7 +6460,7 @@ def sumcheck.poly_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::sumcheck::poly_mul]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1435:4-1444:5
+    Source: 'src/sumcheck.rs', lines 1462:4-1471:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.poly_mul_loop0
@@ -6474,7 +6474,7 @@ def sumcheck.poly_mul_loop0
     (out, i)
 
 /-- [hachi::sumcheck::poly_mul]:
-    Source: 'src/sumcheck.rs', lines 1427:0-1446:1
+    Source: 'src/sumcheck.rs', lines 1454:0-1473:1
     Visibility: public -/
 def sumcheck.poly_mul
   (a : cpoly.univariate.UnivariatePoly) (b : cpoly.univariate.UnivariatePoly) :
@@ -7419,7 +7419,7 @@ def sumcheck.eq_suffix_table
   sumcheck.eq_suffix_table_loop0 tau0 m0 tab k
 
 /-- [hachi::sumcheck::honest_compute_g_fold1_split]:
-    Source: 'src/sumcheck.rs', lines 1690:0-1707:1
+    Source: 'src/sumcheck.rs', lines 1717:0-1734:1
     Visibility: public -/
 def sumcheck.honest_compute_g_fold1_split
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -7445,438 +7445,97 @@ def sumcheck.honest_compute_g_fold1_split
   let g_alpha ← sumcheck.round_poly_alpha_split w_tab low high
   ok { g_zero, g_alpha }
 
-/-- [hachi::sumcheck::round_value_alpha_base_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1365:4-1372:5
+/-- [hachi::sumcheck::round_poly_alpha_base_split]: loop body 0:
+    Source: 'src/sumcheck.rs', lines 1402:4-1414:5
     Visibility: public -/
 @[rust_loop_body]
-def sumcheck.round_value_alpha_base_split_loop.body
+def sumcheck.round_poly_alpha_base_split_loop.body
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp)
-  (half : Std.Usize) (l : Std.Usize) (one_minus : cpoly.field.Fp)
-  (node_ext : cpoly.field.Ext4) (one_minus_ext : cpoly.field.Ext4)
-  (acc : cpoly.field.Ext4) (y : Std.Usize) :
-  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize) (l : Std.Usize)
+  (c0 : cpoly.field.Ext4) (c1 : cpoly.field.Ext4) (c2 : cpoly.field.Ext4)
+  (y : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × cpoly.field.Ext4 × cpoly.field.Ext4
+    × Std.Usize) (cpoly.field.Ext4 × cpoly.field.Ext4 × cpoly.field.Ext4))
   := do
   if y < half
   then
     let i ← 2#usize * y
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) w i
-    let f1 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul one_minus f
-    let i1 ← i + 1#usize
-    let f2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) w i1
-    let f3 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul node f2
-    let w_folded ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f1 f3
-    let i2 ← i % l
+    let i1 ← i % l
     let e ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) low i2
-    let i3 ← i / l
+        cpoly.field.Ext4) low i1
+    let i2 ← i / l
     let e1 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) high i3
-    let lo_a ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
-    let i4 ← i + 1#usize
-    let i5 ← i4 % l
+        cpoly.field.Ext4) high i2
+    let a0 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
+    let i3 ← i + 1#usize
+    let i4 ← i3 % l
     let e2 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) low i5
-    let i6 ← i + 1#usize
-    let i7 ← i6 / l
+        cpoly.field.Ext4) low i4
+    let i5 ← i + 1#usize
+    let i6 ← i5 / l
     let e3 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) high i7
-    let hi_a ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e2 e3
-    let e4 ←
-      cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul one_minus_ext lo_a
-    let e5 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul node_ext hi_a
-    let a_folded ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add e4 e5
-    let e6 ←
-      cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul w_folded a_folded
-    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e6
+        cpoly.field.Ext4) high i6
+    let a1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e2 e3
+    let w0 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) w i
+    let i7 ← i + 1#usize
+    let w1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) w i7
+    let p0 ← cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul w0 a0
+    let p1 ← cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul w1 a1
+    let f ← cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub w1 w0
+    let e4 ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub a1 a0
+    let p2 ← cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul f e4
+    let c01 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add c0 p0
+    let e5 ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub p1 p0
+    let e6 ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub e5 p2
+    let c11 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add c1 e6
+    let c21 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add c2 p2
     let y1 ← y + 1#usize
-    ok (cont (acc1, y1))
-  else ok (done acc)
+    ok (cont (c01, c11, c21, y1))
+  else ok (done (c0, c1, c2))
 
-/-- [hachi::sumcheck::round_value_alpha_base_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1365:4-1372:5
+/-- [hachi::sumcheck::round_poly_alpha_base_split]: loop 0:
+    Source: 'src/sumcheck.rs', lines 1402:4-1414:5
     Visibility: public -/
 @[rust_loop]
-def sumcheck.round_value_alpha_base_split_loop
+def sumcheck.round_poly_alpha_base_split_loop
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp)
-  (half : Std.Usize) (l : Std.Usize) (one_minus : cpoly.field.Fp)
-  (node_ext : cpoly.field.Ext4) (one_minus_ext : cpoly.field.Ext4)
-  (acc : cpoly.field.Ext4) (y : Std.Usize) :
-  Result cpoly.field.Ext4
+  (high : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize) (l : Std.Usize)
+  (c0 : cpoly.field.Ext4) (c1 : cpoly.field.Ext4) (c2 : cpoly.field.Ext4)
+  (y : Std.Usize) :
+  Result (cpoly.field.Ext4 × cpoly.field.Ext4 × cpoly.field.Ext4)
   := do
   loop
-    (fun (acc1, y1) => sumcheck.round_value_alpha_base_split_loop.body w low
-      high node half l one_minus node_ext one_minus_ext acc1 y1)
-    (acc, y)
-
-/-- [hachi::sumcheck::round_value_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1352:0-1374:1
-    Visibility: public -/
-def sumcheck.round_value_alpha_base_split
-  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp) :
-  Result cpoly.field.Ext4
-  := do
-  let i := alloc.vec.Vec.len w
-  let half ← i / 2#usize
-  let l := alloc.vec.Vec.len low
-  let one_minus ←
-    cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub cpoly.field.Fp.ONE node
-  let node_ext ← cpoly.field.Ext4.from_base node
-  let one_minus_ext ←
-    cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub cpoly.field.Ext4.ONE
-      node_ext
-  sumcheck.round_value_alpha_base_split_loop w low high node half l one_minus
-    node_ext one_minus_ext cpoly.field.Ext4.ZERO 0#usize
-
-/-- [hachi::params::ROUND_NODES_ALPHA]
-    Source: 'src/params.rs', lines 837:0-837:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def params.ROUND_NODES_ALPHA : Std.Usize := 3#usize
-
-/-- [hachi::sumcheck::round_values_alpha_base_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.round_values_alpha_base_split_loop.body
-  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) (nodes : Std.Usize)
-  (out : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if t < nodes
-  then
-    let i ← lift (UScalar.cast .U64 t)
-    let f ← cpoly.field.Fp.new i
-    let e ← sumcheck.round_value_alpha_base_split w low high f
-    let out1 ← alloc.vec.Vec.push out e
-    let t1 ← t + 1#usize
-    ok (cont (out1, t1))
-  else ok (done out)
-
-/-- [hachi::sumcheck::round_values_alpha_base_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.round_values_alpha_base_split_loop
-  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) (nodes : Std.Usize)
-  (out : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (out1, t1) => sumcheck.round_values_alpha_base_split_loop.body w low
-      high nodes out1 t1)
-    (out, t)
-
-/-- [hachi::sumcheck::round_values_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1377:0-1386:1
-    Visibility: public -/
-@[reducible]
-def sumcheck.round_values_alpha_base_split
-  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
-  (high : alloc.vec.Vec cpoly.field.Ext4) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  sumcheck.round_values_alpha_base_split_loop w low high
-    params.ROUND_NODES_ALPHA (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-
-/-- [hachi::params::ROUND_NODE_INV_ALPHA]
-    Source: 'src/params.rs', lines 847:0-848:50
-    Visibility: public -/
-@[global_simps, irreducible]
-def params.ROUND_NODE_INV_ALPHA : Array Std.U64 3#usize :=
-  Array.make 3#usize [ 2147483599#u64, 4294967196#u64, 2147483599#u64 ]
-
-/-- [hachi::sumcheck::round_node_weights_alpha]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 560:4-563:5
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.round_node_weights_alpha_loop.body
-  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Fp))
-  := do
-  if i < n
-  then
-    let i1 ← Array.index_usize params.ROUND_NODE_INV_ALPHA i
-    let f ← cpoly.field.Fp.new i1
-    let out1 ← alloc.vec.Vec.push out f
-    let i2 ← i + 1#usize
-    ok (cont (out1, i2))
-  else ok (done out)
-
-/-- [hachi::sumcheck::round_node_weights_alpha]: loop 0:
-    Source: 'src/sumcheck.rs', lines 560:4-563:5
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.round_node_weights_alpha_loop
-  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Fp)
-  := do
-  loop
-    (fun (out1, i1) => sumcheck.round_node_weights_alpha_loop.body n out1 i1)
-    (out, i)
-
-/-- [hachi::sumcheck::round_node_weights_alpha]:
-    Source: 'src/sumcheck.rs', lines 556:0-565:1
-    Visibility: public -/
-@[reducible]
-def sumcheck.round_node_weights_alpha
-  : Result (alloc.vec.Vec cpoly.field.Fp) := do
-  sumcheck.round_node_weights_alpha_loop params.ROUND_NODES_ALPHA
-    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
-
-/-- [hachi::sumcheck::round_node]:
-    Source: 'src/sumcheck.rs', lines 96:0-98:1
-    Visibility: public -/
-def sumcheck.round_node (i : Std.Usize) : Result cpoly.field.Ext4 := do
-  let i1 ← lift (UScalar.cast .U64 i)
-  let f ← cpoly.field.Fp.new i1
-  cpoly.field.Ext4.from_base f
-
-/-- [hachi::sumcheck::interpolate]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 124:4-127:5
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.interpolate_loop0.body
-  (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4) (k : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if k < n
-  then
-    let acc1 ← alloc.vec.Vec.push acc cpoly.field.Ext4.ZERO
-    let k1 ← k + 1#usize
-    ok (cont (acc1, k1))
-  else ok (done acc)
-
-/-- [hachi::sumcheck::interpolate]: loop 0:
-    Source: 'src/sumcheck.rs', lines 124:4-127:5
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.interpolate_loop0
-  (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4) (k : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (acc1, k1) => sumcheck.interpolate_loop0.body n acc1 k1)
-    (acc, k)
-
-/-- [hachi::sumcheck::interpolate]: loop body 3:
-    Source: 'src/sumcheck.rs', lines 139:16-148:17
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.interpolate_loop1_loop0_loop0.body
-  (basis : alloc.vec.Vec cpoly.field.Ext4) (xj : cpoly.field.Ext4)
-  (next : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  let i := alloc.vec.Vec.len basis
-  let i1 ← i + 1#usize
-  if t < i1
-  then
-    let shifted ←
-      if t > 0#usize
-      then
-        do
-        let i2 ← t - 1#usize
-        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-          cpoly.field.Ext4) basis i2
-      else ok cpoly.field.Ext4.ZERO
-    let i2 := alloc.vec.Vec.len basis
-    let scaled ←
-      if t < i2
-      then
-        do
-        let e ←
-          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-            cpoly.field.Ext4) basis t
-        cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e xj
-      else ok cpoly.field.Ext4.ZERO
-    let e ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub shifted scaled
-    let next1 ← alloc.vec.Vec.push next e
-    let t1 ← t + 1#usize
-    ok (cont (next1, t1))
-  else ok (done next)
-
-/-- [hachi::sumcheck::interpolate]: loop 3:
-    Source: 'src/sumcheck.rs', lines 139:16-148:17
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.interpolate_loop1_loop0_loop0
-  (basis : alloc.vec.Vec cpoly.field.Ext4) (xj : cpoly.field.Ext4)
-  (next : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (next1, t1) => sumcheck.interpolate_loop1_loop0_loop0.body basis xj
-      next1 t1)
-    (next, t)
-
-/-- [hachi::sumcheck::interpolate]: loop body 2:
-    Source: 'src/sumcheck.rs', lines 134:8-152:9
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.interpolate_loop1_loop0.body
-  (n : Std.Usize) (i : Std.Usize) (basis : alloc.vec.Vec cpoly.field.Ext4)
-  (j : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if j < n
-  then
-    if j != i
-    then
-      let xj ← sumcheck.round_node j
-      let next ←
-        sumcheck.interpolate_loop1_loop0_loop0 basis xj (alloc.vec.Vec.new
-          cpoly.field.Ext4) 0#usize
-      let j1 ← j + 1#usize
-      ok (cont (next, j1))
-    else let j1 ← j + 1#usize
-         ok (cont (basis, j1))
-  else ok (done basis)
-
-/-- [hachi::sumcheck::interpolate]: loop 2:
-    Source: 'src/sumcheck.rs', lines 134:8-152:9
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.interpolate_loop1_loop0
-  (n : Std.Usize) (i : Std.Usize) (basis : alloc.vec.Vec cpoly.field.Ext4)
-  (j : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (basis1, j1) => sumcheck.interpolate_loop1_loop0.body n i basis1 j1)
-    (basis, j)
-
-/-- [hachi::sumcheck::interpolate]: loop body 4:
-    Source: 'src/sumcheck.rs', lines 155:8-158:9
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.interpolate_loop1_loop1.body
-  (basis : alloc.vec.Vec cpoly.field.Ext4) (scale : cpoly.field.Ext4)
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  let i := alloc.vec.Vec.len basis
-  if t < i
-  then
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) acc t
-    let e1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) basis t
-    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e1 scale
-    let e3 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add e e2
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) acc t
-    let t1 ← t + 1#usize
-    let acc1 := index_mut_back e3
-    ok (cont (acc1, t1))
-  else ok (done acc)
-
-/-- [hachi::sumcheck::interpolate]: loop 4:
-    Source: 'src/sumcheck.rs', lines 155:8-158:9
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.interpolate_loop1_loop1
-  (acc : alloc.vec.Vec cpoly.field.Ext4)
-  (basis : alloc.vec.Vec cpoly.field.Ext4) (scale : cpoly.field.Ext4)
-  (t : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (acc1, t1) => sumcheck.interpolate_loop1_loop1.body basis scale acc1
-      t1)
-    (acc, t)
-
-/-- [hachi::sumcheck::interpolate]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 129:4-160:5
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.interpolate_loop1.body
-  (values : alloc.vec.Vec cpoly.field.Ext4)
-  (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if i < n
-  then
-    let basis ←
-      alloc.vec.Vec.push (alloc.vec.Vec.new cpoly.field.Ext4)
-        cpoly.field.Ext4.ONE
-    let basis1 ← sumcheck.interpolate_loop1_loop0 n i basis 0#usize
-    let e ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) values i
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) inv_weights i
-    let e1 ← cpoly.field.Ext4.from_base f
-    let scale ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
-    let acc1 ← sumcheck.interpolate_loop1_loop1 acc basis1 scale 0#usize
-    let i1 ← i + 1#usize
-    ok (cont (acc1, i1))
-  else ok (done acc)
-
-/-- [hachi::sumcheck::interpolate]: loop 1:
-    Source: 'src/sumcheck.rs', lines 129:4-160:5
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.interpolate_loop1
-  (values : alloc.vec.Vec cpoly.field.Ext4)
-  (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (acc1, i1) => sumcheck.interpolate_loop1.body values inv_weights n
-      acc1 i1)
-    (acc, i)
-
-/-- [hachi::sumcheck::interpolate]:
-    Source: 'src/sumcheck.rs', lines 120:0-162:1
-    Visibility: public -/
-def sumcheck.interpolate
-  (values : alloc.vec.Vec cpoly.field.Ext4)
-  (inv_weights : alloc.vec.Vec cpoly.field.Fp) :
-  Result cpoly.univariate.UnivariatePoly
-  := do
-  let n := alloc.vec.Vec.len values
-  let acc ←
-    sumcheck.interpolate_loop0 n (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-  let acc1 ← sumcheck.interpolate_loop1 values inv_weights n acc 0#usize
-  cpoly.univariate.UnivariatePoly.from_coeffs acc1
+    (fun (c01, c11, c21, y1) => sumcheck.round_poly_alpha_base_split_loop.body
+      w low high half l c01 c11 c21 y1)
+    (c0, c1, c2, y)
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1389:0-1393:1
+    Source: 'src/sumcheck.rs', lines 1389:0-1420:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_base_split
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
   (high : alloc.vec.Vec cpoly.field.Ext4) :
   Result cpoly.univariate.UnivariatePoly
   := do
-  let values ← sumcheck.round_values_alpha_base_split w low high
-  let weights ← sumcheck.round_node_weights_alpha
-  sumcheck.interpolate values weights
+  let i := alloc.vec.Vec.len w
+  let half ← i / 2#usize
+  let l := alloc.vec.Vec.len low
+  let (c0, c1, c2) ←
+    sumcheck.round_poly_alpha_base_split_loop w low high half l
+      cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO 0#usize
+  let coeffs := alloc.vec.Vec.with_capacity cpoly.field.Ext4 3#usize
+  let coeffs1 ← alloc.vec.Vec.push coeffs c0
+  let coeffs2 ← alloc.vec.Vec.push coeffs1 c1
+  let coeffs3 ← alloc.vec.Vec.push coeffs2 c2
+  cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::shift_inner_base]: loop body 0:
     Source: 'src/sumcheck.rs', lines 976:4-980:5
@@ -8290,7 +7949,7 @@ def sumcheck.round_poly_zero_base
   else sumcheck.round_poly_zero_base_plain w eq
 
 /-- [hachi::sumcheck::honest_compute_g_base_split]:
-    Source: 'src/sumcheck.rs', lines 1670:0-1685:1
+    Source: 'src/sumcheck.rs', lines 1697:0-1712:1
     Visibility: public -/
 def sumcheck.honest_compute_g_base_split
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -8316,7 +7975,7 @@ def sumcheck.honest_compute_g_base_split
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g_split]:
-    Source: 'src/sumcheck.rs', lines 1651:0-1667:1
+    Source: 'src/sumcheck.rs', lines 1678:0-1694:1
     Visibility: public -/
 def sumcheck.honest_compute_g_split
   (stmt : sumcheck.RoundStatement) (w_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -8537,7 +8196,7 @@ def sumcheck.alpha_split_low
   zerocheck.alpha_pow_table alpha sz
 
 /-- [hachi::sumcheck::honest_round_messages]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1943:8-1953:9
+    Source: 'src/sumcheck.rs', lines 1970:8-1980:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.honest_round_messages_loop.body
@@ -8567,7 +8226,7 @@ def sumcheck.honest_round_messages_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::honest_round_messages]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1943:8-1953:9
+    Source: 'src/sumcheck.rs', lines 1970:8-1980:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.honest_round_messages_loop
@@ -8585,7 +8244,7 @@ def sumcheck.honest_round_messages_loop
     (low, high, current, out, w_tab, i)
 
 /-- [hachi::sumcheck::honest_round_messages]:
-    Source: 'src/sumcheck.rs', lines 1903:0-1956:1
+    Source: 'src/sumcheck.rs', lines 1930:0-1983:1
     Visibility: public -/
 def sumcheck.honest_round_messages
   (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)
@@ -8634,7 +8293,7 @@ def sumcheck.honest_round_messages
   else ok (alloc.vec.Vec.new sumcheck.RoundMsg)
 
 /-- [hachi::sumcheck::honest_compute_y]:
-    Source: 'src/sumcheck.rs', lines 1754:0-1760:1
+    Source: 'src/sumcheck.rs', lines 1781:0-1787:1
     Visibility: public -/
 def sumcheck.honest_compute_y
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
@@ -14030,6 +13689,19 @@ def params.ROUND_NODE_INV : Array Std.U64 33#usize :=
     2585773906#u64
     ]
 
+/-- [hachi::params::ROUND_NODES_ALPHA]
+    Source: 'src/params.rs', lines 837:0-837:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.ROUND_NODES_ALPHA : Std.Usize := 3#usize
+
+/-- [hachi::params::ROUND_NODE_INV_ALPHA]
+    Source: 'src/params.rs', lines 847:0-848:50
+    Visibility: public -/
+@[global_simps, irreducible]
+def params.ROUND_NODE_INV_ALPHA : Array Std.U64 3#usize :=
+  Array.make 3#usize [ 2147483599#u64, 4294967196#u64, 2147483599#u64 ]
+
 /-- [hachi::quadeval::{hachi::quadeval::PublicParamsD}::new]:
     Source: 'src/quadeval.rs', lines 86:4-88:5
     Visibility: public -/
@@ -18485,6 +18157,234 @@ def ringswitch.honest_lift_witness
   let pv ← linalg.PolyVec.copy z
   ringswitch.LiftedWitness.new pv rho
 
+/-- [hachi::sumcheck::round_node]:
+    Source: 'src/sumcheck.rs', lines 96:0-98:1
+    Visibility: public -/
+def sumcheck.round_node (i : Std.Usize) : Result cpoly.field.Ext4 := do
+  let i1 ← lift (UScalar.cast .U64 i)
+  let f ← cpoly.field.Fp.new i1
+  cpoly.field.Ext4.from_base f
+
+/-- [hachi::sumcheck::interpolate]: loop body 0:
+    Source: 'src/sumcheck.rs', lines 124:4-127:5
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.interpolate_loop0.body
+  (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if k < n
+  then
+    let acc1 ← alloc.vec.Vec.push acc cpoly.field.Ext4.ZERO
+    let k1 ← k + 1#usize
+    ok (cont (acc1, k1))
+  else ok (done acc)
+
+/-- [hachi::sumcheck::interpolate]: loop 0:
+    Source: 'src/sumcheck.rs', lines 124:4-127:5
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.interpolate_loop0
+  (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4) (k : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (acc1, k1) => sumcheck.interpolate_loop0.body n acc1 k1)
+    (acc, k)
+
+/-- [hachi::sumcheck::interpolate]: loop body 3:
+    Source: 'src/sumcheck.rs', lines 139:16-148:17
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.interpolate_loop1_loop0_loop0.body
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (xj : cpoly.field.Ext4)
+  (next : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  let i := alloc.vec.Vec.len basis
+  let i1 ← i + 1#usize
+  if t < i1
+  then
+    let shifted ←
+      if t > 0#usize
+      then
+        do
+        let i2 ← t - 1#usize
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          cpoly.field.Ext4) basis i2
+      else ok cpoly.field.Ext4.ZERO
+    let i2 := alloc.vec.Vec.len basis
+    let scaled ←
+      if t < i2
+      then
+        do
+        let e ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            cpoly.field.Ext4) basis t
+        cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e xj
+      else ok cpoly.field.Ext4.ZERO
+    let e ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub shifted scaled
+    let next1 ← alloc.vec.Vec.push next e
+    let t1 ← t + 1#usize
+    ok (cont (next1, t1))
+  else ok (done next)
+
+/-- [hachi::sumcheck::interpolate]: loop 3:
+    Source: 'src/sumcheck.rs', lines 139:16-148:17
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.interpolate_loop1_loop0_loop0
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (xj : cpoly.field.Ext4)
+  (next : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (next1, t1) => sumcheck.interpolate_loop1_loop0_loop0.body basis xj
+      next1 t1)
+    (next, t)
+
+/-- [hachi::sumcheck::interpolate]: loop body 2:
+    Source: 'src/sumcheck.rs', lines 134:8-152:9
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.interpolate_loop1_loop0.body
+  (n : Std.Usize) (i : Std.Usize) (basis : alloc.vec.Vec cpoly.field.Ext4)
+  (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if j < n
+  then
+    if j != i
+    then
+      let xj ← sumcheck.round_node j
+      let next ←
+        sumcheck.interpolate_loop1_loop0_loop0 basis xj (alloc.vec.Vec.new
+          cpoly.field.Ext4) 0#usize
+      let j1 ← j + 1#usize
+      ok (cont (next, j1))
+    else let j1 ← j + 1#usize
+         ok (cont (basis, j1))
+  else ok (done basis)
+
+/-- [hachi::sumcheck::interpolate]: loop 2:
+    Source: 'src/sumcheck.rs', lines 134:8-152:9
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.interpolate_loop1_loop0
+  (n : Std.Usize) (i : Std.Usize) (basis : alloc.vec.Vec cpoly.field.Ext4)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (basis1, j1) => sumcheck.interpolate_loop1_loop0.body n i basis1 j1)
+    (basis, j)
+
+/-- [hachi::sumcheck::interpolate]: loop body 4:
+    Source: 'src/sumcheck.rs', lines 155:8-158:9
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.interpolate_loop1_loop1.body
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (scale : cpoly.field.Ext4)
+  (acc : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  let i := alloc.vec.Vec.len basis
+  if t < i
+  then
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) acc t
+    let e1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) basis t
+    let e2 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e1 scale
+    let e3 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add e e2
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) acc t
+    let t1 ← t + 1#usize
+    let acc1 := index_mut_back e3
+    ok (cont (acc1, t1))
+  else ok (done acc)
+
+/-- [hachi::sumcheck::interpolate]: loop 4:
+    Source: 'src/sumcheck.rs', lines 155:8-158:9
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.interpolate_loop1_loop1
+  (acc : alloc.vec.Vec cpoly.field.Ext4)
+  (basis : alloc.vec.Vec cpoly.field.Ext4) (scale : cpoly.field.Ext4)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (acc1, t1) => sumcheck.interpolate_loop1_loop1.body basis scale acc1
+      t1)
+    (acc, t)
+
+/-- [hachi::sumcheck::interpolate]: loop body 1:
+    Source: 'src/sumcheck.rs', lines 129:4-160:5
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.interpolate_loop1.body
+  (values : alloc.vec.Vec cpoly.field.Ext4)
+  (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+  (acc : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if i < n
+  then
+    let basis ←
+      alloc.vec.Vec.push (alloc.vec.Vec.new cpoly.field.Ext4)
+        cpoly.field.Ext4.ONE
+    let basis1 ← sumcheck.interpolate_loop1_loop0 n i basis 0#usize
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) values i
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) inv_weights i
+    let e1 ← cpoly.field.Ext4.from_base f
+    let scale ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
+    let acc1 ← sumcheck.interpolate_loop1_loop1 acc basis1 scale 0#usize
+    let i1 ← i + 1#usize
+    ok (cont (acc1, i1))
+  else ok (done acc)
+
+/-- [hachi::sumcheck::interpolate]: loop 1:
+    Source: 'src/sumcheck.rs', lines 129:4-160:5
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.interpolate_loop1
+  (values : alloc.vec.Vec cpoly.field.Ext4)
+  (inv_weights : alloc.vec.Vec cpoly.field.Fp) (n : Std.Usize)
+  (acc : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (acc1, i1) => sumcheck.interpolate_loop1.body values inv_weights n
+      acc1 i1)
+    (acc, i)
+
+/-- [hachi::sumcheck::interpolate]:
+    Source: 'src/sumcheck.rs', lines 120:0-162:1
+    Visibility: public -/
+def sumcheck.interpolate
+  (values : alloc.vec.Vec cpoly.field.Ext4)
+  (inv_weights : alloc.vec.Vec cpoly.field.Fp) :
+  Result cpoly.univariate.UnivariatePoly
+  := do
+  let n := alloc.vec.Vec.len values
+  let acc ←
+    sumcheck.interpolate_loop0 n (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+  let acc1 ← sumcheck.interpolate_loop1 values inv_weights n acc 0#usize
+  cpoly.univariate.UnivariatePoly.from_coeffs acc1
+
 /-- [hachi::sumcheck::round_node_weights]: loop body 0:
     Source: 'src/sumcheck.rs', lines 173:4-176:5
     Visibility: public -/
@@ -18799,6 +18699,45 @@ def sumcheck.round_values_alpha
   := do
   sumcheck.round_values_alpha_loop w a_tab params.ROUND_NODES_ALPHA
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+
+/-- [hachi::sumcheck::round_node_weights_alpha]: loop body 0:
+    Source: 'src/sumcheck.rs', lines 560:4-563:5
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.round_node_weights_alpha_loop.body
+  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if i < n
+  then
+    let i1 ← Array.index_usize params.ROUND_NODE_INV_ALPHA i
+    let f ← cpoly.field.Fp.new i1
+    let out1 ← alloc.vec.Vec.push out f
+    let i2 ← i + 1#usize
+    ok (cont (out1, i2))
+  else ok (done out)
+
+/-- [hachi::sumcheck::round_node_weights_alpha]: loop 0:
+    Source: 'src/sumcheck.rs', lines 560:4-563:5
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.round_node_weights_alpha_loop
+  (n : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp) (i : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, i1) => sumcheck.round_node_weights_alpha_loop.body n out1 i1)
+    (out, i)
+
+/-- [hachi::sumcheck::round_node_weights_alpha]:
+    Source: 'src/sumcheck.rs', lines 556:0-565:1
+    Visibility: public -/
+@[reducible]
+def sumcheck.round_node_weights_alpha
+  : Result (alloc.vec.Vec cpoly.field.Fp) := do
+  sumcheck.round_node_weights_alpha_loop params.ROUND_NODES_ALPHA
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
 
 /-- [hachi::sumcheck::round_poly_alpha]: loop body 0:
     Source: 'src/sumcheck.rs', lines 595:4-603:5
@@ -19421,15 +19360,156 @@ def sumcheck.round_values_alpha_split
   sumcheck.round_values_alpha_split_loop w low high params.ROUND_NODES_ALPHA
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
+/-- [hachi::sumcheck::round_value_alpha_base_split]: loop body 0:
+    Source: 'src/sumcheck.rs', lines 1365:4-1372:5
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.round_value_alpha_base_split_loop.body
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp)
+  (half : Std.Usize) (l : Std.Usize) (one_minus : cpoly.field.Fp)
+  (node_ext : cpoly.field.Ext4) (one_minus_ext : cpoly.field.Ext4)
+  (acc : cpoly.field.Ext4) (y : Std.Usize) :
+  Result (ControlFlow (cpoly.field.Ext4 × Std.Usize) cpoly.field.Ext4)
+  := do
+  if y < half
+  then
+    let i ← 2#usize * y
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) w i
+    let f1 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul one_minus f
+    let i1 ← i + 1#usize
+    let f2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) w i1
+    let f3 ← cpoly.field.Fp.Insts.CoreOpsArithMulFpFp.mul node f2
+    let w_folded ← cpoly.field.Fp.Insts.CoreOpsArithAddFpFp.add f1 f3
+    let i2 ← i % l
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) low i2
+    let i3 ← i / l
+    let e1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) high i3
+    let lo_a ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
+    let i4 ← i + 1#usize
+    let i5 ← i4 % l
+    let e2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) low i5
+    let i6 ← i + 1#usize
+    let i7 ← i6 / l
+    let e3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Ext4) high i7
+    let hi_a ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e2 e3
+    let e4 ←
+      cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul one_minus_ext lo_a
+    let e5 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul node_ext hi_a
+    let a_folded ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add e4 e5
+    let e6 ←
+      cpoly.field.Fp.Insts.CoreOpsArithMulExt4Ext4.mul w_folded a_folded
+    let acc1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add acc e6
+    let y1 ← y + 1#usize
+    ok (cont (acc1, y1))
+  else ok (done acc)
+
+/-- [hachi::sumcheck::round_value_alpha_base_split]: loop 0:
+    Source: 'src/sumcheck.rs', lines 1365:4-1372:5
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.round_value_alpha_base_split_loop
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp)
+  (half : Std.Usize) (l : Std.Usize) (one_minus : cpoly.field.Fp)
+  (node_ext : cpoly.field.Ext4) (one_minus_ext : cpoly.field.Ext4)
+  (acc : cpoly.field.Ext4) (y : Std.Usize) :
+  Result cpoly.field.Ext4
+  := do
+  loop
+    (fun (acc1, y1) => sumcheck.round_value_alpha_base_split_loop.body w low
+      high node half l one_minus node_ext one_minus_ext acc1 y1)
+    (acc, y)
+
+/-- [hachi::sumcheck::round_value_alpha_base_split]:
+    Source: 'src/sumcheck.rs', lines 1352:0-1374:1
+    Visibility: public -/
+def sumcheck.round_value_alpha_base_split
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (node : cpoly.field.Fp) :
+  Result cpoly.field.Ext4
+  := do
+  let i := alloc.vec.Vec.len w
+  let half ← i / 2#usize
+  let l := alloc.vec.Vec.len low
+  let one_minus ←
+    cpoly.field.Fp.Insts.CoreOpsArithSubFpFp.sub cpoly.field.Fp.ONE node
+  let node_ext ← cpoly.field.Ext4.from_base node
+  let one_minus_ext ←
+    cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub cpoly.field.Ext4.ONE
+      node_ext
+  sumcheck.round_value_alpha_base_split_loop w low high node half l one_minus
+    node_ext one_minus_ext cpoly.field.Ext4.ZERO 0#usize
+
+/-- [hachi::sumcheck::round_values_alpha_base_split]: loop body 0:
+    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
+    Visibility: public -/
+@[rust_loop_body]
+def sumcheck.round_values_alpha_base_split_loop.body
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (nodes : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Ext4))
+  := do
+  if t < nodes
+  then
+    let i ← lift (UScalar.cast .U64 t)
+    let f ← cpoly.field.Fp.new i
+    let e ← sumcheck.round_value_alpha_base_split w low high f
+    let out1 ← alloc.vec.Vec.push out e
+    let t1 ← t + 1#usize
+    ok (cont (out1, t1))
+  else ok (done out)
+
+/-- [hachi::sumcheck::round_values_alpha_base_split]: loop 0:
+    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
+    Visibility: public -/
+@[rust_loop]
+def sumcheck.round_values_alpha_base_split_loop
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) (nodes : Std.Usize)
+  (out : alloc.vec.Vec cpoly.field.Ext4) (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  loop
+    (fun (out1, t1) => sumcheck.round_values_alpha_base_split_loop.body w low
+      high nodes out1 t1)
+    (out, t)
+
+/-- [hachi::sumcheck::round_values_alpha_base_split]:
+    Source: 'src/sumcheck.rs', lines 1377:0-1386:1
+    Visibility: public -/
+@[reducible]
+def sumcheck.round_values_alpha_base_split
+  (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
+  (high : alloc.vec.Vec cpoly.field.Ext4) :
+  Result (alloc.vec.Vec cpoly.field.Ext4)
+  := do
+  sumcheck.round_values_alpha_base_split_loop w low high
+    params.ROUND_NODES_ALPHA (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::t]:
-    Source: 'src/sumcheck.rs', lines 1491:4-1493:5
+    Source: 'src/sumcheck.rs', lines 1518:4-1520:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.t
   (self : sumcheck.NestedZeroCheckStmt) : Result linalg.PolyVec := do
   ok self.t
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::new]:
-    Source: 'src/sumcheck.rs', lines 1527:4-1529:5
+    Source: 'src/sumcheck.rs', lines 1554:4-1556:5
     Visibility: public -/
 def sumcheck.RoundMsg.new
   (g_zero : cpoly.univariate.UnivariatePoly)
@@ -19439,7 +19519,7 @@ def sumcheck.RoundMsg.new
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g]:
-    Source: 'src/sumcheck.rs', lines 1610:0-1625:1
+    Source: 'src/sumcheck.rs', lines 1637:0-1652:1
     Visibility: public -/
 def sumcheck.honest_compute_g
   (stmt : sumcheck.RoundStatement) (w_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -19464,7 +19544,7 @@ def sumcheck.honest_compute_g
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g_base]:
-    Source: 'src/sumcheck.rs', lines 1633:0-1647:1
+    Source: 'src/sumcheck.rs', lines 1660:0-1674:1
     Visibility: public -/
 def sumcheck.honest_compute_g_base
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -19499,7 +19579,7 @@ def zerocheck.c_w_table_mle
   cpoly.multilinear.MultilinearEvals.from_values values
 
 /-- [hachi::sumcheck::round_loop]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1822:4-1834:1
+    Source: 'src/sumcheck.rs', lines 1849:4-1861:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_loop_loop.body
@@ -19531,7 +19611,7 @@ def sumcheck.round_loop_loop.body
   else ok (done (some current))
 
 /-- [hachi::sumcheck::round_loop]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1822:4-1834:1
+    Source: 'src/sumcheck.rs', lines 1849:4-1861:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_loop_loop
@@ -19547,7 +19627,7 @@ def sumcheck.round_loop_loop
     (w_tab, a_tab, current, i)
 
 /-- [hachi::sumcheck::round_loop]:
-    Source: 'src/sumcheck.rs', lines 1807:0-1834:1
+    Source: 'src/sumcheck.rs', lines 1834:0-1861:1
     Visibility: public -/
 def sumcheck.round_loop
   (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)
