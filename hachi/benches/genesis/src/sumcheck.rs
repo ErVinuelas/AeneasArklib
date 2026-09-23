@@ -1466,6 +1466,7 @@ pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Ve
     acc
 }
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::DIGIT_ALPHABET
 // ---------------------------------------------------------------------------
 // Card T46a (2026-09-23): the bucketed round-0 message. The four constants and
 // the three bucketing items are first translations; round_poly_zero_base_plain is
@@ -1477,19 +1478,23 @@ pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Ve
 /// The balanced box's size, `2 · HALF_BASE = 16` digit values (card T46a).
 pub const DIGIT_ALPHABET: usize = 16;
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::PAIR_TYPES
 /// `DIGIT_ALPHABET²`: the pair types of a round-0 fold (card T46a).
 pub const PAIR_TYPES: usize = 256;
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::Q_MINUS_HALF
 /// `q − HALF_BASE = 4 294 967 189`: the canonical word of the digit `−8`, the
 /// lowest word of the box's negative half (card T46a). A literal for the
 /// usual extraction reason; `tests/sumcheck_semantics.rs` ties it to `Q`.
 pub const Q_MINUS_HALF: u64 = 4_294_967_189;
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::BUCKET_MIN_PAIRS0
 /// Below this many pairs the bucketed path's fixed cost -- 256 Taylor shifts
 /// and the type table -- is not repaid by the scan, and the per-pair path
 /// runs (card T46a).
 pub const BUCKET_MIN_PAIRS0: usize = 1024;
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::digit_id
 /// The digit id of a round-0 table entry: `d + 8` for the canonical word of a
 /// balanced digit `d ∈ [-8, 7]`, and the sentinel [`DIGIT_ALPHABET`] for any
 /// other word (card T46a).
@@ -1506,6 +1511,7 @@ pub fn digit_id(x: Fp) -> usize {
     }
 }
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::bucket_pairs_base
 /// The `eq` weight of every round-0 pair type: `b[16·i + j] = Σ eq[y]` over
 /// the pairs `(w[2y], w[2y+1])` whose digit ids are `(i, j)` (card T46a).
 /// `None` at the first entry outside the box.
@@ -1537,6 +1543,7 @@ pub fn bucket_pairs_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
     Some(b)
 }
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::pair_type_table_base
 /// The representative table of the round-0 pair types: entry `2t` is the
 /// digit of id `t / 16`, entry `2t + 1` that of id `t % 16`, each as
 /// `Fp::new(id) − 8` (card T46a).
@@ -1554,6 +1561,7 @@ pub fn pair_type_table_base() -> Vec<Fp> {
     out
 }
 
+// @genesis 33aa5e1 2026-09-23 — sumcheck::round_poly_zero_base_plain
 /// [`round_poly_zero_base`] pair by pair: the function's body before card
 /// T46a, unchanged, and the path it takes off the box.
 pub fn round_poly_zero_base_plain(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
