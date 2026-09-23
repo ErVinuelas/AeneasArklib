@@ -545,4 +545,509 @@ theorem bucket_sum_eq {k : ℕ} (w v : alloc.vec.Vec cpoly.field.Fp)
     · rw [if_neg h, if_neg (fun h' => h (hiff.mp h'))]
   rw [hfib]
 
+/-! ## Card T46b: the round-1 quad types
+
+Round 1's table is round 0's folded at `a0` (`eval_mle_layer_base`), so round-1
+pair `y` reads `w1[2y] = fold(w[4y], w[4y+1])` and
+`w1[2y+1] = fold(w[4y+2], w[4y+3])`: a function of the four round-0 digits
+`w[4y .. 4y+4)`. Inside the alphabet those have one of `24⁴ = 331 776` *quad
+types* `576·(24·i₀ + i₁) + (24·i₂ + i₃)`, padded to `2^19`. The regrouping is
+T46a's `sum_fiberwise_fold`, at the two folded tables: `bucket_quads_base` sums
+the `eq` weight per quad type, `quad_type_table_base` is one representative
+four-digit row per type, and folding both at `a0` gives two tables whose pairs
+agree along the type map (`bucket_quads_sum_eq`). -/
+
+theorem quad_types_val : (sumcheck.QUAD_TYPES).val = 524288 := by
+  simp only [sumcheck.QUAD_TYPES]; decide
+
+theorem bucket_min_pairs1_val : (sumcheck.BUCKET_MIN_PAIRS1).val = 2097152 := by
+  simp only [sumcheck.BUCKET_MIN_PAIRS1]; decide
+
+/-- Round-1 pair `y` decodes: the four round-0 entries `w[4y .. 4y + 4)` all
+have digit ids in the alphabet. -/
+def Dec4 (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : Prop :=
+  digId (w.val.getD (4 * y) cpoly.field.Fp.ZERO) < 24
+    ∧ digId (w.val.getD (4 * y + 1) cpoly.field.Fp.ZERO) < 24
+    ∧ digId (w.val.getD (4 * y + 2) cpoly.field.Fp.ZERO) < 24
+    ∧ digId (w.val.getD (4 * y + 3) cpoly.field.Fp.ZERO) < 24
+
+/-- The quad type of round-1 pair `y`:
+`576 · (24 · id(w[4y]) + id(w[4y+1])) + (24 · id(w[4y+2]) + id(w[4y+3]))`. -/
+def typK4 (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : ℕ :=
+  576 * (24 * digId (w.val.getD (4 * y) cpoly.field.Fp.ZERO)
+      + digId (w.val.getD (4 * y + 1) cpoly.field.Fp.ZERO))
+    + (24 * digId (w.val.getD (4 * y + 2) cpoly.field.Fp.ZERO)
+      + digId (w.val.getD (4 * y + 3) cpoly.field.Fp.ZERO))
+
+/-- Row `t` of the representative table: its four words are the digits of the
+ids `t / 576 / 24`, `t / 576 % 24`, `t % 576 / 24`, `t % 576 % 24`. -/
+def QuadRow (v : alloc.vec.Vec cpoly.field.Fp) (t : ℕ) : Prop :=
+  coeffK v (4 * t) = ((t / 576 / 24 : ℕ) : ZMod q) - 8
+    ∧ coeffK v (4 * t + 1) = ((t / 576 % 24 : ℕ) : ZMod q) - 8
+    ∧ coeffK v (4 * t + 2) = ((t % 576 / 24 : ℕ) : ZMod q) - 8
+    ∧ coeffK v (4 * t + 3) = ((t % 576 % 24 : ℕ) : ZMod q) - 8
+
+/-- A decoded quad has type below `331 776 = 24⁴`, with its four ids read back. -/
+theorem typK4_parts (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) (h : Dec4 w y) :
+    typK4 w y < 331776
+      ∧ typK4 w y / 576 / 24 = digId (w.val.getD (4 * y) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y / 576 % 24 = digId (w.val.getD (4 * y + 1) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y % 576 / 24 = digId (w.val.getD (4 * y + 2) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y % 576 % 24 = digId (w.val.getD (4 * y + 3) cpoly.field.Fp.ZERO) := by
+  obtain ⟨h0, h1, h2, h3⟩ := h
+  unfold typK4
+  refine ⟨by omega, by omega, by omega, by omega, by omega⟩
+
+/-- The zero fill of `bucket_quads_base`: `2^19` copies of `Ext4::ZERO`. -/
+theorem bucket_quads_zero_fill_spec (b : alloc.vec.Vec cpoly.field.Ext4) (t0 : Std.Usize)
+    (ht : t0.val ≤ 524288) (hlen : b.val.length = t0.val) (hbr : VecReduced b)
+    (hbv : ∀ t, t < t0.val → toExt (b.val.getD t cpoly.field.Ext4.ZERO) = 0) :
+    sumcheck.bucket_quads_base_loop0 b t0
+      ⦃ z => z.val.length = 524288 ∧ VecReduced z ∧
+          ∀ t, t < 524288 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
+  have hP := quad_types_val
+  rw [sumcheck.bucket_quads_base_loop0]
+  apply loop.spec_decr_nat (fun r => 524288 - r.2.val)
+    (fun r => r.2.val ≤ 524288 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
+      ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = 0)
+  · rintro ⟨a, ii⟩ ⟨hii, hal, har', hav'⟩
+    dsimp only at hii hal har' hav'
+    simp only [sumcheck.bucket_quads_base_loop0.body]
+    by_cases hlt : ii < sumcheck.QUAD_TYPES
+    · rw [if_pos hlt]
+      have hilt : ii.val < 524288 := by scalar_tac
+      have hmax : a.val.length < Std.Usize.max := by
+        have := usize_max_ge32; omega
+      step as ⟨a1, ha1⟩
+      step as ⟨ii1, hii1⟩
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [ha1, hii1, List.length_append, hal]; simp
+      · intro y hy
+        rw [ha1] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact har' y h
+        · rw [List.mem_singleton.mp h]; exact HachiEquiv.Ext.reduced_ZERO
+      · intro t ht
+        rw [hii1] at ht
+        rcases Nat.lt_or_ge t ii.val with hc | hc
+        · rw [ha1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
+          exact hav' t hc
+        · have heq : t = a.val.length := by omega
+          rw [heq, ha1, HachiEquiv.GoldTransform.getD_append_eq']
+          exact HachiEquiv.Ext.toExt_ZERO
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = 524288 := by scalar_tac
+      exact ⟨by rw [hal, heq], har', fun t ht => hav' t (by rw [heq]; exact ht)⟩
+  · exact ⟨ht, hlen, hbr, hbv⟩
+
+/-- The quad bucketing loop. On `some z`: `2^19` reduced weights, every round-1
+pair below `half` decodes, and `z[t]` is the `eq` weight of the pairs of quad
+type `t`. -/
+theorem bucket_quads_loop_spec (w : alloc.vec.Vec cpoly.field.Fp)
+    (eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize)
+    (b : alloc.vec.Vec cpoly.field.Ext4) (y : Std.Usize)
+    (hhalf : half.val = eq.val.length) (hwl : w.val.length = 4 * eq.val.length)
+    (hwr : ∀ a ∈ w.val, Red a) (her : VecReduced eq)
+    (hy : y.val ≤ half.val) (hbl : b.val.length = 524288) (hbr : VecReduced b)
+    (hdec : ∀ y', y' < y.val → Dec4 w y')
+    (hbv : ∀ t, t < 524288 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+      = ∑ y' ∈ (Finset.range y.val).filter (fun y' => typK4 w y' = t), eqF eq y') :
+    sumcheck.bucket_quads_base_loop1 w eq half b y
+      ⦃ r => match r with
+        | none => True
+        | some z => z.val.length = 524288 ∧ VecReduced z ∧
+            (∀ y', y' < half.val → Dec4 w y') ∧
+            ∀ t, t < 524288 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
+              = ∑ y' ∈ (Finset.range half.val).filter (fun y' => typK4 w y' = t),
+                  eqF eq y' ⦄ := by
+  have hD := digit_alphabet_val
+  rw [sumcheck.bucket_quads_base_loop1]
+  apply loop.spec_decr_nat (fun r => half.val - r.2.val)
+    (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 524288 ∧ VecReduced r.1
+      ∧ (∀ y', y' < r.2.val → Dec4 w y')
+      ∧ ∀ t, t < 524288 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
+          = ∑ y' ∈ (Finset.range r.2.val).filter (fun y' => typK4 w y' = t), eqF eq y')
+  · rintro ⟨a, yy⟩ ⟨hyy, hal, har', hdec', hav'⟩
+    dsimp only at hyy hal har' hdec' hav'
+    simp only [sumcheck.bucket_quads_base_loop1.body]
+    by_cases hlt : yy < half
+    · rw [if_pos hlt]
+      have hylt : yy.val < eq.val.length := by rw [← hhalf]; scalar_tac
+      have hb3 : 4 * yy.val + 3 < w.val.length := by rw [hwl]; omega
+      step as ⟨i, hi⟩
+      have hib : i.val < w.val.length := by rw [hi]; omega
+      step as ⟨f, hf⟩
+      have hfv : f = w.val.getD (4 * yy.val) cpoly.field.Fp.ZERO := by
+        rw [hf, ← hi, List.getD_eq_getElem _ _ hib]
+      have hRf : Red f := by rw [hf]; exact hwr _ (List.getElem_mem hib)
+      step with digit_id_spec f hRf as ⟨i0, hi0⟩
+      step as ⟨j1, hj1⟩
+      have hj1b : j1.val < w.val.length := by rw [hj1, hi]; omega
+      step as ⟨f1, hf1⟩
+      have hf1v : f1 = w.val.getD (4 * yy.val + 1) cpoly.field.Fp.ZERO := by
+        rw [hf1, show 4 * yy.val + 1 = j1.val by rw [hj1, hi], List.getD_eq_getElem _ _ hj1b]
+      have hRf1 : Red f1 := by rw [hf1]; exact hwr _ (List.getElem_mem hj1b)
+      step with digit_id_spec f1 hRf1 as ⟨i11, hi11⟩
+      step as ⟨j2, hj2⟩
+      have hj2b : j2.val < w.val.length := by rw [hj2, hi]; omega
+      step as ⟨f2, hf2⟩
+      have hf2v : f2 = w.val.getD (4 * yy.val + 2) cpoly.field.Fp.ZERO := by
+        rw [hf2, show 4 * yy.val + 2 = j2.val by rw [hj2, hi], List.getD_eq_getElem _ _ hj2b]
+      have hRf2 : Red f2 := by rw [hf2]; exact hwr _ (List.getElem_mem hj2b)
+      step with digit_id_spec f2 hRf2 as ⟨i21, hi21⟩
+      step as ⟨j3, hj3⟩
+      have hj3b : j3.val < w.val.length := by rw [hj3, hi]; omega
+      step as ⟨f3, hf3⟩
+      have hf3v : f3 = w.val.getD (4 * yy.val + 3) cpoly.field.Fp.ZERO := by
+        rw [hf3, show 4 * yy.val + 3 = j3.val by rw [hj3, hi], List.getD_eq_getElem _ _ hj3b]
+      have hRf3 : Red f3 := by rw [hf3]; exact hwr _ (List.getElem_mem hj3b)
+      step with digit_id_spec f3 hRf3 as ⟨i31, hi31⟩
+      by_cases hc0 : i0 < sumcheck.DIGIT_ALPHABET
+      · rw [if_pos hc0]
+        by_cases hc1 : i11 < sumcheck.DIGIT_ALPHABET
+        · rw [if_pos hc1]
+          by_cases hc2 : i21 < sumcheck.DIGIT_ALPHABET
+          · rw [if_pos hc2]
+            by_cases hc3 : i31 < sumcheck.DIGIT_ALPHABET
+            · rw [if_pos hc3]
+              have hi0v : i0.val < 24 := by scalar_tac
+              have hi11v : i11.val < 24 := by scalar_tac
+              have hi21v : i21.val < 24 := by scalar_tac
+              have hi31v : i31.val < 24 := by scalar_tac
+              have hmax := usize_max_ge32
+              have hm0 : sumcheck.DIGIT_ALPHABET.val * i0.val ≤ Std.Usize.max := by
+                rw [hD]; omega
+              step as ⟨i4, hi4⟩
+              have hi4v : i4.val = 24 * i0.val := by rw [hi4, hD]
+              have ha0 : i4.val + i11.val ≤ Std.Usize.max := by rw [hi4v]; omega
+              step as ⟨s0, hs0⟩
+              have hm1 : sumcheck.DIGIT_ALPHABET.val * i21.val ≤ Std.Usize.max := by
+                rw [hD]; omega
+              step as ⟨i5, hi5⟩
+              have hi5v : i5.val = 24 * i21.val := by rw [hi5, hD]
+              have ha1 : i5.val + i31.val ≤ Std.Usize.max := by rw [hi5v]; omega
+              step as ⟨s1, hs1⟩
+              have hmU : sumcheck.DIGIT_ALPHABET.val * sumcheck.DIGIT_ALPHABET.val
+                  ≤ Std.Usize.max := by rw [hD]; omega
+              step as ⟨used, hused⟩
+              have husedv : used.val = 576 := by rw [hused, hD]
+              have hm6 : used.val * s0.val ≤ Std.Usize.max := by
+                rw [husedv, hs0, hi4v]; omega
+              step as ⟨i6, hi6⟩
+              have ha6 : i6.val + s1.val ≤ Std.Usize.max := by
+                rw [hi6, husedv, hs0, hi4v, hs1, hi5v]; omega
+              step as ⟨t, ht⟩
+              have htv : t.val = typK4 w yy.val := by
+                rw [ht, hi6, husedv, hs0, hs1, hi4v, hi5v, hi0, hi11, hi21, hi31,
+                  hfv, hf1v, hf2v, hf3v, typK4]
+              have htlt : t.val < 524288 := by
+                rw [ht, hi6, husedv, hs0, hs1, hi4v, hi5v]; omega
+              have htb : t.val < a.val.length := by rw [hal]; exact htlt
+              step as ⟨cur, hcur⟩
+              have hRcur : Reduced cur := har' _ (by rw [hcur]; exact List.getElem_mem htb)
+              step as ⟨e, he⟩
+              have hRe : Reduced e := her _ (by rw [he]; exact List.getElem_mem hylt)
+              step with HachiEquiv.Ext.ext_add_spec cur e hRcur hRe as ⟨e1, hRe1, he1⟩
+              step as ⟨xa, back, hxa, hback⟩
+              step as ⟨yy1, hyy1⟩
+              have hset : back e1 = a.set t e1 := by rw [hback]
+              have hyy1v : yy1.val = yy.val + 1 := by scalar_tac
+              refine ⟨by scalar_tac, ?_, ?_, ?_, ?_, by scalar_tac⟩
+              · rw [hset, alloc.vec.Vec.set_val_eq, List.length_set, hal]
+              · intro u hu
+                rw [hset, alloc.vec.Vec.set_val_eq] at hu
+                rcases List.mem_or_eq_of_mem_set hu with h | h
+                · exact har' u h
+                · rw [h]; exact hRe1
+              · intro y' hy'
+                rw [hyy1v] at hy'
+                rcases Nat.lt_or_ge y' yy.val with hc | hc
+                · exact hdec' y' hc
+                · have hye : y' = yy.val := by omega
+                  rw [hye]
+                  refine ⟨?_, ?_, ?_, ?_⟩
+                  · rw [← hfv, ← hi0]; exact hi0v
+                  · rw [← hf1v, ← hi11]; exact hi11v
+                  · rw [← hf2v, ← hi21]; exact hi21v
+                  · rw [← hf3v, ← hi31]; exact hi31v
+              · intro t' ht'
+                have hold := hav' t' ht'
+                rw [Finset.sum_filter] at hold
+                rw [hset, alloc.vec.Vec.set_val_eq,
+                  List.getD_eq_getElem _ _ (by rw [List.length_set, hal]; exact ht'),
+                  hyy1v, Finset.sum_filter, Finset.sum_range_succ, ← hold]
+                rcases eq_or_ne t' t.val with rfl | hne
+                · rw [List.getElem_set_self, he1, if_pos htv.symm, hcur,
+                    List.getD_eq_getElem _ _ htb, he, eqF, List.getD_eq_getElem _ _ hylt]
+                · rw [List.getElem_set_ne (by omega),
+                    ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO)
+                      (by rw [hal]; exact ht'),
+                    if_neg (by omega), add_zero]
+            · rw [if_neg hc3, WP.spec_ok]
+              exact trivial
+          · rw [if_neg hc2, WP.spec_ok]
+            exact trivial
+        · rw [if_neg hc1, WP.spec_ok]
+          exact trivial
+      · rw [if_neg hc0, WP.spec_ok]
+        exact trivial
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hyeq : yy.val = half.val := by scalar_tac
+      refine ⟨hal, har', fun y' hy' => hdec' y' (by omega), fun t ht => ?_⟩
+      rw [hav' t ht, hyeq]
+  · exact ⟨hy, hbl, hbr, hdec, hbv⟩
+
+/-- `bucket_quads_base`: `None`, or the `2^19` quad-type weights of `(w, eq)`. -/
+theorem bucket_quads_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
+    (eq : alloc.vec.Vec cpoly.field.Ext4)
+    (hwl : w.val.length = 4 * eq.val.length) (hwr : ∀ a ∈ w.val, Red a)
+    (her : VecReduced eq) :
+    sumcheck.bucket_quads_base w eq
+      ⦃ o => match o with
+        | none => True
+        | some b => b.val.length = 524288 ∧ VecReduced b ∧
+            (∀ y, y < eq.val.length → Dec4 w y) ∧
+            ∀ t, t < 524288 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+              = ∑ y' ∈ (Finset.range eq.val.length).filter (fun y' => typK4 w y' = t),
+                  eqF eq y' ⦄ := by
+  rw [sumcheck.bucket_quads_base]
+  simp only [alloc.vec.Vec.with_capacity]
+  step with bucket_quads_zero_fill_spec (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
+    (by simp) (by simp) (by intro a ha; simp at ha) (by intro t ht; simp at ht)
+    as ⟨b1, hb1l, hb1r, hb1v⟩
+  have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
+  apply spec_mono (bucket_quads_loop_spec w eq (alloc.vec.Vec.len eq) b1 0#usize hhalf hwl hwr
+    her (by simp) hb1l hb1r (by intro y' hy'; simp at hy')
+    (by intro t ht; rw [hb1v t ht]; simp))
+  rintro (_ | z) hz
+  · exact trivial
+  · obtain ⟨hzl, hzr, hzd, hzv⟩ := hz
+    rw [hhalf] at hzd hzv
+    exact ⟨hzl, hzr, hzd, hzv⟩
+
+/-- Four pushes, read back: the old coefficients stay, the four new ones are the
+pushed words. -/
+theorem coeffK_push4 {o o1 o2 o3 o4 : alloc.vec.Vec cpoly.field.Fp}
+    {a b c d : cpoly.field.Fp}
+    (h1 : o1.val = o.val ++ [a]) (h2 : o2.val = o1.val ++ [b])
+    (h3 : o3.val = o2.val ++ [c]) (h4 : o4.val = o3.val ++ [d]) :
+    o4.val.length = o.val.length + 4
+      ∧ (∀ n, n < o.val.length → coeffK o4 n = coeffK o n)
+      ∧ coeffK o4 o.val.length = toK a
+      ∧ coeffK o4 (o.val.length + 1) = toK b
+      ∧ coeffK o4 (o.val.length + 2) = toK c
+      ∧ coeffK o4 (o.val.length + 3) = toK d := by
+  have l1 : o1.val.length = o.val.length + 1 := by rw [h1, List.length_append]; simp
+  have l2 : o2.val.length = o.val.length + 2 := by rw [h2, List.length_append, l1]; simp
+  have l3 : o3.val.length = o.val.length + 3 := by rw [h3, List.length_append, l2]; simp
+  have l4 : o4.val.length = o.val.length + 4 := by rw [h4, List.length_append, l3]; simp
+  refine ⟨l4, fun n hn => ?_, ?_, ?_, ?_, ?_⟩
+  · rw [coeffK_append_lt h4 (by omega), coeffK_append_lt h3 (by omega),
+      coeffK_append_lt h2 (by omega), coeffK_append_lt h1 hn]
+  · rw [coeffK_append_lt h4 (by omega), coeffK_append_lt h3 (by omega),
+      coeffK_append_lt h2 (by omega), coeffK_append_eq h1]
+  · rw [coeffK_append_lt h4 (by omega), coeffK_append_lt h3 (by omega), ← l1,
+      coeffK_append_eq h2]
+  · rw [coeffK_append_lt h4 (by omega), ← l2, coeffK_append_eq h3]
+  · rw [← l3, coeffK_append_eq h4]
+
+/-- The representative table's loop: after `t` types, `4t` words, row `t'` the
+four digits of type `t'`. -/
+theorem quad_type_loop_spec (out : alloc.vec.Vec cpoly.field.Fp) (eight : cpoly.field.Fp)
+    (used t : Std.Usize) (h8r : Red eight) (h8v : toK eight = 8) (hu : used.val = 576)
+    (ht : t.val ≤ 524288)
+    (hlen : out.val.length = 4 * t.val) (hr : ∀ a ∈ out.val, Red a)
+    (hv : ∀ t', t' < t.val → QuadRow out t') :
+    sumcheck.quad_type_table_base_loop out eight used t
+      ⦃ z => z.val.length = 2097152 ∧ (∀ a ∈ z.val, Red a) ∧
+          ∀ t', t' < 524288 → QuadRow z t' ⦄ := by
+  have hP := quad_types_val
+  have hD := digit_alphabet_val
+  rw [sumcheck.quad_type_table_base_loop]
+  apply loop.spec_decr_nat (fun r => 524288 - r.2.val)
+    (fun r => r.2.val ≤ 524288 ∧ r.1.val.length = 4 * r.2.val ∧ (∀ a ∈ r.1.val, Red a)
+      ∧ ∀ t', t' < r.2.val → QuadRow r.1 t')
+  · rintro ⟨o, tt⟩ ⟨htt, hol, hor, hov⟩
+    dsimp only at htt hol hor hov
+    simp only [sumcheck.quad_type_table_base_loop.body]
+    by_cases hlt : tt < sumcheck.QUAD_TYPES
+    · rw [if_pos hlt]
+      have httv : tt.val < 524288 := by scalar_tac
+      have hmax := usize_max_ge32
+      step as ⟨s0, hs0⟩
+      step as ⟨s1, hs1⟩
+      step as ⟨i0, hi0⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨i2, hi2⟩
+      step as ⟨i3, hi3⟩
+      step with cast_u64_spec i0 as ⟨c0, hc0⟩
+      step with fp_new_spec c0 as ⟨f, hRf, hf⟩
+      step with fp_sub_spec f eight hRf h8r as ⟨f1, hRf1, hf1⟩
+      have hmax1 : o.val.length < Std.Usize.max := by omega
+      step as ⟨o1, ho1⟩
+      have ho1l : o1.val.length = o.val.length + 1 := by rw [ho1, List.length_append]; simp
+      step with cast_u64_spec i1 as ⟨c1, hc1⟩
+      step with fp_new_spec c1 as ⟨f2, hRf2, hf2⟩
+      step with fp_sub_spec f2 eight hRf2 h8r as ⟨f3, hRf3, hf3⟩
+      have hmax2 : o1.val.length < Std.Usize.max := by omega
+      step as ⟨o2, ho2⟩
+      have ho2l : o2.val.length = o.val.length + 2 := by
+        rw [ho2, List.length_append, ho1l]; simp
+      step with cast_u64_spec i2 as ⟨c2, hc2⟩
+      step with fp_new_spec c2 as ⟨f4, hRf4, hf4⟩
+      step with fp_sub_spec f4 eight hRf4 h8r as ⟨f5, hRf5, hf5⟩
+      have hmax3 : o2.val.length < Std.Usize.max := by omega
+      step as ⟨o3, ho3⟩
+      have ho3l : o3.val.length = o.val.length + 3 := by
+        rw [ho3, List.length_append, ho2l]; simp
+      step with cast_u64_spec i3 as ⟨c3, hc3⟩
+      step with fp_new_spec c3 as ⟨f6, hRf6, hf6⟩
+      step with fp_sub_spec f6 eight hRf6 h8r as ⟨f7, hRf7, hf7⟩
+      have hmax4 : o3.val.length < Std.Usize.max := by omega
+      step as ⟨o4, ho4⟩
+      step as ⟨tt1, htt1⟩
+      have htt1v : tt1.val = tt.val + 1 := by scalar_tac
+      obtain ⟨hl4, hkeep, he0, he1, he2, he3⟩ := coeffK_push4 ho1 ho2 ho3 ho4
+      have hi0v : i0.val = tt.val / 576 / 24 := by rw [hi0, hs0, hu, hD]
+      have hi1v : i1.val = tt.val / 576 % 24 := by rw [hi1, hs0, hu, hD]
+      have hi2v : i2.val = tt.val % 576 / 24 := by rw [hi2, hs1, hu, hD]
+      have hi3v : i3.val = tt.val % 576 % 24 := by rw [hi3, hs1, hu, hD]
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hl4, hol, htt1v]; ring
+      · intro u hu'
+        rw [ho4] at hu'
+        rcases List.mem_append.mp hu' with m1 | m1
+        · rw [ho3] at m1
+          rcases List.mem_append.mp m1 with m2 | m2
+          · rw [ho2] at m2
+            rcases List.mem_append.mp m2 with m3 | m3
+            · rw [ho1] at m3
+              rcases List.mem_append.mp m3 with m4 | m4
+              · exact hor u m4
+              · rw [List.mem_singleton.mp m4]; exact hRf1
+            · rw [List.mem_singleton.mp m3]; exact hRf3
+          · rw [List.mem_singleton.mp m2]; exact hRf5
+        · rw [List.mem_singleton.mp m1]; exact hRf7
+      · intro t' ht'
+        rw [htt1v] at ht'
+        rcases Nat.lt_or_ge t' tt.val with hc | hc
+        · obtain ⟨v0, v1, v2, v3⟩ := hov t' hc
+          refine ⟨?_, ?_, ?_, ?_⟩
+          · rw [hkeep _ (by omega)]; exact v0
+          · rw [hkeep _ (by omega)]; exact v1
+          · rw [hkeep _ (by omega)]; exact v2
+          · rw [hkeep _ (by omega)]; exact v3
+        · have hte : t' = tt.val := by omega
+          rw [hte]
+          have h4t : 4 * tt.val = o.val.length := by rw [hol]
+          refine ⟨?_, ?_, ?_, ?_⟩
+          · rw [h4t, he0, hf1, hf, h8v, hc0, hi0v]
+          · rw [h4t, he1, hf3, hf2, h8v, hc1, hi1v]
+          · rw [h4t, he2, hf5, hf4, h8v, hc2, hi2v]
+          · rw [h4t, he3, hf7, hf6, h8v, hc3, hi3v]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = 524288 := by scalar_tac
+      exact ⟨by rw [hol, heq], hor, fun t' ht' => hov t' (by rw [heq]; exact ht')⟩
+  · exact ⟨ht, hlen, hr, hv⟩
+
+/-- `quad_type_table_base`: the `2^21`-word representative table, row `t` the
+four digits of quad type `t` for every `t < 2^19` (past `331 776` padding). -/
+theorem quad_type_table_base_spec :
+    sumcheck.quad_type_table_base
+      ⦃ v => v.val.length = 2097152 ∧ (∀ a ∈ v.val, Red a) ∧
+          ∀ t, t < 524288 → QuadRow v t ⦄ := by
+  have hQ := quad_types_val
+  have hH := half_base_val
+  have hD := digit_alphabet_val
+  rw [sumcheck.quad_type_table_base]
+  simp only [alloc.vec.Vec.with_capacity]
+  step as ⟨i, hi⟩
+  step with fp_new_spec params.HALF_BASE as ⟨eight, h8r, h8v⟩
+  step as ⟨used, hused⟩
+  exact quad_type_loop_spec (alloc.vec.Vec.new cpoly.field.Fp) eight used 0#usize h8r
+    (by rw [h8v, hH]; norm_num) (by rw [hused, hD]) (by simp) (by simp)
+    (by intro a ha; simp at ha) (by intro t' ht'; simp at ht')
+
+/-- **The round-1 regrouping.** At the two tables `bucket_quads_base` and
+`quad_type_table_base` build, each folded at the same `a`, the per-type sum over
+`(R, b)` is the per-pair sum over `(w, eq)`, for any `P`. -/
+theorem bucket_quads_sum_eq {k : ℕ} (w v : alloc.vec.Vec cpoly.field.Fp)
+    (eq b : alloc.vec.Vec cpoly.field.Ext4) (P : F → F) (a x : F)
+    (heql : eq.val.length = 2 ^ k) (hwl : w.val.length = 4 * eq.val.length)
+    (hwr : ∀ u ∈ w.val, Red u)
+    (hvv : ∀ t, t < 524288 → QuadRow v t)
+    (hdec : ∀ y, y < eq.val.length → Dec4 w y)
+    (hbv : ∀ t, t < 524288 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+      = ∑ y' ∈ (Finset.range eq.val.length).filter (fun y' => typK4 w y' = t), eqF eq y') :
+    ∑ t : Fin (2 ^ 19), tableFn (m := 19) b t
+        * P (fold (fold (phiF ∘ tableFnFp (m := 19 + 1 + 1) v) a) x t)
+      = ∑ y : Fin (2 ^ k), tableFn (m := k) eq y
+          * P (fold (fold (phiF ∘ tableFnFp (m := k + 1 + 1) w) a) x y) := by
+  have hparts : ∀ y : Fin (2 ^ k), typK4 w y.val < 331776
+      ∧ typK4 w y.val / 576 / 24 = digId (w.val.getD (4 * y.val) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y.val / 576 % 24 = digId (w.val.getD (4 * y.val + 1) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y.val % 576 / 24 = digId (w.val.getD (4 * y.val + 2) cpoly.field.Fp.ZERO)
+      ∧ typK4 w y.val % 576 % 24 = digId (w.val.getD (4 * y.val + 3) cpoly.field.Fp.ZERO) :=
+    fun y => typK4_parts w y.val (hdec y.val (by rw [heql]; exact y.isLt))
+  have htyp : ∀ y : Fin (2 ^ k), typK4 w y.val < 2 ^ 19 := fun y =>
+    (hparts y).1.trans (by norm_num)
+  let typ : Fin (2 ^ k) → Fin (2 ^ 19) := fun y => ⟨typK4 w y.val, htyp y⟩
+  have hred : ∀ n, n < w.val.length → Red (w.val.getD n cpoly.field.Fp.ZERO) := by
+    intro n hn
+    rw [List.getD_eq_getElem _ _ hn]
+    exact hwr _ (List.getElem_mem hn)
+  have hent : ∀ y : Fin (2 ^ k),
+      coeffK w (4 * y.val) = coeffK v (4 * typK4 w y.val)
+        ∧ coeffK w (4 * y.val + 1) = coeffK v (4 * typK4 w y.val + 1)
+        ∧ coeffK w (4 * y.val + 2) = coeffK v (4 * typK4 w y.val + 2)
+        ∧ coeffK w (4 * y.val + 3) = coeffK v (4 * typK4 w y.val + 3) := by
+    intro y
+    have hy : y.val < eq.val.length := by rw [heql]; exact y.isLt
+    obtain ⟨h0, h1, h2, h3⟩ := hdec y.val hy
+    obtain ⟨hlt, hd0, hd1, hd2, hd3⟩ := hparts y
+    obtain ⟨v0, v1, v2, v3⟩ := hvv (typK4 w y.val) (by omega)
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [v0, hd0, coeffK, digId_toK _ (hred _ (by rw [hwl]; omega)) h0]
+    · rw [v1, hd1, coeffK, digId_toK _ (hred _ (by rw [hwl]; omega)) h1]
+    · rw [v2, hd2, coeffK, digId_toK _ (hred _ (by rw [hwl]; omega)) h2]
+    · rw [v3, hd3, coeffK, digId_toK _ (hred _ (by rw [hwl]; omega)) h3]
+  have hlo : ∀ y, fold (phiF ∘ tableFnFp (m := k + 1 + 1) w) a (lo y)
+      = fold (phiF ∘ tableFnFp (m := 19 + 1 + 1) v) a (lo (typ y)) := by
+    intro y
+    show (1 - a) * phiF (coeffK w (2 * (2 * y.val)))
+        + a * phiF (coeffK w (2 * (2 * y.val) + 1))
+      = (1 - a) * phiF (coeffK v (2 * (2 * typK4 w y.val)))
+        + a * phiF (coeffK v (2 * (2 * typK4 w y.val) + 1))
+    obtain ⟨e0, e1, _, _⟩ := hent y
+    rw [show 2 * (2 * y.val) = 4 * y.val by ring,
+      show 2 * (2 * typK4 w y.val) = 4 * typK4 w y.val by ring, e0, e1]
+  have hhi : ∀ y, fold (phiF ∘ tableFnFp (m := k + 1 + 1) w) a (hi y)
+      = fold (phiF ∘ tableFnFp (m := 19 + 1 + 1) v) a (hi (typ y)) := by
+    intro y
+    show (1 - a) * phiF (coeffK w (2 * (2 * y.val + 1)))
+        + a * phiF (coeffK w (2 * (2 * y.val + 1) + 1))
+      = (1 - a) * phiF (coeffK v (2 * (2 * typK4 w y.val + 1)))
+        + a * phiF (coeffK v (2 * (2 * typK4 w y.val + 1) + 1))
+    obtain ⟨_, _, e2, e3⟩ := hent y
+    rw [show 2 * (2 * y.val + 1) = 4 * y.val + 2 by ring,
+      show 2 * (2 * typK4 w y.val + 1) = 4 * typK4 w y.val + 2 by ring, e2, e3]
+  rw [sum_fiberwise_fold _ _ (tableFn (m := k) eq) P x typ hlo hhi]
+  refine Finset.sum_congr rfl (fun t _ => ?_)
+  have ht19 : t.val < 524288 := t.isLt.trans_eq (by norm_num)
+  have hfib : tableFn (m := 19) b t
+      = ∑ y ∈ Finset.univ.filter (fun y => typ y = t), tableFn (m := k) eq y := by
+    rw [tableFn_apply, hbv t.val ht19, Finset.sum_filter, Finset.sum_filter, heql,
+      ← Fin.sum_univ_eq_sum_range (fun y' => if typK4 w y' = t.val then eqF eq y' else 0) (2 ^ k)]
+    refine Finset.sum_congr rfl (fun y _ => ?_)
+    show (if typK4 w y.val = t.val then eqF eq y.val else 0)
+      = (if typ y = t then tableFn (m := k) eq y else 0)
+    have hiff : typ y = t ↔ typK4 w y.val = t.val := Fin.ext_iff
+    by_cases h : typK4 w y.val = t.val
+    · rw [if_pos h, if_pos (hiff.mpr h), tableFn_apply, eqF]
+    · rw [if_neg h, if_neg (fun h' => h (hiff.mp h'))]
+  rw [hfib]
+
 end HachiEquiv.SumcheckBucket

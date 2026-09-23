@@ -797,9 +797,131 @@ pub fn pair_type_table_base() -> Vec<Fp> {
 /// First translation: the composition, literally. Round 1's table is round
 /// 0's folded at `a0`, so a round-1 pair is a function of four round-0
 /// entries; card T46b buckets on that.
+///
+/// Card T46b: on a table inside the digit alphabet `[-8, 15]` a round-1 pair
+/// `y` reads `w1[2y]` and `w1[2y+1]`, each the fold at `a0` of two round-0
+/// digits, so its value is fixed by the four digit ids of `w_fp[4y..4y+4)`:
+/// one of `24⁴ = 331 776` quad types. The sum regroups by type exactly as
+/// [`round_poly_zero_base`] does at round 0 -- [`bucket_quads_base`] sums the
+/// `eq` weight per type, [`quad_type_table_base`] is one representative table
+/// of four digits per type, folded at `a0` by the same
+/// [`eval_mle_layer_base`] -- and [`round_poly_zero`] runs on the types
+/// instead of the `2^24` pairs of the pin. Off the alphabet, or below
+/// [`BUCKET_MIN_PAIRS1`] pairs, it is the composition above.
 pub fn round_poly_zero_fold1(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> UnivariatePoly {
-    let w1: Vec<Ext4> = eval_mle_layer_base(w_fp, a0);
-    round_poly_zero(&w1, eq)
+    let fast: Option<UnivariatePoly> = if eq.len() >= BUCKET_MIN_PAIRS1 {
+        round_poly_zero_fold1_bucketed(w_fp, a0, eq)
+    } else {
+        None
+    };
+    match fast {
+        Some(p) => p,
+        None => {
+            let w1: Vec<Ext4> = eval_mle_layer_base(w_fp, a0);
+            round_poly_zero(&w1, eq)
+        }
+    }
+}
+
+/// The bucketed branch of [`round_poly_zero_fold1`], with no size gate:
+/// `None` off the alphabet, otherwise the round-1 message from the quad-type
+/// buckets (card T46b). Its own item so that the semantics tests can drive it
+/// at sizes a debug build can afford; its value, when `Some`, is the
+/// composition's at any size.
+pub fn round_poly_zero_fold1_bucketed(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> Option<UnivariatePoly> {
+    match bucket_quads_base(w_fp, eq) {
+        Some(b) => {
+            let reps: Vec<Ext4> = eval_mle_layer_base(&quad_type_table_base(), a0);
+            Some(round_poly_zero(&reps, &b))
+        }
+        None => None,
+    }
+}
+
+/// The real round-1 quad types: `DIGIT_ALPHABET² = 576` pair types on each
+/// side, `576² = 331 776` (card T46b).
+pub const QUAD_TYPES_USED: usize = 331_776;
+
+/// The quad-type index space: [`QUAD_TYPES_USED`] padded to the power of two
+/// `2^19` (card T46b), for the reason [`PAIR_TYPES`] is padded -- the
+/// per-pair body is specified on `2^(k+1)`-entry tables and `2^k` weights.
+/// The padding types carry weight zero.
+pub const QUAD_TYPES: usize = 524_288;
+
+/// Below this many round-1 pairs the bucketed path's fixed cost -- `2^19`
+/// Taylor shifts and a `2^21`-entry type table, ~0.8 s -- is not repaid, and
+/// the composition runs (card T46b; about four times break-even).
+pub const BUCKET_MIN_PAIRS1: usize = 2_097_152;
+
+/// The `eq` weight of every round-1 quad type:
+/// `b[576·(24·i₀ + i₁) + (24·i₂ + i₃)] = Σ eq[y]` over the `y` whose four
+/// round-0 entries `w[4y..4y+4)` have digit ids `(i₀, i₁, i₂, i₃)`
+/// (card T46b). `None` at the first entry outside the alphabet.
+pub fn bucket_quads_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
+    let half: usize = eq.len();
+    let mut b: Vec<Ext4> = Vec::with_capacity(QUAD_TYPES);
+    let mut t0: usize = 0;
+    while t0 < QUAD_TYPES {
+        b.push(Ext4::ZERO);
+        t0 += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let i0: usize = digit_id(w[4 * y]);
+        let i1: usize = digit_id(w[4 * y + 1]);
+        let i2: usize = digit_id(w[4 * y + 2]);
+        let i3: usize = digit_id(w[4 * y + 3]);
+        if i0 < DIGIT_ALPHABET {
+            if i1 < DIGIT_ALPHABET {
+                if i2 < DIGIT_ALPHABET {
+                    if i3 < DIGIT_ALPHABET {
+                        let s0: usize = DIGIT_ALPHABET * i0 + i1;
+                        let s1: usize = DIGIT_ALPHABET * i2 + i3;
+                        let used: usize = DIGIT_ALPHABET * DIGIT_ALPHABET;
+                        let t: usize = used * s0 + s1;
+                        let cur: Ext4 = b[t];
+                        b[t] = cur + eq[y];
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+        y += 1;
+    }
+    Some(b)
+}
+
+/// The representative round-0 table of the round-1 quad types: entries
+/// `4t .. 4t+4` are the digits of ids `i₀, i₁, i₂, i₃` with
+/// `t = 576·(24·i₀ + i₁) + (24·i₂ + i₃)`, each as `Fp::new(id) − 8` (card
+/// T46b). Past [`QUAD_TYPES_USED`] the ids exceed the alphabet and the entries
+/// are padding (weight zero, see [`QUAD_TYPES`]).
+pub fn quad_type_table_base() -> Vec<Fp> {
+    let mut out: Vec<Fp> = Vec::with_capacity(4 * QUAD_TYPES);
+    let eight: Fp = Fp::new(params::HALF_BASE);
+    let used: usize = DIGIT_ALPHABET * DIGIT_ALPHABET;
+    let mut t: usize = 0;
+    while t < QUAD_TYPES {
+        let s0: usize = t / used;
+        let s1: usize = t % used;
+        let i0: usize = s0 / DIGIT_ALPHABET;
+        let i1: usize = s0 % DIGIT_ALPHABET;
+        let i2: usize = s1 / DIGIT_ALPHABET;
+        let i3: usize = s1 % DIGIT_ALPHABET;
+        out.push(Fp::new(i0 as u64) - eight);
+        out.push(Fp::new(i1 as u64) - eight);
+        out.push(Fp::new(i2 as u64) - eight);
+        out.push(Fp::new(i3 as u64) - eight);
+        t += 1;
+    }
+    out
 }
 
 /// [`round_poly_zero_base`] pair by pair: the function's body before card
@@ -1562,6 +1684,28 @@ pub fn honest_compute_g_base_split(
     RoundMsg { g_zero, g_alpha }
 }
 
+/// [`honest_compute_g_split`] at round 1, with the zero side from the round-0
+/// base table: [`round_poly_zero_fold1`] in place of [`round_poly_zero`] on
+/// `w_tab` (card T46b). `w_tab` is still what the linear side reads.
+pub fn honest_compute_g_fold1_split(
+    stmt: &RoundStatement,
+    w_fp: &Vec<Fp>,
+    a0: Ext4,
+    w_tab: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> RoundMsg {
+    let tau0: &Vec<Ext4> = stmt.zc().tau0();
+    let prefix: Ext4 = eq_prefix(tau0, stmt.challenges());
+    let suffix: Vec<Ext4> = eq_suffix_table(tau0, 1);
+    let inner: UnivariatePoly = round_poly_zero_fold1(w_fp, a0, &suffix);
+    let free: UnivariatePoly = eq_free_factor(tau0[1]);
+    let with_free: UnivariatePoly = poly_mul(&inner, &free);
+    let g_zero: UnivariatePoly = &with_free * prefix;
+    let g_alpha: UnivariatePoly = round_poly_alpha_split(w_tab, low, high);
+    RoundMsg { g_zero, g_alpha }
+}
+
 /// The round check: both round polynomials sum to the current targets over
 /// `{0, 1}` (spec: `roundCheck`, `Sumcheck/Rounds.lean:100`).
 ///
@@ -1782,6 +1926,20 @@ pub fn honest_round_messages(
         high = folded0.1;
         out.push(g0);
         let mut i: usize = 1;
+        if 1 < m0 {
+            // Round 1 peeled (card T46b): its zero side from the round-0 base
+            // table, which is still live here.
+            let g1: RoundMsg =
+                honest_compute_g_fold1_split(&current, &w_fp, a0, &w_tab, &low, &high);
+            let a1: Ext4 = challenges[1];
+            current = round_out(current, &g1, a1);
+            w_tab = cpoly::multilinear::eval_mle_layer(&w_tab, a1);
+            let folded1: (Vec<Ext4>, Vec<Ext4>) = alpha_split_fold(low, high, a1);
+            low = folded1.0;
+            high = folded1.1;
+            out.push(g1);
+            i = 2;
+        }
         while i < m0 {
             let g: RoundMsg = honest_compute_g_split(&current, &w_tab, &low, &high, i);
             let a: Ext4 = challenges[i];

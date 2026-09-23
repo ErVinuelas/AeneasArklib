@@ -1513,6 +1513,27 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckBucket.pair_type_table_base_spec
 #print axioms HachiEquiv.SumcheckBucket.sum_fiberwise_fold
 #print axioms HachiEquiv.SumcheckBucket.bucket_sum_eq
+-- Card T46b: round 1's zero side off the round-0 base table. From 2^21 pairs up
+-- `round_poly_zero_fold1` buckets the round-1 pairs by the quad type of their
+-- four round-0 digits (24^4 = 331 776, padded to 2^19), folds the representative
+-- table at `a0` and runs `round_poly_zero` on the types; `bucket_quads_sum_eq`
+-- is the regrouping. `honest_compute_g_fold1_split_spec` is
+-- `honest_compute_g_split_spec`'s conclusion at `i = 1`, and
+-- `honest_round_messages_spec` (below) kept its statement with round 1 peeled.
+#print axioms HachiEquiv.SumcheckBucket.typK4_parts
+#print axioms HachiEquiv.SumcheckBucket.bucket_quads_zero_fill_spec
+#print axioms HachiEquiv.SumcheckBucket.bucket_quads_loop_spec
+#print axioms HachiEquiv.SumcheckBucket.bucket_quads_base_spec
+#print axioms HachiEquiv.SumcheckBucket.coeffK_push4
+#print axioms HachiEquiv.SumcheckBucket.quad_type_loop_spec
+#print axioms HachiEquiv.SumcheckBucket.quad_type_table_base_spec
+#print axioms HachiEquiv.SumcheckBucket.bucket_quads_sum_eq
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_fold1_plain_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_fold1_bucketed_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_fold1_spec
+#print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec_at
+#print axioms HachiEquiv.Sumcheck.honest_compute_g_fold1_split_spec
+#print axioms HachiEquiv.Sumcheck.honest_round_messages_loop_spec
 #print axioms HachiEquiv.Sumcheck.eq_prefix_spec
 #print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec
 #print axioms HachiEquiv.Sumcheck.eq_free_factor_spec

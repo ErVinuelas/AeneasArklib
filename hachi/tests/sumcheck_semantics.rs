@@ -1171,3 +1171,30 @@ fn round_one_zero_side_equals_the_composition_on_digit_tables() {
         assert_eq!(round_poly_zero_fold1(&w_fp, a0, &eq), want, "half = {half}");
     }
 }
+
+/// Card T46b: the bucketed round-1 branch, driven below the size gate, is the
+/// composition on a digit table of the honest alphabet (one small table: the
+/// branch's fixed cost is 2^19 types in a debug build; only
+/// some of the 331 776 quad types occur -- the identity does not need them
+/// all), and declines at one entry just outside it.
+#[test]
+fn round_one_bucketed_branch_is_the_composition() {
+    use hachi::sumcheck::{bucket_quads_base, eval_mle_layer_base, round_poly_zero_fold1_bucketed};
+    let mut r = Lcg::new(0x5A17_4612);
+    for &half in &[64usize] {
+        let mut w_fp: Vec<Fp> = (0..4 * half)
+            .map(|_| digit_fp((r.next_fp().to_u64() % 24) as i64 - 8))
+            .collect();
+        let a0 = ext4(&mut r);
+        let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+        let want = round_poly_zero(&eval_mle_layer_base(&w_fp, a0), &eq);
+        assert_eq!(round_poly_zero_fold1_bucketed(&w_fp, a0, &eq), Some(want), "half = {half}");
+        for &(pos, bad) in &[(0usize, 16i64), (4 * half - 1, -9)] {
+            let keep = w_fp[pos];
+            w_fp[pos] = digit_fp(bad);
+            assert!(bucket_quads_base(&w_fp, &eq).is_none(), "{bad} at {pos}");
+            assert_eq!(round_poly_zero_fold1_bucketed(&w_fp, a0, &eq), None);
+            w_fp[pos] = keep;
+        }
+    }
+}
