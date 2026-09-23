@@ -54,6 +54,14 @@ const HALF: usize = 1024;
 /// table it builds is exactly the `eq̃` table the round rows consume.
 const SUFFIX_VARS: usize = 10;
 
+/// The cube the `round_poly_zero_base` row runs at: **REDUCED** from the
+/// round-0 real `2^25` pairs to `2^20`, on a table of balanced digits. Large
+/// because card T46a's win is a per-pair cost against a fixed cost of 256
+/// types: at [`HALF`] the fixed cost would be a quarter of the pairs and the
+/// row would understate the pin several-fold. The per-pair path at this size
+/// is ~0.7 s per iteration, genesis ~1.4 s.
+const R0_HALF: usize = 1 << 20;
+
 /// The cube the `alpha_public_table` row runs at: **REDUCED** from the pinned
 /// `M_ZERO = 26` to `7`, i.e. `128` entries, all in table row `0` (the matrix
 /// branch of `m_alpha_tilde`). The size is set by the **genesis** variant, not
@@ -409,6 +417,35 @@ macro_rules! define_cases {
                 support::run(
                     m,
                     || hc::sumcheck::round_poly_zero(black_box(&w), black_box(&eq)),
+                    d_poly,
+                )
+            }
+
+            /// A round-0 table of balanced digits: every entry in the box
+            /// `S_b = [-8, 7]` the honest lifted witness lives in
+            /// (`quadeval.rs`: `S_b` "is tight on the honest balanced
+            /// digits"). The random-`Fp` corpus of every other row is never in
+            /// the box, so it cannot see card T46a.
+            fn digit_table(seed: u64, n: usize) -> Vec<Fp> {
+                let c = support::corpus(seed, n);
+                let eight = Fp::new(8);
+                let mut out = Vec::with_capacity(n);
+                let mut i = 0usize;
+                while i < n {
+                    out.push(Fp::new(c[i].to_u64() % 16) - eight);
+                    i += 1;
+                }
+                out
+            }
+
+            /// The round-0 zero-side message on an honest-shaped table:
+            /// `round_poly_zero_base` over `half` pairs of balanced digits.
+            pub fn round_poly_zero_base(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = digit_table(0x5A17_7046, 2 * half);
+                let eq = ext_table(0x5A17_7047, half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_zero_base(black_box(&w), black_box(&eq)),
                     d_poly,
                 )
             }
@@ -788,6 +825,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_values_zero", round_values_zero, [HALF]);
     // @covers sumcheck::round_poly_zero
     bench_case!(c, "sumcheck/round_poly_zero", round_poly_zero, [HALF]);
+    // @covers sumcheck::round_poly_zero_base
+    bench_case!(c, "sumcheck/round_poly_zero_base", round_poly_zero_base, [R0_HALF]);
 
     // @covers sumcheck::round_value_alpha
     bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);

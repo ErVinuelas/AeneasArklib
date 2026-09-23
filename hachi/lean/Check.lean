@@ -5,6 +5,7 @@ import Ring
 import GoldArith
 import GoldDot
 import SumcheckShift
+import SumcheckBucket
 import RqBridge
 import Scheme
 import EvalSplit
@@ -1491,7 +1492,26 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.shift_accum_base_spec
 #print axioms HachiEquiv.SumcheckShift.zero_fill_base_spec
 #print axioms HachiEquiv.SumcheckShift.pair_loop_base_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_zero_base_plain_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_base_spec
+-- Card T46a: from 1024 pairs up, round 0 buckets the pairs by type -- on the
+-- honest witness every entry is a balanced digit, so there are only 256 --
+-- and runs the per-pair body (`round_poly_zero_base_plain`, the old body) on
+-- the 256 representative pairs with the summed `eq` weights. The headline
+-- above kept its statement; `bucket_sum_eq` is the regrouping it needs, and
+-- `digId_toK` the fact that a word with an in-box digit id is that digit.
+#print axioms HachiEquiv.SumcheckBucket.cast_usize_small
+#print axioms HachiEquiv.SumcheckBucket.cast_u64_spec
+#print axioms HachiEquiv.SumcheckBucket.digit_id_spec
+#print axioms HachiEquiv.SumcheckBucket.digId_toK
+#print axioms HachiEquiv.SumcheckBucket.typK_parts
+#print axioms HachiEquiv.SumcheckBucket.bucket_zero_fill_spec
+#print axioms HachiEquiv.SumcheckBucket.bucket_loop_spec
+#print axioms HachiEquiv.SumcheckBucket.bucket_pairs_base_spec
+#print axioms HachiEquiv.SumcheckBucket.pair_type_loop_spec
+#print axioms HachiEquiv.SumcheckBucket.pair_type_table_base_spec
+#print axioms HachiEquiv.SumcheckBucket.sum_fiberwise_fold
+#print axioms HachiEquiv.SumcheckBucket.bucket_sum_eq
 #print axioms HachiEquiv.Sumcheck.eq_prefix_spec
 #print axioms HachiEquiv.Sumcheck.eq_suffix_table_spec
 #print axioms HachiEquiv.Sumcheck.eq_free_factor_spec

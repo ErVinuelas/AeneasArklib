@@ -125,6 +125,7 @@ every `make build`, and a `sorry` in this file is a build failure.
 -/
 import EndPiece
 import SumcheckShift
+import SumcheckBucket
 import CompPoly.Univariate.Raw.Ops
 import CompPoly.Univariate.Raw.Proofs
 import CompPoly.Univariate.LagrangeArray
@@ -2254,17 +2255,19 @@ theorem round_values_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
       exact ⟨by rw [hlen1, hteq], hred1, fun t => hval1 t.val (by rw [hteq]; exact t.isLt)⟩
   · exact ⟨by simp, by simp, by intro u hu; simp at hu, by intro t ht; simp at ht⟩
 
-/-- `round_poly_zero_base` interpolates the `33` base-field node values, and the
-interpolant is `rangeSumZero` at the embedded table everywhere: the same
-degree-`31 < 33` argument `round_poly_zero_spec` makes, at a different table. -/
-theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
+/-- `round_poly_zero_base_plain` interpolates the `33` base-field node values, and
+the interpolant is `rangeSumZero` at the embedded table everywhere: the same
+degree-`31 < 33` argument `round_poly_zero_spec` makes, at a different table.
+This is the per-pair path, the body `round_poly_zero_base` had before card T46a;
+its statement is that spec's, word for word, at `_plain`. -/
+theorem round_poly_zero_base_plain_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
     (eq : alloc.vec.Vec cpoly.field.Ext4)
     (hw : WfEvalsFp (k + 1) w) (heq : WfEvals k eq) :
-    sumcheck.round_poly_zero_base w eq
+    sumcheck.round_poly_zero_base_plain w eq
       ⦃ out => out.val.length = 33 ∧ VecReduced out ∧
         ∀ x : F, CPolynomial.eval x (toUni out) =
           rangeSumZero (phiF ∘ tableFnFp (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
-  rw [sumcheck.round_poly_zero_base]
+  rw [sumcheck.round_poly_zero_base_plain]
   simp only [alloc.vec.Vec.with_capacity]
   step with HachiEquiv.SumcheckShift.zero_fill_base_spec params.SHIFT_DEG
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.SumcheckShift.shift_deg_val
@@ -2359,6 +2362,43 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
         + phiF (HachiEquiv.SumcheckShift.dK w y.val) * x := by
     rw [fold, hlo, hhi]; ring
   rw [hfold, tableFn_apply, HachiEquiv.SumcheckShift.eqF]
+
+/-- `round_poly_zero_base` interpolates the `33` base-field node values, and the
+interpolant is `rangeSumZero` at the embedded table everywhere: the same
+degree-`31 < 33` argument `round_poly_zero_spec` makes, at a different table.
+
+Card T46a: from `1024` pairs up, the code first buckets the pairs by type
+(`bucket_pairs_base`, `lean/SumcheckBucket.lean`) and, when every entry is a
+balanced digit, runs the per-pair body on the 256 representative pairs with the
+bucket weights. Each branch is `round_poly_zero_base_plain_spec`; the bucketed
+one lands on `rangeSumZero` at `(R, b)`, which `bucket_sum_eq` regroups back to
+`(w, eq)`. The statement is the one this theorem had before the card. -/
+theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
+    (eq : alloc.vec.Vec cpoly.field.Ext4)
+    (hw : WfEvalsFp (k + 1) w) (heq : WfEvals k eq) :
+    sumcheck.round_poly_zero_base w eq
+      ⦃ out => out.val.length = 33 ∧ VecReduced out ∧
+        ∀ x : F, CPolynomial.eval x (toUni out) =
+          rangeSumZero (phiF ∘ tableFnFp (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
+  have hwl : w.val.length = 2 * eq.val.length := by
+    rw [hw.1, heq.1, pow_succ]; ring
+  rw [sumcheck.round_poly_zero_base]
+  split
+  · step with HachiEquiv.SumcheckBucket.bucket_pairs_base_spec w eq hwl hw.2 heq.2
+      as ⟨o, ho⟩
+    rcases o with _ | b
+    · exact round_poly_zero_base_plain_spec w eq hw heq
+    · obtain ⟨hbl, hbr, hdec, hbv⟩ := ho
+      step with HachiEquiv.SumcheckBucket.pair_type_table_base_spec as ⟨v, hvl, hvr, hvv⟩
+      apply spec_mono (round_poly_zero_base_plain_spec (k := 8) v b
+        ⟨by rw [hvl]; norm_num, hvr⟩ ⟨by rw [hbl]; norm_num, hbr⟩)
+      rintro out ⟨h1, h2, h3⟩
+      refine ⟨h1, h2, fun x => ?_⟩
+      rw [h3 x]
+      unfold rangeSumZero
+      exact HachiEquiv.SumcheckBucket.bucket_sum_eq w v eq b
+        (InnerOuter.rangeProduct 16) x heq.1 hwl hw.2 hvv hdec hbv
+  · exact round_poly_zero_base_plain_spec w eq hw heq
 
 /-! ## The equality kernel in three pieces -/
 

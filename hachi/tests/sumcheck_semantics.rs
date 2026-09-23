@@ -1083,3 +1083,71 @@ fn split_round_pieces_agree_with_the_flat_table_through_the_rounds() {
     assert_eq!(low.len(), 1);
     assert_eq!(high.len(), 1);
 }
+
+/// A balanced digit `d ∈ [-8, 7]` as the canonical `Fp` a round-0 table holds.
+fn digit_fp(d: i64) -> Fp {
+    if d >= 0 { Fp::new(d as u64) } else { Fp::ZERO - Fp::new((-d) as u64) }
+}
+
+/// Card T46a: on a table inside the balanced box the bucketed round-0 message
+/// is the per-pair one -- the Rust side of the fiberwise regrouping. The
+/// oracle is the extension-field `round_poly_zero` on the embedded table, so
+/// it shares nothing with the new path. The sizes straddle
+/// `BUCKET_MIN_PAIRS0`, so both sides of the size gate run, and the first 256
+/// pairs of every large table enumerate all 256 types.
+#[test]
+fn round_zero_bucketed_equals_per_pair_on_digit_tables() {
+    use hachi::sumcheck::{round_poly_zero_base, BUCKET_MIN_PAIRS0};
+    let mut r = Lcg::new(0x5A17_4600);
+    for &half in &[8usize, BUCKET_MIN_PAIRS0 - 1, BUCKET_MIN_PAIRS0, 4 * BUCKET_MIN_PAIRS0] {
+        let mut w_fp: Vec<Fp> = Vec::with_capacity(2 * half);
+        for y in 0..2 * half {
+            let d = if half >= 256 && y < 512 {
+                if y % 2 == 0 { (y / 2 / 16) as i64 - 8 } else { (y / 2 % 16) as i64 - 8 }
+            } else {
+                (r.next_fp().to_u64() % 16) as i64 - 8
+            };
+            w_fp.push(digit_fp(d));
+        }
+        let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+        assert_eq!(round_poly_zero_base(&w_fp, &eq), round_poly_zero(&embed(&w_fp), &eq),
+                   "digit table, half = {half}");
+    }
+}
+
+/// The fallback of rule 4: one entry just outside the box (`8` or `-9`),
+/// anywhere in the table, makes the bucketing decline, and the message is
+/// still the per-pair one.
+#[test]
+fn round_zero_bucketed_falls_back_outside_the_box() {
+    use hachi::sumcheck::{bucket_pairs_base, round_poly_zero_base, BUCKET_MIN_PAIRS0};
+    let mut r = Lcg::new(0x5A17_4601);
+    let half = 2 * BUCKET_MIN_PAIRS0;
+    for &(pos, bad) in &[(0usize, 8i64), (2 * half - 1, -9), (half + 1, 8)] {
+        let mut w_fp: Vec<Fp> = (0..2 * half)
+            .map(|_| digit_fp((r.next_fp().to_u64() % 16) as i64 - 8))
+            .collect();
+        w_fp[pos] = digit_fp(bad);
+        let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+        assert!(bucket_pairs_base(&w_fp, &eq).is_none(), "{bad} at {pos} must decline");
+        assert_eq!(round_poly_zero_base(&w_fp, &eq), round_poly_zero(&embed(&w_fp), &eq),
+                   "fallback, {bad} at {pos}");
+    }
+}
+
+/// `digit_id` decodes exactly the box: the sixteen balanced digits to
+/// `0..16`, every other word to the sentinel -- and `Q_MINUS_HALF` is the
+/// word it says it is.
+#[test]
+fn digit_id_is_exactly_the_balanced_box() {
+    use hachi::sumcheck::{digit_id, DIGIT_ALPHABET, PAIR_TYPES, Q_MINUS_HALF};
+    assert_eq!(Q_MINUS_HALF, Q - hachi::params::HALF_BASE);
+    assert_eq!(DIGIT_ALPHABET as u64, 2 * hachi::params::HALF_BASE);
+    assert_eq!(PAIR_TYPES, DIGIT_ALPHABET * DIGIT_ALPHABET);
+    for d in -8i64..=7 {
+        assert_eq!(digit_id(digit_fp(d)), (d + 8) as usize, "digit {d}");
+    }
+    for &d in &[8i64, -9, 1 << 20, -(1 << 20)] {
+        assert_eq!(digit_id(digit_fp(d)), DIGIT_ALPHABET, "out of box {d}");
+    }
+}

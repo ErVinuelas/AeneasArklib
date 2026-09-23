@@ -280,6 +280,8 @@ extract, and are still not worth it", "The cpoly dependency" are the record.
 
 | `match` on a custom enum, two variants carrying `Vec` payloads (2026-09-21) | a real `inductive` with `@[discriminant isize]`, and a native Lean `match`; zero axioms, nothing opaque | probed for wall W2's lazy `R^lin`, whose statement must be *either* a dense matrix *or* the ingredients it would have been assembled from. Returning a shared borrow out of a variant also works (`| Dense v => ok v`), and an arm that returns a constant allocates nothing, which is the point of the card |
 
+| `v as usize` **narrowing** from `u64` (2026-09-23, card T46a, `nightly-2026.07.26-3a8586f`) | `ok (UScalar.cast .Usize id)` -- **pure**, no `lift`, no side condition | measured on `sumcheck::digit_id`. Unlike `as u32` (fallible, `lift`) and `as u64` from `u32` (`lift`), the model's `Usize` is at least 64 bits, so the cast cannot fail and there is nothing to discharge. The same function's `Option` early return inside a counter loop (`bucket_pairs_base`) keeps the 2-tuple state and extracts as a `ControlFlow` break `done none` |
+
 Unprobed (add a measured row on first contact — closures, const generics,
 generic functions, `u128` division, trait objects,
 …). And the permanent ceiling: no `unsafe` (the crate `forbid`s it), no SIMD
