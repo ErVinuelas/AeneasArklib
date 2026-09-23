@@ -1750,6 +1750,7 @@ pub fn honest_compute_g_fold1_split(
 }
 
 
+// @genesis faa0143 2026-09-24 — sumcheck::alpha_block_sums
 // ---------------------------------------------------------------------------
 // Card T41a (2026-09-24): the alpha side from round 1 on, by high block. The
 // block sums, the block walk and the per-pair path it keeps for odd l are first
@@ -1798,6 +1799,7 @@ pub fn alpha_block_sums(
     (s0, s1, s2)
 }
 
+// @genesis faa0143 2026-09-24 — sumcheck::round_poly_alpha_split_blocks
 /// [`round_poly_alpha_split`] for an even `low` factor, `l = low.len() ≥ 2`
 /// (card T41): the pairs visited `high` block by `high` block.
 ///
@@ -1846,6 +1848,7 @@ pub fn round_poly_alpha_split_blocks(
     UnivariatePoly::from_coeffs(coeffs)
 }
 
+// @genesis faa0143 2026-09-24 — sumcheck::round_poly_alpha_split_pairs
 /// [`round_poly_alpha_split`]'s per-pair body, as T38 left it: both of a
 /// pair's `Ã` entries read through the tensor split, `low[j % l] · high[j / l]`,
 /// then T38's three products. Card T41 keeps it as the branch for an `l` whose
