@@ -10413,3 +10413,38 @@ was never run before the profile. The fix is card **T46a'**: the alphabet
 `[-8, 15]`, 24 ids, 576 pair types, and a row on that corpus.
 
 Stage 6 exit criterion (a) now reads **312.0 s (−73.4% from 1170.8 s)**.
+
+### The pin profile after T46a', T46b and T48e (2026-09-23)
+
+`logs/runs/pin-profile-20260923-t46b48e.log`, `BLOCKS=1024`, HEAD `fe4c7cd`,
+control CPU spread within run **−0.3%**. Baseline: `dedde03`'s profile.
+
+| | 09-23 PM | 09-23 eve | | card |
+|---|---|---|---|---|
+| commitment | 139.2 s | 148.8 s | +6.9% | none |
+| `carrier_decomp_from_raw` | 21.4 s | 23.6 s | +10% | none |
+| `honest_compute_resp` + stack | 37.4 s | 39.4 s | +5.3% | none |
+| lifted witness | 8.0 s | 9.2 s | +15% | none |
+| **`honest_round_messages`** | 99.9 s | **48.6 s** | **−51.3%** | T46a' (round 0) + T46b (round 1) |
+| **prover** | **312.0 s** | **275.4 s** | **−11.7%** | |
+| **`final_check`** | 6.5 s | **1.2 s** | **−81.5%** | T48e |
+| **`chain_verify` (whole)** | 10.2 s | **5.1 s** | **−50.0%** | T48e |
+
+**The bucket paths fire on the honest table now.** Rounds 0 and 1 were
+≈ 23 s + ≈ 27 s of the rounds' 99.9 s; they lost 51.3 s together, i.e.
+both are essentially gone, as the rows (−99.6%, −85.5%) and T46b's
+fixed-cost projection (~1 s at 2^24 pairs) said. T46a's wrong alphabet cost
+one profile to find and one card to fix.
+
+**T48e shows in the verifier as projected**: `final_check` is almost all
+`m_alpha_table`, and it went 6.5 -> 1.2 s (the row said −65%; the pin's
+statement is 57% zeros, which T48z has not yet skipped, so the phase moved
+more than the row's mixed-product gain alone -- the prover side's half sits
+inside the rounds' −51.3 s).
+
+**The phases no card touched read 5–15% higher** with the control flat
+(−0.3%): the whole machine was slower in this run (a background browser and
+`kswapd` were active). Nothing here is attributed to them.
+
+Stage 6 exit criterion (a) now reads **275.4 s (−76.5% from 1170.8 s)**;
+the verifier is **5.1 s**.

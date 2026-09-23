@@ -1,0 +1,125 @@
+# merged main: T46a' + T46b + T48e on d9baa1a, 2026-09-23T20:31:16+02:00, HEAD fe4c7cd
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling zerocopy v0.8.56
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling autocfg v1.5.1
+   Compiling serde_json v1.0.151
+   Compiling cfg-if v1.0.4
+   Compiling anstyle v1.0.14
+   Compiling either v1.17.0
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling regex-syntax v0.8.11
+   Compiling ciborium-io v0.2.2
+   Compiling memchr v2.8.3
+   Compiling clap_lex v1.1.0
+   Compiling itoa v1.0.18
+   Compiling same-file v1.0.6
+   Compiling cast v0.3.0
+   Compiling clap_builder v4.6.6
+   Compiling walkdir v2.5.0
+   Compiling itertools v0.13.0
+   Compiling oorandom v11.1.5
+   Compiling anes v0.1.6
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+   Compiling num-traits v0.2.19
+warning: function `div_by_modulus` is never used
+    --> src/ringswitch.rs:1155:4
+     |
+1155 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+     |    ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling regex-automata v0.4.18
+warning: `hachi` (lib) generated 1 warning
+   Compiling criterion-plot v0.6.0
+   Compiling clap v4.6.6
+   Compiling serde_derive v1.0.229
+   Compiling zerocopy-derive v0.8.56
+   Compiling regex v1.13.1
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.7.0
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics" -p hachi` to apply 4 suggestions)
+    Finished `release` profile [optimized] target(s) in 10.79s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-2cb981537ec5d8a6)
+
+running 1 test
+[profile] control CPU (frozen genesis range_product_base x2000000): 78.1ms = 39.03 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 527.2ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   379.2s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   534.0s] +   148.8s  peak   4536 live   4473 MiB  committed 1024 block(s)
+[   534.7s] +  748.5ms  peak   4536 live   4473 MiB  statement built
+[   558.3s] +    23.6s  peak   4536 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   560.2s] +     1.8s  peak   4536 live   4497 MiB  honest_compute_v_from_decomp
+[   599.6s] +    39.4s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   599.6s] +   17.9ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   599.8s] +  193.3ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   599.8s] +   70.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   609.0s] +     9.2s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   609.0s] ---------  peak   5453 live   5123 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 409.8ms
+[profile] lift_commit: 1.9s
+[profile] c_w_table_mle at 2^26: 293.3ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 6.5s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 48.6s
+[profile] honest_compute_y: 1.2s
+[profile] verifier: rlin_stmt + statement thread: 183.7ms
+[profile] verifier: round_verify_loop (26 rounds): 66.3µs
+[profile] verifier: final_check = true: 1.2s
+[profile] verifier: end_piece_check = true: 2.9s
+[profile] chain_verify (whole) = true: 5.1s
+[profile] control CPU (frozen genesis range_product_base x2000000): 77.8ms = 38.90 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 565.3ms
+[profile] control CPU spread within run: -0.3%  (recenter cross-run deltas by THIS)
+[profile] control alloc spread within run: +7.2%  (legacy, allocation-bound)
+[   678.8s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 679.10s
+
+# exit 0
+PROFILE_DONE
