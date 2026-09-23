@@ -121,48 +121,52 @@ theorem end_piece_check_spec {dRows μ n m₀ : ℕ} (dKey : linalg.PolyMatrix)
   rw [endpiece.end_piece_check]
   simp only [endpiece.WEvalStatement.impl.point, endpiece.WEvalStatement.impl.t,
     endpiece.WEvalStatement.impl.value, bind_tc_ok]
-  step with lift_commit_spec (dRows := dRows) (μ := μ) (n := n) dKey w sw hD hw hmax
-    as ⟨com, hWcom, hcom⟩
-  step with poly_vec_equals_spec (k := dRows) com stmt.t hWcom hWt as ⟨bcom, hbcom⟩
+  -- card T40b: the shortness test runs first, so the case split does too.
+  -- `endPieceCheck` is a conjunction and `Bool.and` commutes, which is the
+  -- whole content of the reorder; the three conjunct lemmas are unchanged.
   have hlawF : LawfulBEq F := inferInstanceAs (LawfulBEq (Vector K Hachi.ext4Params.d))
   simp only [InnerOuter.endPieceCheck]
-  have hA : (((InnerOuter.hachiLiftCom Φ 15 16
-      (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) = true) ↔ bcom = true := by
-    constructor
-    · intro h
-      exact hbcom.mpr (by rw [hcom, hteq]; exact @eq_of_beq _ hbeqK hlawK _ _ h)
-    · intro h
-      have h2 := hbcom.mp h
-      rw [hcom, hteq] at h2
-      rw [h2]
-      exact @beq_self_eq_true _ hbeqK (@LawfulBEq.toReflBEq _ hbeqK hlawK) _
-  by_cases hbt : bcom = true
-  · rw [if_pos hbt]
-    step with lift_short_check_spec w sw hw as ⟨bshort, hbshort⟩
-    have hB : (InnerOuter.liftShortCheck Φ 15 16 sw = true) ↔ bshort = true := by
-      rw [InnerOuter.liftShortCheck_eq_true_iff, hbshort]
-    by_cases hst : bshort = true
-    · rw [if_pos hst]
+  step with lift_short_check_spec w sw hw as ⟨bshort, hbshort⟩
+  have hB : (InnerOuter.liftShortCheck Φ 15 16 sw = true) ↔ bshort = true := by
+    rw [InnerOuter.liftShortCheck_eq_true_iff, hbshort]
+  by_cases hst : bshort = true
+  · rw [if_pos hst]
+    step with lift_commit_spec (dRows := dRows) (μ := μ) (n := n) dKey w sw hD hw hmax
+      as ⟨com, hWcom, hcom⟩
+    step with poly_vec_equals_spec (k := dRows) com stmt.t hWcom hWt as ⟨bcom, hbcom⟩
+    have hA : (((InnerOuter.hachiLiftCom Φ 15 16
+        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) = true)
+        ↔ bcom = true := by
+      constructor
+      · intro h
+        exact hbcom.mpr (by rw [hcom, hteq]; exact @eq_of_beq _ hbeqK hlawK _ _ h)
+      · intro h
+        have h2 := hbcom.mp h
+        rw [hcom, hteq] at h2
+        rw [h2]
+        exact @beq_self_eq_true _ hbeqK (@LawfulBEq.toReflBEq _ hbeqK hlawK) _
+    by_cases hbt : bcom = true
+    · rw [if_pos hbt]
       step with w_table_mle_eval_spec (μ := μ) (n := n) w sw (alloc.vec.Vec.len stmt.point)
         stmt.point hw hWp hm0 hmax as ⟨e, hRe, he⟩
       apply spec_mono (ext_eq_spec e stmt.value hRe hWv)
       intro r hr
       rw [hr, he, hpeq, hveq]
       simp [hA.mpr hbt, hB.mpr hst]
-    · rw [if_neg hst, WP.spec_ok]
-      have hBfalse : InnerOuter.liftShortCheck Φ 15 16 sw = false := by
-        rcases Bool.eq_false_or_eq_true (InnerOuter.liftShortCheck Φ 15 16 sw) with h | h
-        · exact absurd (hB.mp h) hst
+    · rw [if_neg hbt, WP.spec_ok]
+      have hAfalse : ((InnerOuter.hachiLiftCom Φ 15 16
+          (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) = false := by
+        rcases Bool.eq_false_or_eq_true ((InnerOuter.hachiLiftCom Φ 15 16
+          (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) with h | h
+        · exact absurd (hA.mp h) hbt
         · exact h
-      simp [hBfalse]
-  · rw [if_neg hbt, WP.spec_ok]
-    have hAfalse : ((InnerOuter.hachiLiftCom Φ 15 16
-        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) = false := by
-      rcases Bool.eq_false_or_eq_true ((InnerOuter.hachiLiftCom Φ 15 16
-        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw == ws.t) with h | h
-      · exact absurd (hA.mp h) hbt
+      simp [hAfalse]
+  · rw [if_neg hst, WP.spec_ok]
+    have hBfalse : InnerOuter.liftShortCheck Φ 15 16 sw = false := by
+      rcases Bool.eq_false_or_eq_true (InnerOuter.liftShortCheck Φ 15 16 sw) with h | h
+      · exact absurd (hB.mp h) hst
       · exact h
-    simp [hAfalse]
+    simp [hBfalse]
 
 /-- `end_piece_prove` is the honest prover's single message: the identity
 (`endPieceProver`, `EndPiece/Reduction.lean:241`). -/

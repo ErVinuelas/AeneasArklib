@@ -32,6 +32,7 @@ obligation when the verifier first consumes the fold challenge.
 -/
 
 import QuadEval
+import RingSigned
 import ArkLib.Commitments.Functional.Hachi.RingSwitch.Reduction
 import ArkLib.Commitments.Functional.Hachi.EndPiece.Reduction
 
@@ -571,19 +572,520 @@ theorem lift_commit_row_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
     rw [rhoDigitCount_eq] at hsplit
     rw [hout, hsplit]
 
+/-! ## Card T40a: the same row on the signed Goldilocks lane
+
+`RingSigned` proves what `lift_commit_row_gold` computes, coefficientwise in
+`ZMod q`. Two bridges carry that into this file's vocabulary: one from a
+coefficientwise sum to a `toRq` product sum, and one from `RingSigned`'s
+`sAbs` to the `ZMod.valMinAbs` that `Scheme.centered_abs_spec` speaks. -/
+
+/-- [`RqBridge.dot_sum_toRq`] with the operands given as functions rather than
+vectors. The `ρ` digits are not a vector -- that is wall W3 -- so the row's
+second segment can only be summed this way. -/
+theorem toRq_of_coeffK_sumF (m : ℕ) (KA WB : ℕ → ring.Rq) (z : ring.Rq)
+    (hKA : ∀ u, u < m → Wf (KA u)) (hWB : ∀ u, u < m → Wf (WB u))
+    (hzval : ∀ k, k < N → coeffK z k
+      = ∑ u ∈ Finset.range m, HachiEquiv.Ring.negConv (KA u) (WB u) k) :
+    toRq z = ∑ u ∈ Finset.range m, toRq (KA u) * toRq (WB u) := by
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [coeff_sum]
+  by_cases hk : k < N
+  · rw [toRq_coeff, if_pos hk, hzval k hk]
+    refine Finset.sum_congr rfl (fun u hu => ?_)
+    simp only [Finset.mem_range] at hu
+    exact (coeff_toRq_mul _ _ (hKA u hu) (hWB u hu) hk).symm
+  · rw [toRq_coeff, if_neg hk]
+    refine (Finset.sum_eq_zero (fun u _ => ?_)).symm
+    exact Rq.coeff_eq_zero_of_natDegree_le Φ _ (by rw [phi_natDegree]; omega)
+
+/-- `RingSigned.sAbs` is the magnitude `Scheme.centered_abs_spec` returns.
+Both are the same case split on `q / 2`; this is the one place they meet. -/
+theorem sAbs_eq_valMinAbs (c : cpoly.field.Fp) (hc : Red c) :
+    HachiEquiv.RingSigned.sAbs c.val = (toK c).valMinAbs.natAbs := by
+  have hcv : (toK c).val = c.val := by
+    simp only [toK, ZMod.val_natCast]
+    exact Nat.mod_eq_of_lt hc
+  have hmin : (toK c).valMinAbs
+      = if c.val ≤ q / 2 then (c.val : ℤ) else (c.val : ℤ) - (q : ℤ) := by
+    rw [ZMod.valMinAbs_def_pos, hcv]
+  rw [hmin]
+  unfold HachiEquiv.RingSigned.sAbs HachiEquiv.RingSigned.sInt
+  by_cases h : c.val ≤ q / 2 <;> simp [h]
+
+/-- **Every `ρ` digit the row reads exists as a value**, so the row's second
+segment can be named by a function even though no vector of digits is built
+-- which is what `RingSigned.lift_commit_row_gold_spec` asks for, and what
+wall W3's removal makes necessary.
+
+Determinism does the work: `rho_digit_as_rq` reads its index only through
+`val`, and a `Usize` is determined by that (`UScalar.eq_of_val_eq`). The
+choice is `Classical.choice`, already in the audit's standard triple. -/
+theorem exists_digitFun {n : ℕ} (rho : alloc.vec.Vec ringswitch.QuotientRow)
+    (m : ℕ) (hrho : WfRho n rho) (hm : m ≤ n * 8) :
+    ∃ D : ℕ → ring.Rq, ∀ kk : Std.Usize, kk.val < m →
+      ringswitch.rho_digit_as_rq rho kk = ok (D kk.val) := by
+  classical
+  have hok : ∀ kk : Std.Usize, kk.val < m →
+      ∃ d, ringswitch.rho_digit_as_rq rho kk = ok d := by
+    intro kk hkk
+    have hs := rho_digit_as_rq_raw_spec (n := n) rho kk hrho (by omega)
+    cases h : ringswitch.rho_digit_as_rq rho kk with
+    | ok d => exact ⟨d, rfl⟩
+    | fail e => rw [h] at hs; simp at hs
+    | div => rw [h] at hs; simp at hs
+  refine ⟨fun j => if h : ∃ kk : Std.Usize, kk.val = j ∧ kk.val < m
+    then (hok h.choose h.choose_spec.2).choose
+    else alloc.vec.Vec.new cpoly.field.Fp, ?_⟩
+  intro kk hkk
+  have hex : ∃ kk' : Std.Usize, kk'.val = kk.val ∧ kk'.val < m := ⟨kk, rfl, hkk⟩
+  dsimp only
+  rw [dif_pos hex]
+  have heq : hex.choose = kk := Std.UScalar.eq_of_val_eq hex.choose_spec.1
+  -- rewriting inside `h1` would move a term the choice's proof depends on,
+  -- so the index is moved on the goal side instead
+  calc ringswitch.rho_digit_as_rq rho kk
+      = ringswitch.rho_digit_as_rq rho hex.choose := by rw [heq]
+    _ = _ := (hok hex.choose hex.choose_spec.2).choose_spec
+
+/-- Any natural below `Usize.max` is some `Usize`'s value. Needed because
+`RingSigned`'s digit hypothesis is indexed by `Usize` and the row's sum by
+`ℕ`. -/
+theorem exists_usize {j : ℕ} (hj : j < Std.Usize.max) :
+    ∃ kk : Std.Usize, kk.val = j := by
+  have hb : j < 2 ^ Std.UScalarTy.Usize.numBits := by
+    have h1 : Std.UScalar.max Std.UScalarTy.Usize = Std.Usize.max :=
+      Std.UScalar.max_USize_eq
+    have h2 := Std.UScalar.max_def Std.UScalarTy.Usize
+    have hp : 0 < 2 ^ Std.UScalarTy.Usize.numBits := Nat.two_pow_pos _
+    omega
+  exact ⟨Std.UScalar.ofNatCore j hb, Std.UScalar.ofNatCore_val_eq hb⟩
+
+set_option maxHeartbeats 1000000 in
+/-- **The signed-lane row, in the specification's vocabulary.**
+[`lift_commit_row_spec`]'s conclusion, verbatim -- which is the point of card
+T40a: the lane changed and the value did not. -/
+theorem lift_commit_row_gold_arklib_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
+    (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
+    (i : Std.Usize) (hDk : WfMat dRows (μ + n * 8) dKey)
+    (hw : RepLiftedWitness w sw) (hmax : μ + n * 8 ≤ Usize.max)
+    (hi : i.val < dRows)
+    (hzc : ∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hdc : ∀ kk : Std.Usize, kk.val < n * 8 →
+      ringswitch.rho_digit_as_rq w.rho kk
+        ⦃ d => HachiEquiv.RingSigned.CenteredWf 15 d ⦄)
+    (hfit : 2 * (μ + n * 8) * HachiEquiv.RingSigned.SBOUND 15
+      < HachiEquiv.GoldArith.GP) :
+    ringswitch.lift_commit_row_gold dKey w i
+      ⦃ r => Wf r ∧ toRq r = (InnerOuter.hachiLiftCom Φ 15 16
+        (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⟨i.val, hi⟩ ⦄ := by
+  obtain ⟨hWz, hWrho, hzeq, hrhoeq⟩ := hw
+  have hrholen : w.rho.val.length = n := hWrho.1
+  have hzlen : w.z.val.length = μ := hWz.1
+  have hilt : i.val < dKey.val.length := by rw [hDk.1]; exact hi
+  set KR : linalg.PolyVec := dKey.val.getD i.val (alloc.vec.Vec.new ring.Rq) with hKRdef
+  have hKRwf : WfVec (μ + n * 8) KR := by
+    rw [hKRdef, List.getD_eq_getElem _ _ hilt]
+    exact hDk.2 _ (List.getElem_mem hilt)
+  obtain ⟨D, hDeq⟩ := exists_digitFun (n := n) w.rho (n * 8) hWrho (le_refl _)
+  have hDraw : ∀ j, j < n * 8 → Wf (D j) ∧ toRq (D j) = digitRq w.rho j := by
+    intro j hj
+    obtain ⟨kk, hkk⟩ := exists_usize (j := j) (by scalar_tac)
+    have h1 := rho_digit_as_rq_raw_spec (n := n) w.rho kk hWrho (by rw [hkk]; exact hj)
+    rw [hDeq kk (by rw [hkk]; exact hj)] at h1
+    rw [WP.spec_ok] at h1
+    rw [← hkk]
+    exact h1
+  have hDc : ∀ j, j < n * 8 → HachiEquiv.RingSigned.CenteredWf 15 (D j) := by
+    intro j hj
+    obtain ⟨kk, hkk⟩ := exists_usize (j := j) (by scalar_tac)
+    have h1 := hdc kk (by rw [hkk]; exact hj)
+    rw [hDeq kk (by rw [hkk]; exact hj), WP.spec_ok] at h1
+    rw [← hkk]; exact h1
+  apply spec_mono (HachiEquiv.RingSigned.lift_commit_row_gold_spec dKey w i μ (n * 8) D
+    hilt hzlen (by rw [hrholen]) hmax
+    (by rw [← hKRdef]; exact le_of_eq hKRwf.1.symm)
+    (by intro u hu; rw [← hKRdef]; exact wf_getD hKRwf hu)
+    (by intro u hu; exact wf_getD hWz hu)
+    hzc
+    (fun j hj => (hDraw j hj).1) hDc
+    (by intro kk hkk; rw [hDeq kk hkk, WP.spec_ok])
+    hfit)
+  rintro r ⟨hWr, hrv⟩
+  refine ⟨hWr, ?_⟩
+  -- the coefficientwise sums become one `toRq` product sum, then split again
+  have hKAwf : ∀ u, u < μ + n * 8 →
+      Wf (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+    fun u hu => wf_getD hKRwf hu
+  have hWBwf : ∀ u, u < μ + n * 8 → Wf (if u < μ then
+      w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp) else D (u - μ)) := by
+    intro u hu
+    by_cases h : u < μ
+    · rw [if_pos h]; exact wf_getD hWz h
+    · rw [if_neg h]; exact (hDraw (u - μ) (by omega)).1
+  have hone := toRq_of_coeffK_sumF (μ + n * 8)
+    (fun u => KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+    (fun u => if u < μ then w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)
+      else D (u - μ)) r hKAwf hWBwf
+    (by
+      intro k hk
+      rw [hrv k hk, ← hKRdef, Finset.sum_range_add]
+      congr 1
+      · exact Finset.sum_congr rfl (fun u hu => by
+          rw [if_pos (Finset.mem_range.mp hu)])
+      · exact Finset.sum_congr rfl (fun j _ => by
+          rw [if_neg (by omega : ¬ μ + j < μ), Nat.add_sub_cancel_left]))
+  rw [Finset.sum_range_add] at hone
+  have hz2 : ∑ u ∈ Finset.range μ,
+        toRq (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (if u < μ then w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)
+              else D (u - μ))
+      = ∑ u ∈ Finset.range μ,
+        toRq (KR.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) :=
+    Finset.sum_congr rfl (fun u hu => by rw [if_pos (Finset.mem_range.mp hu)])
+  have hd2 : ∑ j ∈ Finset.range (n * 8),
+        toRq (KR.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp))
+          * toRq (if μ + j < μ then w.z.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp)
+              else D (μ + j - μ))
+      = ∑ j ∈ Finset.range (n * 8),
+        toRq (KR.val.getD (μ + j) (alloc.vec.Vec.new cpoly.field.Fp))
+          * digitRq w.rho j :=
+    Finset.sum_congr rfl (fun j hj => by
+      rw [if_neg (by omega : ¬ μ + j < μ), Nat.add_sub_cancel_left,
+        (hDraw j (Finset.mem_range.mp hj)).2])
+  rw [hz2, hd2] at hone
+  -- and the ArkLib split, exactly as on the generic path
+  have hfz : ∀ j : Fin μ,
+      toRq (KR.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+        * toRq (w.z.val.getD j.val (alloc.vec.Vec.new cpoly.field.Fp))
+      = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+          (Fin.castAdd (n * InnerOuter.rhoDigitCount q 16) j) * sw.z j := by
+    intro j
+    rw [← hzeq, hKRdef]
+    rfl
+  have hfd : ∀ j : Fin (n * InnerOuter.rhoDigitCount q 16),
+      toRq (KR.val.getD (μ + j.val) (alloc.vec.Vec.new cpoly.field.Fp))
+        * digitRq w.rho j.val
+      = toMat (rows := dRows) (cols := μ + n * 8) dKey ⟨i.val, hi⟩
+          (Fin.natAdd μ j) * InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j := by
+    intro j
+    have h2 : InnerOuter.rhoDigitAsRq Φ 16 sw.ρ j = digitRq w.rho j.val := by
+      rw [← hrhoeq]
+      exact rhoDigitAsRq_eq_digitRq (n := n) w.rho j.val j.isLt
+    rw [h2, hKRdef]
+    rfl
+  have hsplit := hachiLiftCom_com_split (dRows := dRows) (μ := μ) (n := n)
+    (toMat (rows := dRows) (cols := μ + n * 8) dKey) sw ⟨i.val, hi⟩
+    (fun t => toRq (KR.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+      * toRq (w.z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)))
+    (fun t => toRq (KR.val.getD (μ + t) (alloc.vec.Vec.new cpoly.field.Fp))
+      * digitRq w.rho t) hfz hfd
+  rw [rhoDigitCount_eq] at hsplit
+  rw [hone, hsplit]
+
+/-! ## Card T40a's guard
+
+`lift_witness_short` is three nested loops over `z` and the `ρ` digits. Its
+spec is one-directional on purpose: a `true` answer means every coefficient
+is centred below `CHAIN_GAMMA`, which is what the fast path needs. What a
+`false` answer means is not stated, because nothing needs it -- the generic
+path runs and the value is the same either way. -/
+
+/-- The coefficient scan, for one ring element. `short` only ever goes down,
+so a `true` result says both that it came in `true` and that every
+coefficient passed. -/
+theorem lwshort_inner_spec (gamma : Std.U64) (deg : Std.Usize) (sh : Bool)
+    (e : ring.Rq) (kU : Std.Usize) (G : ℕ)
+    (hg : gamma.val = G) (hdeg : deg.val = N) (he : Wf e) (hk : kU.val ≤ N)
+    (hinv : sh = true → ∀ k, k < kU.val →
+      HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G) :
+    ringswitch.lift_witness_short_loop0_loop0 gamma deg sh e kU
+      ⦃ b => b = true → sh = true ∧ ∀ k, k < N →
+          HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G ⦄ := by
+  rw [ringswitch.lift_witness_short_loop0_loop0]
+  apply loop.spec_decr_nat (fun r => deg.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ (r.1 = true → sh = true ∧ ∀ k, k < r.2.val →
+      HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G))
+  · rintro ⟨s1, k1⟩ ⟨hk1, hinv1⟩
+    dsimp only at hk1 hinv1
+    simp only [ringswitch.lift_witness_short_loop0_loop0.body]
+    by_cases hlt : k1 < deg
+    · rw [if_pos hlt]
+      have hk1N : k1.val < N := by rw [← hdeg]; scalar_tac
+      step with HachiEquiv.Ring.coeff_spec e k1 he as ⟨f, hfRed, hfK⟩
+      have hfv : f.val = HachiEquiv.Ring.wordN e k1.val := by
+        have hcast : ((f.val : ℕ) : ZMod q) = ((HachiEquiv.Ring.wordN e k1.val : ℕ) : ZMod q) := by
+          simpa [toK, HachiEquiv.Ring.coeffK_eq_cast_wordN] using hfK
+        have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt hfRed hcast
+        rwa [Nat.mod_eq_of_lt (HachiEquiv.Ring.wordN_lt he _)] at h2
+      step with centered_abs_spec f hfRed as ⟨cn, hcn⟩
+      have hcnv : cn.val = HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k1.val) := by
+        rw [hcn, ← sAbs_eq_valMinAbs f hfRed, hfv]
+      by_cases hgt : cn > gamma
+      · rw [if_pos hgt]
+        simp only [bind_tc_ok]
+        step as ⟨k2, hk2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro hfalse
+        exact absurd hfalse (by simp)
+      · rw [if_neg hgt]
+        simp only [bind_tc_ok]
+        step as ⟨k2, hk2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro hs1
+        obtain ⟨hsh, hall⟩ := hinv1 hs1
+        refine ⟨hsh, fun k hkk => ?_⟩
+        rw [hk2] at hkk
+        rcases Nat.lt_or_ge k k1.val with h | h
+        · exact hall k h
+        · have hkeq : k = k1.val := by omega
+          rw [hkeq, ← hcnv]
+          have : cn.val ≤ gamma.val := by scalar_tac
+          omega
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = N := by rw [← hdeg]; scalar_tac
+      intro hs1
+      obtain ⟨hsh, hall⟩ := hinv1 hs1
+      exact ⟨hsh, by rw [← heq]; exact hall⟩
+  · exact ⟨hk, fun h => ⟨h, hinv h⟩⟩
+
+/-- The same scan on the `ρ` side. Aeneas names loops per enclosing
+function, so the two identical bodies are distinct constants and need
+identical proofs. -/
+theorem lwshort_inner1_spec (gamma : Std.U64) (deg : Std.Usize) (sh : Bool)
+    (e : ring.Rq) (kU : Std.Usize) (G : ℕ)
+    (hg : gamma.val = G) (hdeg : deg.val = N) (he : Wf e) (hk : kU.val ≤ N)
+    (hinv : sh = true → ∀ k, k < kU.val →
+      HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G) :
+    ringswitch.lift_witness_short_loop1_loop0 gamma deg sh e kU
+      ⦃ b => b = true → sh = true ∧ ∀ k, k < N →
+          HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G ⦄ := by
+  rw [ringswitch.lift_witness_short_loop1_loop0]
+  apply loop.spec_decr_nat (fun r => deg.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ (r.1 = true → sh = true ∧ ∀ k, k < r.2.val →
+      HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k) ≤ G))
+  · rintro ⟨s1, k1⟩ ⟨hk1, hinv1⟩
+    dsimp only at hk1 hinv1
+    simp only [ringswitch.lift_witness_short_loop1_loop0.body]
+    by_cases hlt : k1 < deg
+    · rw [if_pos hlt]
+      have hk1N : k1.val < N := by rw [← hdeg]; scalar_tac
+      step with HachiEquiv.Ring.coeff_spec e k1 he as ⟨f, hfRed, hfK⟩
+      have hfv : f.val = HachiEquiv.Ring.wordN e k1.val := by
+        have hcast : ((f.val : ℕ) : ZMod q) = ((HachiEquiv.Ring.wordN e k1.val : ℕ) : ZMod q) := by
+          simpa [toK, HachiEquiv.Ring.coeffK_eq_cast_wordN] using hfK
+        have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt hfRed hcast
+        rwa [Nat.mod_eq_of_lt (HachiEquiv.Ring.wordN_lt he _)] at h2
+      step with centered_abs_spec f hfRed as ⟨cn, hcn⟩
+      have hcnv : cn.val = HachiEquiv.RingSigned.sAbs (HachiEquiv.Ring.wordN e k1.val) := by
+        rw [hcn, ← sAbs_eq_valMinAbs f hfRed, hfv]
+      by_cases hgt : cn > gamma
+      · rw [if_pos hgt]
+        simp only [bind_tc_ok]
+        step as ⟨k2, hk2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro hfalse
+        exact absurd hfalse (by simp)
+      · rw [if_neg hgt]
+        simp only [bind_tc_ok]
+        step as ⟨k2, hk2⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro hs1
+        obtain ⟨hsh, hall⟩ := hinv1 hs1
+        refine ⟨hsh, fun k hkk => ?_⟩
+        rw [hk2] at hkk
+        rcases Nat.lt_or_ge k k1.val with h | h
+        · exact hall k h
+        · have hkeq : k = k1.val := by omega
+          rw [hkeq, ← hcnv]
+          have : cn.val ≤ gamma.val := by scalar_tac
+          omega
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = N := by rw [← hdeg]; scalar_tac
+      intro hs1
+      obtain ⟨hsh, hall⟩ := hinv1 hs1
+      exact ⟨hsh, by rw [← heq]; exact hall⟩
+  · exact ⟨hk, fun h => ⟨h, hinv h⟩⟩
+
+/-- The `z` scan. -/
+theorem lwshort_outer0_spec {μ : ℕ} (w : ringswitch.LiftedWitness) (gamma : Std.U64)
+    (z_lenU deg : Std.Usize) (sh : Bool) (jU : Std.Usize) (G : ℕ)
+    (hg : gamma.val = G) (hdeg : deg.val = N) (hz : WfVec μ w.z)
+    (hzl : z_lenU.val = μ) (hj : jU.val ≤ μ)
+    (hinv : sh = true → ∀ u, u < jU.val → HachiEquiv.RingSigned.CenteredWf G
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))) :
+    ringswitch.lift_witness_short_loop0 w gamma z_lenU deg sh jU
+      ⦃ b => b = true → sh = true ∧ ∀ u, u < μ →
+          HachiEquiv.RingSigned.CenteredWf G
+            (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) ⦄ := by
+  rw [ringswitch.lift_witness_short_loop0]
+  apply loop.spec_decr_nat (fun r => z_lenU.val - r.2.val)
+    (fun r => r.2.val ≤ μ ∧ (r.1 = true → sh = true ∧ ∀ u, u < r.2.val →
+      HachiEquiv.RingSigned.CenteredWf G
+        (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))))
+  · rintro ⟨s1, j1⟩ ⟨hj1, hinv1⟩
+    dsimp only at hj1 hinv1
+    simp only [ringswitch.lift_witness_short_loop0.body,
+      ringswitch.LiftedWitness.impl.z, linalg.PolyVec.get, bind_tc_ok]
+    by_cases hlt : j1 < z_lenU
+    · rw [if_pos hlt]
+      have hjmu : j1.val < μ := by rw [← hzl]; scalar_tac
+      have hjz : j1.val < w.z.val.length := by rw [hz.1]; exact hjmu
+      step as ⟨e, he⟩
+      have hWe : Wf e := by
+        rw [he, ← List.getD_eq_getElem _ _ hjz]; exact wf_getD hz hjmu
+      step with lwshort_inner_spec gamma deg s1 e 0#usize G hg hdeg hWe
+        (by simp) (by intro _ k hk; simp at hk) as ⟨s2, hs2⟩
+      step as ⟨j2, hj2⟩
+      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+      intro hs2t
+      obtain ⟨hs1t, hall⟩ := hs2 hs2t
+      obtain ⟨hsh, hprev⟩ := hinv1 hs1t
+      refine ⟨hsh, fun u hu => ?_⟩
+      rw [hj2] at hu
+      rcases Nat.lt_or_ge u j1.val with h | h
+      · exact hprev u h
+      · have hueq : u = j1.val := by omega
+        have hez : w.z.val.getD j1.val (alloc.vec.Vec.new cpoly.field.Fp) = e := by
+          rw [he, List.getD_eq_getElem _ _ hjz]
+        rw [hueq, hez]
+        exact HachiEquiv.RingSigned.centeredWf_of_lt hWe hall
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : j1.val = μ := by rw [← hzl] at hj1 ⊢; scalar_tac
+      intro hs1
+      obtain ⟨hsh, hall⟩ := hinv1 hs1
+      exact ⟨hsh, by rw [← heq]; exact hall⟩
+  · exact ⟨hj, fun h => ⟨h, hinv h⟩⟩
+
+/-- The `ρ`-digit scan. The digits are named by `D`, as everywhere else on
+this card, because the Rust builds each one per term. -/
+theorem lwshort_outer1_spec {n : ℕ} (w : ringswitch.LiftedWitness) (gamma : Std.U64)
+    (rho_lenU deg : Std.Usize) (sh : Bool) (uU : Std.Usize) (G : ℕ)
+    (D : ℕ → ring.Rq)
+    (hg : gamma.val = G) (hdeg : deg.val = N)
+    (hrl : rho_lenU.val = n * 8) (hu : uU.val ≤ n * 8)
+    (hDeq : ∀ kk : Std.Usize, kk.val < n * 8 →
+      ringswitch.rho_digit_as_rq w.rho kk = ok (D kk.val))
+    (hDwf : ∀ j, j < n * 8 → Wf (D j))
+    (hinv : sh = true → ∀ j, j < uU.val →
+      HachiEquiv.RingSigned.CenteredWf G (D j)) :
+    ringswitch.lift_witness_short_loop1 w gamma rho_lenU deg sh uU
+      ⦃ b => b = true → sh = true ∧ ∀ j, j < n * 8 →
+          HachiEquiv.RingSigned.CenteredWf G (D j) ⦄ := by
+  rw [ringswitch.lift_witness_short_loop1]
+  apply loop.spec_decr_nat (fun r => rho_lenU.val - r.2.val)
+    (fun r => r.2.val ≤ n * 8 ∧ (r.1 = true → sh = true ∧ ∀ j, j < r.2.val →
+      HachiEquiv.RingSigned.CenteredWf G (D j)))
+  · rintro ⟨s1, u1⟩ ⟨hu1, hinv1⟩
+    dsimp only at hu1 hinv1
+    simp only [ringswitch.lift_witness_short_loop1.body,
+      ringswitch.LiftedWitness.impl.rho, bind_tc_ok]
+    by_cases hlt : u1 < rho_lenU
+    · rw [if_pos hlt]
+      have hun : u1.val < n * 8 := by rw [← hrl]; scalar_tac
+      rw [hDeq u1 hun]
+      simp only [bind_tc_ok]
+      step with lwshort_inner1_spec gamma deg s1 (D u1.val) 0#usize G hg hdeg
+        (hDwf u1.val hun) (by simp) (by intro _ k hk; simp at hk) as ⟨s2, hs2⟩
+      step as ⟨u2, hu2⟩
+      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+      intro hs2t
+      obtain ⟨hs1t, hall⟩ := hs2 hs2t
+      obtain ⟨hsh, hprev⟩ := hinv1 hs1t
+      refine ⟨hsh, fun j hj => ?_⟩
+      rw [hu2] at hj
+      rcases Nat.lt_or_ge j u1.val with h | h
+      · exact hprev j h
+      · have hjeq : j = u1.val := by omega
+        rw [hjeq]
+        exact HachiEquiv.RingSigned.centeredWf_of_lt (hDwf u1.val hun) hall
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : u1.val = n * 8 := by rw [← hrl] at hu1 ⊢; scalar_tac
+      intro hs1
+      obtain ⟨hsh, hall⟩ := hinv1 hs1
+      exact ⟨hsh, by rw [← heq]; exact hall⟩
+  · exact ⟨hu, fun h => ⟨h, hinv h⟩⟩
+
+/-- **The guard.** A `true` answer means every coefficient of `z` and of every
+`ρ` digit is centred below `CHAIN_GAMMA`, which is exactly what the fast
+path's bound needs. A `false` answer is not characterised, because nothing
+needs it: the generic row runs and the value is the same. -/
+theorem lift_witness_short_spec {μ n : ℕ} (w : ringswitch.LiftedWitness)
+    (hz : WfVec μ w.z) (hrho : WfRho n w.rho) (hmax : μ + n * 8 ≤ Usize.max) :
+    ringswitch.lift_witness_short w
+      ⦃ b => b = true →
+          μ + n * 8 ≤ (ringswitch.LIFT_GOLD_MAX).val
+          ∧ (∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+            (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+          ∧ (∀ kk : Std.Usize, kk.val < n * 8 →
+              ringswitch.rho_digit_as_rq w.rho kk
+                ⦃ d => HachiEquiv.RingSigned.CenteredWf 15 d ⦄) ⦄ := by
+  obtain ⟨D, hDeq⟩ := exists_digitFun (n := n) w.rho (n * 8) hrho (le_refl _)
+  have hDwf : ∀ j, j < n * 8 → Wf (D j) := by
+    intro j hj
+    obtain ⟨kk, hkk⟩ := exists_usize (j := j) (by scalar_tac)
+    have h1 := rho_digit_as_rq_raw_spec (n := n) w.rho kk hrho (by rw [hkk]; exact hj)
+    rw [hDeq kk (by rw [hkk]; exact hj), WP.spec_ok] at h1
+    rw [← hkk]; exact h1.1
+  have hgv : (params.CHAIN_GAMMA).val = 15 := by simp [params.CHAIN_GAMMA]
+  have hgd : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  rw [ringswitch.lift_witness_short]
+  simp only [ringswitch.LiftedWitness.impl.z, ringswitch.LiftedWitness.impl.rho,
+    linalg.PolyVec.len, bind_tc_ok]
+  step as ⟨rl, hrl⟩
+  have hrlv : rl.val = n * 8 := by rw [hrl, hgd]; simp [hrho.1]
+  have hzv : (alloc.vec.Vec.len w.z).val = μ := by simpa using hz.1
+  step as ⟨tot, htot⟩
+  have htotv : tot.val = μ + n * 8 := by rw [htot, hrlv, hzv]
+  step with lwshort_outer0_spec (μ := μ) w params.CHAIN_GAMMA
+    (alloc.vec.Vec.len w.z) params.RING_DEGREE _ 0#usize 15 hgv
+    HachiEquiv.Ring.params_RING_DEGREE_val hz hzv (by simp)
+    (by intro _ u hu; simp at hu) as ⟨s1, hs1⟩
+  apply spec_mono (lwshort_outer1_spec (n := n) w params.CHAIN_GAMMA rl
+    params.RING_DEGREE s1 0#usize 15 D hgv
+    HachiEquiv.Ring.params_RING_DEGREE_val hrlv (by simp) hDeq hDwf
+    (by intro _ j hj; simp at hj))
+  intro b hb hbt
+  obtain ⟨hs1t, hallD⟩ := hb hbt
+  obtain ⟨hwidth, hzall⟩ := hs1 hs1t
+  refine ⟨?_, hzall, fun kk hkk => ?_⟩
+  · -- the guard's seed is the width test, so a `true` answer carries it
+    have : tot ≤ ringswitch.LIFT_GOLD_MAX := by
+      by_contra hc
+      rw [decide_eq_true_eq] at hwidth
+      exact hc hwidth
+    rw [← htotv]
+    scalar_tac
+  · rw [hDeq kk hkk, WP.spec_ok]
+    exact hallD kk.val hkk
+
 /-- The loop of `lift_commit`: entry `t` already written is row `t` of the
 concrete Ajtai lift commitment, and the length is the counter. -/
 theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
     (w : ringswitch.LiftedWitness) (sw : InnerOuter.LiftedWitness Φ μ n)
-    (rows : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
+    (rows : Std.Usize) (short : Bool) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
     (hD : WfMat dRows (μ + n * 8) dKey) (hw : RepLiftedWitness w sw)
     (hmax : μ + n * 8 ≤ Usize.max) (hrows : rows.val = dRows) (hi : i.val ≤ dRows)
+    (hzc : short = true → ∀ u, u < μ → HachiEquiv.RingSigned.CenteredWf 15
+      (w.z.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hdc : short = true → ∀ kk : Std.Usize, kk.val < n * 8 →
+      ringswitch.rho_digit_as_rq w.rho kk
+        ⦃ d => HachiEquiv.RingSigned.CenteredWf 15 d ⦄)
+    (hfit : short = true → 2 * (μ + n * 8) * HachiEquiv.RingSigned.SBOUND 15
+      < HachiEquiv.GoldArith.GP)
     (hlen : out.val.length = i.val) (hwf : ∀ y ∈ out.val, Wf y)
     (hval : ∀ t : Fin dRows, t.val < i.val →
       toRq (out.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
         = (InnerOuter.hachiLiftCom Φ 15 16
             (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw t) :
-    ringswitch.lift_commit_loop dKey w rows out i
+    ringswitch.lift_commit_loop dKey w rows short out i
       ⦃ o => o.val.length = dRows ∧ (∀ y ∈ o.val, Wf y) ∧
         ∀ t : Fin dRows, toRq (o.val.getD t.val (alloc.vec.Vec.new cpoly.field.Fp))
           = (InnerOuter.hachiLiftCom Φ 15 16
@@ -601,9 +1103,27 @@ theorem lift_commit_loop_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
     by_cases hlt : i1 < rows
     · rw [if_pos hlt]
       have hilt : i1.val < dRows := by rw [← hrows]; scalar_tac
-      step with lift_commit_row_spec dKey w sw i1 hD hw hmax hilt as ⟨r, hWr, hr⟩
       have hbound : o1.val.length < Usize.max := by scalar_tac
-      step as ⟨o2, ho2⟩
+      -- one `have` for the whole branch, so the tail below is written once
+      have hif : (if short
+          then do let r ← ringswitch.lift_commit_row_gold dKey w i1
+                  alloc.vec.Vec.push o1 r
+          else do let r ← ringswitch.lift_commit_row dKey w i1
+                  alloc.vec.Vec.push o1 r)
+          ⦃ o => ∃ r : ring.Rq, Wf r ∧ toRq r = (InnerOuter.hachiLiftCom Φ 15 16
+              (toMat (rows := dRows) (cols := μ + n * 8) dKey)).com sw ⟨i1.val, hilt⟩
+              ∧ o.val = o1.val ++ [r] ⦄ := by
+        by_cases hs : short
+        · rw [if_pos hs]
+          step with lift_commit_row_gold_arklib_spec dKey w sw i1 hD hw hmax
+            hilt (hzc hs) (hdc hs) (hfit hs) as ⟨r, hWr, hr⟩
+          step as ⟨o2, ho2⟩
+          exact ⟨r, hWr, hr, ho2⟩
+        · rw [if_neg hs]
+          step with lift_commit_row_spec dKey w sw i1 hD hw hmax hilt as ⟨r, hWr, hr⟩
+          step as ⟨o2, ho2⟩
+          exact ⟨r, hWr, hr, ho2⟩
+      step with hif as ⟨o2, r, hWr, hr, ho2⟩
       step as ⟨i2, hi2⟩
       refine ⟨by scalar_tac, ?_, ?_, ?_, ?_⟩
       · rw [ho2, hi2, List.length_append, hlen1]; simp
@@ -640,9 +1160,21 @@ theorem lift_commit_spec {dRows μ n : ℕ} (dKey : linalg.PolyMatrix)
   rw [ringswitch.lift_commit]
   simp only [linalg.PolyMatrix.rows, linalg.PolyVec.new, alloc.vec.Vec.with_capacity,
     bind_tc_ok, bind_ok_id]
+  step with lift_witness_short_spec (μ := μ) (n := n) w hw.1 hw.2.1 hmax
+    as ⟨sh, hsh⟩
   apply spec_mono (lift_commit_loop_spec (dRows := dRows) (μ := μ) (n := n) dKey w sw
-    (alloc.vec.Vec.len dKey) (alloc.vec.Vec.new ring.Rq) 0#usize hD hw hmax
-    (by simp [hD.1]) (by simp) (by simp) (by intro y hy; simp at hy)
+    (alloc.vec.Vec.len dKey) sh (alloc.vec.Vec.new ring.Rq) 0#usize hD hw hmax
+    (by simp [hD.1]) (by simp)
+    (fun h => (hsh h).2.1) (fun h => (hsh h).2.2)
+    (fun h => by
+      -- the guard's width test is exactly the one-chunk bound
+      have hb := (hsh h).1
+      have hL : (ringswitch.LIFT_GOLD_MAX).val = 131072 := by decide +kernel
+      rw [hL] at hb
+      simp only [HachiEquiv.RingSigned.SBOUND, HachiEquiv.NttStage.N,
+        HachiEquiv.NttProduct.q, HachiEquiv.GoldArith.GP]
+      omega)
+    (by simp) (by intro y hy; simp at hy)
     (by intro t ht; simp at ht))
   rintro out ⟨hlen, hwf, hvals⟩
   refine ⟨⟨hlen, hwf⟩, ?_⟩

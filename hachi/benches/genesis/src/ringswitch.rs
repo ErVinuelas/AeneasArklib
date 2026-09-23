@@ -803,3 +803,155 @@ impl RlinStatement {
         RlinStatement { m: RlinMat::Lazy(b), yvec, bound }
     }
 }
+
+
+// @genesis 2db0eae 2026-09-22 — ringswitch::lift_witness_short
+// Card T40 (2026-09-22): the lift commitment on the signed bounded
+// Goldilocks lane, and the guard that selects it.
+/// Is every coefficient of `z ‖ digits(ρ)` centred below `CHAIN_GAMMA`?
+///
+/// The guard on card T40's fast path, and **not** a new precondition on
+/// [`lift_commit`]: when it fails the generic path runs and the answer is the
+/// same, so `lift_commit_spec` keeps its statement. It is the predicate
+/// `endpiece::lift_short_check` applies, written here because `endpiece`
+/// depends on this module and not the other way round.
+///
+/// One pass over `μ + n·δ` ring elements against the row's `57 384`
+/// multiplications, so its cost does not show.
+pub fn lift_witness_short(w: &LiftedWitness) -> bool {
+    let gamma: u64 = params::CHAIN_GAMMA;
+    let z_len: usize = w.z().len();
+    let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
+    let deg: usize = params::RING_DEGREE;
+    let mut short: bool = true;
+    let mut j: usize = 0;
+    while j < z_len {
+        let e: &Rq = w.z().get(j);
+        let mut k: usize = 0;
+        while k < deg {
+            if crate::commit::centered_abs(e.coeff(k)) > gamma {
+                short = false;
+            }
+            k += 1;
+        }
+        j += 1;
+    }
+    let mut u: usize = 0;
+    while u < rho_len {
+        let d: Rq = rho_digit_as_rq(w.rho(), u);
+        let mut k: usize = 0;
+        while k < deg {
+            if crate::commit::centered_abs(d.coeff(k)) > gamma {
+                short = false;
+            }
+            k += 1;
+        }
+        u += 1;
+    }
+    short
+}
+
+// @genesis 2db0eae 2026-09-22 — ringswitch::lift_commit_row_gold
+/// One row of the lift commitment on the **signed bounded Goldilocks lane**
+/// (card T40).
+///
+/// The value [`lift_commit_row`] computes, by the route the digit path takes.
+/// Where that one calls a generic [`Rq::mul`] per term -- three auxiliary
+/// primes, two forward transforms and an inverse in each, then a Garner
+/// reconstruction per coefficient, so nine transforms and `N` Garners for
+/// every one of `57 384` terms -- this transforms the key entry and the
+/// witness entry once each on **one** lane, multiply-accumulates in transform
+/// space, and takes a single inverse for the whole row.
+///
+/// Two things make one lane enough. The witness is centred below
+/// `CHAIN_GAMMA = 15`, so a term's convolution is bounded by `N · q · 15` and
+/// the row's by `57 384 · N · q · 15 = 2^61.72`, inside `GOLD_P / 2`; and
+/// [`crate::ntt::GOLD_SOFF`] is a multiple of `q`, so adding it per term
+/// makes the accumulated value non-negative and then vanishes in the
+/// reduction. No chunk loop: the whole row is one chunk, margin x2.44.
+///
+/// **Not a prepared path, deliberately.** `D_ROWS = 1`, so every key entry is
+/// read exactly once per commitment and a prepared store would be 470 MiB
+/// written to be used once. The key is transformed in the stream beside the
+/// witness; both buffers and both scratches are recycled across terms in card
+/// T34's discipline, so the loop allocates nothing per term.
+///
+/// The concatenation `z ‖ digits(ρ)` is still never built -- candidate E's
+/// removal of wall W3 stands. The two segments are walked in turn into one
+/// accumulator, which is sound because the transform is linear and the bound
+/// above covers both segments at once.
+fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
+    let row: &PolyVec = d_key.row(i);
+    let n: usize = crate::ntt::NTT_LEN;
+    let deg: usize = params::RING_DEGREE;
+    let qw: u64 = params::Q;
+    let z_len: usize = w.z().len();
+    let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc: Vec<u64> = crate::ntt::zeros(n);
+    let mut kbuf: Vec<u64> = crate::ntt::zeros(n);
+    let mut ksc: Vec<u64> = crate::ntt::zeros(n);
+    let mut wbuf: Vec<u64> = crate::ntt::zeros(n);
+    let mut wsc: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = 0;
+    while j < z_len {
+        kbuf = crate::ring::load_twisted_into(kbuf, row.get(j), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(kbuf, ksc, &pt);
+        wbuf = crate::ring::load_twisted_signed_into(wbuf, w.z().get(j), &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(wbuf, wsc, &pt);
+        acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
+        kbuf = fk.0;
+        ksc = fk.1;
+        wbuf = fw.0;
+        wsc = fw.1;
+        j += 1;
+    }
+    let mut k: usize = 0;
+    while k < rho_len {
+        let digit: Rq = rho_digit_as_rq(w.rho(), k);
+        kbuf = crate::ring::load_twisted_into(kbuf, row.get(z_len + k), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(kbuf, ksc, &pt);
+        wbuf = crate::ring::load_twisted_signed_into(wbuf, &digit, &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(wbuf, wsc, &pt);
+        acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
+        kbuf = fk.0;
+        ksc = fk.1;
+        wbuf = fw.0;
+        wsc = fw.1;
+        k += 1;
+    }
+    // one offset per term, exactly as the digit path scales `GOLD_DOFF`
+    let terms: u64 = (z_len + rho_len) as u64;
+    let scaled: u64 = crate::ntt::gold_mul(crate::ntt::GOLD_SOFF, terms);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, ksc, &it);
+    let words: Vec<u64> = crate::ntt::gold_untwist_off(&inv.0, &it, scaled);
+    let mut out: Vec<Fp> = Vec::with_capacity(deg);
+    let mut t: usize = 0;
+    while t < deg {
+        out.push(Fp::new(words[t] % qw));
+        t += 1;
+    }
+    // `Rq`'s field is private outside `ring`, and `from_coeffs` is total:
+    // `out` is already `RING_DEGREE` long, so it neither pads nor truncates.
+    Rq::from_coeffs(&out)
+}
+
+
+
+// @genesis 107f555 2026-09-22 — ringswitch::LIFT_GOLD_MAX
+// Card T40a (2026-09-22): the width guard the proof forced.
+/// The widest row the signed Goldilocks lane is exact for.
+///
+/// The lane accumulates the whole row in one chunk, so it is correct only
+/// while twice the row's ceiling stays below `GOLD_P`:
+/// `2 · T · N · q · CHAIN_GAMMA < GOLD_P` gives `T ≤ 139_810`. This is the
+/// nearest power of two below that, `2^17`, which is **2.28×** the pin's
+/// `LIFT_COLS = 57_384`.
+///
+/// It is checked at run time rather than assumed, because
+/// [`lift_commit`]'s specification is generic in the witness width and its
+/// only size constraint is `Usize::MAX`. Without this the fast path would
+/// silently wrap for a witness wider than `139_810` -- a defect the proof
+/// found and no test could, since it needs a witness 2400× the pin's width.
+pub const LIFT_GOLD_MAX: usize = 131_072;

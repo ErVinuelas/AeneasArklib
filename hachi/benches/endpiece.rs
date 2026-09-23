@@ -337,6 +337,30 @@ macro_rules! define_cases {
             /// this row in exactly the way `support`'s no-zeros rule exists to
             /// forbid, and the shortness bound is why the ordinary `[1, q)`
             /// corpus cannot be used instead.
+            /// [`short_z`] with one coefficient one over the bound: the
+            /// cheapest violation of `‖z‖∞ ≤ CHAIN_GAMMA` there is.
+            fn long_z(seed: u64, n: usize) -> PolyVec {
+                let gamma = hc::params::CHAIN_GAMMA;
+                let q = hc::params::Q;
+                let degree = hc::params::RING_DEGREE;
+                let mut rng = support::SplitMix64::new(seed);
+                let mut out = Vec::with_capacity(n);
+                let mut i = 0usize;
+                while i < n {
+                    let mut coeffs = Vec::with_capacity(degree);
+                    let mut k = 0usize;
+                    while k < degree {
+                        let r = rng.next();
+                        let c = if i == 0 && k == 0 { gamma + 1 } else { 1 + r % gamma };
+                        coeffs.push(Fp::new(if (r >> 63) == 0 { c } else { q - c }));
+                        k += 1;
+                    }
+                    out.push(Rq::from_coeffs(&coeffs));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
             fn short_z(seed: u64, n: usize) -> PolyVec {
                 let gamma = hc::params::CHAIN_GAMMA;
                 let q = hc::params::Q;
@@ -773,6 +797,51 @@ macro_rules! define_cases {
                 )
             }
 
+            /// [`end_piece_check`] on a witness that **fails the shortness
+            /// bound** -- the adversarial path, and card T40b's whole point.
+            ///
+            /// The honest row above cannot see T40b: there the bound holds,
+            /// every conjunct runs, and the order is immaterial. What the
+            /// reorder changes is what a dishonest prover costs the verifier.
+            /// Before it, a witness over `CHAIN_GAMMA` was rejected only
+            /// *after* a full `lift_commit`; after it, before.
+            ///
+            /// `long_z` puts one coefficient at `CHAIN_GAMMA + 1`, which is
+            /// the cheapest possible violation: a candidate that rejected only
+            /// on grossly long witnesses would not be caught by a corpus that
+            /// made them grossly long.
+            pub fn end_piece_check_bad(m: Mode<'_, '_>, m0: usize) -> u64 {
+                let z_cols = crate::END_PIECE_Z_COLS;
+                let rho_rows = crate::END_PIECE_RHO_ROWS;
+                let width = z_cols + rho_rows * hc::params::GADGET_DIGITS;
+                let w = LiftedWitness::new(
+                    long_z(0x8047_0000_0000_00F0, z_cols),
+                    quotient_rows(0x8047_0000_0000_00C0, rho_rows),
+                );
+                let d_key = matrix_of(0x8047_0000_0000_00D0, hc::params::D_ROWS, width);
+                let stmt = honest_statement(&d_key, &w, point(0x8047_0000_0000_00E0, m0));
+                assert!(
+                    hc::commit::vec_l_infty_norm(w.z()) > hc::params::CHAIN_GAMMA,
+                    "this row's `z` must be OVER CHAIN_GAMMA or it prices the honest path \
+                     and the row measures nothing"
+                );
+                assert!(
+                    !hc::endpiece::end_piece_check(&d_key, &stmt, &w),
+                    "this row's input must REJECT"
+                );
+                support::run(
+                    m,
+                    || {
+                        hc::endpiece::end_piece_check(
+                            black_box(&d_key),
+                            black_box(&stmt),
+                            black_box(&w),
+                        )
+                    },
+                    d_bool,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -841,6 +910,11 @@ fn endpiece_benches(c: &mut Criterion) {
     // and live at those constants with the arithmetic.
     // @covers endpiece::end_piece_check
     bench_case!(c, "endpiece/end_piece_check", end_piece_check, [END_PIECE_M_ZERO]);
+    // Card T40b's row: the same check on a witness that fails the bound. The
+    // honest row above is immaterial to the reorder -- every conjunct runs
+    // there whatever the order -- so without this row the card is invisible.
+    // @covers endpiece::end_piece_check
+    bench_case!(c, "endpiece/end_piece_check_bad", end_piece_check_bad, [END_PIECE_M_ZERO]);
 }
 
 criterion_group! {

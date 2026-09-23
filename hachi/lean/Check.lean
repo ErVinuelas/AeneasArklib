@@ -10,6 +10,7 @@ import Scheme
 import EvalSplit
 import Balanced
 import QuadEval
+import RingSigned
 import SchemeTwoLane
 import ZPacked
 import QuadEvalProtocol
@@ -1976,6 +1977,69 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingFused.negSumB_le
 #print axioms HachiEquiv.RingFused.negQB_sum_le
 #print axioms HachiEquiv.RingFused.offConvSumB_cast_q
+-- Card T40's signed layer: the lift commitment's right operand is CENTRED
+-- below CHAIN_GAMMA, not bounded below a base, so `RingFused.BoundedWf` is
+-- false for it and this is a parallel development rather than an instance.
+-- `sgnWord_cast` is the whole bridge: the word the Rust writes and the
+-- integer it denotes agree in `ZMod GP`. `gold_soff_val` pins `ntt::GOLD_SOFF`
+-- to the bound this layer proves, so the constant cannot drift from its
+-- justification, and `sbound_fit_lift` is the one-chunk claim.
+#print axioms HachiEquiv.RingSigned.sgnWord_cast
+#print axioms HachiEquiv.RingSigned.sAbs_eq
+#print axioms HachiEquiv.RingSigned.abs_sInt
+#print axioms HachiEquiv.RingSigned.sConv_term_abs_le
+#print axioms HachiEquiv.RingSigned.sConv_abs_le
+#print axioms HachiEquiv.RingSigned.sConvSum_abs_le
+#print axioms HachiEquiv.RingSigned.gold_soff_val
+#print axioms HachiEquiv.RingSigned.sbound_fit_lift
+-- Layer 3, the loader: `ring::load_twisted_signed_into` writes the twisted
+-- signed words. `sgn_branch_spec` is the extracted `if v <= q/2 { v } else
+-- { GOLD_P - (q - v) }`, and `load_twisted_signed_into_sInt` is the seam --
+-- above it the statements are about words, below about the integers they
+-- stand for.
+#print axioms HachiEquiv.RingSigned.sgnWord_lt
+#print axioms HachiEquiv.RingSigned.sgn_branch_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_loop_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_spec
+#print axioms HachiEquiv.RingSigned.load_twisted_signed_into_sInt
+-- Layer 4, the dot. `termFwdS` is `RingFused.termFwd` with the right operand
+-- read through `sInt`; the transform argument itself is the digit path's and
+-- is reused, `NttProduct.prod_difRun` included. The loop carries the
+-- five-tuple `(acc, b1, b2, b3, j)`.
+#print axioms HachiEquiv.RingSigned.lift_gold_loop0_spec
+#print axioms HachiEquiv.RingSigned.lift_gold_loop1_spec
+#print axioms HachiEquiv.RingSigned.lift_gold_out_loop_spec
+-- The read-back. `offS` adds the row's ceiling, which layer 2 proved the
+-- value cannot exceed, so the sum is non-negative and below GOLD_P -- and
+-- which is a multiple of q, so it vanishes in the reduction.
+#print axioms HachiEquiv.RingSigned.offS_cast
+#print axioms HachiEquiv.RingSigned.offS_lt
+#print axioms HachiEquiv.RingSigned.offS_mod_q
+-- The two seams back to the ordinary vocabulary. negConvR_sConv is the one
+-- in ZMod GP, where the sign is real; sConv_cast_q is the one in ZMod q,
+-- where it is invisible -- which is why the card's headline statement is the
+-- digit path's, unchanged.
+#print axioms HachiEquiv.RingSigned.negConvR_sConv
+#print axioms HachiEquiv.RingSigned.sInt_cast_q
+#print axioms HachiEquiv.RingSigned.sConv_cast_q
+#print axioms HachiEquiv.RingSigned.sConvSumF_abs_le
+-- The row, assembled: both term loops, the inverse, the untwist with the
+-- scaled offset, the output loop and the reduction.
+#print axioms HachiEquiv.RingSigned.lift_commit_row_gold_spec
+#print axioms HachiEquiv.RingSigned.centeredWf_of_lt
+-- Card T40a in RingSwitch: the three bridges, the guard, and the row in the
+-- specification's own vocabulary. lift_commit_spec and lift_commit_row_spec
+-- are UNCHANGED and are re-audited below with everything else.
+#print axioms HachiEquiv.RingSwitch.toRq_of_coeffK_sumF
+#print axioms HachiEquiv.RingSwitch.sAbs_eq_valMinAbs
+#print axioms HachiEquiv.RingSwitch.exists_usize
+#print axioms HachiEquiv.RingSwitch.exists_digitFun
+#print axioms HachiEquiv.RingSwitch.lwshort_inner_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_inner1_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_outer0_spec
+#print axioms HachiEquiv.RingSwitch.lwshort_outer1_spec
+#print axioms HachiEquiv.RingSwitch.lift_witness_short_spec
+#print axioms HachiEquiv.RingSwitch.lift_commit_row_gold_arklib_spec
 #print axioms HachiEquiv.RingFused.boundB_fit_limb2
 #print axioms HachiEquiv.RingFused.boundB_fit_digits
 #print axioms HachiEquiv.RingFused.digitWf_eq_boundedWf

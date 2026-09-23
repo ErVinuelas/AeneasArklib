@@ -271,6 +271,37 @@ macro_rules! define_cases {
                 out
             }
 
+            /// [`vec_of`] with every coefficient **centred below
+            /// `CHAIN_GAMMA`** -- the shape an honest lifted witness has.
+            ///
+            /// `vec_of` draws from `[1, q)`, which is what the protocol never
+            /// produces here: `z` is the `R^lin` witness the end piece checks
+            /// for shortness, so a uniform draw is a witness every verifier
+            /// rejects. That did not matter while every path cost the same;
+            /// card T40 makes it decide which path runs, so the honest shape
+            /// needs a corpus of its own rather than a reinterpretation of
+            /// this one.
+            fn short_vec_of(seed: u64, n: usize) -> PolyVec {
+                let mut out = Vec::new();
+                let width = hc::params::RING_DEGREE;
+                let g = hc::params::CHAIN_GAMMA;
+                let coeffs = support::corpus(seed, n * width);
+                let mut i = 0usize;
+                while i < n {
+                    let mut cs = Vec::with_capacity(width);
+                    let mut k = 0usize;
+                    while k < width {
+                        // [0, 2g] folded to the centred band {0..g} u {q-g..q-1}
+                        let r = coeffs[i * width + k].to_u64() % (2 * g + 1);
+                        cs.push(cpoly::Fp::new(if r <= g { r } else { hc::params::Q - (r - g) }));
+                        k += 1;
+                    }
+                    out.push(Rq::from_coeffs(&cs));
+                    i += 1;
+                }
+                PolyVec::new(out)
+            }
+
             fn vec_of(seed: u64, n: usize) -> PolyVec {
                 let mut out = Vec::new();
                 let width = hc::params::RING_DEGREE;
@@ -474,6 +505,27 @@ macro_rules! define_cases {
                 )
             }
 
+            /// [`lift_commit`] on the **honest** witness shape (card T40).
+            ///
+            /// Same key, same widths, same digest oracle; the only difference
+            /// is that `z` is centred below `CHAIN_GAMMA`, which is what the
+            /// end piece requires of it. The existing `lift_commit` row keeps
+            /// its uniform draw and its history, and measures the fallback.
+            pub fn lift_commit_short(m: Mode<'_, '_>, z_len: usize) -> u64 {
+                let rho_rows = crate::LIFT_COMMIT_RHO_ROWS;
+                let width = z_len + rho_rows * hc::params::GADGET_DIGITS;
+                let w = LiftedWitness::new(
+                    short_vec_of(0x8047_0000_0000_0051, z_len),
+                    quotient_rows(0x8047_0000_0000_0061, rho_rows),
+                );
+                let d_key = matrix_of(0x8047_0000_0000_0071, 1, width);
+                support::run(
+                    m,
+                    || hc::ringswitch::lift_commit(black_box(&d_key), black_box(&w)),
+                    d_polyvec,
+                )
+            }
+
             fn d_words(v: &Vec<cpoly::Fp>) -> u64 {
                 let n = v.len();
                 let mut acc = support::mix_len(0, n);
@@ -647,6 +699,12 @@ fn ringswitch_benches(c: &mut Criterion) {
     // removal condition, and why the composition survives this reduction.
     // @covers ringswitch::lift_commit
     bench_case!(c, "ringswitch/lift_commit", lift_commit, [LIFT_COMMIT_Z]);
+    // Card T40's row: the same call on the witness shape the protocol
+    // actually produces. Without it the card is invisible -- the fast path is
+    // guarded on shortness and the row above draws `z` from `[1, q)`, so a
+    // candidate that rewrites the short path entirely reports 0% there.
+    // @covers ringswitch::lift_commit
+    bench_case!(c, "ringswitch/lift_commit_short", lift_commit_short, [LIFT_COMMIT_Z]);
 
     // The honest lift prover, W1 REDUCED at one row of `LIFT_PROVER_COLS`
     // columns; see that constant for the arithmetic and the removal condition.

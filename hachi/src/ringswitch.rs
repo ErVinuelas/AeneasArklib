@@ -233,6 +233,153 @@ fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
     acc
 }
 
+/// The widest row the signed Goldilocks lane is exact for.
+///
+/// The lane accumulates the whole row in one chunk, so it is correct only
+/// while twice the row's ceiling stays below `GOLD_P`:
+/// `2 · T · N · q · CHAIN_GAMMA < GOLD_P` gives `T ≤ 139_810`. This is the
+/// nearest power of two below that, `2^17`, which is **2.28×** the pin's
+/// `LIFT_COLS = 57_384`.
+///
+/// It is checked at run time rather than assumed, because
+/// [`lift_commit`]'s specification is generic in the witness width and its
+/// only size constraint is `Usize::MAX`. Without this the fast path would
+/// silently wrap for a witness wider than `139_810` -- a defect the proof
+/// found and no test could, since it needs a witness 2400× the pin's width.
+pub const LIFT_GOLD_MAX: usize = 131_072;
+
+/// Is every coefficient of `z ‖ digits(ρ)` centred below `CHAIN_GAMMA`?
+///
+/// The guard on card T40's fast path, and **not** a new precondition on
+/// [`lift_commit`]: when it fails the generic path runs and the answer is the
+/// same, so `lift_commit_spec` keeps its statement. It is the predicate
+/// `endpiece::lift_short_check` applies, written here because `endpiece`
+/// depends on this module and not the other way round.
+///
+/// One pass over `μ + n·δ` ring elements against the row's `57 384`
+/// multiplications, so its cost does not show.
+pub fn lift_witness_short(w: &LiftedWitness) -> bool {
+    let gamma: u64 = params::CHAIN_GAMMA;
+    let z_len: usize = w.z().len();
+    let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
+    let deg: usize = params::RING_DEGREE;
+    // the width guard: the one-chunk bound, refused rather than assumed
+    let mut short: bool = z_len + rho_len <= LIFT_GOLD_MAX;
+    let mut j: usize = 0;
+    while j < z_len {
+        let e: &Rq = w.z().get(j);
+        let mut k: usize = 0;
+        while k < deg {
+            if crate::commit::centered_abs(e.coeff(k)) > gamma {
+                short = false;
+            }
+            k += 1;
+        }
+        j += 1;
+    }
+    let mut u: usize = 0;
+    while u < rho_len {
+        let d: Rq = rho_digit_as_rq(w.rho(), u);
+        let mut k: usize = 0;
+        while k < deg {
+            if crate::commit::centered_abs(d.coeff(k)) > gamma {
+                short = false;
+            }
+            k += 1;
+        }
+        u += 1;
+    }
+    short
+}
+
+/// One row of the lift commitment on the **signed bounded Goldilocks lane**
+/// (card T40).
+///
+/// The value [`lift_commit_row`] computes, by the route the digit path takes.
+/// Where that one calls a generic [`Rq::mul`] per term -- three auxiliary
+/// primes, two forward transforms and an inverse in each, then a Garner
+/// reconstruction per coefficient, so nine transforms and `N` Garners for
+/// every one of `57 384` terms -- this transforms the key entry and the
+/// witness entry once each on **one** lane, multiply-accumulates in transform
+/// space, and takes a single inverse for the whole row.
+///
+/// Two things make one lane enough. The witness is centred below
+/// `CHAIN_GAMMA = 15`, so a term's convolution is bounded by `N · q · 15` and
+/// the row's by `57 384 · N · q · 15 = 2^61.72`, inside `GOLD_P / 2`; and
+/// [`crate::ntt::GOLD_SOFF`] is a multiple of `q`, so adding it per term
+/// makes the accumulated value non-negative and then vanishes in the
+/// reduction. No chunk loop: the whole row is one chunk, margin x2.44.
+///
+/// **Not a prepared path, deliberately.** `D_ROWS = 1`, so every key entry is
+/// read exactly once per commitment and a prepared store would be 470 MiB
+/// written to be used once. The key is transformed in the stream beside the
+/// witness; three buffers are recycled across terms in card T34's discipline,
+/// so the loop allocates nothing per term.
+///
+/// The concatenation `z ‖ digits(ρ)` is still never built -- candidate E's
+/// removal of wall W3 stands. The two segments are walked in turn into one
+/// accumulator, which is sound because the transform is linear and the bound
+/// above covers both segments at once.
+fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
+    let row: &PolyVec = d_key.row(i);
+    let n: usize = crate::ntt::NTT_LEN;
+    let deg: usize = params::RING_DEGREE;
+    let qw: u64 = params::Q;
+    let z_len: usize = w.z().len();
+    let rho_len: usize = w.rho().len() * params::GADGET_DIGITS;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc: Vec<u64> = crate::ntt::zeros(n);
+    // THREE buffers, not four. `gold_forward` hands back both of the vectors
+    // it was given -- the transform and the spare -- and the two transforms
+    // here are sequential, so the key's spare is the witness's scratch. That
+    // is 24 KiB of live buffers against 32, which matters because the twiddle
+    // table shares the same L1 (card T37's lesson), and it is one component
+    // less in the extracted loop's state tuple.
+    let mut b1: Vec<u64> = crate::ntt::zeros(n);
+    let mut b2: Vec<u64> = crate::ntt::zeros(n);
+    let mut b3: Vec<u64> = crate::ntt::zeros(n);
+    let mut j: usize = 0;
+    while j < z_len {
+        b1 = crate::ring::load_twisted_into(b1, row.get(j), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b1, b2, &pt);
+        b3 = crate::ring::load_twisted_signed_into(b3, w.z().get(j), &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b3, fk.1, &pt);
+        acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
+        b1 = fk.0;
+        b2 = fw.0;
+        b3 = fw.1;
+        j += 1;
+    }
+    let mut k: usize = 0;
+    while k < rho_len {
+        let digit: Rq = rho_digit_as_rq(w.rho(), k);
+        b1 = crate::ring::load_twisted_into(b1, row.get(z_len + k), &pt);
+        let fk: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b1, b2, &pt);
+        b3 = crate::ring::load_twisted_signed_into(b3, &digit, &pt);
+        let fw: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(b3, fk.1, &pt);
+        acc = crate::ring::mac_into_gold_off(acc, &fk.0, 0, &fw.0, n);
+        b1 = fk.0;
+        b2 = fw.0;
+        b3 = fw.1;
+        k += 1;
+    }
+    // one offset per term, exactly as the digit path scales `GOLD_DOFF`
+    let terms: u64 = (z_len + rho_len) as u64;
+    let scaled: u64 = crate::ntt::gold_mul(crate::ntt::GOLD_SOFF, terms);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, b2, &it);
+    let words: Vec<u64> = crate::ntt::gold_untwist_off(&inv.0, &it, scaled);
+    let mut out: Vec<Fp> = Vec::with_capacity(deg);
+    let mut t: usize = 0;
+    while t < deg {
+        out.push(Fp::new(words[t] % qw));
+        t += 1;
+    }
+    // `Rq`'s field is private outside `ring`, and `from_coeffs` is total:
+    // `out` is already `RING_DEGREE` long, so it neither pads nor truncates.
+    Rq::from_coeffs(&out)
+}
+
 /// The concrete Ajtai lift commitment `D *ᵥ (z ‖ digits(ρ))` (spec:
 /// `hachiLiftCom`, `RingSwitch/Reduction.lean:277`; opt:
 /// `HachiEquiv.Opt.lift_commit.opt`, `lean/Opt.lean`).
@@ -249,11 +396,20 @@ fn lift_commit_row(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
 /// specification's own vector for the callers that want it materialized.
 pub fn lift_commit(d_key: &PolyMatrix, w: &LiftedWitness) -> PolyVec {
     let rows: usize = d_key.rows();
+    // Card T40: the short witness takes the one-lane path, and the guard is
+    // not a precondition -- a witness that fails it gets the generic row and
+    // the same answer, which is why `lift_commit_spec` does not move.
+    let short: bool = lift_witness_short(w);
     let mut out: Vec<Rq> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
-        let r: Rq = lift_commit_row(d_key, w, i);
-        out.push(r);
+        if short {
+            let r: Rq = lift_commit_row_gold(d_key, w, i);
+            out.push(r);
+        } else {
+            let r: Rq = lift_commit_row(d_key, w, i);
+            out.push(r);
+        }
         i += 1;
     }
     PolyVec::new(out)
