@@ -955,3 +955,275 @@ fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
 /// silently wrap for a witness wider than `139_810` -- a defect the proof
 /// found and no test could, since it needs a witness 2400× the pin's width.
 pub const LIFT_GOLD_MAX: usize = 131_072;
+
+// ---------------------------------------------------------------------------
+// Card T45a (2026-09-23): gadget contraction in the lifted witness's high-half
+// row sum. The lazy band walk and its eight helpers are first translations;
+// c_row_sum_high itself keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`c_row_sum_high`] on the lazy representation: the row walked **band by
+/// band**, with every gadget-shaped group contracted before its product
+/// (Stage 6 candidate T45a).
+///
+/// # The identity
+///
+/// The high half of the unreduced product is `Zq`-bilinear -- coefficient
+/// `N + t` of `a·ζ` is `Σᵢ aᵢ ζ_{N+t−i}`, a bilinear form in the two
+/// coefficient vectors -- so for field scalars `w_m`
+///
+/// ```text
+/// Σ_m high((w_m · f) · ζ_m) = high(f · Σ_m w_m · ζ_m)
+/// ```
+///
+/// exactly in `F_q`. The gadget blocks of `R^lin` are made of such groups: a
+/// run of entries that are one ring element `f` times the successive gadget
+/// powers. Where the dense walk pays one `long_mul_high` per entry of the
+/// group, this pays one for the whole group, against the recomposed witness
+/// `Σ_m w_m ζ_m` (`G` scalar products and additions, `O(G·N)`, against the
+/// `N(N − 1)/2` steps of each product it saves). No signed reasoning and no
+/// `Z_BOUND` enter: the recomposition is a sum in `F_q`, not a claim that the
+/// digits reconstruct anything, so card T45's proof step (iii) is not needed.
+///
+/// # The layout, from [`RlinMat::entry`] and `quadeval::rlin_stmt`
+///
+/// `ζ = ŵ ++ t̂ ++ ẑ`, with the column bands `[0, cw)`, `[cw, cw + ct)`,
+/// `[cw + ct, cw + ct + cz)`. Row by row:
+///
+/// | row | block, band | group | weight at position `m` |
+/// |---|---|---|---|
+/// | c1 | `D[i]` on `ŵ` | none, per entry | -- |
+/// | c2 | `B[i]` on `t̂` | none, per entry | -- |
+/// | c3 | `Gᵀb` on `ŵ` | `GADGET_DIGITS` | `bᵐ` |
+/// | c4 | `Gᵀc` on `ŵ` | `GADGET_DIGITS` | `bᵐ` |
+/// | c4 | `−Jᵀ(Gᵀa)` on `ẑ` | `GADGET_DIGITS · Z_DIGITS` | `b^(m / Z_DIGITS) · b^(m % Z_DIGITS)` |
+/// | c5 | `(cᵀ ⊗ G)[p]` on `t̂` | `GADGET_DIGITS` | `bᵐ` |
+/// | c5 | `−(AJ)[p]` on `ẑ` | `Z_DIGITS` | `bᵐ` |
+///
+/// `gadget_transpose_mul(rows, digits, a)` puts `bᵉ · a[r]` at `r·digits + e`;
+/// applied twice (`Jᵀ(Gᵀa)`) it puts `b^{e'} · (bᵉ · a[r])` at
+/// `(r·GADGET_DIGITS + e)·Z_DIGITS + e'`, i.e. at offset
+/// `m = e·Z_DIGITS + e'` of group `r` -- hence the c4 weight. The tensor row
+/// is `c[i] · b^f` at `(i·k + e)·digits + f` when `e = p` and zero otherwise,
+/// so its off-diagonal groups are all zero and are skipped.
+///
+/// # Nothing is assumed about the blocks
+///
+/// [`RlinBlocks`] stores products and carries **no** gadget invariant, and the
+/// digit counts the statement was built at are not stored in it. So every
+/// group is checked at run time ([`group_is_scaled`]) and a group that fails
+/// the check -- a tampered entry, a statement built at other digit counts, a
+/// leading entry of zero before non-zero ones -- falls back to the per-entry
+/// walk, which is the dense computation restricted to that group. The answer
+/// is the dense one for any block content; only the speed depends on the
+/// structure. A group that passes with `f = 0` is all zeros and is skipped,
+/// as the dense walk's zero test would skip each of its entries.
+///
+/// At the pin this is `8192 + 8192` per-entry products on c1 and c2, and
+/// `1024`, `1024 + 1024`, `1024 + 8192` contracted ones on c3, c4, c5:
+/// **28 672** `long_mul_high` for the witness against 122 880 before.
+fn c_row_sum_high_lazy(b: &RlinBlocks, z: &PolyVec, i: usize) -> Vec<Fp> {
+    let gd: usize = params::GADGET_DIGITS;
+    let zd: usize = params::Z_DIGITS;
+    let gz: usize = gd * zd;
+    let g_weights: Vec<Fp> = gadget_weights(gd);
+    let z_weights: Vec<Fp> = gadget_weights(zd);
+    let jt_weights: Vec<Fp> = jt_gadget_weights();
+    let acc: Vec<Fp> = high_zeros();
+    if i < b.d_rows {
+        // c1: [ D | 0 | 0 ] -- dense, per entry, over ŵ
+        band_high(acc, b.d.row(i), 0, b.cw, z, 0)
+    } else if i < b.d_rows + b.b_rows {
+        // c2: [ 0 | B | 0 ] -- dense, per entry, over t̂
+        let i2: usize = i - b.d_rows;
+        band_high(acc, b.bmat.row(i2), 0, b.ct, z, b.cw)
+    } else if i == b.d_rows + b.b_rows {
+        // c3: [ Gᵀb | 0 | 0 ]
+        group_high(acc, &b.g_b, b.cw, gd, &g_weights, z, 0)
+    } else if i == b.d_rows + b.b_rows + 1 {
+        // c4: [ Gᵀc | 0 | −Jᵀ(Gᵀa) ]
+        let acc1: Vec<Fp> = group_high(acc, &b.g_c, b.cw, gd, &g_weights, z, 0);
+        let off: usize = b.cw + b.ct;
+        group_high(acc1, &b.neg_jt_g_a, b.cz, gz, &jt_weights, z, off)
+    } else {
+        // c5: [ 0 | cᵀ ⊗ G | −(AJ) ]
+        let p: usize = i - b.d_rows - b.b_rows - 2;
+        let acc1: Vec<Fp> = group_high(acc, b.tensor.row(p), b.ct, gd, &g_weights, z, b.cw);
+        let off: usize = b.cw + b.ct;
+        group_high(acc1, b.neg_aj.row(p), b.cz, zd, &z_weights, z, off)
+    }
+}
+
+/// `N − 1` zero words: the empty high-half accumulator.
+fn high_zeros() -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let mut acc: Vec<Fp> = Vec::with_capacity(n - 1);
+    let mut k: usize = 0;
+    while k < n - 1 {
+        acc.push(Fp::ZERO);
+        k += 1;
+    }
+    acc
+}
+
+/// `acc + prod` over the `N − 1` high-half slots, in place.
+///
+/// Its own function so that no caller's loop both reads a borrowed vector and
+/// writes this accumulator (the `aeneas-extract` ceiling row of 2026-09-17:
+/// that nesting aborts the extraction, a helper boundary does not). The read
+/// goes through a `let` before the write, as `sumcheck::shift_accum` does.
+fn add_high_into(mut acc: Vec<Fp>, prod: &Vec<Fp>) -> Vec<Fp> {
+    let n: usize = params::RING_DEGREE;
+    let mut t: usize = 0;
+    while t < n - 1 {
+        let cur: Fp = acc[t];
+        acc[t] = cur + prod[t];
+        t += 1;
+    }
+    acc
+}
+
+/// `acc + Σ high(blk[j] · z[zoff + j])` over `lo ≤ j < hi`, skipping the zero
+/// entries: the pre-T45a column loop of [`c_row_sum_high`] restricted to one
+/// block.
+///
+/// The per-entry fallback of [`group_high`], and the whole walk on the dense
+/// bands (c1's `D`, c2's `B`).
+fn band_high(
+    mut acc: Vec<Fp>,
+    blk: &PolyVec,
+    lo: usize,
+    hi: usize,
+    z: &PolyVec,
+    zoff: usize,
+) -> Vec<Fp> {
+    let mut j: usize = lo;
+    while j < hi {
+        let e: &Rq = blk.get(j);
+        if !e.is_zero() {
+            let zj: &Rq = z.get(zoff + j);
+            let prod: Vec<Fp> = long_mul_high(e, zj);
+            acc = add_high_into(acc, &prod);
+        }
+        j += 1;
+    }
+    acc
+}
+
+/// Is `blk[base + m] = w[m] · blk[base]` for every `m < len`? The run-time
+/// structure check of card T45a.
+///
+/// Compared with [`Rq::equals`], so word for word: the entries a gadget block
+/// holds are `bᵉ · a` computed by [`Rq::scalar_mul`], and since `F_q`
+/// multiplication is exact, commutative and associative on reduced words,
+/// `bᵉ · (b^{e'} · a)` and `(bᵉ · b^{e'}) · a` are the same words. The check
+/// starts at `m = 0` so that it asserts the whole group, weight `w[0]`
+/// included, and the contraction is sound for any `w`.
+///
+/// `base < blk.len()`, `base + len ≤ blk.len()` and `len ≤ w.len()` are the
+/// fail points. Public so that the semantics tests can assert the check fires
+/// on `quadeval::rlin_stmt`'s real output; it is not an ArkLib operation and
+/// mirrors none.
+pub fn group_is_scaled(blk: &PolyVec, base: usize, len: usize, w: &Vec<Fp>) -> bool {
+    let f: &Rq = blk.get(base);
+    let mut ok: bool = true;
+    let mut m: usize = 0;
+    while m < len {
+        let want: Rq = f.scalar_mul(w[m]);
+        if !blk.get(base + m).equals(&want) {
+            ok = false;
+        }
+        m += 1;
+    }
+    ok
+}
+
+/// `Σ_{m < len} w[m] · z[base + m]` in `R_q`: one group of witness digits
+/// recomposed at the group's weights, exactly in `F_q`.
+///
+/// The loop shape of [`gadget::gadget_mul_z`], over [`Rq::scalar_mul`] and
+/// [`Rq::add`], both already specified.
+fn recompose(z: &PolyVec, base: usize, len: usize, w: &Vec<Fp>) -> Rq {
+    let mut acc: Rq = Rq::zero();
+    let mut m: usize = 0;
+    while m < len {
+        let scaled: Rq = z.get(base + m).scalar_mul(w[m]);
+        acc = acc.add(&scaled);
+        m += 1;
+    }
+    acc
+}
+
+/// `acc + Σ_{j < len} high(blk[j] · z[zoff + j])`, contracted group by group.
+///
+/// The block is cut into whole groups of `gsize` columns and a trailing
+/// partial group. A whole group that passes [`group_is_scaled`] with a
+/// non-zero leader `f` costs one [`long_mul_high`], of `f` against
+/// [`recompose`]d witness digits; one that passes with `f = 0` is all zeros
+/// and costs nothing; one that fails goes through [`band_high`], entry by
+/// entry. The trailing columns always go through [`band_high`].
+///
+/// The group boundary advances by addition rather than by a `len / gsize`
+/// division, so no divisor is needed; `gsize > 0` is what terminates the loop,
+/// and every caller passes a positive `params` constant. The guard is written
+/// `gsize <= len - base`, not `base + gsize <= len`: `base ≤ len` holds
+/// throughout, so the subtraction cannot underflow, while the addition could
+/// overflow `usize` for a block within `gsize` of the maximum -- a case the
+/// model does not exclude, so the spec could not have been total.
+fn group_high(
+    mut acc: Vec<Fp>,
+    blk: &PolyVec,
+    len: usize,
+    gsize: usize,
+    w: &Vec<Fp>,
+    z: &PolyVec,
+    zoff: usize,
+) -> Vec<Fp> {
+    let mut base: usize = 0;
+    while gsize <= len - base {
+        let scaled: bool = group_is_scaled(blk, base, gsize, w);
+        if scaled {
+            let f: &Rq = blk.get(base);
+            if !f.is_zero() {
+                let r: Rq = recompose(z, zoff + base, gsize, w);
+                let prod: Vec<Fp> = long_mul_high(f, &r);
+                acc = add_high_into(acc, &prod);
+            }
+        } else {
+            acc = band_high(acc, blk, base, base + gsize, z, zoff);
+        }
+        base += gsize;
+    }
+    band_high(acc, blk, base, len, z, zoff)
+}
+
+/// `[1, b, …, b^(digits − 1)]`: the weights of one group of `Gᵀ·a`, whose entry
+/// `r·digits + e` is `bᵉ · a[r]` ([`gadget::gadget_transpose_mul`]).
+fn gadget_weights(digits: usize) -> Vec<Fp> {
+    let mut w: Vec<Fp> = Vec::with_capacity(digits);
+    let mut e: usize = 0;
+    while e < digits {
+        w.push(gadget::base_pow(e));
+        e += 1;
+    }
+    w
+}
+
+/// The weights of one `GADGET_DIGITS · Z_DIGITS` group of `Jᵀ(Gᵀa)`: position
+/// `m = e·Z_DIGITS + e'` holds `b^{e'} · (bᵉ · a[r])`, so its weight is
+/// `bᵉ · b^{e'}` with `e = m / Z_DIGITS`, `e' = m % Z_DIGITS`.
+fn jt_gadget_weights() -> Vec<Fp> {
+    let gd: usize = params::GADGET_DIGITS;
+    let zd: usize = params::Z_DIGITS;
+    let len: usize = gd * zd;
+    let mut w: Vec<Fp> = Vec::with_capacity(len);
+    let mut m: usize = 0;
+    while m < len {
+        let hi: Fp = gadget::base_pow(m / zd);
+        let lo: Fp = gadget::base_pow(m % zd);
+        w.push(hi * lo);
+        m += 1;
+    }
+    w
+}
+

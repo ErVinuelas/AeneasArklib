@@ -642,3 +642,223 @@ fn rlin_row(m: &hachi::ringswitch::RlinMat, i: usize) -> PolyVec {
     }
     PolyVec::new(v)
 }
+
+// ---------------------------------------------------------------------------
+// Card T45a: the lazy row sum contracts gadget groups, and answers as the dense
+// ---------------------------------------------------------------------------
+
+/// The pieces of a lazy `R^lin` built the way `quadeval::rlin_stmt` builds
+/// them, at the pinned digit counts and a REDUCED block/row count, with every
+/// piece exposed so a test can tamper with one before bundling.
+struct T45Pieces {
+    d: hachi::linalg::PolyMatrix,
+    bmat: hachi::linalg::PolyMatrix,
+    g_b: PolyVec,
+    g_c: PolyVec,
+    neg_jt_g_a: PolyVec,
+    tensor: hachi::linalg::PolyMatrix,
+    neg_aj: hachi::linalg::PolyMatrix,
+    cw: usize,
+    ct: usize,
+    cz: usize,
+}
+
+fn t45_pieces(seed: u64, blocks: usize, message_rows: usize) -> T45Pieces {
+    use hachi::gadget::gadget_transpose_mul;
+    use hachi::params::Z_DIGITS;
+    let mut r = Lcg::new(seed);
+    let gd = GADGET_DIGITS;
+    let cw = blocks * gd;
+    let ct = blocks * gd; // one inner row
+    let inner_cols = message_rows * gd;
+    let cz = inner_cols * Z_DIGITS;
+    let neg = |v: &PolyVec| PolyVec::new((0..v.len()).map(|k| v.get(k).neg()).collect());
+    let a = r.next_poly_vec(message_rows);
+    let g_a = gadget_transpose_mul(message_rows, gd, &a);
+    let jt_g_a = gadget_transpose_mul(inner_cols, Z_DIGITS, &g_a);
+    let a_row = r.next_poly_vec(inner_cols);
+    let aj = gadget_transpose_mul(inner_cols, Z_DIGITS, &a_row);
+    let c = r.next_poly_vec(blocks);
+    T45Pieces {
+        d: r.next_poly_matrix(1, cw),
+        bmat: r.next_poly_matrix(1, ct),
+        g_b: gadget_transpose_mul(blocks, gd, &r.next_poly_vec(blocks)),
+        g_c: gadget_transpose_mul(blocks, gd, &c),
+        neg_jt_g_a: neg(&jt_g_a),
+        tensor: hachi::quadeval::tensor_g_matrix(1, gd, &c),
+        neg_aj: hachi::linalg::PolyMatrix::new(vec![neg(&aj)]),
+        cw,
+        ct,
+        cz,
+    }
+}
+
+/// The lazy statement, and the dense one assembled from it entry by entry.
+fn t45_statements(p: T45Pieces, seed: u64) -> (RlinStatement, RlinStatement) {
+    let mut r = Lcg::new(seed);
+    let blocks = hachi::ringswitch::RlinBlocks::new(
+        p.d, p.bmat, p.g_b, p.g_c, p.neg_jt_g_a, p.tensor, p.neg_aj, p.cw, p.ct, p.cz,
+    );
+    let lazy = RlinStatement::new_lazy(blocks, r.next_poly_vec(5), CHAIN_GAMMA);
+    let rows: Vec<PolyVec> = (0..lazy.m().rows()).map(|i| rlin_row(lazy.m(), i)).collect();
+    let dense = RlinStatement::new(
+        hachi::linalg::PolyMatrix::new(rows),
+        lazy.yvec().copy(),
+        CHAIN_GAMMA,
+    );
+    (lazy, dense)
+}
+
+fn t45_assert_rows_agree(lazy: &RlinStatement, dense: &RlinStatement, z: &PolyVec, what: &str) {
+    assert!(matches!(lazy.m(), hachi::ringswitch::RlinMat::Lazy(_)));
+    assert!(matches!(dense.m(), hachi::ringswitch::RlinMat::Dense(_)));
+    for i in 0..lazy.m().rows() {
+        let a = c_quotient(lazy, z, i).to_rq();
+        let b = c_quotient(dense, z, i).to_rq();
+        assert!(a.equals(&b), "{what}: row {i}, lazy and dense quotients differ");
+    }
+}
+
+/// Every group `rlin_stmt` builds is one the structure check accepts: the
+/// fast path is live on the real carrier, not dead code behind a check that
+/// never fires. `Gᵀx` groups at weights `bᵐ`, `Jᵀ(Gᵀa)` groups at
+/// `b^(m/τ)·b^(m%τ)`, and the tensor's and `AJ`'s groups.
+#[test]
+fn t45a_structure_check_fires_on_the_gadget_blocks() {
+    use hachi::gadget::base_pow;
+    use hachi::params::Z_DIGITS;
+    use hachi::ringswitch::group_is_scaled;
+    let p = t45_pieces(0x7450_0001, 2, 2);
+    let gd = GADGET_DIGITS;
+    let gw: Vec<Fp> = (0..gd).map(base_pow).collect();
+    let zw: Vec<Fp> = (0..Z_DIGITS).map(base_pow).collect();
+    let jw: Vec<Fp> = (0..gd * Z_DIGITS).map(|m| base_pow(m / Z_DIGITS) * base_pow(m % Z_DIGITS)).collect();
+    for g in 0..p.cw / gd {
+        assert!(group_is_scaled(&p.g_b, g * gd, gd, &gw), "g_b group {g}");
+        assert!(group_is_scaled(&p.g_c, g * gd, gd, &gw), "g_c group {g}");
+        assert!(group_is_scaled(p.tensor.row(0), g * gd, gd, &gw), "tensor group {g}");
+    }
+    for g in 0..p.cz / (gd * Z_DIGITS) {
+        assert!(group_is_scaled(&p.neg_jt_g_a, g * gd * Z_DIGITS, gd * Z_DIGITS, &jw), "JᵀGᵀa group {g}");
+    }
+    for g in 0..p.cz / Z_DIGITS {
+        assert!(group_is_scaled(p.neg_aj.row(0), g * Z_DIGITS, Z_DIGITS, &zw), "AJ group {g}");
+    }
+    // and it declines what it should: a group scaled at the wrong weights
+    let mut bad = gw.clone();
+    bad[3] = bad[3] + Fp::ONE;
+    assert!(!group_is_scaled(&p.g_b, 0, gd, &bad), "a wrong weight must fail the check");
+}
+
+/// Card T45a on honest-shaped blocks: every row of the lazy quotient is the
+/// dense one, so the contracted path computes exactly what `c_row_sum_high`
+/// did entry by entry.
+#[test]
+fn t45a_lazy_quotient_equals_dense_on_gadget_blocks() {
+    let p = t45_pieces(0x7450_0002, 2, 1);
+    let cols = p.cw + p.ct + p.cz;
+    let (lazy, dense) = t45_statements(p, 0x7450_0003);
+    let z = Lcg::new(0x7450_0004).next_poly_vec(cols);
+    t45_assert_rows_agree(&lazy, &dense, &z, "honest blocks");
+}
+
+/// The fallback of rule 4: a tampered entry in each gadget block -- an
+/// interior entry, a leader, a zero leader before non-zero entries -- makes
+/// its group fail the check and take the per-entry walk, and the quotient is
+/// still the dense one. Plus a whole group rescaled by 2, which still passes
+/// and must still be right: the contraction holds for any leader.
+#[test]
+fn t45a_tampered_blocks_fall_back_and_still_agree() {
+    let two = Fp::new(2);
+    let tampers: Vec<(&str, Box<dyn Fn(&mut T45Pieces)>)> = vec![
+        ("g_b interior", Box::new(|p: &mut T45Pieces| {
+            let mut v: Vec<Rq> = (0..p.g_b.len()).map(|k| p.g_b.get(k).copy()).collect();
+            v[3] = v[3].scalar_mul(Fp::new(3));
+            p.g_b = PolyVec::new(v);
+        })),
+        ("g_c zero leader", Box::new(|p: &mut T45Pieces| {
+            let mut v: Vec<Rq> = (0..p.g_c.len()).map(|k| p.g_c.get(k).copy()).collect();
+            v[GADGET_DIGITS] = Rq::zero();
+            p.g_c = PolyVec::new(v);
+        })),
+        ("JᵀGᵀa leader", Box::new(|p: &mut T45Pieces| {
+            let mut v: Vec<Rq> = (0..p.neg_jt_g_a.len()).map(|k| p.neg_jt_g_a.get(k).copy()).collect();
+            v[0] = v[1].copy();
+            p.neg_jt_g_a = PolyVec::new(v);
+        })),
+        ("tensor interior", Box::new(|p: &mut T45Pieces| {
+            let row = p.tensor.row(0);
+            let mut v: Vec<Rq> = (0..row.len()).map(|k| row.get(k).copy()).collect();
+            v[5] = v[5].neg();
+            p.tensor = hachi::linalg::PolyMatrix::new(vec![PolyVec::new(v)]);
+        })),
+        ("AJ last group", Box::new(|p: &mut T45Pieces| {
+            let row = p.neg_aj.row(0);
+            let mut v: Vec<Rq> = (0..row.len()).map(|k| row.get(k).copy()).collect();
+            let last = v.len() - 1;
+            v[last] = Rq::zero();
+            p.neg_aj = hachi::linalg::PolyMatrix::new(vec![PolyVec::new(v)]);
+        })),
+        ("g_b group rescaled by 2", Box::new(move |p: &mut T45Pieces| {
+            let v: Vec<Rq> = (0..p.g_b.len())
+                .map(|k| if k < GADGET_DIGITS { p.g_b.get(k).scalar_mul(two) } else { p.g_b.get(k).copy() })
+                .collect();
+            p.g_b = PolyVec::new(v);
+        })),
+    ];
+    for (k, (what, tamper)) in tampers.iter().enumerate() {
+        let mut p = t45_pieces(0x7450_0010 + k as u64, 2, 1);
+        tamper(&mut p);
+        let cols = p.cw + p.ct + p.cz;
+        let (lazy, dense) = t45_statements(p, 0x7450_0020 + k as u64);
+        let z = Lcg::new(0x7450_0030 + k as u64).next_poly_vec(cols);
+        t45_assert_rows_agree(&lazy, &dense, &z, what);
+    }
+}
+
+/// Through the real constructor: `rlin_stmt` at the pinned digit counts and a
+/// REDUCED shape, lazy against its own dense assembly, for the whole lift.
+/// And at other digit counts (2, 2, 3) -- where no group has the pinned size,
+/// every check fails and the walk is all fallback -- the same equality.
+#[test]
+fn t45a_rlin_stmt_lift_equals_dense_assembly() {
+    use hachi::params::Z_DIGITS;
+    for &(md, id, zd) in &[(GADGET_DIGITS, GADGET_DIGITS, Z_DIGITS), (2usize, 2usize, 3usize)] {
+        let mut r = Lcg::new(0x7450_0100 + md as u64);
+        let (blocks, message_rows, inner_rows) = (2usize, 1usize, 1usize);
+        let cw = hachi::quadeval::rlin_cw(blocks, md);
+        let ct = hachi::quadeval::rlin_ct(blocks, inner_rows, id);
+        let pp = hachi::quadeval::PublicParamsD::new(
+            hachi::commit::PublicParams::new(
+                r.next_poly_matrix(inner_rows, message_rows * md),
+                r.next_poly_matrix(1, ct),
+            ),
+            r.next_poly_matrix(1, cw),
+        );
+        let stmt = hachi::quadeval::QuadEvalStatement::new(
+            r.next_poly_vec(1),
+            r.next_poly_vec(message_rows),
+            r.next_poly_vec(blocks),
+            r.next_rq(),
+        );
+        let v = r.next_poly_vec(1);
+        let c = r.next_poly_vec(blocks);
+        let lazy = hachi::quadeval::rlin_stmt(
+            &pp, &stmt, &v, &c, CHAIN_GAMMA, blocks, message_rows, md, inner_rows, id, zd,
+        );
+        let rows: Vec<PolyVec> = (0..lazy.m().rows()).map(|i| rlin_row(lazy.m(), i)).collect();
+        let dense = RlinStatement::new(
+            hachi::linalg::PolyMatrix::new(rows),
+            lazy.yvec().copy(),
+            CHAIN_GAMMA,
+        );
+        let z = r.next_poly_vec(lazy.m().cols());
+        let wl = honest_lift_witness(&lazy, &z);
+        let wd = honest_lift_witness(&dense, &z);
+        assert_eq!(wl.rho().len(), wd.rho().len());
+        for i in 0..wl.rho().len() {
+            assert!(wl.rho()[i].to_rq().equals(&wd.rho()[i].to_rq()),
+                    "digits ({md},{id},{zd}): lift row {i}");
+        }
+    }
+}

@@ -1668,6 +1668,31 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.LiftProver.divByMonic_of_high
 #print axioms HachiEquiv.LiftProver.long_mul_high_spec
 #print axioms HachiEquiv.LiftProver.c_row_sum_high_spec
+-- Card T45a (Stage 6) -- gadget contraction in the high-half row sum.
+-- `c_row_sum_high` dispatches on the representation: a dense matrix gets
+-- `band_high` over the whole row, a lazy one is walked band by band and every
+-- gadget group that passes the run-time check `group_is_scaled` costs one
+-- product against the recomposed witness digits. The headline above is
+-- byte-identical; the identity is bilinearity of the unreduced product
+-- (`sum_coeff_contract`), and no hypothesis about the blocks' contents is made.
+#print axioms HachiEquiv.LiftGadget.sum_coeff_contract
+#print axioms HachiEquiv.LiftGadget.coeff_mul_sum_right
+#print axioms HachiEquiv.LiftGadget.highSum_contract
+#print axioms HachiEquiv.LiftGadget.highSum_zero_group
+#print axioms HachiEquiv.LiftGadget.blocks_row_split
+#print axioms HachiEquiv.LiftGadget.bandSum_eq
+#print axioms HachiEquiv.LiftGadget.bandSum_zero
+#print axioms HachiEquiv.LiftGadget.group_is_scaled_spec
+#print axioms HachiEquiv.LiftGadget.recompose_spec
+#print axioms HachiEquiv.LiftGadget.gadget_weights_spec
+#print axioms HachiEquiv.LiftGadget.jt_gadget_weights_spec
+#print axioms HachiEquiv.LiftGadget.high_zeros_spec
+#print axioms HachiEquiv.LiftProver.add_high_into_spec
+#print axioms HachiEquiv.LiftProver.band_high_spec
+#print axioms HachiEquiv.LiftProver.group_high_loop_spec
+#print axioms HachiEquiv.LiftProver.group_high_spec
+#print axioms HachiEquiv.LiftProver.c_row_sum_high_lazy_spec
+#print axioms HachiEquiv.LiftProver.c_row_sum_high_rlin_spec
 #print axioms HachiEquiv.LiftProver.c_quotient_copy_loop_spec
 #print axioms HachiEquiv.LiftProver.honest_lift_witness_spec
 

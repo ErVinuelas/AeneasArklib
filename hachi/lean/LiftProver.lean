@@ -30,6 +30,7 @@ ArkLib one, exactly as `h_alpha_spec` takes it.
 It imports only promoted files, so it needs no `LEAN_PATH` detour.
 -/
 import ZeroCheck
+import LiftGadget
 import CompPoly.Univariate.Raw.Division
 
 set_option autoImplicit false
@@ -666,7 +667,415 @@ theorem long_mul_high_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
   refine ⟨⟨hzl, hzr⟩, fun s hs => ?_⟩
   rw [hzc s hs, coeff_toRq_mul_unreduced a b ha hb (N + s)]
 
-/-! ### `c_row_sum_high` -/
+/-! ### `c_row_sum_high` (card T45a)
+
+Since card T45a `c_row_sum_high` dispatches on the matrix's representation. A
+dense matrix gets `band_high` over its whole row -- the per-entry walk the
+function was before -- and a lazy one gets `c_row_sum_high_lazy`, which walks
+the row band by band and contracts every group of a gadget band that passes
+the run-time check `group_is_scaled`. The accumulators all hold `highSum`
+(`LiftGadget.lean`) over the columns walked so far; a contracted group is
+`highSum_contract`, which is bilinearity of the unreduced product and nothing
+else. No hypothesis about the blocks' contents is made anywhere: a group that
+fails the check is walked entry by entry, and one that passes contributes what
+its entries would have. -/
+
+open HachiEquiv.LiftGadget
+
+/-- `add_high_into`'s loop: slots below `t` already hold `acc₀[s] + prod[s]`. -/
+theorem add_high_into_loop_spec (n : Std.Usize) (hn : n.val = N)
+    (acc0 acc prod : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize)
+    (hal : acc.val.length = N - 1) (har : ∀ x ∈ acc.val, Red x)
+    (hpl : prod.val.length = N - 1) (hpr : ∀ x ∈ prod.val, Red x)
+    (ht : t.val ≤ N - 1)
+    (hbase : ∀ s, s < N - 1 →
+      coeffK acc s = coeffK acc0 s + (if s < t.val then coeffK prod s else 0)) :
+    ringswitch.add_high_into_loop acc prod n t
+      ⦃ z => WfWords (N - 1) z ∧
+        ∀ s, s < N - 1 → coeffK z s = coeffK acc0 s + coeffK prod s ⦄ := by
+  rw [ringswitch.add_high_into_loop]
+  apply loop.spec_decr_nat
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => N - 1 - st.2.val)
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => st.2.val ≤ N - 1 ∧
+      st.1.val.length = N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
+      ∀ s, s < N - 1 →
+        coeffK st.1 s = coeffK acc0 s + (if s < st.2.val then coeffK prod s else 0))
+  · rintro ⟨a1, t1⟩ ⟨ht1, hl1, hr1, hc1⟩
+    dsimp only at ht1 hl1 hr1 hc1
+    simp only [ringswitch.add_high_into_loop.body]
+    step as ⟨nm1, hnm1⟩
+    have hnm1v : nm1.val = N - 1 := by rw [hnm1, hn]
+    by_cases hlt : t1 < nm1
+    · rw [if_pos hlt]
+      have ht1b : t1.val < N - 1 := by scalar_tac
+      have hta : t1.val < a1.val.length := by rw [hl1]; omega
+      have htp : t1.val < prod.val.length := by rw [hpl]; omega
+      step as ⟨fa, hfa⟩
+      have hRfa : Red fa := by rw [hfa]; exact hr1 _ (List.getElem_mem hta)
+      step as ⟨fp, hfp⟩
+      have hRfp : Red fp := by rw [hfp]; exact hpr _ (List.getElem_mem htp)
+      step with HachiEquiv.Field.fp_add_spec fa fp hRfa hRfp as ⟨f2, hRf2, hf2⟩
+      step as ⟨xa, backa, hxa, hbacka⟩
+      step as ⟨t2, ht2⟩
+      have hwset : (backa f2).val = a1.val.set t1.val f2 := by rw [hbacka]; simp
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [hwset, List.length_set, hl1]
+      · exact Red_set hwset hr1 hRf2
+      · intro s hs
+        by_cases hsq : s = t1.val
+        · subst hsq
+          rw [coeffK_set_eq hwset hta, hf2, hfa, hfp, ← coeffK_of_lt hta,
+            ← coeffK_of_lt htp, hc1 t1.val hs, ht2, if_neg (by omega), if_pos (by omega),
+            add_zero]
+        · rw [coeffK_set_ne hwset hsq, hc1 s hs, ht2]
+          congr 1
+          by_cases hsl : s < t1.val
+          · rw [if_pos hsl, if_pos (by omega)]
+          · rw [if_neg hsl, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : t1.val = N - 1 := by scalar_tac
+      refine ⟨⟨hl1, hr1⟩, ?_⟩
+      intro s hs
+      rw [hc1 s hs, heq, if_pos hs]
+  · exact ⟨ht, hal, har, hbase⟩
+
+/-- **`add_high_into` adds two high halves**, slot by slot. -/
+theorem add_high_into_spec (acc prod : alloc.vec.Vec cpoly.field.Fp)
+    (ha : WfWords (N - 1) acc) (hp : WfWords (N - 1) prod) :
+    ringswitch.add_high_into acc prod
+      ⦃ z => WfWords (N - 1) z ∧
+        ∀ s, s < N - 1 → coeffK z s = coeffK acc s + coeffK prod s ⦄ := by
+  rw [ringswitch.add_high_into]
+  exact add_high_into_loop_spec params.RING_DEGREE params_RING_DEGREE_val acc acc prod
+    0#usize ha.1 ha.2 hp.1 hp.2 (by simp) (by intro s _; simp)
+
+/-- `band_high`'s loop: after column `j` the accumulator has gained
+`highSum` over `[lo, j)`. -/
+theorem band_high_loop_spec {kb kz : ℕ} (blk z : linalg.PolyVec) (hblk : WfVec kb blk)
+    (hz : WfVec kz z) (hi zoff : Std.Usize) (lo : ℕ) (hhi : hi.val ≤ kb)
+    (hzoff : zoff.val + hi.val ≤ kz) (acc0 acc : alloc.vec.Vec cpoly.field.Fp)
+    (j : Std.Usize) (hlo : lo ≤ j.val) (hj : j.val ≤ hi.val) (hacc : WfWords (N - 1) acc)
+    (hval : ∀ t, t < N - 1 →
+      coeffK acc t = coeffK acc0 t + highSum blk z zoff.val lo j.val t) :
+    ringswitch.band_high_loop acc blk hi z zoff j
+      ⦃ out => WfWords (N - 1) out ∧ ∀ t, t < N - 1 →
+          coeffK out t = coeffK acc0 t + highSum blk z zoff.val lo hi.val t ⦄ := by
+  rw [ringswitch.band_high_loop]
+  apply loop.spec_decr_nat
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => hi.val - st.2.val)
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => lo ≤ st.2.val ∧
+      st.2.val ≤ hi.val ∧ WfWords (N - 1) st.1 ∧ ∀ t, t < N - 1 →
+        coeffK st.1 t = coeffK acc0 t + highSum blk z zoff.val lo st.2.val t)
+  · rintro ⟨a1, j1⟩ ⟨hlo1, hj1, hW1, hv1⟩
+    dsimp only at hlo1 hj1 hW1 hv1
+    simp only [ringswitch.band_high_loop.body]
+    by_cases hlt : j1 < hi
+    · rw [if_pos hlt]
+      have hj1b : j1.val < kb := by scalar_tac
+      step with poly_vec_get_spec (k := kb) blk hblk j1 hj1b as ⟨e, hWe, he⟩
+      step with RqBridge.is_zero_spec e hWe as ⟨bz, hbz⟩
+      by_cases hzero : bz = true
+      · rw [if_pos hzero]
+        simp only [bind_tc_ok]
+        step as ⟨j2, hj2⟩
+        refine ⟨by scalar_tac, by scalar_tac, hW1, ?_, by scalar_tac⟩
+        intro t ht
+        have h0 : vecAt blk j1.val = 0 := by rw [← he]; exact hbz.1 hzero
+        rw [hv1 t ht, hj2, highSum_succ _ _ _ _ _ _ hlo1, h0, Rq.zero_val, zero_mul,
+          CPolynomial.coeff_zero, add_zero]
+      · rw [if_neg hzero]
+        have hkz : kz ≤ Usize.max := by rw [← hz.1]; exact z.property
+        step as ⟨iz, hiz⟩
+        step with poly_vec_get_spec (k := kz) z hz iz (by scalar_tac) as ⟨zj, hWzj, hzj⟩
+        step with long_mul_high_spec e zj hWe hWzj as ⟨prod, hWp, hp⟩
+        step with add_high_into_spec a1 prod hW1 hWp as ⟨a2, hW2, ha2⟩
+        step as ⟨j2, hj2⟩
+        refine ⟨by scalar_tac, by scalar_tac, hW2, ?_, by scalar_tac⟩
+        intro t ht
+        rw [ha2 t ht, hv1 t ht, hj2, highSum_succ _ _ _ _ _ _ hlo1, hp t ht, he, hzj, hiz,
+          add_assoc]
+    · rw [if_neg hlt, WP.spec_ok]
+      have heq : j1.val = hi.val := by scalar_tac
+      exact ⟨hW1, fun t ht => by rw [hv1 t ht, heq]⟩
+  · exact ⟨hlo, hj, hacc, hval⟩
+
+/-- **`band_high` is the per-entry walk over `[lo, hi)`**: the accumulator gains
+coefficient `N + t` of `Σ_{lo ≤ j < hi} blk[j] · z[zoff + j]`. Zero entries are
+skipped, which is `0 · z = 0`. -/
+theorem band_high_spec {kb kz : ℕ} (acc : alloc.vec.Vec cpoly.field.Fp)
+    (blk : linalg.PolyVec) (lo hi : Std.Usize) (z : linalg.PolyVec) (zoff : Std.Usize)
+    (hblk : WfVec kb blk) (hz : WfVec kz z) (hlo : lo.val ≤ hi.val) (hhi : hi.val ≤ kb)
+    (hzoff : zoff.val + hi.val ≤ kz) (hacc : WfWords (N - 1) acc) :
+    ringswitch.band_high acc blk lo hi z zoff
+      ⦃ out => WfWords (N - 1) out ∧ ∀ t, t < N - 1 →
+          coeffK out t = coeffK acc t + highSum blk z zoff.val lo.val hi.val t ⦄ := by
+  rw [ringswitch.band_high]
+  exact band_high_loop_spec blk z hblk hz hi zoff lo.val hhi hzoff acc acc lo le_rfl hlo hacc
+    (fun t _ => by rw [highSum_self, add_zero])
+
+/-- `group_high`'s loop: after the whole groups below `base` the accumulator has
+gained `highSum` over `[0, base)`, whichever way each group was paid for. -/
+theorem group_high_loop_spec {kb kz : ℕ} (blk z : linalg.PolyVec) (hblk : WfVec kb blk)
+    (hz : WfVec kz z) (len gsize zoff : Std.Usize) (w : alloc.vec.Vec cpoly.field.Fp)
+    (hlen : len.val ≤ kb) (hzoff : zoff.val + len.val ≤ kz) (hg : 0 < gsize.val)
+    (hw : WfWeights gsize.val w) (acc0 acc : alloc.vec.Vec cpoly.field.Fp)
+    (base : Std.Usize) (hbase : base.val ≤ len.val) (hacc : WfWords (N - 1) acc)
+    (hval : ∀ t, t < N - 1 →
+      coeffK acc t = coeffK acc0 t + highSum blk z zoff.val 0 base.val t) :
+    ringswitch.group_high_loop acc blk len gsize w z zoff base
+      ⦃ res => WfWords (N - 1) res.1 ∧ res.2.val ≤ len.val ∧ ∀ t, t < N - 1 →
+          coeffK res.1 t = coeffK acc0 t + highSum blk z zoff.val 0 res.2.val t ⦄ := by
+  have hkb : kb ≤ Usize.max := by rw [← hblk.1]; exact blk.property
+  have hkz : kz ≤ Usize.max := by rw [← hz.1]; exact z.property
+  rw [ringswitch.group_high_loop]
+  apply loop.spec_decr_nat
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => len.val - st.2.val)
+    (fun (st : alloc.vec.Vec cpoly.field.Fp × Std.Usize) => st.2.val ≤ len.val ∧
+      WfWords (N - 1) st.1 ∧ ∀ t, t < N - 1 →
+        coeffK st.1 t = coeffK acc0 t + highSum blk z zoff.val 0 st.2.val t)
+  · rintro ⟨a1, b1⟩ ⟨hb1, hW1, hv1⟩
+    dsimp only at hb1 hW1 hv1
+    simp only [ringswitch.group_high_loop.body]
+    step as ⟨rest, hrest⟩
+    by_cases hle : gsize ≤ rest
+    · rw [if_pos hle]
+      have hgb : b1.val + gsize.val ≤ len.val := by scalar_tac
+      step with group_is_scaled_spec (kb := kb) blk hblk b1 gsize w hw (by omega) (by omega)
+        as ⟨sc, hsc⟩
+      have hnext : ∀ t, t < N - 1 →
+          highSum blk z zoff.val 0 b1.val t
+            + highSum blk z zoff.val b1.val (b1.val + gsize.val) t
+          = highSum blk z zoff.val 0 (b1.val + gsize.val) t :=
+        fun t _ => highSum_consecutive _ _ _ _ _ _ _ (Nat.zero_le _) (by omega)
+      by_cases hs : sc = true
+      · rw [if_pos hs]
+        have hsc' := hsc hs
+        step with poly_vec_get_spec (k := kb) blk hblk b1 (by omega) as ⟨f, hWf, hf⟩
+        step with RqBridge.is_zero_spec f hWf as ⟨bz, hbz⟩
+        by_cases hzero : bz = true
+        · rw [if_pos hzero]
+          simp only [bind_tc_ok]
+          step as ⟨b2, hb2⟩
+          refine ⟨by scalar_tac, hW1, ?_, by scalar_tac⟩
+          intro t ht
+          have h0 : vecAt blk b1.val = 0 := by rw [← hf]; exact hbz.1 hzero
+          rw [hv1 t ht, hb2, ← hnext t ht,
+            highSum_zero_group blk z zoff.val b1.val gsize.val t (wAt w) hsc' h0, add_zero]
+        · rw [if_neg hzero]
+          step as ⟨i1, hi1⟩
+          step with recompose_spec (kz := kz) z hz i1 gsize w hw (by scalar_tac)
+            as ⟨r, hWr, hr⟩
+          step with long_mul_high_spec f r hWf hWr as ⟨prod, hWp, hp⟩
+          step with add_high_into_spec a1 prod hW1 hWp as ⟨a2, hW2, ha2⟩
+          step as ⟨b2, hb2⟩
+          refine ⟨by scalar_tac, hW2, ?_, by scalar_tac⟩
+          intro t ht
+          rw [ha2 t ht, hv1 t ht, hb2, ← hnext t ht,
+            highSum_contract blk z zoff.val b1.val gsize.val t (wAt w) hsc', hp t ht, hf, hr,
+            hi1, add_assoc]
+      · rw [if_neg hs]
+        step as ⟨i1, hi1⟩
+        step with band_high_spec (kb := kb) (kz := kz) a1 blk b1 i1 z zoff hblk hz
+          (by scalar_tac) (by scalar_tac) (by scalar_tac) hW1 as ⟨a2, hW2, ha2⟩
+        step as ⟨b2, hb2⟩
+        refine ⟨by scalar_tac, hW2, ?_, by scalar_tac⟩
+        intro t ht
+        rw [ha2 t ht, hv1 t ht, hb2, ← hnext t ht, hi1, add_assoc]
+    · rw [if_neg hle, WP.spec_ok]
+      exact ⟨hW1, hb1, hv1⟩
+  · exact ⟨hbase, hacc, hval⟩
+
+/-- **`group_high` is the per-entry walk over `[0, len)`**, whatever the block
+holds: a whole group that passes `group_is_scaled` is paid with one product
+(`highSum_contract`), or none if its leader is zero (`highSum_zero_group`); a
+group that fails, and the trailing partial group, go through `band_high`. -/
+theorem group_high_spec {kb kz : ℕ} (acc : alloc.vec.Vec cpoly.field.Fp)
+    (blk : linalg.PolyVec) (len gsize : Std.Usize) (w : alloc.vec.Vec cpoly.field.Fp)
+    (z : linalg.PolyVec) (zoff : Std.Usize)
+    (hblk : WfVec kb blk) (hz : WfVec kz z) (hlen : len.val ≤ kb)
+    (hzoff : zoff.val + len.val ≤ kz) (hg : 0 < gsize.val) (hw : WfWeights gsize.val w)
+    (hacc : WfWords (N - 1) acc) :
+    ringswitch.group_high acc blk len gsize w z zoff
+      ⦃ out => WfWords (N - 1) out ∧ ∀ t, t < N - 1 →
+          coeffK out t = coeffK acc t + highSum blk z zoff.val 0 len.val t ⦄ := by
+  rw [ringswitch.group_high]
+  step with group_high_loop_spec (kb := kb) (kz := kz) blk z hblk hz len gsize zoff w hlen
+    hzoff hg hw acc acc 0#usize (by simp) hacc
+    (fun t _ => by rw [show ((0#usize : Std.Usize).val) = 0 from rfl, highSum_self, add_zero])
+    as ⟨a1, b1, hW1, hb1, hv1⟩
+  apply spec_mono (band_high_spec (kb := kb) (kz := kz) a1 blk b1 len z zoff hblk hz hb1
+    hlen hzoff hW1)
+  rintro out ⟨hW, hv⟩
+  refine ⟨hW, fun t ht => ?_⟩
+  rw [hv t ht, hv1 t ht, add_assoc,
+    highSum_consecutive _ _ _ _ _ _ _ (Nat.zero_le _) hb1]
+
+/-- What `high_zeros` hands the walks: a well-formed accumulator reading `0`. -/
+theorem high_zeros_facts {acc : alloc.vec.Vec cpoly.field.Fp}
+    (h : acc.val = List.replicate (N - 1) cpoly.field.Fp.ZERO) :
+    WfWords (N - 1) acc ∧ ∀ t, t < N - 1 → coeffK acc t = 0 := by
+  refine ⟨⟨by rw [h, List.length_replicate], fun x hx => ?_⟩, fun t ht => ?_⟩
+  · rw [h] at hx
+    rw [List.eq_of_mem_replicate hx]
+    exact Red_zero
+  · unfold coeffK
+    rw [h, List.getD_eq_getElem _ _ (by rw [List.length_replicate]; omega),
+      List.getElem_replicate]
+    simp [toK, cpoly.field.Fp.ZERO]
+
+/-- **The lazy row walk is the row's high half**: for every well-formed block
+set, whatever the blocks hold, `c_row_sum_high_lazy` returns coefficient
+`N + t` of `Σ_j blocksAt(i, j) · z_j`. The row is cut into its three column
+bands (`blocks_row_split`); on each of the five row shapes every band is
+either a zero band or one block's row, and the walks over the non-zero ones
+are `band_high_spec` and `group_high_spec`. -/
+theorem c_row_sum_high_lazy_spec {n μ : ℕ} (b : ringswitch.RlinBlocks)
+    (hb : WfRlinBlocks n μ b) (z : linalg.PolyVec) (hz : WfVec μ z) (i : Std.Usize)
+    (hi : i.val < n) :
+    ringswitch.c_row_sum_high_lazy b z i
+      ⦃ out => WfWords (N - 1) out ∧ ∀ t, t < N - 1 → coeffK out t
+          = ∑ j ∈ Finset.range μ, ((blocksAt b i.val j).1 * (vecAt z j).1).coeff (N + t) ⦄ := by
+  obtain ⟨hD, hB, hgb, hgc, hga, hT, hA, -, -, hn, hμ, hnmax, hμmax⟩ := hb
+  have h8 : (params.GADGET_DIGITS).val = 8 := by simp [params.GADGET_DIGITS]
+  have h5 : (params.Z_DIGITS).val = 5 := by simp [params.Z_DIGITS]
+  have hz0 : ((0#usize : Std.Usize)).val = 0 := rfl
+  rw [ringswitch.c_row_sum_high_lazy]
+  step as ⟨gz, hgz⟩
+  step with gadget_weights_spec params.GADGET_DIGITS as ⟨gw, hgwl, hgwr, _hgwv⟩
+  step with gadget_weights_spec params.Z_DIGITS as ⟨zw, hzwl, hzwr, _hzwv⟩
+  step with jt_gadget_weights_spec as ⟨jw, hjwl, hjwr⟩
+  step with high_zeros_spec as ⟨acc, hacc⟩
+  obtain ⟨hWacc, hacc0⟩ := high_zeros_facts hacc
+  have hgw : WfWeights (params.GADGET_DIGITS).val gw := WfWeights_of_table hgwl hgwr
+  have hzw : WfWeights (params.Z_DIGITS).val zw := WfWeights_of_table hzwl hzwr
+  have hgzv : gz.val = 40 := by rw [hgz, h8, h5]
+  have hjw : WfWeights gz.val jw := WfWeights_of_table (by rw [hjwl, hgzv]) hjwr
+  have hsplit : ∀ t, ∑ j ∈ Finset.range μ, ((blocksAt b i.val j).1 * (vecAt z j).1).coeff (N + t)
+      = bandSum b i.val z 0 b.cw.val t + bandSum b i.val z b.cw.val b.ct.val t
+        + bandSum b i.val z (b.cw.val + b.ct.val) b.cz.val t := by
+    intro t
+    rw [← hμ]
+    exact blocks_row_split _ _ _ _ _ _ _
+  by_cases h1 : i < b.d_rows
+  · -- c1: `[ D | 0 | 0 ]`, per entry over `ŵ`.
+    have h1' : i.val < b.d_rows.val := by scalar_tac
+    rw [if_pos h1]
+    step with poly_matrix_row_spec (rows := b.d_rows.val) (cols := b.cw.val) b.d hD i h1'
+      as ⟨pv, hWpv, hpv⟩
+    apply spec_mono (band_high_spec (kb := b.cw.val) (kz := μ) acc pv 0#usize b.cw z 0#usize
+      hWpv hz (by simp) le_rfl (by rw [hz0]; omega) hWacc)
+    rintro out ⟨hW, hv⟩
+    refine ⟨hW, fun t ht => ?_⟩
+    rw [hv t ht, hacc0 t ht, zero_add, hsplit t, hz0,
+      bandSum_eq b i.val z 0 b.cw.val t pv (fun j hj => by
+        rw [blocksAt_d h1', if_pos (by omega), hpv, zero_add]; rfl),
+      bandSum_zero b i.val z _ _ t (fun j hj => by rw [blocksAt_d h1', if_neg (by omega)]),
+      bandSum_zero b i.val z _ _ t (fun j hj => by rw [blocksAt_d h1', if_neg (by omega)]),
+      add_zero, add_zero]
+  · have h1' : ¬ i.val < b.d_rows.val := by scalar_tac
+    rw [if_neg h1]
+    step as ⟨i1, hi1⟩
+    by_cases h2 : i < i1
+    · -- c2: `[ 0 | B | 0 ]`, per entry over `t̂`.
+      have h2' : i.val < b.d_rows.val + b.b_rows.val := by scalar_tac
+      rw [if_pos h2]
+      step as ⟨i2, hi2⟩
+      step with poly_matrix_row_spec (rows := b.b_rows.val) (cols := b.ct.val) b.bmat hB i2
+        (by scalar_tac) as ⟨pv, hWpv, hpv⟩
+      apply spec_mono (band_high_spec (kb := b.ct.val) (kz := μ) acc pv 0#usize b.ct z b.cw
+        hWpv hz (by simp) le_rfl (by omega) hWacc)
+      rintro out ⟨hW, hv⟩
+      refine ⟨hW, fun t ht => ?_⟩
+      rw [hv t ht, hacc0 t ht, zero_add, hsplit t, hz0,
+        bandSum_zero b i.val z _ _ t (fun j hj => by
+          rw [blocksAt_b h1' h2', if_pos (by omega)]),
+        bandSum_eq b i.val z b.cw.val b.ct.val t pv (fun j hj => by
+          rw [blocksAt_b h1' h2', if_neg (by omega), if_pos (by omega), hpv, hi2,
+            Nat.add_sub_cancel_left]; rfl),
+        bandSum_zero b i.val z _ _ t (fun j hj => by
+          rw [blocksAt_b h1' h2', if_neg (by omega), if_neg (by omega)]),
+        zero_add, add_zero]
+    · have h2' : ¬ i.val < b.d_rows.val + b.b_rows.val := by scalar_tac
+      rw [if_neg h2]
+      by_cases h3 : i = i1
+      · -- c3: `[ Gᵀb | 0 | 0 ]`, contracted over `ŵ`.
+        have h3' : i.val = b.d_rows.val + b.b_rows.val := by rw [h3]; scalar_tac
+        rw [if_pos h3]
+        apply spec_mono (group_high_spec (kb := b.cw.val) (kz := μ) acc b.g_b b.cw
+          params.GADGET_DIGITS gw z 0#usize hgb hz le_rfl (by rw [hz0]; omega)
+          (by rw [h8]; norm_num) hgw hWacc)
+        rintro out ⟨hW, hv⟩
+        refine ⟨hW, fun t ht => ?_⟩
+        rw [hv t ht, hacc0 t ht, zero_add, hsplit t, hz0,
+          bandSum_eq b i.val z 0 b.cw.val t b.g_b (fun j hj => by
+            rw [blocksAt_gb h3', if_pos (by omega), zero_add]),
+          bandSum_zero b i.val z _ _ t (fun j hj => by rw [blocksAt_gb h3', if_neg (by omega)]),
+          bandSum_zero b i.val z _ _ t (fun j hj => by rw [blocksAt_gb h3', if_neg (by omega)]),
+          add_zero, add_zero]
+      · have h3' : i.val ≠ b.d_rows.val + b.b_rows.val := by
+          intro hc; exact h3 (by scalar_tac)
+        rw [if_neg h3]
+        step as ⟨i2, hi2⟩
+        by_cases h4 : i = i2
+        · -- c4: `[ Gᵀc | 0 | −Jᵀ(Gᵀa) ]`, contracted over `ŵ` and `ẑ`.
+          have h4' : i.val = b.d_rows.val + b.b_rows.val + 1 := by rw [h4]; scalar_tac
+          rw [if_pos h4]
+          step with group_high_spec (kb := b.cw.val) (kz := μ) acc b.g_c b.cw
+            params.GADGET_DIGITS gw z 0#usize hgc hz le_rfl (by rw [hz0]; omega)
+            (by rw [h8]; norm_num) hgw hWacc as ⟨acc1, hW1, hv1⟩
+          step as ⟨off, hoff⟩
+          apply spec_mono (group_high_spec (kb := b.cz.val) (kz := μ) acc1 b.neg_jt_g_a b.cz
+            gz jw z off hga hz le_rfl (by omega) (by rw [hgzv]; norm_num) hjw hW1)
+          rintro out ⟨hW, hv⟩
+          refine ⟨hW, fun t ht => ?_⟩
+          rw [hv t ht, hv1 t ht, hacc0 t ht, zero_add, hsplit t, hoff,
+            bandSum_eq b i.val z 0 b.cw.val t b.g_c (fun j hj => by
+              rw [blocksAt_gc h4', if_pos (by omega), zero_add]),
+            bandSum_zero b i.val z _ _ t (fun j hj => by
+              rw [blocksAt_gc h4', if_neg (by omega), if_pos (by omega)]),
+            bandSum_eq b i.val z (b.cw.val + b.ct.val) b.cz.val t b.neg_jt_g_a (fun j hj => by
+              rw [blocksAt_gc h4', if_neg (by omega), if_neg (by omega),
+                show b.cw.val + b.ct.val + j - b.cw.val - b.ct.val = j by omega]),
+            add_zero]
+        · -- c5: `[ 0 | cᵀ ⊗ G | −(AJ) ]`, contracted over `t̂` and `ẑ`.
+          have h4' : i.val ≠ b.d_rows.val + b.b_rows.val + 1 := by
+            intro hc; exact h4 (by scalar_tac)
+          rw [if_neg h4]
+          step as ⟨i3, hi3⟩
+          step as ⟨i4, hi4⟩
+          step as ⟨p, hp⟩
+          have hpv' : p.val = i.val - b.d_rows.val - b.b_rows.val - 2 := by scalar_tac
+          have hplt : p.val < b.t_rows.val := by omega
+          step with poly_matrix_row_spec (rows := b.t_rows.val) (cols := b.ct.val) b.tensor hT
+            p hplt as ⟨pv, hWpv, hpv⟩
+          step with group_high_spec (kb := b.ct.val) (kz := μ) acc pv b.ct
+            params.GADGET_DIGITS gw z b.cw hWpv hz le_rfl (by omega)
+            (by rw [h8]; norm_num) hgw hWacc as ⟨acc1, hW1, hv1⟩
+          step as ⟨off, hoff⟩
+          step with poly_matrix_row_spec (rows := b.t_rows.val) (cols := b.cz.val) b.neg_aj hA
+            p hplt as ⟨pv1, hWpv1, hpv1⟩
+          apply spec_mono (group_high_spec (kb := b.cz.val) (kz := μ) acc1 pv1 b.cz
+            params.Z_DIGITS zw z off hWpv1 hz le_rfl (by omega) (by rw [h5]; norm_num) hzw hW1)
+          rintro out ⟨hW, hv⟩
+          refine ⟨hW, fun t ht => ?_⟩
+          rw [hv t ht, hv1 t ht, hacc0 t ht, zero_add, hsplit t, hoff,
+            bandSum_zero b i.val z _ _ t (fun j hj => by
+              rw [blocksAt_t h2' h3' h4', if_pos (by omega)]),
+            bandSum_eq b i.val z b.cw.val b.ct.val t pv (fun j hj => by
+              rw [blocksAt_t h2' h3' h4', if_neg (by omega), if_pos (by omega), hpv, hpv',
+                Nat.add_sub_cancel_left]; rfl),
+            bandSum_eq b i.val z (b.cw.val + b.ct.val) b.cz.val t pv1 (fun j hj => by
+              rw [blocksAt_t h2' h3' h4', if_neg (by omega), if_neg (by omega), hpv1, hpv',
+                show b.cw.val + b.ct.val + j - b.cw.val - b.ct.val = j by omega]; rfl),
+            zero_add]
+
+/-! #### The dense arm
+
+Card T45a keeps the dense arm's body inline in the `match` (routing it through
+`band_high` cost both paths 17-22% at the bench: `band_high` stopped being
+inlined), so the three loops below are the pre-T45a ones, extracted
+byte-identically, and so are their specs. -/
 
 /-- The zero-fill of `c_row_sum_high`: `N − 1` zero words. -/
 theorem c_row_sum_high_zero_loop_spec (n : Std.Usize) (hn : n.val = N)
@@ -821,6 +1230,42 @@ theorem c_row_sum_high_col_loop_spec {nr μ : ℕ} (s : ringswitch.RlinStatement
       exact ⟨⟨hl1, hr1⟩, fun w hw => by rw [hc1 w hw, heq]⟩
   · exact ⟨hj, hal, har, hbase⟩
 
+/-- `c_row_sum_high` against the entry function `rlinAt`, in either
+representation: the dense arm is `band_high` over the whole row, the lazy arm
+`c_row_sum_high_lazy_spec`. -/
+theorem c_row_sum_high_rlin_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
+    (z : linalg.PolyVec) (i : Std.Usize) (hWm : WfRlinMat n μ s.m) (hz : WfVec μ z)
+    (hi : i.val < n) :
+    ringswitch.c_row_sum_high s z i
+      ⦃ out => WfWords (N - 1) out ∧ ∀ t, t < N - 1 → coeffK out t
+          = ∑ j ∈ Finset.range μ, ((rlinAt s.m i.val j).1 * (vecAt z j).1).coeff (N + t) ⦄ := by
+  have hz0 : ((0#usize : Std.Usize)).val = 0 := rfl
+  rw [ringswitch.c_row_sum_high]
+  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
+  rcases hsm : s.m with a | b
+  · -- Dense: the pre-T45a per-entry walk, inline in the match arm.
+    have hWm' := hWm
+    rw [hsm] at hWm'
+    step with ZeroCheck.rlin_cols_spec (n := n) (μ := μ) (ringswitch.RlinMat.Dense a) hWm'
+      (by omega) as ⟨cols, hcols⟩
+    step with c_row_sum_high_zero_loop_spec params.RING_DEGREE params_RING_DEGREE_val
+      (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (by simp) (by simp) as ⟨acc, hacc⟩
+    obtain ⟨hWacc, hacc0⟩ := high_zeros_facts hacc
+    apply spec_mono (c_row_sum_high_col_loop_spec (nr := n) (μ := μ) s z i
+      params.RING_DEGREE cols hWm hi params_RING_DEGREE_val hcols hz acc 0#usize hWacc.1
+      hWacc.2 (by simp)
+      (by
+        intro t ht
+        rw [hacc0 t ht, show ((0#usize : Std.Usize).val) = 0 from rfl, Finset.range_zero,
+          Finset.sum_empty, CPolynomial.coeff_zero]))
+    rintro out ⟨hW, hv⟩
+    refine ⟨hW, fun t ht => ?_⟩
+    rw [hv t ht, cpoly_coeff_sum, hsm]
+    rfl
+  · -- Lazy: band by band, with the gadget groups contracted.
+    rw [hsm] at hWm
+    exact c_row_sum_high_lazy_spec (n := n) (μ := μ) b hWm z hz i hi
+
 /-- **`c_row_sum_high` is `cRowSum`'s high half**: `N − 1` words, `out[s]` the
 coefficient `N + s`. -/
 theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : linalg.PolyVec)
@@ -830,42 +1275,17 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
       ⦃ out => WfWords (N - 1) out ∧
         ∀ t, t < N - 1 → coeffK out t
           = (InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩).coeff (N + t) ⦄ := by
-  obtain ⟨hWm, hWy, hmeq, hyeq, hbeq⟩ := hs
-  rw [ringswitch.c_row_sum_high]
-  simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
-  step with ZeroCheck.rlin_cols_spec (n := n) (μ := μ) s.m hWm (by omega) as ⟨cols, hcols⟩
-  step with c_row_sum_high_zero_loop_spec params.RING_DEGREE params_RING_DEGREE_val
-    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (by simp) (by simp) as ⟨acc, hacc⟩
-  have hal : acc.val.length = N - 1 := by rw [hacc, List.length_replicate]
-  have har : ∀ x ∈ acc.val, Red x := by
-    intro x hx
-    rw [hacc] at hx
-    rw [List.eq_of_mem_replicate hx]
-    exact Red_zero
-  apply spec_mono (c_row_sum_high_col_loop_spec (nr := n) (μ := μ) s z i
-    params.RING_DEGREE cols hWm hi params_RING_DEGREE_val hcols hz acc 0#usize hal har
-    (by simp)
-    (by
-      intro t ht
-      have : coeffK acc t = 0 := by
-        unfold coeffK
-        rw [hacc, List.getD_eq_getElem _ _ (by rw [List.length_replicate]; omega),
-          List.getElem_replicate]
-        simp [toK, cpoly.field.Fp.ZERO]
-      rw [this, show ((0#usize : Std.Usize).val) = 0 from rfl, Finset.range_zero,
-        Finset.sum_empty, CPolynomial.coeff_zero]))
-  rintro out ⟨hWout, hval⟩
-  have hsum : (∑ t ∈ Finset.range μ, (rlinAt s.m i.val t).1
-        * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1)
-      = InnerOuter.cRowSum Φ rs (toVec (k := μ) z) ⟨i.val, hi⟩ := by
-    rw [InnerOuter.cRowSum,
-      ← Fin.sum_univ_eq_sum_range (fun t => (rlinAt s.m i.val t).1
-          * (toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))).1) μ]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    have hentry : rs.M ⟨i.val, hi⟩ j = rlinAt s.m i.val j.val := by rw [← hmeq]; rfl
-    rw [hentry]
-    rfl
-  exact ⟨hWout, fun t ht => by rw [hval t ht, hsum]⟩
+  obtain ⟨hWm, -, hmeq, -, -⟩ := hs
+  apply spec_mono (c_row_sum_high_rlin_spec (n := n) (μ := μ) s z i hWm hz hi)
+  rintro out ⟨hW, hv⟩
+  refine ⟨hW, fun t ht => ?_⟩
+  rw [hv t ht, InnerOuter.cRowSum, cpoly_coeff_sum,
+    ← Fin.sum_univ_eq_sum_range
+      (fun j => ((rlinAt s.m i.val j).1 * (vecAt z j).1).coeff (N + t)) μ]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  have hentry : rs.M ⟨i.val, hi⟩ j = rlinAt s.m i.val j.val := by rw [← hmeq]; rfl
+  rw [hentry]
+  rfl
 
 /-! ### `div_by_modulus` -/
 

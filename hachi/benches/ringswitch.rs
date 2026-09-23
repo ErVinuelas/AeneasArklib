@@ -228,6 +228,22 @@ const LIFT_COMMIT_RHO_ROWS: usize = 1;
 /// carrying both (NOTES 2026-09-17).
 const LIFT_PROVER_COLS: usize = 28;
 
+/// The `R^lin` shape the `_rlin` lift rows are built at, through the real
+/// constructor `quadeval::rlin_stmt`: **REDUCED** from `(blocks, message_rows)
+/// = (1024, 1024)` to `(2, 2)`, at the **pinned** digit counts `(8, 8, 5)`, so
+/// `cw = ct = 16`, `cz = 80`, `112` columns. The band proportions are the
+/// pin's -- `1 : 1 : 5`, 42.86% of the entries non-zero -- and so is every
+/// gadget group, which is what card T45a contracts: the `_blocks` rows above
+/// are a dense `c1` row with no gadget band and read T45a as 0%.
+const LIFT_RLIN_BLOCKS: usize = 2;
+
+/// The message-row count of that shape; see [`LIFT_RLIN_BLOCKS`].
+const LIFT_RLIN_MESSAGE_ROWS: usize = 2;
+
+/// The column count the `_rlin` rows report as their parameter:
+/// `rlinCols` at [`LIFT_RLIN_BLOCKS`] and [`LIFT_RLIN_MESSAGE_ROWS`].
+const LIFT_RLIN_COLS: usize = 112;
+
 /// One body per case, instantiated once per variant crate. Writing the variants
 /// separately is how a benchmark quietly starts comparing two different
 /// computations; a macro makes that impossible.
@@ -609,6 +625,63 @@ macro_rules! define_cases {
                 )
             }
 
+            /// A REDUCED `R^lin` statement through the real constructor, at the
+            /// pinned digit counts: see [`LIFT_RLIN_BLOCKS`]. Uniform dense
+            /// public data, like the pin fixture's random `xl`/`xh` and keys.
+            fn statement_rlin(seed: u64, cols: usize) -> hc::ringswitch::RlinStatement {
+                let (blocks, mrows) = (crate::LIFT_RLIN_BLOCKS, crate::LIFT_RLIN_MESSAGE_ROWS);
+                let md = hc::params::GADGET_DIGITS;
+                let zd = hc::params::Z_DIGITS;
+                let cw = hc::quadeval::rlin_cw(blocks, md);
+                let ct = hc::quadeval::rlin_ct(blocks, 1, md);
+                let pp = hc::quadeval::PublicParamsD::new(
+                    hc::commit::PublicParams::new(
+                        matrix_of(seed, 1, mrows * md),
+                        matrix_of(seed.wrapping_add(0x10), 1, ct),
+                    ),
+                    matrix_of(seed.wrapping_add(0x20), 1, cw),
+                );
+                let stmt = hc::quadeval::QuadEvalStatement::new(
+                    vec_of(seed.wrapping_add(0x30), 1),
+                    vec_of(seed.wrapping_add(0x40), mrows),
+                    vec_of(seed.wrapping_add(0x50), blocks),
+                    vec_of(seed.wrapping_add(0x60), 1).get(0).copy(),
+                );
+                let v = vec_of(seed.wrapping_add(0x70), 1);
+                let c = vec_of(seed.wrapping_add(0x80), blocks);
+                let s = hc::quadeval::rlin_stmt(
+                    &pp, &stmt, &v, &c, hc::params::CHAIN_GAMMA,
+                    blocks, mrows, md, 1, md, zd,
+                );
+                assert_eq!(s.m().cols(), cols, "the _rlin rows run at rlinCols of their shape");
+                s
+            }
+
+            /// [`c_quotient`] on row 4 (`c5`, `[0 | cᵀ⊗G | −AJ]`) of a real
+            /// `R^lin`: the row card T45a contracts hardest (`−AJ`'s groups of
+            /// `τ = 5`).
+            pub fn c_quotient_rlin(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_rlin(0x8047_0000_0000_0200, cols);
+                let z = vec_of(0x8047_0000_0000_0210, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::c_quotient(black_box(&s), black_box(&z), black_box(4)),
+                    |r| d_rq(&r.to_rq()),
+                )
+            }
+
+            /// `honestLiftWitnessC` on a real `R^lin`, all five rows: the
+            /// lifted-witness phase of the profile, REDUCED.
+            pub fn honest_lift_witness_rlin(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_rlin(0x8047_0000_0000_0240, cols);
+                let z = vec_of(0x8047_0000_0000_0250, cols);
+                support::run(
+                    m,
+                    || hc::ringswitch::honest_lift_witness(black_box(&s), black_box(&z)),
+                    d_witness,
+                )
+            }
+
             /// `cEvalAt` at the **real** ring degree: `d = 1024` terms, each
             /// one `Fp`→`Ext4` embedding, one extension multiply and one add --
             /// plus the power, which the specification's `eval₂` recomputes per
@@ -716,6 +789,14 @@ fn ringswitch_benches(c: &mut Criterion) {
     bench_case!(c, "ringswitch/c_quotient_blocks", c_quotient_blocks, [LIFT_PROVER_COLS]);
     // @covers ringswitch::honest_lift_witness
     bench_case!(c, "ringswitch/honest_lift_witness_blocks", honest_lift_witness_blocks, [LIFT_PROVER_COLS]);
+    // Card T45a's rows: the lift on a real `R^lin` (see `LIFT_RLIN_BLOCKS`).
+    // Genesis's frozen `c_row_sum` has neither the zero skip nor the high-half
+    // product, ~0.8 s per iteration on the whole-witness row, hence 20 samples.
+    // @covers ringswitch::c_quotient
+    bench_case!(c, "ringswitch/c_quotient_rlin", c_quotient_rlin, [LIFT_RLIN_COLS]);
+    // @covers ringswitch::honest_lift_witness
+    bench_case!(c, "ringswitch/honest_lift_witness_rlin", honest_lift_witness_rlin,
+                [LIFT_RLIN_COLS], samples: 20);
 
     // Both at the **real** ring degree: the mixed `Fp`-coefficient/`Ext4`-point
     // evaluation the zero-check's α side is built on. Two rows for two
