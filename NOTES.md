@@ -10377,3 +10377,39 @@ Recorded as read, not explained. Card T45a replaces the phase's inner loop
 next, and its own row will say what the phase costs.
 
 Stage 6 exit criterion (a) now reads **344.7 s (−70.6% from 1170.8 s)**.
+
+### The pin profile after T45a and T46a (2026-09-23)
+
+`logs/runs/pin-profile-20260923-t45t46.log`, `BLOCKS=1024`, HEAD `dedde03`
+(= `28f3924` + T46a bucket-rounds + T45a gadget-contract), control CPU spread
+within run **−2.5%**. Baseline: the morning's profile (`44ca062`).
+
+| | 09-23 AM | 09-23 PM | | card |
+|---|---|---|---|---|
+| commitment | 139.6 s | 139.2 s | −0.3% | none |
+| `honest_compute_resp` + stack | 38.2 s | 37.4 s | −2.1% | none |
+| **lifted witness** | 41.0 s | **8.0 s** | **−80.5%** | T45a (row −80%) |
+| `honest_round_messages` | 98.9 s | 99.9 s | +1.0% | **T46a: no effect -- see below** |
+| **prover** | **344.7 s** | **312.0 s** | **−9.5%** | |
+| `chain_verify` (whole) | 10.2 s | 10.2 s | 0 | |
+| peak RSS | 5454 MiB | 5453 MiB | 0 | |
+
+**T45a lands exactly as its row said**: the phase is 8.0 s against the
+card's ~8 s projection, so the morning's unexplained 41.0 s reading did not
+matter -- the phase it measured is gone.
+
+**T46a's bucket path never fires on the honest table.** Its box was the
+section-6 report's `S_b = [-8, 7]`, "tight on the honest balanced digits".
+That holds for `ŵ` (`balanced_gadget_decompose`), `ẑ`
+(`bounded_z_gadget_decompose`) and the `ρ` digit rows, but **`t̂` is the
+inner commitment's `gadget::gadget_decompose` -- the unsigned primitive
+(Decision 4: balanced is the public API, unsigned the primitive) -- with
+digits in `[0, 15]`**. Every honest table therefore holds words 8…15, the
+first one declines, and round 0 runs the per-pair path it always did. The
+card's row was honest about what it measured; its corpus was drawn from the
+wrong alphabet, and the kill condition the report itself named ("a digit
+histogram of the honest pin witness shows any entry outside `[-8, 7]`")
+was never run before the profile. The fix is card **T46a'**: the alphabet
+`[-8, 15]`, 24 ids, 576 pair types, and a row on that corpus.
+
+Stage 6 exit criterion (a) now reads **312.0 s (−73.4% from 1170.8 s)**.
