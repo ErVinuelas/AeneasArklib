@@ -389,6 +389,65 @@ macro_rules! define_cases {
                 )
             }
 
+            /// [`honest_z_from_raw`] over the **compact** raw message: the
+            /// shape `honest_compute_resp_from_raw_32` -- and so `chain_open` --
+            /// actually runs. Card T43's evidence row.
+            ///
+            /// Same seeds as [`honest_z_from_raw`] on purpose: the two rows
+            /// compute the same `z` from the same draw, so their digests must
+            /// agree, and a candidate that changes what the compact path
+            /// computes is caught by the oracle rather than by reading it. The
+            /// compaction happens outside the timed region: the prover holds
+            /// the message compact already, so widening is not this item's cost.
+            pub fn honest_z_from_raw_32(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0011, blocks, hc::params::MESSAGE_ROWS);
+                let mut packed = Vec::with_capacity(blocks);
+                for b in &raw {
+                    packed.push(hc::linalg::RawVec32::compact(b));
+                }
+                let c = short_challenges(0x2117_0000_0000_0012, blocks, 16, 1);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z_from_raw_32(black_box(&packed), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
+            /// [`honest_z_from_raw_32`] with the whole budget in **one**
+            /// coefficient: one descriptor term of magnitude sixteen, so the
+            /// pass count is the same and the term loop runs once.
+            pub fn honest_z_from_raw_32_heavy(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0021, blocks, hc::params::MESSAGE_ROWS);
+                let mut packed = Vec::with_capacity(blocks);
+                for b in &raw {
+                    packed.push(hc::linalg::RawVec32::compact(b));
+                }
+                let c = short_challenges(0x2117_0000_0000_0022, blocks, 16, 16);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z_from_raw_32(black_box(&packed), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
+            /// [`honest_z_from_raw_32`] with **dense** challenges: every one
+            /// fails the classifier, so the row takes the generic fallback --
+            /// decompose, scalar-multiply, add. The control for any candidate
+            /// that rewrites the short branch: it must not read `slower`.
+            pub fn honest_z_from_raw_32_dense(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let raw = blocks_of(0x2117_0000_0000_0023, blocks, hc::params::MESSAGE_ROWS);
+                let mut packed = Vec::with_capacity(blocks);
+                for b in &raw {
+                    packed.push(hc::linalg::RawVec32::compact(b));
+                }
+                let c = vec_of(0x2117_0000_0000_0024, blocks);
+                support::run(
+                    m,
+                    || hc::quadeval::honest_z_from_raw_32(black_box(&packed), black_box(&c)),
+                    d_polyvec,
+                )
+            }
+
             /// The carrier from the raw message. The interesting row of the
             /// three: it does *less* work than `carrier`, not more, because the
             /// gadget recomposition inside `carrier_entry` cancels against the
@@ -572,6 +631,31 @@ fn quadeval_benches(c: &mut Criterion) {
     // `carrier` because the gadget round trip cancels.
     // @covers quadeval::honest_z_from_raw
     bench_case!(c, "quadeval/honest_z_from_raw", honest_z_from_raw, [honest_z_blocks],
+                samples: honest_z_samples);
+    // The compact z pass, the shape the prover runs (card T43). EIGHT blocks
+    // for the two short rows, not one: `honest_z_from_raw_32` carries
+    // block-independent work -- the 8192 `Rq::zero`s of the accumulator, and
+    // since T43 the zero-fill and final reduction of the short path's `u64`
+    // buffer -- that measured ~40% of the one-block row (2026-09-22), so a
+    // one-block row prices the setup as much as the kernel, and the kernel
+    // is what scales with `BLOCKS = 1024`. Eight blocks is where the frozen
+    // genesis variant (pre-T33 short multiply plus a full decomposition per
+    // block, ~0.25 s per block) still fits the sample budget. The dense
+    // control stays at FOUR: its genesis variant is the schoolbook fallback
+    // at ~11 s per block, and four blocks keeps the candidate's fixed costs
+    // under one percent of the row, so the control reads the fallback and
+    // not the setup.
+    // `honest_z_from_raw_32` is the evidence row, `_heavy` the one-term shape
+    // of the same budget, `_dense` the fallback control that must not read
+    // `slower`.
+    // @covers quadeval::honest_z_from_raw_32
+    bench_case!(c, "quadeval/honest_z_from_raw_32", honest_z_from_raw_32, [8],
+                samples: honest_z_samples);
+    // @covers quadeval::honest_z_from_raw_32
+    bench_case!(c, "quadeval/honest_z_from_raw_32_heavy", honest_z_from_raw_32_heavy, [8],
+                samples: honest_z_samples);
+    // @covers quadeval::honest_z_from_raw_32
+    bench_case!(c, "quadeval/honest_z_from_raw_32_dense", honest_z_from_raw_32_dense, [4],
                 samples: honest_z_samples);
     // `samples:` for the same reason the `honest_z` rows have it: the frozen
     // genesis variant runs `carrier_entry`'s gadget recomposition per block

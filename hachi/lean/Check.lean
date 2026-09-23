@@ -11,6 +11,7 @@ import EvalSplit
 import Balanced
 import QuadEval
 import SchemeTwoLane
+import ZPacked
 import QuadEvalProtocol
 import RingSwitch
 import ZeroCheck
@@ -1594,8 +1595,9 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Raw32.commit_streamed_32_specG
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_loop_eq
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_eq
-#print axioms HachiEquiv.Raw32.honest_z_from_raw_32_loop1_eq
-#print axioms HachiEquiv.Raw32.honest_z_from_raw_32_eq
+-- `Raw32.honest_z_from_raw_32_loop1_eq` / `honest_z_from_raw_32_eq` were
+-- audited here until card T43 (2026-09-22) gave the `_32` z pass a short
+-- branch of its own; see the T43 block at the end of this section.
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_32_spec
@@ -2261,5 +2263,31 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.zero_fill_spec
 #print axioms HachiEquiv.SumcheckShift.pair_loop_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
+
+-- Stage 6 card T43 (2026-09-22): `honest_z_from_raw_32` reads each message
+-- word once and scatters its eight nibbles into the eight digit accumulators
+-- of its row -- `gadget_decompose` is gone from the protocol path, and the
+-- accumulator is one unreduced `u64` buffer for the whole of `z`, reduced on
+-- the `Z_CHUNK` schedule (at the pin, once). `ZPacked.lean` is the word level:
+-- the pinned nibble lemma, the region layer, and eight `short_pass_off_spec`s
+-- at once per pass. `honest_z_from_raw_32_spec`'s STATEMENT is T29's, verbatim;
+-- its proof is restated on the new loops. No new hypothesis anywhere.
+#print axioms HachiEquiv.ZPacked.digitK_eq_nibble
+#print axioms HachiEquiv.ZPacked.digit_at_nibble_spec
+#print axioms HachiEquiv.ZPacked.digitRq_eq_digitBlock
+#print axioms HachiEquiv.ZPacked.gadgetDecompose_eq_digitBlock
+#print axioms HachiEquiv.ZPacked.coeff_toRq_mul_fin
+#print axioms HachiEquiv.ZPacked.regRq_gain
+#print axioms HachiEquiv.ZPacked.z_pass_loop0_spec
+#print axioms HachiEquiv.ZPacked.z_pass_loop1_spec
+#print axioms HachiEquiv.ZPacked.z_pass_spec
+#print axioms HachiEquiv.ZPacked.z_reduce_spec
+#print axioms HachiEquiv.ZPacked.z_apply_terms_spec
+#print axioms HachiEquiv.ZPacked.z_terms_spec
+#print axioms HachiEquiv.ZPacked.z_row_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_rows_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_block_loop_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_merge_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
 
 end HachiEquiv.Check

@@ -55,6 +55,8 @@
 
 use alloc::vec::Vec;
 
+use cpoly::Fp;
+
 use crate::commit::{centered_abs, PublicParams};
 use crate::gadget;
 use crate::linalg::{self, PolyMatrix, PolyVec};
@@ -438,30 +440,352 @@ pub fn carrier_commit_from_raw(
     d_matrix.mat_vec_mul(&what)
 }
 
-/// [`honest_z_from_raw`] over the compact raw carrier.
+// ---------------------------------------------------------------------------
+// The z pass straight from the message words (Stage 6 card T43)
+// ---------------------------------------------------------------------------
+
+/// The gap between two digit regions of the short path's accumulator, in
+/// words.
+///
+/// Region `j` starts at `j · (RING_DEGREE + Z_PAD)`. Without the pad the eight
+/// regions of one message row sit exactly 8 KiB apart, so the eight loads and
+/// stores of every [`z_pass`] step share their low twelve address bits and the
+/// core's memory disambiguator serialises them (4K aliasing): measured
+/// 2026-09-22, the unpadded pass ran 1.7x slower than the padded one on
+/// identical arithmetic. Sixteen words puts consecutive regions 128 B apart
+/// modulo 4 KiB.
+pub const Z_PAD: usize = 16;
+
+/// How many signed passes the short path's accumulator absorbs between two
+/// reductions.
+///
+/// Every pass adds less than `q` to a slot, and a short block is at most
+/// [`params::OMEGA`] passes, so a slot never exceeds `Z_CHUNK · q = 2^56`
+/// before the block loop reduces the whole buffer -- unconditionally, which is
+/// what keeps [`honest_z_from_raw_32`] total without a hypothesis on the
+/// challenge. At the pin (`1024` blocks, `16` passes each) the reduction never
+/// fires: the buffer is reduced once, at the end.
+pub const Z_CHUNK: u64 = 16_777_216;
+
+/// The nonzero centred coefficients of a short challenge, as three parallel
+/// vectors: `idx[t]` is the coefficient position, `mag[t]` its centred
+/// magnitude and `neg[t]` its sign (`true` = the centred value is `-mag[t]`).
+///
+/// [`crate::ring::ShortMul`]'s shape, rebuilt here because that struct's
+/// fields are `ring`'s own and this module cannot read them.
+pub struct ZTerms {
+    idx: Vec<usize>,
+    mag: Vec<u64>,
+    neg: Vec<bool>,
+}
+
+/// Describe `c` as a short element, or decline: `ring::classify_short`'s
+/// rule, at this module's own type.
+///
+/// Returns `Some(terms)` exactly when `c`'s **centred** `ℓ₁` norm is at most
+/// [`params::OMEGA`] -- the `ShortChallenge Φ ω` predicate -- and `None`
+/// otherwise; the caller's `None` branch is the generic product, so declining
+/// is a performance decision and never a correctness one. The budget is what
+/// bounds a short block at `OMEGA` passes, which is what [`Z_CHUNK`]'s
+/// reduction schedule rests on.
+fn z_terms(c: &Rq) -> Option<ZTerms> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let half: u64 = q / 2;
+    let budget: u64 = params::OMEGA;
+    let mut idx: Vec<usize> = Vec::new();
+    let mut mag: Vec<u64> = Vec::new();
+    let mut neg: Vec<bool> = Vec::new();
+    let mut total: u64 = 0;
+    let mut k: usize = 0;
+    while k < n {
+        let cw: u64 = c.coeff(k).to_u64();
+        if cw != 0 {
+            let m: u64 = if cw <= half { cw } else { q - cw };
+            let s: bool = cw > half;
+            total = total + m;
+            if total > budget {
+                return None;
+            }
+            idx.push(k);
+            mag.push(m);
+            neg.push(s);
+        }
+        k += 1;
+    }
+    Some(ZTerms { idx, mag, neg })
+}
+
+/// One signed negacyclic pass of the fused z kernel: the `k`-shifted **eight
+/// digit polynomials** of one message row, added (or subtracted) into the
+/// eight regions of the unreduced accumulator that belong to that row.
+///
+/// `buf` is the whole short-path accumulator, region `j` at
+/// `[j·S, j·S + N)` with `S = N + Z_PAD`; this row's eight regions start at
+/// `rbase = 8r·S`. `words` is the row's coefficients as canonical `u64` words
+/// -- copied out once per row, because reading them through `Rq::coeff`
+/// inside this loop measured ten times slower (2026-09-22). For each source
+/// coefficient `x = words[i]` the pass computes the eight base-16 digits
+/// `dₑ = (x / 16ᵉ) % 16` -- the chain's decomposer is the **unsigned** one and
+/// `x < q < 2^32`, so the eight digits are the eight nibbles of the word --
+/// and adds `±dₑ` at `(k + i) mod N` of region `e`, the sign flipped on the
+/// `X^N = -1` wrap. Every word is read **once** per pass and never
+/// materialised as a digit polynomial: this is `gadget_decompose` followed by
+/// eight `short_pass_off`s, fused.
+///
+/// Card S1's layout, kept: the pass splits at the wrap point `i = N - k`, so
+/// each run has a stride-1 source, eight stride-1 destinations and a
+/// loop-invariant sign; the `if negt` unswitches. A negative contribution is
+/// added as `q - dₑ`, so the buffer never borrows and a slot grows by at most
+/// `q` per pass (`mul_short_add_into`'s offset trick). The read-into-a-`let`
+/// shape of every accumulate is forced by the extraction
+/// (`aeneas-extract`'s 2026-09-19 row).
+#[allow(clippy::too_many_lines)]
+fn z_pass(words: &Vec<u64>, k: usize, negt: bool, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let q: u64 = params::Q;
+    let stride: usize = n + Z_PAD;
+    let mut out: Vec<u64> = buf;
+    let lim: usize = n - k;
+    // low run: `i < N - k`, destination `k + i`, sign `negt`'s alone
+    let mut i: usize = 0;
+    while i < lim {
+        let x: u64 = words[i];
+        let d0: u64 = x % 16;
+        let d1: u64 = (x / 16) % 16;
+        let d2: u64 = (x / 256) % 16;
+        let d3: u64 = (x / 4096) % 16;
+        let d4: u64 = (x / 65_536) % 16;
+        let d5: u64 = (x / 1_048_576) % 16;
+        let d6: u64 = (x / 16_777_216) % 16;
+        let d7: u64 = (x / 268_435_456) % 16;
+        let a0: u64 = if negt { q - d0 } else { d0 };
+        let a1: u64 = if negt { q - d1 } else { d1 };
+        let a2: u64 = if negt { q - d2 } else { d2 };
+        let a3: u64 = if negt { q - d3 } else { d3 };
+        let a4: u64 = if negt { q - d4 } else { d4 };
+        let a5: u64 = if negt { q - d5 } else { d5 };
+        let a6: u64 = if negt { q - d6 } else { d6 };
+        let a7: u64 = if negt { q - d7 } else { d7 };
+        let w0: usize = rbase + k + i;
+        let w1: usize = w0 + stride;
+        let w2: usize = w1 + stride;
+        let w3: usize = w2 + stride;
+        let w4: usize = w3 + stride;
+        let w5: usize = w4 + stride;
+        let w6: usize = w5 + stride;
+        let w7: usize = w6 + stride;
+        let c0: u64 = out[w0];
+        let v0: u64 = c0 + a0;
+        out[w0] = v0;
+        let c1: u64 = out[w1];
+        let v1: u64 = c1 + a1;
+        out[w1] = v1;
+        let c2: u64 = out[w2];
+        let v2: u64 = c2 + a2;
+        out[w2] = v2;
+        let c3: u64 = out[w3];
+        let v3: u64 = c3 + a3;
+        out[w3] = v3;
+        let c4: u64 = out[w4];
+        let v4: u64 = c4 + a4;
+        out[w4] = v4;
+        let c5: u64 = out[w5];
+        let v5: u64 = c5 + a5;
+        out[w5] = v5;
+        let c6: u64 = out[w6];
+        let v6: u64 = c6 + a6;
+        out[w6] = v6;
+        let c7: u64 = out[w7];
+        let v7: u64 = c7 + a7;
+        out[w7] = v7;
+        i += 1;
+    }
+    // high run: `i >= N - k`, the term wraps to `k + i - N` with its sign flipped
+    let mut j: usize = lim;
+    while j < n {
+        let x: u64 = words[j];
+        let d0: u64 = x % 16;
+        let d1: u64 = (x / 16) % 16;
+        let d2: u64 = (x / 256) % 16;
+        let d3: u64 = (x / 4096) % 16;
+        let d4: u64 = (x / 65_536) % 16;
+        let d5: u64 = (x / 1_048_576) % 16;
+        let d6: u64 = (x / 16_777_216) % 16;
+        let d7: u64 = (x / 268_435_456) % 16;
+        let a0: u64 = if negt { d0 } else { q - d0 };
+        let a1: u64 = if negt { d1 } else { q - d1 };
+        let a2: u64 = if negt { d2 } else { q - d2 };
+        let a3: u64 = if negt { d3 } else { q - d3 };
+        let a4: u64 = if negt { d4 } else { q - d4 };
+        let a5: u64 = if negt { d5 } else { q - d5 };
+        let a6: u64 = if negt { d6 } else { q - d6 };
+        let a7: u64 = if negt { d7 } else { q - d7 };
+        let w0: usize = rbase + (j - lim);
+        let w1: usize = w0 + stride;
+        let w2: usize = w1 + stride;
+        let w3: usize = w2 + stride;
+        let w4: usize = w3 + stride;
+        let w5: usize = w4 + stride;
+        let w6: usize = w5 + stride;
+        let w7: usize = w6 + stride;
+        let c0: u64 = out[w0];
+        let v0: u64 = c0 + a0;
+        out[w0] = v0;
+        let c1: u64 = out[w1];
+        let v1: u64 = c1 + a1;
+        out[w1] = v1;
+        let c2: u64 = out[w2];
+        let v2: u64 = c2 + a2;
+        out[w2] = v2;
+        let c3: u64 = out[w3];
+        let v3: u64 = c3 + a3;
+        out[w3] = v3;
+        let c4: u64 = out[w4];
+        let v4: u64 = c4 + a4;
+        out[w4] = v4;
+        let c5: u64 = out[w5];
+        let v5: u64 = c5 + a5;
+        out[w5] = v5;
+        let c6: u64 = out[w6];
+        let v6: u64 = c6 + a6;
+        out[w6] = v6;
+        let c7: u64 = out[w7];
+        let v7: u64 = c7 + a7;
+        out[w7] = v7;
+        j += 1;
+    }
+    out
+}
+
+/// Every slot of the short path's accumulator, reduced mod `q`, in place.
+fn z_reduce(buf: Vec<u64>) -> Vec<u64> {
+    let q: u64 = params::Q;
+    let mut out: Vec<u64> = buf;
+    let len: usize = out.len();
+    let mut i: usize = 0;
+    while i < len {
+        let cur: u64 = out[i];
+        let nv: u64 = cur % q;
+        out[i] = nv;
+        i += 1;
+    }
+    out
+}
+
+/// All of `terms` applied to the eight digit regions of one row:
+/// `mul_short_add_into`'s term and pass loops, over the fused pass.
+///
+/// No reduction inside: `terms` came out of [`z_terms`], so the passes number
+/// at most `OMEGA`, and the block loop's [`Z_CHUNK`] schedule has already
+/// made room for them.
+fn z_apply_terms(terms: &ZTerms, words: &Vec<u64>, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
+    let count: usize = terms.idx.len();
+    let mut out: Vec<u64> = buf;
+    let mut t: usize = 0;
+    while t < count {
+        let k: usize = terms.idx[t];
+        let m: u64 = terms.mag[t];
+        let negt: bool = terms.neg[t];
+        let mut pass: u64 = 0;
+        while pass < m {
+            out = z_pass(words, k, negt, out, rbase);
+            pass += 1;
+        }
+        t += 1;
+    }
+    out
+}
+
+/// One message row's contribution to `z`: `+= c · digitₑ(row)` into the
+/// accumulator regions `8r + e` for all eight digits `e`, without ever
+/// forming `digitₑ(row)`.
+///
+/// Copies the row's words out once and runs [`z_apply_terms`] on the regions
+/// starting at `rbase = 8r · (N + Z_PAD)`. Nothing is loaded or written back:
+/// the accumulator is the unreduced buffer itself, for every block, and the
+/// per-call copy-in / reduce / copy-out that `mul_short_add_into` paid 8192
+/// times per block -- 27 ms of a 58 ms block, measured 2026-09-22 -- is paid
+/// once, at the end of [`honest_z_from_raw_32`].
+fn z_row(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let mut words: Vec<u64> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        words.push(row.coeff(i).to_u64());
+        i += 1;
+    }
+    z_apply_terms(terms, &words, buf, rbase)
+}
+
+/// [`honest_z_from_raw`] over the compact raw carrier (spec: the same
+/// `honestZ` [`honest_z`] mirrors, composed with `gadgetDecompose`).
+///
+/// **The digits are never materialised** (Stage 6 card T43). The chain's
+/// decomposer is the unsigned one, so for a canonical word `x < q < 2^32` the
+/// eight base-16 digits are the eight nibbles of the word, and the short
+/// branch reads each coefficient of the block once and scatters its eight
+/// nibbles into the eight digit accumulators of its row directly ([`z_row`]).
+/// The `gadget_decompose` this pass used to run a second time over the
+/// message -- 8192 temporary ring elements per block -- is gone from the
+/// protocol path.
+///
+/// Two accumulators, merged at the end. `acc` is the dense fallback's, exactly
+/// as before: a block whose challenge is not short still takes the generic
+/// product into it. `zbuf` is the short path's: one **unreduced** `u64` slot
+/// per coefficient of `z`, region `j` at `j · (N + Z_PAD)`, carried across
+/// all the blocks and reduced on the [`Z_CHUNK`] schedule -- at the pin, once.
+/// `z[j] = acc[j] + zbuf[j] mod q`.
 pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec {
     let blocks: usize = raw.len();
     let width: usize = params::MESSAGE_ROWS * params::GADGET_DIGITS;
+    let n: usize = params::RING_DEGREE;
+    let digits: usize = params::GADGET_DIGITS;
+    let stride: usize = n + Z_PAD;
+    let budget: u64 = params::OMEGA;
     let mut acc: Vec<Rq> = Vec::with_capacity(width);
     let mut z: usize = 0;
     while z < width {
         acc.push(Rq::zero());
         z += 1;
     }
+    let total: usize = width * stride;
+    let mut zbuf: Vec<u64> = Vec::with_capacity(total);
+    let mut f: usize = 0;
+    while f < total {
+        zbuf.push(0);
+        f += 1;
+    }
+    // passes the short accumulator can still take before it must be reduced
+    let mut left: u64 = Z_CHUNK - 1;
     let mut i: usize = 0;
     while i < blocks {
         let block: PolyVec = raw[i].expand();
-        let s: PolyVec = gadget::gadget_decompose(&block);
         let ci: &Rq = c.get(i);
-        match crate::ring::classify_short(ci) {
-            Some(desc) => {
-                let mut j: usize = 0;
-                while j < width {
-                    crate::ring::mul_short_add_into(&desc, s.get(j), &mut acc[j]);
-                    j += 1;
+        match z_terms(ci) {
+            Some(terms) => {
+                if left < budget {
+                    zbuf = z_reduce(zbuf);
+                    left = Z_CHUNK - 1;
+                }
+                left = left - budget;
+                // one region octet per row; a short block is total, a long
+                // one contributes its first `MESSAGE_ROWS` rows
+                let rows0: usize = block.len();
+                let rows: usize = if rows0 < params::MESSAGE_ROWS {
+                    rows0
+                } else {
+                    params::MESSAGE_ROWS
+                };
+                let mut r: usize = 0;
+                while r < rows {
+                    let rbase: usize = r * digits * stride;
+                    zbuf = z_row(&terms, block.get(r), zbuf, rbase);
+                    r += 1;
                 }
             }
             None => {
+                let s: PolyVec = gadget::gadget_decompose(&block);
                 let scaled: PolyVec = s.scalar_mul(ci);
                 let mut j: usize = 0;
                 while j < width {
@@ -472,7 +796,27 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
         }
         i += 1;
     }
-    PolyVec::new(acc)
+    // the merge: `z[j] = acc[j] + zbuf[j] mod q`
+    let mut out: Vec<Rq> = Vec::with_capacity(width);
+    let mut cs: Vec<Fp> = Vec::with_capacity(n);
+    let mut y: usize = 0;
+    while y < n {
+        cs.push(Fp::ZERO);
+        y += 1;
+    }
+    let mut j2: usize = 0;
+    while j2 < width {
+        let off: usize = j2 * stride;
+        let mut w: usize = 0;
+        while w < n {
+            cs[w] = Fp::new(zbuf[off + w]);
+            w += 1;
+        }
+        let zr: Rq = Rq::from_coeffs(&cs);
+        out.push(acc[j2].add(&zr));
+        j2 += 1;
+    }
+    PolyVec::new(out)
 }
 
 /// [`carrier_from_raw`] over the compact raw carrier.

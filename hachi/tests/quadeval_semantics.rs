@@ -1044,3 +1044,108 @@ fn sharing_the_carrier_decomposition_leaves_v_and_the_response_unchanged() {
         );
     }
 }
+
+/// **The fused z pass equals the decomposed one** (Stage 6 card T43).
+///
+/// `honest_z_from_raw_32` no longer decomposes a block into 8192 digit ring
+/// elements and multiplies each by the challenge; it reads every coefficient
+/// once, splits it into its eight nibbles and scatters them into the eight
+/// digit accumulators directly. Three things could go wrong, and each has an
+/// input below that would show it:
+///
+/// * **a digit read off the wrong nibble** -- coefficients with zero nibbles
+///   in chosen positions (`0x0F0F_0000`, `0x0000_00F0`, `1`, `0`, `q - 1`)
+///   make a shifted or swapped digit change the sum;
+/// * **a wrap handled with the wrong sign or at the wrong slot** -- challenges
+///   with terms at `N - 1`, `N - 7` and `1`, so both runs of every pass are
+///   non-empty and the low run is one element long for one of them;
+/// * **a magnitude applied the wrong number of times** -- the whole budget in
+///   one coefficient (`±16`), and a mixed draw (`+5, -3, +2, -6`).
+///
+/// The `ℓ₁ = 17` challenge is the control: it fails `classify_short`, takes
+/// the fallback, and must still agree -- which says the fallback's own inputs
+/// are untouched by the change. The dense draw is the same control at the
+/// shape the acceptance test uses.
+///
+/// Two oracles, deliberately different: `honest_z_from_raw` on the expanded
+/// blocks (the decomposed path this replaces, unchanged) and `honest_z` on the
+/// decomposition itself (the spec's own shape). Two blocks, so the sum over
+/// blocks is exercised and not just one block's scatter.
+#[test]
+fn the_fused_z_pass_equals_the_decomposed_one() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{MESSAGE_ROWS, Q, RING_DEGREE};
+    let mut rng = support::Lcg::new(0x7431);
+    let blocks = 2usize;
+    let n = RING_DEGREE;
+
+    // a random block, and one whose rows are built from words with zero nibbles
+    let mut raw: Vec<hachi::linalg::PolyVec> = Vec::new();
+    raw.push(rng.next_poly_vec(MESSAGE_ROWS));
+    {
+        let specials: [u64; 8] = [0x0F0F_0000, 0x0000_00F0, 1, 0, Q - 1, 0x1234_5678, 16, 0x8000_0000];
+        let mut rows = Vec::with_capacity(MESSAGE_ROWS);
+        for r in 0..MESSAGE_ROWS {
+            let mut cs = vec![0u64; n];
+            for k in 0..n {
+                let w = specials[(k + r) % specials.len()];
+                cs[k] = if r % 3 == 0 { w } else { rng.next_u64() % Q };
+            }
+            rows.push(support::rq_from_u64s(&cs));
+        }
+        raw.push(hachi::linalg::PolyVec::new(rows));
+    }
+    assert_eq!(raw.len(), blocks);
+    let packed: Vec<RawVec32> = raw.iter().map(RawVec32::compact).collect();
+    let decomposed: Vec<hachi::linalg::PolyVec> =
+        raw.iter().map(hachi::gadget::gadget_decompose).collect();
+
+    // challenges: (positions, signed magnitudes); every one but the last two is
+    // protocol-valid (centred l1 <= OMEGA = 16)
+    let shapes: Vec<Vec<(usize, i64)>> = vec![
+        // sixteen +-1s spread so some wrap under every shift
+        (0..16).map(|t| ((t * 97 + 13) % n, if t % 2 == 0 { 1 } else { -1 })).collect(),
+        // the wrap edges: a one-element low run, a seven-element one, and k = 1
+        vec![(n - 1, 1), (n - 7, -1), (1, 1), (0, -1)],
+        // the whole budget in one coefficient, both signs
+        vec![(511, 16)],
+        vec![(1000, -16)],
+        // mixed magnitudes
+        vec![(3, 5), (700, -3), (n - 2, 2), (400, -6)],
+        // the l1 = 17 control: one over the budget, so the fallback runs
+        (0..17).map(|t| ((t * 61 + 5) % n, if t % 2 == 0 { 1 } else { -1 })).collect(),
+    ];
+    let mut cands: Vec<hachi::ring::Rq> = shapes
+        .iter()
+        .map(|terms| {
+            let mut cs = vec![0u64; n];
+            for &(at, v) in terms {
+                cs[at] = if v >= 0 { v as u64 } else { Q - ((-v) as u64) };
+            }
+            support::rq_from_u64s(&cs)
+        })
+        .collect();
+    // the dense control, as the acceptance test draws it
+    cands.push(rng.next_rq());
+
+    for (which, c0) in cands.iter().enumerate() {
+        // two different challenges across the two blocks, so a block/challenge
+        // mix-up would show
+        let c1 = cands[(which + 1) % cands.len()].copy();
+        let c = hachi::linalg::PolyVec::new(vec![c0.copy(), c1]);
+        let got = hachi::quadeval::honest_z_from_raw_32(&packed, &c);
+        let want_raw = hachi::quadeval::honest_z_from_raw(&raw, &c);
+        let want_dec = hachi::quadeval::honest_z(&decomposed, &c);
+        assert_eq!(got.len(), want_raw.len(), "shape {which}: width");
+        for j in 0..want_raw.len() {
+            assert!(
+                got.get(j).equals(want_raw.get(j)),
+                "shape {which}: fused z differs from the decomposed raw path at column {j}"
+            );
+            assert!(
+                got.get(j).equals(want_dec.get(j)),
+                "shape {which}: fused z differs from honest_z at column {j}"
+            );
+        }
+    }
+}

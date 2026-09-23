@@ -455,24 +455,12 @@ the two indexes, rewrite the `expand` with the `ExpandsTo` hypothesis, and let
 the identical remainder close by reflexivity. No arithmetic appears, which is
 the point -- the carrier change has none. -/
 
-/-- `honest_z`'s two inner loops are the same function under either carrier:
-their extracted bodies are byte-identical, the outer loop is where the message
-is read. -/
-theorem honest_z_inner0_eq (width : Std.Usize) (acc scaled : alloc.vec.Vec ring.Rq)
-    (j : Std.Usize) :
-    quadeval.honest_z_from_raw_32_loop1_loop0 width acc scaled j
-      = quadeval.honest_z_from_raw_loop1_loop0 width acc scaled j := rfl
-
-theorem honest_z_inner1_eq (width : Std.Usize) (acc s : alloc.vec.Vec ring.Rq)
-    (desc : ring.ShortMul) (j : Std.Usize) :
-    quadeval.honest_z_from_raw_32_loop1_loop1 width acc s desc j
-      = quadeval.honest_z_from_raw_loop1_loop1 width acc s desc j := rfl
-
-theorem honest_z_loop0_eq (width : Std.Usize) (acc : alloc.vec.Vec ring.Rq)
-    (z : Std.Usize) :
-    quadeval.honest_z_from_raw_32_loop0 width acc z
-      = quadeval.honest_z_from_raw_loop0 width acc z := rfl
-
+-- `honest_z_inner0_eq`, `honest_z_inner1_eq` and `honest_z_loop0_eq` lived here
+-- until Stage 6 card T43 (2026-09-22) gave `honest_z_from_raw_32` a short branch
+-- of its own -- the fused nibble scatter of `quadeval::z_row` -- so its loops
+-- are no longer `honest_z_from_raw`'s and the equalities no longer typecheck.
+-- Its specification is proved directly in `QuadEvalProtocol.lean` § "The fused
+-- z pass", on `ZPacked.lean`.
 theorem resp_inner_loop_eq (inner_decomp inner : alloc.vec.Vec linalg.PolyVec)
     (i : Std.Usize) :
     quadeval.honest_compute_resp_from_raw_32_loop inner_decomp inner i
@@ -576,46 +564,17 @@ theorem honest_compute_v_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
   rw [quadeval.honest_compute_v_from_raw_32, quadeval.honest_compute_v_from_raw]
   simp only [hL]
 
-/-- **`honest_z_from_raw_32` is `honest_z_from_raw` on the message it denotes.** -/
-theorem honest_z_from_raw_32_loop1_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
-    {raw : alloc.vec.Vec linalg.PolyVec} (c : linalg.PolyVec)
-    (blocks width : Std.Usize) (acc : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-    (hex : ExpandsTo raw32 raw) (hb : blocks.val ≤ raw.val.length) :
-    quadeval.honest_z_from_raw_32_loop1 raw32 c blocks width acc i
-      = quadeval.honest_z_from_raw_loop1 raw c blocks width acc i := by
-  rw [quadeval.honest_z_from_raw_32_loop1, quadeval.honest_z_from_raw_loop1]
-  refine loop_congr (fun st => ?_)
-  obtain ⟨a1, i1⟩ := st
-  simp only [quadeval.honest_z_from_raw_32_loop1.body,
-    quadeval.honest_z_from_raw_loop1.body]
-  by_cases hlt : i1 < blocks
-  · have hir : i1.val < raw.val.length := by scalar_tac
-    have hib : i1.val < raw32.val.length := by rw [hex.1]; exact hir
-    rw [if_pos hlt, if_pos hlt,
-      index_eq raw32 i1 (alloc.vec.Vec.new ring.RawRq32) hib,
-      index_eq raw i1 (alloc.vec.Vec.new ring.Rq) hir]
-    simp only [bind_tc_ok]
-    rw [hex.2 i1.val hib]
-    simp only [bind_tc_ok, honest_z_inner0_eq, honest_z_inner1_eq]
-  · rw [if_neg hlt, if_neg hlt]
-
-theorem honest_z_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
-    {raw : alloc.vec.Vec linalg.PolyVec} (c : linalg.PolyVec)
-    (hex : ExpandsTo raw32 raw) :
-    quadeval.honest_z_from_raw_32 raw32 c = quadeval.honest_z_from_raw raw c := by
-  have hL : ∀ (width : Std.Usize) (acc : alloc.vec.Vec ring.Rq),
-      quadeval.honest_z_from_raw_32_loop1 raw32 c (alloc.vec.Vec.len raw) width acc 0#usize
-        = quadeval.honest_z_from_raw_loop1 raw c (alloc.vec.Vec.len raw) width acc 0#usize :=
-    fun width acc => honest_z_from_raw_32_loop1_eq c _ width acc _ hex (by simp)
-  rw [quadeval.honest_z_from_raw_32, quadeval.honest_z_from_raw, hex.len_eq]
-  simp only [honest_z_loop0_eq, hL]
-
+-- `honest_z_from_raw_32_loop1_eq` and `honest_z_from_raw_32_eq` -- "the `_32`
+-- z pass is the `_64` one on the message it denotes" -- lived here until card
+-- T43 (2026-09-22). The `_32` item now has its own short branch and the
+-- equality is false as a statement about programs, so it is gone; see
+-- `QuadEvalProtocol.lean` § "The fused z pass".
 -- `honest_compute_resp_from_raw_32_eq` lived here until candidate T28 changed
 -- that item's signature: it now takes the carrier decomposition instead of
 -- computing it, so it is no longer the `_64` item on a re-carriered message and
 -- the equality no longer even typechecks. Its specification is proved directly
--- in `QuadEvalProtocol.lean`, from `honest_z_from_raw_32_eq` -- which is still
--- exactly this shape -- plus the supplied decomposition.
+-- in `QuadEvalProtocol.lean`, from `honest_z_from_raw_32_spec` plus the
+-- supplied decomposition.
 /-! ## The inherited specification
 
 `commit_streamed_32`'s, composed from the equality above and the original. The
