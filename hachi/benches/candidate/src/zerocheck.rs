@@ -649,7 +649,14 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
         let mut u: usize = 0;
         while u < cols {
             if u < mu {
-                row.push(c_eval_at_pw(&apw, s.m().entry(i, u)));
+                // Card T48z: 57% of R^lin's entries are zero at the pin, and
+                // a zero polynomial evaluates to zero -- no power sum to run.
+                let p: &Rq = s.m().entry(i, u);
+                if p.is_zero() {
+                    row.push(Ext4::ZERO);
+                } else {
+                    row.push(c_eval_at_pw(&apw, p));
+                }
             } else if (u - mu) / digits == i {
                 let e: usize = (u - mu) % digits;
                 row.push((Ext4::ZERO - phi_alpha) * bp[e]);

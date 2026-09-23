@@ -3157,14 +3157,32 @@ theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatemen
         have humu : u1.val < μ := by rw [← hmu]; scalar_tac
         simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
         step with rlin_entry_spec (n := n) (μ := μ) s.m hWm i u1 hi humu as ⟨r, hWr, hrv⟩
-        step with c_eval_at_pw_spec alpha apw r hapwlen hapwred hapw hWr as ⟨e, hRe, he⟩
         have hentry : rs.M ⟨i.val, hi⟩ ⟨u1.val, humu⟩ = toRq r := by rw [← hmeq, hrv]
-        have hev : toExt e =
-            InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
-          rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_pos humu, he, hentry]
-        step as ⟨v2, hv2⟩
-        step as ⟨u2, hu2⟩
-        exact htail e hRe hev v2 hv2 u2 (by scalar_tac)
+        -- Card T48z: a zero entry pushes `Ext4::ZERO` without evaluating, and
+        -- `cEvalAt` of the zero polynomial is `0`.
+        step with HachiEquiv.RqBridge.is_zero_spec r hWr as ⟨b, hb⟩
+        cases b
+        · simp only [Bool.false_eq_true, ↓reduceIte]
+          step with c_eval_at_pw_spec alpha apw r hapwlen hapwred hapw hWr as ⟨e, hRe, he⟩
+          have hev : toExt e =
+              InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
+            rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_pos humu, he, hentry]
+          step as ⟨v2, hv2⟩
+          step as ⟨u2, hu2⟩
+          exact htail e hRe hev v2 hv2 u2 (by scalar_tac)
+        · simp only [↓reduceIte]
+          have hz : toRq r = 0 := hb.mp rfl
+          have hev : toExt cpoly.field.Ext4.ZERO =
+              InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
+            rw [InnerOuter.mAlphaTilde, rhoDigitCount_eq, dif_pos humu, hentry, hz,
+              Rq.zero_val, toExt_ZERO, InnerOuter.cEvalAt_eq_sum_range phiF (toExt alpha)
+                (d := 1) (p := (0 : CPolynomial (ZMod q)))
+                (by rw [CompPoly.CPolynomial.natDegree_toPoly, CompPoly.CPolynomial.toPoly_zero,
+                  Polynomial.natDegree_zero]; omega),
+              Finset.sum_range_one, CompPoly.CPolynomial.coeff_zero, map_zero, zero_mul]
+          step as ⟨v2, hv2⟩
+          step as ⟨u2, hu2⟩
+          exact htail cpoly.field.Ext4.ZERO reduced_ZERO hev v2 hv2 u2 (by scalar_tac)
       · rw [if_neg hltmu]
         have humu : ¬ u1.val < μ := by rw [← hmu]; scalar_tac
         step as ⟨j1, hj1⟩
