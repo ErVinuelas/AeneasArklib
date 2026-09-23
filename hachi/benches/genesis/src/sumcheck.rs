@@ -1591,3 +1591,23 @@ pub fn round_poly_zero_base_plain(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly
     UnivariatePoly::from_coeffs(acc)
 }
 
+
+// ---------------------------------------------------------------------------
+// Card T46b (2026-09-23): round 1's zero side as its own item, born as the naive
+// composition round_poly_zero(eval_mle_layer_base(w_fp, a0), eq) so that the
+// bucketed champion has a baseline to be measured against.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// The range summand as a polynomial at **round 1**, from the round-0 base
+/// table and the round-0 challenge: [`round_poly_zero`] on round 1's table
+/// `eval_mle_layer_base(w_fp, a0)` (card T46b; spec: `rangeSumZero` at the
+/// folded table, as [`round_poly_zero`]'s).
+///
+/// First translation: the composition, literally. Round 1's table is round
+/// 0's folded at `a0`, so a round-1 pair is a function of four round-0
+/// entries; card T46b buckets on that.
+pub fn round_poly_zero_fold1(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> UnivariatePoly {
+    let w1: Vec<Ext4> = eval_mle_layer_base(w_fp, a0);
+    round_poly_zero(&w1, eq)
+}
+

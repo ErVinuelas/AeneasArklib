@@ -789,6 +789,19 @@ pub fn pair_type_table_base() -> Vec<Fp> {
     out
 }
 
+/// The range summand as a polynomial at **round 1**, from the round-0 base
+/// table and the round-0 challenge: [`round_poly_zero`] on round 1's table
+/// `eval_mle_layer_base(w_fp, a0)` (card T46b; spec: `rangeSumZero` at the
+/// folded table, as [`round_poly_zero`]'s).
+///
+/// First translation: the composition, literally. Round 1's table is round
+/// 0's folded at `a0`, so a round-1 pair is a function of four round-0
+/// entries; card T46b buckets on that.
+pub fn round_poly_zero_fold1(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> UnivariatePoly {
+    let w1: Vec<Ext4> = eval_mle_layer_base(w_fp, a0);
+    round_poly_zero(&w1, eq)
+}
+
 /// [`round_poly_zero_base`] pair by pair: the function's body before card
 /// T46a, unchanged, and the path it takes off the box.
 pub fn round_poly_zero_base_plain(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {

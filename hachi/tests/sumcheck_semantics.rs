@@ -1151,3 +1151,23 @@ fn digit_id_is_exactly_the_balanced_box() {
         assert_eq!(digit_id(digit_fp(d)), DIGIT_ALPHABET, "out of box {d}");
     }
 }
+
+/// Card T46b: round 1's zero side, `round_poly_zero_fold1`, is the
+/// composition `round_poly_zero(eval_mle_layer_base(w_fp, a0), eq)` on tables
+/// on the honest alphabet `[-8, 15]`. Stated against the composition so the
+/// bucketed champion inherits it unchanged; the bucketed branch itself is
+/// driven below the size gate by `round_one_bucketed_branch_is_the_composition`.
+#[test]
+fn round_one_zero_side_equals_the_composition_on_digit_tables() {
+    use hachi::sumcheck::{eval_mle_layer_base, round_poly_zero_fold1};
+    let mut r = Lcg::new(0x5A17_4610);
+    for &half in &[16usize, 4096] {
+        let w_fp: Vec<Fp> = (0..4 * half)
+            .map(|_| digit_fp((r.next_fp().to_u64() % 24) as i64 - 8))
+            .collect();
+        let a0 = ext4(&mut r);
+        let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+        let want = round_poly_zero(&eval_mle_layer_base(&w_fp, a0), &eq);
+        assert_eq!(round_poly_zero_fold1(&w_fp, a0, &eq), want, "half = {half}");
+    }
+}

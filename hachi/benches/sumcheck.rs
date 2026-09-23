@@ -62,6 +62,15 @@ const SUFFIX_VARS: usize = 10;
 /// is ~0.7 s per iteration, genesis ~1.4 s.
 const R0_HALF: usize = 1 << 20;
 
+/// The cube the `round_poly_zero_fold1` row runs at: **REDUCED** from round
+/// 1's real `2^24` pairs to `2^22` (so `w_fp` holds `2^24` digits on the
+/// honest alphabet). Card T46b's birth row. Large because the bucketed path's
+/// fixed cost is `2^19` padded quad types -- ~0.8 s -- and below
+/// `BUCKET_MIN_PAIRS1 = 2^21` pairs it does not run at all. Genesis's frozen
+/// `round_poly_zero` is the node-value form, ~37 s per iteration here, hence
+/// `samples: 10` on the registration.
+const R1_HALF: usize = 1 << 22;
+
 /// The cube the `alpha_public_table` row runs at: **REDUCED** from the pinned
 /// `M_ZERO = 26` to `7`, i.e. `128` entries, all in table row `0` (the matrix
 /// branch of `m_alpha_tilde`). The size is set by the **genesis** variant, not
@@ -480,6 +489,20 @@ macro_rules! define_cases {
                 )
             }
 
+            /// Round 1's zero-side message on an honest-shaped round-0 table:
+            /// `round_poly_zero_fold1` over `half` round-1 pairs, i.e. `4·half`
+            /// digits on the pin alphabet folded at a random `a0`.
+            pub fn round_poly_zero_fold1(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = pin_digit_table(0x5A17_7048, 4 * half);
+                let a0 = ext_table(0x5A17_7049, 1)[0];
+                let eq = ext_table(0x5A17_704A, half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_zero_fold1(black_box(&w), black_box(a0), black_box(&eq)),
+                    d_poly,
+                )
+            }
+
             /// One node of the **linear** summand: two folds and one product
             /// per remaining cube point, against the range side's fold plus
             /// `range_product`. The pair is what makes the `2b + 1` versus `3`
@@ -859,6 +882,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_poly_zero_base", round_poly_zero_base, [R0_HALF]);
     // @covers sumcheck::round_poly_zero_base
     bench_case!(c, "sumcheck/round_poly_zero_base_pin", round_poly_zero_base_pin, [R0_HALF]);
+    // @covers sumcheck::round_poly_zero_fold1
+    bench_case!(c, "sumcheck/round_poly_zero_fold1", round_poly_zero_fold1, [R1_HALF], samples: 10);
 
     // @covers sumcheck::round_value_alpha
     bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);
