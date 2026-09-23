@@ -678,14 +678,16 @@ pub fn round_values_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Vec<Ext4> {
 /// The range summand as a polynomial at round 0: [`round_values_zero_base`]
 /// interpolated with the same weights [`round_poly_zero`] uses.
 ///
-/// Card T46a: on a table inside the balanced box `S_b = [-8, 7]` -- the
-/// honest lifted witness's, every entry a balanced digit -- the sum regroups
+/// Card T46a: on a table inside the digit alphabet `[-8, 15]` -- the honest
+/// lifted witness's: balanced digits of `ŵ`, `ẑ` and `ρ` in `[-8, 7]`, the
+/// unsigned digits of `t̂` in `[0, 15]` (card T46a', 2026-09-23) -- the sum regroups
 /// by pair type, `Σ_y eq[y]·P(w[2y], w[2y+1]) = Σ_t b[t]·P(type t)` with
 /// `b[t]` the summed `eq` weight of the pairs of type `t`, so the Taylor shift
-/// runs once per type (256) instead of once per pair (`2^25` at the pin). The
+/// runs once per type (576, padded to 1024) instead of once per pair (`2^25`
+/// at the pin). The
 /// per-type work is [`round_poly_zero_base_plain`] itself, on the
 /// [`pair_type_table_base`] with [`bucket_pairs_base`]'s weights. Any entry
-/// outside the box, or a table below [`BUCKET_MIN_PAIRS0`] pairs, takes the
+/// outside the alphabet, or a table below [`BUCKET_MIN_PAIRS0`] pairs, takes the
 /// per-pair path: the function is total and its value does not depend on
 /// which branch ran (rule 4).
 pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
@@ -699,28 +701,35 @@ pub fn round_poly_zero_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
     }
 }
 
-/// The balanced box's size, `2 · HALF_BASE = 16` digit values (card T46a).
-pub const DIGIT_ALPHABET: usize = 16;
+/// The honest round-0 alphabet's size: `[-8, 15]`, `HALF_BASE + GADGET_BASE =
+/// 24` digit values -- the balanced box `S_b = [-8, 7]` and the unsigned
+/// digits `[0, 15]` of the inner commitment's `t̂` (cards T46a, T46a').
+pub const DIGIT_ALPHABET: usize = 24;
 
-/// `DIGIT_ALPHABET²`: the pair types of a round-0 fold (card T46a).
-pub const PAIR_TYPES: usize = 256;
+/// The pair-type index space of a round-0 fold: `DIGIT_ALPHABET² = 576` types
+/// `24·i + j`, padded to the power of two `1024` (card T46a'). The bucketed
+/// call hands the per-pair body a type table of `2 · PAIR_TYPES` entries and
+/// `PAIR_TYPES` weights, and that body is specified on `2^(k+1)` and `2^k`;
+/// the 448 padding types carry weight zero, so their representatives are
+/// immaterial and the sum is unchanged.
+pub const PAIR_TYPES: usize = 1024;
 
 /// `q − HALF_BASE = 4 294 967 189`: the canonical word of the digit `−8`, the
 /// lowest word of the box's negative half (card T46a). A literal for the
 /// usual extraction reason; `tests/sumcheck_semantics.rs` ties it to `Q`.
 pub const Q_MINUS_HALF: u64 = 4_294_967_189;
 
-/// Below this many pairs the bucketed path's fixed cost -- 256 Taylor shifts
+/// Below this many pairs the bucketed path's fixed cost -- 1024 Taylor shifts
 /// and the type table -- is not repaid by the scan, and the per-pair path
-/// runs (card T46a).
-pub const BUCKET_MIN_PAIRS0: usize = 1024;
+/// runs (card T46a; about four times break-even).
+pub const BUCKET_MIN_PAIRS0: usize = 2048;
 
 /// The digit id of a round-0 table entry: `d + 8` for the canonical word of a
-/// balanced digit `d ∈ [-8, 7]`, and the sentinel [`DIGIT_ALPHABET`] for any
-/// other word (card T46a).
+/// digit `d ∈ [-8, 15]`, and the sentinel [`DIGIT_ALPHABET`] for any other
+/// word (cards T46a, T46a').
 pub fn digit_id(x: Fp) -> usize {
     let v: u64 = x.to_u64();
-    if v < params::HALF_BASE {
+    if v < params::GADGET_BASE {
         let id: u64 = v + params::HALF_BASE;
         id as usize
     } else if v >= Q_MINUS_HALF {
@@ -731,9 +740,9 @@ pub fn digit_id(x: Fp) -> usize {
     }
 }
 
-/// The `eq` weight of every round-0 pair type: `b[16·i + j] = Σ eq[y]` over
+/// The `eq` weight of every round-0 pair type: `b[24·i + j] = Σ eq[y]` over
 /// the pairs `(w[2y], w[2y+1])` whose digit ids are `(i, j)` (card T46a).
-/// `None` at the first entry outside the box.
+/// `None` at the first entry outside the alphabet.
 pub fn bucket_pairs_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
     let half: usize = eq.len();
     let mut b: Vec<Ext4> = Vec::with_capacity(PAIR_TYPES);
@@ -763,8 +772,9 @@ pub fn bucket_pairs_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
 }
 
 /// The representative table of the round-0 pair types: entry `2t` is the
-/// digit of id `t / 16`, entry `2t + 1` that of id `t % 16`, each as
-/// `Fp::new(id) − 8` (card T46a).
+/// digit of id `t / 24`, entry `2t + 1` that of id `t % 24`, each as
+/// `Fp::new(id) − 8` (card T46a). Past `576` the ids exceed the alphabet and
+/// the entries are padding (weight zero, see [`PAIR_TYPES`]).
 pub fn pair_type_table_base() -> Vec<Fp> {
     let mut out: Vec<Fp> = Vec::with_capacity(2 * PAIR_TYPES);
     let eight: Fp = Fp::new(params::HALF_BASE);

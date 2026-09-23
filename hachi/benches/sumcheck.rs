@@ -450,6 +450,36 @@ macro_rules! define_cases {
                 )
             }
 
+            /// A round-0 table on the pin's **honest alphabet** `[-8, 15]`:
+            /// the balanced digits of `ŵ`, `ẑ`, `ρ` in `[-8, 7]` and the
+            /// unsigned digits of `t̂` in `[0, 15]`. Card T46a's box
+            /// `[-8, 7]` missed the second half, and its pin profile showed
+            /// the bucket path never firing (2026-09-23); this is the corpus
+            /// that would have caught it.
+            fn pin_digit_table(seed: u64, n: usize) -> Vec<Fp> {
+                let c = support::corpus(seed, n);
+                let eight = Fp::new(8);
+                let mut out = Vec::with_capacity(n);
+                let mut i = 0usize;
+                while i < n {
+                    out.push(Fp::new(c[i].to_u64() % 24) - eight);
+                    i += 1;
+                }
+                out
+            }
+
+            /// `round_poly_zero_base` over `half` pairs on the honest
+            /// alphabet (card T46a').
+            pub fn round_poly_zero_base_pin(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = pin_digit_table(0x5A17_704B, 2 * half);
+                let eq = ext_table(0x5A17_704C, half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_zero_base(black_box(&w), black_box(&eq)),
+                    d_poly,
+                )
+            }
+
             /// One node of the **linear** summand: two folds and one product
             /// per remaining cube point, against the range side's fold plus
             /// `range_product`. The pair is what makes the `2b + 1` versus `3`
@@ -827,6 +857,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_poly_zero", round_poly_zero, [HALF]);
     // @covers sumcheck::round_poly_zero_base
     bench_case!(c, "sumcheck/round_poly_zero_base", round_poly_zero_base, [R0_HALF]);
+    // @covers sumcheck::round_poly_zero_base
+    bench_case!(c, "sumcheck/round_poly_zero_base_pin", round_poly_zero_base_pin, [R0_HALF]);
 
     // @covers sumcheck::round_value_alpha
     bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);

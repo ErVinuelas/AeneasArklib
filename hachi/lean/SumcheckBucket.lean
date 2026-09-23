@@ -1,35 +1,44 @@
 /-
-Card T46a: the bucketed round-0 sumcheck, **proved**.
+Cards T46a, T46a': the bucketed round-0 sumcheck, **proved**.
 
 `round_poly_zero_base` walks the `2^k` pairs of the round-0 table and runs one
-Taylor shift per pair. On the honest lifted witness every entry is a balanced
-digit `d ∈ [-8, 7]`, so a pair `(w[2y], w[2y+1])` has one of only
-`16 · 16 = 256` types, and the sum regroups by type:
+Taylor shift per pair. On the honest lifted witness every entry lies in the
+digit alphabet `[-8, 15]`: the balanced digits of `ŵ`, `ẑ` and `ρ` are in
+`[-8, 7]`, and the inner commitment's `t̂` is decomposed into *unsigned* base-16
+digits `[0, 15]` (T46a bucketed over the balanced box `[-8, 7]` alone, which
+missed `t̂`'s digits `8..15`, so the bucketed path never fired at the pin;
+T46a' widens the alphabet). A digit `d` gets the id `d + 8 ∈ [0, 24)`, so a
+pair `(w[2y], w[2y+1])` has one of only `24 · 24 = 576` types `24·i + j`,
+padded to the power of two `1024`, and the sum regroups by type:
 
   `Σ_y eq[y] · P(fold w T y) = Σ_t b[t] · P(fold R T t)`,
 
 with `b[t]` the summed `eq` weight of the pairs of type `t` and `R` the table
-of the 256 representative pairs. The Rust (`hachi/src/sumcheck.rs`, grep T46a)
-computes `b` (`bucket_pairs_base`), `R` (`pair_type_table_base`) and runs the
-old per-pair body (`round_poly_zero_base_plain`) on `(R, b)`: 256 shifts in
-place of `2^25` at the pin. Any entry outside the box makes the bucketing
-return `None` and the per-pair body runs on `(w, eq)` itself.
+of the 1024 representative pairs. The Rust (`hachi/src/sumcheck.rs`, grep
+T46a) computes `b` (`bucket_pairs_base`), `R` (`pair_type_table_base`) and
+runs the old per-pair body (`round_poly_zero_base_plain`) on `(R, b)`: 1024
+shifts in place of `2^25` at the pin. The `448` padding types `t ≥ 576` have
+empty fibres, so weight `0`, and their representatives in `R` are immaterial.
+Any entry outside the alphabet makes the bucketing return `None` and the
+per-pair body runs on `(w, eq)` itself.
 
 This file carries the new items' specs and the one identity the headline needs:
 
 * `digId` / `typK`, the pure digit id and pair type, and `digit_id_spec`;
-* `digId_toK`, the value lemma: a reduced word with digit id `< 16` *is* that
+* `digId_toK`, the value lemma: a reduced word with digit id `< 24` *is* that
   digit, `toK x = digId x − 8`;
+* `typK_parts`: a decoded pair has type `< 576`, read back by `/ 24`, `% 24`;
 * `bucket_zero_fill_spec`, `bucket_loop_spec`, `bucket_pairs_base_spec`: on
-  `some b`, `b` has 256 reduced entries, every pair decodes, and
-  `b[t] = Σ_{y : typK w y = t} eq[y]`;
-* `pair_type_loop_spec`, `pair_type_table_base_spec`: 512 reduced words, entry
-  `2t` the digit of id `t / 16`, entry `2t + 1` that of id `t % 16`;
+  `some b`, `b` has 1024 reduced entries, every pair decodes, and
+  `b[t] = Σ_{y : typK w y = t} eq[y]` (empty for the padding types);
+* `pair_type_loop_spec`, `pair_type_table_base_spec`: 2048 reduced words,
+  entry `2t` the value `t / 24 − 8` and entry `2t + 1` the value `t % 24 − 8`,
+  for every `t < 1024` (past `576` these are padding values);
 * `sum_fiberwise_fold`, the generic regrouping identity over any `P : F → F`,
   and `bucket_sum_eq`, its instance at the two tables the code builds.
 
 `lean/Sumcheck.lean` states `round_poly_zero_base_spec` unchanged and proves it
-from these and `round_poly_zero_base_plain_spec`.
+from these and `round_poly_zero_base_plain_spec` (at `k := 10`: `2^10` types).
 -/
 import SumcheckShift
 
@@ -48,10 +57,10 @@ open HachiEquiv.SumcheckShift
 
 /-! ## The constants -/
 
-theorem digit_alphabet_val : (sumcheck.DIGIT_ALPHABET).val = 16 := by
+theorem digit_alphabet_val : (sumcheck.DIGIT_ALPHABET).val = 24 := by
   simp only [sumcheck.DIGIT_ALPHABET]; decide
 
-theorem pair_types_val : (sumcheck.PAIR_TYPES).val = 256 := by
+theorem pair_types_val : (sumcheck.PAIR_TYPES).val = 1024 := by
   simp only [sumcheck.PAIR_TYPES]; decide
 
 theorem q_minus_half_val : (sumcheck.Q_MINUS_HALF).val = 4294967189 := by
@@ -60,7 +69,10 @@ theorem q_minus_half_val : (sumcheck.Q_MINUS_HALF).val = 4294967189 := by
 theorem half_base_val : (params.HALF_BASE).val = 8 := by
   simp only [params.HALF_BASE]; decide
 
-theorem bucket_min_pairs0_val : (sumcheck.BUCKET_MIN_PAIRS0).val = 1024 := by
+theorem gadget_base_val : (params.GADGET_BASE).val = 16 := by
+  simp only [params.GADGET_BASE]; decide
+
+theorem bucket_min_pairs0_val : (sumcheck.BUCKET_MIN_PAIRS0).val = 2048 := by
   simp only [sumcheck.BUCKET_MIN_PAIRS0]; decide
 
 /-- A `u64` below `2 ^ 32` survives the cast to `usize` on either platform. -/
@@ -92,16 +104,16 @@ theorem cast_u64_spec (i : Std.Usize) :
 
 /-! ## Digit ids and pair types -/
 
-/-- The digit id of a word: `d + 8` for the canonical word of a balanced digit
-`d ∈ [-8, 7]` (`v < 8` is `d = v`, `v ≥ q − 8` is `d = v − q`), and the
-sentinel `16` for any other word. -/
+/-- The digit id of a word: `d + 8` for the canonical word of a digit
+`d ∈ [-8, 15]` (`v < 16` is `d = v`, `v ≥ q − 8` is `d = v − q`), and the
+sentinel `24` for any other word. -/
 def digId (x : cpoly.field.Fp) : ℕ :=
-  if x.val < 8 then x.val + 8
-  else if 4294967189 ≤ x.val then x.val - 4294967189 else 16
+  if x.val < 16 then x.val + 8
+  else if 4294967189 ≤ x.val then x.val - 4294967189 else 24
 
-/-- The type of pair `y`: `16 · id(w[2y]) + id(w[2y + 1])`. -/
+/-- The type of pair `y`: `24 · id(w[2y]) + id(w[2y + 1])`. -/
 def typK (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : ℕ :=
-  16 * digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO)
+  24 * digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO)
     + digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO)
 
 /-- `digit_id` computes `digId` on a reduced word. -/
@@ -111,15 +123,16 @@ theorem digit_id_spec (x : cpoly.field.Fp) (hx : Red x) :
   have hH := half_base_val
   have hQ := q_minus_half_val
   have hD := digit_alphabet_val
+  have hG := gadget_base_val
   rw [sumcheck.digit_id]
   simp only [cpoly.field.Fp.to_u64, bind_tc_ok]
-  by_cases h8 : x < params.HALF_BASE
+  by_cases h8 : x < params.GADGET_BASE
   · rw [if_pos h8]
-    have h8v : x.val < 8 := by scalar_tac
+    have h8v : x.val < 16 := by scalar_tac
     step as ⟨id, hid⟩
     rw [cast_usize_small id (by scalar_tac), hid, hH, digId, if_pos h8v]
   · rw [if_neg h8]
-    have h8v : ¬ x.val < 8 := by scalar_tac
+    have h8v : ¬ x.val < 16 := by scalar_tac
     by_cases hq : x >= sumcheck.Q_MINUS_HALF
     · rw [if_pos hq]
       have hqv : 4294967189 ≤ x.val := by scalar_tac
@@ -129,13 +142,13 @@ theorem digit_id_spec (x : cpoly.field.Fp) (hx : Red x) :
     · have hqv : ¬ 4294967189 ≤ x.val := by scalar_tac
       rw [if_neg hq, WP.spec_ok, hD, digId, if_neg h8v, if_neg hqv]
 
-/-- **The value lemma.** A reduced word whose digit id is in the box is the
-balanced digit `id − 8`. -/
-theorem digId_toK (x : cpoly.field.Fp) (hx : Red x) (h : digId x < 16) :
+/-- **The value lemma.** A reduced word whose digit id is in the alphabet is
+the digit `id − 8`. -/
+theorem digId_toK (x : cpoly.field.Fp) (hx : Red x) (h : digId x < 24) :
     toK x = ((digId x : ℕ) : ZMod q) - 8 := by
   have hxq : x.val < 4294967197 := hx
   unfold digId at h ⊢
-  by_cases h8 : x.val < 8
+  by_cases h8 : x.val < 16
   · rw [if_pos h8, toK]
     push_cast
     ring
@@ -149,36 +162,37 @@ theorem digId_toK (x : cpoly.field.Fp) (hx : Red x) (h : digId x < 16) :
     · rw [if_neg hq] at h
       omega
 
-/-- A pair whose two ids are in the box has type below `256`, with the two ids
-read back as `typK / 16` and `typK % 16`. -/
+/-- A pair whose two ids are in the alphabet has type below `576 = 24²` (so a
+real type, not one of the `1024 − 576` padding slots), with the two ids read
+back as `typK / 24` and `typK % 24`. -/
 theorem typK_parts (w : alloc.vec.Vec cpoly.field.Fp) (y : ℕ)
-    (h1 : digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 16)
-    (h2 : digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 16) :
-    typK w y < 256 ∧ typK w y / 16 = digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO)
-      ∧ typK w y % 16 = digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) := by
+    (h1 : digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 24)
+    (h2 : digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 24) :
+    typK w y < 576 ∧ typK w y / 24 = digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO)
+      ∧ typK w y % 24 = digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) := by
   unfold typK
   refine ⟨by omega, by omega, by omega⟩
 
 /-! ## `bucket_pairs_base` -/
 
-/-- The zero fill: 256 copies of `Ext4::ZERO`. -/
+/-- The zero fill: 1024 copies of `Ext4::ZERO`. -/
 theorem bucket_zero_fill_spec (b : alloc.vec.Vec cpoly.field.Ext4) (t0 : Std.Usize)
-    (ht : t0.val ≤ 256) (hlen : b.val.length = t0.val) (hbr : VecReduced b)
+    (ht : t0.val ≤ 1024) (hlen : b.val.length = t0.val) (hbr : VecReduced b)
     (hbv : ∀ t, t < t0.val → toExt (b.val.getD t cpoly.field.Ext4.ZERO) = 0) :
     sumcheck.bucket_pairs_base_loop0 b t0
-      ⦃ z => z.val.length = 256 ∧ VecReduced z ∧
-          ∀ t, t < 256 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
+      ⦃ z => z.val.length = 1024 ∧ VecReduced z ∧
+          ∀ t, t < 1024 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
   have hP := pair_types_val
   rw [sumcheck.bucket_pairs_base_loop0]
-  apply loop.spec_decr_nat (fun r => 256 - r.2.val)
-    (fun r => r.2.val ≤ 256 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
+  apply loop.spec_decr_nat (fun r => 1024 - r.2.val)
+    (fun r => r.2.val ≤ 1024 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
       ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = 0)
   · rintro ⟨a, ii⟩ ⟨hii, hal, har', hav'⟩
     dsimp only at hii hal har' hav'
     simp only [sumcheck.bucket_pairs_base_loop0.body]
     by_cases hlt : ii < sumcheck.PAIR_TYPES
     · rw [if_pos hlt]
-      have hilt : ii.val < 256 := by scalar_tac
+      have hilt : ii.val < 1024 := by scalar_tac
       have hmax : a.val.length < Std.Usize.max := by
         have := usize_max_ge32; omega
       step as ⟨a1, ha1⟩
@@ -200,41 +214,41 @@ theorem bucket_zero_fill_spec (b : alloc.vec.Vec cpoly.field.Ext4) (t0 : Std.Usi
           exact HachiEquiv.Ext.toExt_ZERO
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : ii.val = 256 := by scalar_tac
+      have heq : ii.val = 1024 := by scalar_tac
       exact ⟨by rw [hal, heq], har', fun t ht => hav' t (by rw [heq]; exact ht)⟩
   · exact ⟨ht, hlen, hbr, hbv⟩
 
-/-- The bucketing loop. On `some z`: 256 reduced weights, every pair below
+/-- The bucketing loop. On `some z`: 1024 reduced weights, every pair below
 `half` decodes, and `z[t]` is the `eq` weight of the pairs of type `t`. -/
 theorem bucket_loop_spec (w : alloc.vec.Vec cpoly.field.Fp)
     (eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize)
     (b : alloc.vec.Vec cpoly.field.Ext4) (y : Std.Usize)
     (hhalf : half.val = eq.val.length) (hwl : w.val.length = 2 * eq.val.length)
     (hwr : ∀ a ∈ w.val, Red a) (her : VecReduced eq)
-    (hy : y.val ≤ half.val) (hbl : b.val.length = 256) (hbr : VecReduced b)
+    (hy : y.val ≤ half.val) (hbl : b.val.length = 1024) (hbr : VecReduced b)
     (hdec : ∀ y', y' < y.val →
-      digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 16
-        ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 16)
-    (hbv : ∀ t, t < 256 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+      digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 24
+        ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 24)
+    (hbv : ∀ t, t < 1024 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
       = ∑ y' ∈ (Finset.range y.val).filter (fun y' => typK w y' = t), eqF eq y') :
     sumcheck.bucket_pairs_base_loop1 w eq half b y
       ⦃ r => match r with
         | none => True
-        | some z => z.val.length = 256 ∧ VecReduced z ∧
+        | some z => z.val.length = 1024 ∧ VecReduced z ∧
             (∀ y', y' < half.val →
-              digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 16
-                ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 16) ∧
-            ∀ t, t < 256 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
+              digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 24
+                ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 24) ∧
+            ∀ t, t < 1024 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
               = ∑ y' ∈ (Finset.range half.val).filter (fun y' => typK w y' = t),
                   eqF eq y' ⦄ := by
   have hD := digit_alphabet_val
   rw [sumcheck.bucket_pairs_base_loop1]
   apply loop.spec_decr_nat (fun r => half.val - r.2.val)
-    (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 256 ∧ VecReduced r.1
+    (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 1024 ∧ VecReduced r.1
       ∧ (∀ y', y' < r.2.val →
-          digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 16
-            ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 16)
-      ∧ ∀ t, t < 256 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
+          digId (w.val.getD (2 * y') cpoly.field.Fp.ZERO) < 24
+            ∧ digId (w.val.getD (2 * y' + 1) cpoly.field.Fp.ZERO) < 24)
+      ∧ ∀ t, t < 1024 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
           = ∑ y' ∈ (Finset.range r.2.val).filter (fun y' => typK w y' = t), eqF eq y')
   · rintro ⟨a, yy⟩ ⟨hyy, hal, har', hdec', hav'⟩
     dsimp only at hyy hal har' hdec' hav'
@@ -262,16 +276,16 @@ theorem bucket_loop_spec (w : alloc.vec.Vec cpoly.field.Fp)
       · rw [if_pos hc1]
         by_cases hc2 : j < sumcheck.DIGIT_ALPHABET
         · rw [if_pos hc2]
-          have hi1v : i1.val < 16 := by scalar_tac
-          have hjv : j.val < 16 := by scalar_tac
+          have hi1v : i1.val < 24 := by scalar_tac
+          have hjv : j.val < 24 := by scalar_tac
           have hmul : sumcheck.DIGIT_ALPHABET.val * i1.val ≤ Std.Usize.max := by
             rw [hD]; have := usize_max_ge32; omega
           step as ⟨i3, hi3⟩
-          have hi3v : i3.val = 16 * i1.val := by rw [hi3, hD]
+          have hi3v : i3.val = 24 * i1.val := by rw [hi3, hD]
           step as ⟨t, ht⟩
           have htv : t.val = typK w yy.val := by
             rw [ht, hi3v, hi1, hj, hfv, hf1v, typK]
-          have htlt : t.val < 256 := by rw [ht, hi3v]; omega
+          have htlt : t.val < 1024 := by rw [ht, hi3v]; omega
           have htb : t.val < a.val.length := by rw [hal]; exact htlt
           step as ⟨cur, hcur⟩
           have hRcur : Reduced cur := har' _ (by rw [hcur]; exact List.getElem_mem htb)
@@ -320,7 +334,7 @@ theorem bucket_loop_spec (w : alloc.vec.Vec cpoly.field.Fp)
       rw [hav' t ht, hyeq]
   · exact ⟨hy, hbl, hbr, hdec, hbv⟩
 
-/-- `bucket_pairs_base`: `None`, or the 256 pair-type weights of `(w, eq)`. -/
+/-- `bucket_pairs_base`: `None`, or the 1024 pair-type weights of `(w, eq)`. -/
 theorem bucket_pairs_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
     (eq : alloc.vec.Vec cpoly.field.Ext4)
     (hwl : w.val.length = 2 * eq.val.length) (hwr : ∀ a ∈ w.val, Red a)
@@ -328,11 +342,11 @@ theorem bucket_pairs_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
     sumcheck.bucket_pairs_base w eq
       ⦃ o => match o with
         | none => True
-        | some b => b.val.length = 256 ∧ VecReduced b ∧
+        | some b => b.val.length = 1024 ∧ VecReduced b ∧
             (∀ y, y < eq.val.length →
-              digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 16
-                ∧ digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 16) ∧
-            ∀ t, t < 256 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+              digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 24
+                ∧ digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 24) ∧
+            ∀ t, t < 1024 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
               = ∑ y' ∈ (Finset.range eq.val.length).filter (fun y' => typK w y' = t),
                   eqF eq y' ⦄ := by
   rw [sumcheck.bucket_pairs_base]
@@ -353,32 +367,32 @@ theorem bucket_pairs_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
 /-! ## `pair_type_table_base` -/
 
 /-- The table loop: after `t` types, `2t` words, entry `2t'` the digit of id
-`t' / 16` and entry `2t' + 1` that of id `t' % 16`. -/
+`t' / 24` and entry `2t' + 1` that of id `t' % 24`. -/
 theorem pair_type_loop_spec (out : alloc.vec.Vec cpoly.field.Fp) (eight : cpoly.field.Fp)
-    (t : Std.Usize) (h8r : Red eight) (h8v : toK eight = 8) (ht : t.val ≤ 256)
+    (t : Std.Usize) (h8r : Red eight) (h8v : toK eight = 8) (ht : t.val ≤ 1024)
     (hlen : out.val.length = 2 * t.val) (hr : ∀ a ∈ out.val, Red a)
     (hv : ∀ t', t' < t.val →
-      coeffK out (2 * t') = ((t' / 16 : ℕ) : ZMod q) - 8
-        ∧ coeffK out (2 * t' + 1) = ((t' % 16 : ℕ) : ZMod q) - 8) :
+      coeffK out (2 * t') = ((t' / 24 : ℕ) : ZMod q) - 8
+        ∧ coeffK out (2 * t' + 1) = ((t' % 24 : ℕ) : ZMod q) - 8) :
     sumcheck.pair_type_table_base_loop out eight t
-      ⦃ z => z.val.length = 512 ∧ (∀ a ∈ z.val, Red a) ∧
-          ∀ t', t' < 256 →
-            coeffK z (2 * t') = ((t' / 16 : ℕ) : ZMod q) - 8
-              ∧ coeffK z (2 * t' + 1) = ((t' % 16 : ℕ) : ZMod q) - 8 ⦄ := by
+      ⦃ z => z.val.length = 2048 ∧ (∀ a ∈ z.val, Red a) ∧
+          ∀ t', t' < 1024 →
+            coeffK z (2 * t') = ((t' / 24 : ℕ) : ZMod q) - 8
+              ∧ coeffK z (2 * t' + 1) = ((t' % 24 : ℕ) : ZMod q) - 8 ⦄ := by
   have hP := pair_types_val
   have hD := digit_alphabet_val
   rw [sumcheck.pair_type_table_base_loop]
-  apply loop.spec_decr_nat (fun r => 256 - r.2.val)
-    (fun r => r.2.val ≤ 256 ∧ r.1.val.length = 2 * r.2.val ∧ (∀ a ∈ r.1.val, Red a)
+  apply loop.spec_decr_nat (fun r => 1024 - r.2.val)
+    (fun r => r.2.val ≤ 1024 ∧ r.1.val.length = 2 * r.2.val ∧ (∀ a ∈ r.1.val, Red a)
       ∧ ∀ t', t' < r.2.val →
-          coeffK r.1 (2 * t') = ((t' / 16 : ℕ) : ZMod q) - 8
-            ∧ coeffK r.1 (2 * t' + 1) = ((t' % 16 : ℕ) : ZMod q) - 8)
+          coeffK r.1 (2 * t') = ((t' / 24 : ℕ) : ZMod q) - 8
+            ∧ coeffK r.1 (2 * t' + 1) = ((t' % 24 : ℕ) : ZMod q) - 8)
   · rintro ⟨o, tt⟩ ⟨htt, hol, hor, hov⟩
     dsimp only at htt hol hor hov
     simp only [sumcheck.pair_type_table_base_loop.body]
     by_cases hlt : tt < sumcheck.PAIR_TYPES
     · rw [if_pos hlt]
-      have httv : tt.val < 256 := by scalar_tac
+      have httv : tt.val < 1024 := by scalar_tac
       step as ⟨hi_id, hhi⟩
       step as ⟨lo_id, hlo⟩
       step with cast_u64_spec hi_id as ⟨i, hi⟩
@@ -397,8 +411,8 @@ theorem pair_type_loop_spec (out : alloc.vec.Vec cpoly.field.Fp) (eight : cpoly.
       step as ⟨o2, ho2⟩
       step as ⟨tt1, htt1⟩
       have htt1v : tt1.val = tt.val + 1 := by scalar_tac
-      have hhiv : hi_id.val = tt.val / 16 := by rw [hhi, hD]
-      have hlov : lo_id.val = tt.val % 16 := by rw [hlo, hD]
+      have hhiv : hi_id.val = tt.val / 24 := by rw [hhi, hD]
+      have hlov : lo_id.val = tt.val % 24 := by rw [hlo, hD]
       refine ⟨by omega, ?_, ?_, ?_, by omega⟩
       · rw [ho2, List.length_append, ho1l, htt1v, List.length_singleton]; ring
       · intro u hu
@@ -427,17 +441,17 @@ theorem pair_type_loop_spec (out : alloc.vec.Vec cpoly.field.Fp) (eight : cpoly.
               hf3, hf2, h8v, hi1, hlov]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      have heq : tt.val = 256 := by scalar_tac
+      have heq : tt.val = 1024 := by scalar_tac
       exact ⟨by rw [hol, heq], hor, fun t' ht' => hov t' (by rw [heq]; exact ht')⟩
   · exact ⟨ht, hlen, hr, hv⟩
 
-/-- `pair_type_table_base`: the 512-word representative table. -/
+/-- `pair_type_table_base`: the 2048-word representative table. -/
 theorem pair_type_table_base_spec :
     sumcheck.pair_type_table_base
-      ⦃ v => v.val.length = 512 ∧ (∀ a ∈ v.val, Red a) ∧
-          ∀ t, t < 256 →
-            coeffK v (2 * t) = ((t / 16 : ℕ) : ZMod q) - 8
-              ∧ coeffK v (2 * t + 1) = ((t % 16 : ℕ) : ZMod q) - 8 ⦄ := by
+      ⦃ v => v.val.length = 2048 ∧ (∀ a ∈ v.val, Red a) ∧
+          ∀ t, t < 1024 →
+            coeffK v (2 * t) = ((t / 24 : ℕ) : ZMod q) - 8
+              ∧ coeffK v (2 * t + 1) = ((t % 24 : ℕ) : ZMod q) - 8 ⦄ := by
   have hP := pair_types_val
   have hH := half_base_val
   rw [sumcheck.pair_type_table_base]
@@ -473,54 +487,54 @@ theorem bucket_sum_eq {k : ℕ} (w v : alloc.vec.Vec cpoly.field.Fp)
     (eq b : alloc.vec.Vec cpoly.field.Ext4) (P : F → F) (x : F)
     (heql : eq.val.length = 2 ^ k) (hwl : w.val.length = 2 * eq.val.length)
     (hwr : ∀ a ∈ w.val, Red a)
-    (hvv : ∀ t, t < 256 →
-      coeffK v (2 * t) = ((t / 16 : ℕ) : ZMod q) - 8
-        ∧ coeffK v (2 * t + 1) = ((t % 16 : ℕ) : ZMod q) - 8)
+    (hvv : ∀ t, t < 1024 →
+      coeffK v (2 * t) = ((t / 24 : ℕ) : ZMod q) - 8
+        ∧ coeffK v (2 * t + 1) = ((t % 24 : ℕ) : ZMod q) - 8)
     (hdec : ∀ y, y < eq.val.length →
-      digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 16
-        ∧ digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 16)
-    (hbv : ∀ t, t < 256 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
+      digId (w.val.getD (2 * y) cpoly.field.Fp.ZERO) < 24
+        ∧ digId (w.val.getD (2 * y + 1) cpoly.field.Fp.ZERO) < 24)
+    (hbv : ∀ t, t < 1024 → toExt (b.val.getD t cpoly.field.Ext4.ZERO)
       = ∑ y' ∈ (Finset.range eq.val.length).filter (fun y' => typK w y' = t), eqF eq y') :
-    ∑ t : Fin (2 ^ 8), tableFn (m := 8) b t * P (fold (phiF ∘ tableFnFp (m := 8 + 1) v) x t)
+    ∑ t : Fin (2 ^ 10), tableFn (m := 10) b t * P (fold (phiF ∘ tableFnFp (m := 10 + 1) v) x t)
       = ∑ y : Fin (2 ^ k),
           tableFn (m := k) eq y * P (fold (phiF ∘ tableFnFp (m := k + 1) w) x y) := by
-  have hparts : ∀ y : Fin (2 ^ k), typK w y.val < 256
-      ∧ typK w y.val / 16 = digId (w.val.getD (2 * y.val) cpoly.field.Fp.ZERO)
-      ∧ typK w y.val % 16 = digId (w.val.getD (2 * y.val + 1) cpoly.field.Fp.ZERO) := by
+  have hparts : ∀ y : Fin (2 ^ k), typK w y.val < 576
+      ∧ typK w y.val / 24 = digId (w.val.getD (2 * y.val) cpoly.field.Fp.ZERO)
+      ∧ typK w y.val % 24 = digId (w.val.getD (2 * y.val + 1) cpoly.field.Fp.ZERO) := by
     intro y
     obtain ⟨h1, h2⟩ := hdec y.val (by rw [heql]; exact y.isLt)
     exact typK_parts w y.val h1 h2
-  have htyp : ∀ y : Fin (2 ^ k), typK w y.val < 2 ^ 8 := fun y =>
-    (hparts y).1.trans_eq (by norm_num)
-  let typ : Fin (2 ^ k) → Fin (2 ^ 8) := fun y => ⟨typK w y.val, htyp y⟩
+  have htyp : ∀ y : Fin (2 ^ k), typK w y.val < 2 ^ 10 := fun y =>
+    (hparts y).1.trans (by norm_num)
+  let typ : Fin (2 ^ k) → Fin (2 ^ 10) := fun y => ⟨typK w y.val, htyp y⟩
   have hred : ∀ n, n < w.val.length → Red (w.val.getD n cpoly.field.Fp.ZERO) := by
     intro n hn
     rw [List.getD_eq_getElem _ _ hn]
     exact hwr _ (List.getElem_mem hn)
   have hlo : ∀ y, (phiF ∘ tableFnFp (m := k + 1) w) (lo y)
-      = (phiF ∘ tableFnFp (m := 8 + 1) v) (lo (typ y)) := by
+      = (phiF ∘ tableFnFp (m := 10 + 1) v) (lo (typ y)) := by
     intro y
     show phiF (coeffK w (2 * y.val)) = phiF (coeffK v (2 * typK w y.val))
     have hy : y.val < eq.val.length := by rw [heql]; exact y.isLt
     obtain ⟨h1, _⟩ := hdec y.val hy
     obtain ⟨hlt, hdiv, _⟩ := hparts y
-    rw [(hvv _ hlt).1, hdiv, coeffK,
+    rw [(hvv _ (by omega)).1, hdiv, coeffK,
       digId_toK _ (hred _ (by rw [hwl]; omega)) h1]
   have hhi : ∀ y, (phiF ∘ tableFnFp (m := k + 1) w) (hi y)
-      = (phiF ∘ tableFnFp (m := 8 + 1) v) (hi (typ y)) := by
+      = (phiF ∘ tableFnFp (m := 10 + 1) v) (hi (typ y)) := by
     intro y
     show phiF (coeffK w (2 * y.val + 1)) = phiF (coeffK v (2 * typK w y.val + 1))
     have hy : y.val < eq.val.length := by rw [heql]; exact y.isLt
     obtain ⟨_, h2⟩ := hdec y.val hy
     obtain ⟨hlt, _, hmod⟩ := hparts y
-    rw [(hvv _ hlt).2, hmod, coeffK,
+    rw [(hvv _ (by omega)).2, hmod, coeffK,
       digId_toK _ (hred _ (by rw [hwl]; omega)) h2]
   rw [sum_fiberwise_fold _ _ (tableFn (m := k) eq) P x typ hlo hhi]
   refine Finset.sum_congr rfl (fun t _ => ?_)
-  have ht256 : t.val < 256 := t.isLt.trans_eq (by norm_num)
-  have hfib : tableFn (m := 8) b t
+  have ht1024 : t.val < 1024 := t.isLt.trans_eq (by norm_num)
+  have hfib : tableFn (m := 10) b t
       = ∑ y ∈ Finset.univ.filter (fun y => typ y = t), tableFn (m := k) eq y := by
-    rw [tableFn_apply, hbv t.val ht256, Finset.sum_filter, Finset.sum_filter, heql,
+    rw [tableFn_apply, hbv t.val ht1024, Finset.sum_filter, Finset.sum_filter, heql,
       ← Fin.sum_univ_eq_sum_range (fun y' => if typK w y' = t.val then eqF eq y' else 0) (2 ^ k)]
     refine Finset.sum_congr rfl (fun y _ => ?_)
     show (if typK w y.val = t.val then eqF eq y.val else 0)

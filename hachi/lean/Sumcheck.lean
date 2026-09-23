@@ -2367,12 +2367,12 @@ theorem round_poly_zero_base_plain_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field
 interpolant is `rangeSumZero` at the embedded table everywhere: the same
 degree-`31 < 33` argument `round_poly_zero_spec` makes, at a different table.
 
-Card T46a: from `1024` pairs up, the code first buckets the pairs by type
-(`bucket_pairs_base`, `lean/SumcheckBucket.lean`) and, when every entry is a
-balanced digit, runs the per-pair body on the 256 representative pairs with the
-bucket weights. Each branch is `round_poly_zero_base_plain_spec`; the bucketed
-one lands on `rangeSumZero` at `(R, b)`, which `bucket_sum_eq` regroups back to
-`(w, eq)`. The statement is the one this theorem had before the card. -/
+Cards T46a, T46a': from `2048` pairs up, the code first buckets the pairs by
+type (`bucket_pairs_base`, `lean/SumcheckBucket.lean`) and, when every entry is
+a digit of the alphabet `[-8, 15]`, runs the per-pair body on the 1024
+representative pairs (576 real types, padded) with the bucket weights. Each
+branch is `round_poly_zero_base_plain_spec`; the bucketed one lands on
+`rangeSumZero` at `(R, b)`, which `bucket_sum_eq` regroups back to `(w, eq)`. The statement is the one this theorem had before the card. -/
 theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
     (eq : alloc.vec.Vec cpoly.field.Ext4)
     (hw : WfEvalsFp (k + 1) w) (heq : WfEvals k eq) :
@@ -2390,7 +2390,7 @@ theorem round_poly_zero_base_spec {k : ℕ} (w : alloc.vec.Vec cpoly.field.Fp)
     · exact round_poly_zero_base_plain_spec w eq hw heq
     · obtain ⟨hbl, hbr, hdec, hbv⟩ := ho
       step with HachiEquiv.SumcheckBucket.pair_type_table_base_spec as ⟨v, hvl, hvr, hvv⟩
-      apply spec_mono (round_poly_zero_base_plain_spec (k := 8) v b
+      apply spec_mono (round_poly_zero_base_plain_spec (k := 10) v b
         ⟨by rw [hvl]; norm_num, hvr⟩ ⟨by rw [hbl]; norm_num, hbr⟩)
       rintro out ⟨h1, h2, h3⟩
       refine ⟨h1, h2, fun x => ?_⟩

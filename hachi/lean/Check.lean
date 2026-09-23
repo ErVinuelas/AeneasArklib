@@ -1494,12 +1494,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.pair_loop_base_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_base_plain_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_base_spec
--- Card T46a: from 1024 pairs up, round 0 buckets the pairs by type -- on the
--- honest witness every entry is a balanced digit, so there are only 256 --
--- and runs the per-pair body (`round_poly_zero_base_plain`, the old body) on
--- the 256 representative pairs with the summed `eq` weights. The headline
+-- Cards T46a, T46a': from 2048 pairs up, round 0 buckets the pairs by type --
+-- on the honest witness every entry is a digit of `[-8, 15]` (balanced digits
+-- and `t̂`'s unsigned ones), so there are only 576, padded to 1024 -- and runs
+-- the per-pair body (`round_poly_zero_base_plain`, the old body) on the 1024
+-- representative pairs with the summed `eq` weights. The headline
 -- above kept its statement; `bucket_sum_eq` is the regrouping it needs, and
--- `digId_toK` the fact that a word with an in-box digit id is that digit.
+-- `digId_toK` the fact that a word with an in-alphabet digit id is that digit.
 #print axioms HachiEquiv.SumcheckBucket.cast_usize_small
 #print axioms HachiEquiv.SumcheckBucket.cast_u64_spec
 #print axioms HachiEquiv.SumcheckBucket.digit_id_spec
