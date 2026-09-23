@@ -1884,6 +1884,7 @@ pub fn round_poly_alpha_split_pairs(
 }
 
 
+// @genesis ffb7a0b 2026-09-24 — sumcheck::alpha_block_sums_base
 // ---------------------------------------------------------------------------
 // Card T41b2 (2026-09-24): round 0's alpha side by high block. The base block
 // sums, the block walk and the per-pair direct form it keeps for odd l are
@@ -1922,6 +1923,7 @@ pub fn alpha_block_sums_base(
     (s0, s1, s2)
 }
 
+// @genesis ffb7a0b 2026-09-24 — sumcheck::round_poly_alpha_base_split_blocks
 /// [`round_poly_alpha_split_blocks`] with the witness table in the base field
 /// (card T41b): the same block loop over [`alpha_block_sums_base`].
 pub fn round_poly_alpha_base_split_blocks(
@@ -1954,6 +1956,7 @@ pub fn round_poly_alpha_base_split_blocks(
     UnivariatePoly::from_coeffs(coeffs)
 }
 
+// @genesis ffb7a0b 2026-09-24 — sumcheck::round_poly_alpha_base_split_direct
 /// [`round_poly_alpha_base_split`] pair by pair with tensor reads: card T41b1's
 /// direct coefficients, the path for odd or zero `l` since card T41b2.
 pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
