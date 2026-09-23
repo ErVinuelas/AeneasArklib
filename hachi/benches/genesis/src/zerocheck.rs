@@ -813,6 +813,7 @@ pub fn c_w_table_fp(w: &LiftedWitness, m0: usize) -> Vec<Fp> {
     values
 }
 
+// @genesis 15ae782 2026-09-23 — zerocheck::c_eval_at_pw
 // ---------------------------------------------------------------------------
 // Card T48e (2026-09-23): the table-driven evaluation m_alpha_table now calls.
 // m_alpha_table itself keeps its freeze above.
