@@ -1613,6 +1613,7 @@ pub fn round_poly_zero_fold1(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> Univar
 }
 
 
+// @genesis ab9c557 2026-09-23 — sumcheck::QUAD_TYPES_USED
 // ---------------------------------------------------------------------------
 // Card T46b (2026-09-23): round 1 by quad type. The three constants and the four
 // new items are first translations; round_poly_zero_fold1 and
@@ -1623,17 +1624,20 @@ pub fn round_poly_zero_fold1(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) -> Univar
 /// side, `576² = 331 776` (card T46b).
 pub const QUAD_TYPES_USED: usize = 331_776;
 
+// @genesis ab9c557 2026-09-23 — sumcheck::QUAD_TYPES
 /// The quad-type index space: [`QUAD_TYPES_USED`] padded to the power of two
 /// `2^19` (card T46b), for the reason [`PAIR_TYPES`] is padded -- the
 /// per-pair body is specified on `2^(k+1)`-entry tables and `2^k` weights.
 /// The padding types carry weight zero.
 pub const QUAD_TYPES: usize = 524_288;
 
+// @genesis ab9c557 2026-09-23 — sumcheck::BUCKET_MIN_PAIRS1
 /// Below this many round-1 pairs the bucketed path's fixed cost -- `2^19`
 /// Taylor shifts and a `2^21`-entry type table, ~0.8 s -- is not repaid, and
 /// the composition runs (card T46b; about four times break-even).
 pub const BUCKET_MIN_PAIRS1: usize = 2_097_152;
 
+// @genesis ab9c557 2026-09-23 — sumcheck::round_poly_zero_fold1_bucketed
 /// The bucketed branch of [`round_poly_zero_fold1`], with no size gate:
 /// `None` off the alphabet, otherwise the round-1 message from the quad-type
 /// buckets (card T46b). Its own item so that the semantics tests can drive it
@@ -1649,6 +1653,7 @@ pub fn round_poly_zero_fold1_bucketed(w_fp: &Vec<Fp>, a0: Ext4, eq: &Vec<Ext4>) 
     }
 }
 
+// @genesis ab9c557 2026-09-23 — sumcheck::bucket_quads_base
 /// The `eq` weight of every round-1 quad type:
 /// `b[576·(24·i₀ + i₁) + (24·i₂ + i₃)] = Σ eq[y]` over the `y` whose four
 /// round-0 entries `w[4y..4y+4)` have digit ids `(i₀, i₁, i₂, i₃)`
@@ -1694,6 +1699,7 @@ pub fn bucket_quads_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
     Some(b)
 }
 
+// @genesis ab9c557 2026-09-23 — sumcheck::quad_type_table_base
 /// The representative round-0 table of the round-1 quad types: entries
 /// `4t .. 4t+4` are the digits of ids `i₀, i₁, i₂, i₃` with
 /// `t = 576·(24·i₀ + i₁) + (24·i₂ + i₃)`, each as `Fp::new(id) − 8` (card
@@ -1720,6 +1726,7 @@ pub fn quad_type_table_base() -> Vec<Fp> {
     out
 }
 
+// @genesis ab9c557 2026-09-23 — sumcheck::honest_compute_g_fold1_split
 /// [`honest_compute_g_split`] at round 1, with the zero side from the round-0
 /// base table: [`round_poly_zero_fold1`] in place of [`round_poly_zero`] on
 /// `w_tab` (card T46b). `w_tab` is still what the linear side reads.
