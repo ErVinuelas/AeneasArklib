@@ -1850,17 +1850,19 @@ theorem carrier_commit_from_raw_32_spec (d_matrix : linalg.PolyMatrix) (a : lina
   rw [Raw32.carrier_commit_from_raw_32_eq d_matrix a hex]
   exact carrier_commit_from_raw_spec d_matrix a raw hWd hWa hWraw
 
-/-! ### The fused z pass (Stage 6 card T43)
+/-! ### The fused z pass on packed lanes (Stage 6 cards T43, T47)
 
 `honest_z_from_raw_32` no longer runs `honest_z_from_raw`'s loops on an
-expanded block, so `Raw32.honest_z_from_raw_32_eq` -- "the `_32` item is the
-`_64` item on the message it denotes" -- is gone with them, and the
-specification below is proved on the new loops directly. Two accumulators: the
-dense fallback's `acc : Vec Rq`, whose inner loop is byte-identical to
-`honest_z_from_raw`'s and reuses its spec, and the short path's flat unreduced
-`u64` buffer `zbuf` (`ZPacked.reg`), carried across the blocks. The block-loop
-invariant is `toRq acc[t] + regRq zbuf t = Σ_{j<i} c_j · digitBlock raw_j (t/8) (t%8)`,
-and the merge loop at the end adds the two. -/
+expanded block, so the specification below is proved on its own loops
+directly. Two accumulators: the dense fallback's `acc : Vec Rq`, whose inner
+loop is byte-identical to `honest_z_from_raw`'s and reuses its spec, and the
+short path's packed buffer `zp` (card T47: one slot of three 20-bit-lane words
+per coefficient of every message row, `ZPacked.slotW`), carried across the
+blocks. The block-loop invariant is
+`toRq acc[t] + laneRq zp (t/8) (t%8) = Σ_{j<i} c_j · digitBlock raw_j (t/8) (t%8)`
+with every lane at most `31 · (Z_LANE_CHUNK − 1 − left)`: the flush folds `zp`
+into `acc` and zeroes it whenever fewer than `OMEGA` passes of headroom
+remain, and the final flush is the merge. -/
 
 /-- The accumulator's zero-fill: byte-identical to `honest_z_from_raw_loop0`. -/
 theorem honest_z_32_loop0_eq (width : Std.Usize) (acc : alloc.vec.Vec ring.Rq)
@@ -1910,12 +1912,12 @@ theorem honest_z_32_loop1_spec (totalU : Std.Usize) (zbuf : alloc.vec.Vec Std.U6
   · exact ⟨hf, hlen, hz⟩
 
 set_option maxRecDepth 100000 in
-/-- The rows loop of a short block: every row's eight regions gain the
-challenge times that digit polynomial of the block. -/
-theorem honest_z_32_rows_spec (digitsU strideU : Std.Usize) (zbuf : alloc.vec.Vec Std.U64)
+/-- The rows loop of a short block: every row's eight digit accumulators gain
+the challenge times that digit polynomial of the block. -/
+theorem honest_z_32_rows_spec (nU : Std.Usize) (zp : alloc.vec.Vec Std.U64)
     (block : linalg.PolyVec) (terms : quadeval.ZTerms) (rowsU rU : Std.Usize)
-    (zbuf0 : alloc.vec.Vec Std.U64) (ci : ring.Rq) (B : ℕ)
-    (hd : digitsU.val = 8) (hs : strideU.val = ZPacked.S) (hrows : rowsU.val = 2 ^ 10)
+    (zp0 : alloc.vec.Vec Std.U64) (ci : ring.Rq) (B : ℕ)
+    (hn : nU.val = N) (hrows : rowsU.val = 2 ^ 10)
     (hblock : WfVec (2 ^ 10) block) (hci : Wf ci)
     (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
     (hnlen : terms.idx.val.length ≤ terms.neg.val.length)
@@ -1924,30 +1926,29 @@ theorem honest_z_32_rows_spec (digitsU strideU : Std.Usize) (zbuf : alloc.vec.Ve
     (hden : ∀ j, j < N → coeffK ci j
       = HachiEquiv.RingShort.descCoeffW terms.idx terms.mag terms.neg
           terms.idx.val.length j)
-    (hr : rU.val ≤ 2 ^ 10) (hlen : zbuf.val.length = zbuf0.val.length)
-    (hcap : zbuf0.val.length = 2 ^ 10 * 8 * ZPacked.S)
-    (hB : B + 16 * q ≤ Std.U64.max)
-    (hbnd : ∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-      ZPacked.reg zbuf g w ≤ (if g < 8 * rU.val then B + 16 * q else B))
-    (hval : ∀ g, g < 2 ^ 10 * 8 →
-      ZPacked.regRq zbuf g = ZPacked.regRq zbuf0 g
-        + (if g < 8 * rU.val then toRq ci * digitBlock block (g / 8) (g % 8) else 0)) :
-    quadeval.honest_z_from_raw_32_loop2_loop1 digitsU strideU zbuf block terms rowsU rU
-      ⦃ z => z.val.length = zbuf0.val.length
-        ∧ (∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N → ZPacked.reg z g w ≤ B + 16 * q)
-        ∧ ∀ g, g < 2 ^ 10 * 8 →
-            ZPacked.regRq z g = ZPacked.regRq zbuf0 g
-              + toRq ci * digitBlock block (g / 8) (g % 8) ⦄ := by
+    (hr : rU.val ≤ 2 ^ 10) (hlen : zp.val.length = zp0.val.length)
+    (hcap : zp0.val.length = 3 * (2 ^ 10 * N))
+    (hB : B + 31 * 16 < 2 ^ 20)
+    (hbnd : ∀ r, r < 2 ^ 10 → ∀ p, p < N → ∀ l, l < 3 →
+      ZPacked.WB (ZPacked.slotW zp r p l) (if r < rU.val then B + 31 * 16 else B))
+    (hval : ∀ r, r < 2 ^ 10 → ∀ e, e < 8 →
+      ZPacked.laneRq zp r e = ZPacked.laneRq zp0 r e
+        + (if r < rU.val then toRq ci * digitBlock block r e else 0)) :
+    quadeval.honest_z_from_raw_32_loop2_loop1 nU zp block terms rowsU rU
+      ⦃ z => z.val.length = zp0.val.length
+        ∧ (∀ r, r < 2 ^ 10 → ∀ p, p < N → ∀ l, l < 3 →
+            ZPacked.WB (ZPacked.slotW z r p l) (B + 31 * 16))
+        ∧ ∀ r, r < 2 ^ 10 → ∀ e, e < 8 →
+            ZPacked.laneRq z r e = ZPacked.laneRq zp0 r e + toRq ci * digitBlock block r e ⦄ := by
   have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
-  have hSv : ZPacked.S = 1040 := rfl
   rw [quadeval.honest_z_from_raw_32_loop2_loop1]
   apply loop.spec_decr_nat (fun t => 2 ^ 10 - t.2.val)
-    (fun t => t.2.val ≤ 2 ^ 10 ∧ t.1.val.length = zbuf0.val.length
-      ∧ (∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-          ZPacked.reg t.1 g w ≤ (if g < 8 * t.2.val then B + 16 * q else B))
-      ∧ ∀ g, g < 2 ^ 10 * 8 →
-          ZPacked.regRq t.1 g = ZPacked.regRq zbuf0 g
-            + (if g < 8 * t.2.val then toRq ci * digitBlock block (g / 8) (g % 8) else 0))
+    (fun t => t.2.val ≤ 2 ^ 10 ∧ t.1.val.length = zp0.val.length
+      ∧ (∀ r, r < 2 ^ 10 → ∀ p, p < N → ∀ l, l < 3 →
+          ZPacked.WB (ZPacked.slotW t.1 r p l) (if r < t.2.val then B + 31 * 16 else B))
+      ∧ ∀ r, r < 2 ^ 10 → ∀ e, e < 8 →
+          ZPacked.laneRq t.1 r e = ZPacked.laneRq zp0 r e
+            + (if r < t.2.val then toRq ci * digitBlock block r e else 0))
   · rintro ⟨d, rr⟩ ⟨hrr, hdl, hdb, hdv⟩
     dsimp only at hrr hdl hdb hdv
     simp only [quadeval.honest_z_from_raw_32_loop2_loop1.body]
@@ -1955,115 +1956,116 @@ theorem honest_z_32_rows_spec (digitsU strideU : Std.Usize) (zbuf : alloc.vec.Ve
     · rw [if_pos hlt]
       have hrlt : rr.val < 2 ^ 10 := by rw [← hrows]; scalar_tac
       have hrlt' : rr.val < 1024 := by rw [← h1024]; exact hrlt
-      step as ⟨i8, hi8⟩
+      step as ⟨i3, hi3⟩
+      have hmulmax : i3.val * nU.val ≤ Std.Usize.max := by
+        rw [hi3, hn, ZPacked.z_lane_words_val]
+        have := ZPacked.usize_max_ge; have h3 : N = 1024 := rfl; rw [h3]; nlinarith
       step as ⟨rbU, hrbU⟩
-      have hrb : rbU.val = (8 * rr.val) * ZPacked.S := by
-        rw [hrbU, hi8, hd, hs]; ring
+      have hrb : rbU.val = 3 * (rr.val * N) := by
+        rw [hrbU, hi3, hn, ZPacked.z_lane_words_val]; ring
       have hrb2 : rr.val < block.val.length := by rw [hblock.1]; exact hrlt
       simp only [linalg.PolyVec.get]
       step as ⟨row, hrow⟩
       have hrowwf : Wf row := by rw [hrow]; exact hblock.2 _ (List.getElem_mem hrb2)
       have hrowg : row = block.val.getD rr.val (alloc.vec.Vec.new cpoly.field.Fp) := by
         rw [hrow, List.getD_eq_getElem _ _ hrb2]
-      have hcapd : (8 * rr.val + 8) * ZPacked.S ≤ d.val.length := by
+      have hcapd : 3 * ((rr.val + 1) * N) ≤ d.val.length := by
         rw [hdl, hcap, h1024]
-        exact Nat.mul_le_mul_right _ (by omega)
-      have hmq := Nat.mul_le_mul_right q hsum
-      have hB' : B + ZPacked.magSum terms.mag terms.idx.val.length * q ≤ Std.U64.max :=
-        le_trans (Nat.add_le_add_left hmq B) hB
-      step with ZPacked.z_row_spec terms row d rbU (8 * rr.val) ci B hrowwf hci hrb hcapd
+        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
+      have hB' : B + 31 * ZPacked.magSum terms.mag terms.idx.val.length < 2 ^ 20 := by omega
+      step with ZPacked.z_row_lanes_spec terms row d rbU rr.val ci B hrowwf hci hrb hcapd
         hmlen hnlen hidx hden hB'
         (by
-          intro e he w hw
-          have := hdb (8 * rr.val + e) (by omega) w hw
-          rwa [if_neg (by omega)] at this)
+          intro p hp l hl
+          have := hdb rr.val hrlt p hp l hl
+          rwa [if_neg (Nat.lt_irrefl _)] at this)
         as ⟨z, hzl, hzb, hzv, hzf⟩
       step as ⟨rr1, hrr1⟩
       refine ⟨by omega, by rw [hzl]; exact hdl, ?_, ?_, by omega⟩
-      · intro g hg w hw
+      · intro r hr p hp l hl
         rw [hrr1]
-        by_cases hin : 8 * rr.val ≤ g ∧ g < 8 * rr.val + 8
-        · obtain ⟨e, he, hge⟩ : ∃ e, e < 8 ∧ g = 8 * rr.val + e :=
-            ⟨g - 8 * rr.val, by omega, by omega⟩
-          rw [hge, if_pos (by omega)]
-          exact le_trans (hzb e he w hw) (Nat.add_le_add_left hmq B)
-        · rw [ZPacked.Frame_reg hzf (by omega) hw]
-          have := hdb g hg w hw
-          by_cases hg1 : g < 8 * rr.val
-          · rw [if_pos hg1] at this; rw [if_pos (by omega)]; exact this
-          · rw [if_neg hg1] at this; rw [if_neg (by omega)]; exact this
-      · intro g hg
+        by_cases hre : r = rr.val
+        · rw [hre, if_pos (Nat.lt_succ_self _)]
+          exact ZPacked.WB_mono (hzb p hp l hl) (by omega)
+        · rw [ZPacked.FrameR_slot hzf hre hp hl]
+          have := hdb r hr p hp l hl
+          by_cases hr1 : r < rr.val
+          · rw [if_pos hr1] at this; rw [if_pos (show r < rr.val + 1 by omega)]; exact this
+          · rw [if_neg hr1] at this; rw [if_neg (show ¬ (r < rr.val + 1) by omega)]; exact this
+      · intro r hr e he
         rw [hrr1]
-        by_cases hin : 8 * rr.val ≤ g ∧ g < 8 * rr.val + 8
-        · obtain ⟨e, he, hge⟩ : ∃ e, e < 8 ∧ g = 8 * rr.val + e :=
-            ⟨g - 8 * rr.val, by omega, by omega⟩
-          have hdiv : (8 * rr.val + e) / 8 = rr.val := by omega
-          have hmod : (8 * rr.val + e) % 8 = e := by omega
-          rw [hge, if_pos (by omega), hzv e he, hdv (8 * rr.val + e) (by omega), if_neg (by omega),
-            add_zero, hrowg,
-            ZPacked.digitRq_eq_digitBlock block rr.val e (by rw [← hrowg]; exact hrowwf),
-            hdiv, hmod]
-        · rw [ZPacked.regRq_congr z d g (fun w hw => ZPacked.Frame_reg hzf (by omega) hw),
-            hdv g hg]
-          by_cases hg1 : g < 8 * rr.val
-          · rw [if_pos hg1, if_pos (by omega)]
-          · rw [if_neg hg1, if_neg (by omega)]
+        by_cases hre : r = rr.val
+        · rw [hre, if_pos (Nat.lt_succ_self _), hzv e he, hdv rr.val hrlt e he,
+            if_neg (Nat.lt_irrefl _), add_zero, hrowg,
+            ZPacked.digitRq_eq_digitBlock block rr.val e (by rw [← hrowg]; exact hrowwf)]
+        · rw [ZPacked.FrameR_laneRq hzf hre e he, hdv r hr e he]
+          by_cases hr1 : r < rr.val
+          · rw [if_pos hr1, if_pos (show r < rr.val + 1 by omega)]
+          · rw [if_neg hr1, if_neg (show ¬ (r < rr.val + 1) by omega)]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : rr.val = 2 ^ 10 := by rw [← hrows]; scalar_tac
       refine ⟨hdl, ?_, ?_⟩
-      · intro g hg w hw
-        have := hdb g hg w hw
-        rwa [if_pos (by rw [heq]; omega)] at this
-      · intro g hg
-        rw [hdv g hg, if_pos (by rw [heq]; omega)]
+      · intro r hr p hp l hl
+        have := hdb r hr p hp l hl
+        rwa [if_pos (by rw [heq]; exact hr)] at this
+      · intro r hr e he
+        rw [hdv r hr e he, if_pos (by rw [heq]; exact hr)]
   · exact ⟨hr, hlen, hbnd, hval⟩
 
+/-- The lane bound's arithmetic: `left` passes of headroom to go, `16` charged. -/
+theorem lane_budget {L : ℕ} (h1 : 16 ≤ L) (h2 : L ≤ 32768 - 1) :
+    31 * (32768 - 1 - L) + 31 * 16 < 2 ^ 20
+      ∧ 31 * (32768 - 1 - L) + 31 * 16 = 31 * (32768 - 1 - (L - 16)) := by
+  norm_num
+  omega
+
 set_option maxRecDepth 100000 in
-/-- The block loop. `leftC` is the constant `Z_CHUNK - 1` the reduction resets
-the counter to; `leftU` is the counter. The bound `(2^24 - left) · q` is what
-makes every `u64` addition in a row total, and it is re-established by the
-reduction whenever fewer than `OMEGA` passes of headroom remain. -/
+/-- The block loop. `leftC` is the constant `Z_LANE_CHUNK - 1` the flush resets
+the counter to; `leftU` is the counter. The lane bound
+`31 · (Z_LANE_CHUNK - 1 - left)` is what keeps every lane addition of a row
+carry-free, and the flush re-establishes it whenever fewer than `OMEGA` passes
+of headroom remain. -/
 theorem honest_z_32_block_loop_spec (leftC : Std.U64) (raw32 : alloc.vec.Vec linalg.RawVec32)
-    (c : linalg.PolyVec) (blocksU widthU digitsU strideU : Std.Usize) (budgetU : Std.U64)
-    (acc : alloc.vec.Vec ring.Rq) (zbuf : alloc.vec.Vec Std.U64) (leftU : Std.U64)
+    (c : linalg.PolyVec) (blocksU widthU nU : Std.Usize) (budgetU : Std.U64)
+    (acc : alloc.vec.Vec ring.Rq) (zp : alloc.vec.Vec Std.U64) (leftU : Std.U64)
     (iU : Std.Usize) (raw : alloc.vec.Vec linalg.PolyVec)
     (hex : Raw32.ExpandsTo raw32 raw)
     (hraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) (hc : WfVec (2 ^ 10) c)
-    (hleftC : leftC.val = 16777216 - 1) (hn : blocksU.val = 2 ^ 10)
-    (hw : widthU.val = 2 ^ 10 * 8) (hd : digitsU.val = 8) (hs : strideU.val = ZPacked.S)
-    (hbud : budgetU.val = 16)
+    (hleftC : leftC.val = 32768 - 1) (hn : blocksU.val = 2 ^ 10)
+    (hw : widthU.val = 2 ^ 10 * 8) (hnU : nU.val = N) (hbud : budgetU.val = 16)
     (hi : iU.val ≤ 2 ^ 10) (hlen : acc.val.length = 2 ^ 10 * 8)
     (hwf : ∀ x ∈ acc.val, Wf x)
-    (hzl : zbuf.val.length = 2 ^ 10 * 8 * ZPacked.S) (hleft : leftU.val ≤ 16777216 - 1)
-    (hbnd : ∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-      ZPacked.reg zbuf g w ≤ (16777216 - leftU.val) * q)
+    (hzl : zp.val.length = 3 * (2 ^ 10 * N)) (hleft : leftU.val ≤ 32768 - 1)
+    (hbnd : ∀ r, r < 2 ^ 10 → ∀ p, p < N → ∀ l, l < 3 →
+      ZPacked.WB (ZPacked.slotW zp r p l) (31 * (32768 - 1 - leftU.val)))
     (hval : ∀ t, t < 2 ^ 10 * 8 →
-      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + ZPacked.regRq zbuf t
+      toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          + ZPacked.laneRq zp (t / 8) (t % 8)
         = ∑ j ∈ Finset.range iU.val,
             toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
               * digitBlock (raw.val.getD j (alloc.vec.Vec.new ring.Rq)) (t / 8) (t % 8)) :
-    quadeval.honest_z_from_raw_32_loop2 leftC raw32 c blocksU widthU digitsU strideU budgetU
-        acc zbuf leftU iU
+    quadeval.honest_z_from_raw_32_loop2 leftC raw32 c blocksU widthU nU budgetU
+        acc zp leftU iU
       ⦃ z => z.1.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.1.val, Wf x)
-        ∧ z.2.val.length = 2 ^ 10 * 8 * ZPacked.S
+        ∧ z.2.val.length = 3 * (2 ^ 10 * N)
         ∧ ∀ t, t < 2 ^ 10 * 8 →
-            toRq (z.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + ZPacked.regRq z.2 t
+            toRq (z.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+                + ZPacked.laneRq z.2 (t / 8) (t % 8)
               = ∑ j ∈ Finset.range (2 ^ 10),
                   toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
-                    * digitBlock (raw.val.getD j (alloc.vec.Vec.new ring.Rq)) (t / 8) (t % 8) ⦄ := by
+                    * digitBlock (raw.val.getD j (alloc.vec.Vec.new ring.Rq))
+                        (t / 8) (t % 8) ⦄ := by
   have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
-  have hqv : q = 4294967197 := rfl
-  have hBmax : (16777216 + 16) * q ≤ Std.U64.max := by
-    rw [ZPacked.u64_max_val, hqv]; norm_num
   rw [quadeval.honest_z_from_raw_32_loop2]
   apply loop.spec_decr_nat (fun r => 2 ^ 10 - r.2.2.2.val)
     (fun r => r.2.2.2.val ≤ 2 ^ 10 ∧ r.1.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ r.1.val, Wf x)
-      ∧ r.2.1.val.length = 2 ^ 10 * 8 * ZPacked.S ∧ r.2.2.1.val ≤ 16777216 - 1
-      ∧ (∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-          ZPacked.reg r.2.1 g w ≤ (16777216 - r.2.2.1.val) * q)
+      ∧ r.2.1.val.length = 3 * (2 ^ 10 * N) ∧ r.2.2.1.val ≤ 32768 - 1
+      ∧ (∀ r', r' < 2 ^ 10 → ∀ p, p < N → ∀ l, l < 3 →
+          ZPacked.WB (ZPacked.slotW r.2.1 r' p l) (31 * (32768 - 1 - r.2.2.1.val)))
       ∧ ∀ t, t < 2 ^ 10 * 8 →
-          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + ZPacked.regRq r.2.1 t
+          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+              + ZPacked.laneRq r.2.1 (t / 8) (t % 8)
             = ∑ j ∈ Finset.range r.2.2.2.val,
                 toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
                   * digitBlock (raw.val.getD j (alloc.vec.Vec.new ring.Rq)) (t / 8) (t % 8))
@@ -2130,53 +2132,48 @@ theorem honest_z_32_block_loop_spec (leftC : Std.U64) (raw32 : alloc.vec.Vec lin
           omega
         by_cases hlb : lf < budgetU
         · rw [if_pos hlb]
-          step with ZPacked.z_reduce_spec zb as ⟨zb1, hz1l, hz1b, hz1v⟩
+          step with ZPacked.z_lane_flush_spec a zb hal haw hzbl as ⟨a1, ha1l, ha1w, ha1v⟩
+          step with ZPacked.z_lane_zero_spec zb as ⟨zb1, hz1l, hz1z⟩
           try simp only [bind_tc_ok]
-          have hzb1l : zb1.val.length = 2 ^ 10 * 8 * ZPacked.S := by rw [hz1l]; exact hzbl
-          have hzb1b : ∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-              ZPacked.reg zb1 g w ≤ (16777216 - leftC.val) * q := by
-            intro g hg w hw
-            have hidx : g * ZPacked.S + w < zb.val.length := by
-              rw [hzbl]
-              have hS : w < ZPacked.S := by unfold ZPacked.S; omega
-              have h2 := Nat.mul_le_mul_right ZPacked.S (show g + 1 ≤ 2 ^ 10 * 8 by omega)
-              rw [Nat.add_mul, one_mul] at h2
-              omega
-            have := hz1b (g * ZPacked.S + w) hidx
-            rw [hleftC]
-            have h1 : 16777216 - (16777216 - 1) = 1 := by omega
-            rw [h1, one_mul]
-            exact Nat.le_of_lt this
-          have hzb1v : ∀ g, g < 2 ^ 10 * 8 → ZPacked.regRq zb1 g = ZPacked.regRq zb g :=
-            fun g _ => ZPacked.regRq_congr_mod zb1 zb g (fun w _ => hz1v (g * ZPacked.S + w))
+          have hzb1l : zb1.val.length = 3 * (2 ^ 10 * N) := by rw [hz1l]; exact hzbl
+          have hzb1v : ∀ t, t < 2 ^ 10 * 8 →
+              toRq (a1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+                  + ZPacked.laneRq zb1 (t / 8) (t % 8)
+                = ∑ j ∈ Finset.range ii.val,
+                    toRq (c.val.getD j (alloc.vec.Vec.new cpoly.field.Fp))
+                      * digitBlock (raw.val.getD j (alloc.vec.Vec.new ring.Rq))
+                          (t / 8) (t % 8) := by
+            intro t ht
+            rw [ZPacked.laneRq_zero zb1 _ _ (Nat.mod_lt _ (by norm_num))
+              (fun p _ l _ => by unfold ZPacked.slotW; exact hz1z _), add_zero, ha1v t ht,
+              hv t ht]
           have hlf2a : 16 ≤ leftC.val := by rw [hleftC]; norm_num
-          have hlf2b : leftC.val ≤ 16777216 - 1 := by rw [hleftC]
+          have hlf2b : leftC.val ≤ 32768 - 1 := by rw [hleftC]
+          obtain ⟨hB, hBeq⟩ := lane_budget hlf2a hlf2b
           have hbudle : budgetU.val ≤ leftC.val := by rw [hbud]; exact hlf2a
           step as ⟨lf3, hlf3⟩
           simp only [linalg.PolyVec.len, bind_tc_ok]
           rw [if_neg hnotlt]
           simp only [bind_tc_ok]
-          have hB' : (16777216 - leftC.val) * q + 16 * q ≤ Std.U64.max := by
-            have h1 : (16777216 - leftC.val) * q + 16 * q ≤ (16777216 + 16) * q := by
-              rw [← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
-            exact le_trans h1 hBmax
-          step with honest_z_32_rows_spec digitsU strideU zb1 block terms params.MESSAGE_ROWS
-            0#usize zb1 ci ((16777216 - leftC.val) * q) hd hs (by simp [params.MESSAGE_ROWS])
-            hWblock hWci e1 e2 e3 e4 e5 (by simp) rfl hzb1l hB'
-            (by intro g hg w hw; rw [if_neg (by simp)]; exact hzb1b g hg w hw)
-            (by intro g hg; rw [if_neg (by simp), add_zero])
+          step with honest_z_32_rows_spec nU zb1 block terms params.MESSAGE_ROWS 0#usize zb1 ci
+            (31 * (32768 - 1 - leftC.val)) hnU (by simp [params.MESSAGE_ROWS]) hWblock hWci
+            e1 e2 e3 e4 e5 (by simp) rfl hzb1l hB
+            (by
+              intro r hr p hp l hl
+              rw [if_neg (by simp)]
+              unfold ZPacked.slotW; rw [hz1z]; exact ZPacked.WB_zero _)
+            (by intro r hr e he; rw [if_neg (by simp), add_zero])
             as ⟨zb2, hzb2l, hzb2b, hzb2v⟩
           step as ⟨ii1, hii1⟩
           have hlf3v : lf3.val = leftC.val - 16 := by rw [hlf3, hbud]
-          refine ⟨by rw [hii1]; omega, hal, haw, by rw [hzb2l]; exact hzb1l,
+          refine ⟨by rw [hii1]; omega, ha1l, ha1w, by rw [hzb2l]; exact hzb1l,
             by omega, ?_, ?_, by rw [hii1]; omega⟩
-          · intro g hg w hw
-            have heq : (16777216 - leftC.val) * q + 16 * q = (16777216 - lf3.val) * q := by
-              rw [hlf3v, ← Nat.add_mul]; congr 1; omega
-            rw [← heq]; exact hzb2b g hg w hw
+          · intro r hr p hp l hl
+            rw [hlf3v, ← hBeq]; exact hzb2b r hr p hp l hl
           · intro t ht
-            rw [hii1, hzb2v t ht, hzb1v t ht, Finset.sum_range_succ, ← hv t ht, hcig, ← hblockdef]
-            ring
+            have hr8 : t / 8 < 2 ^ 10 := by omega
+            rw [hii1, hzb2v _ hr8 _ (Nat.mod_lt _ (by norm_num)), ← add_assoc, hzb1v t ht,
+              Finset.sum_range_succ, hcig, ← hblockdef]
         · rw [if_neg hlb]
           simp only [bind_tc_ok]
           have hlf2a : 16 ≤ lf.val := by
@@ -2184,38 +2181,28 @@ theorem honest_z_32_block_loop_spec (leftC : Std.U64) (raw32 : alloc.vec.Vec lin
               fun h => hlb ((Std.UScalar.lt_equiv lf budgetU).mpr h)
             rw [hbud] at h
             omega
-          have hlf2b : lf.val ≤ 16777216 - 1 := hlf
-          have hzb1l : zb.val.length = 2 ^ 10 * 8 * ZPacked.S := hzbl
-          have hzb1b : ∀ g, g < 2 ^ 10 * 8 → ∀ w, w < N →
-              ZPacked.reg zb g w ≤ (16777216 - lf.val) * q := hzbb
-          have hzb1v : ∀ g, g < 2 ^ 10 * 8 → ZPacked.regRq zb g = ZPacked.regRq zb g :=
-            fun g _ => rfl
+          obtain ⟨hB, hBeq⟩ := lane_budget hlf2a hlf
           have hbudle : budgetU.val ≤ lf.val := by rw [hbud]; exact hlf2a
           step as ⟨lf3, hlf3⟩
           simp only [linalg.PolyVec.len, bind_tc_ok]
           rw [if_neg hnotlt]
           simp only [bind_tc_ok]
-          have hB' : (16777216 - lf.val) * q + 16 * q ≤ Std.U64.max := by
-            have h1 : (16777216 - lf.val) * q + 16 * q ≤ (16777216 + 16) * q := by
-              rw [← Nat.add_mul]; exact Nat.mul_le_mul_right _ (by omega)
-            exact le_trans h1 hBmax
-          step with honest_z_32_rows_spec digitsU strideU zb block terms params.MESSAGE_ROWS
-            0#usize zb ci ((16777216 - lf.val) * q) hd hs (by simp [params.MESSAGE_ROWS])
-            hWblock hWci e1 e2 e3 e4 e5 (by simp) rfl hzb1l hB'
-            (by intro g hg w hw; rw [if_neg (by simp)]; exact hzb1b g hg w hw)
-            (by intro g hg; rw [if_neg (by simp), add_zero])
+          step with honest_z_32_rows_spec nU zb block terms params.MESSAGE_ROWS 0#usize zb ci
+            (31 * (32768 - 1 - lf.val)) hnU (by simp [params.MESSAGE_ROWS]) hWblock hWci
+            e1 e2 e3 e4 e5 (by simp) rfl hzbl hB
+            (by intro r hr p hp l hl; rw [if_neg (by simp)]; exact hzbb r hr p hp l hl)
+            (by intro r hr e he; rw [if_neg (by simp), add_zero])
             as ⟨zb2, hzb2l, hzb2b, hzb2v⟩
           step as ⟨ii1, hii1⟩
           have hlf3v : lf3.val = lf.val - 16 := by rw [hlf3, hbud]
-          refine ⟨by rw [hii1]; omega, hal, haw, by rw [hzb2l]; exact hzb1l,
+          refine ⟨by rw [hii1]; omega, hal, haw, by rw [hzb2l]; exact hzbl,
             by omega, ?_, ?_, by rw [hii1]; omega⟩
-          · intro g hg w hw
-            have heq : (16777216 - lf.val) * q + 16 * q = (16777216 - lf3.val) * q := by
-              rw [hlf3v, ← Nat.add_mul]; congr 1; omega
-            rw [← heq]; exact hzb2b g hg w hw
+          · intro r hr p hp l hl
+            rw [hlf3v, ← hBeq]; exact hzb2b r hr p hp l hl
           · intro t ht
-            rw [hii1, hzb2v t ht, hzb1v t ht, Finset.sum_range_succ, ← hv t ht, hcig, ← hblockdef]
-            ring
+            have hr8 : t / 8 < 2 ^ 10 := by omega
+            rw [hii1, hzb2v _ hr8 _ (Nat.mod_lt _ (by norm_num)), ← add_assoc, hv t ht,
+              Finset.sum_range_succ, hcig, ← hblockdef]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = 2 ^ 10 := by rw [← hn]; scalar_tac
@@ -2223,167 +2210,6 @@ theorem honest_z_32_block_loop_spec (leftC : Std.U64) (raw32 : alloc.vec.Vec lin
       intro t ht
       rw [hv t ht, heq]
   · exact ⟨hi, hlen, hwf, hzl, hleft, hbnd, hval⟩
-
-/-- The scratch vector's zero-fill: `N` reduced words. -/
-theorem honest_z_32_loop3_spec (nU : Std.Usize) (cs : alloc.vec.Vec cpoly.field.Fp)
-    (yU : Std.Usize)
-    (hn : nU.val = N) (hy : yU.val ≤ N) (hlen : cs.val.length = yU.val)
-    (hred : ∀ u ∈ cs.val, Red u) :
-    quadeval.honest_z_from_raw_32_loop3 nU cs yU
-      ⦃ z => z.val.length = N ∧ ∀ u ∈ z.val, Red u ⦄ := by
-  rw [quadeval.honest_z_from_raw_32_loop3]
-  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
-    (fun r => r.2.val ≤ N ∧ r.1.val.length = r.2.val ∧ ∀ u ∈ r.1.val, Red u)
-  · rintro ⟨b, yy⟩ ⟨hyy, hbl, hbr⟩
-    dsimp only at hyy hbl hbr
-    simp only [quadeval.honest_z_from_raw_32_loop3.body]
-    by_cases hlt : yy < nU
-    · rw [if_pos hlt]
-      have hyl : yy.val < N := by rw [← hn]; scalar_tac
-      have hmax : b.val.length < Std.Usize.max := by
-        rw [hbl]; have := ZPacked.usize_max_ge; have h3 : N = 1024 := rfl; omega
-      step as ⟨b1, hb1⟩
-      step as ⟨y1, hy1⟩
-      refine ⟨by omega, by rw [hb1, hy1, List.length_append, hbl]; simp, ?_, by omega⟩
-      intro u hu
-      rw [hb1, List.mem_append, List.mem_singleton] at hu
-      rcases hu with h | h
-      · exact hbr u h
-      · rw [h]; exact Red_zero
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : yy.val = N := by rw [← hn]; scalar_tac
-      exact ⟨by rw [hbl, heq], hbr⟩
-  · exact ⟨hy, hlen, hred⟩
-
-/-- The merge's inner loop: region `j` of the buffer, reduced, into the scratch
-vector. -/
-theorem honest_z_32_merge_inner_spec (nU : Std.Usize) (zbuf : alloc.vec.Vec Std.U64)
-    (cs : alloc.vec.Vec cpoly.field.Fp) (offU wU : Std.Usize) (j : ℕ)
-    (hn : nU.val = N) (hoff : offU.val = j * ZPacked.S)
-    (hcap : (j + 1) * ZPacked.S ≤ zbuf.val.length)
-    (hcs : cs.val.length = N) (hred : ∀ u ∈ cs.val, Red u) (hw : wU.val ≤ N)
-    (hdone : ∀ u, u < wU.val → coeffK cs u = ((ZPacked.reg zbuf j u : ℕ) : ZMod q)) :
-    quadeval.honest_z_from_raw_32_loop4_loop0 nU zbuf cs offU wU
-      ⦃ z => z.val.length = N ∧ (∀ u ∈ z.val, Red u)
-        ∧ ∀ u, u < N → coeffK z u = ((ZPacked.reg zbuf j u : ℕ) : ZMod q) ⦄ := by
-  rw [quadeval.honest_z_from_raw_32_loop4_loop0]
-  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
-    (fun r => r.2.val ≤ N ∧ r.1.val.length = N ∧ (∀ u ∈ r.1.val, Red u)
-      ∧ ∀ u, u < r.2.val → coeffK r.1 u = ((ZPacked.reg zbuf j u : ℕ) : ZMod q))
-  · rintro ⟨b, ww⟩ ⟨hww, hbl, hbr, hbv⟩
-    dsimp only at hww hbl hbr hbv
-    simp only [quadeval.honest_z_from_raw_32_loop4_loop0.body]
-    by_cases hlt : ww < nU
-    · rw [if_pos hlt]
-      have hwl : ww.val < N := by rw [← hn]; scalar_tac
-      have hidx : offU.val + ww.val < zbuf.val.length := by
-        rw [hoff]
-        have hS : ww.val < ZPacked.S := by unfold ZPacked.S; omega
-        have := hcap
-        rw [Nat.add_mul, one_mul] at this
-        omega
-      step as ⟨i, hi⟩
-      have hib : i.val < zbuf.val.length := by rw [hi]; exact hidx
-      step as ⟨i1, hi1⟩
-      step with fp_new_spec i1 as ⟨f, hRf, hfv⟩
-      have hbb : ww.val < b.val.length := by rw [hbl]; exact hwl
-      step as ⟨xa, back, hxa, hback⟩
-      step as ⟨w1, hw1⟩
-      have hset : back f = b.set ww f := by rw [hback]
-      have hi1v : i1.val = ZPacked.reg zbuf j ww.val := by
-        unfold ZPacked.reg
-        rw [hi1, ← HachiEquiv.RingShort.bufN_of_lt (v := zbuf) (w := i.val) hib, hi, hoff]
-      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
-      · rw [hset, alloc.vec.Vec.set_val_eq, List.length_set, hbl]
-      · rw [hset]; exact Red_set hbr hRf
-      · intro u hu
-        rw [hw1] at hu
-        by_cases hue : u = ww.val
-        · subst hue
-          rw [hset, HachiEquiv.RingShort.coeffK_set_eq hbb, hfv, hi1v]
-        · rw [hset, HachiEquiv.RingShort.coeffK_set_ne hue]
-          exact hbv u (by omega)
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : ww.val = N := by rw [← hn]; scalar_tac
-      exact ⟨hbl, hbr, fun u hu => hbv u (by rw [heq]; exact hu)⟩
-  · exact ⟨hw, hcs, hred, hdone⟩
-
-/-- The merge loop: `out[j] = acc[j] + zbuf[j]`. -/
-theorem honest_z_32_merge_spec (widthU nU strideU : Std.Usize) (acc : alloc.vec.Vec ring.Rq)
-    (zbuf : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec ring.Rq)
-    (cs : alloc.vec.Vec cpoly.field.Fp) (jU : Std.Usize)
-    (hw : widthU.val = 2 ^ 10 * 8) (hn : nU.val = N) (hs : strideU.val = ZPacked.S)
-    (hlen : acc.val.length = 2 ^ 10 * 8) (hwf : ∀ x ∈ acc.val, Wf x)
-    (hzl : zbuf.val.length = 2 ^ 10 * 8 * ZPacked.S)
-    (hcs : cs.val.length = N) (hred : ∀ u ∈ cs.val, Red u)
-    (hj : jU.val ≤ 2 ^ 10 * 8) (hol : out.val.length = jU.val) (howf : ∀ x ∈ out.val, Wf x)
-    (hoval : ∀ t, t < jU.val →
-      toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-        = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + ZPacked.regRq zbuf t) :
-    quadeval.honest_z_from_raw_32_loop4 widthU nU strideU acc zbuf out cs jU
-      ⦃ z => z.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.val, Wf x)
-        ∧ ∀ t, t < 2 ^ 10 * 8 →
-            toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-              = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-                + ZPacked.regRq zbuf t ⦄ := by
-  have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
-  rw [quadeval.honest_z_from_raw_32_loop4]
-  apply loop.spec_decr_nat (fun r => 2 ^ 10 * 8 - r.2.2.val)
-    (fun r => r.2.2.val ≤ 2 ^ 10 * 8 ∧ r.1.val.length = r.2.2.val ∧ (∀ x ∈ r.1.val, Wf x)
-      ∧ r.2.1.val.length = N ∧ (∀ u ∈ r.2.1.val, Red u)
-      ∧ ∀ t, t < r.2.2.val →
-          toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + ZPacked.regRq zbuf t)
-  · rintro ⟨o, cc, jj⟩ ⟨hjj, hol, how, hcl, hcr, hov⟩
-    dsimp only at hjj hol how hcl hcr hov
-    simp only [quadeval.honest_z_from_raw_32_loop4.body]
-    by_cases hlt : jj < widthU
-    · rw [if_pos hlt]
-      have hjl : jj.val < 2 ^ 10 * 8 := by rw [← hw]; scalar_tac
-      have hjl' : jj.val < 8192 := by rw [h1024] at hjl; omega
-      have hSv : ZPacked.S = 1040 := rfl
-      have hmulmax : jj.val * strideU.val ≤ Std.Usize.max := by
-        rw [hs, hSv]; have := ZPacked.usize_max_ge; nlinarith
-      step as ⟨off, hoff⟩
-      have hoffv : off.val = jj.val * ZPacked.S := by rw [hoff, hs]
-      have hcapj : (jj.val + 1) * ZPacked.S ≤ zbuf.val.length := by
-        rw [hzl]; exact Nat.mul_le_mul_right _ (by omega)
-      step with honest_z_32_merge_inner_spec nU zbuf cc off 0#usize jj.val hn hoffv hcapj
-        hcl hcr (by simp) (by intro u hu; simp at hu) as ⟨cs1, hc1l, hc1r, hc1v⟩
-      step with RqBridge.from_coeffs_spec cs1 hc1r as ⟨zr, hzrwf, hzrval⟩
-      have hzrreg : toRq zr = ZPacked.regRq zbuf jj.val := by
-        rw [hzrval]; unfold ZPacked.regRq
-        exact ofFinCoeff_congr (fun t ht => hc1v t ht)
-      have hab : jj.val < acc.val.length := by rw [hlen]; exact hjl
-      step as ⟨r, hr⟩
-      have hrwf : Wf r := by rw [hr]; exact hwf _ (List.getElem_mem hab)
-      have hrg : r = acc.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
-        rw [hr, List.getD_eq_getElem _ _ hab]
-      step with RqBridge.add_spec r zr hrwf hzrwf as ⟨r1, hr1wf, hr1val⟩
-      have hmax : o.val.length < Std.Usize.max := by
-        rw [hol]; have := ZPacked.usize_max_ge; omega
-      step as ⟨o1, ho1⟩
-      step as ⟨jj1, hjj1⟩
-      refine ⟨by omega, by rw [ho1, hjj1, List.length_append, hol]; simp, ?_, hc1l, hc1r, ?_,
-        by omega⟩
-      · intro x hx
-        rw [ho1, List.mem_append, List.mem_singleton] at hx
-        rcases hx with h | h
-        · exact how x h
-        · rw [h]; exact hr1wf
-      · intro t ht
-        rw [hjj1] at ht
-        rcases Nat.lt_or_ge t jj.val with hlt2 | hge
-        · rw [ho1, getD_append_lt _ _ _ (by omega)]; exact hov t hlt2
-        · have hteq : t = o.val.length := by omega
-          rw [hteq, ho1, getD_append_eq, hr1val, hzrreg, hrg, hol]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : jj.val = 2 ^ 10 * 8 := by rw [← hw]; scalar_tac
-      exact ⟨by rw [hol, heq], how, fun t ht => hov t (by rw [heq]; exact ht)⟩
-  · exact ⟨hj, hol, howf, hcs, hred, hoval⟩
 
 /-- **`honest_z_from_raw_32` computes `honestZ`.** -/
 theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
@@ -2399,7 +2225,6 @@ theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
       ⦃ out => WfVec (2 ^ 10 * 8) out ∧
         toVec (k := 2 ^ 10 * 8) out = InnerOuter.honestZ Φ wo (toChals c hc) ⦄ := by
   have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
-  have hSv : ZPacked.S = 1040 := rfl
   rw [quadeval.honest_z_from_raw_32]
   step as ⟨width, hwidth⟩
   case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
@@ -2408,56 +2233,53 @@ theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
     rw [h]
     simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
     scalar_tac
-  have hadd : (params.RING_DEGREE).val + (quadeval.Z_PAD).val ≤ Std.Usize.max := by
-    rw [params_RING_DEGREE_val, ZPacked.z_pad_val]
-    have := ZPacked.usize_max_ge; have h3 : N = 1024 := rfl; omega
-  step as ⟨stride, hstride⟩
-  have hsv : stride.val = ZPacked.S := by
-    rw [hstride, params_RING_DEGREE_val, ZPacked.z_pad_val]
   simp only [alloc.vec.Vec.with_capacity]
   rw [honest_z_32_loop0_eq]
   step with honest_z_from_raw_loop0_spec (width := 2 ^ 10 * 8) width
     (alloc.vec.Vec.new ring.Rq) 0#usize hwv (by simp) (by simp)
     (by intro x hx; simp at hx) (by intro t ht; simp at ht)
     as ⟨acc1, hA1len, hA1wf, hA1zero⟩
-  have htotmax : width.val * stride.val ≤ Std.Usize.max := by
-    rw [hwv, hsv, hSv, h1024]; have := ZPacked.usize_max_ge; omega
+  step as ⟨rows, hrows⟩
+  case hmax =>
+    simp [params.MESSAGE_ROWS]
+    have := ZPacked.usize_max_ge; have h3 : N = 1024 := rfl; rw [h3]; omega
+  have hrowsv : rows.val = 2 ^ 10 * N := by
+    rw [hrows, params_RING_DEGREE_val]; simp [params.MESSAGE_ROWS]
+  have htotmax : rows.val * (quadeval.Z_LANE_WORDS).val ≤ Std.Usize.max := by
+    rw [hrowsv, ZPacked.z_lane_words_val, h1024]
+    have := ZPacked.usize_max_ge; have h3 : N = 1024 := rfl; rw [h3]; omega
   step as ⟨total, htotal⟩
-  have htotv : total.val = 2 ^ 10 * 8 * ZPacked.S := by rw [htotal, hwv, hsv]
+  have htotv : total.val = 3 * (2 ^ 10 * N) := by
+    rw [htotal, hrowsv, ZPacked.z_lane_words_val]; ring
   step with honest_z_32_loop1_spec total (alloc.vec.Vec.new Std.U64) 0#usize (by simp) (by simp)
-    (by intro t; simp [HachiEquiv.RingShort.bufN]) as ⟨zbuf1, hZ1l, hZ1z⟩
-  have hsub : quadeval.Z_CHUNK - 1#u64 = ok (16777215#u64 : Std.U64) := by
+    (by intro t; simp [HachiEquiv.RingShort.bufN]) as ⟨zp1, hZ1l, hZ1z⟩
+  have hsub : quadeval.Z_LANE_CHUNK - 1#u64 = ok (32767#u64 : Std.U64) := by
     apply Raw32.eq_ok_of_spec
-    have hchunk : (quadeval.Z_CHUNK).val = 16777216 := ZPacked.z_chunk_val
     step as ⟨z, hz⟩
-    exact UScalar.eq_of_val_eq (by rw [hz, hchunk]; simp)
+    exact UScalar.eq_of_val_eq (by rw [hz, ZPacked.z_lane_chunk_val]; simp)
   rw [hsub]
   simp only [bind_tc_ok]
-  have hleftv : (16777215#u64 : Std.U64).val = 16777216 - 1 := by simp
+  have hleftv : (32767#u64 : Std.U64).val = 32768 - 1 := by simp
   have hblocks : (alloc.vec.Vec.len raw32).val = 2 ^ 10 := by
     rw [alloc.vec.Vec.len_val]
     show raw32.val.length = 2 ^ 10
     rw [hex.1, hWraw.1]
-  step with honest_z_32_block_loop_spec (16777215#u64 : Std.U64) raw32 c
-    (alloc.vec.Vec.len raw32) width params.GADGET_DIGITS stride params.OMEGA acc1 zbuf1
-    (16777215#u64 : Std.U64) 0#usize raw hex hWraw hWc hleftv
-    hblocks hwv (by simp [params.GADGET_DIGITS]) hsv (by simp [params.OMEGA]) (by simp)
-    hA1len hA1wf (by rw [hZ1l, htotv]) (le_refl _)
+  step with honest_z_32_block_loop_spec (32767#u64 : Std.U64) raw32 c
+    (alloc.vec.Vec.len raw32) width params.RING_DEGREE params.OMEGA acc1 zp1
+    (32767#u64 : Std.U64) 0#usize raw hex hWraw hWc hleftv
+    hblocks hwv params_RING_DEGREE_val (by simp [params.OMEGA]) (by simp)
+    hA1len hA1wf (by rw [hZ1l, htotv]) (le_of_eq hleftv)
     (by
-      intro g hg w hw
-      unfold ZPacked.reg
-      rw [hZ1z]; exact Nat.zero_le _)
+      intro r hr p hp l hl
+      unfold ZPacked.slotW
+      rw [hZ1z]; exact ZPacked.WB_zero _)
     (by
       intro t ht
-      rw [hA1zero t ht, ZPacked.regRq_zero zbuf1 t (fun w hw => by unfold ZPacked.reg; exact hZ1z _)]
+      rw [hA1zero t ht, ZPacked.laneRq_zero zp1 _ _ (Nat.mod_lt _ (by norm_num))
+        (fun p _ l _ => by unfold ZPacked.slotW; exact hZ1z _)]
       simp)
-    as ⟨acc2, zbuf2, hA2len, hA2wf, hZ2l, hA2val⟩
-  step with honest_z_32_loop3_spec params.RING_DEGREE (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
-    params_RING_DEGREE_val (by simp) (by simp) (by intro u hu; simp at hu) as ⟨cs, hcsl, hcsr⟩
-  step with honest_z_32_merge_spec width params.RING_DEGREE stride acc2 zbuf2
-    (alloc.vec.Vec.new ring.Rq) cs 0#usize hwv params_RING_DEGREE_val hsv hA2len hA2wf hZ2l
-    hcsl hcsr (by simp) (by simp) (by intro x hx; simp at hx) (by intro t ht; simp at ht)
-    as ⟨out, hOl, hOwf, hOval⟩
+    as ⟨acc2, zp2, hA2len, hA2wf, hZ2l, hA2val⟩
+  step with ZPacked.z_lane_flush_spec acc2 zp2 hA2len hA2wf hZ2l as ⟨out, hOl, hOwf, hOval⟩
   rw [linalg.PolyVec.new, WP.spec_ok]
   have hfun : toVec (k := 2 ^ 10 * 8) out
       = ∑ j ∈ Finset.range (2 ^ 10),
@@ -2478,6 +2300,7 @@ theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
         (gadgetDecompose Φ dd
           (toVec (k := 2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))))) (2 ^ 10)]
   rfl
+
 
 /-- **`honest_compute_v_from_raw_32` computes `honestComputeV`** -- what
 `chain_open` calls, over the carrier the prover actually holds. -/

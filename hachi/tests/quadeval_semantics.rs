@@ -1149,3 +1149,24 @@ fn the_fused_z_pass_equals_the_decomposed_one() {
         }
     }
 }
+
+/// Card T47: the packed-lane constants say what their docs say, and the flush
+/// schedule is inside the lane width for any challenge -- a digit lane absorbs
+/// at most `31` per pass and the record lane exactly `16`, over at most
+/// `Z_LANE_CHUNK - 1` passes, so neither reaches `2^20`; and a short block's
+/// `OMEGA` passes fit one chunk. The lane-carry stress (2 200 one-row blocks at
+/// +-16, one mid-run flush) and a forced-flush copy were checked against the
+/// T43 champion outside the suite (ledger row, card T47): a debug build cannot
+/// afford the 2 048 blocks the real flush needs.
+#[test]
+fn the_lane_schedule_constants_hold() {
+    use hachi::quadeval::{Z_LANE_1, Z_LANE_2, Z_LANE_BIAS, Z_LANE_CHUNK, Z_LANE_MASK, Z_LANE_WORDS};
+    assert_eq!(Z_LANE_1, 1u64 << 20);
+    assert_eq!(Z_LANE_2, 1u64 << 40);
+    assert_eq!(Z_LANE_MASK, (1u64 << 20) - 1);
+    assert_eq!(Z_LANE_BIAS, 16 * (1 + Z_LANE_1 + Z_LANE_2));
+    assert_eq!(Z_LANE_WORDS * 3, 9, "three words of three lanes: eight digits and the record");
+    assert!(31 * (Z_LANE_CHUNK - 1) < (1u64 << 20), "a digit lane cannot carry");
+    assert!(16 * (Z_LANE_CHUNK - 1) < (1u64 << 20), "the record lane cannot carry");
+    assert!(Z_LANE_CHUNK > hachi::params::OMEGA, "a short block's passes fit one chunk");
+}

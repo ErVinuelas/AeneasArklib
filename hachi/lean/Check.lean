@@ -2402,28 +2402,55 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 
 -- Stage 6 card T43 (2026-09-22): `honest_z_from_raw_32` reads each message
 -- word once and scatters its eight nibbles into the eight digit accumulators
--- of its row -- `gadget_decompose` is gone from the protocol path, and the
--- accumulator is one unreduced `u64` buffer for the whole of `z`, reduced on
--- the `Z_CHUNK` schedule (at the pin, once). `ZPacked.lean` is the word level:
--- the pinned nibble lemma, the region layer, and eight `short_pass_off_spec`s
--- at once per pass. `honest_z_from_raw_32_spec`'s STATEMENT is T29's, verbatim;
--- its proof is restated on the new loops. No new hypothesis anywhere.
+-- of its row -- `gadget_decompose` is gone from the protocol path. The pinned
+-- nibble lemma and the digit-polynomial bridge carry over to card T47.
 #print axioms HachiEquiv.ZPacked.digitK_eq_nibble
 #print axioms HachiEquiv.ZPacked.digit_at_nibble_spec
 #print axioms HachiEquiv.ZPacked.digitRq_eq_digitBlock
 #print axioms HachiEquiv.ZPacked.gadgetDecompose_eq_digitBlock
 #print axioms HachiEquiv.ZPacked.coeff_toRq_mul_fin
-#print axioms HachiEquiv.ZPacked.regRq_gain
-#print axioms HachiEquiv.ZPacked.z_pass_loop0_spec
-#print axioms HachiEquiv.ZPacked.z_pass_loop1_spec
-#print axioms HachiEquiv.ZPacked.z_pass_spec
-#print axioms HachiEquiv.ZPacked.z_reduce_spec
-#print axioms HachiEquiv.ZPacked.z_apply_terms_spec
 #print axioms HachiEquiv.ZPacked.z_terms_spec
-#print axioms HachiEquiv.ZPacked.z_row_spec
+-- Stage 6 card T47 (2026-09-23): the eight digit accumulators of a coefficient
+-- share three `u64` words of three 20-bit lanes, the ninth lane a pass record;
+-- every pass adds `16 ± d` per lane, so a lane's value is `lane_e - lane_8` in
+-- `ZMod q`, and the block loop's `Z_LANE_CHUNK` flush keeps every lane below
+-- `2^20` -- `laneOf_add` is the no-carry lemma the whole card rests on. T43's
+-- region layer, `z_pass`/`z_reduce`/`z_apply_terms`/`z_row` and the merge loops
+-- are deleted with the Rust items; `honest_z_from_raw_32_spec`'s STATEMENT is
+-- T29's, verbatim, re-proved on the new loops. No new hypothesis anywhere.
+#print axioms HachiEquiv.ZPacked.laneOf_pack3
+#print axioms HachiEquiv.ZPacked.pack3_laneOf
+#print axioms HachiEquiv.ZPacked.laneOf_add
+#print axioms HachiEquiv.ZPacked.addW_cast
+#print axioms HachiEquiv.ZPacked.bias_add
+#print axioms HachiEquiv.ZPacked.bias_sub
+#print axioms HachiEquiv.ZPacked.addend_lo_spec
+#print axioms HachiEquiv.ZPacked.addend_hi_spec
+#print axioms HachiEquiv.ZPacked.slot_index_inj
+#print axioms HachiEquiv.ZPacked.FrameR_slot
+#print axioms HachiEquiv.ZPacked.FrameR_laneRq
+#print axioms HachiEquiv.ZPacked.laneRq_zero
+#print axioms HachiEquiv.ZPacked.nibN_eight
+#print axioms HachiEquiv.ZPacked.laneRq_gain
+#print axioms HachiEquiv.ZPacked.z_spread_loop_spec
+#print axioms HachiEquiv.ZPacked.z_spread_spec
+#print axioms HachiEquiv.ZPacked.write_lane
+#print axioms HachiEquiv.ZPacked.z_pass_lanes_loop0_spec
+#print axioms HachiEquiv.ZPacked.z_pass_lanes_loop1_spec
+#print axioms HachiEquiv.ZPacked.z_pass_lanes_spec
+#print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_loop0_loop0_spec
+#print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_loop0_spec
+#print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_spec
+#print axioms HachiEquiv.ZPacked.z_row_lanes_spec
+#print axioms HachiEquiv.ZPacked.z_lane_decode_loop_spec
+#print axioms HachiEquiv.ZPacked.z_lane_decode_spec
+#print axioms HachiEquiv.ZPacked.z_lane_flush_loop_spec
+#print axioms HachiEquiv.ZPacked.z_lane_flush_spec
+#print axioms HachiEquiv.ZPacked.z_lane_zero_loop_spec
+#print axioms HachiEquiv.ZPacked.z_lane_zero_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_rows_spec
+#print axioms HachiEquiv.QuadEvalProtocol.lane_budget
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_block_loop_spec
-#print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_merge_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
 
 end HachiEquiv.Check

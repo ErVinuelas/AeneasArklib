@@ -1,33 +1,40 @@
 /-
-`ZPacked.lean` -- the fused z kernel of Stage 6 card T43: `quadeval::z_terms`,
-`z_pass`, `z_reduce`, `z_apply_terms` and `z_row`, the word level of
-`honest_z_from_raw_32`'s short branch.
+`ZPacked.lean` -- the fused z kernel on SWAR-packed digit lanes (Stage 6 card
+T47): `quadeval::z_terms`, `z_spread`, `z_pass_lanes`, `z_apply_terms_lanes`,
+`z_row_lanes`, `z_lane_decode`, `z_lane_flush` and `z_lane_zero`, the word
+level of `honest_z_from_raw_32`'s short branch.
 
 # What changed, and what did not
 
-`honest_z_from_raw_32` used to decompose every message block into its 8192
-digit ring elements (`gadget_decompose`) and multiply each by the challenge
-with `ring::mul_short_add_into`. It now reads each coefficient of the block
-once, splits it into its eight base-16 digits -- the eight *nibbles* of the
-word, because the chain's decomposer is the unsigned one and every canonical
-word is below `q < 2^32` -- and scatters them, signed and shifted, into the
-eight digit accumulators of the row directly. The accumulator is one flat
-unreduced `u64` buffer for the whole of `z`, region `j` at `j · S` with
-`S = N + Z_PAD`, carried across all the blocks.
+Card T43 made the short branch read each coefficient of a message block once
+and scatter its eight base-16 digits -- the eight *nibbles* of the word,
+because the chain's decomposer is the unsigned one and every canonical word is
+below `q < 2^32` -- into eight digit accumulators, one unreduced `u64` word per
+digit per coefficient. Card T47 packs those eight accumulators, and a ninth
+*record* lane, into three `u64` words of three 20-bit lanes each: slot
+`(r, p)` -- message row `r`, coefficient `p` -- is the three words at
+`3·(r·N + p)`, lane `e` sits in word `e / 3` at bit `20·(e % 3)`, and lane `8`
+(word 2, bit 40) is the record.
+
+A signed update `±dₑ` would borrow across lanes, so every pass adds `16 ± dₑ`
+to lane `e`, and exactly `16` to the record -- whose "digit", the ninth nibble
+of a word below `2^32`, is `0`. The value a lane carries is therefore read as a
+*difference*, `lane_e − lane_8 = Σ ±dₑ` in `ZMod q` ([`laneD`]). The bound is
+`31` per lane per pass, which the block loop's `Z_LANE_CHUNK` schedule keeps
+below `2^20`, so a lane never carries into its neighbour: [`laneOf_add`] is the
+file's one piece of bit arithmetic.
 
 Nothing above the word level moves. The pure layer of `RingShort.lean` --
 `applied`, `passed`, `termsSum`, `descCoeffW`, `sgn`, `srcOf`/`dstOf`,
-`offStep`, `termsSum_eq_negConvF` -- is stated over `ℕ → ZMod q` and knows
-nothing about which buffer holds the coefficients or how many regions it has,
-so it is reused unchanged. What is new is:
+`termsSum_eq_negConvF` -- is reused unchanged, and so are card T43's pinned
+nibble lemma [`digitK_eq_nibble`], the digit polynomial [`digitRq`] and
+[`coeff_toRq_mul_fin`]. What is new is:
 
-* [`digitK_eq_nibble`], the pinned nibble lemma: the specification's digit of a
-  canonical word `x < q` at `e` is `(x / 16^e) % 16`;
-* the region layer -- [`reg`], [`regRq`], [`nib`] -- and the frame conjunct
-  every loop spec carries, saying the other rows' regions are untouched;
-* [`coeff_toRq_mul_fin`], `RqBridge.coeff_toRq_mul` with an `ofFinCoeff` right
-  operand, which is how the digit polynomial enters without ever being an
-  extracted `Rq`.
+* the packed-word layer -- [`pack3`], [`laneOf`], [`WB`] and the no-carry lemma;
+* the slot layer -- [`slotIdx`], [`slotW`], [`lane`], [`laneD`], [`laneRq`] and
+  the row frame [`FrameR`] -- in place of T43's regions;
+* the per-lane pass invariant [`ProgL`] and its one-write lemma [`write_lane`]
+  (T43's `write_one`, three writes a step where there were eight).
 
 `honest_z_from_raw_32_spec`'s statement, in `QuadEvalProtocol.lean`, is carried
 over verbatim; its proof is restated on the loop specs there, which end in the
@@ -49,18 +56,26 @@ namespace HachiEquiv.ZPacked
 open HachiEquiv.Field HachiEquiv.Ring HachiEquiv.RqBridge HachiEquiv.Scheme
 open HachiEquiv.RingShort
 
-/-! ## 1. The two constants -/
+/-! ## 1. The constants -/
 
-@[simp] theorem z_pad_val : (quadeval.Z_PAD).val = 16 := by
-  simp only [quadeval.Z_PAD]; decide
+@[simp, scalar_tac_simps] theorem z_lane_words_val : (quadeval.Z_LANE_WORDS).val = 3 := by
+  simp only [quadeval.Z_LANE_WORDS]; decide
 
-@[simp] theorem z_chunk_val : (quadeval.Z_CHUNK).val = 16777216 := by
-  simp only [quadeval.Z_CHUNK]; decide
+@[simp, scalar_tac_simps] theorem z_lane_1_val : (quadeval.Z_LANE_1).val = 1048576 := by
+  simp only [quadeval.Z_LANE_1]; decide
 
-/-- The region stride: `RING_DEGREE + Z_PAD`. -/
-abbrev S : ℕ := N + 16
+@[simp, scalar_tac_simps] theorem z_lane_2_val : (quadeval.Z_LANE_2).val = 1099511627776 := by
+  simp only [quadeval.Z_LANE_2]; decide
 
-theorem S_val : S = 1040 := rfl
+@[simp, scalar_tac_simps] theorem z_lane_mask_val : (quadeval.Z_LANE_MASK).val = 1048575 := by
+  simp only [quadeval.Z_LANE_MASK]; decide
+
+@[simp, scalar_tac_simps] theorem z_lane_bias_val :
+    (quadeval.Z_LANE_BIAS).val = 17592202821648 := by
+  simp only [quadeval.Z_LANE_BIAS]; decide
+
+@[simp, scalar_tac_simps] theorem z_lane_chunk_val : (quadeval.Z_LANE_CHUNK).val = 32768 := by
+  simp only [quadeval.Z_LANE_CHUNK]; decide
 
 /-- `Usize.max` is at least `2^32 - 1` on either supported word size (a local
 copy of `Scheme.usize_max_ge'`). -/
@@ -71,40 +86,269 @@ theorem usize_max_ge : (4294967295 : ℕ) ≤ Std.Usize.max := by
 theorem u64_max_val : Std.U64.max = 18446744073709551615 := by
   simp only [Std.U64.max, Std.U64.numBits]; norm_num
 
-/-! ## 2. Regions, and the digit polynomial
+/-! ## 2. Packed words
 
-The accumulator is one `Vec Std.U64`; [`reg`] reads it as regions of `S` words.
-Only the first `N` words of a region carry a coefficient; the pad is never
-read. -/
+A word is three 20-bit lanes. [`laneOf_add`] is the no-carry argument: as long
+as every lane stays below `2^20`, adding three lane increments to the word adds
+them lanewise. -/
 
-/-- Word `w` of region `g`. -/
-def reg (buf : alloc.vec.Vec Std.U64) (g w : ℕ) : ℕ := bufN buf (g * S + w)
+/-- Three lanes packed in one word: `a + b·2^20 + c·2^40`. -/
+def pack3 (a b c : ℕ) : ℕ := a + b * 2 ^ 20 + c * 2 ^ 40
 
-/-- Two in-region addresses coincide only when region and offset do. -/
-theorem reg_index_inj {g g' w w' : ℕ} (hw : w < S) (hw' : w' < S)
-    (h : g * S + w = g' * S + w') : g = g' ∧ w = w' := by
-  have hS : 0 < S := by decide
-  have h1 : (g * S + w) / S = g := by
-    rw [Nat.add_comm, Nat.add_mul_div_right _ _ hS, Nat.div_eq_of_lt hw]; simp
-  have h2 : (g' * S + w') / S = g' := by
-    rw [Nat.add_comm, Nat.add_mul_div_right _ _ hS, Nat.div_eq_of_lt hw']; simp
-  have hg : g = g' := by rw [← h1, ← h2, h]
-  subst hg
-  exact ⟨rfl, by omega⟩
+/-- Lane `m` of a word: bits `[20m, 20m + 20)`. -/
+def laneOf (x m : ℕ) : ℕ := x / 2 ^ (20 * m) % 2 ^ 20
 
-theorem reg_set_eq {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64}
-    {g w : ℕ} (ht : tU.val = g * S + w) (hlt : tU.val < buf.val.length) :
-    reg (buf.set tU x) g w = x.val := by
-  unfold reg; rw [← ht]; exact bufN_set_eq hlt
+theorem laneOf_zero (x : ℕ) : laneOf x 0 = x % 1048576 := by
+  unfold laneOf; norm_num
 
-theorem reg_set_ne {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64}
-    {g w : ℕ} (hne : g * S + w ≠ tU.val) :
-    reg (buf.set tU x) g w = reg buf g w := by
-  unfold reg; exact bufN_set_ne hne
+theorem laneOf_one (x : ℕ) : laneOf x 1 = x / 1048576 % 1048576 := by
+  unfold laneOf; norm_num
 
-/-- Region `g` of the accumulator, as a ring element. -/
-def regRq (buf : alloc.vec.Vec Std.U64) (g : ℕ) : Rq Φ :=
-  Rq.ofFinCoeff Φ N (fun w => ((reg buf g w : ℕ) : ZMod q))
+theorem laneOf_two (x : ℕ) : laneOf x 2 = x / 1099511627776 % 1048576 := by
+  unfold laneOf; norm_num
+
+theorem laneOf_lt (x m : ℕ) : laneOf x m < 2 ^ 20 := Nat.mod_lt _ (by norm_num)
+
+theorem pack3_lt {a b c : ℕ} (ha : a < 2 ^ 20) (hb : b < 2 ^ 20) (hc : c < 2 ^ 20) :
+    pack3 a b c < 2 ^ 60 := by
+  unfold pack3; norm_num at ha hb hc ⊢; omega
+
+/-- The lanes of a packed word are what was packed. -/
+theorem laneOf_pack3 {a b c : ℕ} (ha : a < 2 ^ 20) (hb : b < 2 ^ 20) (hc : c < 2 ^ 20) :
+    laneOf (pack3 a b c) 0 = a ∧ laneOf (pack3 a b c) 1 = b ∧ laneOf (pack3 a b c) 2 = c := by
+  rw [laneOf_zero, laneOf_one, laneOf_two]
+  unfold pack3
+  norm_num at ha hb hc ⊢
+  refine ⟨?_, ?_, ?_⟩ <;> omega
+
+/-- A word below `2^60` is the packing of its three lanes. -/
+theorem pack3_laneOf {x : ℕ} (hx : x < 2 ^ 60) :
+    x = pack3 (laneOf x 0) (laneOf x 1) (laneOf x 2) := by
+  rw [laneOf_zero, laneOf_one, laneOf_two]
+  unfold pack3
+  norm_num at hx ⊢
+  omega
+
+/-- A word with nothing above lane `2` and every lane at most `b`. -/
+def WB (x b : ℕ) : Prop := x < 2 ^ 60 ∧ ∀ m, m < 3 → laneOf x m ≤ b
+
+theorem WB_mono {x b b' : ℕ} (h : WB x b) (hb : b ≤ b') : WB x b' :=
+  ⟨h.1, fun m hm => le_trans (h.2 m hm) hb⟩
+
+theorem WB_zero (b : ℕ) : WB 0 b :=
+  ⟨by norm_num, fun m _ => by simp [laneOf]⟩
+
+/-- **No carry.** Three lane increments of at most `31` added to a word whose
+lanes are at most `b`, with `b + 31 < 2^20`, are added lanewise. -/
+theorem laneOf_add (x b : ℕ) (A : ℕ → ℕ) (hx : WB x b) (hA : ∀ j, j < 3 → A j ≤ 31)
+    (hb : b + 31 < 2 ^ 20) :
+    WB (x + pack3 (A 0) (A 1) (A 2)) (b + 31)
+      ∧ ∀ j, j < 3 → laneOf (x + pack3 (A 0) (A 1) (A 2)) j = laneOf x j + A j := by
+  obtain ⟨hx60, hxl⟩ := hx
+  have h0 := hxl 0 (by norm_num)
+  have h1 := hxl 1 (by norm_num)
+  have h2 := hxl 2 (by norm_num)
+  have a0 := hA 0 (by norm_num)
+  have a1 := hA 1 (by norm_num)
+  have a2 := hA 2 (by norm_num)
+  have hsum : x + pack3 (A 0) (A 1) (A 2)
+      = pack3 (laneOf x 0 + A 0) (laneOf x 1 + A 1) (laneOf x 2 + A 2) := by
+    conv_lhs => rw [pack3_laneOf hx60]
+    unfold pack3; ring
+  have hb' : b < 2 ^ 20 := by omega
+  have l0 : laneOf x 0 + A 0 < 2 ^ 20 := by omega
+  have l1 : laneOf x 1 + A 1 < 2 ^ 20 := by omega
+  have l2 : laneOf x 2 + A 2 < 2 ^ 20 := by omega
+  obtain ⟨e0, e1, e2⟩ := laneOf_pack3 l0 l1 l2
+  rw [hsum]
+  refine ⟨⟨pack3_lt l0 l1 l2, fun m hm => ?_⟩, fun j hj => ?_⟩
+  · rcases (show m = 0 ∨ m = 1 ∨ m = 2 by omega) with h | h | h <;> subst h
+    · rw [e0]; omega
+    · rw [e1]; omega
+    · rw [e2]; omega
+  · rcases (show j = 0 ∨ j = 1 ∨ j = 2 by omega) with h | h | h <;> subst h
+    · exact e0
+    · exact e1
+    · exact e2
+
+/-! ## 3. The bias
+
+A pass adds `BIAS + s` or `BIAS − s` to a word, `BIAS = 16` in every lane and
+`s` the packed digits. Lanewise that is `16 ± dₑ` ([`addW`]), in `[1, 31]`. -/
+
+/-- One lane's increment in a pass: `16 + d` for a positive contribution,
+`16 − d` for a negative one. -/
+def addW (pos : Bool) (d : ℕ) : ℕ := if pos then 16 + d else 16 - d
+
+theorem addW_le (pos : Bool) {d : ℕ} (hd : d ≤ 15) : addW pos d ≤ 31 := by
+  unfold addW; split <;> omega
+
+/-- In `ZMod q` the increment is `16` plus the signed digit. -/
+theorem addW_cast (pos : Bool) {d : ℕ} (hd : d ≤ 16) :
+    ((addW pos d : ℕ) : ZMod q) = 16 + (if pos then 1 else -1) * ((d : ℕ) : ZMod q) := by
+  unfold addW
+  cases pos with
+  | true => simp only [if_true]; push_cast; ring
+  | false =>
+    simp only [Bool.false_eq_true, if_false]
+    rw [Nat.cast_sub hd]; push_cast; ring
+
+theorem bias_add (a b c : ℕ) :
+    17592202821648 + pack3 a b c = pack3 (16 + a) (16 + b) (16 + c) := by
+  unfold pack3; norm_num; ring
+
+theorem bias_sub {a b c : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) :
+    17592202821648 - pack3 a b c = pack3 (16 - a) (16 - b) (16 - c) := by
+  unfold pack3; norm_num; omega
+
+theorem pack3_le_bias {a b c : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) :
+    pack3 a b c ≤ 17592202821648 := by
+  unfold pack3; norm_num; omega
+
+/-- The low run's addend: `BIAS − s` for a negative term, `BIAS + s` for a
+positive one. -/
+theorem addend_lo_spec (negt : Bool) (s : Std.U64) {a b c : ℕ} (hs : s.val = pack3 a b c)
+    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
+    (if negt then quadeval.Z_LANE_BIAS - s else quadeval.Z_LANE_BIAS + s)
+      ⦃ r => r.val = pack3 (addW (!negt) a) (addW (!negt) b) (addW (!negt) c) ⦄ := by
+  have hle := pack3_le_bias (a := a) (b := b) (c := c) (by omega) (by omega) (by omega)
+  rcases negt with _ | _
+  · simp only [Bool.false_eq_true, if_false]
+    have hadd : (quadeval.Z_LANE_BIAS).val + s.val ≤ Std.U64.max := by
+      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack3; norm_num; omega
+    step as ⟨r, hr⟩
+    rw [hr, z_lane_bias_val, hs, bias_add]
+    rfl
+  · simp only [if_true]
+    have hsub : s.val ≤ (quadeval.Z_LANE_BIAS).val := by rw [z_lane_bias_val, hs]; exact hle
+    step as ⟨r, hr⟩
+    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega)]
+    rfl
+
+/-- The high run's addend: the sign flipped by the wrap. -/
+theorem addend_hi_spec (negt : Bool) (s : Std.U64) {a b c : ℕ} (hs : s.val = pack3 a b c)
+    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
+    (if negt then quadeval.Z_LANE_BIAS + s else quadeval.Z_LANE_BIAS - s)
+      ⦃ r => r.val = pack3 (addW negt a) (addW negt b) (addW negt c) ⦄ := by
+  have hle := pack3_le_bias (a := a) (b := b) (c := c) (by omega) (by omega) (by omega)
+  rcases negt with _ | _
+  · simp only [Bool.false_eq_true, if_false]
+    have hsub : s.val ≤ (quadeval.Z_LANE_BIAS).val := by rw [z_lane_bias_val, hs]; exact hle
+    step as ⟨r, hr⟩
+    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega)]
+    rfl
+  · simp only [if_true]
+    have hadd : (quadeval.Z_LANE_BIAS).val + s.val ≤ Std.U64.max := by
+      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack3; norm_num; omega
+    step as ⟨r, hr⟩
+    rw [hr, z_lane_bias_val, hs, bias_add]
+    rfl
+
+/-! ## 4. Slots, lanes and the row frame
+
+The accumulator is one `Vec Std.U64`; slot `(r, p)` is its three words at
+`3·(r·N + p)`. Lane `e < 8` of the slot holds digit `e`'s biased sum, lane `8`
+the record, and [`laneD`] their difference is the value. -/
+
+/-- Index of word `l` of slot `(r, p)`. -/
+def slotIdx (r p l : ℕ) : ℕ := 3 * (r * N + p) + l
+
+/-- Two slot addresses coincide only when row, coefficient and word do. -/
+theorem slot_index_inj {r r' p p' l l' : ℕ} (hp : p < N) (hp' : p' < N) (hl : l < 3)
+    (hl' : l' < 3) (h : slotIdx r p l = slotIdx r' p' l') : r = r' ∧ p = p' ∧ l = l' := by
+  have hN : N = 1024 := rfl
+  unfold slotIdx at h
+  rw [hN] at h hp hp'
+  omega
+
+theorem slotIdx_lt {r p l len : ℕ} (hp : p < N) (hl : l < 3)
+    (hcap : 3 * ((r + 1) * N) ≤ len) : slotIdx r p l < len := by
+  have hN : N = 1024 := rfl
+  unfold slotIdx
+  rw [hN] at hp hcap ⊢
+  omega
+
+/-- Word `l` of slot `(r, p)`. -/
+def slotW (z : alloc.vec.Vec Std.U64) (r p l : ℕ) : ℕ := bufN z (slotIdx r p l)
+
+theorem slotW_set_eq {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64}
+    {r p l : ℕ} (ht : tU.val = slotIdx r p l) (hlt : tU.val < buf.val.length) :
+    slotW (buf.set tU x) r p l = x.val := by
+  unfold slotW; rw [← ht]; exact bufN_set_eq hlt
+
+theorem slotW_set_ne {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64}
+    {r p l : ℕ} (hne : slotIdx r p l ≠ tU.val) :
+    slotW (buf.set tU x) r p l = slotW buf r p l := by
+  unfold slotW; exact bufN_set_ne hne
+
+/-- Lane `e` of slot `(r, p)`: word `e / 3`, bits `20·(e % 3)`. Lane `8` is the
+record. -/
+def lane (z : alloc.vec.Vec Std.U64) (r p e : ℕ) : ℕ := laneOf (slotW z r p (e / 3)) (e % 3)
+
+/-- The value lane `e` of slot `(r, p)` carries: the lane less the record, in
+`ZMod q`. -/
+def laneD (z : alloc.vec.Vec Std.U64) (r p e : ℕ) : ZMod q :=
+  ((lane z r p e : ℕ) : ZMod q) - ((lane z r p 8 : ℕ) : ZMod q)
+
+/-- Digit `e`'s accumulator of row `r`, as a ring element. -/
+def laneRq (z : alloc.vec.Vec Std.U64) (r e : ℕ) : Rq Φ :=
+  Rq.ofFinCoeff Φ N (fun p => laneD z r p e)
+
+/-- Words outside row `r0`'s slots agree. -/
+def FrameR (buf z : alloc.vec.Vec Std.U64) (r0 : ℕ) : Prop :=
+  ∀ t, (∀ p, p < N → ∀ l, l < 3 → t ≠ slotIdx r0 p l) → bufN z t = bufN buf t
+
+theorem FrameR_refl (buf : alloc.vec.Vec Std.U64) (r0 : ℕ) : FrameR buf buf r0 :=
+  fun _ _ => rfl
+
+theorem FrameR_trans {a b c : alloc.vec.Vec Std.U64} {r0 : ℕ}
+    (h1 : FrameR a b r0) (h2 : FrameR b c r0) : FrameR a c r0 :=
+  fun t ht => by rw [h2 t ht, h1 t ht]
+
+/-- The frame is preserved by a write inside one of the row's slots. -/
+theorem FrameR_set {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
+    {tU : Std.Usize} {x : Std.U64} {p l : ℕ} (hp : p < N) (hl : l < 3)
+    (ht : tU.val = slotIdx r0 p l) : FrameR buf (z.set tU x) r0 := by
+  intro t htn
+  rw [bufN_set_ne (by intro hc; exact htn p hp l hl (by rw [hc, ht]))]
+  exact h t htn
+
+/-- Another row's slot is read unchanged through the frame. -/
+theorem FrameR_slot {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
+    {r p l : ℕ} (hr : r ≠ r0) (hp : p < N) (hl : l < 3) : slotW z r p l = slotW buf r p l := by
+  unfold slotW
+  apply h
+  intro p' hp' l' hl' hc
+  exact hr (slot_index_inj hp hp' hl hl' hc).1
+
+theorem FrameR_laneRq {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
+    {r : ℕ} (hr : r ≠ r0) (e : ℕ) (he : e < 8) : laneRq z r e = laneRq buf r e := by
+  unfold laneRq
+  refine ofFinCoeff_congr (fun p hp => ?_)
+  unfold laneD lane
+  rw [FrameR_slot h hr hp (by omega), FrameR_slot h hr hp (by norm_num)]
+
+/-- A slot run of zeros is the zero ring element, lane by lane. -/
+theorem laneRq_zero (buf : alloc.vec.Vec Std.U64) (r e : ℕ) (he : e < 8)
+    (h : ∀ p, p < N → ∀ l, l < 3 → slotW buf r p l = 0) : laneRq buf r e = 0 := by
+  unfold laneRq
+  apply Subtype.ext
+  rw [CompPoly.CPolynomial.eq_iff_coeff]
+  intro k
+  rw [Rq.ofFinCoeff_coeff Φ _ N_le_degree, Rq.zero_val, CompPoly.CPolynomial.coeff_zero]
+  by_cases hk : k < N
+  · rw [if_pos hk]
+    unfold laneD lane
+    rw [h k hk 2 (by norm_num), h k hk (e / 3) (by omega)]
+    simp [laneOf]
+  · rw [if_neg hk]
+
+/-! ## 5. The digit polynomial, and the nibble lemma
+
+The specification's `dd.digit c ⟨e, _⟩` is `(Nat.digits 16 c.val).getD e 0`
+(`digitK`), and Mathlib's `Nat.getD_digits` says that is `c.val / 16^e % 16`.
+For a canonical word `x < q` the value of `(x : ZMod q)` is `x` itself, so the
+digit is the nibble. -/
 
 /-- Digit `e` of each word of a word vector, as a coefficient function; `0`
 past the end of the vector. -/
@@ -131,13 +375,6 @@ theorem nib_of_ge (row : ring.Rq) (hrow : Wf row) (e : ℕ) {i : ℕ} (hi : N �
 /-- The digit-`e` polynomial of a row: the ring element `gadget_decompose`
 would have written at flat index `8r + e`, without writing it. -/
 def digitRq (row : ring.Rq) (e : ℕ) : Rq Φ := Rq.ofFinCoeff Φ N (nib row e)
-
-/-! ## 3. The nibble lemma
-
-The specification's `dd.digit c ⟨e, _⟩` is `(Nat.digits 16 c.val).getD e 0`
-(`digitK`), and Mathlib's `Nat.getD_digits` says that is `c.val / 16^e % 16`.
-For a canonical word `x < q` the value of `(x : ZMod q)` is `x` itself, so the
-digit is the nibble. -/
 
 /-- **The pinned nibble lemma.** Every `e`, not only `e < 8`: past the eighth
 nibble both sides are `0`, because `x < 2^32`. -/
@@ -234,19 +471,34 @@ theorem coeff_toRq_mul_fin (a : ring.Rq) (ha : Wf a) (f : ℕ → ZMod q)
     rw [← CPolynomial.coeff_toPoly, toRq_coeff_eq_coeffK ha, hfc]
   rw [mul_two_block _ _ hk, Polynomial.coeff_mul, Polynomial.coeff_mul, hsum, hsum, negConvF]
 
-/-- **A region that gained the fused product, at the `Rq` level.** If region
-`g` of `z` is region `g` of `buf` plus `negConvF (coeffK ci) (nib row e)`
-coefficientwise, then as ring elements it gained `toRq ci * digitRq row e`. -/
-theorem regRq_gain (z buf : alloc.vec.Vec Std.U64) (g : ℕ) (ci row : ring.Rq)
+
+/-- Digit `e` of coefficient `i` of a row, in `ℕ`: what `z_spread` packs. -/
+def nibN (row : ring.Rq) (e i : ℕ) : ℕ := wordN row i / 16 ^ e % 16
+
+theorem nibN_le (row : ring.Rq) (e i : ℕ) : nibN row e i ≤ 15 :=
+  Nat.le_of_lt_succ (Nat.mod_lt _ (by norm_num))
+
+/-- The ninth nibble of a canonical word is `0`: the record lane's "digit". -/
+theorem nibN_eight (row : ring.Rq) (hrow : Wf row) (i : ℕ) : nibN row 8 i = 0 := by
+  unfold nibN
+  have h := wordN_lt hrow i
+  have hq : q = 4294967197 := rfl
+  rw [hq] at h
+  rw [Nat.div_eq_of_lt (by norm_num; omega)]
+
+/-- **A row's digit accumulator that gained the fused product, at the `Rq`
+level.** If lane `e` of row `r` of `z` carries lane `e` of `buf` plus
+`negConvF (coeffK ci) (nib row e)` coefficientwise, then as ring elements it
+gained `toRq ci * digitRq row e`. -/
+theorem laneRq_gain (z buf : alloc.vec.Vec Std.U64) (r : ℕ) (ci row : ring.Rq)
     (hci : Wf ci) (hrow : Wf row) (e : ℕ)
-    (h : ∀ w, w < N → ((reg z g w : ℕ) : ZMod q)
-      = ((reg buf g w : ℕ) : ZMod q) + negConvF (coeffK ci) (nib row e) w) :
-    regRq z g = regRq buf g + toRq ci * digitRq row e := by
+    (h : ∀ p, p < N → laneD z r p e = laneD buf r p e + negConvF (coeffK ci) (nib row e) p) :
+    laneRq z r e = laneRq buf r e + toRq ci * digitRq row e := by
   apply Subtype.ext
   rw [CompPoly.CPolynomial.eq_iff_coeff]
   intro k
   rw [Rq.add_val, CompPoly.CPolynomial.coeff_add]
-  unfold regRq digitRq
+  unfold laneRq digitRq
   rw [Rq.ofFinCoeff_coeff Φ _ N_le_degree, Rq.ofFinCoeff_coeff Φ _ N_le_degree]
   by_cases hk : k < N
   · rw [if_pos hk, if_pos hk, h k hk,
@@ -255,212 +507,321 @@ theorem regRq_gain (z buf : alloc.vec.Vec Std.U64) (g : ℕ) (ci row : ring.Rq)
     exact (Rq.coeff_eq_zero_of_natDegree_le Φ (toRq ci * Rq.ofFinCoeff Φ N (nib row e))
       (by rw [phi_natDegree]; omega)).symm
 
-/-- A region whose words did not move did not move as a ring element. -/
-theorem regRq_congr (z buf : alloc.vec.Vec Std.U64) (g : ℕ)
-    (h : ∀ w, w < N → reg z g w = reg buf g w) : regRq z g = regRq buf g := by
-  unfold regRq
-  exact ofFinCoeff_congr (fun w hw => by rw [h w hw])
+/-! ## 6. `z_spread`: a row's digits, packed once
 
-/-- Reducing every word mod `q` does not move a region as a ring element. -/
-theorem regRq_congr_mod (z buf : alloc.vec.Vec Std.U64) (g : ℕ)
-    (h : ∀ w, w < N → ((reg z g w : ℕ) : ZMod q) = ((reg buf g w : ℕ) : ZMod q)) :
-    regRq z g = regRq buf g := by
-  unfold regRq
-  exact ofFinCoeff_congr (fun w hw => h w hw)
+Word `l` of coefficient `i` is `pack3` of digits `3l, 3l + 1, 3l + 2`. Digit `8`
+is `0` ([`nibN_eight`]), so word `2` is `d₆ + d₇·2^20` exactly as the Rust
+writes it, and every word has the same shape. -/
 
-/-! ## 5. `z_pass`: one signed pass over the eight regions of a row
+/-- `src` holds, at `3i + l`, the packed digits `3l, 3l + 1, 3l + 2` of `D` at
+coefficient `i`. -/
+def SpreadOf (src : alloc.vec.Vec Std.U64) (D : ℕ → ℕ → ℕ) : Prop :=
+  src.val.length = 3 * N ∧ ∀ i, i < N → ∀ l, l < 3 →
+    bufN src (3 * i + l) = pack3 (D (3 * l) i) (D (3 * l + 1) i) (D (3 * l + 2) i)
 
-The invariant is `short_pass_off_loop*_spec`'s, once per region, plus a frame:
-every word outside the row's eight regions is unchanged. `Frame buf z g0` says
-exactly that. -/
+theorem bufN_push_lt {v v' : alloc.vec.Vec Std.U64} {x : Std.U64} (h : v'.val = v.val ++ [x])
+    {t : ℕ} (ht : t < v.val.length) : bufN v' t = bufN v t := by
+  unfold bufN; rw [h, getD_append_lt _ _ _ ht]
 
-/-- Words outside regions `[g0, g0 + 8)` agree. -/
-def Frame (buf z : alloc.vec.Vec Std.U64) (g0 : ℕ) : Prop :=
-  ∀ t, (∀ e, e < 8 → ∀ w, w < N → t ≠ (g0 + e) * S + w) → bufN z t = bufN buf t
-
-theorem Frame_refl (buf : alloc.vec.Vec Std.U64) (g0 : ℕ) : Frame buf buf g0 :=
-  fun _ _ => rfl
-
-theorem Frame_trans {a b c : alloc.vec.Vec Std.U64} {g0 : ℕ}
-    (h1 : Frame a b g0) (h2 : Frame b c g0) : Frame a c g0 :=
-  fun t ht => by rw [h2 t ht, h1 t ht]
-
-/-- The frame is preserved by a write inside one of the row's regions. -/
-theorem Frame_set {buf z : alloc.vec.Vec Std.U64} {g0 : ℕ} (h : Frame buf z g0)
-    {tU : Std.Usize} {x : Std.U64} {e w : ℕ} (he : e < 8) (hw : w < N)
-    (ht : tU.val = (g0 + e) * S + w) : Frame buf (z.set tU x) g0 := by
-  intro t htn
-  rw [bufN_set_ne (by intro hc; exact htn e he w hw (by rw [hc, ht]))]
-  exact h t htn
-
-/-- A region outside the row is read unchanged through the frame. -/
-theorem Frame_reg {buf z : alloc.vec.Vec Std.U64} {g0 : ℕ} (h : Frame buf z g0) {g w : ℕ}
-    (hg : g < g0 ∨ g0 + 8 ≤ g) (hw : w < N) : reg z g w = reg buf g w := by
-  unfold reg
-  apply h
-  intro e he w' hw' hc
-  have hS : w < S := by unfold S; omega
-  have hS' : w' < S := by unfold S; omega
-  have := reg_index_inj hS hS' hc
-  omega
-
-/-- A region of zeros is the zero ring element. -/
-theorem regRq_zero (buf : alloc.vec.Vec Std.U64) (g : ℕ)
-    (h : ∀ w, w < N → reg buf g w = 0) : regRq buf g = 0 := by
-  unfold regRq
-  apply Subtype.ext
-  rw [CompPoly.CPolynomial.eq_iff_coeff]
-  intro k
-  rw [Rq.ofFinCoeff_coeff Φ _ N_le_degree, Rq.zero_val, CompPoly.CPolynomial.coeff_zero]
-  by_cases hk : k < N
-  · rw [if_pos hk, h k hk]; simp
-  · rw [if_neg hk]
-
-/-- **Progress through one step's eight writes.** Regions `[g0, g0 + m)` of
-`z` have absorbed source index `ii`, regions `[g0 + m, g0 + 8)` have not. At
-`m = 0` this is the loop invariant at `ii`; at `m = 8` it is the invariant at
-`ii + 1`. -/
-def Prog (words : alloc.vec.Vec Std.U64) (kk : ℕ) (negt : Bool) (g0 : ℕ)
-    (base : ℕ → ℕ → ZMod q) (B ii m : ℕ) (z : alloc.vec.Vec Std.U64) : Prop :=
-  ∀ e, e < 8 → ∀ w, w < N →
-    reg z (g0 + e) w ≤ (if srcOf kk w < (if e < m then ii + 1 else ii) then B + q else B)
-    ∧ ((reg z (g0 + e) w : ℕ) : ZMod q)
-        = applied (base e) (nibW words e) kk negt (if e < m then ii + 1 else ii) w
-
-theorem Prog_zero_iff (words : alloc.vec.Vec Std.U64) (kk : ℕ) (negt : Bool) (g0 : ℕ)
-    (base : ℕ → ℕ → ZMod q) (B ii : ℕ) (z : alloc.vec.Vec Std.U64) :
-    Prog words kk negt g0 base B ii 0 z ↔
-      (∀ e, e < 8 → ∀ w, w < N →
-        reg z (g0 + e) w ≤ (if srcOf kk w < ii then B + q else B))
-      ∧ ∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-          = applied (base e) (nibW words e) kk negt ii w := by
-  unfold Prog
-  simp only [Nat.not_lt_zero, if_false]
-  exact ⟨fun h => ⟨fun e he w hw => (h e he w hw).1, fun e he w hw => (h e he w hw).2⟩,
-    fun h e he w hw => ⟨h.1 e he w hw, h.2 e he w hw⟩⟩
-
-theorem Prog_eight (words : alloc.vec.Vec Std.U64) (kk : ℕ) (negt : Bool) (g0 : ℕ)
-    (base : ℕ → ℕ → ZMod q) (B ii : ℕ) (z : alloc.vec.Vec Std.U64)
-    (h : Prog words kk negt g0 base B ii 8 z) :
-    (∀ e, e < 8 → ∀ w, w < N →
-        reg z (g0 + e) w ≤ (if srcOf kk w < ii + 1 then B + q else B))
-      ∧ ∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-          = applied (base e) (nibW words e) kk negt (ii + 1) w := by
-  refine ⟨fun e he w hw => ?_, fun e he w hw => ?_⟩
-  · have := (h e he w hw).1; rwa [if_pos he] at this
-  · have := (h e he w hw).2; rwa [if_pos he] at this
-
-/-- **One write** of the eight: region `g0 + m` at `dstOf kk ii` gains the
-signed digit, every other word is untouched, and the progress counter
-advances. `offWrite_step` at a region offset, for a buffer of `8` regions. -/
-theorem write_one (words : alloc.vec.Vec Std.U64) (kk : ℕ) (negt : Bool) (g0 : ℕ)
-    (base : ℕ → ℕ → ZMod q) (B ii m : ℕ) (d : alloc.vec.Vec Std.U64)
-    (wU : Std.Usize) (addU nvU : Std.U64) (dv : ℕ)
-    (hk : kk < N) (hii : ii < N) (hm : m < 8)
-    (hdv : dv < q) (hdval : ((dv : ℕ) : ZMod q) = nibW words m ii)
-    (hprog : Prog words kk negt g0 base B ii m d)
-    (hwv : wU.val = (g0 + m) * S + dstOf kk ii)
-    (hwlt : wU.val < d.val.length)
-    (haddv : addU.val = offStep negt kk ii dv)
-    (hnvv : nvU.val = reg d (g0 + m) (dstOf kk ii) + addU.val) :
-    Prog words kk negt g0 base B ii (m + 1) (d.set wU nvU) := by
-  have hdst : dstOf kk ii < N := dstOf_lt hk hii
-  have hsrc : srcOf kk (dstOf kk ii) = ii := srcOf_dstOf hk hii
-  have haddq : addU.val ≤ q := by rw [haddv]; exact offStep_le negt kk ii dv hdv
-  intro e he w hw
-  obtain ⟨hb, hv⟩ := hprog e he w hw
-  by_cases hem : e = m
-  · subst hem
-    rw [if_neg (Nat.lt_irrefl e)] at hb hv
-    rw [if_pos (Nat.lt_succ_self e)]
-    by_cases hwd : w = dstOf kk ii
-    · subst hwd
-      rw [reg_set_eq hwv hwlt, hnvv]
-      refine ⟨?_, ?_⟩
-      · rw [if_pos (by rw [hsrc]; omega)]
-        rw [if_neg (by rw [hsrc]; omega)] at hb
-        omega
-      · rw [applied_succ, hsrc, if_pos rfl]
-        push_cast
-        rw [hv, haddv, offStep_cast negt kk ii dv hk hii hdv, hdval]
-    · have hne : (g0 + e) * S + w ≠ wU.val := by
-        rw [hwv]; intro hc; exact hwd (by omega)
-      rw [reg_set_ne hne]
-      have hsne : srcOf kk w ≠ ii := by
-        intro hc; exact hwd (by rw [← hc, dstOf_srcOf hk hw])
-      refine ⟨?_, ?_⟩
-      · by_cases hlt : srcOf kk w < ii
-        · rw [if_pos (by omega)]; rwa [if_pos hlt] at hb
-        · rw [if_neg (by omega)]; rwa [if_neg hlt] at hb
-      · rw [applied_succ, if_neg hsne, add_zero]; exact hv
-  · have hne : (g0 + e) * S + w ≠ wU.val := by
-      rw [hwv]; intro hc
-      have hS : w < S := by unfold S; omega
-      have hS' : dstOf kk ii < S := by unfold S; omega
-      exact hem (by have := reg_index_inj hS hS' hc; omega)
-    rw [reg_set_ne hne]
-    rcases Nat.lt_or_ge e m with hlt | hge
-    · have h1 : (if e < m + 1 then ii + 1 else ii) = ii + 1 := if_pos (by omega)
-      rw [if_pos hlt] at hb hv; rw [h1]; exact ⟨hb, hv⟩
-    · have hnl : ¬ e < m := by omega
-      have h1 : (if e < m + 1 then ii + 1 else ii) = ii := if_neg (by omega)
-      rw [if_neg hnl] at hb hv; rw [h1]; exact ⟨hb, hv⟩
-
-/-- What one write needs from `Prog`: its address is inside the buffer and the
-word there is still within `B`. -/
-theorem write_facts (words : alloc.vec.Vec Std.U64) (kk : ℕ) (negt : Bool) (g0 : ℕ)
-    (base : ℕ → ℕ → ZMod q) (B ii m : ℕ) (d : alloc.vec.Vec Std.U64)
-    (hprog : Prog words kk negt g0 base B ii m d)
-    (hk : kk < N) (hii : ii < N) (hm : m < 8) (hcap : (g0 + 8) * S ≤ d.val.length) :
-    (g0 + m) * S + dstOf kk ii < d.val.length ∧ reg d (g0 + m) (dstOf kk ii) ≤ B := by
-  have hdst : dstOf kk ii < N := dstOf_lt hk hii
-  have hsrc : srcOf kk (dstOf kk ii) = ii := srcOf_dstOf hk hii
-  refine ⟨?_, ?_⟩
-  · have h1 : (g0 + m) * S + dstOf kk ii < (g0 + m + 1) * S := by
-      rw [Nat.succ_mul]; unfold S; omega
-    have h2 : (g0 + m + 1) * S ≤ (g0 + 8) * S := Nat.mul_le_mul_right _ (by omega)
-    omega
-  · have := (hprog m hm (dstOf kk ii) hdst).1
-    rw [if_neg (Nat.lt_irrefl m), hsrc, if_neg (Nat.lt_irrefl ii)] at this
-    exact this
+theorem bufN_push_eq {v v' : alloc.vec.Vec Std.U64} {x : Std.U64} (h : v'.val = v.val ++ [x]) :
+    bufN v' v.val.length = x.val := by
+  unfold bufN; rw [h, getD_append_eq]
 
 set_option maxHeartbeats 2000000 in
-/-- **The low run** of `z_pass`: `i < N - k`, destination `k + i` in each region,
-sign `negt`'s alone. -/
-theorem z_pass_loop0_spec (words : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool)
-    (rbU : Std.Usize) (qU : Std.U64) (strideU limU : Std.Usize)
-    (out : alloc.vec.Vec Std.U64) (iU : Std.Usize)
-    (buf0 : alloc.vec.Vec Std.U64) (g0 : ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hq : qU.val = q) (hstride : strideU.val = S) (hlim : limU.val = N - kU.val)
-    (hk : kU.val < N) (hrb : rbU.val = g0 * S)
+/-- The spread loop: coefficient by coefficient, three packed words each. -/
+theorem z_spread_loop_spec (row : ring.Rq) (nU : Std.Usize) (out : alloc.vec.Vec Std.U64)
+    (iU : Std.Usize) (hrow : Wf row) (hn : nU.val = N) (hi : iU.val ≤ N)
+    (hlen : out.val.length = 3 * iU.val)
+    (hval : ∀ i, i < iU.val → ∀ l, l < 3 → bufN out (3 * i + l)
+      = pack3 (nibN row (3 * l) i) (nibN row (3 * l + 1) i) (nibN row (3 * l + 2) i)) :
+    quadeval.z_spread_loop row nU out iU ⦃ z => SpreadOf z (nibN row) ⦄ := by
+  rw [quadeval.z_spread_loop]
+  apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
+    (fun t => t.2.val ≤ N ∧ t.1.val.length = 3 * t.2.val
+      ∧ ∀ i, i < t.2.val → ∀ l, l < 3 → bufN t.1 (3 * i + l)
+          = pack3 (nibN row (3 * l) i) (nibN row (3 * l + 1) i) (nibN row (3 * l + 2) i))
+  · rintro ⟨ws, ii⟩ ⟨hii, hwl, hwv⟩
+    dsimp only at hii hwl hwv
+    simp only [quadeval.z_spread_loop.body]
+    by_cases hlt : ii < nU
+    · rw [if_pos hlt]
+      have hiilt : ii.val < N := by rw [← hn]; scalar_tac
+      step with Raw32.coeff_word_spec row ii hrow hiilt as ⟨f, hf⟩
+      step with to_u64_id f as ⟨x, hx⟩
+      have hxv : x.val = wordN row ii.val := by rw [hx, hf]; rfl
+      step as ⟨d0, hd0⟩
+      step as ⟨q1, hq1⟩
+      step as ⟨d1, hd1⟩
+      step as ⟨q2, hq2⟩
+      step as ⟨d2, hd2⟩
+      step as ⟨q3, hq3⟩
+      step as ⟨d3, hd3⟩
+      step as ⟨q4, hq4⟩
+      step as ⟨d4, hd4⟩
+      step as ⟨q5, hq5⟩
+      step as ⟨d5, hd5⟩
+      step as ⟨q6, hq6⟩
+      step as ⟨d6, hd6⟩
+      step as ⟨q7, hq7⟩
+      step as ⟨d7, hd7⟩
+      have hd0v : d0.val = nibN row 0 ii.val := by unfold nibN; rw [hd0, hxv]; simp
+      have hd1v : d1.val = nibN row 1 ii.val := by unfold nibN; rw [hd1, hq1, hxv]; norm_num
+      have hd2v : d2.val = nibN row 2 ii.val := by unfold nibN; rw [hd2, hq2, hxv]; norm_num
+      have hd3v : d3.val = nibN row 3 ii.val := by unfold nibN; rw [hd3, hq3, hxv]; norm_num
+      have hd4v : d4.val = nibN row 4 ii.val := by unfold nibN; rw [hd4, hq4, hxv]; norm_num
+      have hd5v : d5.val = nibN row 5 ii.val := by unfold nibN; rw [hd5, hq5, hxv]; norm_num
+      have hd6v : d6.val = nibN row 6 ii.val := by unfold nibN; rw [hd6, hq6, hxv]; norm_num
+      have hd7v : d7.val = nibN row 7 ii.val := by unfold nibN; rw [hd7, hq7, hxv]; norm_num
+      have hb1 := nibN_le row 1 ii.val
+      have hb2 := nibN_le row 2 ii.val
+      have hb4 := nibN_le row 4 ii.val
+      have hb5 := nibN_le row 5 ii.val
+      have hb7 := nibN_le row 7 ii.val
+      have hb0 := nibN_le row 0 ii.val
+      have hb3 := nibN_le row 3 ii.val
+      have hb6 := nibN_le row 6 ii.val
+      step as ⟨i8, hi8⟩
+      step as ⟨i9, hi9⟩
+      step as ⟨i10, hi10⟩
+      step as ⟨s0, hs0⟩
+      step as ⟨i11, hi11⟩
+      step as ⟨i12, hi12⟩
+      step as ⟨i13, hi13⟩
+      step as ⟨s1, hs1⟩
+      step as ⟨i14, hi14⟩
+      step as ⟨s2, hs2⟩
+      have hs0v : s0.val = pack3 (nibN row 0 ii.val) (nibN row 1 ii.val) (nibN row 2 ii.val) := by
+        rw [hs0, hi9, hi10, hi8, z_lane_1_val, z_lane_2_val, hd0v, hd1v, hd2v]; unfold pack3; norm_num
+      have hs1v : s1.val = pack3 (nibN row 3 ii.val) (nibN row 4 ii.val) (nibN row 5 ii.val) := by
+        rw [hs1, hi12, hi13, hi11, z_lane_1_val, z_lane_2_val, hd3v, hd4v, hd5v]; unfold pack3; norm_num
+      have hs2v : s2.val = pack3 (nibN row 6 ii.val) (nibN row 7 ii.val) (nibN row 8 ii.val) := by
+        rw [hs2, hi14, z_lane_1_val, hd6v, hd7v, nibN_eight row hrow]; unfold pack3; norm_num
+      have hmax : ws.val.length + 3 ≤ Std.Usize.max := by
+        rw [hwl]; have := usize_max_ge; have h3 : N = 1024 := rfl; omega
+      step as ⟨o1, ho1⟩
+      have hl1 : o1.val.length = ws.val.length + 1 := by rw [ho1]; simp
+      have hm1 : o1.val.length < Std.Usize.max := by omega
+      step as ⟨o2, ho2⟩
+      have hl2 : o2.val.length = ws.val.length + 2 := by rw [ho2, List.length_append, hl1]; simp
+      have hm2 : o2.val.length < Std.Usize.max := by omega
+      step as ⟨o3, ho3⟩
+      step as ⟨ii1, hii1⟩
+      refine ⟨by omega, ?_, ?_, by omega⟩
+      · rw [ho3, List.length_append, hl2, hwl, hii1]; simp; ring
+      · intro i hi l hl
+        rw [hii1] at hi
+        rcases Nat.lt_or_ge i ii.val with hlt2 | hge
+        · have hidx : 3 * i + l < ws.val.length := by rw [hwl]; omega
+          rw [bufN_push_lt ho3 (by omega), bufN_push_lt ho2 (by omega), bufN_push_lt ho1 hidx]
+          exact hwv i hlt2 l hl
+        · have hieq : i = ii.val := by omega
+          subst hieq
+          rcases (show l = 0 ∨ l = 1 ∨ l = 2 by omega) with h | h | h <;> subst h
+          · have h0 : 3 * ii.val + 0 = ws.val.length := by omega
+            rw [h0, bufN_push_lt ho3 (by omega), bufN_push_lt ho2 (by omega), bufN_push_eq ho1,
+              hs0v]
+          · have h0 : 3 * ii.val + 1 = o1.val.length := by omega
+            rw [h0, bufN_push_lt ho3 (by omega), bufN_push_eq ho2, hs1v]
+          · have h0 : 3 * ii.val + 2 = o2.val.length := by omega
+            rw [h0, bufN_push_eq ho3, hs2v]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = N := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hwl, heq], fun i hi l hl => hwv i (by rw [heq]; exact hi) l hl⟩
+  · exact ⟨hi, hlen, hval⟩
+
+/-- **`z_spread`.** The row's digits, packed three to a word, three words to a
+coefficient. -/
+theorem z_spread_spec (row : ring.Rq) (hrow : Wf row) :
+    quadeval.z_spread row ⦃ src => SpreadOf src (nibN row) ⦄ := by
+  rw [quadeval.z_spread]
+  step as ⟨i, hi⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  exact z_spread_loop_spec row params.RING_DEGREE (alloc.vec.Vec.new Std.U64) 0#usize hrow
+    params_RING_DEGREE_val (by simp) (by simp) (by intro i hi; simp at hi)
+
+/-! ## 7. `z_pass_lanes`: one signed pass over a row's slots
+
+The invariant is per lane: lane `e` of slot `(r0, w)` has gained
+`16 + sgn · Dₑ(srcOf k w)` once source index `srcOf k w` has been processed
+([`appliedB`]). The record's digit `D 8` is `0`, so it gains exactly `16`, and
+the difference [`laneD`] ends up with `applied`'s signed digit -- the same pure
+function T43's regions and `short_pass_off` were proved against. -/
+
+/-- `applied` with the bias: every processed position also gained `16`. -/
+def appliedB (base sc : ℕ → ZMod q) (k : ℕ) (negt : Bool) (i : ℕ) : ℕ → ZMod q :=
+  fun w => base w + (if srcOf k w < i then 16 + sgn negt k w * sc (srcOf k w) else 0)
+
+theorem appliedB_succ (base sc : ℕ → ZMod q) (k : ℕ) (negt : Bool) (i w : ℕ) :
+    appliedB base sc k negt (i + 1) w
+      = appliedB base sc k negt i w
+        + (if srcOf k w = i then 16 + sgn negt k w * sc (srcOf k w) else 0) := by
+  unfold appliedB
+  by_cases h : srcOf k w = i
+  · rw [if_pos h, if_pos (by omega), if_neg (by omega)]; ring
+  · by_cases h2 : srcOf k w < i
+    · rw [if_neg h, if_pos (by omega), if_pos h2]; ring
+    · rw [if_neg h, if_neg (by omega), if_neg h2]; ring
+
+/-- A position whose source is not the current index does not move. -/
+theorem appliedB_ite_skip (base sc : ℕ → ZMod q) (k : ℕ) (negt : Bool) {ii w : ℕ}
+    (h : srcOf k w ≠ ii) (c : Prop) [Decidable c] :
+    appliedB base sc k negt (if c then ii + 1 else ii) w = appliedB base sc k negt ii w := by
+  by_cases hc : c
+  · rw [if_pos hc, appliedB_succ, if_neg h, add_zero]
+  · rw [if_neg hc]
+
+theorem ite_src_skip {s ii : ℕ} (h : s ≠ ii) (c : Prop) [Decidable c] {α : Type} (X Y : α) :
+    (if s < (if c then ii + 1 else ii) then X else Y) = (if s < ii then X else Y) := by
+  by_cases hc : c
+  · rw [if_pos hc]
+    by_cases hs : s < ii
+    · rw [if_pos hs, if_pos (by omega)]
+    · rw [if_neg hs, if_neg (by omega)]
+  · rw [if_neg hc]
+
+/-- The digits of `D`, in `ZMod q`. -/
+def dgZ (D : ℕ → ℕ → ℕ) (e : ℕ) : ℕ → ZMod q := fun i => ((D e i : ℕ) : ZMod q)
+
+/-- **Progress through one step's three writes.** Words `l < m` of the step's
+slot have absorbed source index `ii`, words `l ≥ m` have not; every other slot
+is at `ii`. At `m = 0` this is the loop invariant at `ii`; at `m = 3` it is the
+invariant at `ii + 1` ([`ProgL_three`]). -/
+def ProgL (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt : Bool) (r0 : ℕ) (base : ℕ → ℕ → ZMod q)
+    (B ii m : ℕ) (z : alloc.vec.Vec Std.U64) : Prop :=
+  ∀ p, p < N →
+    (∀ l, l < 3 → WB (slotW z r0 p l)
+        (if srcOf kk p < (if l < m then ii + 1 else ii) then B + 31 else B))
+    ∧ ∀ e, e < 9 → ((lane z r0 p e : ℕ) : ZMod q)
+        = appliedB (base e) (dgZ D e) kk negt (if e / 3 < m then ii + 1 else ii) p
+
+theorem ProgL_three {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ} {base : ℕ → ℕ → ZMod q}
+    {B ii : ℕ} {z : alloc.vec.Vec Std.U64} (h : ProgL D kk negt r0 base B ii 3 z) :
+    ProgL D kk negt r0 base B (ii + 1) 0 z := by
+  intro p hp
+  obtain ⟨hb, hv⟩ := h p hp
+  refine ⟨fun l hl => ?_, fun e he => ?_⟩
+  · have := hb l hl
+    rw [if_pos hl] at this
+    rw [if_neg (Nat.not_lt_zero l)]
+    exact this
+  · have := hv e he
+    rw [if_pos (by omega)] at this
+    rw [if_neg (Nat.not_lt_zero _)]
+    exact this
+
+/-- The step's current word is still within `B`. -/
+theorem ProgL_cur {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ} {base : ℕ → ℕ → ZMod q}
+    {B ii m : ℕ} {d : alloc.vec.Vec Std.U64} (hprog : ProgL D kk negt r0 base B ii m d)
+    (hk : kk < N) (hii : ii < N) (hm : m < 3) : WB (slotW d r0 (dstOf kk ii) m) B := by
+  have := (hprog (dstOf kk ii) (dstOf_lt hk hii)).1 m hm
+  rwa [if_neg (Nat.lt_irrefl m), srcOf_dstOf hk hii, if_neg (Nat.lt_irrefl ii)] at this
+
+/-- **One write** of the three: word `m` of slot `(r0, dstOf kk ii)` gains the
+biased signed digits, lanewise and without carry; every other word is
+untouched. -/
+theorem write_lane (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt pos : Bool) (r0 : ℕ)
+    (base : ℕ → ℕ → ZMod q) (B ii m : ℕ) (d : alloc.vec.Vec Std.U64)
+    (wU : Std.Usize) (aU nvU : Std.U64)
+    (hk : kk < N) (hii : ii < N) (hm : m < 3) (hB : B + 31 < 2 ^ 20)
+    (hD : ∀ e i, D e i ≤ 15)
+    (hpos : sgn negt kk (dstOf kk ii) = if pos then 1 else -1)
+    (hprog : ProgL D kk negt r0 base B ii m d)
+    (hwv : wU.val = slotIdx r0 (dstOf kk ii) m) (hwlt : wU.val < d.val.length)
+    (hav : aU.val = pack3 (addW pos (D (3 * m) ii)) (addW pos (D (3 * m + 1) ii))
+      (addW pos (D (3 * m + 2) ii)))
+    (hnvv : nvU.val = slotW d r0 (dstOf kk ii) m + aU.val) :
+    ProgL D kk negt r0 base B ii (m + 1) (d.set wU nvU) := by
+  have hdst : dstOf kk ii < N := dstOf_lt hk hii
+  have hsrc : srcOf kk (dstOf kk ii) = ii := srcOf_dstOf hk hii
+  have hAle : ∀ j, j < 3 → (fun j => addW pos (D (3 * m + j) ii)) j ≤ 31 :=
+    fun j _ => addW_le pos (hD _ _)
+  have hav' : aU.val = pack3 ((fun j => addW pos (D (3 * m + j) ii)) 0)
+      ((fun j => addW pos (D (3 * m + j) ii)) 1) ((fun j => addW pos (D (3 * m + j) ii)) 2) := by
+    rw [hav]; simp only [Nat.add_zero]
+  obtain ⟨hnewB, hnewL⟩ := laneOf_add _ B (fun j => addW pos (D (3 * m + j) ii))
+    (ProgL_cur hprog hk hii hm) hAle hB
+  intro p hp
+  obtain ⟨hb, hv⟩ := hprog p hp
+  by_cases hpd : p = dstOf kk ii
+  · subst hpd
+    refine ⟨fun l hl => ?_, fun e he => ?_⟩
+    · by_cases hlm : l = m
+      · subst hlm
+        rw [slotW_set_eq hwv hwlt, hnvv, hav', if_pos (Nat.lt_succ_self l), hsrc,
+          if_pos (Nat.lt_succ_self ii)]
+        exact hnewB
+      · rw [slotW_set_ne (by rw [hwv]; intro hc; exact hlm (slot_index_inj hp hp hl hm hc).2.2)]
+        have := hb l hl
+        by_cases hlt : l < m
+        · rw [if_pos hlt] at this; rw [if_pos (show l < m + 1 by omega)]; exact this
+        · rw [if_neg hlt] at this; rw [if_neg (show ¬ (l < m + 1) by omega)]; exact this
+    · have hv' := hv e he
+      unfold lane at hv' ⊢
+      by_cases hem : e / 3 = m
+      · rw [hem] at hv' ⊢
+        rw [if_neg (Nat.lt_irrefl m)] at hv'
+        rw [slotW_set_eq hwv hwlt, hnvv, hav', hnewL (e % 3) (Nat.mod_lt _ (by norm_num)),
+          if_pos (Nat.lt_succ_self m), appliedB_succ, hsrc, if_pos rfl, Nat.cast_add, hv']
+        have he3 : 3 * m + e % 3 = e := by omega
+        simp only [he3]
+        rw [addW_cast pos (by have := hD e ii; omega), hpos]
+        rfl
+      · rw [slotW_set_ne (by
+          rw [hwv]; intro hc; exact hem (slot_index_inj hp hp (by omega) hm hc).2.2)]
+        by_cases hlt : e / 3 < m
+        · rw [if_pos hlt] at hv'; rw [if_pos (show e / 3 < m + 1 by omega)]; exact hv'
+        · rw [if_neg hlt] at hv'; rw [if_neg (show ¬ (e / 3 < m + 1) by omega)]; exact hv'
+  · have hne : ∀ l, l < 3 → slotIdx r0 p l ≠ wU.val := by
+      intro l hl hc; rw [hwv] at hc; exact hpd (slot_index_inj hp hdst hl hm hc).2.1
+    have hsne : srcOf kk p ≠ ii := by
+      intro hc; exact hpd (by rw [← hc, dstOf_srcOf hk hp])
+    refine ⟨fun l hl => ?_, fun e he => ?_⟩
+    · rw [slotW_set_ne (hne l hl), ite_src_skip hsne]
+      have := hb l hl
+      rwa [ite_src_skip hsne] at this
+    · have hv' := hv e he
+      unfold lane at hv' ⊢
+      rw [slotW_set_ne (hne _ (by omega)), hv', appliedB_ite_skip _ _ _ _ hsne,
+        appliedB_ite_skip _ _ _ _ hsne]
+
+/-- A `u64` add of two words below `2^60` does not overflow. -/
+theorem add_ok {c a : ℕ} (hc : c < 2 ^ 60) (ha : a < 2 ^ 60) : c + a ≤ Std.U64.max := by
+  rw [u64_max_val]; norm_num at hc ha ⊢; omega
+
+theorem addend_lt (pos : Bool) {a b c : ℕ} (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
+    pack3 (addW pos a) (addW pos b) (addW pos c) < 2 ^ 60 := by
+  have h1 := addW_le pos ha
+  have h2 := addW_le pos hb
+  have h3 := addW_le pos hc
+  exact pack3_lt (by omega) (by omega) (by omega)
+
+theorem set_length {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64} :
+    (buf.set tU x).val.length = buf.val.length := by
+  rw [alloc.vec.Vec.set_val_eq, List.length_set]
+
+set_option maxHeartbeats 4000000 in
+/-- **The low run** of `z_pass_lanes`: `i < N - k`, destination `k + i`, sign
+`negt`'s alone. -/
+theorem z_pass_lanes_loop0_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool)
+    (rbU limU : Std.Usize) (out : alloc.vec.Vec Std.U64) (iU : Std.Usize)
+    (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hlim : limU.val = N - kU.val) (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
     (hi : iU.val ≤ limU.val) (hlen : out.val.length = buf0.val.length)
-    (hcap : (g0 + 8) * S ≤ buf0.val.length) (hB : B + q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N →
-      reg out (g0 + e) w ≤ (if srcOf kU.val w < iU.val then B + q else B))
-    (hval : ∀ e, e < 8 → ∀ w, w < N → ((reg out (g0 + e) w : ℕ) : ZMod q)
-      = applied (base e) (nibW words e) kU.val negt iU.val w)
-    (hfr : Frame buf0 out g0) :
-    quadeval.z_pass_loop0 words kU negt rbU qU strideU out limU iU
-      ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N →
-            reg z (g0 + e) w ≤ (if srcOf kU.val w < limU.val then B + q else B))
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = applied (base e) (nibW words e) kU.val negt limU.val w)
-        ∧ Frame buf0 z g0 ⦄ := by
-  have hS : S = 1040 := rfl
-  have hq16 : 16 ≤ q := by norm_num [HachiEquiv.Field.q]
-  rw [quadeval.z_pass_loop0]
+    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 20)
+    (hprog : ProgL D kU.val negt r0 base B iU.val 0 out) (hfr : FrameR buf0 out r0) :
+    quadeval.z_pass_lanes_loop0 src kU negt rbU out limU iU
+      ⦃ z => z.val.length = buf0.val.length ∧ ProgL D kU.val negt r0 base B limU.val 0 z
+        ∧ FrameR buf0 z r0 ⦄ := by
+  obtain ⟨hsl, hsv⟩ := hsrc
+  rw [quadeval.z_pass_lanes_loop0]
   apply loop.spec_decr_nat (fun t => limU.val - t.2.val)
     (fun t => t.2.val ≤ limU.val ∧ t.1.val.length = buf0.val.length
-      ∧ (∀ e, e < 8 → ∀ w, w < N →
-          reg t.1 (g0 + e) w ≤ (if srcOf kU.val w < t.2.val then B + q else B))
-      ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg t.1 (g0 + e) w : ℕ) : ZMod q)
-          = applied (base e) (nibW words e) kU.val negt t.2.val w)
-      ∧ Frame buf0 t.1 g0)
-  · rintro ⟨d, ii⟩ ⟨hii, hdl, hdb, hdv, hdf⟩
-    dsimp only at hii hdl hdb hdv hdf
-    simp only [quadeval.z_pass_loop0.body]
+      ∧ ProgL D kU.val negt r0 base B t.2.val 0 t.1 ∧ FrameR buf0 t.1 r0)
+  · rintro ⟨d, ii⟩ ⟨hii, hdl, hdp, hdf⟩
+    dsimp only at hii hdl hdp hdf
+    simp only [quadeval.z_pass_lanes_loop0.body]
     by_cases hlt : ii < limU
     · rw [if_pos hlt]
       have hiilim : ii.val < limU.val := by scalar_tac
@@ -468,1032 +829,324 @@ theorem z_pass_loop0_spec (words : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt
       have hnowrap : ¬ N ≤ kU.val + ii.val := by omega
       have hdst : dstOf kU.val ii.val = kU.val + ii.val := by
         unfold dstOf; rw [if_pos (by omega)]
-      have hcapd : (g0 + 8) * S ≤ d.val.length := by rw [hdl]; exact hcap
-      have hrb' : rbU.val = g0 * 1040 := by rw [hrb, hS]
-      have hstride' : strideU.val = 1040 := by rw [hstride, hS]
-      have hwb : ii.val < words.val.length := by rw [hwl]; exact hiilt
-      step as ⟨x, hx⟩
-      have hxv : x.val = bufN words ii.val := by
-        rw [hx, ← bufN_of_lt (v := words) (w := ii.val) hwb]
-      have hxlt : x.val < q := by rw [hxv]; exact hwlt ii.val hiilt
-      step as ⟨d0, hd0⟩
-      step as ⟨q1, hq1⟩
-      step as ⟨d1, hd1⟩
-      step as ⟨q2, hq2⟩
-      step as ⟨d2, hd2⟩
-      step as ⟨q3, hq3⟩
-      step as ⟨d3, hd3⟩
-      step as ⟨q4, hq4⟩
-      step as ⟨d4, hd4⟩
-      step as ⟨q5, hq5⟩
-      step as ⟨d5, hd5⟩
-      step as ⟨q6, hq6⟩
-      step as ⟨d6, hd6⟩
-      step as ⟨q7, hq7⟩
-      step as ⟨d7, hd7⟩
-      have hd0v : d0.val = x.val / 16 ^ 0 % 16 := by rw [hd0]; simp
-      have hd1v : d1.val = x.val / 16 ^ 1 % 16 := by rw [hd1, hq1]; norm_num
-      have hd2v : d2.val = x.val / 16 ^ 2 % 16 := by rw [hd2, hq2]; norm_num
-      have hd3v : d3.val = x.val / 16 ^ 3 % 16 := by rw [hd3, hq3]; norm_num
-      have hd4v : d4.val = x.val / 16 ^ 4 % 16 := by rw [hd4, hq4]; norm_num
-      have hd5v : d5.val = x.val / 16 ^ 5 % 16 := by rw [hd5, hq5]; norm_num
-      have hd6v : d6.val = x.val / 16 ^ 6 % 16 := by rw [hd6, hq6]; norm_num
-      have hd7v : d7.val = x.val / 16 ^ 7 % 16 := by rw [hd7, hq7]; norm_num
-      have hd0lt : d0.val < 16 := by rw [hd0v]; exact Nat.mod_lt _ (by norm_num)
-      have hd0q : d0.val < q := by have := hd0lt; omega
-      have hd0nib : ((d0.val : ℕ) : ZMod q) = nibW words 0 ii.val := by
-        unfold nibW; rw [hd0v, hxv]
-      have hd1lt : d1.val < 16 := by rw [hd1v]; exact Nat.mod_lt _ (by norm_num)
-      have hd1q : d1.val < q := by have := hd1lt; omega
-      have hd1nib : ((d1.val : ℕ) : ZMod q) = nibW words 1 ii.val := by
-        unfold nibW; rw [hd1v, hxv]
-      have hd2lt : d2.val < 16 := by rw [hd2v]; exact Nat.mod_lt _ (by norm_num)
-      have hd2q : d2.val < q := by have := hd2lt; omega
-      have hd2nib : ((d2.val : ℕ) : ZMod q) = nibW words 2 ii.val := by
-        unfold nibW; rw [hd2v, hxv]
-      have hd3lt : d3.val < 16 := by rw [hd3v]; exact Nat.mod_lt _ (by norm_num)
-      have hd3q : d3.val < q := by have := hd3lt; omega
-      have hd3nib : ((d3.val : ℕ) : ZMod q) = nibW words 3 ii.val := by
-        unfold nibW; rw [hd3v, hxv]
-      have hd4lt : d4.val < 16 := by rw [hd4v]; exact Nat.mod_lt _ (by norm_num)
-      have hd4q : d4.val < q := by have := hd4lt; omega
-      have hd4nib : ((d4.val : ℕ) : ZMod q) = nibW words 4 ii.val := by
-        unfold nibW; rw [hd4v, hxv]
-      have hd5lt : d5.val < 16 := by rw [hd5v]; exact Nat.mod_lt _ (by norm_num)
-      have hd5q : d5.val < q := by have := hd5lt; omega
-      have hd5nib : ((d5.val : ℕ) : ZMod q) = nibW words 5 ii.val := by
-        unfold nibW; rw [hd5v, hxv]
-      have hd6lt : d6.val < 16 := by rw [hd6v]; exact Nat.mod_lt _ (by norm_num)
-      have hd6q : d6.val < q := by have := hd6lt; omega
-      have hd6nib : ((d6.val : ℕ) : ZMod q) = nibW words 6 ii.val := by
-        unfold nibW; rw [hd6v, hxv]
-      have hd7lt : d7.val < 16 := by rw [hd7v]; exact Nat.mod_lt _ (by norm_num)
-      have hd7q : d7.val < q := by have := hd7lt; omega
-      have hd7nib : ((d7.val : ℕ) : ZMod q) = nibW words 7 ii.val := by
-        unfold nibW; rw [hd7v, hxv]
-      cases negt with
-      | true =>
-        simp only [↓reduceIte]
-        step as ⟨a0, ha0⟩
-        have ha0v : a0.val = offStep true kU.val ii.val d0.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha0, hq]
-        step as ⟨a1, ha1⟩
-        have ha1v : a1.val = offStep true kU.val ii.val d1.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha1, hq]
-        step as ⟨a2, ha2⟩
-        have ha2v : a2.val = offStep true kU.val ii.val d2.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha2, hq]
-        step as ⟨a3, ha3⟩
-        have ha3v : a3.val = offStep true kU.val ii.val d3.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha3, hq]
-        step as ⟨a4, ha4⟩
-        have ha4v : a4.val = offStep true kU.val ii.val d4.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha4, hq]
-        step as ⟨a5, ha5⟩
-        have ha5v : a5.val = offStep true kU.val ii.val d5.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha5, hq]
-        step as ⟨a6, ha6⟩
-        have ha6v : a6.val = offStep true kU.val ii.val d6.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha6, hq]
-        step as ⟨a7, ha7⟩
-        have ha7v : a7.val = offStep true kU.val ii.val d7.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, ha7, hq]
-        step as ⟨i8, hi8⟩
-        step as ⟨w0, hw0⟩
-        have hwv0' : w0.val = (g0 + 0) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv0 : w0.val = (g0 + 0) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv0'
-        step as ⟨w1, hw1⟩
-        have hwv1' : w1.val = (g0 + 1) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv1 : w1.val = (g0 + 1) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv1'
-        step as ⟨w2, hw2⟩
-        have hwv2' : w2.val = (g0 + 2) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv2 : w2.val = (g0 + 2) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv2'
-        step as ⟨w3, hw3⟩
-        have hwv3' : w3.val = (g0 + 3) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv3 : w3.val = (g0 + 3) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv3'
-        step as ⟨w4, hw4⟩
-        have hwv4' : w4.val = (g0 + 4) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv4 : w4.val = (g0 + 4) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv4'
-        step as ⟨w5, hw5⟩
-        have hwv5' : w5.val = (g0 + 5) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv5 : w5.val = (g0 + 5) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv5'
-        step as ⟨w6, hw6⟩
-        have hwv6' : w6.val = (g0 + 6) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv6 : w6.val = (g0 + 6) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv6'
-        step as ⟨w7, hw7⟩
-        have hwv7' : w7.val = (g0 + 7) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv7 : w7.val = (g0 + 7) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv7'
-        have hp0 : Prog words kU.val true g0 base B ii.val 0 d :=
-          (Prog_zero_iff words kU.val true g0 base B ii.val d).mpr ⟨hdb, hdv⟩
-        have hlen0 : d.val.length = d.val.length := rfl
-        obtain ⟨hidx0, hcur0⟩ := write_facts words kU.val true g0 base B ii.val 0 d hp0 hk hiilt (by decide) (by rw [hlen0]; exact hcapd)
-        have hwlt0 : w0.val < d.val.length := by rw [hwv0]; exact hidx0
-        step as ⟨c0, hc0⟩
-        have hc0v : c0.val = reg d (g0 + 0) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
-        have hbnd0 : c0.val + a0.val ≤ Std.U64.max := by
-          rw [hc0v]; have := offStep_le true kU.val ii.val d0.val hd0q; rw [← ha0v] at this; omega
-        step as ⟨v0, hv0⟩
-        step as ⟨xw0, back0, hxw0, hback0⟩
-        rw [hback0]
-        have hp1 : Prog words kU.val true g0 base B ii.val 1 (d.set w0 v0) :=
-          write_one words kU.val true g0 base B ii.val 0 d w0 a0 v0 d0.val hk hiilt (by decide) hd0q hd0nib hp0 hwv0 hwlt0 ha0v (by omega)
-        have hlen1 : (d.set w0 v0).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]
-        have hfr1 : Frame buf0 (d.set w0 v0) g0 :=
-          Frame_set hdf (by norm_num : (0 : ℕ) < 8) (dstOf_lt hk hiilt) hwv0
-        obtain ⟨hidx1, hcur1⟩ := write_facts words kU.val true g0 base B ii.val 1 (d.set w0 v0) hp1 hk hiilt (by decide) (by rw [hlen1]; exact hcapd)
-        have hwlt1 : w1.val < (d.set w0 v0).val.length := by rw [hwv1]; exact hidx1
-        step as ⟨c1, hc1⟩
-        have hc1v : c1.val = reg (d.set w0 v0) (g0 + 1) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc1, ← bufN_of_lt (v := (d.set w0 v0)) (w := w1.val) hwlt1, hwv1]
-        have hbnd1 : c1.val + a1.val ≤ Std.U64.max := by
-          rw [hc1v]; have := offStep_le true kU.val ii.val d1.val hd1q; rw [← ha1v] at this; omega
-        step as ⟨v1, hv1⟩
-        step as ⟨xw1, back1, hxw1, hback1⟩
-        rw [hback1]
-        have hp2 : Prog words kU.val true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) :=
-          write_one words kU.val true g0 base B ii.val 1 (d.set w0 v0) w1 a1 v1 d1.val hk hiilt (by decide) hd1q hd1nib hp1 hwv1 hwlt1 ha1v (by omega)
-        have hlen2 : ((d.set w0 v0).set w1 v1).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen1
-        have hfr2 : Frame buf0 ((d.set w0 v0).set w1 v1) g0 :=
-          Frame_set hfr1 (by norm_num : (1 : ℕ) < 8) (dstOf_lt hk hiilt) hwv1
-        obtain ⟨hidx2, hcur2⟩ := write_facts words kU.val true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) hp2 hk hiilt (by decide) (by rw [hlen2]; exact hcapd)
-        have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by rw [hwv2]; exact hidx2
-        step as ⟨c2, hc2⟩
-        have hc2v : c2.val = reg ((d.set w0 v0).set w1 v1) (g0 + 2) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc2, ← bufN_of_lt (v := ((d.set w0 v0).set w1 v1)) (w := w2.val) hwlt2, hwv2]
-        have hbnd2 : c2.val + a2.val ≤ Std.U64.max := by
-          rw [hc2v]; have := offStep_le true kU.val ii.val d2.val hd2q; rw [← ha2v] at this; omega
-        step as ⟨v2, hv2⟩
-        step as ⟨xw2, back2, hxw2, hback2⟩
-        rw [hback2]
-        have hp3 : Prog words kU.val true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) :=
-          write_one words kU.val true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) w2 a2 v2 d2.val hk hiilt (by decide) hd2q hd2nib hp2 hwv2 hwlt2 ha2v (by omega)
-        have hlen3 : (((d.set w0 v0).set w1 v1).set w2 v2).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen2
-        have hfr3 : Frame buf0 (((d.set w0 v0).set w1 v1).set w2 v2) g0 :=
-          Frame_set hfr2 (by norm_num : (2 : ℕ) < 8) (dstOf_lt hk hiilt) hwv2
-        obtain ⟨hidx3, hcur3⟩ := write_facts words kU.val true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) hp3 hk hiilt (by decide) (by rw [hlen3]; exact hcapd)
-        have hwlt3 : w3.val < (((d.set w0 v0).set w1 v1).set w2 v2).val.length := by rw [hwv3]; exact hidx3
-        step as ⟨c3, hc3⟩
-        have hc3v : c3.val = reg (((d.set w0 v0).set w1 v1).set w2 v2) (g0 + 3) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc3, ← bufN_of_lt (v := (((d.set w0 v0).set w1 v1).set w2 v2)) (w := w3.val) hwlt3, hwv3]
-        have hbnd3 : c3.val + a3.val ≤ Std.U64.max := by
-          rw [hc3v]; have := offStep_le true kU.val ii.val d3.val hd3q; rw [← ha3v] at this; omega
-        step as ⟨v3, hv3⟩
-        step as ⟨xw3, back3, hxw3, hback3⟩
-        rw [hback3]
-        have hp4 : Prog words kU.val true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) :=
-          write_one words kU.val true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) w3 a3 v3 d3.val hk hiilt (by decide) hd3q hd3nib hp3 hwv3 hwlt3 ha3v (by omega)
-        have hlen4 : ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen3
-        have hfr4 : Frame buf0 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) g0 :=
-          Frame_set hfr3 (by norm_num : (3 : ℕ) < 8) (dstOf_lt hk hiilt) hwv3
-        obtain ⟨hidx4, hcur4⟩ := write_facts words kU.val true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) hp4 hk hiilt (by decide) (by rw [hlen4]; exact hcapd)
-        have hwlt4 : w4.val < ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length := by rw [hwv4]; exact hidx4
-        step as ⟨c4, hc4⟩
-        have hc4v : c4.val = reg ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) (g0 + 4) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc4, ← bufN_of_lt (v := ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3)) (w := w4.val) hwlt4, hwv4]
-        have hbnd4 : c4.val + a4.val ≤ Std.U64.max := by
-          rw [hc4v]; have := offStep_le true kU.val ii.val d4.val hd4q; rw [← ha4v] at this; omega
-        step as ⟨v4, hv4⟩
-        step as ⟨xw4, back4, hxw4, hback4⟩
-        rw [hback4]
-        have hp5 : Prog words kU.val true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) :=
-          write_one words kU.val true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) w4 a4 v4 d4.val hk hiilt (by decide) hd4q hd4nib hp4 hwv4 hwlt4 ha4v (by omega)
-        have hlen5 : (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen4
-        have hfr5 : Frame buf0 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) g0 :=
-          Frame_set hfr4 (by norm_num : (4 : ℕ) < 8) (dstOf_lt hk hiilt) hwv4
-        obtain ⟨hidx5, hcur5⟩ := write_facts words kU.val true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) hp5 hk hiilt (by decide) (by rw [hlen5]; exact hcapd)
-        have hwlt5 : w5.val < (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length := by rw [hwv5]; exact hidx5
-        step as ⟨c5, hc5⟩
-        have hc5v : c5.val = reg (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) (g0 + 5) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc5, ← bufN_of_lt (v := (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4)) (w := w5.val) hwlt5, hwv5]
-        have hbnd5 : c5.val + a5.val ≤ Std.U64.max := by
-          rw [hc5v]; have := offStep_le true kU.val ii.val d5.val hd5q; rw [← ha5v] at this; omega
-        step as ⟨v5, hv5⟩
-        step as ⟨xw5, back5, hxw5, hback5⟩
-        rw [hback5]
-        have hp6 : Prog words kU.val true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) :=
-          write_one words kU.val true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) w5 a5 v5 d5.val hk hiilt (by decide) hd5q hd5nib hp5 hwv5 hwlt5 ha5v (by omega)
-        have hlen6 : ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen5
-        have hfr6 : Frame buf0 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) g0 :=
-          Frame_set hfr5 (by norm_num : (5 : ℕ) < 8) (dstOf_lt hk hiilt) hwv5
-        obtain ⟨hidx6, hcur6⟩ := write_facts words kU.val true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) hp6 hk hiilt (by decide) (by rw [hlen6]; exact hcapd)
-        have hwlt6 : w6.val < ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length := by rw [hwv6]; exact hidx6
-        step as ⟨c6, hc6⟩
-        have hc6v : c6.val = reg ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) (g0 + 6) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc6, ← bufN_of_lt (v := ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5)) (w := w6.val) hwlt6, hwv6]
-        have hbnd6 : c6.val + a6.val ≤ Std.U64.max := by
-          rw [hc6v]; have := offStep_le true kU.val ii.val d6.val hd6q; rw [← ha6v] at this; omega
-        step as ⟨v6, hv6⟩
-        step as ⟨xw6, back6, hxw6, hback6⟩
-        rw [hback6]
-        have hp7 : Prog words kU.val true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) :=
-          write_one words kU.val true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) w6 a6 v6 d6.val hk hiilt (by decide) hd6q hd6nib hp6 hwv6 hwlt6 ha6v (by omega)
-        have hlen7 : (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen6
-        have hfr7 : Frame buf0 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) g0 :=
-          Frame_set hfr6 (by norm_num : (6 : ℕ) < 8) (dstOf_lt hk hiilt) hwv6
-        obtain ⟨hidx7, hcur7⟩ := write_facts words kU.val true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) hp7 hk hiilt (by decide) (by rw [hlen7]; exact hcapd)
-        have hwlt7 : w7.val < (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length := by rw [hwv7]; exact hidx7
-        step as ⟨c7, hc7⟩
-        have hc7v : c7.val = reg (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) (g0 + 7) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc7, ← bufN_of_lt (v := (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6)) (w := w7.val) hwlt7, hwv7]
-        have hbnd7 : c7.val + a7.val ≤ Std.U64.max := by
-          rw [hc7v]; have := offStep_le true kU.val ii.val d7.val hd7q; rw [← ha7v] at this; omega
-        step as ⟨v7, hv7⟩
-        step as ⟨xw7, back7, hxw7, hback7⟩
-        rw [hback7]
-        have hp8 : Prog words kU.val true g0 base B ii.val 8 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) :=
-          write_one words kU.val true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) w7 a7 v7 d7.val hk hiilt (by decide) hd7q hd7nib hp7 hwv7 hwlt7 ha7v (by omega)
-        have hlen8 : ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen7
-        have hfr8 : Frame buf0 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) g0 :=
-          Frame_set hfr7 (by norm_num : (7 : ℕ) < 8) (dstOf_lt hk hiilt) hwv7
-        have hmaxb : ii.val + 1 ≤ Std.Usize.max := by have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-        step as ⟨ii1, hii1⟩
-        obtain ⟨hfb, hfv⟩ := Prog_eight words kU.val true g0 base B ii.val ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) hp8
-        refine ⟨by omega, by rw [hlen8]; exact hdl, by rw [hii1]; exact hfb, by rw [hii1]; exact hfv, hfr8, by omega⟩
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte, bind_tc_ok]
-        have ha0v : d0.val = offStep false kU.val ii.val d0.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha1v : d1.val = offStep false kU.val ii.val d1.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha2v : d2.val = offStep false kU.val ii.val d2.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha3v : d3.val = offStep false kU.val ii.val d3.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha4v : d4.val = offStep false kU.val ii.val d4.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha5v : d5.val = offStep false kU.val ii.val d5.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha6v : d6.val = offStep false kU.val ii.val d6.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        have ha7v : d7.val = offStep false kU.val ii.val d7.val := by
-          unfold offStep; simp only [hnowrap, ↓reduceIte, Bool.false_eq_true]
-        step as ⟨i8, hi8⟩
-        step as ⟨w0, hw0⟩
-        have hwv0' : w0.val = (g0 + 0) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv0 : w0.val = (g0 + 0) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv0'
-        step as ⟨w1, hw1⟩
-        have hwv1' : w1.val = (g0 + 1) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv1 : w1.val = (g0 + 1) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv1'
-        step as ⟨w2, hw2⟩
-        have hwv2' : w2.val = (g0 + 2) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv2 : w2.val = (g0 + 2) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv2'
-        step as ⟨w3, hw3⟩
-        have hwv3' : w3.val = (g0 + 3) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv3 : w3.val = (g0 + 3) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv3'
-        step as ⟨w4, hw4⟩
-        have hwv4' : w4.val = (g0 + 4) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv4 : w4.val = (g0 + 4) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv4'
-        step as ⟨w5, hw5⟩
-        have hwv5' : w5.val = (g0 + 5) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv5 : w5.val = (g0 + 5) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv5'
-        step as ⟨w6, hw6⟩
-        have hwv6' : w6.val = (g0 + 6) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv6 : w6.val = (g0 + 6) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv6'
-        step as ⟨w7, hw7⟩
-        have hwv7' : w7.val = (g0 + 7) * 1040 + dstOf kU.val ii.val := by omega
-        have hwv7 : w7.val = (g0 + 7) * S + dstOf kU.val ii.val := by rw [hS]; exact hwv7'
-        have hp0 : Prog words kU.val false g0 base B ii.val 0 d :=
-          (Prog_zero_iff words kU.val false g0 base B ii.val d).mpr ⟨hdb, hdv⟩
-        have hlen0 : d.val.length = d.val.length := rfl
-        obtain ⟨hidx0, hcur0⟩ := write_facts words kU.val false g0 base B ii.val 0 d hp0 hk hiilt (by decide) (by rw [hlen0]; exact hcapd)
-        have hwlt0 : w0.val < d.val.length := by rw [hwv0]; exact hidx0
-        step as ⟨c0, hc0⟩
-        have hc0v : c0.val = reg d (g0 + 0) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
-        have hbnd0 : c0.val + d0.val ≤ Std.U64.max := by
-          rw [hc0v]; have := offStep_le false kU.val ii.val d0.val hd0q; rw [← ha0v] at this; omega
-        step as ⟨v0, hv0⟩
-        step as ⟨xw0, back0, hxw0, hback0⟩
-        rw [hback0]
-        have hp1 : Prog words kU.val false g0 base B ii.val 1 (d.set w0 v0) :=
-          write_one words kU.val false g0 base B ii.val 0 d w0 d0 v0 d0.val hk hiilt (by decide) hd0q hd0nib hp0 hwv0 hwlt0 ha0v (by omega)
-        have hlen1 : (d.set w0 v0).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]
-        have hfr1 : Frame buf0 (d.set w0 v0) g0 :=
-          Frame_set hdf (by norm_num : (0 : ℕ) < 8) (dstOf_lt hk hiilt) hwv0
-        obtain ⟨hidx1, hcur1⟩ := write_facts words kU.val false g0 base B ii.val 1 (d.set w0 v0) hp1 hk hiilt (by decide) (by rw [hlen1]; exact hcapd)
-        have hwlt1 : w1.val < (d.set w0 v0).val.length := by rw [hwv1]; exact hidx1
-        step as ⟨c1, hc1⟩
-        have hc1v : c1.val = reg (d.set w0 v0) (g0 + 1) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc1, ← bufN_of_lt (v := (d.set w0 v0)) (w := w1.val) hwlt1, hwv1]
-        have hbnd1 : c1.val + d1.val ≤ Std.U64.max := by
-          rw [hc1v]; have := offStep_le false kU.val ii.val d1.val hd1q; rw [← ha1v] at this; omega
-        step as ⟨v1, hv1⟩
-        step as ⟨xw1, back1, hxw1, hback1⟩
-        rw [hback1]
-        have hp2 : Prog words kU.val false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) :=
-          write_one words kU.val false g0 base B ii.val 1 (d.set w0 v0) w1 d1 v1 d1.val hk hiilt (by decide) hd1q hd1nib hp1 hwv1 hwlt1 ha1v (by omega)
-        have hlen2 : ((d.set w0 v0).set w1 v1).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen1
-        have hfr2 : Frame buf0 ((d.set w0 v0).set w1 v1) g0 :=
-          Frame_set hfr1 (by norm_num : (1 : ℕ) < 8) (dstOf_lt hk hiilt) hwv1
-        obtain ⟨hidx2, hcur2⟩ := write_facts words kU.val false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) hp2 hk hiilt (by decide) (by rw [hlen2]; exact hcapd)
-        have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by rw [hwv2]; exact hidx2
-        step as ⟨c2, hc2⟩
-        have hc2v : c2.val = reg ((d.set w0 v0).set w1 v1) (g0 + 2) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc2, ← bufN_of_lt (v := ((d.set w0 v0).set w1 v1)) (w := w2.val) hwlt2, hwv2]
-        have hbnd2 : c2.val + d2.val ≤ Std.U64.max := by
-          rw [hc2v]; have := offStep_le false kU.val ii.val d2.val hd2q; rw [← ha2v] at this; omega
-        step as ⟨v2, hv2⟩
-        step as ⟨xw2, back2, hxw2, hback2⟩
-        rw [hback2]
-        have hp3 : Prog words kU.val false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) :=
-          write_one words kU.val false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) w2 d2 v2 d2.val hk hiilt (by decide) hd2q hd2nib hp2 hwv2 hwlt2 ha2v (by omega)
-        have hlen3 : (((d.set w0 v0).set w1 v1).set w2 v2).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen2
-        have hfr3 : Frame buf0 (((d.set w0 v0).set w1 v1).set w2 v2) g0 :=
-          Frame_set hfr2 (by norm_num : (2 : ℕ) < 8) (dstOf_lt hk hiilt) hwv2
-        obtain ⟨hidx3, hcur3⟩ := write_facts words kU.val false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) hp3 hk hiilt (by decide) (by rw [hlen3]; exact hcapd)
-        have hwlt3 : w3.val < (((d.set w0 v0).set w1 v1).set w2 v2).val.length := by rw [hwv3]; exact hidx3
-        step as ⟨c3, hc3⟩
-        have hc3v : c3.val = reg (((d.set w0 v0).set w1 v1).set w2 v2) (g0 + 3) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc3, ← bufN_of_lt (v := (((d.set w0 v0).set w1 v1).set w2 v2)) (w := w3.val) hwlt3, hwv3]
-        have hbnd3 : c3.val + d3.val ≤ Std.U64.max := by
-          rw [hc3v]; have := offStep_le false kU.val ii.val d3.val hd3q; rw [← ha3v] at this; omega
-        step as ⟨v3, hv3⟩
-        step as ⟨xw3, back3, hxw3, hback3⟩
-        rw [hback3]
-        have hp4 : Prog words kU.val false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) :=
-          write_one words kU.val false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) w3 d3 v3 d3.val hk hiilt (by decide) hd3q hd3nib hp3 hwv3 hwlt3 ha3v (by omega)
-        have hlen4 : ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen3
-        have hfr4 : Frame buf0 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) g0 :=
-          Frame_set hfr3 (by norm_num : (3 : ℕ) < 8) (dstOf_lt hk hiilt) hwv3
-        obtain ⟨hidx4, hcur4⟩ := write_facts words kU.val false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) hp4 hk hiilt (by decide) (by rw [hlen4]; exact hcapd)
-        have hwlt4 : w4.val < ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length := by rw [hwv4]; exact hidx4
-        step as ⟨c4, hc4⟩
-        have hc4v : c4.val = reg ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) (g0 + 4) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc4, ← bufN_of_lt (v := ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3)) (w := w4.val) hwlt4, hwv4]
-        have hbnd4 : c4.val + d4.val ≤ Std.U64.max := by
-          rw [hc4v]; have := offStep_le false kU.val ii.val d4.val hd4q; rw [← ha4v] at this; omega
-        step as ⟨v4, hv4⟩
-        step as ⟨xw4, back4, hxw4, hback4⟩
-        rw [hback4]
-        have hp5 : Prog words kU.val false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) :=
-          write_one words kU.val false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) w4 d4 v4 d4.val hk hiilt (by decide) hd4q hd4nib hp4 hwv4 hwlt4 ha4v (by omega)
-        have hlen5 : (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen4
-        have hfr5 : Frame buf0 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) g0 :=
-          Frame_set hfr4 (by norm_num : (4 : ℕ) < 8) (dstOf_lt hk hiilt) hwv4
-        obtain ⟨hidx5, hcur5⟩ := write_facts words kU.val false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) hp5 hk hiilt (by decide) (by rw [hlen5]; exact hcapd)
-        have hwlt5 : w5.val < (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length := by rw [hwv5]; exact hidx5
-        step as ⟨c5, hc5⟩
-        have hc5v : c5.val = reg (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) (g0 + 5) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc5, ← bufN_of_lt (v := (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4)) (w := w5.val) hwlt5, hwv5]
-        have hbnd5 : c5.val + d5.val ≤ Std.U64.max := by
-          rw [hc5v]; have := offStep_le false kU.val ii.val d5.val hd5q; rw [← ha5v] at this; omega
-        step as ⟨v5, hv5⟩
-        step as ⟨xw5, back5, hxw5, hback5⟩
-        rw [hback5]
-        have hp6 : Prog words kU.val false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) :=
-          write_one words kU.val false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) w5 d5 v5 d5.val hk hiilt (by decide) hd5q hd5nib hp5 hwv5 hwlt5 ha5v (by omega)
-        have hlen6 : ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen5
-        have hfr6 : Frame buf0 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) g0 :=
-          Frame_set hfr5 (by norm_num : (5 : ℕ) < 8) (dstOf_lt hk hiilt) hwv5
-        obtain ⟨hidx6, hcur6⟩ := write_facts words kU.val false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) hp6 hk hiilt (by decide) (by rw [hlen6]; exact hcapd)
-        have hwlt6 : w6.val < ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length := by rw [hwv6]; exact hidx6
-        step as ⟨c6, hc6⟩
-        have hc6v : c6.val = reg ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) (g0 + 6) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc6, ← bufN_of_lt (v := ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5)) (w := w6.val) hwlt6, hwv6]
-        have hbnd6 : c6.val + d6.val ≤ Std.U64.max := by
-          rw [hc6v]; have := offStep_le false kU.val ii.val d6.val hd6q; rw [← ha6v] at this; omega
-        step as ⟨v6, hv6⟩
-        step as ⟨xw6, back6, hxw6, hback6⟩
-        rw [hback6]
-        have hp7 : Prog words kU.val false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) :=
-          write_one words kU.val false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) w6 d6 v6 d6.val hk hiilt (by decide) hd6q hd6nib hp6 hwv6 hwlt6 ha6v (by omega)
-        have hlen7 : (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen6
-        have hfr7 : Frame buf0 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) g0 :=
-          Frame_set hfr6 (by norm_num : (6 : ℕ) < 8) (dstOf_lt hk hiilt) hwv6
-        obtain ⟨hidx7, hcur7⟩ := write_facts words kU.val false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) hp7 hk hiilt (by decide) (by rw [hlen7]; exact hcapd)
-        have hwlt7 : w7.val < (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length := by rw [hwv7]; exact hidx7
-        step as ⟨c7, hc7⟩
-        have hc7v : c7.val = reg (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) (g0 + 7) (dstOf kU.val ii.val) := by
-          unfold reg; rw [hc7, ← bufN_of_lt (v := (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6)) (w := w7.val) hwlt7, hwv7]
-        have hbnd7 : c7.val + d7.val ≤ Std.U64.max := by
-          rw [hc7v]; have := offStep_le false kU.val ii.val d7.val hd7q; rw [← ha7v] at this; omega
-        step as ⟨v7, hv7⟩
-        step as ⟨xw7, back7, hxw7, hback7⟩
-        rw [hback7]
-        have hp8 : Prog words kU.val false g0 base B ii.val 8 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) :=
-          write_one words kU.val false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) w7 d7 v7 d7.val hk hiilt (by decide) hd7q hd7nib hp7 hwv7 hwlt7 ha7v (by omega)
-        have hlen8 : ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen7
-        have hfr8 : Frame buf0 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) g0 :=
-          Frame_set hfr7 (by norm_num : (7 : ℕ) < 8) (dstOf_lt hk hiilt) hwv7
-        have hmaxb : ii.val + 1 ≤ Std.Usize.max := by have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-        step as ⟨ii1, hii1⟩
-        obtain ⟨hfb, hfv⟩ := Prog_eight words kU.val false g0 base B ii.val ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) hp8
-        refine ⟨by omega, by rw [hlen8]; exact hdl, by rw [hii1]; exact hfb, by rw [hii1]; exact hfv, hfr8, by omega⟩
+      have hdstN : dstOf kU.val ii.val < N := dstOf_lt hk hiilt
+      have hpos : sgn negt kU.val (dstOf kU.val ii.val) = if !negt then 1 else -1 := by
+        rw [sgn_eq negt _ _ hk hiilt]
+        unfold wrapped
+        rw [decide_eq_false hnowrap]
+        cases negt <;> simp
+      have hcapd : 3 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
+      have hdmax : d.val.length ≤ Std.Usize.max := d.property
+      have hsl3 : 3 * ii.val + 2 < src.val.length := by rw [hsl]; omega
+      have hw2lt : slotIdx r0 (dstOf kU.val ii.val) 2 < d.val.length :=
+        slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨si, hsi⟩
+      have hsiv : si.val = 3 * ii.val := by rw [hsi, z_lane_words_val]
+      step as ⟨s0, hs0⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨s1, hs1⟩
+      step as ⟨i2, hi2⟩
+      step as ⟨s2, hs2⟩
+      have hs0v : s0.val = pack3 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) := by
+        have h := hsv ii.val hiilt 0 (by norm_num)
+        rw [hs0, ← bufN_of_lt (v := src) (w := si.val) (by omega), hsiv]
+        simpa using h
+      have hs1v : s1.val = pack3 (D 3 ii.val) (D 4 ii.val) (D 5 ii.val) := by
+        have h := hsv ii.val hiilt 1 (by norm_num)
+        rw [hs1, ← bufN_of_lt (v := src) (w := i1.val) (by omega), hi1, hsiv]
+        simpa using h
+      have hs2v : s2.val = pack3 (D 6 ii.val) (D 7 ii.val) (D 8 ii.val) := by
+        have h := hsv ii.val hiilt 2 (by norm_num)
+        rw [hs2, ← bufN_of_lt (v := src) (w := i2.val) (by omega), hi2, hsiv]
+        simpa using h
+      step with addend_lo_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
+      step with addend_lo_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
+      step with addend_lo_spec negt s2 hs2v (hD _ _) (hD _ _) (hD _ _) as ⟨a2, ha2⟩
+      step as ⟨i3, hi3⟩
+      step as ⟨i4, hi4⟩
+      have hi4v : i4.val = 3 * (kU.val + ii.val) := by rw [hi4, hi3, z_lane_words_val]
+      have hw0v' : rbU.val + i4.val = slotIdx r0 (dstOf kU.val ii.val) 0 := by
+        rw [hrb, hi4v, hdst]; unfold slotIdx; ring
+      have hw0max : rbU.val + i4.val ≤ Std.Usize.max := by
+        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 3) hcapd
+        rw [hw0v']; omega
+      step as ⟨w0, hw0⟩
+      have hwv0 : w0.val = slotIdx r0 (dstOf kU.val ii.val) 0 := by rw [hw0, hw0v']
+      have hwv1' : w0.val + 1 = slotIdx r0 (dstOf kU.val ii.val) 1 := by
+        rw [hwv0]; unfold slotIdx; ring
+      have hwv2' : w0.val + 2 = slotIdx r0 (dstOf kU.val ii.val) 2 := by
+        rw [hwv0]; unfold slotIdx; ring
+      have hw1max : w0.val + 1 ≤ Std.Usize.max := by omega
+      step as ⟨w1, hw1⟩
+      have hw2max : w0.val + 2 ≤ Std.Usize.max := by omega
+      step as ⟨w2, hw2⟩
+      have hwv1 : w1.val = slotIdx r0 (dstOf kU.val ii.val) 1 := by rw [hw1, hwv1']
+      have hwv2 : w2.val = slotIdx r0 (dstOf kU.val ii.val) 2 := by rw [hw2, hwv2']
+      -- write 0
+      have hwlt0 : w0.val < d.val.length := by
+        rw [hwv0]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c0, hc0⟩
+      have hc0v : c0.val = slotW d r0 (dstOf kU.val ii.val) 0 := by
+        unfold slotW; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
+      have hov0 : c0.val + a0.val ≤ Std.U64.max := by
+        rw [hc0v, ha0]
+        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v0, hv0⟩
+      step as ⟨xw0, back0, hxw0, hback0⟩
+      rw [hback0]
+      have hp1 := write_lane D kU.val negt (!negt) r0 base B ii.val 0 d w0 a0 v0 hk hiilt
+        (by norm_num) hB hD hpos hdp hwv0 hwlt0 (by rw [ha0]) (by rw [hv0, hc0v])
+      have hl1 : (d.set w0 v0).val.length = buf0.val.length := by rw [set_length, hdl]
+      have hf1 : FrameR buf0 (d.set w0 v0) r0 := FrameR_set hdf hdstN (by norm_num) hwv0
+      -- write 1
+      have hwlt1 : w1.val < (d.set w0 v0).val.length := by
+        rw [set_length, hwv1]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c1, hc1⟩
+      have hc1v : c1.val = slotW (d.set w0 v0) r0 (dstOf kU.val ii.val) 1 := by
+        unfold slotW; rw [hc1, ← bufN_of_lt (v := d.set w0 v0) (w := w1.val) hwlt1, hwv1]
+      have hov1 : c1.val + a1.val ≤ Std.U64.max := by
+        rw [hc1v, ha1]
+        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v1, hv1⟩
+      step as ⟨xw1, back1, hxw1, hback1⟩
+      rw [hback1]
+      have hp2 := write_lane D kU.val negt (!negt) r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
+        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
+      have hl2 : ((d.set w0 v0).set w1 v1).val.length = buf0.val.length := by
+        rw [set_length, hl1]
+      have hf2 : FrameR buf0 ((d.set w0 v0).set w1 v1) r0 :=
+        FrameR_set hf1 hdstN (by norm_num) hwv1
+      -- write 2
+      have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by
+        rw [set_length, set_length, hwv2]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c2, hc2⟩
+      have hc2v : c2.val = slotW ((d.set w0 v0).set w1 v1) r0 (dstOf kU.val ii.val) 2 := by
+        unfold slotW
+        rw [hc2, ← bufN_of_lt (v := (d.set w0 v0).set w1 v1) (w := w2.val) hwlt2, hwv2]
+      have hov2 : c2.val + a2.val ≤ Std.U64.max := by
+        rw [hc2v, ha2]
+        exact add_ok (ProgL_cur hp2 hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v2, hv2⟩
+      step as ⟨xw2, back2, hxw2, hback2⟩
+      have hmaxb : ii.val + 1 ≤ Std.Usize.max := by
+        have := usize_max_ge; have h3 : N = 1024 := rfl; omega
+      step as ⟨ii1, hii1⟩
+      rw [hback2]
+      have hp3 := write_lane D kU.val negt (!negt) r0 base B ii.val 2 ((d.set w0 v0).set w1 v1)
+        w2 a2 v2 hk hiilt (by norm_num) hB hD hpos hp2 hwv2 hwlt2 (by rw [ha2])
+        (by rw [hv2, hc2v])
+      refine ⟨by omega, by rw [set_length, hl2], by rw [hii1]; exact ProgL_three hp3,
+        FrameR_set hf2 hdstN (by norm_num) hwv2, by omega⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = limU.val := by scalar_tac
-      exact ⟨hdl, by rw [← heq]; exact hdb, by rw [← heq]; exact hdv, hdf⟩
-  · exact ⟨hi, hlen, hbnd, hval, hfr⟩
+      exact ⟨hdl, by rw [← heq]; exact hdp, hdf⟩
+  · exact ⟨hi, hlen, hprog, hfr⟩
 
-set_option maxHeartbeats 2000000 in
-/-- **The high run** of `z_pass`: `j ≥ N - k`, every term wraps to `j - lim`
-and carries the opposite sign. -/
-theorem z_pass_loop1_spec (words : alloc.vec.Vec Std.U64) (negt : Bool)
-    (rbU : Std.Usize) (nU : Std.Usize) (qU : Std.U64) (strideU limU : Std.Usize)
-    (out : alloc.vec.Vec Std.U64) (jU : Std.Usize)
-    (buf0 : alloc.vec.Vec Std.U64) (g0 k : ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hn : nU.val = N) (hq : qU.val = q) (hstride : strideU.val = S)
-    (hlim : limU.val = N - k) (hk : k < N) (hrb : rbU.val = g0 * S)
+set_option maxHeartbeats 4000000 in
+/-- **The high run** of `z_pass_lanes`: `j ≥ N - k`, every term wraps to
+`j - lim` and carries the opposite sign. -/
+theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
+    (rbU nU limU : Std.Usize) (out : alloc.vec.Vec Std.U64) (jU : Std.Usize)
+    (buf0 : alloc.vec.Vec Std.U64) (r0 k : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hn : nU.val = N) (hlim : limU.val = N - k) (hk : k < N) (hrb : rbU.val = 3 * (r0 * N))
     (hj1 : limU.val ≤ jU.val) (hj2 : jU.val ≤ N) (hlen : out.val.length = buf0.val.length)
-    (hcap : (g0 + 8) * S ≤ buf0.val.length) (hB : B + q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N →
-      reg out (g0 + e) w ≤ (if srcOf k w < jU.val then B + q else B))
-    (hval : ∀ e, e < 8 → ∀ w, w < N → ((reg out (g0 + e) w : ℕ) : ZMod q)
-      = applied (base e) (nibW words e) k negt jU.val w)
-    (hfr : Frame buf0 out g0) :
-    quadeval.z_pass_loop1 words negt rbU nU qU strideU out limU jU
-      ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N → reg z (g0 + e) w ≤ B + q)
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = applied (base e) (nibW words e) k negt N w)
-        ∧ Frame buf0 z g0 ⦄ := by
-  have hS : S = 1040 := rfl
-  have hq16 : 16 ≤ q := by norm_num [HachiEquiv.Field.q]
-  rw [quadeval.z_pass_loop1]
+    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 20)
+    (hprog : ProgL D k negt r0 base B jU.val 0 out) (hfr : FrameR buf0 out r0) :
+    quadeval.z_pass_lanes_loop1 src negt rbU nU out limU jU
+      ⦃ z => z.val.length = buf0.val.length ∧ ProgL D k negt r0 base B N 0 z
+        ∧ FrameR buf0 z r0 ⦄ := by
+  obtain ⟨hsl, hsv⟩ := hsrc
+  rw [quadeval.z_pass_lanes_loop1]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
     (fun t => limU.val ≤ t.2.val ∧ t.2.val ≤ N ∧ t.1.val.length = buf0.val.length
-      ∧ (∀ e, e < 8 → ∀ w, w < N →
-          reg t.1 (g0 + e) w ≤ (if srcOf k w < t.2.val then B + q else B))
-      ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg t.1 (g0 + e) w : ℕ) : ZMod q)
-          = applied (base e) (nibW words e) k negt t.2.val w)
-      ∧ Frame buf0 t.1 g0)
-  · rintro ⟨d, ii⟩ ⟨hjl, hii, hdl, hdb, hdv, hdf⟩
-    dsimp only at hjl hii hdl hdb hdv hdf
-    simp only [quadeval.z_pass_loop1.body]
+      ∧ ProgL D k negt r0 base B t.2.val 0 t.1 ∧ FrameR buf0 t.1 r0)
+  · rintro ⟨d, ii⟩ ⟨hjl, hii, hdl, hdp, hdf⟩
+    dsimp only at hjl hii hdl hdp hdf
+    simp only [quadeval.z_pass_lanes_loop1.body]
     by_cases hlt : ii < nU
     · rw [if_pos hlt]
       have hiilt : ii.val < N := by rw [← hn]; scalar_tac
       have hwrap : N ≤ k + ii.val := by omega
       have hdst : dstOf k ii.val = ii.val - limU.val := by
         unfold dstOf; rw [if_neg (by omega)]; omega
-      have hk' : k < N := hk
-      have hcapd : (g0 + 8) * S ≤ d.val.length := by rw [hdl]; exact hcap
-      have hrb' : rbU.val = g0 * 1040 := by rw [hrb, hS]
-      have hstride' : strideU.val = 1040 := by rw [hstride, hS]
-      have hwb : ii.val < words.val.length := by rw [hwl]; exact hiilt
-      step as ⟨x, hx⟩
-      have hxv : x.val = bufN words ii.val := by
-        rw [hx, ← bufN_of_lt (v := words) (w := ii.val) hwb]
-      have hxlt : x.val < q := by rw [hxv]; exact hwlt ii.val hiilt
-      step as ⟨d0, hd0⟩
-      step as ⟨q1, hq1⟩
-      step as ⟨d1, hd1⟩
-      step as ⟨q2, hq2⟩
-      step as ⟨d2, hd2⟩
-      step as ⟨q3, hq3⟩
-      step as ⟨d3, hd3⟩
-      step as ⟨q4, hq4⟩
-      step as ⟨d4, hd4⟩
-      step as ⟨q5, hq5⟩
-      step as ⟨d5, hd5⟩
-      step as ⟨q6, hq6⟩
-      step as ⟨d6, hd6⟩
-      step as ⟨q7, hq7⟩
-      step as ⟨d7, hd7⟩
-      have hd0v : d0.val = x.val / 16 ^ 0 % 16 := by rw [hd0]; simp
-      have hd1v : d1.val = x.val / 16 ^ 1 % 16 := by rw [hd1, hq1]; norm_num
-      have hd2v : d2.val = x.val / 16 ^ 2 % 16 := by rw [hd2, hq2]; norm_num
-      have hd3v : d3.val = x.val / 16 ^ 3 % 16 := by rw [hd3, hq3]; norm_num
-      have hd4v : d4.val = x.val / 16 ^ 4 % 16 := by rw [hd4, hq4]; norm_num
-      have hd5v : d5.val = x.val / 16 ^ 5 % 16 := by rw [hd5, hq5]; norm_num
-      have hd6v : d6.val = x.val / 16 ^ 6 % 16 := by rw [hd6, hq6]; norm_num
-      have hd7v : d7.val = x.val / 16 ^ 7 % 16 := by rw [hd7, hq7]; norm_num
-      have hd0lt : d0.val < 16 := by rw [hd0v]; exact Nat.mod_lt _ (by norm_num)
-      have hd0q : d0.val < q := by have := hd0lt; omega
-      have hd0nib : ((d0.val : ℕ) : ZMod q) = nibW words 0 ii.val := by
-        unfold nibW; rw [hd0v, hxv]
-      have hd1lt : d1.val < 16 := by rw [hd1v]; exact Nat.mod_lt _ (by norm_num)
-      have hd1q : d1.val < q := by have := hd1lt; omega
-      have hd1nib : ((d1.val : ℕ) : ZMod q) = nibW words 1 ii.val := by
-        unfold nibW; rw [hd1v, hxv]
-      have hd2lt : d2.val < 16 := by rw [hd2v]; exact Nat.mod_lt _ (by norm_num)
-      have hd2q : d2.val < q := by have := hd2lt; omega
-      have hd2nib : ((d2.val : ℕ) : ZMod q) = nibW words 2 ii.val := by
-        unfold nibW; rw [hd2v, hxv]
-      have hd3lt : d3.val < 16 := by rw [hd3v]; exact Nat.mod_lt _ (by norm_num)
-      have hd3q : d3.val < q := by have := hd3lt; omega
-      have hd3nib : ((d3.val : ℕ) : ZMod q) = nibW words 3 ii.val := by
-        unfold nibW; rw [hd3v, hxv]
-      have hd4lt : d4.val < 16 := by rw [hd4v]; exact Nat.mod_lt _ (by norm_num)
-      have hd4q : d4.val < q := by have := hd4lt; omega
-      have hd4nib : ((d4.val : ℕ) : ZMod q) = nibW words 4 ii.val := by
-        unfold nibW; rw [hd4v, hxv]
-      have hd5lt : d5.val < 16 := by rw [hd5v]; exact Nat.mod_lt _ (by norm_num)
-      have hd5q : d5.val < q := by have := hd5lt; omega
-      have hd5nib : ((d5.val : ℕ) : ZMod q) = nibW words 5 ii.val := by
-        unfold nibW; rw [hd5v, hxv]
-      have hd6lt : d6.val < 16 := by rw [hd6v]; exact Nat.mod_lt _ (by norm_num)
-      have hd6q : d6.val < q := by have := hd6lt; omega
-      have hd6nib : ((d6.val : ℕ) : ZMod q) = nibW words 6 ii.val := by
-        unfold nibW; rw [hd6v, hxv]
-      have hd7lt : d7.val < 16 := by rw [hd7v]; exact Nat.mod_lt _ (by norm_num)
-      have hd7q : d7.val < q := by have := hd7lt; omega
-      have hd7nib : ((d7.val : ℕ) : ZMod q) = nibW words 7 ii.val := by
-        unfold nibW; rw [hd7v, hxv]
-      cases negt with
-      | true =>
-        simp only [↓reduceIte, bind_tc_ok]
-        have ha0v : d0.val = offStep true k ii.val d0.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha1v : d1.val = offStep true k ii.val d1.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha2v : d2.val = offStep true k ii.val d2.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha3v : d3.val = offStep true k ii.val d3.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha4v : d4.val = offStep true k ii.val d4.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha5v : d5.val = offStep true k ii.val d5.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha6v : d6.val = offStep true k ii.val d6.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        have ha7v : d7.val = offStep true k ii.val d7.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte]
-        step as ⟨i8, hi8⟩
-        step as ⟨w0, hw0⟩
-        have hwv0' : w0.val = (g0 + 0) * 1040 + dstOf k ii.val := by omega
-        have hwv0 : w0.val = (g0 + 0) * S + dstOf k ii.val := by rw [hS]; exact hwv0'
-        step as ⟨w1, hw1⟩
-        have hwv1' : w1.val = (g0 + 1) * 1040 + dstOf k ii.val := by omega
-        have hwv1 : w1.val = (g0 + 1) * S + dstOf k ii.val := by rw [hS]; exact hwv1'
-        step as ⟨w2, hw2⟩
-        have hwv2' : w2.val = (g0 + 2) * 1040 + dstOf k ii.val := by omega
-        have hwv2 : w2.val = (g0 + 2) * S + dstOf k ii.val := by rw [hS]; exact hwv2'
-        step as ⟨w3, hw3⟩
-        have hwv3' : w3.val = (g0 + 3) * 1040 + dstOf k ii.val := by omega
-        have hwv3 : w3.val = (g0 + 3) * S + dstOf k ii.val := by rw [hS]; exact hwv3'
-        step as ⟨w4, hw4⟩
-        have hwv4' : w4.val = (g0 + 4) * 1040 + dstOf k ii.val := by omega
-        have hwv4 : w4.val = (g0 + 4) * S + dstOf k ii.val := by rw [hS]; exact hwv4'
-        step as ⟨w5, hw5⟩
-        have hwv5' : w5.val = (g0 + 5) * 1040 + dstOf k ii.val := by omega
-        have hwv5 : w5.val = (g0 + 5) * S + dstOf k ii.val := by rw [hS]; exact hwv5'
-        step as ⟨w6, hw6⟩
-        have hwv6' : w6.val = (g0 + 6) * 1040 + dstOf k ii.val := by omega
-        have hwv6 : w6.val = (g0 + 6) * S + dstOf k ii.val := by rw [hS]; exact hwv6'
-        step as ⟨w7, hw7⟩
-        have hwv7' : w7.val = (g0 + 7) * 1040 + dstOf k ii.val := by omega
-        have hwv7 : w7.val = (g0 + 7) * S + dstOf k ii.val := by rw [hS]; exact hwv7'
-        have hp0 : Prog words k true g0 base B ii.val 0 d :=
-          (Prog_zero_iff words k true g0 base B ii.val d).mpr ⟨hdb, hdv⟩
-        have hlen0 : d.val.length = d.val.length := rfl
-        obtain ⟨hidx0, hcur0⟩ := write_facts words k true g0 base B ii.val 0 d hp0 hk hiilt (by decide) (by rw [hlen0]; exact hcapd)
-        have hwlt0 : w0.val < d.val.length := by rw [hwv0]; exact hidx0
-        step as ⟨c0, hc0⟩
-        have hc0v : c0.val = reg d (g0 + 0) (dstOf k ii.val) := by
-          unfold reg; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
-        have hbnd0 : c0.val + d0.val ≤ Std.U64.max := by
-          rw [hc0v]; have := offStep_le true k ii.val d0.val hd0q; rw [← ha0v] at this; omega
-        step as ⟨v0, hv0⟩
-        step as ⟨xw0, back0, hxw0, hback0⟩
-        rw [hback0]
-        have hp1 : Prog words k true g0 base B ii.val 1 (d.set w0 v0) :=
-          write_one words k true g0 base B ii.val 0 d w0 d0 v0 d0.val hk hiilt (by decide) hd0q hd0nib hp0 hwv0 hwlt0 ha0v (by omega)
-        have hlen1 : (d.set w0 v0).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]
-        have hfr1 : Frame buf0 (d.set w0 v0) g0 :=
-          Frame_set hdf (by norm_num : (0 : ℕ) < 8) (dstOf_lt hk hiilt) hwv0
-        obtain ⟨hidx1, hcur1⟩ := write_facts words k true g0 base B ii.val 1 (d.set w0 v0) hp1 hk hiilt (by decide) (by rw [hlen1]; exact hcapd)
-        have hwlt1 : w1.val < (d.set w0 v0).val.length := by rw [hwv1]; exact hidx1
-        step as ⟨c1, hc1⟩
-        have hc1v : c1.val = reg (d.set w0 v0) (g0 + 1) (dstOf k ii.val) := by
-          unfold reg; rw [hc1, ← bufN_of_lt (v := (d.set w0 v0)) (w := w1.val) hwlt1, hwv1]
-        have hbnd1 : c1.val + d1.val ≤ Std.U64.max := by
-          rw [hc1v]; have := offStep_le true k ii.val d1.val hd1q; rw [← ha1v] at this; omega
-        step as ⟨v1, hv1⟩
-        step as ⟨xw1, back1, hxw1, hback1⟩
-        rw [hback1]
-        have hp2 : Prog words k true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) :=
-          write_one words k true g0 base B ii.val 1 (d.set w0 v0) w1 d1 v1 d1.val hk hiilt (by decide) hd1q hd1nib hp1 hwv1 hwlt1 ha1v (by omega)
-        have hlen2 : ((d.set w0 v0).set w1 v1).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen1
-        have hfr2 : Frame buf0 ((d.set w0 v0).set w1 v1) g0 :=
-          Frame_set hfr1 (by norm_num : (1 : ℕ) < 8) (dstOf_lt hk hiilt) hwv1
-        obtain ⟨hidx2, hcur2⟩ := write_facts words k true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) hp2 hk hiilt (by decide) (by rw [hlen2]; exact hcapd)
-        have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by rw [hwv2]; exact hidx2
-        step as ⟨c2, hc2⟩
-        have hc2v : c2.val = reg ((d.set w0 v0).set w1 v1) (g0 + 2) (dstOf k ii.val) := by
-          unfold reg; rw [hc2, ← bufN_of_lt (v := ((d.set w0 v0).set w1 v1)) (w := w2.val) hwlt2, hwv2]
-        have hbnd2 : c2.val + d2.val ≤ Std.U64.max := by
-          rw [hc2v]; have := offStep_le true k ii.val d2.val hd2q; rw [← ha2v] at this; omega
-        step as ⟨v2, hv2⟩
-        step as ⟨xw2, back2, hxw2, hback2⟩
-        rw [hback2]
-        have hp3 : Prog words k true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) :=
-          write_one words k true g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) w2 d2 v2 d2.val hk hiilt (by decide) hd2q hd2nib hp2 hwv2 hwlt2 ha2v (by omega)
-        have hlen3 : (((d.set w0 v0).set w1 v1).set w2 v2).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen2
-        have hfr3 : Frame buf0 (((d.set w0 v0).set w1 v1).set w2 v2) g0 :=
-          Frame_set hfr2 (by norm_num : (2 : ℕ) < 8) (dstOf_lt hk hiilt) hwv2
-        obtain ⟨hidx3, hcur3⟩ := write_facts words k true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) hp3 hk hiilt (by decide) (by rw [hlen3]; exact hcapd)
-        have hwlt3 : w3.val < (((d.set w0 v0).set w1 v1).set w2 v2).val.length := by rw [hwv3]; exact hidx3
-        step as ⟨c3, hc3⟩
-        have hc3v : c3.val = reg (((d.set w0 v0).set w1 v1).set w2 v2) (g0 + 3) (dstOf k ii.val) := by
-          unfold reg; rw [hc3, ← bufN_of_lt (v := (((d.set w0 v0).set w1 v1).set w2 v2)) (w := w3.val) hwlt3, hwv3]
-        have hbnd3 : c3.val + d3.val ≤ Std.U64.max := by
-          rw [hc3v]; have := offStep_le true k ii.val d3.val hd3q; rw [← ha3v] at this; omega
-        step as ⟨v3, hv3⟩
-        step as ⟨xw3, back3, hxw3, hback3⟩
-        rw [hback3]
-        have hp4 : Prog words k true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) :=
-          write_one words k true g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) w3 d3 v3 d3.val hk hiilt (by decide) hd3q hd3nib hp3 hwv3 hwlt3 ha3v (by omega)
-        have hlen4 : ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen3
-        have hfr4 : Frame buf0 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) g0 :=
-          Frame_set hfr3 (by norm_num : (3 : ℕ) < 8) (dstOf_lt hk hiilt) hwv3
-        obtain ⟨hidx4, hcur4⟩ := write_facts words k true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) hp4 hk hiilt (by decide) (by rw [hlen4]; exact hcapd)
-        have hwlt4 : w4.val < ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length := by rw [hwv4]; exact hidx4
-        step as ⟨c4, hc4⟩
-        have hc4v : c4.val = reg ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) (g0 + 4) (dstOf k ii.val) := by
-          unfold reg; rw [hc4, ← bufN_of_lt (v := ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3)) (w := w4.val) hwlt4, hwv4]
-        have hbnd4 : c4.val + d4.val ≤ Std.U64.max := by
-          rw [hc4v]; have := offStep_le true k ii.val d4.val hd4q; rw [← ha4v] at this; omega
-        step as ⟨v4, hv4⟩
-        step as ⟨xw4, back4, hxw4, hback4⟩
-        rw [hback4]
-        have hp5 : Prog words k true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) :=
-          write_one words k true g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) w4 d4 v4 d4.val hk hiilt (by decide) hd4q hd4nib hp4 hwv4 hwlt4 ha4v (by omega)
-        have hlen5 : (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen4
-        have hfr5 : Frame buf0 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) g0 :=
-          Frame_set hfr4 (by norm_num : (4 : ℕ) < 8) (dstOf_lt hk hiilt) hwv4
-        obtain ⟨hidx5, hcur5⟩ := write_facts words k true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) hp5 hk hiilt (by decide) (by rw [hlen5]; exact hcapd)
-        have hwlt5 : w5.val < (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length := by rw [hwv5]; exact hidx5
-        step as ⟨c5, hc5⟩
-        have hc5v : c5.val = reg (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) (g0 + 5) (dstOf k ii.val) := by
-          unfold reg; rw [hc5, ← bufN_of_lt (v := (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4)) (w := w5.val) hwlt5, hwv5]
-        have hbnd5 : c5.val + d5.val ≤ Std.U64.max := by
-          rw [hc5v]; have := offStep_le true k ii.val d5.val hd5q; rw [← ha5v] at this; omega
-        step as ⟨v5, hv5⟩
-        step as ⟨xw5, back5, hxw5, hback5⟩
-        rw [hback5]
-        have hp6 : Prog words k true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) :=
-          write_one words k true g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) w5 d5 v5 d5.val hk hiilt (by decide) hd5q hd5nib hp5 hwv5 hwlt5 ha5v (by omega)
-        have hlen6 : ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen5
-        have hfr6 : Frame buf0 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) g0 :=
-          Frame_set hfr5 (by norm_num : (5 : ℕ) < 8) (dstOf_lt hk hiilt) hwv5
-        obtain ⟨hidx6, hcur6⟩ := write_facts words k true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) hp6 hk hiilt (by decide) (by rw [hlen6]; exact hcapd)
-        have hwlt6 : w6.val < ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length := by rw [hwv6]; exact hidx6
-        step as ⟨c6, hc6⟩
-        have hc6v : c6.val = reg ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) (g0 + 6) (dstOf k ii.val) := by
-          unfold reg; rw [hc6, ← bufN_of_lt (v := ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5)) (w := w6.val) hwlt6, hwv6]
-        have hbnd6 : c6.val + d6.val ≤ Std.U64.max := by
-          rw [hc6v]; have := offStep_le true k ii.val d6.val hd6q; rw [← ha6v] at this; omega
-        step as ⟨v6, hv6⟩
-        step as ⟨xw6, back6, hxw6, hback6⟩
-        rw [hback6]
-        have hp7 : Prog words k true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) :=
-          write_one words k true g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) w6 d6 v6 d6.val hk hiilt (by decide) hd6q hd6nib hp6 hwv6 hwlt6 ha6v (by omega)
-        have hlen7 : (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen6
-        have hfr7 : Frame buf0 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) g0 :=
-          Frame_set hfr6 (by norm_num : (6 : ℕ) < 8) (dstOf_lt hk hiilt) hwv6
-        obtain ⟨hidx7, hcur7⟩ := write_facts words k true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) hp7 hk hiilt (by decide) (by rw [hlen7]; exact hcapd)
-        have hwlt7 : w7.val < (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length := by rw [hwv7]; exact hidx7
-        step as ⟨c7, hc7⟩
-        have hc7v : c7.val = reg (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) (g0 + 7) (dstOf k ii.val) := by
-          unfold reg; rw [hc7, ← bufN_of_lt (v := (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6)) (w := w7.val) hwlt7, hwv7]
-        have hbnd7 : c7.val + d7.val ≤ Std.U64.max := by
-          rw [hc7v]; have := offStep_le true k ii.val d7.val hd7q; rw [← ha7v] at this; omega
-        step as ⟨v7, hv7⟩
-        step as ⟨xw7, back7, hxw7, hback7⟩
-        rw [hback7]
-        have hp8 : Prog words k true g0 base B ii.val 8 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) :=
-          write_one words k true g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) w7 d7 v7 d7.val hk hiilt (by decide) hd7q hd7nib hp7 hwv7 hwlt7 ha7v (by omega)
-        have hlen8 : ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen7
-        have hfr8 : Frame buf0 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) g0 :=
-          Frame_set hfr7 (by norm_num : (7 : ℕ) < 8) (dstOf_lt hk hiilt) hwv7
-        have hmaxb : ii.val + 1 ≤ Std.Usize.max := by have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-        step as ⟨ii1, hii1⟩
-        obtain ⟨hfb, hfv⟩ := Prog_eight words k true g0 base B ii.val ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) hp8
-        refine ⟨by omega, by omega, by rw [hlen8]; exact hdl, by rw [hii1]; exact hfb, by rw [hii1]; exact hfv, hfr8, by omega⟩
-      | false =>
-        simp only [Bool.false_eq_true, ↓reduceIte]
-        step as ⟨a0, ha0⟩
-        have ha0v : a0.val = offStep false k ii.val d0.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha0, hq]
-        step as ⟨a1, ha1⟩
-        have ha1v : a1.val = offStep false k ii.val d1.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha1, hq]
-        step as ⟨a2, ha2⟩
-        have ha2v : a2.val = offStep false k ii.val d2.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha2, hq]
-        step as ⟨a3, ha3⟩
-        have ha3v : a3.val = offStep false k ii.val d3.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha3, hq]
-        step as ⟨a4, ha4⟩
-        have ha4v : a4.val = offStep false k ii.val d4.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha4, hq]
-        step as ⟨a5, ha5⟩
-        have ha5v : a5.val = offStep false k ii.val d5.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha5, hq]
-        step as ⟨a6, ha6⟩
-        have ha6v : a6.val = offStep false k ii.val d6.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha6, hq]
-        step as ⟨a7, ha7⟩
-        have ha7v : a7.val = offStep false k ii.val d7.val := by
-          unfold offStep; simp only [hwrap, ↓reduceIte, Bool.false_eq_true, ha7, hq]
-        step as ⟨i8, hi8⟩
-        step as ⟨w0, hw0⟩
-        have hwv0' : w0.val = (g0 + 0) * 1040 + dstOf k ii.val := by omega
-        have hwv0 : w0.val = (g0 + 0) * S + dstOf k ii.val := by rw [hS]; exact hwv0'
-        step as ⟨w1, hw1⟩
-        have hwv1' : w1.val = (g0 + 1) * 1040 + dstOf k ii.val := by omega
-        have hwv1 : w1.val = (g0 + 1) * S + dstOf k ii.val := by rw [hS]; exact hwv1'
-        step as ⟨w2, hw2⟩
-        have hwv2' : w2.val = (g0 + 2) * 1040 + dstOf k ii.val := by omega
-        have hwv2 : w2.val = (g0 + 2) * S + dstOf k ii.val := by rw [hS]; exact hwv2'
-        step as ⟨w3, hw3⟩
-        have hwv3' : w3.val = (g0 + 3) * 1040 + dstOf k ii.val := by omega
-        have hwv3 : w3.val = (g0 + 3) * S + dstOf k ii.val := by rw [hS]; exact hwv3'
-        step as ⟨w4, hw4⟩
-        have hwv4' : w4.val = (g0 + 4) * 1040 + dstOf k ii.val := by omega
-        have hwv4 : w4.val = (g0 + 4) * S + dstOf k ii.val := by rw [hS]; exact hwv4'
-        step as ⟨w5, hw5⟩
-        have hwv5' : w5.val = (g0 + 5) * 1040 + dstOf k ii.val := by omega
-        have hwv5 : w5.val = (g0 + 5) * S + dstOf k ii.val := by rw [hS]; exact hwv5'
-        step as ⟨w6, hw6⟩
-        have hwv6' : w6.val = (g0 + 6) * 1040 + dstOf k ii.val := by omega
-        have hwv6 : w6.val = (g0 + 6) * S + dstOf k ii.val := by rw [hS]; exact hwv6'
-        step as ⟨w7, hw7⟩
-        have hwv7' : w7.val = (g0 + 7) * 1040 + dstOf k ii.val := by omega
-        have hwv7 : w7.val = (g0 + 7) * S + dstOf k ii.val := by rw [hS]; exact hwv7'
-        have hp0 : Prog words k false g0 base B ii.val 0 d :=
-          (Prog_zero_iff words k false g0 base B ii.val d).mpr ⟨hdb, hdv⟩
-        have hlen0 : d.val.length = d.val.length := rfl
-        obtain ⟨hidx0, hcur0⟩ := write_facts words k false g0 base B ii.val 0 d hp0 hk hiilt (by decide) (by rw [hlen0]; exact hcapd)
-        have hwlt0 : w0.val < d.val.length := by rw [hwv0]; exact hidx0
-        step as ⟨c0, hc0⟩
-        have hc0v : c0.val = reg d (g0 + 0) (dstOf k ii.val) := by
-          unfold reg; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
-        have hbnd0 : c0.val + a0.val ≤ Std.U64.max := by
-          rw [hc0v]; have := offStep_le false k ii.val d0.val hd0q; rw [← ha0v] at this; omega
-        step as ⟨v0, hv0⟩
-        step as ⟨xw0, back0, hxw0, hback0⟩
-        rw [hback0]
-        have hp1 : Prog words k false g0 base B ii.val 1 (d.set w0 v0) :=
-          write_one words k false g0 base B ii.val 0 d w0 a0 v0 d0.val hk hiilt (by decide) hd0q hd0nib hp0 hwv0 hwlt0 ha0v (by omega)
-        have hlen1 : (d.set w0 v0).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]
-        have hfr1 : Frame buf0 (d.set w0 v0) g0 :=
-          Frame_set hdf (by norm_num : (0 : ℕ) < 8) (dstOf_lt hk hiilt) hwv0
-        obtain ⟨hidx1, hcur1⟩ := write_facts words k false g0 base B ii.val 1 (d.set w0 v0) hp1 hk hiilt (by decide) (by rw [hlen1]; exact hcapd)
-        have hwlt1 : w1.val < (d.set w0 v0).val.length := by rw [hwv1]; exact hidx1
-        step as ⟨c1, hc1⟩
-        have hc1v : c1.val = reg (d.set w0 v0) (g0 + 1) (dstOf k ii.val) := by
-          unfold reg; rw [hc1, ← bufN_of_lt (v := (d.set w0 v0)) (w := w1.val) hwlt1, hwv1]
-        have hbnd1 : c1.val + a1.val ≤ Std.U64.max := by
-          rw [hc1v]; have := offStep_le false k ii.val d1.val hd1q; rw [← ha1v] at this; omega
-        step as ⟨v1, hv1⟩
-        step as ⟨xw1, back1, hxw1, hback1⟩
-        rw [hback1]
-        have hp2 : Prog words k false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) :=
-          write_one words k false g0 base B ii.val 1 (d.set w0 v0) w1 a1 v1 d1.val hk hiilt (by decide) hd1q hd1nib hp1 hwv1 hwlt1 ha1v (by omega)
-        have hlen2 : ((d.set w0 v0).set w1 v1).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen1
-        have hfr2 : Frame buf0 ((d.set w0 v0).set w1 v1) g0 :=
-          Frame_set hfr1 (by norm_num : (1 : ℕ) < 8) (dstOf_lt hk hiilt) hwv1
-        obtain ⟨hidx2, hcur2⟩ := write_facts words k false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) hp2 hk hiilt (by decide) (by rw [hlen2]; exact hcapd)
-        have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by rw [hwv2]; exact hidx2
-        step as ⟨c2, hc2⟩
-        have hc2v : c2.val = reg ((d.set w0 v0).set w1 v1) (g0 + 2) (dstOf k ii.val) := by
-          unfold reg; rw [hc2, ← bufN_of_lt (v := ((d.set w0 v0).set w1 v1)) (w := w2.val) hwlt2, hwv2]
-        have hbnd2 : c2.val + a2.val ≤ Std.U64.max := by
-          rw [hc2v]; have := offStep_le false k ii.val d2.val hd2q; rw [← ha2v] at this; omega
-        step as ⟨v2, hv2⟩
-        step as ⟨xw2, back2, hxw2, hback2⟩
-        rw [hback2]
-        have hp3 : Prog words k false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) :=
-          write_one words k false g0 base B ii.val 2 ((d.set w0 v0).set w1 v1) w2 a2 v2 d2.val hk hiilt (by decide) hd2q hd2nib hp2 hwv2 hwlt2 ha2v (by omega)
-        have hlen3 : (((d.set w0 v0).set w1 v1).set w2 v2).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen2
-        have hfr3 : Frame buf0 (((d.set w0 v0).set w1 v1).set w2 v2) g0 :=
-          Frame_set hfr2 (by norm_num : (2 : ℕ) < 8) (dstOf_lt hk hiilt) hwv2
-        obtain ⟨hidx3, hcur3⟩ := write_facts words k false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) hp3 hk hiilt (by decide) (by rw [hlen3]; exact hcapd)
-        have hwlt3 : w3.val < (((d.set w0 v0).set w1 v1).set w2 v2).val.length := by rw [hwv3]; exact hidx3
-        step as ⟨c3, hc3⟩
-        have hc3v : c3.val = reg (((d.set w0 v0).set w1 v1).set w2 v2) (g0 + 3) (dstOf k ii.val) := by
-          unfold reg; rw [hc3, ← bufN_of_lt (v := (((d.set w0 v0).set w1 v1).set w2 v2)) (w := w3.val) hwlt3, hwv3]
-        have hbnd3 : c3.val + a3.val ≤ Std.U64.max := by
-          rw [hc3v]; have := offStep_le false k ii.val d3.val hd3q; rw [← ha3v] at this; omega
-        step as ⟨v3, hv3⟩
-        step as ⟨xw3, back3, hxw3, hback3⟩
-        rw [hback3]
-        have hp4 : Prog words k false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) :=
-          write_one words k false g0 base B ii.val 3 (((d.set w0 v0).set w1 v1).set w2 v2) w3 a3 v3 d3.val hk hiilt (by decide) hd3q hd3nib hp3 hwv3 hwlt3 ha3v (by omega)
-        have hlen4 : ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen3
-        have hfr4 : Frame buf0 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) g0 :=
-          Frame_set hfr3 (by norm_num : (3 : ℕ) < 8) (dstOf_lt hk hiilt) hwv3
-        obtain ⟨hidx4, hcur4⟩ := write_facts words k false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) hp4 hk hiilt (by decide) (by rw [hlen4]; exact hcapd)
-        have hwlt4 : w4.val < ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).val.length := by rw [hwv4]; exact hidx4
-        step as ⟨c4, hc4⟩
-        have hc4v : c4.val = reg ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) (g0 + 4) (dstOf k ii.val) := by
-          unfold reg; rw [hc4, ← bufN_of_lt (v := ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3)) (w := w4.val) hwlt4, hwv4]
-        have hbnd4 : c4.val + a4.val ≤ Std.U64.max := by
-          rw [hc4v]; have := offStep_le false k ii.val d4.val hd4q; rw [← ha4v] at this; omega
-        step as ⟨v4, hv4⟩
-        step as ⟨xw4, back4, hxw4, hback4⟩
-        rw [hback4]
-        have hp5 : Prog words k false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) :=
-          write_one words k false g0 base B ii.val 4 ((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3) w4 a4 v4 d4.val hk hiilt (by decide) hd4q hd4nib hp4 hwv4 hwlt4 ha4v (by omega)
-        have hlen5 : (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen4
-        have hfr5 : Frame buf0 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) g0 :=
-          Frame_set hfr4 (by norm_num : (4 : ℕ) < 8) (dstOf_lt hk hiilt) hwv4
-        obtain ⟨hidx5, hcur5⟩ := write_facts words k false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) hp5 hk hiilt (by decide) (by rw [hlen5]; exact hcapd)
-        have hwlt5 : w5.val < (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).val.length := by rw [hwv5]; exact hidx5
-        step as ⟨c5, hc5⟩
-        have hc5v : c5.val = reg (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) (g0 + 5) (dstOf k ii.val) := by
-          unfold reg; rw [hc5, ← bufN_of_lt (v := (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4)) (w := w5.val) hwlt5, hwv5]
-        have hbnd5 : c5.val + a5.val ≤ Std.U64.max := by
-          rw [hc5v]; have := offStep_le false k ii.val d5.val hd5q; rw [← ha5v] at this; omega
-        step as ⟨v5, hv5⟩
-        step as ⟨xw5, back5, hxw5, hback5⟩
-        rw [hback5]
-        have hp6 : Prog words k false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) :=
-          write_one words k false g0 base B ii.val 5 (((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4) w5 a5 v5 d5.val hk hiilt (by decide) hd5q hd5nib hp5 hwv5 hwlt5 ha5v (by omega)
-        have hlen6 : ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen5
-        have hfr6 : Frame buf0 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) g0 :=
-          Frame_set hfr5 (by norm_num : (5 : ℕ) < 8) (dstOf_lt hk hiilt) hwv5
-        obtain ⟨hidx6, hcur6⟩ := write_facts words k false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) hp6 hk hiilt (by decide) (by rw [hlen6]; exact hcapd)
-        have hwlt6 : w6.val < ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).val.length := by rw [hwv6]; exact hidx6
-        step as ⟨c6, hc6⟩
-        have hc6v : c6.val = reg ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) (g0 + 6) (dstOf k ii.val) := by
-          unfold reg; rw [hc6, ← bufN_of_lt (v := ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5)) (w := w6.val) hwlt6, hwv6]
-        have hbnd6 : c6.val + a6.val ≤ Std.U64.max := by
-          rw [hc6v]; have := offStep_le false k ii.val d6.val hd6q; rw [← ha6v] at this; omega
-        step as ⟨v6, hv6⟩
-        step as ⟨xw6, back6, hxw6, hback6⟩
-        rw [hback6]
-        have hp7 : Prog words k false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) :=
-          write_one words k false g0 base B ii.val 6 ((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5) w6 a6 v6 d6.val hk hiilt (by decide) hd6q hd6nib hp6 hwv6 hwlt6 ha6v (by omega)
-        have hlen7 : (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen6
-        have hfr7 : Frame buf0 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) g0 :=
-          Frame_set hfr6 (by norm_num : (6 : ℕ) < 8) (dstOf_lt hk hiilt) hwv6
-        obtain ⟨hidx7, hcur7⟩ := write_facts words k false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) hp7 hk hiilt (by decide) (by rw [hlen7]; exact hcapd)
-        have hwlt7 : w7.val < (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).val.length := by rw [hwv7]; exact hidx7
-        step as ⟨c7, hc7⟩
-        have hc7v : c7.val = reg (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) (g0 + 7) (dstOf k ii.val) := by
-          unfold reg; rw [hc7, ← bufN_of_lt (v := (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6)) (w := w7.val) hwlt7, hwv7]
-        have hbnd7 : c7.val + a7.val ≤ Std.U64.max := by
-          rw [hc7v]; have := offStep_le false k ii.val d7.val hd7q; rw [← ha7v] at this; omega
-        step as ⟨v7, hv7⟩
-        step as ⟨xw7, back7, hxw7, hback7⟩
-        rw [hback7]
-        have hp8 : Prog words k false g0 base B ii.val 8 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) :=
-          write_one words k false g0 base B ii.val 7 (((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6) w7 a7 v7 d7.val hk hiilt (by decide) hd7q hd7nib hp7 hwv7 hwlt7 ha7v (by omega)
-        have hlen8 : ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7).val.length = d.val.length := by
-          rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hlen7
-        have hfr8 : Frame buf0 ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) g0 :=
-          Frame_set hfr7 (by norm_num : (7 : ℕ) < 8) (dstOf_lt hk hiilt) hwv7
-        have hmaxb : ii.val + 1 ≤ Std.Usize.max := by have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-        step as ⟨ii1, hii1⟩
-        obtain ⟨hfb, hfv⟩ := Prog_eight words k false g0 base B ii.val ((((((((d.set w0 v0).set w1 v1).set w2 v2).set w3 v3).set w4 v4).set w5 v5).set w6 v6).set w7 v7) hp8
-        refine ⟨by omega, by omega, by rw [hlen8]; exact hdl, by rw [hii1]; exact hfb, by rw [hii1]; exact hfv, hfr8, by omega⟩
+      have hdstN : dstOf k ii.val < N := dstOf_lt hk hiilt
+      have hpos : sgn negt k (dstOf k ii.val) = if negt then 1 else -1 := by
+        rw [sgn_eq negt _ _ hk hiilt]
+        unfold wrapped
+        rw [decide_eq_true hwrap]
+        cases negt <;> simp
+      have hcapd : 3 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
+      have hdmax : d.val.length ≤ Std.Usize.max := d.property
+      have hsl3 : 3 * ii.val + 2 < src.val.length := by rw [hsl]; omega
+      have hw2lt : slotIdx r0 (dstOf k ii.val) 2 < d.val.length :=
+        slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨si, hsi⟩
+      have hsiv : si.val = 3 * ii.val := by rw [hsi, z_lane_words_val]
+      step as ⟨s0, hs0⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨s1, hs1⟩
+      step as ⟨i2, hi2⟩
+      step as ⟨s2, hs2⟩
+      have hs0v : s0.val = pack3 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) := by
+        have h := hsv ii.val hiilt 0 (by norm_num)
+        rw [hs0, ← bufN_of_lt (v := src) (w := si.val) (by omega), hsiv]
+        simpa using h
+      have hs1v : s1.val = pack3 (D 3 ii.val) (D 4 ii.val) (D 5 ii.val) := by
+        have h := hsv ii.val hiilt 1 (by norm_num)
+        rw [hs1, ← bufN_of_lt (v := src) (w := i1.val) (by omega), hi1, hsiv]
+        simpa using h
+      have hs2v : s2.val = pack3 (D 6 ii.val) (D 7 ii.val) (D 8 ii.val) := by
+        have h := hsv ii.val hiilt 2 (by norm_num)
+        rw [hs2, ← bufN_of_lt (v := src) (w := i2.val) (by omega), hi2, hsiv]
+        simpa using h
+      step with addend_hi_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
+      step with addend_hi_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
+      step with addend_hi_spec negt s2 hs2v (hD _ _) (hD _ _) (hD _ _) as ⟨a2, ha2⟩
+      step as ⟨i3, hi3⟩
+      step as ⟨i4, hi4⟩
+      have hi4v : i4.val = 3 * (ii.val - limU.val) := by rw [hi4, hi3, z_lane_words_val]
+      have hw0v' : rbU.val + i4.val = slotIdx r0 (dstOf k ii.val) 0 := by
+        rw [hrb, hi4v, hdst]; unfold slotIdx; ring
+      have hw0max : rbU.val + i4.val ≤ Std.Usize.max := by
+        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 3) hcapd
+        rw [hw0v']; omega
+      step as ⟨w0, hw0⟩
+      have hwv0 : w0.val = slotIdx r0 (dstOf k ii.val) 0 := by rw [hw0, hw0v']
+      have hwv1' : w0.val + 1 = slotIdx r0 (dstOf k ii.val) 1 := by
+        rw [hwv0]; unfold slotIdx; ring
+      have hwv2' : w0.val + 2 = slotIdx r0 (dstOf k ii.val) 2 := by
+        rw [hwv0]; unfold slotIdx; ring
+      have hw1max : w0.val + 1 ≤ Std.Usize.max := by omega
+      step as ⟨w1, hw1⟩
+      have hw2max : w0.val + 2 ≤ Std.Usize.max := by omega
+      step as ⟨w2, hw2⟩
+      have hwv1 : w1.val = slotIdx r0 (dstOf k ii.val) 1 := by rw [hw1, hwv1']
+      have hwv2 : w2.val = slotIdx r0 (dstOf k ii.val) 2 := by rw [hw2, hwv2']
+      -- write 0
+      have hwlt0 : w0.val < d.val.length := by
+        rw [hwv0]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c0, hc0⟩
+      have hc0v : c0.val = slotW d r0 (dstOf k ii.val) 0 := by
+        unfold slotW; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
+      have hov0 : c0.val + a0.val ≤ Std.U64.max := by
+        rw [hc0v, ha0]
+        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v0, hv0⟩
+      step as ⟨xw0, back0, hxw0, hback0⟩
+      rw [hback0]
+      have hp1 := write_lane D k negt negt r0 base B ii.val 0 d w0 a0 v0 hk hiilt
+        (by norm_num) hB hD hpos hdp hwv0 hwlt0 (by rw [ha0]) (by rw [hv0, hc0v])
+      have hl1 : (d.set w0 v0).val.length = buf0.val.length := by rw [set_length, hdl]
+      have hf1 : FrameR buf0 (d.set w0 v0) r0 := FrameR_set hdf hdstN (by norm_num) hwv0
+      -- write 1
+      have hwlt1 : w1.val < (d.set w0 v0).val.length := by
+        rw [set_length, hwv1]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c1, hc1⟩
+      have hc1v : c1.val = slotW (d.set w0 v0) r0 (dstOf k ii.val) 1 := by
+        unfold slotW; rw [hc1, ← bufN_of_lt (v := d.set w0 v0) (w := w1.val) hwlt1, hwv1]
+      have hov1 : c1.val + a1.val ≤ Std.U64.max := by
+        rw [hc1v, ha1]
+        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v1, hv1⟩
+      step as ⟨xw1, back1, hxw1, hback1⟩
+      rw [hback1]
+      have hp2 := write_lane D k negt negt r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
+        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
+      have hl2 : ((d.set w0 v0).set w1 v1).val.length = buf0.val.length := by
+        rw [set_length, hl1]
+      have hf2 : FrameR buf0 ((d.set w0 v0).set w1 v1) r0 :=
+        FrameR_set hf1 hdstN (by norm_num) hwv1
+      -- write 2
+      have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by
+        rw [set_length, set_length, hwv2]; exact slotIdx_lt hdstN (by norm_num) hcapd
+      step as ⟨c2, hc2⟩
+      have hc2v : c2.val = slotW ((d.set w0 v0).set w1 v1) r0 (dstOf k ii.val) 2 := by
+        unfold slotW
+        rw [hc2, ← bufN_of_lt (v := (d.set w0 v0).set w1 v1) (w := w2.val) hwlt2, hwv2]
+      have hov2 : c2.val + a2.val ≤ Std.U64.max := by
+        rw [hc2v, ha2]
+        exact add_ok (ProgL_cur hp2 hk hiilt (by norm_num)).1
+          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+      step as ⟨v2, hv2⟩
+      step as ⟨xw2, back2, hxw2, hback2⟩
+      have hmaxb : ii.val + 1 ≤ Std.Usize.max := by
+        have := usize_max_ge; have h3 : N = 1024 := rfl; omega
+      step as ⟨ii1, hii1⟩
+      rw [hback2]
+      have hp3 := write_lane D k negt negt r0 base B ii.val 2 ((d.set w0 v0).set w1 v1)
+        w2 a2 v2 hk hiilt (by norm_num) hB hD hpos hp2 hwv2 hwlt2 (by rw [ha2])
+        (by rw [hv2, hc2v])
+      refine ⟨by omega, by omega, by rw [set_length, hl2], by rw [hii1]; exact ProgL_three hp3,
+        FrameR_set hf2 hdstN (by norm_num) hwv2, by omega⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = N := by rw [← hn]; scalar_tac
-      refine ⟨hdl, ?_, by intro e he w hw; rw [← heq]; exact hdv e he w hw, hdf⟩
-      intro e he w hw
-      have := hdb e he w hw
-      split at this <;> omega
-  · exact ⟨hj1, hj2, hlen, hbnd, hval, hfr⟩
+      exact ⟨hdl, by rw [← heq]; exact hdp, hdf⟩
+  · exact ⟨hj1, hj2, hlen, hprog, hfr⟩
 
-/-- **`z_pass`.** Eight `short_pass_off_spec`s at once: each region of the row
-gains one shifted, signed copy of its digit polynomial; every other word of the
-buffer is untouched. -/
-theorem z_pass_spec (words : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool)
-    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (g0 : ℕ)
+/-- **`z_pass_lanes`.** Every lane of the row's slots gains `16 ± dₑ` -- so the
+bound grows by `31` -- and the value of lane `e`, less the record, gains one
+shifted, signed copy of digit `e`: `short_pass_off_spec` eight times over, with
+`applied` unchanged. Every other word of the buffer is untouched. -/
+theorem z_pass_lanes_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool)
+    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (D : ℕ → ℕ → ℕ)
     (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hk : kU.val < N) (hrb : rbU.val = g0 * S) (hcap : (g0 + 8) * S ≤ buf.val.length)
-    (hB : B + q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N → reg buf (g0 + e) w ≤ B)
-    (hval : ∀ e, e < 8 → ∀ w, w < N → ((reg buf (g0 + e) w : ℕ) : ZMod q) = base e w) :
-    quadeval.z_pass words kU negt buf rbU
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
+    (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
+    (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length) (hB : B + 31 < 2 ^ 20)
+    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B)
+    (hval : ∀ p, p < N → ∀ e, e < 8 → laneD buf r0 p e = base e p) :
+    quadeval.z_pass_lanes src kU negt buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N → reg z (g0 + e) w ≤ B + q)
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = applied (base e) (nibW words e) kU.val negt N w)
-        ∧ Frame buf z g0 ⦄ := by
-  rw [quadeval.z_pass]
-  have hadd : (params.RING_DEGREE).val + (quadeval.Z_PAD).val ≤ Std.Usize.max := by
-    rw [params_RING_DEGREE_val, z_pad_val]; have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-  step as ⟨strideU, hstrideU⟩
-  have hstride : strideU.val = S := by
-    rw [hstrideU, params_RING_DEGREE_val, z_pad_val]
+        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31))
+        ∧ (∀ p, p < N → ∀ e, e < 8 →
+            laneD z r0 p e = applied (base e) (dgZ D e) kU.val negt N p)
+        ∧ FrameR buf z r0 ⦄ := by
+  rw [quadeval.z_pass_lanes]
   step as ⟨limU, hlimU⟩
   have hlim : limU.val = N - kU.val := by rw [hlimU, params_RING_DEGREE_val]
-  step with z_pass_loop0_spec words kU negt rbU params.Q strideU limU buf 0#usize buf g0
-    base B hwl hwlt params_Q_val hstride hlim hk hrb (by simp) rfl hcap hB
-    (by intro e he w hw; rw [if_neg (by simp)]; exact hbnd e he w hw)
-    (by
-      intro e he w hw
-      have hz : applied (base e) (nibW words e) kU.val negt ((0#usize : Std.Usize).val) w
-          = base e w := by unfold applied; simp
-      rw [hz]; exact hval e he w hw)
-    (Frame_refl buf g0)
-    as ⟨out1, ho1, ho2, ho3, ho4⟩
-  exact z_pass_loop1_spec words negt rbU params.RING_DEGREE params.Q strideU limU out1 limU
-    buf g0 kU.val base B hwl hwlt params_RING_DEGREE_val params_Q_val hstride hlim hk hrb
-    (le_refl _) (by omega) ho1 hcap hB ho2 ho3 ho4
+  have hp0 : ProgL D kU.val negt r0 (fun e w => ((lane buf r0 w e : ℕ) : ZMod q)) B 0 0 buf := by
+    intro p hp
+    refine ⟨fun l hl => ?_, fun e _ => ?_⟩
+    · rw [if_neg (Nat.not_lt_zero _), if_neg (Nat.not_lt_zero _)]; exact hbnd p hp l hl
+    · rw [if_neg (Nat.not_lt_zero _)]; unfold appliedB; simp
+  step with z_pass_lanes_loop0_spec src kU negt rbU limU buf 0#usize buf r0 D
+    (fun e w => ((lane buf r0 w e : ℕ) : ZMod q)) B hsrc hD hlim hk hrb (by simp) rfl hcap hB
+    hp0 (FrameR_refl buf r0) as ⟨out1, ho1, ho2, ho3⟩
+  apply spec_mono (z_pass_lanes_loop1_spec src negt rbU params.RING_DEGREE limU out1 limU buf r0
+    kU.val D (fun e w => ((lane buf r0 w e : ℕ) : ZMod q)) B hsrc hD params_RING_DEGREE_val hlim
+    hk hrb (le_refl _) (by omega) ho1 hcap hB ho2 ho3)
+  rintro z ⟨h1, h2, h3⟩
+  refine ⟨h1, ?_, ?_, h3⟩
+  · intro p hp l hl
+    have := (h2 p hp).1 l hl
+    rwa [if_neg (Nat.not_lt_zero _), if_pos (srcOf_lt hk hp)] at this
+  · intro p hp e he
+    have hv := (h2 p hp).2 e (by omega)
+    have h8 := (h2 p hp).2 8 (by norm_num)
+    rw [if_neg (Nat.not_lt_zero _)] at hv h8
+    unfold laneD
+    rw [hv, h8]
+    unfold appliedB applied dgZ
+    rw [if_pos (srcOf_lt hk hp), if_pos (srcOf_lt hk hp), if_pos (srcOf_lt hk hp), hD8,
+      ← hval p hp e he]
+    unfold laneD
+    push_cast
+    ring
 
-/-! ## 6. `z_reduce`: every word mod `q` -/
+/-! ## 8. `z_apply_terms_lanes`: the terms and passes of one row
 
-theorem z_reduce_loop_spec (qU : Std.U64) (out : alloc.vec.Vec Std.U64) (lenU iU : Std.Usize)
-    (buf0 : alloc.vec.Vec Std.U64)
-    (hq : qU.val = q) (hlen : lenU.val = buf0.val.length) (hi : iU.val ≤ lenU.val)
-    (hol : out.val.length = buf0.val.length)
-    (hdone : ∀ t, t < iU.val → bufN out t < q)
-    (hval : ∀ t, ((bufN out t : ℕ) : ZMod q) = ((bufN buf0 t : ℕ) : ZMod q))
-    (hrest : ∀ t, iU.val ≤ t → bufN out t = bufN buf0 t) :
-    quadeval.z_reduce_loop qU out lenU iU
-      ⦃ z => z.val.length = buf0.val.length ∧ (∀ t, t < buf0.val.length → bufN z t < q)
-        ∧ ∀ t, ((bufN z t : ℕ) : ZMod q) = ((bufN buf0 t : ℕ) : ZMod q) ⦄ := by
-  rw [quadeval.z_reduce_loop]
-  apply loop.spec_decr_nat (fun t => lenU.val - t.2.val)
-    (fun t => t.2.val ≤ lenU.val ∧ t.1.val.length = buf0.val.length
-      ∧ (∀ u, u < t.2.val → bufN t.1 u < q)
-      ∧ (∀ u, ((bufN t.1 u : ℕ) : ZMod q) = ((bufN buf0 u : ℕ) : ZMod q))
-      ∧ ∀ u, t.2.val ≤ u → bufN t.1 u = bufN buf0 u)
-  · rintro ⟨o, ii⟩ ⟨hii, hol, hod, hov, hor⟩
-    dsimp only at hii hol hod hov hor
-    simp only [quadeval.z_reduce_loop.body]
-    by_cases hlt : ii < lenU
-    · rw [if_pos hlt]
-      have hiilt : ii.val < lenU.val := by scalar_tac
-      have hib : ii.val < o.val.length := by rw [hol, ← hlen]; exact hiilt
-      step as ⟨cur, hcur⟩
-      have hqne : qU.val ≠ 0 := by rw [hq]; norm_num [HachiEquiv.Field.q]
-      step as ⟨nv, hnv⟩
-      step as ⟨xw, back, hxw, hback⟩
-      step as ⟨i1, hi1⟩
-      rw [hback]
-      have hcurv : cur.val = bufN o ii.val := by
-        rw [hcur, ← bufN_of_lt (v := o) (w := ii.val) hib]
-      have hqpos : 0 < q := by norm_num [HachiEquiv.Field.q]
-      refine ⟨by omega, ?_, ?_, ?_, ?_, by omega⟩
-      · rw [alloc.vec.Vec.set_val_eq, List.length_set]; exact hol
-      · intro u hu
-        rw [hi1] at hu
-        by_cases hue : u = ii.val
-        · subst hue; rw [bufN_set_eq hib, hnv, hq, hcurv]; exact Nat.mod_lt _ hqpos
-        · rw [bufN_set_ne hue]; exact hod u (by omega)
-      · intro u
-        by_cases hue : u = ii.val
-        · subst hue
-          rw [bufN_set_eq hib, hnv, hq, hcurv, ZMod.natCast_mod]
-          exact hov ii.val
-        · rw [bufN_set_ne hue]; exact hov u
-      · intro u hu
-        rw [hi1] at hu
-        rw [bufN_set_ne (by omega)]
-        exact hor u (by omega)
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : ii.val = lenU.val := by scalar_tac
-      exact ⟨hol, fun u hu => hod u (by rw [heq, hlen]; exact hu), hov⟩
-  · exact ⟨hi, hol, hdone, hval, hrest⟩
-
-/-- **`z_reduce`.** Length kept, every word canonical, every word unchanged in
-`ZMod q` -- so every region is unchanged as a ring element. -/
-theorem z_reduce_spec (buf : alloc.vec.Vec Std.U64) :
-    quadeval.z_reduce buf
-      ⦃ z => z.val.length = buf.val.length ∧ (∀ t, t < buf.val.length → bufN z t < q)
-        ∧ ∀ t, ((bufN z t : ℕ) : ZMod q) = ((bufN buf t : ℕ) : ZMod q) ⦄ := by
-  rw [quadeval.z_reduce]
-  exact z_reduce_loop_spec params.Q buf (alloc.vec.Vec.len buf) 0#usize buf params_Q_val
-    (by simp) (by simp) rfl (by intro t ht; simp at ht) (fun _ => rfl) (fun _ _ => rfl)
-
-/-! ## 7. `z_apply_terms`: the terms and passes of one row
-
-No chunk counter here (compare `mul_short_add_into_loop1_loop0`): `z_terms`
-admits at most `OMEGA = 16` passes per block, and the block loop's `Z_CHUNK`
-schedule reserves `16 · q` of headroom for them before the row is touched. The
-bound therefore just grows by `q` per pass. -/
+No chunk counter here: `z_terms` admits at most `OMEGA = 16` passes per block,
+and the block loop's `Z_LANE_CHUNK` schedule reserves `16 · 31` of lane
+headroom for them before the row is touched. The bound therefore just grows by
+`31` per pass. -/
 
 /-- The first `t` magnitudes, summed: the pass count. -/
 def magSum (vm : alloc.vec.Vec Std.U64) (t : ℕ) : ℕ := ∑ u ∈ Finset.range t, magAt vm u
@@ -1503,55 +1156,51 @@ theorem magSum_succ (vm : alloc.vec.Vec Std.U64) (t : ℕ) :
   unfold magSum; rw [Finset.sum_range_succ]
 
 /-- The pass loop: `m` passes of the term `(k, negt)`. -/
-theorem z_apply_terms_loop0_loop0_spec (words : alloc.vec.Vec Std.U64) (rbU : Std.Usize)
+theorem z_apply_terms_lanes_loop0_loop0_spec (src : alloc.vec.Vec Std.U64) (rbU : Std.Usize)
     (out : alloc.vec.Vec Std.U64) (kU : Std.Usize) (mU : Std.U64) (negt : Bool)
-    (passU : Std.U64) (buf0 : alloc.vec.Vec Std.U64) (g0 : ℕ)
+    (passU : Std.U64) (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ)
     (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hk : kU.val < N) (hrb : rbU.val = g0 * S) (hcap : (g0 + 8) * S ≤ buf0.val.length)
-    (hlen : out.val.length = buf0.val.length)
-    (hp : passU.val ≤ mU.val) (hB : B + mU.val * q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N → reg out (g0 + e) w ≤ B + passU.val * q)
-    (hval : ∀ e, e < 8 → ∀ w, w < N → ((reg out (g0 + e) w : ℕ) : ZMod q)
-      = passed (base e) (nibW words e) kU.val negt passU.val w)
-    (hfr : Frame buf0 out g0) :
-    quadeval.z_apply_terms_loop0_loop0 words rbU out kU mU negt passU
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
+    (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
+    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hlen : out.val.length = buf0.val.length)
+    (hp : passU.val ≤ mU.val) (hB : B + 31 * mU.val < 2 ^ 20)
+    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW out r0 p l) (B + 31 * passU.val))
+    (hval : ∀ p, p < N → ∀ e, e < 8 →
+      laneD out r0 p e = passed (base e) (dgZ D e) kU.val negt passU.val p)
+    (hfr : FrameR buf0 out r0) :
+    quadeval.z_apply_terms_lanes_loop0_loop0 src rbU out kU mU negt passU
       ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N → reg z (g0 + e) w ≤ B + mU.val * q)
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = passed (base e) (nibW words e) kU.val negt mU.val w)
-        ∧ Frame buf0 z g0 ⦄ := by
-  rw [quadeval.z_apply_terms_loop0_loop0]
+        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31 * mU.val))
+        ∧ (∀ p, p < N → ∀ e, e < 8 →
+            laneD z r0 p e = passed (base e) (dgZ D e) kU.val negt mU.val p)
+        ∧ FrameR buf0 z r0 ⦄ := by
+  rw [quadeval.z_apply_terms_lanes_loop0_loop0]
   apply loop.spec_decr_nat (fun t => mU.val - t.2.val)
     (fun t => t.2.val ≤ mU.val ∧ t.1.val.length = buf0.val.length
-      ∧ (∀ e, e < 8 → ∀ w, w < N → reg t.1 (g0 + e) w ≤ B + t.2.val * q)
-      ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg t.1 (g0 + e) w : ℕ) : ZMod q)
-          = passed (base e) (nibW words e) kU.val negt t.2.val w)
-      ∧ Frame buf0 t.1 g0)
+      ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW t.1 r0 p l) (B + 31 * t.2.val))
+      ∧ (∀ p, p < N → ∀ e, e < 8 →
+          laneD t.1 r0 p e = passed (base e) (dgZ D e) kU.val negt t.2.val p)
+      ∧ FrameR buf0 t.1 r0)
   · rintro ⟨d, pp⟩ ⟨hpp, hdl, hdb, hdv, hdf⟩
     dsimp only at hpp hdl hdb hdv hdf
-    simp only [quadeval.z_apply_terms_loop0_loop0.body]
+    simp only [quadeval.z_apply_terms_lanes_loop0_loop0.body]
     by_cases hlt : pp < mU
     · rw [if_pos hlt]
       have hppm : pp.val < mU.val := by scalar_tac
-      have hBq : B + pp.val * q + q ≤ Std.U64.max := by
-        have h1 : (pp.val + 1) * q ≤ mU.val * q := Nat.mul_le_mul_right _ (by omega)
-        have h2 : (pp.val + 1) * q = pp.val * q + q := by ring
-        omega
-      step with z_pass_spec words kU negt d rbU g0
-        (fun e => passed (base e) (nibW words e) kU.val negt pp.val) (B + pp.val * q)
-        hwl hwlt hk hrb (by rw [hdl]; exact hcap) hBq hdb hdv
+      have hBq : B + 31 * pp.val + 31 < 2 ^ 20 := by omega
+      step with z_pass_lanes_spec src kU negt d rbU r0 D
+        (fun e => passed (base e) (dgZ D e) kU.val negt pp.val) (B + 31 * pp.val)
+        hsrc hD hD8 hk hrb (by rw [hdl]; exact hcap) hBq hdb hdv
         as ⟨z, hzl, hzb, hzv, hzf⟩
       step as ⟨pp1, hpp1⟩
-      refine ⟨by omega, by rw [hzl]; exact hdl, ?_, ?_, Frame_trans hdf hzf, by omega⟩
-      · intro e he w hw
-        have := hzb e he w hw
+      refine ⟨by omega, by rw [hzl]; exact hdl, ?_, ?_, FrameR_trans hdf hzf, by omega⟩
+      · intro p hp l hl
         rw [hpp1]
-        have h2 : (pp.val + 1) * q = pp.val * q + q := by ring
-        omega
-      · intro e he w hw
-        rw [hpp1, hzv e he w hw,
-          applied_passed (base e) (nibW words e) kU.val negt pp.val w hk hw]
+        have h2 : B + 31 * (pp.val + 1) = B + 31 * pp.val + 31 := by ring
+        rw [h2]; exact hzb p hp l hl
+      · intro p hp e he
+        rw [hpp1, hzv p hp e he,
+          applied_passed (base e) (dgZ D e) kU.val negt pp.val p hk hp]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : pp.val = mU.val := by scalar_tac
@@ -1571,38 +1220,38 @@ theorem termsSum_succ (sc : ℕ → ZMod q) (vi : alloc.vec.Vec Std.Usize)
   unfold termsSum; rw [Finset.sum_range_succ]
 
 /-- The terms loop. -/
-theorem z_apply_terms_loop0_spec (vi : alloc.vec.Vec Std.Usize) (vm : alloc.vec.Vec Std.U64)
-    (vn : alloc.vec.Vec Bool) (words : alloc.vec.Vec Std.U64) (rbU : Std.Usize)
-    (countU : Std.Usize) (out : alloc.vec.Vec Std.U64) (tU : Std.Usize)
-    (buf0 : alloc.vec.Vec Std.U64) (g0 : ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hrb : rbU.val = g0 * S) (hcap : (g0 + 8) * S ≤ buf0.val.length)
+theorem z_apply_terms_lanes_loop0_spec (vi : alloc.vec.Vec Std.Usize)
+    (vm : alloc.vec.Vec Std.U64) (vn : alloc.vec.Vec Bool) (src : alloc.vec.Vec Std.U64)
+    (rbU : Std.Usize) (countU : Std.Usize) (out : alloc.vec.Vec Std.U64) (tU : Std.Usize)
+    (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
+    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length)
     (hlen : out.val.length = buf0.val.length)
     (hcnt : vi.val.length = countU.val)
     (hmlen : countU.val ≤ vm.val.length) (hnlen : countU.val ≤ vn.val.length)
     (hidx : ∀ u, u < countU.val → idxAt vi u < N)
     (ht : tU.val ≤ countU.val)
-    (hB : B + magSum vm countU.val * q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N → reg out (g0 + e) w ≤ B + magSum vm tU.val * q)
-    (hval : ∀ e, e < 8 → ∀ w, w < N → ((reg out (g0 + e) w : ℕ) : ZMod q)
-      = base e w + termsSum (nibW words e) vi vm vn tU.val w)
-    (hfr : Frame buf0 out g0) :
-    quadeval.z_apply_terms_loop0 vi vm vn words rbU countU out tU
+    (hB : B + 31 * magSum vm countU.val < 2 ^ 20)
+    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW out r0 p l) (B + 31 * magSum vm tU.val))
+    (hval : ∀ p, p < N → ∀ e, e < 8 →
+      laneD out r0 p e = base e p + termsSum (dgZ D e) vi vm vn tU.val p)
+    (hfr : FrameR buf0 out r0) :
+    quadeval.z_apply_terms_lanes_loop0 vi vm vn src rbU countU out tU
       ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N → reg z (g0 + e) w ≤ B + magSum vm countU.val * q)
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = base e w + termsSum (nibW words e) vi vm vn countU.val w)
-        ∧ Frame buf0 z g0 ⦄ := by
-  rw [quadeval.z_apply_terms_loop0]
+        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31 * magSum vm countU.val))
+        ∧ (∀ p, p < N → ∀ e, e < 8 →
+            laneD z r0 p e = base e p + termsSum (dgZ D e) vi vm vn countU.val p)
+        ∧ FrameR buf0 z r0 ⦄ := by
+  rw [quadeval.z_apply_terms_lanes_loop0]
   apply loop.spec_decr_nat (fun r => countU.val - r.2.val)
     (fun r => r.2.val ≤ countU.val ∧ r.1.val.length = buf0.val.length
-      ∧ (∀ e, e < 8 → ∀ w, w < N → reg r.1 (g0 + e) w ≤ B + magSum vm r.2.val * q)
-      ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg r.1 (g0 + e) w : ℕ) : ZMod q)
-          = base e w + termsSum (nibW words e) vi vm vn r.2.val w)
-      ∧ Frame buf0 r.1 g0)
+      ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW r.1 r0 p l) (B + 31 * magSum vm r.2.val))
+      ∧ (∀ p, p < N → ∀ e, e < 8 →
+          laneD r.1 r0 p e = base e p + termsSum (dgZ D e) vi vm vn r.2.val p)
+      ∧ FrameR buf0 r.1 r0)
   · rintro ⟨d, tt⟩ ⟨htt, hdl, hdb, hdv, hdf⟩
     dsimp only at htt hdl hdb hdv hdf
-    simp only [quadeval.z_apply_terms_loop0.body]
+    simp only [quadeval.z_apply_terms_lanes_loop0.body]
     by_cases hlt : tt < countU
     · rw [if_pos hlt]
       have httc : tt.val < countU.val := by scalar_tac
@@ -1619,32 +1268,30 @@ theorem z_apply_terms_loop0_spec (vi : alloc.vec.Vec Std.Usize) (vm : alloc.vec.
       have hnv : nn = negAt vn tt.val := by
         unfold negAt; rw [hnn, List.getD_eq_getElem _ _ htn]
       have hkN : kk.val < N := by rw [hkv]; exact hidx tt.val httc
-      have hBt : B + magSum vm tt.val * q + mm.val * q ≤ Std.U64.max := by
+      have hBt : B + 31 * magSum vm tt.val + 31 * mm.val < 2 ^ 20 := by
         have h1 : magSum vm (tt.val + 1) ≤ magSum vm countU.val := magSum_mono vm (by omega)
         rw [magSum_succ, ← hmv] at h1
-        have h2 : (magSum vm tt.val + mm.val) * q ≤ magSum vm countU.val * q :=
-          Nat.mul_le_mul_right _ h1
-        have h3 : (magSum vm tt.val + mm.val) * q = magSum vm tt.val * q + mm.val * q := by ring
         omega
-      step with z_apply_terms_loop0_loop0_spec words rbU d kk mm nn 0#u64 buf0 g0
-        (fun e w => base e w + termsSum (nibW words e) vi vm vn tt.val w)
-        (B + magSum vm tt.val * q) hwl hwlt hkN hrb hcap hdl (by simp) hBt
-        (by intro e he w hw; simpa using hdb e he w hw)
+      step with z_apply_terms_lanes_loop0_loop0_spec src rbU d kk mm nn 0#u64 buf0 r0 D
+        (fun e w => base e w + termsSum (dgZ D e) vi vm vn tt.val w)
+        (B + 31 * magSum vm tt.val) hsrc hD hD8 hkN hrb hcap hdl (by simp) hBt
+        (by intro p hp l hl; simpa using hdb p hp l hl)
         (by
-          intro e he w hw
-          rw [hdv e he w hw]
+          intro p hp e he
+          rw [hdv p hp e he]
           unfold passed; simp)
         hdf
         as ⟨z, hzl, hzb, hzv, hzf⟩
       step as ⟨tt1, htt1⟩
       refine ⟨by omega, hzl, ?_, ?_, hzf, by omega⟩
-      · intro e he w hw
-        have := hzb e he w hw
+      · intro p hp l hl
+        have := hzb p hp l hl
         rw [htt1, magSum_succ, ← hmv]
-        have h3 : (magSum vm tt.val + mm.val) * q = magSum vm tt.val * q + mm.val * q := by ring
-        omega
-      · intro e he w hw
-        rw [htt1, hzv e he w hw, termsSum_succ, hkv, hmv, hnv,
+        have h3 : B + 31 * (magSum vm tt.val + mm.val)
+            = B + 31 * magSum vm tt.val + 31 * mm.val := by ring
+        rw [h3]; exact this
+      · intro p hp e he
+        rw [htt1, hzv p hp e he, termsSum_succ, hkv, hmv, hnv,
           passed_eq_contribW, add_assoc]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1653,43 +1300,41 @@ theorem z_apply_terms_loop0_spec (vi : alloc.vec.Vec Std.Usize) (vm : alloc.vec.
       exact ⟨hdl, hdb, hdv, hdf⟩
   · exact ⟨ht, hlen, hbnd, hval, hfr⟩
 
-/-- **`z_apply_terms`.** Each region of the row gains the terms sum of its digit
-polynomial; the bound grows by the pass count times `q`. -/
-theorem z_apply_terms_spec (terms : quadeval.ZTerms) (words : alloc.vec.Vec Std.U64)
-    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (g0 : ℕ) (B : ℕ)
-    (hwl : words.val.length = N) (hwlt : ∀ i, i < N → bufN words i < q)
-    (hrb : rbU.val = g0 * S) (hcap : (g0 + 8) * S ≤ buf.val.length)
+/-- **`z_apply_terms_lanes`.** Lane `e` of each slot of the row gains the terms
+sum of digit `e`; the bound grows by `31` per pass. -/
+theorem z_apply_terms_lanes_spec (terms : quadeval.ZTerms) (src : alloc.vec.Vec Std.U64)
+    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (B : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
+    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length)
     (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
     (hnlen : terms.idx.val.length ≤ terms.neg.val.length)
     (hidx : ∀ u, u < terms.idx.val.length → idxAt terms.idx u < N)
-    (hB : B + magSum terms.mag terms.idx.val.length * q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N → reg buf (g0 + e) w ≤ B) :
-    quadeval.z_apply_terms terms words buf rbU
+    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 20)
+    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B) :
+    quadeval.z_apply_terms_lanes terms src buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N →
-            reg z (g0 + e) w ≤ B + magSum terms.mag terms.idx.val.length * q)
-        ∧ (∀ e, e < 8 → ∀ w, w < N → ((reg z (g0 + e) w : ℕ) : ZMod q)
-            = ((reg buf (g0 + e) w : ℕ) : ZMod q)
-              + termsSum (nibW words e) terms.idx terms.mag terms.neg
-                  terms.idx.val.length w)
-        ∧ Frame buf z g0 ⦄ := by
-  rw [quadeval.z_apply_terms]
-  apply spec_mono (z_apply_terms_loop0_spec terms.idx terms.mag terms.neg words rbU
-    (alloc.vec.Vec.len terms.idx) buf 0#usize buf g0
-    (fun e w => ((reg buf (g0 + e) w : ℕ) : ZMod q)) B
-    hwl hwlt hrb hcap rfl (by simp) (by simpa using hmlen) (by simpa using hnlen)
+        ∧ (∀ p, p < N → ∀ l, l < 3 →
+            WB (slotW z r0 p l) (B + 31 * magSum terms.mag terms.idx.val.length))
+        ∧ (∀ p, p < N → ∀ e, e < 8 → laneD z r0 p e
+            = laneD buf r0 p e
+              + termsSum (dgZ D e) terms.idx terms.mag terms.neg terms.idx.val.length p)
+        ∧ FrameR buf z r0 ⦄ := by
+  rw [quadeval.z_apply_terms_lanes]
+  apply spec_mono (z_apply_terms_lanes_loop0_spec terms.idx terms.mag terms.neg src rbU
+    (alloc.vec.Vec.len terms.idx) buf 0#usize buf r0 D (fun e p => laneD buf r0 p e) B
+    hsrc hD hD8 hrb hcap rfl (by simp) (by simpa using hmlen) (by simpa using hnlen)
     (by simpa using hidx) (by simp) (by simpa using hB)
-    (by intro e he w hw; simp only [magSum, Finset.range_zero, Finset.sum_empty]; simpa using hbnd e he w hw)
-    (by intro e he w hw; simp only [termsSum, Finset.range_zero, Finset.sum_empty]; simp)
-    (Frame_refl buf g0))
+    (by intro p hp l hl; simpa [magSum] using hbnd p hp l hl)
+    (by intro p hp e he; simp [termsSum])
+    (FrameR_refl buf r0))
   rintro z ⟨h1, h2, h3, h4⟩
   refine ⟨h1, by simpa using h2, by simpa using h3, h4⟩
 
-/-! ## 8. `z_terms`: the description, budgeted
+/-! ## 9. `z_terms`: the description, budgeted
 
 `classify_short_loop_spec` at this module's type, with two more conjuncts: the
 pass count is the running total, and the total is within the budget -- which is
-what the block loop's reduction schedule leans on. -/
+what the block loop's flush schedule leans on. -/
 
 theorem magSum_append {dm dm' : alloc.vec.Vec Std.U64} {mx : Std.U64} (t : ℕ)
     (hm : dm'.val = dm.val ++ [mx]) (ht : t = dm.val.length) :
@@ -1851,77 +1496,33 @@ theorem z_terms_spec (c : ring.Rq) (hc : Wf c) :
   · intro j hj
     rw [e5 j, if_pos hj]
 
-/-! ## 9. `z_row`: the words, then the terms -/
 
-/-- The words loop: the row's coefficients, as `u64`, in order. -/
-theorem z_row_loop_spec (row : ring.Rq) (nU : Std.Usize) (words : alloc.vec.Vec Std.U64)
-    (iU : Std.Usize)
-    (hrow : Wf row) (hn : nU.val = N) (hi : iU.val ≤ N) (hlen : words.val.length = iU.val)
-    (hval : ∀ i, i < iU.val → bufN words i = wordN row i) :
-    quadeval.z_row_loop row nU words iU
-      ⦃ z => z.val.length = N ∧ ∀ i, i < N → bufN z i = wordN row i ⦄ := by
-  rw [quadeval.z_row_loop]
-  apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
-    (fun t => t.2.val ≤ N ∧ t.1.val.length = t.2.val
-      ∧ ∀ i, i < t.2.val → bufN t.1 i = wordN row i)
-  · rintro ⟨ws, ii⟩ ⟨hii, hwl, hwv⟩
-    dsimp only at hii hwl hwv
-    simp only [quadeval.z_row_loop.body]
-    by_cases hlt : ii < nU
-    · rw [if_pos hlt]
-      have hiilt : ii.val < N := by rw [← hn]; scalar_tac
-      have hmax : ws.val.length < Std.Usize.max := by
-        rw [hwl]; have := usize_max_ge; have h3 : N = 1024 := rfl; omega
-      step with Raw32.coeff_word_spec row ii hrow hiilt as ⟨f, hf⟩
-      step with to_u64_id f as ⟨x, hx⟩
-      step as ⟨ws1, hws1⟩
-      step as ⟨ii1, hii1⟩
-      refine ⟨by omega, ?_, ?_, by omega⟩
-      · rw [hws1, hii1, List.length_append, hwl]; simp
-      · intro i hi
-        rw [hii1] at hi
-        rcases Nat.lt_or_ge i ii.val with hlt2 | hge
-        · unfold bufN
-          rw [hws1, getD_append_lt _ _ _ (by omega)]
-          exact hwv i hlt2
-        · have hieq : i = ws.val.length := by omega
-          unfold bufN wordN
-          rw [hieq, hws1, getD_append_eq, hx, hf, hwl]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : ii.val = N := by rw [← hn]; scalar_tac
-      exact ⟨by rw [hwl, heq], fun i hi => hwv i (by rw [heq]; exact hi)⟩
-  · exact ⟨hi, hlen, hval⟩
+/-! ## 10. `z_row_lanes`: the spread, then the terms -/
 
-/-- **`z_row`.** Each of the row's eight regions gains the product of the
-challenge with that digit polynomial, as a ring element; the bound grows by
-the pass count times `q`; nothing else moves. -/
-theorem z_row_spec (terms : quadeval.ZTerms) (row : ring.Rq) (buf : alloc.vec.Vec Std.U64)
-    (rbU : Std.Usize) (g0 : ℕ) (ci : ring.Rq) (B : ℕ)
+/-- **`z_row_lanes`.** Each of the row's eight digit accumulators gains the
+product of the challenge with that digit polynomial, as a ring element; the
+bound grows by `31` per pass; nothing outside the row's slots moves. -/
+theorem z_row_lanes_spec (terms : quadeval.ZTerms) (row : ring.Rq)
+    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (ci : ring.Rq) (B : ℕ)
     (hrow : Wf row) (hci : Wf ci)
-    (hrb : rbU.val = g0 * S) (hcap : (g0 + 8) * S ≤ buf.val.length)
+    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length)
     (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
     (hnlen : terms.idx.val.length ≤ terms.neg.val.length)
     (hidx : ∀ u, u < terms.idx.val.length → idxAt terms.idx u < N)
     (hden : ∀ j, j < N →
       coeffK ci j = descCoeffW terms.idx terms.mag terms.neg terms.idx.val.length j)
-    (hB : B + magSum terms.mag terms.idx.val.length * q ≤ Std.U64.max)
-    (hbnd : ∀ e, e < 8 → ∀ w, w < N → reg buf (g0 + e) w ≤ B) :
-    quadeval.z_row terms row buf rbU
+    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 20)
+    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B) :
+    quadeval.z_row_lanes terms row buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ e, e < 8 → ∀ w, w < N →
-            reg z (g0 + e) w ≤ B + magSum terms.mag terms.idx.val.length * q)
-        ∧ (∀ e, e < 8 → regRq z (g0 + e) = regRq buf (g0 + e) + toRq ci * digitRq row e)
-        ∧ Frame buf z g0 ⦄ := by
-  rw [quadeval.z_row]
-  simp only [alloc.vec.Vec.with_capacity]
-  step with z_row_loop_spec row params.RING_DEGREE (alloc.vec.Vec.new Std.U64) 0#usize hrow
-    params_RING_DEGREE_val (by simp) (by simp) (by intro i hi; simp at hi)
-    as ⟨words, hwl, hwv⟩
-  have hwlt : ∀ i, i < N → bufN words i < q := fun i hi => by
-    rw [hwv i hi]; exact wordN_lt hrow i
-  apply spec_mono (z_apply_terms_spec terms words buf rbU g0 B hwl hwlt hrb hcap hmlen hnlen
-    hidx hB hbnd)
+        ∧ (∀ p, p < N → ∀ l, l < 3 →
+            WB (slotW z r0 p l) (B + 31 * magSum terms.mag terms.idx.val.length))
+        ∧ (∀ e, e < 8 → laneRq z r0 e = laneRq buf r0 e + toRq ci * digitRq row e)
+        ∧ FrameR buf z r0 ⦄ := by
+  rw [quadeval.z_row_lanes]
+  step with z_spread_spec row hrow as ⟨src, hsrc⟩
+  apply spec_mono (z_apply_terms_lanes_spec terms src buf rbU r0 (nibN row) B hsrc
+    (nibN_le row) (nibN_eight row hrow) hrb hcap hmlen hnlen hidx hB hbnd)
   rintro z ⟨h1, h2, h3, h4⟩
   refine ⟨h1, h2, ?_, h4⟩
   intro e he
@@ -1935,12 +1536,312 @@ theorem z_row_spec (terms : quadeval.ZTerms) (row : ring.Rq) (buf : alloc.vec.Ve
       refine (Finset.sum_eq_zero (fun u hu => ?_)).symm
       unfold single
       rw [if_neg (by have := hidx u (by simpa using hu); omega)]
-  apply regRq_gain z buf (g0 + e) ci row hci hrow e
-  intro w hw
-  rw [h3 e he w hw, nibW_eq_nib words row hrow hwl hwv e,
-    termsSum_eq_negConvF (nib row e) terms.idx terms.mag terms.neg terms.idx.val.length w
-      hidx hw (fun i hi => nib_of_ge row hrow e hi)]
+  apply laneRq_gain z buf r0 ci row hci hrow e
+  intro p hp
+  rw [h3 p hp e he]
+  have hdg : dgZ (nibN row) e = nib row e := rfl
+  rw [hdg, termsSum_eq_negConvF (nib row e) terms.idx terms.mag terms.neg
+      terms.idx.val.length p hidx hp (fun i hi => nib_of_ge row hrow e hi)]
   congr 2
   exact (funext hdenall).symm
+
+/-! ## 11. Decoding, flushing and zeroing the packed accumulator
+
+The decode reads lane `e` and the record with a shift and a mask -- total, and
+exact whatever the words hold, because a lane is *defined* as those bits
+([`lane`]) -- and returns `lane_e + q − record`, which `Fp::new` reduces to
+[`laneD`]. The record is below `2^20 < q`, so the `u64` subtraction never
+borrows. -/
+
+theorem vgetD_set_eq {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x d : α}
+    (ht : t.val < v.val.length) : (v.set t x).val.getD t.val d = x := by
+  rw [alloc.vec.Vec.set_val_eq,
+    List.getD_eq_getElem _ _ (by rw [List.length_set]; exact ht), List.getElem_set]
+  simp
+
+theorem vgetD_set_ne {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x d : α}
+    {k : ℕ} (h : k ≠ t.val) : (v.set t x).val.getD k d = v.val.getD k d := by
+  rw [alloc.vec.Vec.set_val_eq]
+  by_cases hk : k < v.val.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+theorem all_set {α : Type} {P : α → Prop} {v : alloc.vec.Vec α}
+    {t : Std.Usize} {y : α} (hv : ∀ x ∈ v.val, P x) (hy : P y) :
+    ∀ x ∈ (v.set t y).val, P x := by
+  intro x hx
+  rw [alloc.vec.Vec.set_val_eq] at hx
+  rcases List.mem_or_eq_of_mem_set hx with h | h
+  · exact hv x h
+  · rw [h]; exact hy
+
+theorem vset_length {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x : α} :
+    (v.set t x).val.length = v.val.length := by
+  rw [alloc.vec.Vec.set_val_eq, List.length_set]
+
+/-- The decode loop: coefficient `p` is `laneD zp r p e`, reduced. -/
+theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU nU : Std.Usize)
+    (qU : Std.U64) (wordU shiftU : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
+    (pU : Std.Usize) (r e : ℕ)
+    (hbase : baseU.val = 3 * (r * N)) (hn : nU.val = N) (hq : qU.val = q) (he : e < 8)
+    (hword : wordU.val = e / 3) (hshift : shiftU.val = 20 * (e % 3))
+    (hcap : 3 * ((r + 1) * N) ≤ zp.val.length)
+    (hp : pU.val ≤ N) (hlen : out.val.length = pU.val) (hred : ∀ u ∈ out.val, Red u)
+    (hval : ∀ p, p < pU.val → coeffK out p = laneD zp r p e) :
+    quadeval.z_lane_decode_loop zp baseU nU qU wordU shiftU out pU
+      ⦃ cs => cs.val.length = N ∧ (∀ u ∈ cs.val, Red u)
+        ∧ ∀ p, p < N → coeffK cs p = laneD zp r p e ⦄ := by
+  rw [quadeval.z_lane_decode_loop]
+  apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
+    (fun t => t.2.val ≤ N ∧ t.1.val.length = t.2.val ∧ (∀ u ∈ t.1.val, Red u)
+      ∧ ∀ p, p < t.2.val → coeffK t.1 p = laneD zp r p e)
+  · rintro ⟨o, pp⟩ ⟨hpp, hol, hor, hov⟩
+    dsimp only at hpp hol hor hov
+    simp only [quadeval.z_lane_decode_loop.body]
+    by_cases hlt : pp < nU
+    · rw [if_pos hlt]
+      have hpl : pp.val < N := by rw [← hn]; scalar_tac
+      have hzmax : zp.val.length ≤ Std.Usize.max := zp.property
+      have hat2 : slotIdx r pp.val 2 < zp.val.length := slotIdx_lt hpl (by norm_num) hcap
+      have hatw : slotIdx r pp.val (e / 3) < zp.val.length := slotIdx_lt hpl (by omega) hcap
+      step as ⟨i, hi⟩
+      have hat1v' : baseU.val + i.val = slotIdx r pp.val 0 := by
+        rw [hbase, hi, z_lane_words_val]; unfold slotIdx; ring
+      have hat1max : baseU.val + i.val ≤ Std.Usize.max := by
+        have := slotIdx_lt hpl (by norm_num : (0 : ℕ) < 3) hcap; omega
+      step as ⟨at1, hat1⟩
+      have hat1v : at1.val = slotIdx r pp.val 0 := by rw [hat1, hat1v']
+      have hi1v' : at1.val + wordU.val = slotIdx r pp.val (e / 3) := by
+        rw [hat1v, hword]; unfold slotIdx; ring
+      have hi1max : at1.val + wordU.val ≤ Std.Usize.max := by omega
+      step as ⟨i1, hi1⟩
+      have hi1v : i1.val = slotIdx r pp.val (e / 3) := by rw [hi1, hi1v']
+      step as ⟨w, hw⟩
+      have hi2v' : at1.val + 2 = slotIdx r pp.val 2 := by rw [hat1v]; unfold slotIdx; ring
+      have hi2max : at1.val + 2 ≤ Std.Usize.max := by omega
+      step as ⟨i2, hi2⟩
+      have hi2v : i2.val = slotIdx r pp.val 2 := by rw [hi2, hi2v']
+      step as ⟨c, hc⟩
+      have hwv : w.val = slotW zp r pp.val (e / 3) := by
+        unfold slotW; rw [hw, ← bufN_of_lt (v := zp) (w := i1.val) (by omega), hi1v]
+      have hcv : c.val = slotW zp r pp.val 2 := by
+        unfold slotW; rw [hc, ← bufN_of_lt (v := zp) (w := i2.val) (by omega), hi2v]
+      have hsh : shiftU.val < 64 := by rw [hshift]; omega
+      step as ⟨i3, hi3, _⟩
+      step as ⟨ln, hln, _⟩
+      step as ⟨i4, hi4, _⟩
+      step as ⟨rec, hrec, _⟩
+      have hmask : (1048575 : ℕ) = 2 ^ 20 - 1 := by norm_num
+      have hlnv : ln.val = lane zp r pp.val e := by
+        rw [hln, UScalar.val_and, hi3, z_lane_mask_val, hwv, hshift, hmask,
+          Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow]
+        rfl
+      have hrecv : rec.val = lane zp r pp.val 8 := by
+        rw [hrec, UScalar.val_and, hi4, z_lane_mask_val, hcv, hmask,
+          Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow]
+        rfl
+      have hlnlt : ln.val < 2 ^ 20 := by rw [hlnv]; exact laneOf_lt _ _
+      have hreclt : rec.val < 2 ^ 20 := by rw [hrecv]; exact laneOf_lt _ _
+      have hqv : q = 4294967197 := rfl
+      have hi5max : ln.val + qU.val ≤ Std.U64.max := by
+        rw [hq, u64_max_val, hqv]; norm_num at hlnlt; omega
+      step as ⟨i5, hi5⟩
+      have hrecle : rec.val ≤ i5.val := by
+        rw [hi5, hq, hqv]; norm_num at hreclt; omega
+      step as ⟨v, hv⟩
+      step with fp_new_spec v as ⟨f, hRf, hfv⟩
+      have hmax : o.val.length < Std.Usize.max := by
+        rw [hol]; have := usize_max_ge; have h3 : N = 1024 := rfl; omega
+      step as ⟨o1, ho1⟩
+      step as ⟨pp1, hpp1⟩
+      have hkey : coeffK o1 pp.val = toK f := by
+        unfold coeffK; rw [ho1, ← hol, getD_append_eq]
+      refine ⟨by omega, by rw [ho1, hpp1, List.length_append, hol]; simp, ?_, ?_, by omega⟩
+      · intro u hu
+        rw [ho1, List.mem_append, List.mem_singleton] at hu
+        rcases hu with h | h
+        · exact hor u h
+        · rw [h]; exact hRf
+      · intro p hp
+        rw [hpp1] at hp
+        rcases Nat.lt_or_ge p pp.val with hlt2 | hge
+        · unfold coeffK; rw [ho1, getD_append_lt _ _ _ (by omega)]; exact hov p hlt2
+        · have hpeq : p = pp.val := by omega
+          rw [hpeq, hkey, hfv, hv, hi5, hlnv, hrecv, hq]
+          unfold laneD
+          rw [← hlnv, ← hrecv]
+          rw [Nat.cast_sub (by omega), Nat.cast_add, ZMod.natCast_self]
+          ring
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : pp.val = N := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hol, heq], hor, fun p hp => hov p (by rw [heq]; exact hp)⟩
+  · exact ⟨hp, hlen, hred, hval⟩
+
+/-- **`z_lane_decode`.** Digit `e`'s polynomial of row `r`: coefficient `p` is
+`laneD zp r p e`, as a reduced field element. No hypothesis on the words. -/
+theorem z_lane_decode_spec (zp : alloc.vec.Vec Std.U64) (baseU eU : Std.Usize) (r : ℕ)
+    (hbase : baseU.val = 3 * (r * N)) (he : eU.val < 8)
+    (hcap : 3 * ((r + 1) * N) ≤ zp.val.length) :
+    quadeval.z_lane_decode zp baseU eU
+      ⦃ cs => cs.val.length = N ∧ (∀ u ∈ cs.val, Red u)
+        ∧ ∀ p, p < N → coeffK cs p = laneD zp r p eU.val ⦄ := by
+  rw [quadeval.z_lane_decode]
+  step as ⟨word, hword⟩
+  step as ⟨i, hi⟩
+  step as ⟨shift, hshift⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  exact z_lane_decode_loop_spec zp baseU params.RING_DEGREE params.Q word shift
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize r eU.val hbase params_RING_DEGREE_val
+    params_Q_val he (by rw [hword]) (by rw [hshift, hi]) hcap (by simp) (by simp)
+    (by intro u hu; simp at hu) (by intro p hp; simp at hp)
+
+/-- The flush loop: `out[j] = acc[j] + laneRq zp (j / 8) (j % 8)` for `j` done,
+`out[j] = acc[j]` for `j` to go. -/
+theorem z_lane_flush_loop_spec (zp : alloc.vec.Vec Std.U64) (nU digitsU widthU : Std.Usize)
+    (out : alloc.vec.Vec ring.Rq) (jU : Std.Usize) (acc : alloc.vec.Vec ring.Rq)
+    (hn : nU.val = N) (hd : digitsU.val = 8) (hw : widthU.val = 2 ^ 10 * 8)
+    (hzl : zp.val.length = 3 * (2 ^ 10 * N))
+    (hj : jU.val ≤ 2 ^ 10 * 8) (hol : out.val.length = 2 ^ 10 * 8)
+    (howf : ∀ x ∈ out.val, Wf x)
+    (hdone : ∀ t, t < jU.val → toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+      = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + laneRq zp (t / 8) (t % 8))
+    (hrest : ∀ t, jU.val ≤ t → out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
+      = acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) :
+    quadeval.z_lane_flush_loop zp nU digitsU widthU out jU
+      ⦃ z => z.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.val, Wf x)
+        ∧ ∀ t, t < 2 ^ 10 * 8 → toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+              + laneRq zp (t / 8) (t % 8) ⦄ := by
+  have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
+  rw [quadeval.z_lane_flush_loop]
+  apply loop.spec_decr_nat (fun r => 2 ^ 10 * 8 - r.2.val)
+    (fun r => r.2.val ≤ 2 ^ 10 * 8 ∧ r.1.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ r.1.val, Wf x)
+      ∧ (∀ t, t < r.2.val → toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+          = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            + laneRq zp (t / 8) (t % 8))
+      ∧ ∀ t, r.2.val ≤ t → r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
+          = acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+  · rintro ⟨o, jj⟩ ⟨hjj, hol, how, hov, hor⟩
+    dsimp only at hjj hol how hov hor
+    simp only [quadeval.z_lane_flush_loop.body]
+    by_cases hlt : jj < widthU
+    · rw [if_pos hlt]
+      have hjl : jj.val < 2 ^ 10 * 8 := by rw [← hw]; scalar_tac
+      have hd0 : digitsU.val ≠ 0 := by rw [hd]; norm_num
+      step as ⟨rr, hrr⟩
+      step as ⟨ee, hee⟩
+      have hrrv : rr.val = jj.val / 8 := by rw [hrr, hd]
+      have heev : ee.val = jj.val % 8 := by rw [hee, hd]
+      have hrr1024 : rr.val < 1024 := by rw [hrrv]; rw [h1024] at hjl; omega
+      step as ⟨i, hi⟩
+      have hmulmax : i.val * nU.val ≤ Std.Usize.max := by
+        rw [hi, hn, z_lane_words_val]
+        have := usize_max_ge; have h3 : N = 1024 := rfl; rw [h3]; nlinarith
+      step as ⟨base, hbase⟩
+      have hbv : base.val = 3 * (rr.val * N) := by
+        rw [hbase, hi, hn, z_lane_words_val]; ring
+      have hcapz : 3 * ((rr.val + 1) * N) ≤ zp.val.length := by
+        rw [hzl, h1024]
+        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
+      step with z_lane_decode_spec zp base ee rr.val hbv (by rw [heev]; omega) hcapz
+        as ⟨cs, hcsl, hcsr, hcsv⟩
+      step with RqBridge.from_coeffs_spec cs hcsr as ⟨zr, hzrwf, hzrval⟩
+      have hzrl : toRq zr = laneRq zp (jj.val / 8) (jj.val % 8) := by
+        rw [hzrval, ← hrrv, ← heev]
+        unfold laneRq
+        exact ofFinCoeff_congr (fun t ht => hcsv t ht)
+      have hob : jj.val < o.val.length := by rw [hol]; exact hjl
+      step as ⟨r1, hr1⟩
+      have hr1g : r1 = acc.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp) := by
+        rw [hr1, ← hor jj.val (le_refl _), List.getD_eq_getElem _ _ hob]
+      have hr1wf : Wf r1 := by rw [hr1]; exact how _ (List.getElem_mem hob)
+      step with RqBridge.add_spec r1 zr hr1wf hzrwf as ⟨r2, hr2wf, hr2val⟩
+      step as ⟨xa, back, hxa, hback⟩
+      step as ⟨jj1, hjj1⟩
+      rw [hback]
+      refine ⟨by omega, by rw [vset_length, hol], all_set how hr2wf, ?_, ?_, by omega⟩
+      · intro t ht
+        rw [hjj1] at ht
+        by_cases hte : t = jj.val
+        · subst hte
+          rw [vgetD_set_eq hob, hr2val, hzrl, hr1g]
+        · rw [vgetD_set_ne hte]; exact hov t (by omega)
+      · intro t ht
+        rw [hjj1] at ht
+        rw [vgetD_set_ne (by omega)]; exact hor t (by omega)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = 2 ^ 10 * 8 := by rw [← hw]; scalar_tac
+      exact ⟨hol, how, fun t ht => hov t (by rw [heq]; exact ht)⟩
+  · exact ⟨hj, hol, howf, hdone, hrest⟩
+
+/-- **`z_lane_flush`.** `acc[8r + e]` gains digit `e`'s accumulator of row `r`
+as a ring element; `zp` is read, never written. -/
+theorem z_lane_flush_spec (acc : alloc.vec.Vec ring.Rq) (zp : alloc.vec.Vec Std.U64)
+    (hacc : acc.val.length = 2 ^ 10 * 8) (hwf : ∀ x ∈ acc.val, Wf x)
+    (hzl : zp.val.length = 3 * (2 ^ 10 * N)) :
+    quadeval.z_lane_flush acc zp
+      ⦃ z => z.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.val, Wf x)
+        ∧ ∀ t, t < 2 ^ 10 * 8 → toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+            = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+              + laneRq zp (t / 8) (t % 8) ⦄ := by
+  rw [quadeval.z_lane_flush]
+  step as ⟨width, hwidth⟩
+  case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
+  have hwv : width.val = 2 ^ 10 * 8 := by
+    have h : (2 : ℕ) ^ 10 * 8 = 8192 := by norm_num
+    rw [h]
+    simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
+    scalar_tac
+  exact z_lane_flush_loop_spec zp params.RING_DEGREE params.GADGET_DIGITS width acc 0#usize acc
+    params_RING_DEGREE_val (by simp [params.GADGET_DIGITS]) hwv hzl (by simp) hacc hwf
+    (by intro t ht; simp at ht) (fun _ _ => rfl)
+
+/-- The zeroing loop. -/
+theorem z_lane_zero_loop_spec (out : alloc.vec.Vec Std.U64) (lenU iU : Std.Usize)
+    (buf0 : alloc.vec.Vec Std.U64)
+    (hlen : lenU.val = buf0.val.length) (hi : iU.val ≤ lenU.val)
+    (hol : out.val.length = buf0.val.length)
+    (hdone : ∀ t, t < iU.val → bufN out t = 0) :
+    quadeval.z_lane_zero_loop out lenU iU
+      ⦃ z => z.val.length = buf0.val.length ∧ ∀ t, bufN z t = 0 ⦄ := by
+  rw [quadeval.z_lane_zero_loop]
+  apply loop.spec_decr_nat (fun t => lenU.val - t.2.val)
+    (fun t => t.2.val ≤ lenU.val ∧ t.1.val.length = buf0.val.length
+      ∧ ∀ u, u < t.2.val → bufN t.1 u = 0)
+  · rintro ⟨o, ii⟩ ⟨hii, hol, hod⟩
+    dsimp only at hii hol hod
+    simp only [quadeval.z_lane_zero_loop.body]
+    by_cases hlt : ii < lenU
+    · rw [if_pos hlt]
+      have hiilt : ii.val < lenU.val := by scalar_tac
+      have hib : ii.val < o.val.length := by rw [hol, ← hlen]; exact hiilt
+      step as ⟨xw, back, hxw, hback⟩
+      step as ⟨i1, hi1⟩
+      rw [hback]
+      refine ⟨by omega, by rw [set_length]; exact hol, ?_, by omega⟩
+      intro u hu
+      rw [hi1] at hu
+      by_cases hue : u = ii.val
+      · subst hue; rw [bufN_set_eq hib]; rfl
+      · rw [bufN_set_ne hue]; exact hod u (by omega)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = lenU.val := by scalar_tac
+      refine ⟨hol, fun u => ?_⟩
+      by_cases hu : u < o.val.length
+      · exact hod u (by rw [heq, hlen, ← hol]; exact hu)
+      · unfold bufN; rw [List.getD_eq_default _ _ (by omega)]; rfl
+  · exact ⟨hi, hol, hdone⟩
+
+/-- **`z_lane_zero`.** Every word `0`, length kept. -/
+theorem z_lane_zero_spec (buf : alloc.vec.Vec Std.U64) :
+    quadeval.z_lane_zero buf ⦃ z => z.val.length = buf.val.length ∧ ∀ t, bufN z t = 0 ⦄ := by
+  rw [quadeval.z_lane_zero]
+  exact z_lane_zero_loop_spec buf (alloc.vec.Vec.len buf) 0#usize buf (by simp) (by simp) rfl
+    (by intro t ht; simp at ht)
 
 end HachiEquiv.ZPacked
