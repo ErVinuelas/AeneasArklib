@@ -6844,10 +6844,15 @@ theorem round_values_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
   rintro o ⟨holen, hored, hoval⟩
   exact ⟨holen, hored, fun t => hoval t.val t.isLt⟩
 
-/-- The `y` loop of `round_poly_alpha_split`: [`round_poly_alpha_loop_spec`]
+/-- The `y` loop of `round_poly_alpha_split_pairs`: [`round_poly_alpha_loop_spec`]
 with `Ã`'s two entries read through the tensor split instead of out of a
-table. The coefficients are the same `qC0`/`qC1`/`qC2`. -/
-theorem round_poly_alpha_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
+table. The coefficients are the same `qC0`/`qC1`/`qC2`.
+
+Card T41 moved card T38's per-pair body, verbatim, into
+`round_poly_alpha_split_pairs` (the branch for an odd or empty `low`, which no
+spec reaches), and this spec with it: renamed from
+`round_poly_alpha_split_loop_spec`, statement and proof unchanged. -/
+theorem round_poly_alpha_split_pairs_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
     (w low high : alloc.vec.Vec cpoly.field.Ext4) (half l : Std.Usize)
     (c0 c1 c2 : cpoly.field.Ext4) (y : Std.Usize)
     (hw : WfEvals (κ + 1) w) (hlow : WfEvals k low) (hhigh : WfEvals j high)
@@ -6861,7 +6866,7 @@ theorem round_poly_alpha_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
     (hv2 : toExt c2 = ∑ t ∈ Finset.range y.val,
       qC2 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ k) (2 * u))
         (fun u => tensorRead low high (2 ^ k) (2 * u + 1)) t) :
-    sumcheck.round_poly_alpha_split_loop w low high half l c0 c1 c2 y
+    sumcheck.round_poly_alpha_split_pairs_loop w low high half l c0 c1 c2 y
       ⦃ z => Reduced z.1 ∧ Reduced z.2.1 ∧ Reduced z.2.2
         ∧ toExt z.1 = ∑ t ∈ Finset.range (2 ^ κ),
             qC0 (evenF w) (fun u => tensorRead low high (2 ^ k) (2 * u)) t
@@ -6877,7 +6882,7 @@ theorem round_poly_alpha_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
   have hwmax : w.val.length ≤ Usize.max := w.property
   have htwo : (2 : ℕ) ^ k * 2 ^ j = 2 ^ (κ + 1) := by rw [← pow_add]; congr 1; omega
   have hmax := usize_max_ge
-  rw [sumcheck.round_poly_alpha_split_loop]
+  rw [sumcheck.round_poly_alpha_split_pairs_loop]
   apply loop.spec_decr_nat (fun s => 2 ^ κ - s.2.2.2.val)
     (fun s => s.2.2.2.val ≤ 2 ^ κ ∧ Reduced s.1 ∧ Reduced s.2.1 ∧ Reduced s.2.2.1
       ∧ toExt s.1 = ∑ t ∈ Finset.range s.2.2.2.val,
@@ -6890,7 +6895,7 @@ theorem round_poly_alpha_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
             (fun u => tensorRead low high (2 ^ k) (2 * u + 1)) t)
   · rintro ⟨d0, d1, d2, u⟩ ⟨hu, hD0, hD1, hD2, he0, he1, he2⟩
     dsimp only at hu hD0 hD1 hD2 he0 he1 he2
-    simp only [sumcheck.round_poly_alpha_split_loop.body]
+    simp only [sumcheck.round_poly_alpha_split_pairs_loop.body]
     by_cases hlt : u < half
     · rw [if_pos hlt]
       have hult : u.val < 2 ^ κ := by
@@ -6983,29 +6988,347 @@ theorem round_poly_alpha_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
       exact ⟨hD0, hD1, hD2, by rw [he0, hueq], by rw [he1, hueq], by rw [he2, hueq]⟩
   · exact ⟨hyb, hR0, hR1, hR2, hv0, hv1, hv2⟩
 
-/-- `round_poly_alpha_split` builds the same three coefficients through the
-tensor split (card T38). Statement unchanged. -/
-theorem round_poly_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
+/-! ##### Card T41: the pairs visited block by block
+
+`round_poly_alpha_split` now dispatches on `l = low.len()`, which the spec pins
+to `2 ^ k`. At `k = 0` the low factor is the scalar `low[0]` and the whole
+polynomial is `round_poly_alpha` on `high` scaled once by it
+(`round_poly_alpha_spec`, `uni_smul_spec`). At `k ≥ 1` the length `l` is even,
+so a pair never straddles a high block, and `round_poly_alpha_split_blocks`
+sums each block against `low` alone (`alpha_block_sums`) and scales the three
+sums once by the block's `high` entry. The per-pair branch
+(`round_poly_alpha_split_pairs`, for an odd or empty `low`) is unreachable
+under the spec's `2 ^ k`. Every invariant below is T38's `qC0`/`qC1`/`qC2` over
+the tensor read; only the grouping of the additions moved, which is an
+identity of the field. -/
+
+/-- **Card T41's index facts.** In high block `b` of an even low factor
+`l = 2 ^ (k + 1)`, the pair `y = b · 2 ^ k + u` (`u < 2 ^ k`) reads its two `Ã`
+entries as `low[2u] · high[b]` and `low[2u + 1] · high[b]`: the `%` and `/` of
+`2y` and `2y + 1` by `l`. -/
+theorem tensorRead_block {k : ℕ} (low high : alloc.vec.Vec cpoly.field.Ext4) (b u : ℕ)
+    (hu : u < 2 ^ k) :
+    tensorRead low high (2 ^ (k + 1)) (2 * (b * 2 ^ k + u))
+        = evenF low u * toExt (high.val.getD b cpoly.field.Ext4.ZERO)
+      ∧ tensorRead low high (2 ^ (k + 1)) (2 * (b * 2 ^ k + u) + 1)
+        = oddF low u * toExt (high.val.getD b cpoly.field.Ext4.ZERO) := by
+  have hpos : 0 < 2 ^ (k + 1) := by positivity
+  have e0 : 2 * (b * 2 ^ k + u) = 2 ^ (k + 1) * b + 2 * u := by rw [pow_succ]; ring
+  have e1 : 2 * (b * 2 ^ k + u) + 1 = 2 ^ (k + 1) * b + (2 * u + 1) := by
+    rw [pow_succ]; ring
+  obtain ⟨h0m, h0d⟩ := mod_div_eq_of hpos e0 (by rw [pow_succ]; omega)
+  obtain ⟨h1m, h1d⟩ := mod_div_eq_of hpos e1 (by rw [pow_succ]; omega)
+  exact ⟨by simp only [tensorRead, evenF, h0m, h0d], by simp only [tensorRead, oddF, h1m, h1d]⟩
+
+/-- **Card T41's regrouping.** Appending a block of `n` pairs at `y₀` to the three
+coefficient sums, when every `Ã` read in the block is a `low`-side read times
+one common `high` entry `h`: each block's contribution is `h` times the same sum
+against the `low` readers alone, and the middle one is `h · (s₁ − s₀ − s₂)`
+over the three block sums `alpha_block_sums` returns. One
+`Finset.sum_range_add`, then distributivity. -/
+theorem qC_block_scale (W0 W1 A0 A1 L0 L1 : ℕ → F) (h : F) (y0 n : ℕ)
+    (hA0 : ∀ u < n, A0 (y0 + u) = L0 u * h) (hA1 : ∀ u < n, A1 (y0 + u) = L1 u * h) :
+    ∑ t ∈ Finset.range (y0 + n), qC0 W0 A0 t
+        = ∑ t ∈ Finset.range y0, qC0 W0 A0 t
+          + h * ∑ u ∈ Finset.range n, qC0 (fun u => W0 (y0 + u)) L0 u
+    ∧ ∑ t ∈ Finset.range (y0 + n), qC1 W0 W1 A0 A1 t
+        = ∑ t ∈ Finset.range y0, qC1 W0 W1 A0 A1 t
+          + h * (∑ u ∈ Finset.range n, qC0 (fun u => W1 (y0 + u)) L1 u
+            - ∑ u ∈ Finset.range n, qC0 (fun u => W0 (y0 + u)) L0 u
+            - ∑ u ∈ Finset.range n,
+                qC2 (fun u => W0 (y0 + u)) (fun u => W1 (y0 + u)) L0 L1 u)
+    ∧ ∑ t ∈ Finset.range (y0 + n), qC2 W0 W1 A0 A1 t
+        = ∑ t ∈ Finset.range y0, qC2 W0 W1 A0 A1 t
+          + h * ∑ u ∈ Finset.range n,
+              qC2 (fun u => W0 (y0 + u)) (fun u => W1 (y0 + u)) L0 L1 u := by
+  refine ⟨?_, ?_, ?_⟩
+  · rw [Finset.sum_range_add, Finset.mul_sum]
+    refine congrArg (_ + ·) (Finset.sum_congr rfl fun u hu => ?_)
+    simp only [qC0, hA0 u (Finset.mem_range.mp hu)]
+    ring
+  · rw [Finset.sum_range_add, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib,
+      Finset.mul_sum]
+    refine congrArg (_ + ·) (Finset.sum_congr rfl fun u hu => ?_)
+    simp only [qC1, qC0, qC2, hA0 u (Finset.mem_range.mp hu), hA1 u (Finset.mem_range.mp hu)]
+    ring
+  · rw [Finset.sum_range_add, Finset.mul_sum]
+    refine congrArg (_ + ·) (Finset.sum_congr rfl fun u hu => ?_)
+    simp only [qC2, hA0 u (Finset.mem_range.mp hu), hA1 u (Finset.mem_range.mp hu)]
+    ring
+
+/-- The `t` loop of `alpha_block_sums`: the three sums over the block's first `t`
+pairs, `w` read at the pairs `y₀ + t` (`base = 2 · y₀`, a ghost) and `low` at
+`2t`, `2t + 1`. The middle sum is the plain `Σ w₁ · ℓ₁`, spelled as `qC0` over
+the odd readers. -/
+theorem alpha_block_sums_loop_spec (w low : alloc.vec.Vec cpoly.field.Ext4)
+    (base cnt : Std.Usize) (y0 : ℕ) (s0 s1 s2 : cpoly.field.Ext4) (t : Std.Usize)
+    (hwred : VecReduced w) (hlowred : VecReduced low)
+    (hbase : base.val = 2 * y0) (hwb : 2 * (y0 + cnt.val) ≤ w.val.length)
+    (hlb : 2 * cnt.val ≤ low.val.length) (htb : t.val ≤ cnt.val)
+    (hR0 : Reduced s0) (hR1 : Reduced s1) (hR2 : Reduced s2)
+    (hv0 : toExt s0 = ∑ u ∈ Finset.range t.val,
+      qC0 (fun u => evenF w (y0 + u)) (evenF low) u)
+    (hv1 : toExt s1 = ∑ u ∈ Finset.range t.val,
+      qC0 (fun u => oddF w (y0 + u)) (oddF low) u)
+    (hv2 : toExt s2 = ∑ u ∈ Finset.range t.val,
+      qC2 (fun u => evenF w (y0 + u)) (fun u => oddF w (y0 + u)) (evenF low) (oddF low) u) :
+    sumcheck.alpha_block_sums_loop w low base cnt s0 s1 s2 t
+      ⦃ z => Reduced z.1 ∧ Reduced z.2.1 ∧ Reduced z.2.2
+        ∧ toExt z.1 = ∑ u ∈ Finset.range cnt.val,
+            qC0 (fun u => evenF w (y0 + u)) (evenF low) u
+        ∧ toExt z.2.1 = ∑ u ∈ Finset.range cnt.val,
+            qC0 (fun u => oddF w (y0 + u)) (oddF low) u
+        ∧ toExt z.2.2 = ∑ u ∈ Finset.range cnt.val,
+            qC2 (fun u => evenF w (y0 + u)) (fun u => oddF w (y0 + u))
+              (evenF low) (oddF low) u ⦄ := by
+  have hwmax : w.val.length ≤ Usize.max := w.property
+  have hlmax : low.val.length ≤ Usize.max := low.property
+  rw [sumcheck.alpha_block_sums_loop]
+  apply loop.spec_decr_nat (fun s => cnt.val - s.2.2.2.val)
+    (fun s => s.2.2.2.val ≤ cnt.val ∧ Reduced s.1 ∧ Reduced s.2.1 ∧ Reduced s.2.2.1
+      ∧ toExt s.1 = ∑ u ∈ Finset.range s.2.2.2.val,
+          qC0 (fun u => evenF w (y0 + u)) (evenF low) u
+      ∧ toExt s.2.1 = ∑ u ∈ Finset.range s.2.2.2.val,
+          qC0 (fun u => oddF w (y0 + u)) (oddF low) u
+      ∧ toExt s.2.2.1 = ∑ u ∈ Finset.range s.2.2.2.val,
+          qC2 (fun u => evenF w (y0 + u)) (fun u => oddF w (y0 + u))
+            (evenF low) (oddF low) u)
+  · rintro ⟨d0, d1, d2, u⟩ ⟨hu, hD0, hD1, hD2, hS0, hS1, hS2⟩
+    dsimp only at hu hD0 hD1 hD2 hS0 hS1 hS2
+    simp only [sumcheck.alpha_block_sums_loop.body]
+    by_cases hlt : u < cnt
+    · rw [if_pos hlt]
+      have hult : u.val < cnt.val := by scalar_tac
+      have hwu : 2 * y0 + 2 * u.val + 1 < w.val.length := by omega
+      have hlu : 2 * u.val + 1 < low.val.length := by omega
+      step as ⟨kk, hkk⟩
+      step as ⟨i, hi⟩
+      have hib : i.val < w.val.length := by rw [hi, hkk, hbase]; omega
+      step as ⟨w0, hw0⟩
+      have hRw0 : Reduced w0 := hw0 ▸ hwred _ (List.getElem_mem hib)
+      step as ⟨i1, hi1⟩
+      have hi1b : i1.val < w.val.length := by rw [hi1, hi, hkk, hbase]; omega
+      step as ⟨w1, hw1⟩
+      have hRw1 : Reduced w1 := hw1 ▸ hwred _ (List.getElem_mem hi1b)
+      have hkb : kk.val < low.val.length := by rw [hkk]; omega
+      step as ⟨l0, hl0⟩
+      have hRl0 : Reduced l0 := hl0 ▸ hlowred _ (List.getElem_mem hkb)
+      step as ⟨i2, hi2⟩
+      have hi2b : i2.val < low.val.length := by rw [hi2, hkk]; omega
+      step as ⟨l1, hl1⟩
+      have hRl1 : Reduced l1 := hl1 ▸ hlowred _ (List.getElem_mem hi2b)
+      step as ⟨p0, hRp0, hp0⟩
+      step as ⟨p1, hRp1, hp1⟩
+      step as ⟨e, hRe, he⟩
+      step as ⟨e1, hRe1, he1⟩
+      step as ⟨p2, hRp2, hp2⟩
+      step as ⟨s01, hRs01, hs01⟩
+      step as ⟨s11, hRs11, hs11⟩
+      step as ⟨s21, hRs21, hs21⟩
+      step as ⟨t1, ht1⟩
+      have gW0 : toExt w0 = evenF w (y0 + u.val) := by
+        rw [hw0, evenF, ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hib, hi, hkk,
+          hbase, mul_add]
+      have gW1 : toExt w1 = oddF w (y0 + u.val) := by
+        rw [hw1, oddF, ← List.getD_eq_getElem w.val cpoly.field.Ext4.ZERO hi1b, hi1, hi, hkk,
+          hbase, mul_add]
+      have gL0 : toExt l0 = evenF low u.val := by
+        rw [hl0, evenF, ← List.getD_eq_getElem low.val cpoly.field.Ext4.ZERO hkb, hkk]
+      have gL1 : toExt l1 = oddF low u.val := by
+        rw [hl1, oddF, ← List.getD_eq_getElem low.val cpoly.field.Ext4.ZERO hi2b, hi2, hkk]
+      refine ⟨by scalar_tac, hRs01, hRs11, hRs21, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hs01, hS0, ht1, Finset.sum_range_succ, hp0, gW0, gL0, qC0]
+      · rw [hs11, hS1, ht1, Finset.sum_range_succ, hp1, gW1, gL1, qC0]
+      · rw [hs21, hS2, ht1, Finset.sum_range_succ, hp2, he, he1, gW1, gW0, gL1, gL0, qC2]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hueq : u.val = cnt.val := by
+        have : cnt.val ≤ u.val := by scalar_tac
+        omega
+      exact ⟨hD0, hD1, hD2, by rw [hS0, hueq], by rw [hS1, hueq], by rw [hS2, hueq]⟩
+  · exact ⟨htb, hR0, hR1, hR2, hv0, hv1, hv2⟩
+
+/-- `alpha_block_sums`: one block's three sums against the `low` factor alone,
+the pairs `y₀ + t` (`t < cnt`) of `w` against `low[2t]`, `low[2t + 1]`. -/
+theorem alpha_block_sums_spec (w low : alloc.vec.Vec cpoly.field.Ext4)
+    (base cnt : Std.Usize) (y0 : ℕ)
+    (hwred : VecReduced w) (hlowred : VecReduced low)
+    (hbase : base.val = 2 * y0) (hwb : 2 * (y0 + cnt.val) ≤ w.val.length)
+    (hlb : 2 * cnt.val ≤ low.val.length) :
+    sumcheck.alpha_block_sums w low base cnt
+      ⦃ z => Reduced z.1 ∧ Reduced z.2.1 ∧ Reduced z.2.2
+        ∧ toExt z.1 = ∑ u ∈ Finset.range cnt.val,
+            qC0 (fun u => evenF w (y0 + u)) (evenF low) u
+        ∧ toExt z.2.1 = ∑ u ∈ Finset.range cnt.val,
+            qC0 (fun u => oddF w (y0 + u)) (oddF low) u
+        ∧ toExt z.2.2 = ∑ u ∈ Finset.range cnt.val,
+            qC2 (fun u => evenF w (y0 + u)) (fun u => oddF w (y0 + u))
+              (evenF low) (oddF low) u ⦄ := by
+  rw [sumcheck.alpha_block_sums]
+  exact alpha_block_sums_loop_spec w low base cnt y0 _ _ _ 0#usize hwred hlowred hbase hwb hlb
+    (by simp) reduced_ZERO reduced_ZERO reduced_ZERO
+    (by simp [toExt_ZERO]) (by simp [toExt_ZERO]) (by simp [toExt_ZERO])
+
+/-- The block loop of `round_poly_alpha_split_blocks`: T38's three coefficient
+sums over the tensor read, carried over the first `y₀` pairs, where
+`y₀ = b · 2 ^ k` pairs are `b` whole high blocks of the even low factor
+`2 ^ (k + 1)` (every block is whole: `2 ^ k` divides `half = 2 ^ κ`, so `cnt` is
+always `2 ^ k`). The invariant is `round_poly_alpha_split_pairs_loop_spec`'s at
+the block boundaries. -/
+theorem round_poly_alpha_split_blocks_loop_spec {j k κ : ℕ} (hjk : j + (k + 1) = κ + 1)
+    (w low high : alloc.vec.Vec cpoly.field.Ext4) (half lh : Std.Usize)
+    (c0 c1 c2 : cpoly.field.Ext4) (y0 b : Std.Usize)
+    (hw : WfEvals (κ + 1) w) (hlow : WfEvals (k + 1) low) (hhigh : WfEvals j high)
+    (hhalfv : half.val = 2 ^ κ) (hlh : lh.val = 2 ^ k)
+    (hyb : y0.val = b.val * 2 ^ k) (hbb : b.val ≤ 2 ^ j)
+    (hR0 : Reduced c0) (hR1 : Reduced c1) (hR2 : Reduced c2)
+    (hv0 : toExt c0 = ∑ t ∈ Finset.range y0.val,
+      qC0 (evenF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u)) t)
+    (hv1 : toExt c1 = ∑ t ∈ Finset.range y0.val,
+      qC1 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+        (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t)
+    (hv2 : toExt c2 = ∑ t ∈ Finset.range y0.val,
+      qC2 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+        (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t) :
+    sumcheck.round_poly_alpha_split_blocks_loop w low high half lh c0 c1 c2 y0 b
+      ⦃ z => Reduced z.1 ∧ Reduced z.2.1 ∧ Reduced z.2.2
+        ∧ toExt z.1 = ∑ t ∈ Finset.range (2 ^ κ),
+            qC0 (evenF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u)) t
+        ∧ toExt z.2.1 = ∑ t ∈ Finset.range (2 ^ κ),
+            qC1 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+              (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t
+        ∧ toExt z.2.2 = ∑ t ∈ Finset.range (2 ^ κ),
+            qC2 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+              (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t ⦄ := by
+  obtain ⟨hwlen, hwred⟩ := hw
+  obtain ⟨hlowlen, hlowred⟩ := hlow
+  obtain ⟨hhighlen, hhighred⟩ := hhigh
+  have hwmax : w.val.length ≤ Usize.max := w.property
+  have hhmax : high.val.length ≤ Usize.max := high.property
+  have htwo : (2 : ℕ) ^ κ = 2 ^ j * 2 ^ k := by rw [← pow_add]; congr 1; omega
+  have hpk : 0 < 2 ^ k := by positivity
+  rw [sumcheck.round_poly_alpha_split_blocks_loop]
+  apply loop.spec_decr_nat (fun s => 2 ^ κ - s.2.2.2.1.val)
+    (fun s => s.2.2.2.1.val = s.2.2.2.2.val * 2 ^ k ∧ s.2.2.2.2.val ≤ 2 ^ j
+      ∧ Reduced s.1 ∧ Reduced s.2.1 ∧ Reduced s.2.2.1
+      ∧ toExt s.1 = ∑ t ∈ Finset.range s.2.2.2.1.val,
+          qC0 (evenF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u)) t
+      ∧ toExt s.2.1 = ∑ t ∈ Finset.range s.2.2.2.1.val,
+          qC1 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+            (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t
+      ∧ toExt s.2.2.1 = ∑ t ∈ Finset.range s.2.2.2.1.val,
+          qC2 (evenF w) (oddF w) (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+            (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) t)
+  · rintro ⟨d0, d1, d2, y, bb⟩ ⟨hy, hb, hD0, hD1, hD2, hS0, hS1, hS2⟩
+    dsimp only at hy hb hD0 hD1 hD2 hS0 hS1 hS2
+    simp only [sumcheck.round_poly_alpha_split_blocks_loop.body]
+    by_cases hlt : y < half
+    · rw [if_pos hlt]
+      have hylt : y.val < 2 ^ κ := by
+        have : y.val < half.val := by scalar_tac
+        omega
+      have hbl : bb.val < 2 ^ j := by
+        have h := hylt
+        rw [hy, htwo] at h
+        exact Nat.lt_of_mul_lt_mul_right h
+      have hyle : y.val + 2 ^ k ≤ 2 ^ κ := by
+        have h := Nat.mul_le_mul_right (2 ^ k) (show bb.val + 1 ≤ 2 ^ j by omega)
+        rw [add_mul, one_mul, ← hy, ← htwo] at h
+        exact h
+      have hwy : 2 * (y.val + 2 ^ k) ≤ w.val.length := by rw [hwlen, pow_succ]; omega
+      have hhb : bb.val < high.val.length := by rw [hhighlen]; exact hbl
+      step as ⟨rest, hrest⟩
+      obtain ⟨cnt, hcnteq, hcntv⟩ : ∃ cnt : Std.Usize,
+          (if lh < rest then ok lh else ok rest : Result Std.Usize) = ok cnt
+            ∧ cnt.val = 2 ^ k := by
+        by_cases hc : lh < rest
+        · exact ⟨lh, if_pos hc, hlh⟩
+        · refine ⟨rest, if_neg hc, ?_⟩
+          have : ¬ lh.val < rest.val := by scalar_tac
+          omega
+      rw [hcnteq, bind_tc_ok]
+      step as ⟨i, hi⟩
+      step with alpha_block_sums_spec w low i cnt y.val hwred hlowred hi
+        (by rw [hcntv]; exact hwy) (by rw [hcntv, hlowlen, pow_succ]; omega)
+        as ⟨s, hRs0, hRs1, hRs2, hs0, hs1, hs2⟩
+      rw [hcntv] at hs0 hs1 hs2
+      step as ⟨h, hh⟩
+      have hRh : Reduced h := hh ▸ hhighred _ (List.getElem_mem hhb)
+      have gH : toExt h = toExt (high.val.getD bb.val cpoly.field.Ext4.ZERO) := by
+        rw [hh, ← List.getD_eq_getElem high.val cpoly.field.Ext4.ZERO hhb]
+      obtain ⟨e, e1, e2⟩ := s
+      dsimp only at hRs0 hRs1 hRs2 hs0 hs1 hs2 ⊢
+      step as ⟨e3, hRe3, he3⟩
+      step as ⟨c01, hRc01, hc01⟩
+      step as ⟨e4, hRe4, he4⟩
+      step as ⟨e5, hRe5, he5⟩
+      step as ⟨e6, hRe6, he6⟩
+      step as ⟨c11, hRc11, hc11⟩
+      step as ⟨e7, hRe7, he7⟩
+      step as ⟨c21, hRc21, hc21⟩
+      step as ⟨y1, hy1⟩
+      step as ⟨b1, hb1⟩
+      have hA0 : ∀ u < 2 ^ k, (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u)) (y.val + u)
+          = evenF low u * toExt h := by
+        intro u hu
+        rw [gH, hy]
+        exact (tensorRead_block low high bb.val u hu).1
+      have hA1 : ∀ u < 2 ^ k,
+          (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1)) (y.val + u)
+            = oddF low u * toExt h := by
+        intro u hu
+        rw [gH, hy]
+        exact (tensorRead_block low high bb.val u hu).2
+      obtain ⟨hB0, hB1, hB2⟩ := qC_block_scale (evenF w) (oddF w)
+        (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u))
+        (fun u => tensorRead low high (2 ^ (k + 1)) (2 * u + 1))
+        (evenF low) (oddF low) (toExt h) y.val (2 ^ k) hA0 hA1
+      have hy1v : y1.val = y.val + 2 ^ k := by rw [hy1, hcntv]
+      refine ⟨?_, by scalar_tac, hRc01, hRc11, hRc21, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [hy1v, hb1, hy, add_mul, one_mul]
+      · rw [hc01, hS0, he3, hs0, hy1v, hB0]
+      · rw [hc11, hS1, he6, he5, he4, hs1, hs0, hs2, hy1v, hB1]
+      · rw [hc21, hS2, he7, hs2, hy1v, hB2]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have hyeq : y.val = 2 ^ κ := by
+        have h1 : half.val ≤ y.val := by scalar_tac
+        have h2 := Nat.mul_le_mul_right (2 ^ k) hb
+        rw [← hy, ← htwo] at h2
+        omega
+      exact ⟨hD0, hD1, hD2, by rw [hS0, hyeq], by rw [hS1, hyeq], by rw [hS2, hyeq]⟩
+  · exact ⟨hyb, hbb, hR0, hR1, hR2, hv0, hv1, hv2⟩
+
+/-- `round_poly_alpha_split_blocks` builds T38's three coefficients block by
+block for an even low factor `2 ^ (k + 1)`, and so equals `linSumAlpha` at the
+tensor table everywhere: `round_poly_alpha_split_spec`'s conclusion at `k + 1`,
+with the same tail (three pushes, `from_coeffs`,
+`linSumAlphaSplit_eq_sum_range`, `ring`). -/
+theorem round_poly_alpha_split_blocks_spec {j k κ : ℕ} (hjk : j + (k + 1) = κ + 1)
     (w low high : alloc.vec.Vec cpoly.field.Ext4)
-    (hw : WfEvals (κ + 1) w) (hlow : WfEvals k low) (hhigh : WfEvals j high) :
-    sumcheck.round_poly_alpha_split w low high
+    (hw : WfEvals (κ + 1) w) (hlow : WfEvals (k + 1) low) (hhigh : WfEvals j high) :
+    sumcheck.round_poly_alpha_split_blocks w low high
       ⦃ out => out.val.length = 3 ∧ VecReduced out ∧
         ∀ x : F, CPolynomial.eval x (toUni out) =
           linSumAlpha (tableFn (m := κ + 1) w)
-            (reidx hjk (tensorTable (tableFn (m := k) low) (tableFn (m := j) high)))
+            (reidx hjk (tensorTable (tableFn (m := k + 1) low) (tableFn (m := j) high)))
             x ⦄ := by
   have hwlen : w.val.length = 2 ^ (κ + 1) := hw.1
-  have hlowlen : low.val.length = 2 ^ k := hlow.1
+  have hlowlen : low.val.length = 2 ^ (k + 1) := hlow.1
   have hRZ : Reduced cpoly.field.Ext4.ZERO := reduced_ZERO
   have hmax := usize_max_ge
-  rw [sumcheck.round_poly_alpha_split]
+  rw [sumcheck.round_poly_alpha_split_blocks]
   step as ⟨half, hhalf⟩
   have hlenw : (alloc.vec.Vec.len w).val = w.val.length := by simp
   have hhalfv : half.val = 2 ^ κ := by
     rw [hhalf, hlenw, hwlen, pow_succ]; omega
-  step with round_poly_alpha_split_loop_spec hjk w low high half (alloc.vec.Vec.len low)
-    cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO 0#usize
-    hw hlow hhigh hhalfv (by simp [hlowlen]) (by simp) hRZ hRZ hRZ
+  step as ⟨lh, hlh⟩
+  have hlenl : (alloc.vec.Vec.len low).val = low.val.length := by simp
+  have hlhv : lh.val = 2 ^ k := by
+    rw [hlh, hlenl, hlowlen, pow_succ]; omega
+  step with round_poly_alpha_split_blocks_loop_spec hjk w low high half lh
+    cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO 0#usize 0#usize
+    hw hlow hhigh hhalfv hlhv (by simp) (by simp) hRZ hRZ hRZ
     (by simp [toExt_ZERO]) (by simp [toExt_ZERO]) (by simp [toExt_ZERO])
     as ⟨c0, c1, c2, hR0, hR1, hR2, hc0, hc1, hc2⟩
   simp only [alloc.vec.Vec.with_capacity]
@@ -7031,7 +7354,7 @@ theorem round_poly_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
   have hg0 : v3.val.getD 0 cpoly.field.Ext4.ZERO = c0 := by
     rw [hv3, getD_append_lt _ _ _ (by rw [hv2l]; norm_num),
       hv2, getD_append_lt _ _ _ (by rw [hv1l]; norm_num), hv1]
-    simpa using getD_append_eq ([] : List cpoly.field.Ext4) c0 cpoly.field.Ext4.ZERO
+    simp
   have hg1 : v3.val.getD 1 cpoly.field.Ext4.ZERO = c1 := by
     rw [hv3, getD_append_lt _ _ _ (by rw [hv2l]; norm_num), hv2, ← hv1l]
     exact getD_append_eq _ _ _
@@ -7053,6 +7376,76 @@ theorem round_poly_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
   refine Finset.sum_congr rfl (fun t _ => ?_)
   simp only [qC0, qC1, qC2, evenF, oddF]
   ring
+
+/-- `linSumAlpha` is linear in its second table: a scalar factor on every entry of
+`Ã` comes out of the sum. What the `l = 1` branch of `round_poly_alpha_split`
+rests on, where `Ã = low[0] · high`. -/
+theorem linSumAlpha_smul_right {k : ℕ} (w a : Fin (2 ^ (k + 1)) → F) (c T : F) :
+    linSumAlpha w (fun y => c * a y) T = c * linSumAlpha w a T := by
+  simp only [linSumAlpha, fold, Finset.mul_sum]
+  refine Finset.sum_congr rfl (fun y _ => ?_)
+  ring
+
+/-- The tensor table of a one-entry low factor is the high table scaled by that
+entry, read through the reindexing the specs carry: at `k = 0` every index is
+`idx % 1 = 0` into `low` and `idx / 1 = idx` into `high`. -/
+theorem reidx_tensorTable_scalar {j κ : ℕ} (hjk : j + 0 = κ + 1)
+    (low high : alloc.vec.Vec cpoly.field.Ext4) (y : Fin (2 ^ (κ + 1))) :
+    reidx hjk (tensorTable (tableFn (m := 0) low) (tableFn (m := j) high)) y
+      = toExt (low.val.getD 0 cpoly.field.Ext4.ZERO) * tableFn (m := κ + 1) high y := by
+  rw [← tensorRead_eq_reidx hjk, tensorRead, tableFn_apply, pow_zero, Nat.mod_one, Nat.div_one]
+
+/-- `round_poly_alpha_split` builds the same three coefficients through the
+tensor split (card T38), and card T41 dispatches it on `low.len() = 2 ^ k`:
+`k = 0` is `round_poly_alpha` on `high` times the scalar `low[0]`, `k ≥ 1` is
+the block traversal (`round_poly_alpha_split_blocks_spec`), and the per-pair
+branch for an odd or empty `low` is unreachable. Statement unchanged. -/
+theorem round_poly_alpha_split_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
+    (w low high : alloc.vec.Vec cpoly.field.Ext4)
+    (hw : WfEvals (κ + 1) w) (hlow : WfEvals k low) (hhigh : WfEvals j high) :
+    sumcheck.round_poly_alpha_split w low high
+      ⦃ out => out.val.length = 3 ∧ VecReduced out ∧
+        ∀ x : F, CPolynomial.eval x (toUni out) =
+          linSumAlpha (tableFn (m := κ + 1) w)
+            (reidx hjk (tensorTable (tableFn (m := k) low) (tableFn (m := j) high)))
+            x ⦄ := by
+  have hlowlen : low.val.length = 2 ^ k := hlow.1
+  have hlenl : (alloc.vec.Vec.len low).val = low.val.length := by simp
+  rw [sumcheck.round_poly_alpha_split]
+  rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+  · subst hk0
+    have hl1 : low.val.length = 1 := by rw [hlowlen, pow_zero]
+    rw [if_pos (by scalar_tac)]
+    have hhigh' : WfEvals (κ + 1) high :=
+      ⟨by rw [hhigh.1, show j = κ + 1 by omega], hhigh.2⟩
+    step with round_poly_alpha_spec (k := κ) w high hw hhigh' as ⟨g, hglen, hgred, hgval⟩
+    have h0 : 0 < low.val.length := by rw [hl1]; norm_num
+    step as ⟨e, he⟩
+    have hRe : Reduced e := he ▸ hlow.2 _ (List.getElem_mem h0)
+    have gE : toExt e = toExt (low.val.getD 0 cpoly.field.Ext4.ZERO) := by
+      rw [he, ← List.getD_eq_getElem low.val cpoly.field.Ext4.ZERO h0]
+    step with uni_smul_spec e g hRe hgred as ⟨z, hzred, hzraw⟩
+    refine ⟨?_, hzred, fun x => ?_⟩
+    · have h := congrArg Array.size hzraw
+      simp only [toRaw_size, CPolynomial.Raw.smul, CPolynomial.Raw.mk, Array.size_map] at h
+      rw [h, hglen]
+    · have hfun : reidx hjk (tensorTable (tableFn (m := 0) low) (tableFn (m := j) high))
+          = fun y => toExt e * tableFn (m := κ + 1) high y := by
+        funext y
+        rw [reidx_tensorTable_scalar, gE]
+      rw [hfun, linSumAlpha_smul_right, ← hgval x, toUni_eval, toUni_eval, hzraw,
+        raw_eval_smul]
+  · obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+    have h2 : 2 ≤ low.val.length := by
+      rw [hlowlen, pow_succ]
+      have : 0 < 2 ^ k' := by positivity
+      omega
+    rw [if_neg (by scalar_tac)]
+    step as ⟨i, hi⟩
+    have hi0 : i.val = 0 := by
+      rw [hi, hlenl, hlowlen, pow_succ, Nat.mul_mod_left]
+    rw [if_neg (by scalar_tac), if_neg (by scalar_tac)]
+    exact round_poly_alpha_split_blocks_spec hjk w low high hw hlow hhigh
 
 /-! #### 11. The same three at round 0, in the base field
 
@@ -7316,7 +7709,7 @@ def oddPhiF (v : alloc.vec.Vec cpoly.field.Fp) (y : ℕ) : F :=
   phiF (coeffK v (2 * y + 1))
 
 /-- The `y` loop of `round_poly_alpha_base_split`:
-[`round_poly_alpha_split_loop_spec`] with the `w̃` readers `evenF`/`oddF`
+[`round_poly_alpha_split_pairs_loop_spec`] with the `w̃` readers `evenF`/`oddF`
 replaced by their base-field twins `evenPhiF`/`oddPhiF`. -/
 theorem round_poly_alpha_base_split_loop_spec {j k κ : ℕ} (hjk : j + k = κ + 1)
     (w : alloc.vec.Vec cpoly.field.Fp) (low high : alloc.vec.Vec cpoly.field.Ext4)

@@ -1542,10 +1542,12 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Card T38's identity and the two loops that accumulate it. `pair_quadratic`
 -- is the card in one line: the product of two affine folds, in the
 -- coefficients the loops carry. Both `round_poly_alpha_spec` and
--- `round_poly_alpha_split_spec` keep their pre-T38 statements.
+-- `round_poly_alpha_split_spec` keep their pre-T38 statements. Card T41 moved
+-- T38's split loop, verbatim, into `round_poly_alpha_split_pairs`, and its spec
+-- with it (`round_poly_alpha_split_loop_spec` renamed, proof unchanged).
 #print axioms HachiEquiv.Sumcheck.pair_quadratic
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_loop_spec
-#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_pairs_loop_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_spec
 #print axioms HachiEquiv.Sumcheck.alpha_public_table_spec
 #print axioms HachiEquiv.Sumcheck.honest_compute_g_spec
@@ -1896,6 +1898,21 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- it; `round_poly_alpha_base_split_spec` above keeps its statement.
 #print axioms HachiEquiv.Sumcheck.linSumAlphaSplitFp_eq_sum_range_ext
 #print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_loop_spec
+-- Card T41a -- `round_poly_alpha_split` dispatched on `low.len() = 2 ^ k`: at
+-- `k = 0` it is `round_poly_alpha` on `high` scaled once by `low[0]` (the two
+-- scalar lemmas), at `k ≥ 1` the pairs are visited high block by high block,
+-- each block summed against `low` alone (`alpha_block_sums`) and scaled once by
+-- its `high` entry (the index facts, the regrouping, and the two loops). The
+-- per-pair branch is unreachable under the spec's `2 ^ k`; its loop spec is the
+-- renamed T38 one above. `round_poly_alpha_split_spec` keeps its statement.
+#print axioms HachiEquiv.Sumcheck.tensorRead_block
+#print axioms HachiEquiv.Sumcheck.qC_block_scale
+#print axioms HachiEquiv.Sumcheck.alpha_block_sums_loop_spec
+#print axioms HachiEquiv.Sumcheck.alpha_block_sums_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_blocks_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_split_blocks_spec
+#print axioms HachiEquiv.Sumcheck.linSumAlpha_smul_right
+#print axioms HachiEquiv.Sumcheck.reidx_tensorTable_scalar
 
 -- Candidate M (Stage 6, `evalsplit::monomial_basis`) -- the doubling build. Two
 -- independent proofs of one identity, and the dependency between the files

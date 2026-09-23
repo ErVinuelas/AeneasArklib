@@ -1749,3 +1749,134 @@ pub fn honest_compute_g_fold1_split(
     RoundMsg { g_zero, g_alpha }
 }
 
+
+// ---------------------------------------------------------------------------
+// Card T41a (2026-09-24): the alpha side from round 1 on, by high block. The
+// block sums, the block walk and the per-pair path it keeps for odd l are first
+// translations; round_poly_alpha_split keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// One `high` block's three T38 sums against the `low` factor alone (card
+/// T41): pairs `y₀ + t`, `t < cnt`, of `w` (`base = 2·y₀` is their first
+/// entry) against `low[2t]`, `low[2t + 1]`,
+///
+/// ```text
+/// (Σ_t w₀·ℓ₀,  Σ_t w₁·ℓ₁,  Σ_t (w₁−w₀)·(ℓ₁−ℓ₀))
+/// ```
+///
+/// -- `p₀`, `p₁` and `p₂` of [`round_poly_alpha`] with `Ã`'s entries replaced
+/// by their `low` factors. The middle coefficient's `p₁ − p₀ − p₂` is left to
+/// the caller, once per block rather than twice per pair: the sum of the
+/// differences is the difference of the sums. Its own top-level function so
+/// that the caller's loop holds scalars only (the `aeneas-extract` ceiling's
+/// borrowed-read-in-a-nested-loop row).
+pub fn alpha_block_sums(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    base: usize,
+    cnt: usize,
+) -> (Ext4, Ext4, Ext4) {
+    let mut s0: Ext4 = Ext4::ZERO;
+    let mut s1: Ext4 = Ext4::ZERO;
+    let mut s2: Ext4 = Ext4::ZERO;
+    let mut t: usize = 0;
+    while t < cnt {
+        let k: usize = 2 * t;
+        let i: usize = base + k;
+        let w0: Ext4 = w[i];
+        let w1: Ext4 = w[i + 1];
+        let l0: Ext4 = low[k];
+        let l1: Ext4 = low[k + 1];
+        let p0: Ext4 = w0 * l0;
+        let p1: Ext4 = w1 * l1;
+        let p2: Ext4 = (w1 - w0) * (l1 - l0);
+        s0 = s0 + p0;
+        s1 = s1 + p1;
+        s2 = s2 + p2;
+        t += 1;
+    }
+    (s0, s1, s2)
+}
+
+/// [`round_poly_alpha_split`] for an even `low` factor, `l = low.len() ≥ 2`
+/// (card T41): the pairs visited `high` block by `high` block.
+///
+/// With `l` even a pair `(2y, 2y+1)` never straddles a block -- `2y` and
+/// `2y + 1` have the same quotient by `l` -- so block `b` is exactly the
+/// `l/2` pairs `y₀ = b·l/2 ≤ y < y₀ + l/2`, the last one cut at `half`, and
+/// its entries of `Ã` are `low[2t] · high[b]`, `low[2t+1] · high[b]`,
+/// `t = y − y₀`. [`alpha_block_sums`] returns the block's sums against `low`
+/// alone, and one multiplication by `h = high[b]` per coefficient scales
+/// them: `h·s₀ = Σ p₀`, `h·(s₁ − s₀ − s₂) = Σ (p₁ − p₀ − p₂)`, `h·s₂ = Σ p₂`
+/// over the block, each term of which is T38's term at the same pair. The
+/// entries of `w`, `low` and `high` read are exactly the ones the per-pair form
+/// read, so the function fails on precisely the inputs that one failed on.
+///
+/// The block's triple is read by field projection, the shape
+/// `honest_round_messages` already uses on [`alpha_split_fold`]'s pair inside
+/// a loop; the ceiling table's tuple failure is *indexing* through a tuple
+/// field (`fwb.0[k]`), which nothing here does.
+pub fn round_poly_alpha_split_blocks(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
+    let half: usize = w.len() / 2;
+    let lh: usize = low.len() / 2;
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y0: usize = 0;
+    let mut b: usize = 0;
+    while y0 < half {
+        let rest: usize = half - y0;
+        let cnt: usize = if lh < rest { lh } else { rest };
+        let s: (Ext4, Ext4, Ext4) = alpha_block_sums(w, low, 2 * y0, cnt);
+        let h: Ext4 = high[b];
+        c0 = c0 + h * s.0;
+        c1 = c1 + h * (s.1 - s.0 - s.2);
+        c2 = c2 + h * s.2;
+        y0 += cnt;
+        b += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
+/// [`round_poly_alpha_split`]'s per-pair body, as T38 left it: both of a
+/// pair's `Ã` entries read through the tensor split, `low[j % l] · high[j / l]`,
+/// then T38's three products. Card T41 keeps it as the branch for an `l` whose
+/// pairs can straddle a block (odd `l`, and `l = 0`), which no spec reaches:
+/// they pin `l = 2^k`.
+pub fn round_poly_alpha_split_pairs(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let a0: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let a1: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let p0: Ext4 = w[2 * y] * a0;
+        let p1: Ext4 = w[2 * y + 1] * a1;
+        let p2: Ext4 = (w[2 * y + 1] - w[2 * y]) * (a1 - a0);
+        c0 = c0 + p0;
+        c1 = c1 + (p1 - p0 - p2);
+        c2 = c2 + p2;
+        y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+

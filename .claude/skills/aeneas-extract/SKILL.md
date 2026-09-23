@@ -282,6 +282,8 @@ extract, and are still not worth it", "The cpoly dependency" are the record.
 
 | `v as usize` **narrowing** from `u64` (2026-09-23, card T46a, `nightly-2026.07.26-3a8586f`) | `ok (UScalar.cast .Usize id)` -- **pure**, no `lift`, no side condition | measured on `sumcheck::digit_id`. Unlike `as u32` (fallible, `lift`) and `as u64` from `u32` (`lift`), the model's `Usize` is at least 64 bits, so the cast cannot fail and there is nothing to discharge. The same function's `Option` early return inside a counter loop (`bucket_pairs_base`) keeps the 2-tuple state and extracts as a `ControlFlow` break `done none` |
 
+| a `fn` returning a **3-tuple** `(Ext4, Ext4, Ext4)`, bound to a local and read as `s.0`/`s.1`/`s.2` inside a counter loop (2026-09-24, card T41a, `nightly-2026.07.26-3a8586f`) | a pure `let (e, e1, e2) := s` destructuring in the loop body; the loop state is the **5-tuple** `(c0, c1, c2, y0, b)`; zero axioms | measured on `sumcheck::round_poly_alpha_split_blocks`. Not the 2026-09-19 tuple-field *indexing* failure (`fwb.0[k]`): reading a field of a returned tuple is fine, indexing into one is not |
+
 Unprobed (add a measured row on first contact — closures, const generics,
 generic functions, `u128` division, trait objects,
 …). And the permanent ceiling: no `unsafe` (the crate `forbid`s it), no SIMD

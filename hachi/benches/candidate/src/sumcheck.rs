@@ -1316,13 +1316,149 @@ pub fn round_values_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>
 }
 
 /// [`round_poly_alpha`] on the two factors, direct coefficients and all
-/// (Stage 6 candidate T38).
+/// (Stage 6 candidate T38), traversed block by block (card T41).
 ///
 /// This is the one the pin runs: `honest_compute_g_split` calls it for every
-/// round from 1 on. `Ã`'s entry `j` is `low[j % l] · high[j / l]`, so the two
-/// tensor reads replace the two table reads and the quadratic identity above
-/// is unchanged.
+/// round from 1 on. `Ã`'s entry `j` is `low[j % l] · high[j / l]`, `l =
+/// low.len()`, and T38's three coefficients are **linear in `Ã`**: every one
+/// of `p₀ = w₀a₀`, `p₁ = w₁a₁`, `p₂ = (w₁−w₀)(a₁−a₀)` is a product with one
+/// `Ã` factor, and both of a pair's `Ã` entries carry the same `high` factor
+/// whenever the pair sits inside one `high` block. So, by distributivity,
+///
+/// ```text
+/// Σ_y qC(w, Ã)_y = Σ_b high[b] · Σ_{t < l/2} qC(w at pair b·l/2 + t, low at 2t, 2t+1)
+/// ```
+///
+/// -- the `high` read is loop-invariant over a block and multiplies **once**
+/// per block ([`round_poly_alpha_split_blocks`]), the `low` index is a counter
+/// with no runtime `%` or `/`, and a pair costs T38's three products where the
+/// per-pair tensor read cost five. Once `low` has folded to one entry the
+/// factor is a scalar, `Ã = low[0] · high`, and the whole polynomial is
+/// [`round_poly_alpha`] on `high` scaled once by `low[0]`.
+///
+/// The branch is on `l` only, and every branch computes the champion's value:
+/// `Ext4` arithmetic is exact, so the regrouping is an identity of the field
+/// and the canonical outputs are equal, not merely close. A pair can straddle
+/// a block boundary only when `l` is odd; the specs pin `l = 2^k`, which is
+/// `1` or even, so the middle branch -- T38's per-pair body, verbatim
+/// ([`round_poly_alpha_split_pairs`]) -- is there for totality alone (rule 4):
+/// it runs on an odd `l ≥ 3`, and on `l = 0`, where it fails exactly as the
+/// champion did (`% 0`) unless `w` has no pair, and returns zero then. The
+/// parity test is spelled `l % 2 == 1` (as `evalsplit` spells it) rather than
+/// `l % 2 == 0`, which pedantic clippy would turn into `is_multiple_of`, a
+/// method the `aeneas-extract` ceiling table has never probed.
 pub fn round_poly_alpha_split(w: &Vec<Ext4>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
+    let l: usize = low.len();
+    if l == 1 {
+        let g: UnivariatePoly = round_poly_alpha(w, high);
+        &g * low[0]
+    } else if l % 2 == 1 || l == 0 {
+        round_poly_alpha_split_pairs(w, low, high)
+    } else {
+        round_poly_alpha_split_blocks(w, low, high)
+    }
+}
+
+/// One `high` block's three T38 sums against the `low` factor alone (card
+/// T41): pairs `y₀ + t`, `t < cnt`, of `w` (`base = 2·y₀` is their first
+/// entry) against `low[2t]`, `low[2t + 1]`,
+///
+/// ```text
+/// (Σ_t w₀·ℓ₀,  Σ_t w₁·ℓ₁,  Σ_t (w₁−w₀)·(ℓ₁−ℓ₀))
+/// ```
+///
+/// -- `p₀`, `p₁` and `p₂` of [`round_poly_alpha`] with `Ã`'s entries replaced
+/// by their `low` factors. The middle coefficient's `p₁ − p₀ − p₂` is left to
+/// the caller, once per block rather than twice per pair: the sum of the
+/// differences is the difference of the sums. Its own top-level function so
+/// that the caller's loop holds scalars only (the `aeneas-extract` ceiling's
+/// borrowed-read-in-a-nested-loop row).
+pub fn alpha_block_sums(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    base: usize,
+    cnt: usize,
+) -> (Ext4, Ext4, Ext4) {
+    let mut s0: Ext4 = Ext4::ZERO;
+    let mut s1: Ext4 = Ext4::ZERO;
+    let mut s2: Ext4 = Ext4::ZERO;
+    let mut t: usize = 0;
+    while t < cnt {
+        let k: usize = 2 * t;
+        let i: usize = base + k;
+        let w0: Ext4 = w[i];
+        let w1: Ext4 = w[i + 1];
+        let l0: Ext4 = low[k];
+        let l1: Ext4 = low[k + 1];
+        let p0: Ext4 = w0 * l0;
+        let p1: Ext4 = w1 * l1;
+        let p2: Ext4 = (w1 - w0) * (l1 - l0);
+        s0 = s0 + p0;
+        s1 = s1 + p1;
+        s2 = s2 + p2;
+        t += 1;
+    }
+    (s0, s1, s2)
+}
+
+/// [`round_poly_alpha_split`] for an even `low` factor, `l = low.len() ≥ 2`
+/// (card T41): the pairs visited `high` block by `high` block.
+///
+/// With `l` even a pair `(2y, 2y+1)` never straddles a block -- `2y` and
+/// `2y + 1` have the same quotient by `l` -- so block `b` is exactly the
+/// `l/2` pairs `y₀ = b·l/2 ≤ y < y₀ + l/2`, the last one cut at `half`, and
+/// its entries of `Ã` are `low[2t] · high[b]`, `low[2t+1] · high[b]`,
+/// `t = y − y₀`. [`alpha_block_sums`] returns the block's sums against `low`
+/// alone, and one multiplication by `h = high[b]` per coefficient scales
+/// them: `h·s₀ = Σ p₀`, `h·(s₁ − s₀ − s₂) = Σ (p₁ − p₀ − p₂)`, `h·s₂ = Σ p₂`
+/// over the block, each term of which is T38's term at the same pair. The
+/// entries of `w`, `low` and `high` read are exactly the ones the per-pair form
+/// read, so the function fails on precisely the inputs that one failed on.
+///
+/// The block's triple is read by field projection, the shape
+/// `honest_round_messages` already uses on [`alpha_split_fold`]'s pair inside
+/// a loop; the ceiling table's tuple failure is *indexing* through a tuple
+/// field (`fwb.0[k]`), which nothing here does.
+pub fn round_poly_alpha_split_blocks(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
+    let half: usize = w.len() / 2;
+    let lh: usize = low.len() / 2;
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y0: usize = 0;
+    let mut b: usize = 0;
+    while y0 < half {
+        let rest: usize = half - y0;
+        let cnt: usize = if lh < rest { lh } else { rest };
+        let s: (Ext4, Ext4, Ext4) = alpha_block_sums(w, low, 2 * y0, cnt);
+        let h: Ext4 = high[b];
+        c0 = c0 + h * s.0;
+        c1 = c1 + h * (s.1 - s.0 - s.2);
+        c2 = c2 + h * s.2;
+        y0 += cnt;
+        b += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
+/// [`round_poly_alpha_split`]'s per-pair body, as T38 left it: both of a
+/// pair's `Ã` entries read through the tensor split, `low[j % l] · high[j / l]`,
+/// then T38's three products. Card T41 keeps it as the branch for an `l` whose
+/// pairs can straddle a block (odd `l`, and `l = 0`), which no spec reaches:
+/// they pin `l = 2^k`.
+pub fn round_poly_alpha_split_pairs(
+    w: &Vec<Ext4>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
     let half: usize = w.len() / 2;
     let l: usize = low.len();
     let mut c0: Ext4 = Ext4::ZERO;

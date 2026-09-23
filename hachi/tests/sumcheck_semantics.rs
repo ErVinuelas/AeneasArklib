@@ -1225,3 +1225,26 @@ fn round_zero_alpha_direct_coefficients_are_the_interpolant() {
         }
     }
 }
+
+/// Card T41a: the α side from round 1 on, walked by high block with the low
+/// index a counter, is the per-pair tensor read it replaced
+/// (`round_poly_alpha_split_pairs`, T38's body) and the flat `round_poly_alpha`
+/// on the materialised table -- at `l = 1`, even `l` with partial last
+/// blocks, odd `l` (the retained per-pair path), and the pin's shapes.
+#[test]
+fn round_alpha_split_by_blocks_is_the_per_pair_form() {
+    use hachi::sumcheck::{round_poly_alpha, round_poly_alpha_split, round_poly_alpha_split_pairs};
+    let mut r = Lcg::new(0x7410_A100);
+    for &(l, hl, len) in &[(1usize, 64usize, 64usize), (2, 32, 64), (4, 16, 64), (4, 8, 30), (6, 5, 30),
+                           (16, 3, 48), (512, 4, 2048), (3, 7, 21), (1024, 2, 2048)] {
+        let w: Vec<Ext4> = (0..len).map(|_| ext4(&mut r)).collect();
+        let low: Vec<Ext4> = (0..l).map(|_| ext4(&mut r)).collect();
+        let high: Vec<Ext4> = (0..hl).map(|_| ext4(&mut r)).collect();
+        let got = round_poly_alpha_split(&w, &low, &high);
+        assert_eq!(got, round_poly_alpha_split_pairs(&w, &low, &high), "pairs, l = {l}, len = {len}");
+        if len == l * hl && len % 2 == 0 {
+            let a: Vec<Ext4> = (0..len).map(|j| low[j % l] * high[j / l]).collect();
+            assert_eq!(got, round_poly_alpha(&w, &a), "flat, l = {l}");
+        }
+    }
+}
