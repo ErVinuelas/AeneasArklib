@@ -1521,8 +1521,28 @@ pub fn round_values_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ex
     out
 }
 
-/// [`round_poly_alpha_base`] on the two factors.
+/// [`round_poly_alpha_base`] on the two factors (cards T41b1, T41b2).
+///
+/// Card T41b2: for even `l = low.len()` the pairs are walked by high block, as
+/// [`round_poly_alpha_split`] does from round 1 on (card T41a): `h = high[b]` is
+/// read once per block, the low index is a counter, and the block's three
+/// coefficient sums -- [`alpha_block_sums_base`], the `Fp` factor on the left
+/// of every mixed product -- are scaled by `h` once. Every term is linear in
+/// `Ã`, and for even `l` no pair straddles a block, so the regrouping is exact.
+/// Odd or zero `l` keeps the per-pair form,
+/// [`round_poly_alpha_base_split_direct`], so the function stays total.
 pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
+    let l: usize = low.len();
+    if l % 2 == 1 || l == 0 {
+        round_poly_alpha_base_split_direct(w, low, high)
+    } else {
+        round_poly_alpha_base_split_blocks(w, low, high)
+    }
+}
+
+/// [`round_poly_alpha_base_split`] pair by pair with tensor reads: card T41b1's
+/// direct coefficients, the path for odd or zero `l` since card T41b2.
+pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
     // Card T41b1: [`round_poly_alpha_split`]'s direct quadratic coefficients
     // (candidate T38) at round 0, where the witness table is still `Fp`: the
     // round polynomial is `Σ_y W_y(T)·Ã_y(T)` with both factors linear in
@@ -1547,6 +1567,70 @@ pub fn round_poly_alpha_base_split(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4
         c1 = c1 + (p1 - p0 - p2);
         c2 = c2 + p2;
         y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
+/// [`alpha_block_sums`] with the witness table in the base field (card T41b):
+/// `(Σ_t w₀·ℓ₀, Σ_t w₁·ℓ₁, Σ_t (w₁−w₀)·(ℓ₁−ℓ₀))`, each product an `Fp × Ext4`
+/// scaling with the `Fp` factor on the **left**, which is what selects
+/// `Mul<Ext4> for Fp`; `w₁ − w₀` is one `Fp` subtraction.
+pub fn alpha_block_sums_base(
+    w: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    base: usize,
+    cnt: usize,
+) -> (Ext4, Ext4, Ext4) {
+    let mut s0: Ext4 = Ext4::ZERO;
+    let mut s1: Ext4 = Ext4::ZERO;
+    let mut s2: Ext4 = Ext4::ZERO;
+    let mut t: usize = 0;
+    while t < cnt {
+        let k: usize = 2 * t;
+        let i: usize = base + k;
+        let w0: Fp = w[i];
+        let w1: Fp = w[i + 1];
+        let l0: Ext4 = low[k];
+        let l1: Ext4 = low[k + 1];
+        let p0: Ext4 = w0 * l0;
+        let p1: Ext4 = w1 * l1;
+        let p2: Ext4 = (w1 - w0) * (l1 - l0);
+        s0 = s0 + p0;
+        s1 = s1 + p1;
+        s2 = s2 + p2;
+        t += 1;
+    }
+    (s0, s1, s2)
+}
+
+/// [`round_poly_alpha_split_blocks`] with the witness table in the base field
+/// (card T41b): the same block loop over [`alpha_block_sums_base`].
+pub fn round_poly_alpha_base_split_blocks(
+    w: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
+    let half: usize = w.len() / 2;
+    let lh: usize = low.len() / 2;
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y0: usize = 0;
+    let mut b: usize = 0;
+    while y0 < half {
+        let rest: usize = half - y0;
+        let cnt: usize = if lh < rest { lh } else { rest };
+        let s: (Ext4, Ext4, Ext4) = alpha_block_sums_base(w, low, 2 * y0, cnt);
+        let h: Ext4 = high[b];
+        c0 = c0 + h * s.0;
+        c1 = c1 + h * (s.1 - s.0 - s.2);
+        c2 = c2 + h * s.2;
+        y0 += cnt;
+        b += 1;
     }
     let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
     coeffs.push(c0);

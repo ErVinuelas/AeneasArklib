@@ -1248,3 +1248,31 @@ fn round_alpha_split_by_blocks_is_the_per_pair_form() {
         }
     }
 }
+
+/// Card T41b2: round 0's α side walked by high block is the per-pair direct
+/// form it keeps for odd `l` (`round_poly_alpha_base_split_direct`, card
+/// T41b1's body) and still the interpolant of the node values, on random,
+/// honest-alphabet and zero-heavy base tables.
+#[test]
+fn round_zero_alpha_by_blocks_is_the_per_pair_form() {
+    use hachi::sumcheck::{interpolate, round_node_weights_alpha, round_poly_alpha_base_split,
+                          round_poly_alpha_base_split_direct, round_values_alpha_base_split};
+    let mut r = Lcg::new(0x7410_B200);
+    for &(l, hl) in &[(2usize, 32usize), (4, 16), (8, 8), (1024, 2), (512, 8), (1, 16), (3, 7)] {
+        for kind in 0..3 {
+            let w: Vec<Fp> = (0..l * hl)
+                .map(|i| match kind {
+                    0 => r.next_fp(),
+                    1 => digit_fp((r.next_fp().to_u64() % 24) as i64 - 8),
+                    _ => if i % 3 == 0 { Fp::ZERO } else { r.next_fp() },
+                })
+                .collect();
+            let low: Vec<Ext4> = (0..l).map(|_| ext4(&mut r)).collect();
+            let high: Vec<Ext4> = (0..hl).map(|_| ext4(&mut r)).collect();
+            let got = round_poly_alpha_base_split(&w, &low, &high);
+            assert_eq!(got, round_poly_alpha_base_split_direct(&w, &low, &high), "direct, l = {l}, kind {kind}");
+            let want = interpolate(&round_values_alpha_base_split(&w, &low, &high), &round_node_weights_alpha());
+            assert_eq!(got, want, "interpolant, l = {l}, kind {kind}");
+        }
+    }
+}

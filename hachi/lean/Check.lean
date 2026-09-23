@@ -1895,9 +1895,25 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Card T41b1 -- `round_poly_alpha_base_split` on card T38's direct-coefficient
 -- loop at round 0, the `w̃` factors still in `Fp` (mixed `Fp × Ext4` products).
 -- The node-free identity at an extension point and the loop that accumulates
--- it; `round_poly_alpha_base_split_spec` above keeps its statement.
+-- it; `round_poly_alpha_base_split_spec` above keeps its statement. Card T41b2
+-- moved that loop, verbatim, into `round_poly_alpha_base_split_direct`, and its
+-- spec with it (renamed, proof unchanged), next to the former headline's
+-- statement and proof as `round_poly_alpha_base_split_direct_spec`.
 #print axioms HachiEquiv.Sumcheck.linSumAlphaSplitFp_eq_sum_range_ext
-#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_direct_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_direct_spec
+-- Card T41b2 -- `round_poly_alpha_base_split` dispatched on `low.len() = 2 ^ k`:
+-- `k = 0` gives the odd `l = 1` and the per-pair path (`_direct` above), `k ≥ 1`
+-- the block traversal, card T41a's with the `w̃` factors in `Fp`: each block
+-- summed against `low` alone (`alpha_block_sums_base`, mixed `Fp × Ext4`
+-- products) and scaled once by its `high` entry, through T41a's
+-- `tensorRead_block` and `qC_block_scale` below. The empty `low` is
+-- unreachable under the spec's `2 ^ k`. `round_poly_alpha_base_split_spec`
+-- keeps its statement.
+#print axioms HachiEquiv.Sumcheck.alpha_block_sums_base_loop_spec
+#print axioms HachiEquiv.Sumcheck.alpha_block_sums_base_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_blocks_loop_spec
+#print axioms HachiEquiv.Sumcheck.round_poly_alpha_base_split_blocks_spec
 -- Card T41a -- `round_poly_alpha_split` dispatched on `low.len() = 2 ^ k`: at
 -- `k = 0` it is `round_poly_alpha` on `high` scaled once by `low[0]` (the two
 -- scalar lemmas), at `k ≥ 1` the pairs are visited high block by high block,

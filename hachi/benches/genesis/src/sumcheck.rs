@@ -1883,3 +1883,109 @@ pub fn round_poly_alpha_split_pairs(
     UnivariatePoly::from_coeffs(coeffs)
 }
 
+
+// ---------------------------------------------------------------------------
+// Card T41b2 (2026-09-24): round 0's alpha side by high block. The base block
+// sums, the block walk and the per-pair direct form it keeps for odd l are
+// first translations; round_poly_alpha_base_split keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`alpha_block_sums`] with the witness table in the base field (card T41b):
+/// `(Σ_t w₀·ℓ₀, Σ_t w₁·ℓ₁, Σ_t (w₁−w₀)·(ℓ₁−ℓ₀))`, each product an `Fp × Ext4`
+/// scaling with the `Fp` factor on the **left**, which is what selects
+/// `Mul<Ext4> for Fp`; `w₁ − w₀` is one `Fp` subtraction.
+pub fn alpha_block_sums_base(
+    w: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    base: usize,
+    cnt: usize,
+) -> (Ext4, Ext4, Ext4) {
+    let mut s0: Ext4 = Ext4::ZERO;
+    let mut s1: Ext4 = Ext4::ZERO;
+    let mut s2: Ext4 = Ext4::ZERO;
+    let mut t: usize = 0;
+    while t < cnt {
+        let k: usize = 2 * t;
+        let i: usize = base + k;
+        let w0: Fp = w[i];
+        let w1: Fp = w[i + 1];
+        let l0: Ext4 = low[k];
+        let l1: Ext4 = low[k + 1];
+        let p0: Ext4 = w0 * l0;
+        let p1: Ext4 = w1 * l1;
+        let p2: Ext4 = (w1 - w0) * (l1 - l0);
+        s0 = s0 + p0;
+        s1 = s1 + p1;
+        s2 = s2 + p2;
+        t += 1;
+    }
+    (s0, s1, s2)
+}
+
+/// [`round_poly_alpha_split_blocks`] with the witness table in the base field
+/// (card T41b): the same block loop over [`alpha_block_sums_base`].
+pub fn round_poly_alpha_base_split_blocks(
+    w: &Vec<Fp>,
+    low: &Vec<Ext4>,
+    high: &Vec<Ext4>,
+) -> UnivariatePoly {
+    let half: usize = w.len() / 2;
+    let lh: usize = low.len() / 2;
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y0: usize = 0;
+    let mut b: usize = 0;
+    while y0 < half {
+        let rest: usize = half - y0;
+        let cnt: usize = if lh < rest { lh } else { rest };
+        let s: (Ext4, Ext4, Ext4) = alpha_block_sums_base(w, low, 2 * y0, cnt);
+        let h: Ext4 = high[b];
+        c0 = c0 + h * s.0;
+        c1 = c1 + h * (s.1 - s.0 - s.2);
+        c2 = c2 + h * s.2;
+        y0 += cnt;
+        b += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
+/// [`round_poly_alpha_base_split`] pair by pair with tensor reads: card T41b1's
+/// direct coefficients, the path for odd or zero `l` since card T41b2.
+pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &Vec<Ext4>) -> UnivariatePoly {
+    // Card T41b1: [`round_poly_alpha_split`]'s direct quadratic coefficients
+    // (candidate T38) at round 0, where the witness table is still `Fp`: the
+    // round polynomial is `Σ_y W_y(T)·Ã_y(T)` with both factors linear in
+    // `T`, so its three coefficients are `Σ w₀a₀`, `Σ (w₁a₁ − w₀a₀ − Δw·Δa)`
+    // and `Σ Δw·Δa` -- no node values and no interpolation. The `w` factors
+    // stay in `Fp` (the mixed `Fp × Ext4` product, `Fp` on the left).
+    let half: usize = w.len() / 2;
+    let l: usize = low.len();
+    let mut c0: Ext4 = Ext4::ZERO;
+    let mut c1: Ext4 = Ext4::ZERO;
+    let mut c2: Ext4 = Ext4::ZERO;
+    let mut y: usize = 0;
+    while y < half {
+        let a0: Ext4 = low[(2 * y) % l] * high[(2 * y) / l];
+        let a1: Ext4 = low[(2 * y + 1) % l] * high[(2 * y + 1) / l];
+        let w0: Fp = w[2 * y];
+        let w1: Fp = w[2 * y + 1];
+        let p0: Ext4 = w0 * a0;
+        let p1: Ext4 = w1 * a1;
+        let p2: Ext4 = (w1 - w0) * (a1 - a0);
+        c0 = c0 + p0;
+        c1 = c1 + (p1 - p0 - p2);
+        c2 = c2 + p2;
+        y += 1;
+    }
+    let mut coeffs: Vec<Ext4> = Vec::with_capacity(3);
+    coeffs.push(c0);
+    coeffs.push(c1);
+    coeffs.push(c2);
+    UnivariatePoly::from_coeffs(coeffs)
+}
+
