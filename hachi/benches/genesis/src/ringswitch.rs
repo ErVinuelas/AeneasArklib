@@ -956,6 +956,7 @@ fn lift_commit_row_gold(d_key: &PolyMatrix, w: &LiftedWitness, i: usize) -> Rq {
 /// found and no test could, since it needs a witness 2400× the pin's width.
 pub const LIFT_GOLD_MAX: usize = 131_072;
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::c_row_sum_high_lazy
 // ---------------------------------------------------------------------------
 // Card T45a (2026-09-23): gadget contraction in the lifted witness's high-half
 // row sum. The lazy band walk and its eight helpers are first translations;
@@ -1054,6 +1055,7 @@ fn c_row_sum_high_lazy(b: &RlinBlocks, z: &PolyVec, i: usize) -> Vec<Fp> {
     }
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::high_zeros
 /// `N − 1` zero words: the empty high-half accumulator.
 fn high_zeros() -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
@@ -1066,6 +1068,7 @@ fn high_zeros() -> Vec<Fp> {
     acc
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::add_high_into
 /// `acc + prod` over the `N − 1` high-half slots, in place.
 ///
 /// Its own function so that no caller's loop both reads a borrowed vector and
@@ -1083,6 +1086,7 @@ fn add_high_into(mut acc: Vec<Fp>, prod: &Vec<Fp>) -> Vec<Fp> {
     acc
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::band_high
 /// `acc + Σ high(blk[j] · z[zoff + j])` over `lo ≤ j < hi`, skipping the zero
 /// entries: the pre-T45a column loop of [`c_row_sum_high`] restricted to one
 /// block.
@@ -1110,6 +1114,7 @@ fn band_high(
     acc
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::group_is_scaled
 /// Is `blk[base + m] = w[m] · blk[base]` for every `m < len`? The run-time
 /// structure check of card T45a.
 ///
@@ -1138,6 +1143,7 @@ pub fn group_is_scaled(blk: &PolyVec, base: usize, len: usize, w: &Vec<Fp>) -> b
     ok
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::recompose
 /// `Σ_{m < len} w[m] · z[base + m]` in `R_q`: one group of witness digits
 /// recomposed at the group's weights, exactly in `F_q`.
 ///
@@ -1154,6 +1160,7 @@ fn recompose(z: &PolyVec, base: usize, len: usize, w: &Vec<Fp>) -> Rq {
     acc
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::group_high
 /// `acc + Σ_{j < len} high(blk[j] · z[zoff + j])`, contracted group by group.
 ///
 /// The block is cut into whole groups of `gsize` columns and a trailing
@@ -1197,6 +1204,7 @@ fn group_high(
     band_high(acc, blk, base, len, z, zoff)
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::gadget_weights
 /// `[1, b, …, b^(digits − 1)]`: the weights of one group of `Gᵀ·a`, whose entry
 /// `r·digits + e` is `bᵉ · a[r]` ([`gadget::gadget_transpose_mul`]).
 fn gadget_weights(digits: usize) -> Vec<Fp> {
@@ -1209,6 +1217,7 @@ fn gadget_weights(digits: usize) -> Vec<Fp> {
     w
 }
 
+// @genesis 3ddfd8a 2026-09-23 — ringswitch::jt_gadget_weights
 /// The weights of one `GADGET_DIGITS · Z_DIGITS` group of `Jᵀ(Gᵀa)`: position
 /// `m = e·Z_DIGITS + e'` holds `b^{e'} · (bᵉ · a[r])`, so its weight is
 /// `bᵉ · b^{e'}` with `e = m / Z_DIGITS`, `e' = m % Z_DIGITS`.
