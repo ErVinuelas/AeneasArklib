@@ -1762,6 +1762,11 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZeroCheck.alpha_pow_table_spec
 #print axioms HachiEquiv.ZeroCheck.eq_weight_table_spec
 #print axioms HachiEquiv.ZeroCheck.m_alpha_table_spec
+-- Card T48e -- `m_alpha_table` reads the powers of `α` from one `alpha_pow_table(α, N)`
+-- and evaluates each matrix entry with the mixed-product `c_eval_at_pw` (no ArkLib
+-- mirror; specified against `cEvalAt`, the value `c_eval_at_spec` gives).
+#print axioms HachiEquiv.ZeroCheck.c_eval_at_pw_loop_spec
+#print axioms HachiEquiv.ZeroCheck.c_eval_at_pw_spec
 -- Candidate E -- the lift commitment without the materialized concatenation (W3).
 #print axioms HachiEquiv.Opt.lift_commit.opt_eq_spec
 #print axioms HachiEquiv.Opt.lift_commit.opt_eq_spec_hachi

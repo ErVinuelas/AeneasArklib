@@ -812,3 +812,29 @@ pub fn c_w_table_fp(w: &LiftedWitness, m0: usize) -> Vec<Fp> {
     }
     values
 }
+
+// @genesis 15ae782 2026-09-23 — zerocheck::c_eval_at_pw
+// ---------------------------------------------------------------------------
+// Card T48e (2026-09-23): the table-driven evaluation m_alpha_table now calls.
+// m_alpha_table itself keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`crate::ringswitch::c_eval_at`] with the powers of `α` read from a table:
+/// `Σ_k p[k] · pw[k]`, each term the mixed `Fp × Ext4` product -- four base
+/// multiplications -- where `c_eval_at` pays a full `Ext4` product for
+/// `from_base(p[k]) · α^k` and another for the running power (card T48e).
+/// `pw` is [`alpha_pow_table`]`(α, RING_DEGREE)`, built once per table by
+/// [`m_alpha_table`] and shared by all its `n · μ` evaluations. No `Mirrors`
+/// line: it is `cEvalAt` at a precomputed power table, the value
+/// `c_eval_at` has (`alphaPowTable_getD`).
+pub fn c_eval_at_pw(pw: &Vec<Ext4>, p: &Rq) -> Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut k: usize = 0;
+    while k < degree {
+        acc = acc + p.coeff(k) * pw[k];
+        k += 1;
+    }
+    acc
+}
+

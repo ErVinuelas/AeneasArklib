@@ -641,6 +641,7 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
     let phi_alpha: Ext4 = crate::ringswitch::c_eval_at_modulus(alpha);
     let base: Ext4 = Ext4::from_base(crate::gadget::base_pow(1));
     let bp: Vec<Ext4> = alpha_pow_table(base, digits);
+    let apw: Vec<Ext4> = alpha_pow_table(alpha, params::RING_DEGREE);
     let mut out: Vec<Vec<Ext4>> = Vec::with_capacity(rows);
     let mut i: usize = 0;
     while i < rows {
@@ -648,7 +649,7 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
         let mut u: usize = 0;
         while u < cols {
             if u < mu {
-                row.push(crate::ringswitch::c_eval_at(alpha, s.m().entry(i, u)));
+                row.push(c_eval_at_pw(&apw, s.m().entry(i, u)));
             } else if (u - mu) / digits == i {
                 let e: usize = (u - mu) % digits;
                 row.push((Ext4::ZERO - phi_alpha) * bp[e]);
@@ -661,6 +662,25 @@ pub fn m_alpha_table(s: &crate::ringswitch::RlinStatement, alpha: Ext4) -> Vec<V
         i += 1;
     }
     out
+}
+
+/// [`crate::ringswitch::c_eval_at`] with the powers of `α` read from a table:
+/// `Σ_k p[k] · pw[k]`, each term the mixed `Fp × Ext4` product -- four base
+/// multiplications -- where `c_eval_at` pays a full `Ext4` product for
+/// `from_base(p[k]) · α^k` and another for the running power (card T48e).
+/// `pw` is [`alpha_pow_table`]`(α, RING_DEGREE)`, built once per table by
+/// [`m_alpha_table`] and shared by all its `n · μ` evaluations. No `Mirrors`
+/// line: it is `cEvalAt` at a precomputed power table, the value
+/// `c_eval_at` has (`alphaPowTable_getD`).
+pub fn c_eval_at_pw(pw: &Vec<Ext4>, p: &Rq) -> Ext4 {
+    let degree: usize = params::RING_DEGREE;
+    let mut acc: Ext4 = Ext4::ZERO;
+    let mut k: usize = 0;
+    while k < degree {
+        acc = acc + p.coeff(k) * pw[k];
+        k += 1;
+    }
+    acc
 }
 
 /// The public initial target of the linear sumcheck, `∑ᵢ eq̃(τ₁, i)·yᵢ(α)`

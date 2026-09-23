@@ -1059,3 +1059,27 @@ fn rlin_row(m: &hachi::ringswitch::RlinMat, i: usize) -> PolyVec {
     }
     PolyVec::new(v)
 }
+
+/// Card T48e: the table-driven evaluation is `c_eval_at` -- the same power sum
+/// with `α^k` read from `alpha_pow_table(α, d)` and each term the mixed
+/// `Fp × Ext4` product -- on random polynomials, the zero polynomial, and a
+/// monomial at the top degree.
+#[test]
+fn c_eval_at_pw_is_c_eval_at() {
+    use hachi::ringswitch::c_eval_at;
+    use hachi::zerocheck::{alpha_pow_table, c_eval_at_pw};
+    let mut r = support::Lcg::new(0x7480_0001);
+    let d = hachi::params::RING_DEGREE;
+    for _ in 0..4 {
+        let alpha = cpoly::Ext4::new(r.next_fp(), r.next_fp(), r.next_fp(), r.next_fp());
+        let pw = alpha_pow_table(alpha, d);
+        let p = r.next_rq();
+        assert_eq!(c_eval_at_pw(&pw, &p), c_eval_at(alpha, &p));
+        let zero = hachi::ring::Rq::zero();
+        assert_eq!(c_eval_at_pw(&pw, &zero), c_eval_at(alpha, &zero));
+        let mut top = vec![cpoly::Fp::ZERO; d];
+        top[d - 1] = r.next_fp();
+        let m = hachi::ring::Rq::from_coeffs(&top);
+        assert_eq!(c_eval_at_pw(&pw, &m), c_eval_at(alpha, &m));
+    }
+}
