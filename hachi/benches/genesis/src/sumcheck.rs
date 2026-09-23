@@ -1465,3 +1465,121 @@ pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Ve
     }
     acc
 }
+
+// ---------------------------------------------------------------------------
+// Card T46a (2026-09-23): the bucketed round-0 message. The four constants and
+// the three bucketing items are first translations; round_poly_zero_base_plain is
+// the pre-T46a body of round_poly_zero_base under its new name.
+// round_poly_zero_base itself keeps its freeze above -- a frozen item is never
+// edited, and the row's vs genesis is what measures the change.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// The balanced box's size, `2 · HALF_BASE = 16` digit values (card T46a).
+pub const DIGIT_ALPHABET: usize = 16;
+
+/// `DIGIT_ALPHABET²`: the pair types of a round-0 fold (card T46a).
+pub const PAIR_TYPES: usize = 256;
+
+/// `q − HALF_BASE = 4 294 967 189`: the canonical word of the digit `−8`, the
+/// lowest word of the box's negative half (card T46a). A literal for the
+/// usual extraction reason; `tests/sumcheck_semantics.rs` ties it to `Q`.
+pub const Q_MINUS_HALF: u64 = 4_294_967_189;
+
+/// Below this many pairs the bucketed path's fixed cost -- 256 Taylor shifts
+/// and the type table -- is not repaid by the scan, and the per-pair path
+/// runs (card T46a).
+pub const BUCKET_MIN_PAIRS0: usize = 1024;
+
+/// The digit id of a round-0 table entry: `d + 8` for the canonical word of a
+/// balanced digit `d ∈ [-8, 7]`, and the sentinel [`DIGIT_ALPHABET`] for any
+/// other word (card T46a).
+pub fn digit_id(x: Fp) -> usize {
+    let v: u64 = x.to_u64();
+    if v < params::HALF_BASE {
+        let id: u64 = v + params::HALF_BASE;
+        id as usize
+    } else if v >= Q_MINUS_HALF {
+        let id: u64 = v - Q_MINUS_HALF;
+        id as usize
+    } else {
+        DIGIT_ALPHABET
+    }
+}
+
+/// The `eq` weight of every round-0 pair type: `b[16·i + j] = Σ eq[y]` over
+/// the pairs `(w[2y], w[2y+1])` whose digit ids are `(i, j)` (card T46a).
+/// `None` at the first entry outside the box.
+pub fn bucket_pairs_base(w: &Vec<Fp>, eq: &Vec<Ext4>) -> Option<Vec<Ext4>> {
+    let half: usize = eq.len();
+    let mut b: Vec<Ext4> = Vec::with_capacity(PAIR_TYPES);
+    let mut t0: usize = 0;
+    while t0 < PAIR_TYPES {
+        b.push(Ext4::ZERO);
+        t0 += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let i: usize = digit_id(w[2 * y]);
+        let j: usize = digit_id(w[2 * y + 1]);
+        if i < DIGIT_ALPHABET {
+            if j < DIGIT_ALPHABET {
+                let t: usize = DIGIT_ALPHABET * i + j;
+                let cur: Ext4 = b[t];
+                b[t] = cur + eq[y];
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+        y += 1;
+    }
+    Some(b)
+}
+
+/// The representative table of the round-0 pair types: entry `2t` is the
+/// digit of id `t / 16`, entry `2t + 1` that of id `t % 16`, each as
+/// `Fp::new(id) − 8` (card T46a).
+pub fn pair_type_table_base() -> Vec<Fp> {
+    let mut out: Vec<Fp> = Vec::with_capacity(2 * PAIR_TYPES);
+    let eight: Fp = Fp::new(params::HALF_BASE);
+    let mut t: usize = 0;
+    while t < PAIR_TYPES {
+        let hi_id: usize = t / DIGIT_ALPHABET;
+        let lo_id: usize = t % DIGIT_ALPHABET;
+        out.push(Fp::new(hi_id as u64) - eight);
+        out.push(Fp::new(lo_id as u64) - eight);
+        t += 1;
+    }
+    out
+}
+
+/// [`round_poly_zero_base`] pair by pair: the function's body before card
+/// T46a, unchanged, and the path it takes off the box.
+pub fn round_poly_zero_base_plain(w: &Vec<Fp>, eq: &Vec<Ext4>) -> UnivariatePoly {
+    // [`round_poly_zero`]'s Taylor shift, with `w̃` still in the base field
+    // (Stage 6 candidate T3, round 0). Round 0 walks `2^m₀ / 2` pairs --
+    // **half of every pair the protocol evaluates** -- and it is the cheap
+    // half, because `lo`, `Δ` and every power of them stay in `Fp` and only
+    // the final `eq[y] · c_m` crosses into `Ext4`. Measured: **−48.7%** per
+    // pair, 45.0 s → 23.1 s at the pin.
+    let half: usize = eq.len();
+    let n: usize = params::SHIFT_DEG;
+    let mut acc: Vec<Ext4> = Vec::with_capacity(params::ROUND_NODES);
+    let mut i: usize = 0;
+    while i < n {
+        acc.push(Ext4::ZERO);
+        i += 1;
+    }
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Fp = w[2 * y];
+        let hi: Fp = w[2 * y + 1];
+        let lop: Vec<Fp> = shift_powers_base(lo);
+        acc = shift_accum_base(acc, &lop, hi - lo, eq[y]);
+        y += 1;
+    }
+    acc.push(Ext4::ZERO);
+    UnivariatePoly::from_coeffs(acc)
+}
+

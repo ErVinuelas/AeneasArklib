@@ -1129,22 +1129,22 @@ theorem shift_accum_base_spec (acc : alloc.vec.Vec cpoly.field.Ext4)
     HachiEquiv.Field.Red_one (by simp [HachiEquiv.Field.toK_one])
     (by intro t ht; rw [hav t ht, if_neg (by simp)]; ring)
 
-/-! ### `round_poly_zero_base`'s own two loops -/
+/-! ### `round_poly_zero_base_plain`'s own two loops -/
 
 theorem zero_fill_base_spec (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4)
     (i : Std.Usize) (hn : n.val = 32) (hi : i.val ≤ 32)
     (hlen : acc.val.length = i.val) (har : VecReduced acc)
     (hav : ∀ t, t < i.val → toExt (acc.val.getD t cpoly.field.Ext4.ZERO) = 0) :
-    sumcheck.round_poly_zero_base_loop0 n acc i
+    sumcheck.round_poly_zero_base_plain_loop0 n acc i
       ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
           ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
-  rw [sumcheck.round_poly_zero_base_loop0]
+  rw [sumcheck.round_poly_zero_base_plain_loop0]
   apply loop.spec_decr_nat (fun r => 32 - r.2.val)
     (fun r => r.2.val ≤ 32 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
       ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = 0)
   · rintro ⟨a, ii⟩ ⟨hii, hal, har', hav'⟩
     dsimp only at hii hal har' hav'
-    simp only [sumcheck.round_poly_zero_base_loop0.body]
+    simp only [sumcheck.round_poly_zero_base_plain_loop0.body]
     by_cases hlt : ii < n
     · rw [if_pos hlt]
       have hilt : ii.val < 32 := by rw [← hn]; scalar_tac
@@ -1186,12 +1186,12 @@ theorem pair_loop_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
     (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
       = ∑ y' ∈ Finset.range y.val,
           phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y') :
-    sumcheck.round_poly_zero_base_loop1 w eq half acc y
+    sumcheck.round_poly_zero_base_plain_loop1 w eq half acc y
       ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
           ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
             = ∑ y' ∈ Finset.range half.val,
                 phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y' ⦄ := by
-  rw [sumcheck.round_poly_zero_base_loop1]
+  rw [sumcheck.round_poly_zero_base_plain_loop1]
   apply loop.spec_decr_nat (fun r => half.val - r.2.val)
     (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 32 ∧ VecReduced r.1
       ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
@@ -1199,7 +1199,7 @@ theorem pair_loop_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
               phiF (shiftCoeffK (loK w y') (dK w y') t) * eqF eq y')
   · rintro ⟨a, yy⟩ ⟨hyy, hal, har', hav'⟩
     dsimp only at hyy hal har' hav'
-    simp only [sumcheck.round_poly_zero_base_loop1.body]
+    simp only [sumcheck.round_poly_zero_base_plain_loop1.body]
     by_cases hlt : yy < half
     · rw [if_pos hlt]
       have hylt : yy.val < eq.val.length := by rw [← hhalf]; scalar_tac
