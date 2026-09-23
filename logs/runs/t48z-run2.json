@@ -1,0 +1,101 @@
+{
+  "run": "20260923T2057+0200-bb86cd49",
+  "source": {
+    "sha": "a80543f",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "zerocheck/m_alpha_table_rlin/56",
+      "now_ns": 1240555.9382292654,
+      "genesis_ns": 1094945321.3333333,
+      "vs_genesis": -0.9988670156271194,
+      "vs_genesis_sig": true,
+      "candidate_ns": 606271.86569695,
+      "cand_vs_now": -0.5112901828817769,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.9994462994143318,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": -0.0034283201683498344,
+      "cand_vs_now_adj": -0.5096089654075056,
+      "cand_vs_now_verdict": "faster"
+    },
+    {
+      "case": "zerocheck/m_alpha_tilde_matrix/2",
+      "now_ns": 24449.14272112679,
+      "genesis_ns": 3995467.335589682,
+      "vs_genesis": -0.9938807802272976,
+      "vs_genesis_sig": true,
+      "candidate_ns": 24140.15402710458,
+      "cand_vs_now": -0.012638017518512368,
+      "cand_vs_now_sig": false,
+      "cand_vs_genesis": -0.9939581150339847,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": -0.0034283201683498344,
+      "cand_vs_now_adj": -0.009241379758772927,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/zerocheck/8192",
+      "now_ns": 34608880.266666666,
+      "genesis_ns": 34694680.5,
+      "vs_genesis": -0.002473008314151627,
+      "vs_genesis_sig": true,
+      "candidate_ns": 34490229.94444445,
+      "cand_vs_now": -0.0034283201683498344,
+      "cand_vs_now_sig": false,
+      "cand_vs_genesis": -0.005892850218221559,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": -0.0034283201683498344,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.005892850218221559,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": {
+    "zerocheck": -0.0034283201683498344
+  },
+  "candidate_slot": {
+    "diverged": [
+      "zerocheck"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "1c1dd92e6eca",
+      "ring": "65a50ce92aad",
+      "linalg": "2aa4764600b7",
+      "gadget": "e4cf27d35b5c",
+      "commit": "5ddd75c631bf",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "e5cc04d3ab49",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "d16aef4f36e1",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
