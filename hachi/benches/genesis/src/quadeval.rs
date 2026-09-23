@@ -1710,6 +1710,7 @@ fn z_row(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
     z_apply_terms(terms, &words, buf, rbase)
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_WORDS
 // ---------------------------------------------------------------------------
 // Card T47 (2026-09-23): the z pass on packed 20-bit lanes, three words a
 // coefficient. The six constants and seven kernel items are first translations;
@@ -1728,15 +1729,19 @@ fn z_row(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
 /// T43's `z_pass` touched eight words in eight regions.
 pub const Z_LANE_WORDS: usize = 3;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_1
 /// The unit of lane `1` of a packed word, `2^20`.
 pub const Z_LANE_1: u64 = 1_048_576;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_2
 /// The unit of lane `2` of a packed word, `2^40`.
 pub const Z_LANE_2: u64 = 1_099_511_627_776;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_MASK
 /// One lane's mask, `2^20 - 1`.
 pub const Z_LANE_MASK: u64 = 1_048_575;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_BIAS
 /// The per-pass bias, `16` in each of a word's three lanes:
 /// `16 + 16·2^20 + 16·2^40`.
 ///
@@ -1750,6 +1755,7 @@ pub const Z_LANE_MASK: u64 = 1_048_575;
 /// per-row counter: lane `e` holds `16P + Σ ±dₑ`, lane `8` holds `16P`.
 pub const Z_LANE_BIAS: u64 = 17_592_202_821_648;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::Z_LANE_CHUNK
 /// How many passes the packed accumulator absorbs between two flushes.
 ///
 /// A lane gains at most `31` per pass and starts a chunk at `0`, so after
@@ -1764,6 +1770,7 @@ pub const Z_LANE_BIAS: u64 = 17_592_202_821_648;
 /// flush never fires mid-run: the buffer is decoded once, at the end.
 pub const Z_LANE_CHUNK: u64 = 32_768;
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_spread
 /// One message row's coefficients as packed nibble lanes: three words per
 /// coefficient, `Z_LANE_WORDS · N` in all, laid out as the accumulator's slots.
 ///
@@ -1799,6 +1806,7 @@ fn z_spread(row: &Rq) -> Vec<u64> {
     out
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_pass_lanes
 /// One signed negacyclic pass of the fused z kernel on packed lanes: the
 /// `k`-shifted eight digit polynomials of one message row, added (or
 /// subtracted) into that row's slots of the packed accumulator.
@@ -1871,6 +1879,7 @@ fn z_pass_lanes(src: &Vec<u64>, k: usize, negt: bool, buf: Vec<u64>, rbase: usiz
     out
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_apply_terms_lanes
 /// All of `terms` applied to one row's packed slots: `z_apply_terms` over
 /// [`z_pass_lanes`].
 ///
@@ -1895,6 +1904,7 @@ fn z_apply_terms_lanes(terms: &ZTerms, src: &Vec<u64>, buf: Vec<u64>, rbase: usi
     out
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_row_lanes
 /// One message row's contribution to `z` on packed lanes: `z_row` with the
 /// row's words spread into nibble lanes once ([`z_spread`]) instead of copied.
 fn z_row_lanes(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
@@ -1902,6 +1912,7 @@ fn z_row_lanes(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64
     z_apply_terms_lanes(terms, &src, buf, rbase)
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_lane_decode
 /// Digit `e`'s polynomial of one row, decoded from the packed accumulator:
 /// coefficient `p` is `lane_e(p) - lane_8(p) mod q`, as a field element.
 ///
@@ -1930,6 +1941,7 @@ fn z_lane_decode(zp: &Vec<u64>, base: usize, e: usize) -> Vec<cpoly::Fp> {
     out
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_lane_flush
 /// Fold the packed accumulator into `acc`: `acc[8r + e] += digit_e(row r)`
 /// for every row and digit, decoded by [`z_lane_decode`].
 ///
@@ -1954,6 +1966,7 @@ fn z_lane_flush(acc: Vec<Rq>, zp: &Vec<u64>) -> Vec<Rq> {
     out
 }
 
+// @genesis 7630ad1 2026-09-23 — quadeval::z_lane_zero
 /// Every word of the packed accumulator set back to `0`, in place.
 fn z_lane_zero(buf: Vec<u64>) -> Vec<u64> {
     let mut out: Vec<u64> = buf;
