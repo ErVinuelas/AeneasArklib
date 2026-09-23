@@ -10345,3 +10345,35 @@ opening, 598.4 s when the board was first declared empty (−48.9%), **362.9 s
 now (−69.0% overall, −39.4% since the reopening)**, zero axioms, every
 landed card proved. `chain_verify` at 26.6 s has not been a target of any
 card and has moved only with the shared helpers.
+
+### The pin profile after T43 and T40 (2026-09-23)
+
+`logs/runs/pin-profile-20260923-merged.log`, `BLOCKS=1024`, HEAD `44ca062`
+(= `681c7be` + T43 packed-z + T40a/T40b lift-gold), control CPU spread within
+run **−5.7%** -- a noisier run than 09-22's −2.0%, so every phase no card
+touched carries that much slack. Baseline: the 09-22 merged profile.
+
+| | 09-22 merged | 09-23 | | card |
+|---|---|---|---|---|
+| commitment | 135.7 s | 139.6 s | +2.9% | none (noise) |
+| `carrier_decomp_from_raw` | 21.4 s | 22.0 s | +2.8% | none |
+| **`honest_compute_resp` + stack** | 53.4 s | **38.2 s** | **−28.5%** | T43 (row −46%) |
+| lifted witness | 32.8 s | 41.0 s | +25% | **none -- see below** |
+| **`lift_commit`** | 17.9 s | **1.6 s** | **−91.1%** | T40a (row 11.0x) |
+| `honest_round_messages` | 98.3 s | 98.9 s | +0.6% | none |
+| **prover** | **362.9 s** | **344.7 s** | **−5.0%** | |
+| peak RSS | 5453 MiB | 5454 MiB | 0 | |
+| `end_piece_check` | 19.5 s | 2.8 s | −85.6% | T40a (its recomputed commitment) |
+| **`chain_verify` (whole)** | 26.6 s | **10.2 s** | **−61.7%** | T40a |
+
+**T43 and T40a land as their rows said.** T43's phase lost 15.2 s; T40a took
+`lift_commit` to 1.6 s in the prover and, through the end piece recomputing
+it, the verifier from 26.6 s to 10.2 s.
+
+**The lifted witness reading 41.0 s is not attributed to anything.** No card
+in this merge touches `c_row_sum_high` or `long_mul_high`; the phase has read
+34.5–39.8 s across earlier runs (± 8%), and this run's control drifted −5.7%.
+Recorded as read, not explained. Card T45a replaces the phase's inner loop
+next, and its own row will say what the phase costs.
+
+Stage 6 exit criterion (a) now reads **344.7 s (−70.6% from 1170.8 s)**.
