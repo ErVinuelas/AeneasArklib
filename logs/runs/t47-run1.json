@@ -1,0 +1,118 @@
+{
+  "run": "20260923T2141+0200-c7a9b69a",
+  "source": {
+    "sha": "620fc86",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "quadeval/honest_z_from_raw_32/8",
+      "now_ns": 340347145.3333333,
+      "genesis_ns": 2086425643.6666667,
+      "vs_genesis": -0.8368754974008036,
+      "vs_genesis_sig": true,
+      "candidate_ns": 243376048.66666666,
+      "cand_vs_now": -0.28491820188970274,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8833526373655187,
+      "threshold_vs_genesis": 0.09597491766674585,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.0031620610245499453,
+      "cand_vs_now_adj": -0.2871722068715701,
+      "cand_vs_now_verdict": "faster"
+    },
+    {
+      "case": "quadeval/honest_z_from_raw_32_dense/4",
+      "now_ns": 13054812092.0,
+      "genesis_ns": 44253853307.333336,
+      "vs_genesis": -0.7050016864895994,
+      "vs_genesis_sig": true,
+      "candidate_ns": 13116857348.666666,
+      "cand_vs_now": 0.004752673284718316,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.7035996558859415,
+      "threshold_vs_genesis": 0.09597491766674585,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.0031620610245499453,
+      "cand_vs_now_adj": 0.0015855985009478601,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "quadeval/honest_z_from_raw_32_heavy/8",
+      "now_ns": 367069764.6666667,
+      "genesis_ns": 2293508031.6666665,
+      "vs_genesis": -0.8399527014518797,
+      "vs_genesis_sig": true,
+      "candidate_ns": 265293123.16666666,
+      "cand_vs_now": -0.2772678419657436,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8843286705327641,
+      "threshold_vs_genesis": 0.09597491766674585,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.0031620610245499453,
+      "cand_vs_now_adj": -0.2795459616005461,
+      "cand_vs_now_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/quadeval/8192",
+      "now_ns": 40878875.833333336,
+      "genesis_ns": 37417040.0,
+      "vs_genesis": 0.09252030180188854,
+      "vs_genesis_sig": false,
+      "candidate_ns": 41008137.333333336,
+      "cand_vs_now": 0.0031620610245499453,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": 0.09597491766674585,
+      "threshold_vs_genesis": 0.09597491766674585,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "slower",
+      "cand_lean": 0.0031620610245499453,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.09597491766674585,
+  "usable": true,
+  "threshold_vs_genesis": 0.09597491766674585,
+  "cand_leans": {
+    "quadeval": 0.0031620610245499453
+  },
+  "candidate_slot": {
+    "diverged": [
+      "quadeval"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "1c1dd92e6eca",
+      "ring": "65a50ce92aad",
+      "linalg": "2aa4764600b7",
+      "gadget": "e4cf27d35b5c",
+      "commit": "5ddd75c631bf",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "48ef095d1dc4",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "c7c7fb20edc7",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
