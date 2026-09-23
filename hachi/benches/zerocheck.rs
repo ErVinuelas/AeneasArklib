@@ -106,6 +106,16 @@ const ALPHA_COLS: usize = 2;
 /// The `m₁` the α-side rows run at: **real**, `params::M_ONE = 3`.
 const ALPHA_VARS: usize = hachi::params::M_ONE;
 
+/// The `R^lin` shape the `m_alpha_table_rlin` row is built at, through the real
+/// constructor `quadeval::rlin_stmt`: **REDUCED** to `(blocks, message_rows) =
+/// (1, 1)` at the pinned digit counts `(8, 8, 5)`, so `cw = ct = 8`, `cz = 40`,
+/// `56` columns and 5 rows -- the pin's band proportions, zeros included.
+/// Every other α row runs on a dense `2 × 1` statement with no zeros and no
+/// gadget groups. The size is set by genesis: its frozen `m_alpha_table`
+/// reaches the frozen quadratic `c_eval_at` (~7 ms per call), `5 · 56 = 280`
+/// calls ≈ 2 s per iteration, hence `samples: 10`.
+const MAT_RLIN_COLS: usize = 56;
+
 /// One body per case, instantiated once per variant crate.
 macro_rules! define_cases {
     ($modname:ident, $hachi:path) => {
@@ -123,7 +133,7 @@ macro_rules! define_cases {
             use $hachi as hc;
 
             use crate::support::{self, Mode};
-            use crate::{ALPHA_ROWS, ALPHA_VARS, RHO_ROWS, Z_COLS};
+            use crate::{ALPHA_ROWS, ALPHA_VARS, MAT_RLIN_COLS, RHO_ROWS, Z_COLS};
 
             type Rq = hc::ring::Rq;
             type PolyVec = hc::linalg::PolyVec;
@@ -419,6 +429,49 @@ macro_rules! define_cases {
                 )
             }
 
+            /// A REDUCED `R^lin` statement through `quadeval::rlin_stmt` at the
+            /// pinned digit counts; see [`MAT_RLIN_COLS`].
+            fn statement_rlin(seed: u64, cols: usize) -> RlinStatement {
+                let md = hc::params::GADGET_DIGITS;
+                let zd = hc::params::Z_DIGITS;
+                let cw = hc::quadeval::rlin_cw(1, md);
+                let ct = hc::quadeval::rlin_ct(1, 1, md);
+                let degree = hc::params::RING_DEGREE;
+                let poly = |k: u64| Rq::from_coeffs(&support::corpus(seed.wrapping_add(k), degree));
+                let vec_of = |k: u64, n: usize| PolyVec::new((0..n).map(|j| poly(k + 0x100 * j as u64)).collect());
+                let mat = |k: u64, r: usize, c: usize| {
+                    hc::linalg::PolyMatrix::new((0..r).map(|i| vec_of(k + 0x10000 * i as u64, c)).collect())
+                };
+                let pp = hc::quadeval::PublicParamsD::new(
+                    hc::commit::PublicParams::new(mat(1, 1, md), mat(2, 1, ct)),
+                    mat(3, 1, cw),
+                );
+                let stmt = hc::quadeval::QuadEvalStatement::new(vec_of(4, 1), vec_of(5, 1), vec_of(6, 1), poly(7));
+                let s = hc::quadeval::rlin_stmt(
+                    &pp, &stmt, &vec_of(8, 1), &vec_of(9, 1), hc::params::CHAIN_GAMMA,
+                    1, 1, md, 1, md, zd,
+                );
+                assert_eq!(s.m().cols(), cols, "the row runs at rlinCols of its shape");
+                s
+            }
+
+            /// The α-side table of a real `R^lin` (card T48e): `m_alpha_table`
+            /// is what both the prover (`alpha_split_high`) and the verifier
+            /// (`final_check` via `alpha_public_mle_eval`) pay once per chain.
+            pub fn m_alpha_table_rlin(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let s = statement_rlin(0x2A17_0100, cols);
+                let alpha = point(0x2A17_0101, 1)[0];
+                support::run(
+                    m,
+                    || hc::zerocheck::m_alpha_table(black_box(&s), black_box(alpha)),
+                    |t: &Vec<Vec<Ext4>>| {
+                        let mut acc = 0u64;
+                        for row in t { for v in row { acc = support::mix(acc, d_ext4(v)); } }
+                        acc
+                    },
+                )
+            }
+
             /// `α̃(ℓ) = α^ℓ` at the deepest column index, `ℓ = d − 1`: the worst
             /// entry of the loop every consumer runs to completion, for the
             /// reason `benches/ringswitch.rs` § "Why the digit index is..."
@@ -599,6 +652,9 @@ fn zerocheck_benches(c: &mut Criterion) {
     bench_case!(c, "zerocheck/alpha_public_evals", alpha_public_evals, [ALPHA_COLS]);
     // @covers zerocheck::zc_target_alpha
     bench_case!(c, "zerocheck/zc_target_alpha", zc_target_alpha, [hachi::params::RLIN_ROWS]);
+    // Card T48e's row: the α table on a real R^lin, zeros and gadget bands in.
+    // @covers zerocheck::m_alpha_table
+    bench_case!(c, "zerocheck/m_alpha_table_rlin", m_alpha_table_rlin, [MAT_RLIN_COLS], samples: 10);
 }
 
 criterion_group! {

@@ -2857,6 +2857,77 @@ theorem alpha_pow_table_spec (alpha : cpoly.field.Ext4) (d : Std.Usize)
     (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy) reduced_ONE (by simp)
     (by intro t ht; simp at ht)
 
+/-- The loop of `c_eval_at_pw`: the state is `(acc, k)` with `acc` the partial
+power sum; the power `α ^ k` is read from the table `pw` instead of carried in
+the state, and the term is the mixed `Fp × Ext4` product. `alpha` is ghost: it
+only names what the table holds. -/
+theorem c_eval_at_pw_loop_spec (alpha : cpoly.field.Ext4)
+    (pw : alloc.vec.Vec cpoly.field.Ext4) (p : ring.Rq)
+    (acc : cpoly.field.Ext4) (k : Std.Usize)
+    (hlen : N ≤ pw.val.length) (hpwred : VecReduced pw)
+    (hpw : ∀ l < N, toExt (pw.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l)
+    (hp : Wf p) (hacc : Reduced acc) (hk : k.val ≤ N)
+    (hval : toExt acc = ∑ l ∈ Finset.range k.val, phiF (coeffK p l) * toExt alpha ^ l) :
+    zerocheck.c_eval_at_pw_loop pw p params.RING_DEGREE acc k
+      ⦃ out => Reduced out ∧ toExt out =
+        ∑ l ∈ Finset.range N, phiF (coeffK p l) * toExt alpha ^ l ⦄ := by
+  have hrd : (params.RING_DEGREE).val = N := params_RING_DEGREE_val
+  rw [zerocheck.c_eval_at_pw_loop]
+  apply loop.spec_decr_nat (fun s => N - s.2.val)
+    (fun s => s.2.val ≤ N ∧ Reduced s.1 ∧
+      toExt s.1 = ∑ l ∈ Finset.range s.2.val, phiF (coeffK p l) * toExt alpha ^ l)
+  · rintro ⟨a1, k1⟩ ⟨hk1, hR1, hv1⟩
+    dsimp only at hk1 hR1 hv1
+    simp only [zerocheck.c_eval_at_pw_loop.body]
+    by_cases hlt : k1 < params.RING_DEGREE
+    · rw [if_pos hlt]
+      have hk1lt : k1.val < N := by scalar_tac
+      step with RqBridge.coeff_spec p k1 hp as ⟨f, hRf, hf⟩
+      rw [toRq_coeff, if_pos hk1lt] at hf
+      have hklen : k1.val < pw.val.length := by omega
+      step as ⟨w, hw⟩
+      have hw' : w = pw.val.getD k1.val cpoly.field.Ext4.ZERO := by
+        rw [List.getD_eq_getElem _ _ hklen, hw]
+      have hRw : Reduced w := by
+        rw [hw]; exact hpwred _ (List.getElem_mem hklen)
+      have hwv : toExt w = toExt alpha ^ k1.val := by
+        rw [hw']; exact hpw k1.val hk1lt
+      step with fp_ext_mul_spec f w hRf hRw as ⟨e, hRe, he⟩
+      step with ext_add_spec a1 e hR1 hRe as ⟨a2, hR2, ha2⟩
+      step as ⟨k2, hk2⟩
+      have hk2n : k2.val = k1.val + 1 := by scalar_tac
+      refine ⟨by scalar_tac, hR2, ?_, by scalar_tac⟩
+      rw [ha2, hv1, he, hf, hwv, hk2n, Finset.sum_range_succ, phiF_apply]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = N := by scalar_tac
+      exact ⟨hR1, by rw [hv1, heq]⟩
+  · exact ⟨hk, hacc, hval⟩
+
+/-- `c_eval_at_pw` computes `cEvalAt` (`RingSwitch/Reduction.lean:444`) -- the
+value `c_eval_at_spec` gives `c_eval_at` -- from a table of the powers of `α`.
+
+The table is what `alpha_pow_table α N` returns (`alpha_pow_table_spec`): at
+least `N` reduced entries with entry `l` equal to `α ^ l`. The sum is the
+power-sum reading of `eval₂` (`cEvalAt_eq_sum_range`), each term the mixed
+product `p[l] · α^l`. -/
+theorem c_eval_at_pw_spec (alpha : cpoly.field.Ext4)
+    (pw : alloc.vec.Vec cpoly.field.Ext4) (p : ring.Rq)
+    (hlen : N ≤ pw.val.length) (hpwred : VecReduced pw)
+    (hpw : ∀ l < N, toExt (pw.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l)
+    (hp : Wf p) :
+    zerocheck.c_eval_at_pw pw p
+      ⦃ out => Reduced out ∧ toExt out = InnerOuter.cEvalAt phiF (toExt alpha) (toRq p).1 ⦄ := by
+  rw [zerocheck.c_eval_at_pw,
+    InnerOuter.cEvalAt_eq_sum_range phiF (toExt alpha) (toRq_natDegree_lt p)]
+  apply spec_mono (c_eval_at_pw_loop_spec alpha pw p cpoly.field.Ext4.ZERO 0#usize
+    hlen hpwred hpw hp reduced_ZERO (by simp) (by simp))
+  rintro out ⟨hR, hout⟩
+  refine ⟨hR, ?_⟩
+  rw [hout]
+  refine Finset.sum_congr rfl fun l hl => ?_
+  rw [toRq_coeff, if_pos (Finset.mem_range.mp hl)]
+
 /-- The weight of row `i` in the `m₁`-cube: the `∏ j : Fin m₁` factor of
 `alphaPublicEvals` (`Constraints.lean:845-847`) inside the specification's own
 `i < 2 ^ m₁` guard, and `0` outside it.
@@ -3016,18 +3087,20 @@ gives the specification's `u < μ + n·δ`, so only the digit-block test `(u −
 theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (mu cols : Std.Usize) (phi_alpha : cpoly.field.Ext4)
-    (bp : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
+    (bp apw : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize)
     (row : alloc.vec.Vec cpoly.field.Ext4) (u : Std.Usize)
-    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha) (hi : i.val < n)
+    (hs : RepRlin (n := n) (μ := μ) s rs) (hi : i.val < n)
     (hmu : mu.val = μ) (hcols : cols.val = μ + n * 8)
     (hRphi : Reduced phi_alpha)
     (hphi : toExt phi_alpha = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ)
     (hbplen : bp.val.length = 8) (hbpred : VecReduced bp)
     (hbp : ∀ e < 8, toExt (bp.val.getD e cpoly.field.Ext4.ZERO) = phiF ((16 : ZMod q) ^ e))
+    (hapwlen : N ≤ apw.val.length) (hapwred : VecReduced apw)
+    (hapw : ∀ l < N, toExt (apw.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l)
     (hu : u.val ≤ cols.val) (hlen : row.val.length = u.val) (hred : VecReduced row)
     (hval : ∀ t < u.val, toExt (row.val.getD t cpoly.field.Ext4.ZERO) =
       InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ t) :
-    zerocheck.m_alpha_table_loop0_loop0 s alpha params.GADGET_DIGITS mu cols phi_alpha bp
+    zerocheck.m_alpha_table_loop0_loop0 s params.GADGET_DIGITS mu cols phi_alpha bp apw
       i row u
       ⦃ o => o.val.length = μ + n * 8 ∧ VecReduced o ∧
         ∀ t < μ + n * 8, toExt (o.val.getD t cpoly.field.Ext4.ZERO) =
@@ -3084,7 +3157,7 @@ theorem m_alpha_table_loop0_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatemen
         have humu : u1.val < μ := by rw [← hmu]; scalar_tac
         simp only [ringswitch.RlinStatement.impl.m, bind_tc_ok]
         step with rlin_entry_spec (n := n) (μ := μ) s.m hWm i u1 hi humu as ⟨r, hWr, hrv⟩
-        step with c_eval_at_spec alpha r ha hWr as ⟨e, hRe, he⟩
+        step with c_eval_at_pw_spec alpha apw r hapwlen hapwred hapw hWr as ⟨e, hRe, he⟩
         have hentry : rs.M ⟨i.val, hi⟩ ⟨u1.val, humu⟩ = toRq r := by rw [← hmeq, hrv]
         have hev : toExt e =
             InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨i.val, hi⟩ u1.val := by
@@ -3150,20 +3223,22 @@ since `alpha_public_table_spec` assumes nothing about `n`. -/
 theorem m_alpha_table_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
     (rs : InnerOuter.RlinStatement Φ n μ) (alpha : cpoly.field.Ext4)
     (mu rows cols : Std.Usize) (phi_alpha : cpoly.field.Ext4)
-    (bp : alloc.vec.Vec cpoly.field.Ext4)
+    (bp apw : alloc.vec.Vec cpoly.field.Ext4)
     (out : alloc.vec.Vec (alloc.vec.Vec cpoly.field.Ext4)) (i : Std.Usize)
-    (hs : RepRlin (n := n) (μ := μ) s rs) (ha : Reduced alpha)
+    (hs : RepRlin (n := n) (μ := μ) s rs)
     (hrows : rows.val = n) (hmu : 0 < n → mu.val = μ)
     (hcols : 0 < n → cols.val = μ + n * 8) (hRphi : Reduced phi_alpha)
     (hphi : toExt phi_alpha = InnerOuter.cEvalAt phiF (toExt alpha) Φ.φ)
     (hbplen : bp.val.length = 8) (hbpred : VecReduced bp)
     (hbp : ∀ e < 8, toExt (bp.val.getD e cpoly.field.Ext4.ZERO) = phiF ((16 : ZMod q) ^ e))
+    (hapwlen : N ≤ apw.val.length) (hapwred : VecReduced apw)
+    (hapw : ∀ l < N, toExt (apw.val.getD l cpoly.field.Ext4.ZERO) = toExt alpha ^ l)
     (hi : i.val ≤ n) (hlen : out.val.length = i.val)
     (hval : ∀ (t : ℕ) (ht : t < n), t < i.val →
       (tableRow out t).val.length = μ + n * 8 ∧ VecReduced (tableRow out t) ∧
       ∀ c < μ + n * 8, toExt ((tableRow out t).val.getD c cpoly.field.Ext4.ZERO) =
         InnerOuter.mAlphaTilde Φ phiF 16 rs (toExt alpha) ⟨t, ht⟩ c) :
-    zerocheck.m_alpha_table_loop0 s alpha params.GADGET_DIGITS mu rows cols phi_alpha bp
+    zerocheck.m_alpha_table_loop0 s params.GADGET_DIGITS mu rows cols phi_alpha bp apw
       out i
       ⦃ o => o.val.length = n ∧ ∀ (t : ℕ) (ht : t < n),
         (tableRow o t).val.length = μ + n * 8 ∧ VecReduced (tableRow o t) ∧
@@ -3185,9 +3260,9 @@ theorem m_alpha_table_loop0_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
       have hilt : i1.val < n := by rw [← hrows]; scalar_tac
       have hnpos : 0 < n := by omega
       step with m_alpha_table_loop0_loop0_spec (n := n) (μ := μ) s rs alpha mu cols
-        phi_alpha bp i1 (alloc.vec.Vec.with_capacity cpoly.field.Ext4 cols) 0#usize
-        hs ha hilt (hmu hnpos) (hcols hnpos) hRphi hphi
-        hbplen hbpred hbp (by simp) (by simp [alloc.vec.Vec.with_capacity])
+        phi_alpha bp apw i1 (alloc.vec.Vec.with_capacity cpoly.field.Ext4 cols) 0#usize
+        hs hilt (hmu hnpos) (hcols hnpos) hRphi hphi
+        hbplen hbpred hbp hapwlen hapwred hapw (by simp) (by simp [alloc.vec.Vec.with_capacity])
         (by intro y hy; simp [alloc.vec.Vec.with_capacity] at hy)
         (by intro t ht; simp at ht) as ⟨r1, hrlen, hrred, hrval⟩
       have hbound : v1.val.length < Usize.max := by omega
@@ -3257,9 +3332,11 @@ theorem m_alpha_table_spec {n μ : ℕ} (s : ringswitch.RlinStatement)
       = phiF ((16 : ZMod q) ^ e) := by
     intro e he
     rw [hbpv e he, hbase, hf', ← phiF_apply, ← map_pow]
+  step with alpha_pow_table_spec alpha params.RING_DEGREE ha as ⟨apw, hapwlen, hapwred, hapwv⟩
+  rw [params_RING_DEGREE_val] at hapwlen hapwv
   exact m_alpha_table_loop0_spec (n := n) (μ := μ) s rs alpha mu rows
-    cols phi_alpha bp (alloc.vec.Vec.with_capacity (alloc.vec.Vec cpoly.field.Ext4)
-    rows) 0#usize hs ha hrows hmu hcolsv hRphi hphi hbplen hbpred hbp
+    cols phi_alpha bp apw (alloc.vec.Vec.with_capacity (alloc.vec.Vec cpoly.field.Ext4)
+    rows) 0#usize hs hrows hmu hcolsv hRphi hphi hbplen hbpred hbp hapwlen.ge hapwred hapwv
     (by simp) (by simp [alloc.vec.Vec.with_capacity])
     (by intro t ht htlt; simp at htlt)
 /-- Term `t` of the public initial target, as a function of a plain `ℕ`. -/
