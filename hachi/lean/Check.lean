@@ -2436,6 +2436,11 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.shift_inner_spec
 #print axioms HachiEquiv.SumcheckShift.shift_accum_spec
 #print axioms HachiEquiv.SumcheckShift.zero_fill_spec
+-- Card T55 (2026-09-24): the pair loop skips a pair whose `lo` and `hi` are
+-- both zero. The skipped summand is `eq[y] · shiftCoeff 0 0 t`, and this is the
+-- lemma that says it is `0` -- the coefficient form of `P_b(0) = 0`. The pair
+-- loop's statement, and `round_poly_zero_spec`'s above it, did not move.
+#print axioms HachiEquiv.SumcheckShift.shiftCoeff_zero_zero
 #print axioms HachiEquiv.SumcheckShift.pair_loop_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
 

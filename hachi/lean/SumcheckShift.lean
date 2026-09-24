@@ -808,8 +808,25 @@ def dF (w : alloc.vec.Vec cpoly.field.Ext4) (y : ℕ) : F :=
 def eqF (eq : alloc.vec.Vec cpoly.field.Ext4) (y : ℕ) : F :=
   toExt (eq.val.getD y cpoly.field.Ext4.ZERO)
 
+/-- Card T55: a pair with `lo = Δ = 0` contributes nothing to any coefficient.
+
+Read off the definition: for `m > 0` the factor `Δ^m = 0^m` is `0`, and for
+`m = 0` every term of the inner sum carries `lo^{2j+1} = 0^{2j+1} = 0`. It is
+the coefficient form of `P_b(0) = 0` -- `0` is a digit, and `P_b` is odd -- which
+is why the zero pair's shift `P_b(0 + 0·T)` is the zero polynomial. -/
+theorem shiftCoeff_zero_zero (m : ℕ) : shiftCoeff 0 0 m = 0 := by
+  rw [shiftCoeff]
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp
+  · rw [zero_pow (Nat.pos_iff_ne_zero.mp hm), MulZeroClass.zero_mul]
+
 /-- The pair loop: after `y` pairs, coefficient `t` is the partial sum
-`Σ_{y' < y} eq[y'] · shiftCoeff lo_{y'} Δ_{y'} t`. -/
+`Σ_{y' < y} eq[y'] · shiftCoeff lo_{y'} Δ_{y'} t`.
+
+Card T55 guards the body with `!(lo.is_zero() && hi.is_zero())`, so the step
+splits three ways on the two zero tests. Where both hold the accumulator is
+returned unchanged, and the new summand is `eq[y] · shiftCoeff 0 0 t = 0`
+([`shiftCoeff_zero_zero`]); the other two branches run the old body. -/
 theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize)
     (acc : alloc.vec.Vec cpoly.field.Ext4) (y : Std.Usize)
     (hhalf : half.val = eq.val.length) (hwl : w.val.length = 2 * eq.val.length)
@@ -849,21 +866,56 @@ theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize
       have hhiv : toExt hiw = toExt (w.val.getD (2 * yy.val + 1) cpoly.field.Ext4.ZERO) := by
         rw [hhiw, ← List.getD_eq_getElem (l := w.val) (d := cpoly.field.Ext4.ZERO) hhib,
           hi1, hi]
-      step with shift_powers_spec lo hRlo as ⟨lop, hlopl, hlopr, hlopv⟩
-      step with HachiEquiv.Ext.ext_sub_spec hiw lo hRhi hRlo as ⟨dd, hRdd, hddv⟩
-      have hddval : toExt dd = dF w yy.val := by rw [hddv, hhiv, hlov, dF]
-      step as ⟨ev, hev⟩
-      have hRev : Reduced ev := her _ (by rw [hev]; exact List.getElem_mem hylt)
-      have hevv : toExt ev = eqF eq yy.val := by
-        rw [hev, eqF, ← List.getD_eq_getElem (l := eq.val) (d := cpoly.field.Ext4.ZERO) hylt]
-      step with shift_accum_spec a lop dd ev (loF w yy.val)
-        (fun t => ∑ y' ∈ Finset.range yy.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
-        hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hal har' hav'
-        as ⟨a1, ha1l, ha1r, ha1v⟩
-      step as ⟨yy1, hyy1⟩
-      refine ⟨by omega, ha1l, ha1r, ?_, by omega⟩
-      intro t ht
-      rw [ha1v t ht, hyy1, Finset.sum_range_succ, hevv, hddval]
+      -- the old body: one pair's shift, accumulated
+      have hbody : (do
+          let lop ← sumcheck.shift_powers lo
+          let e ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub hiw lo
+          let e1 ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice cpoly.field.Ext4) eq yy
+          sumcheck.shift_accum a lop e e1)
+          ⦃ a1 => a1.val.length = 32 ∧ VecReduced a1 ∧
+            ∀ t, t < 32 → toExt (a1.val.getD t cpoly.field.Ext4.ZERO)
+              = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t ⦄ := by
+        step with shift_powers_spec lo hRlo as ⟨lop, hlopl, hlopr, hlopv⟩
+        step with HachiEquiv.Ext.ext_sub_spec hiw lo hRhi hRlo as ⟨dd, hRdd, hddv⟩
+        have hddval : toExt dd = dF w yy.val := by rw [hddv, hhiv, hlov, dF]
+        step as ⟨ev, hev⟩
+        have hRev : Reduced ev := her _ (by rw [hev]; exact List.getElem_mem hylt)
+        have hevv : toExt ev = eqF eq yy.val := by
+          rw [hev, eqF, ← List.getD_eq_getElem (l := eq.val) (d := cpoly.field.Ext4.ZERO) hylt]
+        apply spec_mono (shift_accum_spec a lop dd ev (loF w yy.val)
+          (fun t => ∑ y' ∈ Finset.range yy.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
+          hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hal har' hav')
+        rintro a1 ⟨ha1l, ha1r, ha1v⟩
+        refine ⟨ha1l, ha1r, fun t ht => ?_⟩
+        rw [ha1v t ht, Finset.sum_range_succ, hevv, hddval]
+      -- the skipped pair: `lo = hi = 0`, so its summand is `eq[y] · 0`
+      have hskip : toExt lo = 0 → toExt hiw = 0 →
+          ∀ t, t < 32 → toExt (a.val.getD t cpoly.field.Ext4.ZERO)
+            = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t := by
+        intro h0 h1 t ht
+        have hl : loF w yy.val = 0 := by rw [← hlov, h0]
+        have hd : dF w yy.val = 0 := by rw [dF, ← hhiv, h1, hl, sub_zero]
+        rw [Finset.sum_range_succ, hl, hd, shiftCoeff_zero_zero, MulZeroClass.mul_zero, add_zero, hav' t ht]
+      step with HachiEquiv.Ext.ext_is_zero_spec lo hRlo as ⟨b, hb⟩
+      apply spec_bind (Pₘ := fun a1 : alloc.vec.Vec cpoly.field.Ext4 =>
+        a1.val.length = 32 ∧ VecReduced a1 ∧
+          ∀ t, t < 32 → toExt (a1.val.getD t cpoly.field.Ext4.ZERO)
+            = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
+      · by_cases e0 : b = true
+        · rw [if_pos e0]
+          step with HachiEquiv.Ext.ext_is_zero_spec hiw hRhi as ⟨b1, hb1⟩
+          by_cases e1 : b1 = true
+          · rw [if_pos e1, WP.spec_ok]
+            exact ⟨hal, har', hskip (hb.mp e0) (hb1.mp e1)⟩
+          · rw [if_neg e1]
+            exact hbody
+        · rw [if_neg e0]
+          exact hbody
+      · rintro a1 ⟨ha1l, ha1r, ha1v⟩
+        step as ⟨yy1, hyy1⟩
+        refine ⟨by omega, ha1l, ha1r, ?_, by omega⟩
+        intro t ht
+        rw [ha1v t ht, hyy1]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : yy.val = half.val := by scalar_tac

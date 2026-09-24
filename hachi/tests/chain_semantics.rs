@@ -4142,3 +4142,90 @@ fn shift_inner_is_exact_at_the_top_of_its_bound() {
         assert!(hachi::sumcheck::shift_inner(&one, m) == s, "T36: unit case at m = {m}");
     }
 }
+
+/// Card T55's gate: which rows of the honest round-0 table are zero at the pin,
+/// before any code relies on it (the T46a lesson -- a claim about the honest
+/// data is checked on the honest data).
+///
+/// Two classes are predicted. (a) Structural: the lifted-witness rows at and
+/// beyond `LIFT_COLS = 57 384` of the `2^16`-row table are zero by
+/// construction. (b) Data-dependent: `ζ = ŵ ‖ t̂ ‖ ẑ` puts `ẑ =
+/// bounded_z_gadget_decompose(z)` at rows `cw + ct + 5k + e`, and the top
+/// digit `e = 4` of a coefficient is zero whenever `|z| ≤ 7·(1 + 16 + 16² +
+/// 16³) = 34 952` -- honest `|z|` is predicted near 10³. This replays
+/// `pin_instance`'s message draw (same seed, same order), forms the honest
+/// `z` against the same short challenges, decomposes it, and counts zero rows
+/// per digit and the zero pairs they give rounds 2..12. Class (a) is counted
+/// from the constants. Nothing is committed and no round runs: ~40 s, ~5 GiB.
+#[test]
+#[ignore = "instrument: card T55's zero-row histogram at the pin, ~40 s -- run with cargo test --release -- --ignored the_t55_zero_row_histogram"]
+fn the_t55_zero_row_histogram() {
+    let blocks: usize = std::env::var("HACHI_CHAIN_BLOCKS").ok().and_then(|s| s.parse().ok()).unwrap_or(1024);
+    let mut r = Lcg::new(0xC0A1_0050);
+    let message_rows = hachi::params::MESSAGE_ROWS;
+    let message_digits = hachi::params::GADGET_DIGITS;
+    let inner_rows = hachi::params::INNER_ROWS;
+    let inner_digits = hachi::params::GADGET_DIGITS;
+    let z_digits = hachi::params::Z_DIGITS;
+    let cw = blocks * message_digits;
+    let ct = blocks * inner_rows * inner_digits;
+    // the same draws as `pin_instance`, in the same order
+    let _inner = hachi::commit::PublicParams::new(
+        r.next_poly_matrix(inner_rows, message_rows * message_digits),
+        r.next_poly_matrix(1, ct),
+    );
+    let _d = r.next_poly_matrix(1, cw);
+    let raw: Vec<RawVec32> =
+        (0..blocks).map(|_| RawVec32::compact(&r.next_poly_vec(message_rows))).collect();
+    let c = PolyVec::new(
+        (0..blocks).map(|i| short_challenge_rq(i, hachi::params::OMEGA, 1)).collect(),
+    );
+    let t = std::time::Instant::now();
+    let z = hachi::quadeval::honest_z_from_raw_32(&raw, &c);
+    let zh = hachi::gadget::bounded_z_gadget_decompose(&z);
+    eprintln!("[t55] z ({} rows) and z-hat ({} rows) in {:.1?}", z.len(), zh.len(), t.elapsed());
+    let q = hachi::params::Q;
+    let n = hachi::params::RING_DEGREE;
+    let mut max_abs: u64 = 0;
+    for i in 0..z.len() {
+        for k in 0..n {
+            let v = z.get(i).coeff(k).to_u64();
+            let a = if v <= q / 2 { v } else { q - v };
+            if a > max_abs { max_abs = a; }
+        }
+    }
+    let mut zero_rows = vec![0usize; z_digits];
+    let mut zero_coeff_share = vec![0u64; z_digits];
+    for k in 0..zh.len() {
+        let e = k % z_digits;
+        let row = zh.get(k);
+        let zeros = (0..n).filter(|&j| row.coeff(j).to_u64() == 0).count();
+        zero_coeff_share[e] += zeros as u64;
+        if zeros == n { zero_rows[e] += 1; }
+    }
+    eprintln!("[t55] max centred |z| = {max_abs}  (class (b) needs <= 34 952)");
+    for e in 0..z_digits {
+        eprintln!("[t55] z-hat digit {e}: {} of {} rows all-zero, {:.2}% of coefficients zero",
+                  zero_rows[e], zh.len() / z_digits,
+                  100.0 * zero_coeff_share[e] as f64 / ((zh.len() / z_digits) * n) as f64);
+    }
+    // zero pairs in rounds 2..12 from an isolated all-zero row: 2^(9 - i) per
+    // row for i <= 9 (a row is 2^10 table entries); the class-(a) tail stays
+    // aligned through round 12 (57 384 * 1024 = 2^13 * 7173)
+    let lift_cols = hachi::params::LIFT_COLS;
+    let table_rows = 1usize << (hachi::params::M_ZERO - 10);
+    let tail_rows = table_rows - lift_cols;
+    let per_pair_us = 1.466; // sumcheck/round_poly_zero/1024, ledger 2026-09-23
+    let mut a_pairs = 0u64;
+    let mut b_pairs = 0u64;
+    for i in 2..=12u32 {
+        let per_row = if i <= 9 { 1u64 << (9 - i) } else { 0 };
+        let tail = ((tail_rows as u64) << 10) >> (i + 1);
+        a_pairs += tail;
+        b_pairs += zero_rows[z_digits - 1] as u64 * per_row;
+    }
+    eprintln!("[t55] class (a): {tail_rows} tail rows, {a_pairs} zero pairs in rounds 2..12 = {:.2} s",
+              a_pairs as f64 * per_pair_us * 1e-6);
+    eprintln!("[t55] class (b): {} top-digit rows, {b_pairs} zero pairs in rounds 2..9 = {:.2} s",
+              zero_rows[z_digits - 1], b_pairs as f64 * per_pair_us * 1e-6);
+}

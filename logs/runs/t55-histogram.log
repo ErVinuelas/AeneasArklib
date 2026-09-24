@@ -1,0 +1,111 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling serde_core v1.0.229
+   Compiling zerocopy v0.8.56
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling autocfg v1.5.1
+   Compiling cfg-if v1.0.4
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling clap_lex v1.1.0
+   Compiling regex-syntax v0.8.11
+   Compiling either v1.17.0
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling ciborium-io v0.2.2
+   Compiling anstyle v1.0.14
+   Compiling cast v0.3.0
+   Compiling same-file v1.0.6
+   Compiling anes v0.1.6
+   Compiling oorandom v11.1.5
+   Compiling itertools v0.13.0
+   Compiling walkdir v2.5.0
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/wt-t55/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/wt-t55/hachi/benches/genesis)
+   Compiling clap_builder v4.6.6
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/wt-t55/hachi)
+   Compiling num-traits v0.2.19
+warning: unused import: `cpoly::Fp`
+  --> src/quadeval.rs:58:5
+   |
+58 | use cpoly::Fp;
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `div_by_modulus` is never used
+    --> src/ringswitch.rs:1155:4
+     |
+1155 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+     |    ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling regex-automata v0.4.18
+   Compiling criterion-plot v0.6.0
+warning: `hachi` (lib) generated 2 warnings (run `cargo fix --lib -p hachi` to apply 1 suggestion)
+   Compiling clap v4.6.6
+   Compiling serde_derive v1.0.229
+   Compiling zerocopy-derive v0.8.56
+   Compiling regex v1.13.1
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.7.0
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics" -p hachi` to apply 4 suggestions)
+    Finished `release` profile [optimized] target(s) in 19.25s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-2cb981537ec5d8a6)
+
+running 1 test
+[t55] z (8192 rows) and z-hat (40960 rows) in 25.4s
+[t55] max centred |z| = 3056  (class (b) needs <= 34 952)
+[t55] z-hat digit 0: 0 of 8192 rows all-zero, 6.26% of coefficients zero
+[t55] z-hat digit 1: 0 of 8192 rows all-zero, 6.26% of coefficients zero
+[t55] z-hat digit 2: 0 of 8192 rows all-zero, 17.15% of coefficients zero
+[t55] z-hat digit 3: 4456 of 8192 rows all-zero, 99.93% of coefficients zero
+[t55] z-hat digit 4: 8192 of 8192 rows all-zero, 100.00% of coefficients zero
+[t55] class (a): 8152 tail rows, 2085893 zero pairs in rounds 2..12 = 3.06 s
+[t55] class (b): 8192 top-digit rows, 2088960 zero pairs in rounds 2..9 = 3.06 s
+test the_t55_zero_row_histogram ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 33.36s
+
+# exit 0
+HIST_DONE
