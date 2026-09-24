@@ -1,0 +1,118 @@
+{
+  "run": "20260924T1046+0200-d02af117",
+  "source": {
+    "sha": "da50438",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "sumcheck/honest_compute_g_split/1024",
+      "now_ns": 1615082.487701511,
+      "genesis_ns": 9579284.63670635,
+      "vs_genesis": -0.8313984238955837,
+      "vs_genesis_sig": true,
+      "candidate_ns": 1615440.9930691433,
+      "cand_vs_now": 0.00022197341025129947,
+      "cand_vs_now_sig": false,
+      "cand_vs_genesis": -0.8313609988287621,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011631470987335078,
+      "cand_vs_now_adj": -0.011278314192764594,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "sumcheck/round_poly_zero/1024",
+      "now_ns": 1557850.4703953825,
+      "genesis_ns": 9327807.433879407,
+      "vs_genesis": -0.8329885687029586,
+      "vs_genesis_sig": true,
+      "candidate_ns": 1563363.4142259806,
+      "cand_vs_now": 0.0035388144981584532,
+      "cand_vs_now_sig": false,
+      "cand_vs_genesis": -0.8323975462285265,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011631470987335078,
+      "cand_vs_now_adj": -0.007999609266088004,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "sumcheck/round_poly_zero_pin/65536",
+      "now_ns": 100506366.92440476,
+      "genesis_ns": 588934292.8333334,
+      "vs_genesis": -0.8293419687943903,
+      "vs_genesis_sig": true,
+      "candidate_ns": 70054726.18095239,
+      "cand_vs_now": -0.30298220575773455,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8810483155193382,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011631470987335078,
+      "cand_vs_now_adj": -0.310996331933023,
+      "cand_vs_now_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/sumcheck/8192",
+      "now_ns": 34268800.222222224,
+      "genesis_ns": 34414587.222222224,
+      "vs_genesis": -0.004236197838394013,
+      "vs_genesis_sig": false,
+      "candidate_ns": 34667396.77777778,
+      "cand_vs_now": 0.011631470987335078,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": 0.007345999936687175,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": 0.011631470987335078,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.011631470987335078,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": {
+    "sumcheck": 0.011631470987335078
+  },
+  "candidate_slot": {
+    "diverged": [
+      "sumcheck"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "1c1dd92e6eca",
+      "ring": "65a50ce92aad",
+      "linalg": "2aa4764600b7",
+      "gadget": "e4cf27d35b5c",
+      "commit": "5ddd75c631bf",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "0ab6082fe0f5",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "6a1be280d522",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
