@@ -480,20 +480,17 @@ pub fn eq_suffix_table(tau0: &Vec<Ext4>, i: usize) -> Vec<Ext4> {
     let mut k: usize = i + 1;
     while k < m0 {
         let t: Ext4 = tau0[k];
-        let one_minus: Ext4 = Ext4::ONE - t;
         let half: usize = tab.len();
-        let mut next: Vec<Ext4> = Vec::new();
+        // One multiply per entry (card T64): the high half is `tab[j]·t`, and the low
+        // half is `tab[j]·(1 - t) = tab[j] - tab[j]·t`, so the product is computed once.
+        // It is pushed as it is computed, so the table doubles in place.
         let mut j: usize = 0;
         while j < half {
-            next.push(tab[j] * one_minus);
+            let hi: Ext4 = tab[j] * t;
+            tab[j] = tab[j] - hi;
+            tab.push(hi);
             j += 1;
         }
-        let mut j2: usize = 0;
-        while j2 < half {
-            next.push(tab[j2] * t);
-            j2 += 1;
-        }
-        tab = next;
         k += 1;
     }
     tab
