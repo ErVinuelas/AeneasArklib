@@ -10448,3 +10448,32 @@ inside the rounds' −51.3 s).
 
 Stage 6 exit criterion (a) now reads **275.4 s (−76.5% from 1170.8 s)**;
 the verifier is **5.1 s**.
+
+### The pin profile after T48z, T47 and T41 (2026-09-24)
+
+`logs/runs/pin-profile-20260924-final.log`, `BLOCKS=1024`, HEAD `4d9c0d3`,
+control CPU spread within run **−1.1%**. Baseline: `fe4c7cd`'s profile
+(which ran on a slow machine: its untouched phases read 5–15% high).
+
+| | 09-23 eve | 09-24 | | card |
+|---|---|---|---|---|
+| commitment | 148.8 s | 136.9 s | −8.0% | none (the baseline's slow machine) |
+| `carrier_decomp_from_raw` | 23.6 s | 21.7 s | −8.1% | none (same) |
+| **`honest_compute_resp` + stack** | 39.4 s | **23.7 s** | **−39.8%** | T47 (row −29%), plus the baseline's slack |
+| lifted witness | 9.2 s | 8.0 s | −13% | none (same) |
+| **`honest_round_messages`** | 48.6 s | **35.9 s** | **−26.1%** | T41b1 + T41b2 (round 0's α side), T41a (rounds ≥ 1), T48z (the prover's α table) |
+| **prover** | **275.4 s** | **231.1 s** | **−16.1%** | |
+| `final_check` | 1.2 s | **0.62 s** | −49% | T48z |
+| **`chain_verify` (whole)** | 5.1 s | **4.2 s** | −18% | |
+| peak RSS | 5453 MiB | 5453 MiB | 0 | |
+
+Against the morning of 2026-09-23 (`681c7be`, 362.9 s) the day's cards --
+T43, T40a/b, T45a, T46a/a', T46b, T48e, T48z, T47, T41b1, T41a, T41b2 --
+take the prover to **231.1 s (−36.3%)** and the verifier from 26.6 s to
+**4.2 s (−84%)**, every card benched twice, proved with its headline
+statements byte-identical, and stamped.
+
+Stage 6 exit criterion (a) now reads **231.1 s (−80.3% from 1170.8 s)**.
+What is left on the board is deferred by its own section-6 report (T42,
+T44, T45b/c, T48g, T48e's u128 arm). The largest phase is now the
+commitment (137 s, 59% of the prover), which no card on the board touches.

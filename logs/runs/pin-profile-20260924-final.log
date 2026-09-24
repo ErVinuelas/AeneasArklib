@@ -1,0 +1,94 @@
+# main: + T48z, T47, T41b1, T41a, T41b2 on 0b6ebf8, 2026-09-24T01:49:12+02:00, HEAD 4d9c0d3
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/genesis)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/AeneasArklib/hachi/benches/candidate)
+warning: unused import: `cpoly::Fp`
+  --> src/quadeval.rs:58:5
+   |
+58 | use cpoly::Fp;
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `div_by_modulus` is never used
+    --> src/ringswitch.rs:1155:4
+     |
+1155 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+     |    ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `hachi` (lib) generated 2 warnings (run `cargo fix --lib -p hachi` to apply 1 suggestion)
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics" -p hachi` to apply 4 suggestions)
+    Finished `release` profile [optimized] target(s) in 3.49s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-2cb981537ec5d8a6)
+
+running 1 test
+[profile] control CPU (frozen genesis range_product_base x2000000): 77.5ms = 38.77 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 517.6ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   369.6s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   512.3s] +   136.9s  peak   4536 live   4472 MiB  committed 1024 block(s)
+[   513.0s] +  722.4ms  peak   4536 live   4472 MiB  statement built
+[   534.7s] +    21.7s  peak   4536 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   536.0s] +     1.3s  peak   4536 live   4497 MiB  honest_compute_v_from_decomp
+[   559.6s] +    23.7s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   559.6s] +   16.1ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   559.8s] +  171.9ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   559.8s] +   80.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   567.8s] +     8.0s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   567.8s] ---------  peak   5453 live   5453 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 171.6ms
+[profile] lift_commit: 1.6s
+[profile] c_w_table_mle at 2^26: 208.3ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 5.1s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 35.9s
+[profile] honest_compute_y: 1.1s
+[profile] verifier: rlin_stmt + statement thread: 171.8ms
+[profile] verifier: round_verify_loop (26 rounds): 61.5µs
+[profile] verifier: final_check = true: 617.2ms
+[profile] verifier: end_piece_check = true: 2.8s
+[profile] chain_verify (whole) = true: 4.2s
+[profile] control CPU (frozen genesis range_product_base x2000000): 76.7ms = 38.34 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 536.4ms
+[profile] control CPU spread within run: -1.1%  (recenter cross-run deltas by THIS)
+[profile] control alloc spread within run: +3.6%  (legacy, allocation-bound)
+[   621.0s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 621.25s
+
+# exit 0
+PROFILE_DONE
