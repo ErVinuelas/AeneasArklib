@@ -394,8 +394,18 @@ pub fn round_poly_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> UnivariatePoly {
     while y < half {
         let lo: Ext4 = w[2 * y];
         let hi: Ext4 = w[2 * y + 1];
-        let lop: Vec<Ext4> = shift_powers(lo);
-        acc = shift_accum(acc, &lop, hi - lo, eq[y]);
+        // Card T55: a pair with both entries zero contributes nothing -- its
+        // fold is the constant 0 and `P_b(0) = 0` (0 is a digit), so every
+        // shifted coefficient is 0 whatever `eq[y]` is. The honest table has
+        // three such classes at the pin, all measured (2026-09-24 histogram):
+        // the zero padding past `LIFT_COLS`, and the top one or two digits of
+        // every bounded-z row (max |z| = 3056 against a 34 952 threshold).
+        // The branch tests the values actually read, so it needs no
+        // hypothesis (T48z's precedent).
+        if !(lo.is_zero() && hi.is_zero()) {
+            let lop: Vec<Ext4> = shift_powers(lo);
+            acc = shift_accum(acc, &lop, hi - lo, eq[y]);
+        }
         y += 1;
     }
     acc.push(Ext4::ZERO);

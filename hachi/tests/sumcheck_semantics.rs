@@ -1276,3 +1276,33 @@ fn round_zero_alpha_by_blocks_is_the_per_pair_form() {
         }
     }
 }
+
+/// Card T55: with zero pairs skipped, `round_poly_zero` still evaluates to the
+/// node values of the whole table -- `round_values_zero`, which does not skip --
+/// on tables mixing all-zero pairs, half-zero pairs (one entry zero: NOT
+/// skipped, `P_b` of a non-zero fold is not zero in general) and random pairs,
+/// and on an all-zero table (every pair skipped: the zero polynomial of length
+/// 33).
+#[test]
+fn round_poly_skipping_zero_pairs_is_the_whole_sum() {
+    let mut r = Lcg::new(0x5A17_4655);
+    for &half in &[1usize, 4, 16, 64] {
+        for kind in 0..4 {
+            let w: Vec<Ext4> = (0..2 * half)
+                .map(|i| match kind {
+                    0 => if (i / 2) % 3 == 0 { Ext4::ZERO } else { ext4(&mut r) },
+                    1 => if i % 2 == 0 { Ext4::ZERO } else { ext4(&mut r) },
+                    2 => if (i / 2) % 2 == 0 { Ext4::ZERO } else if i % 5 == 0 { Ext4::ZERO } else { ext4(&mut r) },
+                    _ => Ext4::ZERO,
+                })
+                .collect();
+            let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+            let values = round_values_zero(&w, &eq);
+            let p = round_poly_zero(&w, &eq);
+            assert_eq!(p.coeffs().len(), hachi::params::ROUND_NODES, "half {half}, kind {kind}");
+            for (i, v) in values.iter().enumerate() {
+                assert_eq!(p.eval(round_node(i)), *v, "half {half}, kind {kind}, node {i}");
+            }
+        }
+    }
+}

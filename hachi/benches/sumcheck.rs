@@ -80,6 +80,16 @@ const R1_HALF: usize = 1 << 22;
 /// diluted to a few percent.
 const ALPHA_SPLIT_HALF: usize = 1 << 16;
 
+/// The pair count the `round_poly_zero_pin` row runs at: **REDUCED** from round
+/// 2's `2^23` pairs to `2^16`, on a table whose zero pairs follow the honest
+/// pin's measured row mask (card T55; `the_t55_zero_row_histogram`,
+/// 2026-09-24): at round 2 a lifted-witness row is 128 pairs, and the row
+/// layout is sampled every 128th row, so the zero padding past `LIFT_COLS`, the
+/// all-zero top digit of every bounded-z row and the 54% of zero third digits
+/// keep their shares (31.7% of pairs zero). Genesis's node-value
+/// `round_poly_zero` is ~0.6 s per iteration here, hence `samples: 10`.
+const R2_PIN_HALF: usize = 1 << 16;
+
 /// The cube the `alpha_public_table` row runs at: **REDUCED** from the pinned
 /// `M_ZERO = 26` to `7`, i.e. `128` entries, all in table row `0` (the matrix
 /// branch of `m_alpha_tilde`). The size is set by the **genesis** variant, not
@@ -541,6 +551,42 @@ macro_rules! define_cases {
                 )
             }
 
+            /// Round 2's table on the honest zero mask: `2 · half` entries in
+            /// runs of 256 (one lifted-witness row at round 2), a run all-zero
+            /// when the row it samples is -- see [`R2_PIN_HALF`].
+            fn pin_zero_mask_table(seed: u64, half: usize) -> Vec<Ext4> {
+                let w = ext_table(seed, 2 * half);
+                let run = 256usize;
+                let rows = (2 * half) / run;
+                let cw_ct = 2 * 8192usize;
+                let zh_end = cw_ct + 5 * 8192;
+                let lift = hc::params::LIFT_COLS;
+                let mut out = Vec::with_capacity(2 * half);
+                let mut k = 0usize;
+                while k < 2 * half {
+                    let m = k / run;
+                    let u = m * ((1usize << 16) / rows); // the sampled table row
+                    let zero = u >= lift
+                        || (u >= cw_ct && u < zh_end && (u - cw_ct) % 5 == 4)
+                        || (u >= cw_ct && u < zh_end && (u - cw_ct) % 5 == 3 && (u / 5) % 100 < 54);
+                    out.push(if zero { Ext4::ZERO } else { w[k] });
+                    k += 1;
+                }
+                out
+            }
+
+            /// `round_poly_zero` at round 2's shape on the honest zero mask
+            /// (card T55).
+            pub fn round_poly_zero_pin(m: Mode<'_, '_>, half: usize) -> u64 {
+                let w = pin_zero_mask_table(0x5A17_7056, half);
+                let eq = ext_table(0x5A17_7057, half);
+                support::run(
+                    m,
+                    || hc::sumcheck::round_poly_zero(black_box(&w), black_box(&eq)),
+                    d_poly,
+                )
+            }
+
             /// One node of the **linear** summand: two folds and one product
             /// per remaining cube point, against the range side's fold plus
             /// `range_product`. The pair is what makes the `2b + 1` versus `3`
@@ -926,6 +972,8 @@ fn sumcheck_benches(c: &mut Criterion) {
     bench_case!(c, "sumcheck/round_poly_alpha_split", round_poly_alpha_split, [ALPHA_SPLIT_HALF]);
     // @covers sumcheck::round_poly_alpha_base_split
     bench_case!(c, "sumcheck/round_poly_alpha_base_split", round_poly_alpha_base_split, [ALPHA_SPLIT_HALF]);
+    // @covers sumcheck::round_poly_zero
+    bench_case!(c, "sumcheck/round_poly_zero_pin", round_poly_zero_pin, [R2_PIN_HALF], samples: 10);
 
     // @covers sumcheck::round_value_alpha
     bench_case!(c, "sumcheck/round_value_alpha", round_value_alpha, [HALF]);
