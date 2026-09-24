@@ -1993,6 +1993,7 @@ pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &V
 }
 
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::ZERO_LANES
 // ---------------------------------------------------------------------------
 // Card T53b (2026-09-25): delayed accumulation of the zero side in u128 lanes.
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
@@ -2002,6 +2003,7 @@ pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &V
 /// [`params::ROUND_NODES`] is -- a product is a `Result` in the extracted model.
 pub const ZERO_LANES: usize = 128;
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::ZERO_LANE_FLUSH
 /// How many accumulated pairs [`round_poly_zero_lanes`] lets pass between two
 /// lane reductions (card T53b): `2^31`.
 ///
@@ -2015,6 +2017,7 @@ pub const ZERO_LANES: usize = 128;
 /// (`half ≤ 2^24`) the flush never fires.
 pub const ZERO_LANE_FLUSH: usize = 2_147_483_648;
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::ext4_mul_raw
 /// The quartic product `a · b` in `F_q[Y]/(Y^4 − 2)`, **unreduced** (card
 /// T53b): the four components of cpoly's schoolbook `Mul for Ext4` before its
 /// four `reduce_wide`s, as integers.
@@ -2052,6 +2055,7 @@ pub fn ext4_mul_raw(a: Ext4, b: Ext4) -> (u128, u128, u128, u128) {
     (r0, r1, r2, r3)
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::zero_lanes
 /// [`ZERO_LANES`] zero lanes (card T53b).
 pub fn zero_lanes() -> Vec<u128> {
     let n: usize = ZERO_LANES;
@@ -2064,6 +2068,7 @@ pub fn zero_lanes() -> Vec<u128> {
     out
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::lane_accum
 /// Add the unreduced product `a · b` ([`ext4_mul_raw`]) into lanes
 /// `base .. base + 4` (card T53b).
 ///
@@ -2089,6 +2094,7 @@ pub fn lane_accum(mut lanes: Vec<u128>, base: usize, a: Ext4, b: Ext4) -> Vec<u1
     lanes
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::shift_accum_lanes
 /// [`shift_accum`] with the accumulator held as raw lanes (card T53b): lane
 /// group `m` gains the unreduced `e·Δ^m · S_m`.
 ///
@@ -2109,6 +2115,7 @@ pub fn shift_accum_lanes(mut lanes: Vec<u128>, lop: &Vec<Ext4>, d: Ext4, e: Ext4
     lanes
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::lanes_flush
 /// Reduce every lane mod `q` in place (card T53b): the residues are unchanged
 /// and each lane drops below `q`, restoring the headroom
 /// [`ZERO_LANE_FLUSH`] is computed from.
@@ -2125,6 +2132,7 @@ pub fn lanes_flush(mut lanes: Vec<u128>) -> Vec<u128> {
     lanes
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::lanes_to_coeffs
 /// The [`params::SHIFT_DEG`] coefficients the lanes denote: coefficient `m`
 /// is `Ext4(lane[4m] mod q, …, lane[4m+3] mod q)` (card T53b). Capacity
 /// [`params::ROUND_NODES`], so [`round_poly_zero`]'s final `push` does not
@@ -2151,6 +2159,7 @@ pub fn lanes_to_coeffs(lanes: &Vec<u128>) -> Vec<Ext4> {
     out
 }
 
+// @genesis 3fa816a 2026-09-25 — sumcheck::round_poly_zero_lanes
 /// [`round_poly_zero`]'s pair loop over raw lanes (card T53b): after the
 /// loop, lane `4m + r` is congruent mod `q` to component `r` of
 /// `Σ_y eq[y] · Δ_y^m · S_m(lo_y)`.
