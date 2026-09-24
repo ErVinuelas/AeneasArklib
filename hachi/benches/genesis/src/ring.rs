@@ -1673,6 +1673,7 @@ impl RawRq32 {
     }
 }
 
+// @genesis 54c9457 2026-09-25 — ring::gold_twist_digit_table
 // ---------------------------------------------------------------------------
 // Card T65b (2026-09-25): the twist stage from the raw words through a digit table.
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
@@ -1693,6 +1694,7 @@ pub fn gold_twist_digit_table(pt: &Vec<u64>) -> Vec<u64> {
     out
 }
 
+// @genesis 54c9457 2026-09-25 — ring::gold_dif_stage2_twist_tab
 /// [`gold_dif_stage2_twist`] reading digit `e` of a row's buffered words
 /// through the twist table (card T65b).
 ///
@@ -1755,6 +1757,7 @@ pub fn gold_dif_stage2_twist_tab(
     dst
 }
 
+// @genesis 54c9457 2026-09-25 — ring::gold_dot_one_fused_tab
 /// [`gold_dot_one_fused`] with digit `e` of the buffered words as its operand,
 /// twisted through the table (card T65b): the same five passes, line for line,
 /// with the first one [`gold_dif_stage2_twist_tab`]. [`gold_dot_one_fused`]
