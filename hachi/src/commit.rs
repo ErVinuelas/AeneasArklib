@@ -431,11 +431,19 @@ pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<Pol
 
 /// [`commit_streamed`] over the compact raw carrier.
 ///
-/// Identical arithmetic; the message arrives in `u32` words and one block is
-/// expanded per iteration, so the resident raw state is 4 GiB rather than 8 at
-/// the paper's parameters plus one 8 MiB block. A separate item rather than a
-/// changed signature because `commit_streamed` carries a criterion row, and
-/// `define_cases!` pins a benched item's signature.
+/// Identical values; the message arrives in `u32` words, so the resident raw
+/// state is 4 GiB rather than 8 at the paper's parameters. A separate item
+/// rather than a changed signature because `commit_streamed` carries a
+/// criterion row, and `define_cases!` pins a benched item's signature.
+///
+/// **No block is expanded and no block is decomposed** (Stage 6 card T51a).
+/// The unsigned base-16 digits of a canonical word are its nibbles, so
+/// `A · G⁻¹(xᵢ)` reads each digit polynomial straight out of the compact rows
+/// into one recycled scratch ([`linalg::PreparedMatrixG::apply_raw_digits_gold`]).
+/// Per block at the pin that is the 8 MiB `expand`ed block (`2 048`
+/// allocations) and its `MESSAGE_ROWS · GADGET_DIGITS` digit polynomials
+/// (64 MiB, `16 384` allocations) gone; the outer `t̂ᵢ = G⁻¹(A · G⁻¹(xᵢ))`
+/// decomposition of the one-row product is unchanged.
 pub fn commit_streamed_32(
     pp: &PublicParams,
     m: &Vec<linalg::RawVec32>,
@@ -445,9 +453,7 @@ pub fn commit_streamed_32(
     let mut ts: Vec<PolyVec> = Vec::new();
     let mut i: usize = 0;
     while i < blocks {
-        let block: PolyVec = m[i].expand();
-        let s: PolyVec = gadget::gadget_decompose(&block);
-        let inner: PolyVec = prep.apply_digits_gold(&s);
+        let inner: PolyVec = prep.apply_raw_digits_gold(&m[i]);
         ts.push(gadget::gadget_decompose(&inner));
         i += 1;
     }

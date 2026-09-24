@@ -984,4 +984,502 @@ theorem prepare_vec_gold_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
   exact ⟨le_of_eq hfl.symm, hfc, hfv⟩
 
 
+/-! ## Card T51a: the digits read straight out of the compact rows
+
+`dot_prepared_raw_digits_gold` is [`dot_prepared_digits_gold`] with its right
+operand never built: term `j` is digit `j % 8` of compact row `j / 8`, filled
+into one recycled scratch `Rq` from a buffer of the row's canonical words that
+is refreshed once per row (at `j % 8 = 0`), and then handed to the unchanged
+[`gold_dot_one_fused`].
+
+The proofs keep the vocabulary of [`gold_dot_spec`] by carrying the digit block
+as a **ghost** `B : Vec Rq` -- the vector `gadget_decompose` would have built --
+tied to the rows by [`RawDigitsOf`], a pointwise equality of words. The terms
+loop then accumulates `termFwd ps a B`, and everything after the loop is
+[`gold_dot_spec`]'s proof over `B`. -/
+
+/-- The canonical word `RawRq32::word` reads at index `i`: the raw `u32`
+reduced mod `q` below the row's length, `0` past it -- which is exactly
+`RawRq32::expand`'s coefficient `i` (its `Fp::new` and its zero padding). -/
+def rawWordN (row : alloc.vec.Vec Std.U32) (i : ℕ) : ℕ :=
+  if i < row.val.length then (row.val.getD i 0#u32).val % HachiEquiv.NttProduct.q else 0
+
+theorem rawWordN_lt (row : alloc.vec.Vec Std.U32) (i : ℕ) :
+    rawWordN row i < HachiEquiv.NttProduct.q := by
+  unfold rawWordN
+  split
+  · exact Nat.mod_lt _ (by norm_num [HachiEquiv.NttProduct.q])
+  · norm_num [HachiEquiv.NttProduct.q]
+
+/-- **`RawRq32::word`**: the canonical word, with no precondition on the row --
+a raw `u32` may lie in `[q, 2^32)` and a row may be short. -/
+theorem word_spec (row : ring.RawRq32) (i : Std.Usize) :
+    ring.RawRq32.word row i ⦃ w => w.val = rawWordN row i.val ⦄ := by
+  rw [ring.RawRq32.word]
+  by_cases hlt : i < alloc.vec.Vec.len row
+  · rw [if_pos hlt]
+    have hib : i.val < row.val.length := by scalar_tac
+    step as ⟨x, hx⟩
+    have hcast : lift (UScalar.cast .U64 x) ⦃ y => y.val = x.val ⦄ :=
+      UScalar.cast_inBounds_spec .U64 x (by scalar_tac)
+    step with hcast as ⟨y, hy⟩
+    step as ⟨z, hz⟩
+    rw [hz, hy, hx, HachiEquiv.Field.params_Q_val]
+    unfold rawWordN
+    rw [if_pos hib, List.getD_eq_getElem _ _ hib]
+  · rw [if_neg hlt, WP.spec_ok]
+    unfold rawWordN
+    rw [if_neg (by scalar_tac)]
+    rfl
+
+/-- The loop of `load_raw_words`: after `i` steps the buffer holds the row's
+first `i` canonical words. -/
+theorem load_raw_words_loop_spec (row : ring.RawRq32) (nU : Std.Usize)
+    (w : alloc.vec.Vec Std.U64) (iU : Std.Usize)
+    (hn : nU.val = N) (hi : iU.val ≤ N) (hwl : w.val.length = N)
+    (hwv : ∀ k, k < iU.val → wordAt w k = rawWordN row k) :
+    ring.load_raw_words_loop row nU w iU
+      ⦃ z => z.val.length = N ∧ ∀ k, k < N → wordAt z k = rawWordN row k ⦄ := by
+  rw [ring.load_raw_words_loop]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = N
+      ∧ ∀ k, k < r.2.val → wordAt r.1 k = rawWordN row k)
+  · rintro ⟨d, ii⟩ ⟨hii, hdl, hdv⟩
+    dsimp only at hii hdl hdv
+    simp only [ring.load_raw_words_loop.body]
+    by_cases hlt : ii < nU
+    · rw [if_pos hlt]
+      have hilt : ii.val < N := by rw [← hn]; scalar_tac
+      have hdb : ii.val < d.val.length := by rw [hdl]; exact hilt
+      step with word_spec row ii as ⟨x, hx⟩
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨ii1, hii1⟩
+      rw [hback]
+      refine ⟨by rw [hii1]; omega, ?_, ?_, by rw [hii1]; omega⟩
+      · simpa using hdl
+      · intro k hk
+        rw [hii1] at hk
+        by_cases heq : k = ii.val
+        · rw [heq, wordAt_set_eq hdb, hx]
+        · rw [wordAt_set_ne heq]; exact hdv k (by omega)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = N := by rw [← hn]; scalar_tac
+      exact ⟨hdl, fun k hk => hdv k (by rw [heq]; exact hk)⟩
+  · exact ⟨hi, hwl, hwv⟩
+
+/-- **`load_raw_words`**: the recycled buffer comes back holding the row's
+canonical words, `RawRq32::word` pointwise. -/
+theorem load_raw_words_spec (out : alloc.vec.Vec Std.U64) (row : ring.RawRq32)
+    (hwl : out.val.length = N) :
+    ring.load_raw_words out row
+      ⦃ z => z.val.length = N ∧ ∀ k, k < N → wordAt z k = rawWordN row k ⦄ := by
+  rw [ring.load_raw_words]
+  exact load_raw_words_loop_spec row params.RING_DEGREE out 0#usize
+    HachiEquiv.Ring.params_RING_DEGREE_val (by simp) hwl (by intro k hk; simp at hk)
+
+theorem wordN_set_eq {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize} {x : cpoly.field.Fp}
+    (ht : t.val < v.val.length) : HachiEquiv.Ring.wordN (v.set t x) t.val = x.val := by
+  unfold HachiEquiv.Ring.wordN
+  rw [alloc.vec.Vec.set_val_eq,
+    List.getD_eq_getElem _ _ (by rw [List.length_set]; exact ht), List.getElem_set]
+  simp
+
+theorem wordN_set_ne {v : alloc.vec.Vec cpoly.field.Fp} {t : Std.Usize} {x : cpoly.field.Fp}
+    {k : ℕ} (h : k ≠ t.val) : HachiEquiv.Ring.wordN (v.set t x) k = HachiEquiv.Ring.wordN v k := by
+  unfold HachiEquiv.Ring.wordN
+  rw [alloc.vec.Vec.set_val_eq]
+  by_cases hk : k < v.val.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+theorem wordN_of_ge {v : ring.Rq} (hv : v.val.length = N) {k : ℕ} (hk : N ≤ k) :
+    HachiEquiv.Ring.wordN v k = 0 := by
+  unfold HachiEquiv.Ring.wordN
+  rw [List.getD_eq_default _ _ (by rw [hv]; exact hk)]
+  simp [cpoly.field.Fp.ZERO]
+
+/-- The shift-and-mask is the base-16 digit: `(w >> 4e) & 15 = ⌊w / 16^e⌋ mod 16`. -/
+theorem nibble_shift_mask (w e : ℕ) : (w >>> (4 * e)) &&& 15 = (w / 16 ^ e) % 16 := by
+  rw [Nat.shiftRight_eq_div_pow, pow_mul,
+    show (15 : ℕ) = 2 ^ 4 - 1 by norm_num, Nat.and_two_pow_sub_one_eq_mod]
+  norm_num
+
+/-- The loop of `fill_digit_from_words`: after `i` steps the scratch's first `i`
+words are digit `e` of the buffer's. -/
+theorem fill_digit_from_words_loop_spec (words : alloc.vec.Vec Std.U64)
+    (nU shiftU : Std.Usize) (w : ring.Rq) (iU : Std.Usize) (e : ℕ)
+    (hn : nU.val = N) (hsh : shiftU.val = 4 * e) (he : e < 16)
+    (hwl : words.val.length = N) (hi : iU.val ≤ N) (hdl : w.val.length = N)
+    (hval : ∀ k, k < iU.val →
+      HachiEquiv.Ring.wordN w k = (wordAt words k / 16 ^ e) % 16) :
+    ring.fill_digit_from_words_loop words nU shiftU w iU
+      ⦃ z => z.val.length = N ∧ ∀ k, k < N →
+          HachiEquiv.Ring.wordN z k = (wordAt words k / 16 ^ e) % 16 ⦄ := by
+  rw [ring.fill_digit_from_words_loop]
+  apply loop.spec_decr_nat (fun r => nU.val - r.2.val)
+    (fun r => r.2.val ≤ N ∧ r.1.val.length = N
+      ∧ ∀ k, k < r.2.val → HachiEquiv.Ring.wordN r.1 k = (wordAt words k / 16 ^ e) % 16)
+  · rintro ⟨d, ii⟩ ⟨hii, hdl1, hdv⟩
+    dsimp only at hii hdl1 hdv
+    simp only [ring.fill_digit_from_words_loop.body]
+    by_cases hlt : ii < nU
+    · rw [if_pos hlt]
+      have hilt : ii.val < N := by rw [← hn]; scalar_tac
+      have hwb : ii.val < words.val.length := by rw [hwl]; exact hilt
+      have hdb : ii.val < d.val.length := by rw [hdl1]; exact hilt
+      step as ⟨x, hx⟩
+      have hxv : x.val = wordAt words ii.val := by
+        rw [hx, ← wordAt_of_lt (v := words) (t := ii.val) hwb]
+      step as ⟨y, hy, _⟩
+      step as ⟨dd, hdd⟩
+      have hddv : dd.val = (wordAt words ii.val / 16 ^ e) % 16 := by
+        rw [hdd, UScalar.val_and, hy, hsh, hxv]
+        exact nibble_shift_mask _ _
+      have hddlt : dd.val < HachiEquiv.Field.q := by
+        rw [hddv]
+        have := Nat.mod_lt (wordAt words ii.val / 16 ^ e) (by norm_num : 0 < 16)
+        unfold HachiEquiv.Field.q; omega
+      step with HachiEquiv.Field.fp_new_spec dd as ⟨f, hRf, hf⟩
+      have hfv : f.val = dd.val := by
+        have h1 := HachiEquiv.NttProduct.natCast_inj_of_lt
+          (n := HachiEquiv.NttProduct.q) (x := f.val) (y := dd.val) hRf hf
+        rwa [Nat.mod_eq_of_lt hddlt] at h1
+      step as ⟨elem, back, helem, hback⟩
+      step as ⟨ii1, hii1⟩
+      rw [hback]
+      refine ⟨by rw [hii1]; omega, ?_, ?_, by rw [hii1]; omega⟩
+      · simpa using hdl1
+      · intro k hk
+        rw [hii1] at hk
+        by_cases heq : k = ii.val
+        · rw [heq, wordN_set_eq hdb, hfv, hddv]
+        · rw [wordN_set_ne heq]; exact hdv k (by omega)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = N := by rw [← hn]; scalar_tac
+      exact ⟨hdl1, fun k hk => hdv k (by rw [heq]; exact hk)⟩
+  · exact ⟨hi, hdl, hval⟩
+
+/-- A digit word is a well-formed ring element: `N` entries, each below `16 < q`. -/
+theorem wf_of_digit_words {z : ring.Rq} (hl : z.val.length = N) (f : ℕ → ℕ)
+    (hv : ∀ k, k < N → HachiEquiv.Ring.wordN z k = f k % 16) : HachiEquiv.Ring.Wf z := by
+  refine ⟨hl, fun u hu => ?_⟩
+  obtain ⟨k, hk, hku⟩ := List.getElem_of_mem hu
+  have hkN : k < N := by rw [← hl]; exact hk
+  have h := hv k hkN
+  unfold HachiEquiv.Ring.wordN at h
+  rw [List.getD_eq_getElem _ _ hk, hku] at h
+  unfold HachiEquiv.Field.Red
+  rw [h]
+  have := Nat.mod_lt (f k) (by norm_num : 0 < 16)
+  unfold HachiEquiv.Field.q; omega
+
+/-- **`fill_digit_from_words`**: with a length-`N` scratch and `e < 16` (the
+shift `4e` stays below `64`), the scratch comes back well formed, holding digit
+`e` of every buffered word. The scratch's previous contents are irrelevant --
+every entry is overwritten. -/
+theorem fill_digit_from_words_spec (out : ring.Rq) (words : alloc.vec.Vec Std.U64)
+    (e : Std.Usize) (hout : out.val.length = N) (hwl : words.val.length = N)
+    (he : e.val < 16) :
+    ring.fill_digit_from_words out words e
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N →
+          HachiEquiv.Ring.wordN z k = (wordAt words k / 16 ^ e.val) % 16 ⦄ := by
+  rw [ring.fill_digit_from_words]
+  step as ⟨sh, hsh⟩
+  apply spec_mono (fill_digit_from_words_loop_spec words params.RING_DEGREE sh out
+    0#usize e.val HachiEquiv.Ring.params_RING_DEGREE_val hsh he hwl (by simp) hout
+    (by intro k hk; simp at hk))
+  rintro z ⟨hzl, hzv⟩
+  exact ⟨wf_of_digit_words hzl _ hzv, hzv⟩
+
+/-- `B` is the digit block the compact rows `raw` denote, on its first `n`
+entries: entry `u` is well formed and its word at coefficient `k` is digit
+`u % 8` of row `u / 8`'s canonical word -- the `finProdFinEquiv` layout
+`gadget_decompose` writes (`8 · r + e`). -/
+def RawDigitsOf (raw : alloc.vec.Vec ring.RawRq32) (B : alloc.vec.Vec ring.Rq) (n : ℕ) : Prop :=
+  ∀ u, u < n → HachiEquiv.Ring.Wf (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+    ∧ ∀ k, k < N → HachiEquiv.Ring.wordN (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k
+        = (rawWordN (raw.val.getD (u / 8) (alloc.vec.Vec.new Std.U32)) k / 16 ^ (u % 8)) % 16
+
+/-- Such a block is digit-bounded: every word is below the base. -/
+theorem RawDigitsOf.digitWf {raw : alloc.vec.Vec ring.RawRq32} {B : alloc.vec.Vec ring.Rq}
+    {n : ℕ} (hB : RawDigitsOf raw B n) (u : ℕ) (hu : u < n) :
+    DigitWf (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := by
+  intro t
+  obtain ⟨hW, hv⟩ := hB u hu
+  by_cases ht : t < N
+  · rw [hv t ht]; exact Nat.mod_lt _ (by norm_num)
+  · rw [wordN_of_ge hW.1 (by omega)]; norm_num
+
+/-- The optional refresh at the top of the terms loop: at `j % 8 = 0` the
+buffer is reloaded from row `j / 8`; otherwise it already holds that row, which
+the previous turn loaded (`(j - 1) / 8 = j / 8`). -/
+theorem raw_refresh_spec (raw : alloc.vec.Vec ring.RawRq32) (words : alloc.vec.Vec Std.U64)
+    (jU digitsU e : Std.Usize) (hdig : digitsU.val = 8) (he : e.val = jU.val % 8)
+    (hrow : jU.val / 8 < raw.val.length) (hwl : words.val.length = N)
+    (hwv : 0 < jU.val → ∀ k, k < N → wordAt words k
+        = rawWordN (raw.val.getD ((jU.val - 1) / 8) (alloc.vec.Vec.new Std.U32)) k) :
+    (if e = 0#usize then do
+        let i ← jU / digitsU
+        let rr ← alloc.vec.Vec.index_usize raw i
+        ring.load_raw_words words rr
+      else ok words)
+      ⦃ w1 => w1.val.length = N ∧ ∀ k, k < N → wordAt w1 k
+          = rawWordN (raw.val.getD (jU.val / 8) (alloc.vec.Vec.new Std.U32)) k ⦄ := by
+  by_cases he0 : e = 0#usize
+  · rw [if_pos he0]
+    step as ⟨i, hi⟩
+    have hiv : i.val = jU.val / 8 := by rw [hi, hdig]
+    have hib : i.val < raw.val.length := by rw [hiv]; exact hrow
+    step as ⟨rr, hrr⟩
+    step with load_raw_words_spec words rr hwl as ⟨w1, hw1l, hw1v⟩
+    refine ⟨hw1l, fun k hk => ?_⟩
+    rw [hw1v k hk, hrr, ← hiv, List.getD_eq_getElem _ _ hib]
+  · rw [if_neg he0, WP.spec_ok]
+    have hev : e.val ≠ 0 := fun h => he0 (UScalar.eq_of_val_eq (by simp [h]))
+    have hpos : 0 < jU.val := by omega
+    have hdiv : (jU.val - 1) / 8 = jU.val / 8 := by omega
+    refine ⟨hwl, fun k hk => ?_⟩
+    rw [hwv hpos k hk, hdiv]
+
+/-- **The raw terms loop** -- [`gold_terms_spec`] with the right operand read
+out of the compact rows. The ghost `B` is the digit block they denote
+([`RawDigitsOf`]); the invariant gains the buffer (length `N`, and from the
+first turn on holding row `(j - 1) / 8`) and the scratch's length, and
+[`gold_dot_one_fused_spec`] is reused unchanged on the freshly filled scratch. -/
+theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
+    (a B : alloc.vec.Vec ring.Rq) (raw : alloc.vec.Vec ring.RawRq32)
+    (endU nU digitsU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
+    (acc scratch cur words : alloc.vec.Vec Std.U64) (dig : ring.Rq) (jU : Std.Usize)
+    (ps : ZMod GP)
+    (hn : nU.val = N) (hdig : digitsU.val = 8) (hord : ps ^ N = -1)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hpl : endU.val * N ≤ prep.fwd.val.length)
+    (hpv : ∀ j, j < endU.val → ∀ t, t < N →
+        resK GP prep.fwd (j * N + t)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a j)) t)
+    (hB : RawDigitsOf raw B endU.val)
+    (hraw : endU.val ≤ 8 * raw.val.length)
+    (hje : jU.val ≤ endU.val)
+    (haccC : Canon GP acc) (hscC : Canon GP scratch) (hcurC : Canon GP cur)
+    (hwl : words.val.length = N)
+    (hwv : 0 < jU.val → ∀ k, k < N → wordAt words k
+        = rawWordN (raw.val.getD ((jU.val - 1) / 8) (alloc.vec.Vec.new Std.U32)) k)
+    (hdl : dig.val.length = N)
+    (hval : ∀ t, t < N → resK GP acc t
+              = ∑ u ∈ Finset.Ico 0 jU.val, termFwd ps a B u t) :
+    ring.dot_prepared_raw_digits_gold_loop0 prep raw endU nU digitsU pt acc scratch cur
+      words dig jU
+      ⦃ z => Canon GP z.1 ∧ Canon GP z.2
+             ∧ ∀ t, t < N → resK GP z.1 t
+                 = ∑ u ∈ Finset.Ico 0 endU.val, termFwd ps a B u t ⦄ := by
+  rw [ring.dot_prepared_raw_digits_gold_loop0]
+  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.2.2.val)
+    (fun r => r.2.2.2.2.2.val ≤ endU.val
+      ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ Canon GP r.2.2.1
+      ∧ r.2.2.2.1.val.length = N
+      ∧ (0 < r.2.2.2.2.2.val → ∀ k, k < N → wordAt r.2.2.2.1 k
+          = rawWordN (raw.val.getD ((r.2.2.2.2.2.val - 1) / 8)
+              (alloc.vec.Vec.new Std.U32)) k)
+      ∧ r.2.2.2.2.1.val.length = N
+      ∧ ∀ t, t < N → resK GP r.1 t
+              = ∑ u ∈ Finset.Ico 0 r.2.2.2.2.2.val, termFwd ps a B u t)
+  · rintro ⟨d, sc, cu, wd, dg, jj⟩ ⟨hjje, hcd, hcsc, hcuC, hwdl, hwdv, hdgl, hw⟩
+    dsimp only at hjje hcd hcsc hcuC hwdl hwdv hdgl hw
+    simp only [ring.dot_prepared_raw_digits_gold_loop0.body]
+    by_cases hlt : jj < endU
+    · rw [if_pos hlt]
+      have hjjlt : jj.val < endU.val := by scalar_tac
+      have hrow : jj.val / 8 < raw.val.length := by omega
+      step as ⟨e, he⟩
+      have hev : e.val = jj.val % 8 := by rw [he, hdig]
+      step with raw_refresh_spec raw wd jj digitsU e hdig hev hrow hwdl hwdv
+        as ⟨w1, hw1l, hw1v⟩
+      step with fill_digit_from_words_spec dg w1 e hdgl hw1l (by omega)
+        as ⟨dig1, hdig1W, hdig1v⟩
+      step as ⟨off, hoff⟩
+      have hoffv : off.val = jj.val * N := by rw [hoff, hn]
+      have hslb : off.val + N ≤ prep.fwd.val.length := by
+        rw [hoffv]
+        have h1 : (jj.val + 1) * N ≤ endU.val * N := Nat.mul_le_mul_right N (by omega)
+        have h2 : (jj.val + 1) * N = jj.val * N + N := by ring
+        omega
+      have hFA : ∀ t, t < N → ((wordAt prep.fwd (off.val + t) : ℕ) : ZMod GP)
+          = NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a jj.val)) t := by
+        intro t ht
+        rw [hoffv]
+        have := hpv jj.val hjjlt t ht
+        simpa only [resK] using this
+      step with gold_dot_one_fused_spec dig1 cu sc d pt prep.fwd off ps
+        (fun t => NttMath.difRun (ps ^ 2) 10 1
+          (NttMath.twistR ps (entryK GP a jj.val)) t)
+        hdig1W hcuC hcsc hcd hptC hptv hslb hFA
+        as ⟨acc1, cur1, sc1, hac1C, hcu1C, hsc1C, hac1v⟩
+      -- the scratch IS the ghost block's entry: same words below `N`, both
+      -- zero past it
+      have hFB : NttMath.twistR ps
+            (fun u => ((HachiEquiv.Ring.wordN dig1 u : ℕ) : ZMod GP))
+          = NttMath.twistR ps (entryK GP B jj.val) := by
+        obtain ⟨hBW, hBv⟩ := hB jj.val hjjlt
+        have hwords : ∀ u, HachiEquiv.Ring.wordN dig1 u
+            = HachiEquiv.Ring.wordN (B.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp)) u := by
+          intro u
+          by_cases hu : u < N
+          · rw [hdig1v u hu, hw1v u hu, hBv u hu, hev]
+          · rw [wordN_of_ge hdig1W.1 (by omega), wordN_of_ge hBW.1 (by omega)]
+        unfold entryK
+        simp only [hwords]
+      step as ⟨jj1, hjj1⟩
+      refine ⟨by rw [hjj1]; omega, hac1C, hsc1C, hcu1C, hw1l, ?_, hdig1W.1, ?_,
+        by rw [hjj1]; omega⟩
+      · intro _ k hk
+        rw [hjj1, Nat.add_sub_cancel]
+        exact hw1v k hk
+      · intro t ht
+        rw [hjj1, Finset.sum_Ico_succ_top (by omega), ← hw t ht]
+        rw [hac1v t ht, hFB]
+        unfold termFwd
+        rw [← HachiEquiv.NttProduct.prod_difRun ps hord (entryK GP a jj.val)
+          (entryK GP B jj.val)
+          (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP a jj.val)))
+          (NttMath.difRun (ps ^ 2) 10 1 (NttMath.twistR ps (entryK GP B jj.val)))
+          (fun t' => NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP a jj.val)) t'
+            * NttMath.difRun (ps ^ 2) 10 1
+              (NttMath.twistR ps (entryK GP B jj.val)) t')
+          (fun t' _ => rfl) (fun t' _ => rfl) (fun t' _ => rfl) t ht]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = endU.val := by scalar_tac
+      refine ⟨hcd, hcsc, ?_⟩
+      intro t ht
+      rw [hw t ht, heq]
+  · exact ⟨hje, haccC, hscC, hcurC, hwl, hwv, hdl, hval⟩
+
+/-- The pack loop of the raw dot is the plain dot's, byte for byte. -/
+theorem raw_out_loop_eq : ring.dot_prepared_raw_digits_gold_loop1
+    = ring.dot_prepared_digits_gold_loop1 := rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **`dot_prepared_raw_digits_gold` computes the dot product** with the digit
+block the compact rows denote. [`gold_dot_spec`]'s conclusion word for word,
+over the ghost `B`; its operand hypotheses (`Wf`, `DigitWf`) are [`RawDigitsOf`]'s,
+and its length hypothesis on `b` becomes `nU ≤ 8 · raw.len`, which is what the
+row index `j / 8` needs. -/
+theorem gold_raw_dot_spec (prep : ring.PreparedVecG) (a B : alloc.vec.Vec ring.Rq)
+    (raw : alloc.vec.Vec ring.RawRq32) (nU : Std.Usize)
+    (haw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)))
+    (hB : RawDigitsOf raw B nU.val) (hraw : nU.val ≤ 8 * raw.val.length)
+    (hwidth : nU.val ≤ 8192)
+    (hp : PrepAtG prep a nU.val) :
+    ring.dot_prepared_raw_digits_gold prep raw nU
+      ⦃ z => HachiEquiv.Ring.Wf z ∧ ∀ k, k < N → HachiEquiv.Ring.coeffK z k
+              = ∑ u ∈ Finset.range nU.val, HachiEquiv.Ring.negConv
+                  (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                  (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k ⦄ := by
+  obtain ⟨hpl, -, hpv⟩ := hp
+  have hbw : ∀ u, u < nU.val → HachiEquiv.Ring.Wf
+      (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := fun u hu => (hB u hu).1
+  have hbd : ∀ u, u < nU.val → DigitWf
+      (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) := hB.digitWf
+  set ps : ZMod GP := ((ntt.GOLD_PSI.val : ℕ) : ZMod GP) with hpsdef
+  set psii : ZMod GP := ((ntt.GOLD_PSIINV.val : ℕ) : ZMod GP) with hpsiidef
+  have hord : ps ^ N = -1 := gpsi_ord
+  have hpinv : ps * psii = 1 := gpsi_inv
+  have hRN : params.RING_DEGREE = ntt.NTT_LEN := by decide +kernel
+  rw [ring.dot_prepared_raw_digits_gold, hRN, raw_out_loop_eq]
+  step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
+  step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
+  step with zeros_canon_zero GP GP_pos as ⟨acc0, hacc0C, hacc0v⟩
+  step with HachiEquiv.Ring.zero_spec as ⟨dg0, hdg0W, _⟩
+  step with gold_raw_terms_spec prep a B raw nU ntt.NTT_LEN params.GADGET_DIGITS pt
+    acc0 acc0 acc0 acc0 dg0 0#usize ps ntt_NTT_LEN_val (by simp [params.GADGET_DIGITS])
+    hord hptC hptv hpl hpv hB hraw (by simp) hacc0C hacc0C hacc0C hacc0C.1
+    (by intro h; simp at h) hdg0W.1
+    (by intro t ht; rw [hacc0v t ht]; simp)
+    as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
+  -- from here on, `gold_dot_spec`'s proof with `b := B`
+  have hcn : lift (UScalar.cast .U64 nU) ⦃ y => y.val = nU.val ⦄ :=
+    UScalar.cast_inBounds_spec .U64 nU (by scalar_tac)
+  step with hcn as ⟨nw, hnw⟩
+  step with gold_mul_spec ntt.GOLD_DOFF nw as ⟨scaled, hscv, hsclt⟩
+  have hPR : ∀ t, t < N → resK GP acc1 t
+      = NttMath.difRun (ps ^ 2) 10 1
+          (fun t' => ∑ u ∈ Finset.Ico 0 nU.val,
+            NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+              (NttMath.twistR ps (entryK GP B u)) t') t := by
+    intro t ht
+    rw [hac1v t ht, NttMath.difRun_sum (ps ^ 2) 10 1 (Finset.Ico 0 nU.val)
+      (fun u => NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+        (NttMath.twistR ps (entryK GP B u)))]
+    simp only [termFwd, hpsdef]
+  step with gold_inverse_spec acc1 scratch it hac1C hac2C hitC psii hitv
+    as ⟨v, v5, hiv1, hiv2, hivv⟩
+  have hIV := HachiEquiv.NttProduct.inv_value ps psii hpinv
+    (fun t' => ∑ u ∈ Finset.Ico 0 nU.val,
+      NttMath.cyclicConv N (NttMath.twistR ps (entryK GP a u))
+        (NttMath.twistR ps (entryK GP B u)) t')
+    (resK GP acc1) (resK GP v) hPR hivv
+  step with gold_untwist_cast v it scaled hiv1 hitC hsclt psii hitv
+    as ⟨words, hwC, hwv⟩
+  have hres : ∀ t, t < N → resK GP words t
+      = (∑ u ∈ Finset.Ico 0 nU.val,
+          NttMath.negConvR N (entryK GP a u) (entryK GP B u) t)
+        + ((scaled.val : ℕ) : ZMod GP) := by
+    intro t ht
+    rw [hwv t ht, hIV t ht,
+      untwist_value_sum ps psii ((ntt.GOLD_NINV.val : ℕ) : ZMod GP) hord hpinv
+        gninv_inv (Finset.Ico 0 nU.val) (fun u => entryK GP a u)
+        (fun u => entryK GP B u) t ht]
+  have hwordv : ∀ k, k < N → wordAt words k = offConvSumD a B 0 nU.val k := by
+    intro k hk
+    have hlt : offConvSumD a B 0 nU.val k < GP :=
+      offConvSumD_lt_GP a B 0 nU.val k haw hbd (by omega)
+    have hcast : ((wordAt words k : ℕ) : ZMod GP)
+        = ((offConvSumD a B 0 nU.val k : ℕ) : ZMod GP) := by
+      have hle := negQD_sum_le a B 0 nU.val k haw hbd
+      have hle' : (∑ u ∈ Finset.Ico 0 nU.val,
+            HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                 (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+          ≤ (∑ u ∈ Finset.Ico 0 nU.val,
+              HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                   (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N)
+            + (nU.val - 0) * BOUND_D := le_trans hle (Nat.le_add_left _ _)
+      have h1 := hres k hk
+      rw [resK] at h1
+      rw [h1]
+      unfold offConvSumD
+      rw [Nat.cast_sub hle', Nat.cast_add]
+      have hterm : ∀ u, NttMath.negConvR N (entryK GP a u) (entryK GP B u) k
+          = ((HachiEquiv.Ring.posSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP)
+            - ((HachiEquiv.Ring.negSum (a.val.getD u (alloc.vec.Vec.new cpoly.field.Fp))
+                (B.val.getD u (alloc.vec.Vec.new cpoly.field.Fp)) k N : ℕ) : ZMod GP) := by
+        intro u
+        rw [NttMath.negConvR, ordConv_entryK_pos GP a B u k hk,
+          ordConv_entryK_neg GP a B u k hk]
+      rw [Finset.sum_congr rfl (fun u _ => hterm u), Finset.sum_sub_distrib]
+      push_cast
+      rw [hscv, hnw, gdoff_val, ZMod.natCast_mod, Nat.sub_zero]
+      push_cast
+      ring
+    have h2 := HachiEquiv.NttProduct.natCast_inj_of_lt (wordAt_lt hwC GP_pos k) hcast
+    rwa [Nat.mod_eq_of_lt hlt] at h2
+  have hfin := gold_out_loop_spec ntt.NTT_LEN params.Q words
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (offConvSumD a B 0 nU.val)
+    ntt_NTT_LEN_val HachiEquiv.Field.params_Q_val hwordv hwC.1
+    (by simp) (by simp) (by simp) (by simp)
+  rw [alloc.vec.Vec.with_capacity]
+  step with hfin as ⟨z, hzw, hzv⟩
+  refine ⟨hzw, fun k hk => ?_⟩
+  have hqq : HachiEquiv.NttProduct.q = HachiEquiv.Field.q := rfl
+  rw [HachiEquiv.Ring.coeffK_eq_cast_wordN, hzv k hk, hqq, ZMod.natCast_mod,
+    offConvSumD_cast_q a B 0 nU.val k hk haw hbw hbd, Finset.range_eq_Ico]
+
 end HachiEquiv.GoldDot

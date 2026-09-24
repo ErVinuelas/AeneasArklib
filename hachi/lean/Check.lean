@@ -1591,7 +1591,9 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 --
 --  * each `_32` consumer is proved EQUAL to the item it replaces, on the
 --    message its words denote, and its specification is then the original's --
---    inherited, not re-derived. Composed with the `_64` spec it yields the same
+--    inherited, not re-derived (until a later card gives a `_32` item its own
+--    body: T43 for the z pass, T28 for the response, T51a for
+--    `commit_streamed_32`, each then proved directly). Composed with the `_64` spec it yields the same
 --    conclusion in the same vocabulary, and it is the honest shape, because
 --    "the compact carrier changes nothing" is what the change asserts. The two
 --    tools are `eq_ok_of_spec` (a deterministic postcondition IS an equation,
@@ -1634,8 +1636,11 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Raw32.rawvec32_compact_loop_spec
 #print axioms HachiEquiv.Raw32.rawvec32_round_trip
 #print axioms HachiEquiv.Raw32.rawvec32_expand_eq
-#print axioms HachiEquiv.Raw32.commit_streamed_32_loop_eq
-#print axioms HachiEquiv.Raw32.commit_streamed_32_eq
+-- `Raw32.commit_streamed_32_loop_eq` / `commit_streamed_32_eq` were audited
+-- here until card T51a (2026-09-24) made `commit_streamed_32` read its digits
+-- straight out of the compact rows, so it is no longer `commit_streamed` as a
+-- program; its two headlines below are now proved directly (the T51a block at
+-- the end of this section), statements unchanged.
 #print axioms HachiEquiv.Raw32.commit_streamed_32_spec
 #print axioms HachiEquiv.Raw32.commit_streamed_32_specG
 #print axioms HachiEquiv.Raw32.carrier_from_raw_32_loop_eq
@@ -2443,7 +2448,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- word once and scatters its eight nibbles into the eight digit accumulators
 -- of its row -- `gadget_decompose` is gone from the protocol path. The pinned
 -- nibble lemma and the digit-polynomial bridge carry over to card T47.
-#print axioms HachiEquiv.ZPacked.digitK_eq_nibble
+#print axioms HachiEquiv.Scheme.digitK_eq_nibble
 #print axioms HachiEquiv.ZPacked.digit_at_nibble_spec
 #print axioms HachiEquiv.ZPacked.digitRq_eq_digitBlock
 #print axioms HachiEquiv.ZPacked.gadgetDecompose_eq_digitBlock
@@ -2491,5 +2496,43 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.QuadEvalProtocol.lane_budget
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_block_loop_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
+
+-- Stage 6 card T51a (2026-09-24): `commit_streamed_32` no longer expands a
+-- block and decomposes it. `apply_raw_digits_gold` fills one recycled scratch
+-- `Rq` per term with digit `j % 8` of compact row `j / 8` -- the row's canonical
+-- words (`RawRq32::word`: the `% q` and the zero padding of `expand`) loaded
+-- once per row into a recycled buffer -- and hands it to the unchanged
+-- `gold_dot_one_fused`. The proofs carry the decomposition the code no longer
+-- builds as a GHOST: `RawDigitsOf` ties it to the rows word by word, the raw
+-- dot's conclusion is `gold_dot_spec`'s over it, and `raw_digits_of_expand`
+-- shows `gadget_decompose (expand rows)` is such a ghost -- so the two
+-- `commit_streamed_32` headlines kept their statements byte for byte. The two
+-- expand specifications carry no hypothesis on the rows: a raw word may lie in
+-- `[q, 2^32)` and a row may have any length, and both are `expand`'s business.
+#print axioms HachiEquiv.GoldDot.rawWordN_lt
+#print axioms HachiEquiv.GoldDot.word_spec
+#print axioms HachiEquiv.GoldDot.load_raw_words_loop_spec
+#print axioms HachiEquiv.GoldDot.load_raw_words_spec
+#print axioms HachiEquiv.GoldDot.wordN_set_eq
+#print axioms HachiEquiv.GoldDot.wordN_set_ne
+#print axioms HachiEquiv.GoldDot.wordN_of_ge
+#print axioms HachiEquiv.GoldDot.nibble_shift_mask
+#print axioms HachiEquiv.GoldDot.fill_digit_from_words_loop_spec
+#print axioms HachiEquiv.GoldDot.wf_of_digit_words
+#print axioms HachiEquiv.GoldDot.fill_digit_from_words_spec
+#print axioms HachiEquiv.GoldDot.RawDigitsOf.digitWf
+#print axioms HachiEquiv.GoldDot.raw_refresh_spec
+#print axioms HachiEquiv.GoldDot.gold_raw_terms_spec
+#print axioms HachiEquiv.GoldDot.raw_out_loop_eq
+#print axioms HachiEquiv.GoldDot.gold_raw_dot_spec
+#print axioms HachiEquiv.Raw32.expand_loop_spec
+#print axioms HachiEquiv.Raw32.rawrq32_expand_spec
+#print axioms HachiEquiv.Raw32.rawvec32_expand_spec
+#print axioms HachiEquiv.Raw32.gadgetDecompose_words
+#print axioms HachiEquiv.Raw32.raw_digits_of_expand
+#print axioms HachiEquiv.Raw32.dot_prep_raw_digits_gold_spec
+#print axioms HachiEquiv.Raw32.apply_raw_digits_gold_loop_spec
+#print axioms HachiEquiv.Raw32.apply_raw_digits_gold_specG
+#print axioms HachiEquiv.Raw32.commit_streamed_32_loop_specG
 
 end HachiEquiv.Check

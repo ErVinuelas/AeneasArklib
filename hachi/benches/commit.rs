@@ -280,6 +280,41 @@ macro_rules! define_cases {
                 )
             }
 
+            /// The raw committer: [`commit_streamed`] over the compact `u32`
+            /// carrier, which is the committer the chain actually runs
+            /// (`tests/chain_semantics.rs`'s pin profile calls
+            /// `commit::commit_streamed_32`). Same block count, same public
+            /// parameters and the same message as `commit_streamed/4`, handed
+            /// over as `RawVec32::compact` blocks -- canonical words, full rows,
+            /// the only carrier the public API can build -- and compacted
+            /// outside the timed region, so the timer sees the committer and
+            /// nothing else. Its digest is `d_streamed`, and on this corpus it
+            /// equals `commit_streamed/4`'s, since `compact` is lossless.
+            ///
+            /// A row of its own because `commit_streamed/4` cannot see the raw
+            /// path at all: it takes a `PolyVec` message and decomposes it
+            /// directly, so no `expand` runs in it and none of the raw
+            /// committer's per-block work -- expanding the 8 MiB block, then
+            /// building its 8192 digit polynomials from it -- is in its reading.
+            /// Card T51a changes exactly that work (the digits are read from the
+            /// words into one recycled scratch) and nothing `commit_streamed`
+            /// calls, so on the old row it would read as noise however large
+            /// the win.
+            pub fn commit_streamed_32(m: Mode<'_, '_>, blocks: usize) -> u64 {
+                let pp = public_params(blocks);
+                let msg = message(blocks);
+                let mut raw: Vec<hc::linalg::RawVec32> = Vec::with_capacity(blocks);
+                for b in msg.iter() {
+                    raw.push(hc::linalg::RawVec32::compact(b));
+                }
+                drop(msg);
+                support::run(
+                    m,
+                    || hc::commit::commit_streamed_32(black_box(&pp), black_box(&raw)),
+                    d_streamed,
+                )
+            }
+
             pub fn commit_with_decomps(m: Mode<'_, '_>, blocks: usize) -> u64 {
                 let pp = public_params(blocks);
                 let (_, decomp) = hc::commit::commit(&pp, &message(blocks));
@@ -437,6 +472,16 @@ fn commit_benches(c: &mut Criterion) {
     // ledger row for candidate T22, which records the peak RSS.
     // @covers commit::commit_streamed
     bench_case!(c, "commit/commit_streamed", commit_streamed, [decomp_blocks],
+                samples: decomp_samples);
+    // The raw committer the chain runs, at the same block count and on the same
+    // message, compacted outside the timed region. Unlike the row above this one
+    // is an *evidence* row, not a guard: the raw path's per-block `expand` and
+    // digit polynomials are invisible to `commit/commit_streamed` (which takes
+    // a `PolyVec` and never expands), and they are what card T51a removes.
+    // Same `samples:` arithmetic as `generate_decomps`: seconds per iteration
+    // in every variant at 4 blocks.
+    // @covers commit::commit_streamed_32
+    bench_case!(c, "commit/commit_streamed_32", commit_streamed_32, [decomp_blocks],
                 samples: decomp_samples);
 
     // The six scheme-level cases (`generate_decomps`, `commit_with_decomps`,
