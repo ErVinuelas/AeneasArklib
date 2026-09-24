@@ -494,67 +494,74 @@ fn z_terms(c: &Rq) -> Option<ZTerms> {
 }
 
 // ---------------------------------------------------------------------------
-// SWAR-packed digit lanes for the fused z pass (Stage 6 card T47)
+// SWAR-packed digit lanes for the fused z pass (Stage 6 cards T47, T59)
 // ---------------------------------------------------------------------------
 
 /// Words per coefficient slot of the packed short-path accumulator.
 ///
-/// Card T47 packs the eight digit lanes of one coefficient of one message row
-/// into three `u64` words of three 20-bit lanes each: word `0` holds digits
-/// `0, 1, 2`, word `1` digits `3, 4, 5`, word `2` digits `6, 7` and, in its
-/// third lane, the slot's **pass counter** ([`Z_LANE_BIAS`] explains why the
-/// ninth lane is needed). Slot `(r, p)` -- row `r`, coefficient `p` -- is the
-/// three consecutive words at `Z_LANE_WORDS · (r·N + p)`, so every
-/// [`z_pass_lanes`] step reads and writes three adjacent words where card
-/// T43's `z_pass` touched eight words in eight regions.
-pub const Z_LANE_WORDS: usize = 3;
+/// Card T59 packs the eight digit lanes of one coefficient of one message row
+/// into two `u64` words of four 16-bit lanes each: word `0` holds digits
+/// `0, 1, 2, 3`, word `1` digits `4, 5, 6, 7`. There is no room for card
+/// T47's in-slot record lane, so the bias record is a **per-row pass counter**
+/// kept beside the buffer ([`Z_LANE_BIAS`] explains why it is needed, and why
+/// per row). Slot `(r, p)` -- row `r`, coefficient `p` -- is the two
+/// consecutive words at `Z_LANE_WORDS · (r·N + p)`, so every [`z_pass_lanes`]
+/// step reads and writes two adjacent words where card T47's touched three.
+pub const Z_LANE_WORDS: usize = 2;
 
-/// The unit of lane `1` of a packed word, `2^20`.
-pub const Z_LANE_1: u64 = 1_048_576;
+/// The unit of lane `1` of a packed word, `2^16`.
+pub const Z_LANE_1: u64 = 65_536;
 
-/// The unit of lane `2` of a packed word, `2^40`.
-pub const Z_LANE_2: u64 = 1_099_511_627_776;
+/// The unit of lane `2` of a packed word, `2^32`.
+pub const Z_LANE_2: u64 = 4_294_967_296;
 
-/// One lane's mask, `2^20 - 1`.
-pub const Z_LANE_MASK: u64 = 1_048_575;
+/// The unit of lane `3` of a packed word, `2^48`.
+pub const Z_LANE_3: u64 = 281_474_976_710_656;
 
-/// The per-pass bias, `16` in each of a word's three lanes:
-/// `16 + 16·2^20 + 16·2^40`.
+/// One lane's mask, `2^16 - 1`.
+pub const Z_LANE_MASK: u64 = 65_535;
+
+/// The per-pass bias, `16` in each of a word's four lanes:
+/// `16 + 16·2^16 + 16·2^32 + 16·2^48`.
 ///
 /// A signed digit update `±dₑ`, `dₑ ∈ [0, 15]`, would borrow across lanes, so
 /// every pass adds `16 ± dₑ ∈ [1, 31]` instead: non-negative, and at most
-/// `31` per lane per pass. The bias every lane has absorbed is `16` times the
-/// number of passes the slot has seen, and word `2`'s third lane -- whose
-/// "digit" is always `0`, because a canonical word is below `2^32` and has
-/// only eight nibbles -- receives exactly `16` per pass. It is the slot's own
-/// bias record, so decoding ([`z_lane_decode`]) subtracts it with no
-/// per-row counter: lane `e` holds `16P + Σ ±dₑ`, lane `8` holds `16P`.
-pub const Z_LANE_BIAS: u64 = 17_592_202_821_648;
+/// `31` per lane per pass. The bias every lane of row `r` has absorbed is `16`
+/// times the number of passes row `r` has seen since the last flush, and the
+/// block loop keeps that number in `cnt[r]`, so decoding ([`z_lane_decode`])
+/// subtracts `16 · cnt[r]`: lane `e` holds `16·cnt[r] + Σ ±dₑ`.
+///
+/// **Per row, not global**: a pass touches every slot of its row exactly once,
+/// so all slots of a row share one count, but a block with fewer than
+/// `MESSAGE_ROWS` rows (outside the protocol, and still computed exactly)
+/// passes only its first rows, and the rows below it would be over-debited by
+/// a single counter. Card T47's record lane was per slot for the same reason.
+pub const Z_LANE_BIAS: u64 = 4_503_668_347_895_824;
 
 /// How many passes the packed accumulator absorbs between two flushes.
 ///
 /// A lane gains at most `31` per pass and starts a chunk at `0`, so after
-/// `Z_LANE_CHUNK - 1 = 32 767` passes it holds at most
-/// `31 · 32 767 = 1 015 777 < 2^20` and has never carried into its
-/// neighbour; the counter lane holds `16 · 32 767 < 2^20` too. (The largest
-/// safe count is `33 825`: `31 · 33 825 = 2^20 - 1` exactly.) The block loop
-/// charges every short block its full [`params::OMEGA`] budget against this,
-/// unconditionally, so [`honest_z_from_raw_32`] stays total with no
-/// hypothesis on the challenge -- `Z_CHUNK`'s argument, at lane width. At
-/// the pin (`1024` blocks, at most `16` passes each, `16 384` in all) the
-/// flush never fires mid-run: the buffer is decoded once, at the end.
-pub const Z_LANE_CHUNK: u64 = 32_768;
+/// `Z_LANE_CHUNK - 1 = 2 047` passes it holds at most
+/// `31 · 2 047 = 63 457 < 2^16` and has never carried into its neighbour --
+/// nor, in lane `3`, out of the word. (The largest safe count is `2 114`:
+/// `31 · 2 114 = 65 534`.) The block loop charges every short block its full
+/// [`params::OMEGA`] budget against this, unconditionally, so
+/// [`honest_z_from_raw_32`] stays total with no hypothesis on the challenge.
+/// A chunk therefore holds `127` short blocks (`2 032` charged passes), and at
+/// the pin (`1024` blocks) the flush fires **eight** times mid-run, at blocks
+/// `127, 254, …, 1016`, before the final merge.
+pub const Z_LANE_CHUNK: u64 = 2_048;
 
-/// One message row's coefficients as packed nibble lanes: three words per
+/// One message row's coefficients as packed nibble lanes: two words per
 /// coefficient, `Z_LANE_WORDS · N` in all, laid out as the accumulator's slots.
 ///
 /// For a canonical word `x < q < 2^32` the eight base-16 digits are the eight
 /// nibbles `dₑ = (x / 16ᵉ) % 16` -- card T43's pinned nibble lemma -- and
-/// coefficient `i` becomes `d0 + d1·2^20 + d2·2^40`, `d3 + d4·2^20 + d5·2^40`
-/// and `d6 + d7·2^20` (lane `8` is `0`). Built once per row per block and
-/// read by all of that block's passes (at most [`params::OMEGA`]), so the
-/// nibble extraction `z_pass` repeated on every pass is paid once. The
-/// digit formulas are `z_pass`'s, verbatim, so the nibble lemma carries.
+/// coefficient `i` becomes `d0 + d1·2^16 + d2·2^32 + d3·2^48` and
+/// `d4 + d5·2^16 + d6·2^32 + d7·2^48`. Built once per row per block and read
+/// by all of that block's passes (at most [`params::OMEGA`]), so the nibble
+/// extraction is paid once. The digit formulas are `z_pass`'s, verbatim, so
+/// the nibble lemma carries.
 fn z_spread(row: &Rq) -> Vec<u64> {
     let n: usize = params::RING_DEGREE;
     let mut out: Vec<u64> = Vec::with_capacity(n * Z_LANE_WORDS);
@@ -569,12 +576,10 @@ fn z_spread(row: &Rq) -> Vec<u64> {
         let d5: u64 = (x / 1_048_576) % 16;
         let d6: u64 = (x / 16_777_216) % 16;
         let d7: u64 = (x / 268_435_456) % 16;
-        let s0: u64 = d0 + d1 * Z_LANE_1 + d2 * Z_LANE_2;
-        let s1: u64 = d3 + d4 * Z_LANE_1 + d5 * Z_LANE_2;
-        let s2: u64 = d6 + d7 * Z_LANE_1;
+        let s0: u64 = d0 + d1 * Z_LANE_1 + d2 * Z_LANE_2 + d3 * Z_LANE_3;
+        let s1: u64 = d4 + d5 * Z_LANE_1 + d6 * Z_LANE_2 + d7 * Z_LANE_3;
         out.push(s0);
         out.push(s1);
-        out.push(s2);
         i += 1;
     }
     out
@@ -584,14 +589,13 @@ fn z_spread(row: &Rq) -> Vec<u64> {
 /// `k`-shifted eight digit polynomials of one message row, added (or
 /// subtracted) into that row's slots of the packed accumulator.
 ///
-/// `z_pass`'s pass, with its eight separate words per coefficient replaced
-/// by three packed ones (card T47). `src` is the row's [`z_spread`];
-/// the row's slots start at `rbase = Z_LANE_WORDS · r·N`. Every step adds
-/// `BIAS + s` (a positive contribution) or `BIAS - s` (a negative one) to each
-/// of the three words of slot `(k + i) mod N` -- lane-wise `16 ± dₑ`, which
-/// neither borrows (`dₑ ≤ 15 < 16`) nor carries (the [`Z_LANE_CHUNK`]
-/// schedule keeps every lane below `2^20`). Three loads, three adds, three
-/// stores per step where `z_pass` did eight of each.
+/// `src` is the row's [`z_spread`]; the row's slots start at
+/// `rbase = Z_LANE_WORDS · r·N`. Every step adds `BIAS + s` (a positive
+/// contribution) or `BIAS - s` (a negative one) to each of the two words of
+/// slot `(k + i) mod N` -- lane-wise `16 ± dₑ`, which neither borrows
+/// (`dₑ ≤ 15 < 16`) nor carries (the [`Z_LANE_CHUNK`] schedule keeps every
+/// lane below `2^16`). Two loads, two adds, two stores per step where card
+/// T47 did three of each (card T59).
 ///
 /// Card S1's layout, kept: split at the wrap point `i = N - k`, stride-1
 /// source and destination, loop-invariant sign, `if negt` unswitched; the
@@ -607,22 +611,16 @@ fn z_pass_lanes(src: &Vec<u64>, k: usize, negt: bool, buf: Vec<u64>, rbase: usiz
         let si: usize = Z_LANE_WORDS * i;
         let s0: u64 = src[si];
         let s1: u64 = src[si + 1];
-        let s2: u64 = src[si + 2];
         let a0: u64 = if negt { Z_LANE_BIAS - s0 } else { Z_LANE_BIAS + s0 };
         let a1: u64 = if negt { Z_LANE_BIAS - s1 } else { Z_LANE_BIAS + s1 };
-        let a2: u64 = if negt { Z_LANE_BIAS - s2 } else { Z_LANE_BIAS + s2 };
         let w0: usize = rbase + Z_LANE_WORDS * (k + i);
         let w1: usize = w0 + 1;
-        let w2: usize = w0 + 2;
         let c0: u64 = out[w0];
         let v0: u64 = c0 + a0;
         out[w0] = v0;
         let c1: u64 = out[w1];
         let v1: u64 = c1 + a1;
         out[w1] = v1;
-        let c2: u64 = out[w2];
-        let v2: u64 = c2 + a2;
-        out[w2] = v2;
         i += 1;
     }
     // high run: `i >= N - k`, the term wraps to `k + i - N` with its sign flipped
@@ -631,22 +629,16 @@ fn z_pass_lanes(src: &Vec<u64>, k: usize, negt: bool, buf: Vec<u64>, rbase: usiz
         let sj: usize = Z_LANE_WORDS * j;
         let s0: u64 = src[sj];
         let s1: u64 = src[sj + 1];
-        let s2: u64 = src[sj + 2];
         let a0: u64 = if negt { Z_LANE_BIAS + s0 } else { Z_LANE_BIAS - s0 };
         let a1: u64 = if negt { Z_LANE_BIAS + s1 } else { Z_LANE_BIAS - s1 };
-        let a2: u64 = if negt { Z_LANE_BIAS + s2 } else { Z_LANE_BIAS - s2 };
         let w0: usize = rbase + Z_LANE_WORDS * (j - lim);
         let w1: usize = w0 + 1;
-        let w2: usize = w0 + 2;
         let c0: u64 = out[w0];
         let v0: u64 = c0 + a0;
         out[w0] = v0;
         let c1: u64 = out[w1];
         let v1: u64 = c1 + a1;
         out[w1] = v1;
-        let c2: u64 = out[w2];
-        let v2: u64 = c2 + a2;
-        out[w2] = v2;
         j += 1;
     }
     out
@@ -676,6 +668,24 @@ fn z_apply_terms_lanes(terms: &ZTerms, src: &Vec<u64>, buf: Vec<u64>, rbase: usi
     out
 }
 
+/// How many passes [`z_apply_terms_lanes`] makes over one row: the sum of the
+/// magnitudes, read over the same `idx.len()` range its term loop runs.
+///
+/// At most [`params::OMEGA`] for anything [`z_terms`] returned. The block loop
+/// adds it to the counter of every row it passes (card T59), which is what
+/// [`z_lane_decode`] debits.
+fn z_terms_passes(terms: &ZTerms) -> u64 {
+    let count: usize = terms.idx.len();
+    let mut total: u64 = 0;
+    let mut t: usize = 0;
+    while t < count {
+        let m: u64 = terms.mag[t];
+        total = total + m;
+        t += 1;
+    }
+    total
+}
+
 /// One message row's contribution to `z` on packed lanes: `z_row` with the
 /// row's words spread into nibble lanes once ([`z_spread`]) instead of copied.
 fn z_row_lanes(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64> {
@@ -684,27 +694,26 @@ fn z_row_lanes(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64
 }
 
 /// Digit `e`'s polynomial of one row, decoded from the packed accumulator:
-/// coefficient `p` is `lane_e(p) - lane_8(p) mod q`, as a field element.
+/// coefficient `p` is `lane_e(p) - rec mod q`, as a field element.
 ///
-/// `base = Z_LANE_WORDS · r·N` is the row's first slot. Lane `e` sits in word
-/// `e / 3` of the slot at bit `20·(e % 3)`; lane `8`, the bias record, in word
-/// `2` at bit `40`. The lane holds `16P + Σ ±dₑ` and the record `16P`, so
-/// `lane + q - record` is the signed digit sum plus `q` -- never negative,
-/// because the record is below `2^20 < q` -- and [`Fp::new`] reduces it.
-fn z_lane_decode(zp: &Vec<u64>, base: usize, e: usize) -> Vec<cpoly::Fp> {
+/// `base = Z_LANE_WORDS · r·N` is the row's first slot and `rec = 16 · cnt[r]`
+/// the bias the row's lanes have absorbed since the last flush. Lane `e` sits
+/// in word `e / 4` of the slot at bit `16·(e % 4)`. The lane holds
+/// `rec + Σ ±dₑ`, so `lane + q - rec` is the signed digit sum plus `q` --
+/// never negative, because `rec ≤ 16 · 2 047 < q` -- and [`Fp::new`] reduces
+/// it.
+fn z_lane_decode(zp: &Vec<u64>, base: usize, e: usize, rec: u64) -> Vec<cpoly::Fp> {
     let n: usize = params::RING_DEGREE;
     let q: u64 = params::Q;
-    let word: usize = e / 3;
-    let shift: usize = 20 * (e % 3);
+    let word: usize = e / 4;
+    let shift: usize = 16 * (e % 4);
     let mut out: Vec<cpoly::Fp> = Vec::with_capacity(n);
     let mut p: usize = 0;
     while p < n {
         let at: usize = base + Z_LANE_WORDS * p;
         let w: u64 = zp[at + word];
-        let c: u64 = zp[at + 2];
         let lane: u64 = (w >> shift) & Z_LANE_MASK;
-        let record: u64 = (c >> 40) & Z_LANE_MASK;
-        let v: u64 = lane + q - record;
+        let v: u64 = lane + q - rec;
         out.push(cpoly::Fp::new(v));
         p += 1;
     }
@@ -712,12 +721,14 @@ fn z_lane_decode(zp: &Vec<u64>, base: usize, e: usize) -> Vec<cpoly::Fp> {
 }
 
 /// Fold the packed accumulator into `acc`: `acc[8r + e] += digit_e(row r)`
-/// for every row and digit, decoded by [`z_lane_decode`].
+/// for every row and digit, decoded by [`z_lane_decode`] against the row's
+/// pass counter `cnt[r]`.
 ///
 /// This is both the mid-run flush of the [`Z_LANE_CHUNK`] schedule and the
 /// final merge; `acc` is the dense fallback's accumulator, so the flush needs
-/// no buffer of its own. The caller zeroes `zp` afterwards ([`z_lane_zero`]).
-fn z_lane_flush(acc: Vec<Rq>, zp: &Vec<u64>) -> Vec<Rq> {
+/// no buffer of its own. The caller zeroes `zp` and `cnt` afterwards
+/// ([`z_lane_zero`]).
+fn z_lane_flush(acc: Vec<Rq>, zp: &Vec<u64>, cnt: &Vec<u64>) -> Vec<Rq> {
     let n: usize = params::RING_DEGREE;
     let digits: usize = params::GADGET_DIGITS;
     let width: usize = params::MESSAGE_ROWS * digits;
@@ -727,7 +738,9 @@ fn z_lane_flush(acc: Vec<Rq>, zp: &Vec<u64>) -> Vec<Rq> {
         let r: usize = j / digits;
         let e: usize = j % digits;
         let base: usize = Z_LANE_WORDS * r * n;
-        let cs: Vec<cpoly::Fp> = z_lane_decode(zp, base, e);
+        let seen: u64 = cnt[r];
+        let rec: u64 = 16 * seen;
+        let cs: Vec<cpoly::Fp> = z_lane_decode(zp, base, e, rec);
         let zr: Rq = Rq::from_coeffs(&cs);
         out[j] = out[j].add(&zr);
         j += 1;
@@ -756,18 +769,19 @@ fn z_lane_zero(buf: Vec<u64>) -> Vec<u64> {
 /// branch scatters each coefficient's eight nibbles into the digit
 /// accumulators of its row directly.
 ///
-/// **The eight digit accumulators of a coefficient share three words**
-/// (Stage 6 card T47). `zp` holds one slot of [`Z_LANE_WORDS`] `u64`s per
-/// coefficient of every message row, eight 20-bit digit lanes and a bias
-/// record ([`Z_LANE_BIAS`]); a row's slots are 24 KiB where T43's eight
-/// regions were 66.5 KB, and a pass step is three read-modify-writes where
-/// it was eight ([`z_pass_lanes`]). `zp` is carried across all the blocks and
-/// flushed into `acc` on the [`Z_LANE_CHUNK`] schedule -- at the pin, once,
-/// at the end.
+/// **The eight digit accumulators of a coefficient share two words**
+/// (Stage 6 cards T47, T59). `zp` holds one slot of [`Z_LANE_WORDS`] `u64`s
+/// per coefficient of every message row, eight 16-bit digit lanes; a row's
+/// slots are 16 KiB, and a pass step is two read-modify-writes
+/// ([`z_pass_lanes`]). The lanes' bias is recorded per row in `cnt`, the
+/// number of passes the row has taken since the last flush ([`Z_LANE_BIAS`]).
+/// `zp` is carried across all the blocks and flushed into `acc` on the
+/// [`Z_LANE_CHUNK`] schedule -- at the pin, eight times mid-run and once at
+/// the end.
 ///
 /// `acc` is the dense fallback's accumulator, exactly as before: a block
 /// whose challenge is not short still takes the generic product into it.
-/// `z[j] = acc[j] + (lane_e - lane_8) mod q` for `j = 8r + e`.
+/// `z[j] = acc[j] + (lane_e - 16 · cnt[r]) mod q` for `j = 8r + e`.
 pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec {
     let blocks: usize = raw.len();
     let width: usize = params::MESSAGE_ROWS * params::GADGET_DIGITS;
@@ -786,6 +800,13 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
         zp.push(0);
         f += 1;
     }
+    // each row's passes since the last flush: the bias its lanes carry is 16x
+    let mut cnt: Vec<u64> = Vec::with_capacity(params::MESSAGE_ROWS);
+    let mut g: usize = 0;
+    while g < params::MESSAGE_ROWS {
+        cnt.push(0);
+        g += 1;
+    }
     // passes the packed accumulator can still take before it must be flushed
     let mut left: u64 = Z_LANE_CHUNK - 1;
     let mut i: usize = 0;
@@ -795,11 +816,13 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
         match z_terms(ci) {
             Some(terms) => {
                 if left < budget {
-                    acc = z_lane_flush(acc, &zp);
+                    acc = z_lane_flush(acc, &zp, &cnt);
                     zp = z_lane_zero(zp);
+                    cnt = z_lane_zero(cnt);
                     left = Z_LANE_CHUNK - 1;
                 }
                 left = left - budget;
+                let passes: u64 = z_terms_passes(&terms);
                 // one slot run per row; a short block is total, a long one
                 // contributes its first `MESSAGE_ROWS` rows
                 let rows0: usize = block.len();
@@ -812,6 +835,9 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
                 while r < rows {
                     let rbase: usize = Z_LANE_WORDS * r * n;
                     zp = z_row_lanes(&terms, block.get(r), zp, rbase);
+                    let seen: u64 = cnt[r];
+                    let nv: u64 = seen + passes;
+                    cnt[r] = nv;
                     r += 1;
                 }
             }
@@ -828,7 +854,7 @@ pub fn honest_z_from_raw_32(raw: &Vec<linalg::RawVec32>, c: &PolyVec) -> PolyVec
         i += 1;
     }
     // the merge is the last flush
-    let merged: Vec<Rq> = z_lane_flush(acc, &zp);
+    let merged: Vec<Rq> = z_lane_flush(acc, &zp, &cnt);
     PolyVec::new(merged)
 }
 
