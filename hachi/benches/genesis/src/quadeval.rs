@@ -1980,6 +1980,7 @@ fn z_lane_zero(buf: Vec<u64>) -> Vec<u64> {
 }
 
 
+// @genesis 047d7ff 2026-09-24 — quadeval::Z_LANE_3
 // ---------------------------------------------------------------------------
 // Card T59 (2026-09-24): the two-word 16-bit z lanes' new items.
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
@@ -1987,6 +1988,7 @@ fn z_lane_zero(buf: Vec<u64>) -> Vec<u64> {
 /// The unit of lane `3` of a packed word, `2^48`.
 pub const Z_LANE_3: u64 = 281_474_976_710_656;
 
+// @genesis 047d7ff 2026-09-24 — quadeval::z_terms_passes
 /// How many passes [`z_apply_terms_lanes`] makes over one row: the sum of the
 /// magnitudes, read over the same `idx.len()` range its term loop runs.
 ///
