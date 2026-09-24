@@ -601,3 +601,31 @@ impl PreparedMatrixL2 {
         PolyVec(out)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Card T51a (2026-09-24): the prepared digit dot over a raw block, never
+// building its digit polynomials. apply_digits_gold keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+impl PreparedMatrixG {
+    // @genesis 9232079 2026-09-24 — linalg::PreparedMatrixG::apply_raw_digits_gold
+    /// `M · G⁻¹(x)` for the message block `x` a compact block denotes, with
+    /// neither `x` nor `G⁻¹(x)` built (Stage 6 card T51a).
+    ///
+    /// The value is `self.apply_digits_gold(&gadget_decompose(&raw.expand()))`:
+    /// the width is the same `min(cols, rows · GADGET_DIGITS)` (the product is
+    /// `gadget_decompose`'s own pre-sizing one), and each row's dot reads its
+    /// digits from the words through [`crate::ring::dot_prepared_raw_digits_gold`].
+    pub fn apply_raw_digits_gold(&self, raw: &RawVec32) -> PolyVec {
+        let n: usize = self.rows.len();
+        let terms: usize = raw.0.len() * crate::params::GADGET_DIGITS;
+        let w: usize = if self.cols <= terms { self.cols } else { terms };
+        let mut out: Vec<Rq> = Vec::new();
+        let mut i: usize = 0;
+        while i < n {
+            out.push(crate::ring::dot_prepared_raw_digits_gold(&self.rows[i], &raw.0, w));
+            i += 1;
+        }
+        PolyVec(out)
+    }
+}

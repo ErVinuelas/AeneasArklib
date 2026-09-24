@@ -1800,6 +1800,15 @@ def digitK (c : ZMod q) (e : ℕ) : ZMod q := (((Nat.digits 16 c.val).getD e 0 :
 
 theorem dd_digit_eq (c : ZMod q) (e : Fin 8) : dd.digit c e = digitK c e.val := rfl
 
+/-- **The pinned nibble lemma.** Every `e`, not only `e < 8`: past the eighth
+nibble both sides are `0`, because `x < 2^32`. (Moved here from `ZPacked.lean`
+by Stage 6 card T51a: its raw-digit bridge lives in `Raw32.lean`, which
+`ZPacked.lean` imports.) -/
+theorem digitK_eq_nibble (x : ℕ) (hx : x < q) (e : ℕ) :
+    digitK ((x : ℕ) : ZMod q) e = (((x / 16 ^ e) % 16 : ℕ) : ZMod q) := by
+  unfold digitK
+  rw [ZMod.val_natCast, Nat.mod_eq_of_lt hx, Nat.getD_digits _ _ (by norm_num)]
+
 /-- Two `ofFinCoeff`s at width `N` agree as soon as their coefficient functions do
 below `N`. -/
 theorem ofFinCoeff_congr {f g : ℕ → ZMod q} (h : ∀ t < N, f t = g t) :

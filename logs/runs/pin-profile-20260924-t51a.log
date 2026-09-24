@@ -1,0 +1,133 @@
+# champion/raw-commit: T51a B2' (commitment digits from raw words) on 8abca29, 2026-09-24T13:05:59+02:00
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling zerocopy v0.8.56
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling autocfg v1.5.1
+   Compiling cfg-if v1.0.4
+   Compiling serde_json v1.0.151
+   Compiling ciborium-io v0.2.2
+   Compiling anstyle v1.0.14
+   Compiling either v1.17.0
+   Compiling itoa v1.0.18
+   Compiling regex-syntax v0.8.11
+   Compiling memchr v2.8.3
+   Compiling clap_lex v1.1.0
+   Compiling cpoly v0.1.0 (https://github.com/tobias-rothmann/AeneasCompPoly.git?rev=d7e26bb42feb80a1d96f904d3c14f85786751513#d7e26bb4)
+   Compiling cast v0.3.0
+   Compiling same-file v1.0.6
+   Compiling oorandom v11.1.5
+   Compiling itertools v0.13.0
+   Compiling clap_builder v4.6.6
+   Compiling anes v0.1.6
+   Compiling walkdir v2.5.0
+   Compiling hachi v0.1.0 (/home/pablo/Documents/internship-eth/wt-t51a/hachi)
+   Compiling hachi-candidate v0.0.0 (/home/pablo/Documents/internship-eth/wt-t51a/hachi/benches/candidate)
+   Compiling hachi-genesis v0.0.0 (/home/pablo/Documents/internship-eth/wt-t51a/hachi/benches/genesis)
+warning: unused import: `cpoly::Fp`
+  --> src/quadeval.rs:58:5
+   |
+58 | use cpoly::Fp;
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling num-traits v0.2.19
+warning: function `div_by_modulus` is never used
+    --> src/ringswitch.rs:1155:4
+     |
+1155 | fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
+     |    ^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling syn v2.0.119
+   Compiling syn v3.0.3
+   Compiling regex-automata v0.4.18
+   Compiling criterion-plot v0.6.0
+warning: `hachi` (lib) generated 2 warnings (run `cargo fix --lib -p hachi` to apply 1 suggestion)
+   Compiling clap v4.6.6
+   Compiling serde_derive v1.0.229
+   Compiling zerocopy-derive v0.8.56
+   Compiling regex v1.13.1
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.7.0
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:1573:9
+     |
+1573 |     let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+     |         ----^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> tests/chain_semantics.rs:2396:9
+     |
+2396 |     let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+     |         ----^^
+     |         |
+     |         help: remove this `mut`
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3333:9
+     |
+3333 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `q`
+    --> tests/chain_semantics.rs:3453:9
+     |
+3453 |     let q = hachi::params::Q;
+     |         ^ help: if this is intentional, prefix it with an underscore: `_q`
+
+warning: `hachi` (test "chain_semantics") generated 4 warnings (run `cargo fix --test "chain_semantics" -p hachi` to apply 4 suggestions)
+    Finished `release` profile [optimized] target(s) in 11.38s
+     Running tests/chain_semantics.rs (target/release/deps/chain_semantics-2cb981537ec5d8a6)
+
+running 1 test
+[profile] control CPU (frozen genesis range_product_base x2000000): 79.5ms = 39.75 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 503.2ms
+test the_honest_chain_profile has been running for over 60 seconds
+[  untimed ] +   360.8s  peak   4360 live   4360 MiB  dense_eval (SCAFFOLDING, outside the timed region)
+[   486.7s] +   119.9s  peak   4528 live   4465 MiB  committed 1024 block(s)
+[   487.4s] +  705.5ms  peak   4528 live   4465 MiB  statement built
+[   509.2s] +    21.8s  peak   4528 live   4497 MiB  carrier_decomp_from_raw (shared by v and the response)
+[   510.4s] +     1.3s  peak   4528 live   4497 MiB  honest_compute_v_from_decomp
+[   534.8s] +    24.4s  peak   5453 live   5453 MiB  honest_compute_resp + stack
+[   534.8s] +   16.1ms  peak   5453 live   5453 MiB  raw message dropped (dead from here: T28 removed its last reader)
+[   535.0s] +  171.6ms  peak   5453 live   5453 MiB  R^lin statement assembled: 5 x 57344
+[   535.0s] +   70.0ns  peak   5453 live   5453 MiB  M zeta = y SKIPPED (not prover work)
+[   543.0s] +     8.0s  peak   5453 live   5453 MiB  lifted witness built, lift width 57384
+[   543.0s] ---------  peak   5453 live   5453 MiB  raw message already dead (T28)
+[profile] rlin_stmt (verifier assembles it too): 173.3ms
+[profile] lift_commit: 1.6s
+[profile] c_w_table_mle at 2^26: 210.0ms (67108864 entries)
+[profile] alpha_public_table at 2^26: 5.1s (67108864 entries)
+[profile] honest_round_messages (26 rounds, incl. its own two tables): 35.9s
+[profile] honest_compute_y: 1.4s
+[profile] verifier: rlin_stmt + statement thread: 172.7ms
+[profile] verifier: round_verify_loop (26 rounds): 60.5µs
+[profile] verifier: final_check = true: 617.6ms
+[profile] verifier: end_piece_check = true: 3.0s
+[profile] chain_verify (whole) = true: 4.4s
+[profile] control CPU (frozen genesis range_product_base x2000000): 76.6ms = 38.31 ns/call
+[profile] control alloc (frozen genesis PolyVec::zeros x50, LEGACY): 510.4ms
+[profile] control CPU spread within run: -3.6%  (recenter cross-run deltas by THIS)
+[profile] control alloc spread within run: +1.4%  (legacy, allocation-bound)
+[   596.8s] profile done
+test the_honest_chain_profile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 597.11s
+
+# exit 0
+PROFILE_DONE

@@ -376,12 +376,9 @@ theorem nib_of_ge (row : ring.Rq) (hrow : Wf row) (e : ℕ) {i : ℕ} (hi : N �
 would have written at flat index `8r + e`, without writing it. -/
 def digitRq (row : ring.Rq) (e : ℕ) : Rq Φ := Rq.ofFinCoeff Φ N (nib row e)
 
-/-- **The pinned nibble lemma.** Every `e`, not only `e < 8`: past the eighth
-nibble both sides are `0`, because `x < 2^32`. -/
-theorem digitK_eq_nibble (x : ℕ) (hx : x < q) (e : ℕ) :
-    digitK ((x : ℕ) : ZMod q) e = (((x / 16 ^ e) % 16 : ℕ) : ZMod q) := by
-  unfold digitK
-  rw [ZMod.val_natCast, Nat.mod_eq_of_lt hx, Nat.getD_digits _ _ (by norm_num)]
+-- The pinned nibble lemma `digitK_eq_nibble` lived here until Stage 6 card
+-- T51a (2026-09-24) needed it upstream of this file (`Raw32.lean`, which this
+-- file imports); it now sits beside `digitK` in `Scheme.lean`, unchanged.
 
 /-- `gadget::digit_at` at the word level: the digit is the nibble. The generic
 `Scheme.digit_at_spec` is untouched; this is its instance on canonical words,

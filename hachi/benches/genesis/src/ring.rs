@@ -1566,3 +1566,109 @@ pub fn load_twisted_signed_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64
     w
 }
 
+
+// @genesis 9232079 2026-09-24 — ring::load_raw_words
+// ---------------------------------------------------------------------------
+// Card T51a (2026-09-24): the commitment's digits straight from the raw words
+// (arm B2'). The row loader, the digit fill and the raw dot are first
+// translations; dot_prepared_digits_gold keeps its freeze above.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// Row `row`'s canonical words, into `out` (length [`params::RING_DEGREE`]):
+/// `out[i] = row.word(i)`, the guard and the reduction paid once per word.
+pub fn load_raw_words(out: Vec<u64>, row: &RawRq32) -> Vec<u64> {
+    let n: usize = params::RING_DEGREE;
+    let mut w: Vec<u64> = out;
+    let mut i: usize = 0;
+    while i < n {
+        w[i] = row.word(i);
+        i += 1;
+    }
+    w
+}
+
+// @genesis 9232079 2026-09-24 — ring::fill_digit_from_words
+/// Digit `e`'s polynomial from a row's canonical words, into `out`:
+/// coefficient `i` is `(words[i] >> 4e) & 15`.
+pub fn fill_digit_from_words(out: Rq, words: &Vec<u64>, e: usize) -> Rq {
+    let n: usize = params::RING_DEGREE;
+    let shift: usize = 4 * e;
+    let mut w: Rq = out;
+    let mut i: usize = 0;
+    while i < n {
+        let d: u64 = (words[i] >> shift) & 15;
+        w.0[i] = Fp::new(d);
+        i += 1;
+    }
+    w
+}
+
+// @genesis 9232079 2026-09-24 — ring::dot_prepared_raw_digits_gold
+/// B2' form of `dot_prepared_raw_digits_gold`: the row's words are loaded once
+/// per row, at `j % GADGET_DIGITS == 0`, and each digit is filled from them.
+pub fn dot_prepared_raw_digits_gold(prep: &PreparedVecG, raw: &Vec<RawRq32>, n: usize) -> Rq {
+    let deg: usize = params::RING_DEGREE;
+    let digits: usize = params::GADGET_DIGITS;
+    let qw: u64 = params::Q;
+    let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
+    let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let mut acc: Vec<u64> = crate::ntt::zeros(deg);
+    let mut scratch: Vec<u64> = crate::ntt::zeros(deg);
+    let mut cur: Vec<u64> = crate::ntt::zeros(deg);
+    let mut words: Vec<u64> = crate::ntt::zeros(deg);
+    let mut dig: Rq = Rq::zero();
+    let mut j: usize = 0;
+    while j < n {
+        let e: usize = j % digits;
+        if e == 0 {
+            words = load_raw_words(words, &raw[j / digits]);
+        }
+        dig = fill_digit_from_words(dig, &words, e);
+        let r: (Vec<u64>, Vec<u64>, Vec<u64>) =
+            gold_dot_one_fused(&dig, cur, scratch, acc, &pt, &prep.fwd, j * deg);
+        acc = r.0;
+        cur = r.1;
+        scratch = r.2;
+        j += 1;
+    }
+    let scaled: u64 = crate::ntt::gold_mul(crate::ntt::GOLD_DOFF, n as u64);
+    let inv: (Vec<u64>, Vec<u64>) = crate::ntt::gold_inverse(acc, scratch, &it);
+    let words_out: Vec<u64> = crate::ntt::gold_untwist_off(&inv.0, &it, scaled);
+    let mut out: Vec<Fp> = Vec::with_capacity(deg);
+    let mut t: usize = 0;
+    while t < deg {
+        out.push(Fp::new(words_out[t] % qw));
+        t += 1;
+    }
+    Rq(out)
+}
+
+
+// ---------------------------------------------------------------------------
+// Card T51a (2026-09-24): RawRq32::word, the canonical word of a raw row (the
+// % Q and the length guard are both required in the model).
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+impl RawRq32 {
+    // @genesis 9232079 2026-09-24 — ring::RawRq32::word
+    /// Coefficient `i` of [`RawRq32::expand`]'s ring element as its canonical
+    /// word, read straight from the compact carrier (Stage 6 card T58): for
+    /// every `i < RING_DEGREE`, `self.word(i) == self.expand().coeff(i).to_u64()`,
+    /// and no `Rq` is built.
+    ///
+    /// Both halves of the body are `expand`'s, not decoration. The model's
+    /// `RawRq32` is a plain `Vec<u32>`, so neither a canonical word nor length
+    /// `RING_DEGREE` follows from anything a consumer's specification assumes:
+    /// `% Q` is `Fp::new`'s reduction (a `u32` can be `q ≤ w < 2^32`), and the
+    /// length guard is `from_coeffs`'s zero padding. With both, the accessor is
+    /// total and exactly `expand` at every index `expand` keeps. Past
+    /// `RING_DEGREE` the two part ways (`expand` truncates, this reads on), and
+    /// no caller reads there.
+    pub fn word(&self, i: usize) -> u64 {
+        if i < self.0.len() {
+            (self.0[i] as u64) % params::Q
+        } else {
+            0
+        }
+    }
+}
