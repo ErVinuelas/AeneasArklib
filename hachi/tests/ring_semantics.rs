@@ -1082,3 +1082,38 @@ fn limb_dots_agree_with_the_fused_dot() {
         );
     }
 }
+
+/// Card T52c: the merged decimation-in-time stage computes what the two-walk
+/// form did -- `a + v` into the low half and `a − v` into the high half with
+/// the twiddled operand `v` computed once -- at every stage length of a
+/// 1024-point transform, on random canonical words and on the edge words
+/// 0, 1, p − 1. The oracle is the pre-T52c body, written out here.
+#[test]
+fn gold_dit_stage_merged_equals_the_two_walk_form() {
+    use hachi::ntt::{gold_add, gold_dit_stage, gold_mul, gold_psi_table, gold_sub, GOLD_P, GOLD_PSIINV, NTT_LEN};
+    fn two_walk(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
+        let n = NTT_LEN;
+        let half = len / 2;
+        let step = 2 * (n / len);
+        let mut start = 0;
+        while start < n {
+            for j in 0..half { dst[start + j] = gold_add(src[start + j], gold_mul(src[start + j + half], tw[j * step])); }
+            for i in 0..half { dst[start + half + i] = gold_sub(src[start + i], gold_mul(src[start + i + half], tw[i * step])); }
+            start += len;
+        }
+        dst
+    }
+    let tw = gold_psi_table(GOLD_PSIINV);
+    let mut r = Lcg::new(0x7452_C0DE);
+    for pass in 0..3 {
+        let src: Vec<u64> = (0..NTT_LEN)
+            .map(|i| match (pass, i % 7) { (1, 0) => 0, (1, 1) => 1, (1, 2) => GOLD_P - 1, _ => r.next_u64() % GOLD_P })
+            .collect();
+        let mut len = 2;
+        while len <= NTT_LEN {
+            let got = gold_dit_stage(&src, vec![0u64; NTT_LEN], len, &tw);
+            assert_eq!(got, two_walk(&src, vec![0u64; NTT_LEN], len, &tw), "pass {pass}, len {len}");
+            len *= 2;
+        }
+    }
+}

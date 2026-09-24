@@ -2367,6 +2367,14 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.GoldFusedStage.fusedB
 #print axioms HachiEquiv.GoldFusedStage.fusedC
 #print axioms HachiEquiv.GoldFusedStage.fusedD
+-- Card T52c (2026-09-24): the DIT stage's two inner loops (low half, then high
+-- half, each paying its own `gold_mul`) merged into one that forms each
+-- butterfly's twiddled operand once and writes both outputs. The merged loop's
+-- spec carries the two written clauses the old loops delivered, one each, and
+-- the whole-block frame, so `gold_dit_stage_loop0_spec` takes one step where it
+-- took two; `gold_dit_stage_spec`, `gold_inverse_spec` and everything above
+-- them did not move.
+#print axioms HachiEquiv.GoldTransform.gold_dit_stage_loop0_loop0_spec
 #print axioms HachiEquiv.GoldTransform.gold_dit_stage_spec
 #print axioms HachiEquiv.GoldTransform.gold_forward_spec
 #print axioms HachiEquiv.GoldTransform.gold_inverse_spec
