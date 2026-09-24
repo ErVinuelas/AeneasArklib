@@ -1594,7 +1594,8 @@ pub fn dot_prepared_limbs2(prep: &PreparedVecL2, b: &Vec<Rq>, n: usize) -> Rq {
 // guard- and reduction-free shift-and-masks over it (`fill_digit_from_words`),
 // into one recycled scratch `Rq` that the unchanged `gold_dot_one_fused`
 // consumes. The first arm (B2) reduced per (coefficient, digit) -- 8x the
-// `% Q` -- and read -7.2% on its row against B2''s -9.5%.
+// `% Q` -- and read -7.2% on its row against B2''s -9.5%. Card T65 then
+// removed the scratch `Rq` (below `fill_digit_from_words`).
 
 /// Row `row`'s canonical words, into `out` (length [`params::RING_DEGREE`]):
 /// `out[i] = row.word(i)`, the guard and the reduction paid once per word.
@@ -1624,28 +1625,147 @@ pub fn fill_digit_from_words(out: Rq, words: &Vec<u64>, e: usize) -> Rq {
     w
 }
 
+// Card T65b: T65a (the nibble straight into the twist stage, no scratch `Rq`)
+// plus a twist table. The stage's operand is a nibble, so its twist
+// `gold_mul(d, pt[i])` takes one of 16 values per index; the dot builds all
+// 16 * 1024 of them once, `tab[16 i + d] = gold_mul(d, pt[i])`, one flat
+// 128 KiB `Vec` (a coefficient's 16 candidates are two cache lines), and the
+// stage loads where it multiplied. `fill_digit_from_words` stays in the crate:
+// nothing on the hot path calls it any more, and it is what the new stage is
+// proved against.
+
+/// The twist table of the digit stage (card T65b): entry `16 i + d` is
+/// `gold_mul(d, pt[i])`, for every `i < NTT_LEN` and `d < 16`. One counter
+/// loop over the flat index, `i = k / 16` and `d = k % 16`, the shape of
+/// [`crate::ntt::gold_twist`].
+pub fn gold_twist_digit_table(pt: &Vec<u64>) -> Vec<u64> {
+    let m: usize = 16 * crate::ntt::NTT_LEN;
+    let mut out: Vec<u64> = Vec::with_capacity(m);
+    let mut k: usize = 0;
+    while k < m {
+        let d: u64 = (k % 16) as u64;
+        out.push(crate::ntt::gold_mul(d, pt[k / 16]));
+        k += 1;
+    }
+    out
+}
+
+/// [`gold_dif_stage2_twist`] reading digit `e` of a row's buffered words
+/// through the twist table (card T65b).
+///
+/// The body is [`gold_dif_stage2_twist`] verbatim with each of the four
+/// `gold_mul(a.0[i].to_u64(), pt[i])` reads replaced by
+/// `tab[16 i + ((words[i] >> 4e) & 15)]`: for `tab` =
+/// [`gold_twist_digit_table`]`(pt)` that entry is `gold_mul(d, pt[i])` with
+/// `d` the nibble, and `d` is what `fill_digit_from_words(_, words, e).0[i]
+/// .to_u64()` returns (`Fp::new(d)` is `d % P`, and the mask bounds `d` below
+/// `16 < P`). The butterfly arithmetic is unchanged; the twist multiplies
+/// become loads. `tw` is the stage's twiddle table, as before; the ψ powers
+/// the twist used are inside `tab`.
+pub fn gold_dif_stage2_twist_tab(
+    words: &Vec<u64>,
+    e: usize,
+    out: Vec<u64>,
+    len: usize,
+    tw: &Vec<u64>,
+    tab: &Vec<u64>,
+) -> Vec<u64> {
+    let n: usize = crate::ntt::NTT_LEN;
+    let shift: usize = 4 * e;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut dst: Vec<u64> = out;
+    let mut start: usize = 0;
+    while start < n {
+        let mut j: usize = 0;
+        while j < quarter {
+            let i0: usize = start + j;
+            let i1: usize = start + j + quarter;
+            let i2: usize = start + j + half;
+            let i3: usize = start + j + half + quarter;
+            let c0: u64 = (words[i0] >> shift) & 15;
+            let c1: u64 = (words[i1] >> shift) & 15;
+            let c2: u64 = (words[i2] >> shift) & 15;
+            let c3: u64 = (words[i3] >> shift) & 15;
+            let a0: u64 = tab[i0 * 16 + (c0 as usize)];
+            let a1: u64 = tab[i1 * 16 + (c1 as usize)];
+            let a2: u64 = tab[i2 * 16 + (c2 as usize)];
+            let a3: u64 = tab[i3 * 16 + (c3 as usize)];
+            let b0: u64 = crate::ntt::gold_add(a0, a2);
+            let b1: u64 = crate::ntt::gold_add(a1, a3);
+            let d0: u64 = crate::ntt::gold_sub(a0, a2);
+            let b2: u64 = crate::ntt::gold_mul(d0, tw[j * step1]);
+            let d1: u64 = crate::ntt::gold_sub(a1, a3);
+            let b3: u64 = crate::ntt::gold_mul(d1, tw[(j + quarter) * step1]);
+            dst[start + j] = crate::ntt::gold_add(b0, b1);
+            let e0: u64 = crate::ntt::gold_sub(b0, b1);
+            dst[start + j + quarter] = crate::ntt::gold_mul(e0, tw[j * step2]);
+            dst[start + half + j] = crate::ntt::gold_add(b2, b3);
+            let e1: u64 = crate::ntt::gold_sub(b2, b3);
+            dst[start + half + quarter + j] = crate::ntt::gold_mul(e1, tw[j * step2]);
+            j += 1;
+        }
+        start += len;
+    }
+    dst
+}
+
+/// [`gold_dot_one_fused`] with digit `e` of the buffered words as its operand,
+/// twisted through the table (card T65b): the same five passes, line for line,
+/// with the first one [`gold_dif_stage2_twist_tab`]. [`gold_dot_one_fused`]
+/// itself is unchanged -- [`dot_prepared_digits_gold`] still calls it on an
+/// `Rq`.
+#[allow(clippy::too_many_arguments)]
+pub fn gold_dot_one_fused_tab(
+    words: &Vec<u64>,
+    e: usize,
+    cur0: Vec<u64>,
+    tmp0: Vec<u64>,
+    acc0: Vec<u64>,
+    pt: &Vec<u64>,
+    tab: &Vec<u64>,
+    pfwd: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut cur: Vec<u64> = gold_dif_stage2_twist_tab(words, e, cur0, n, pt, tab);
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = n / 4;
+    while len > 4 {
+        let filled: Vec<u64> = crate::ntt::gold_dif_stage2(&cur, tmp, len, pt);
+        tmp = cur;
+        cur = filled;
+        len = len / 4;
+    }
+    let acc: Vec<u64> = crate::ntt::gold_dif_stage2_mac(&cur, acc0, 4, pt, pfwd, base);
+    (acc, cur, tmp)
+}
+
 /// B2' form of `dot_prepared_raw_digits_gold`: the row's words are loaded once
-/// per row, at `j % GADGET_DIGITS == 0`, and each digit is filled from them.
+/// per row, at `j % GADGET_DIGITS == 0`, and each digit is read from them by
+/// the transform's first stage through the dot's twist table (card T65b: no
+/// scratch `Rq`, no twist multiply).
 pub fn dot_prepared_raw_digits_gold(prep: &PreparedVecG, raw: &Vec<RawRq32>, n: usize) -> Rq {
     let deg: usize = params::RING_DEGREE;
     let digits: usize = params::GADGET_DIGITS;
     let qw: u64 = params::Q;
     let pt: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSI);
     let it: Vec<u64> = crate::ntt::gold_psi_table(crate::ntt::GOLD_PSIINV);
+    let tab: Vec<u64> = gold_twist_digit_table(&pt);
     let mut acc: Vec<u64> = crate::ntt::zeros(deg);
     let mut scratch: Vec<u64> = crate::ntt::zeros(deg);
     let mut cur: Vec<u64> = crate::ntt::zeros(deg);
     let mut words: Vec<u64> = crate::ntt::zeros(deg);
-    let mut dig: Rq = Rq::zero();
     let mut j: usize = 0;
     while j < n {
         let e: usize = j % digits;
         if e == 0 {
             words = load_raw_words(words, &raw[j / digits]);
         }
-        dig = fill_digit_from_words(dig, &words, e);
         let r: (Vec<u64>, Vec<u64>, Vec<u64>) =
-            gold_dot_one_fused(&dig, cur, scratch, acc, &pt, &prep.fwd, j * deg);
+            gold_dot_one_fused_tab(&words, e, cur, scratch, acc, &pt, &tab, &prep.fwd, j * deg);
         acc = r.0;
         cur = r.1;
         scratch = r.2;

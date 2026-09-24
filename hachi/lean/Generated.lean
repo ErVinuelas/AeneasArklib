@@ -10594,53 +10594,288 @@ def commit.commit_streamed
   let u ← linalg.PolyMatrix.mat_vec_mul pm1 flat
   ok (u, ts)
 
-/-- [hachi::ring::fill_digit_from_words]: loop body 0:
-    Source: 'src/ring.rs', lines 1619:4-1623:5
+/-- [hachi::ring::gold_dif_stage2_twist_tab]: loop body 1:
+    Source: 'src/ring.rs', lines 1683:8-1709:9
     Visibility: public -/
 @[rust_loop_body]
-def ring.fill_digit_from_words_loop.body
-  (words : alloc.vec.Vec Std.U64) (n : Std.Usize) (shift : Std.Usize)
-  (w : ring.Rq) (i : Std.Usize) :
-  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
+def ring.gold_dif_stage2_twist_tab_loop0_loop0.body
+  (words : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64)
+  (tab : alloc.vec.Vec Std.U64) (shift : Std.Usize) (half : Std.Usize)
+  (quarter : Std.Usize) (step1 : Std.Usize) (step2 : Std.Usize)
+  (start : Std.Usize) (dst : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
   := do
-  if i < n
+  if j < quarter
   then
-    let i1 ←
+    let i0 ← start + j
+    let i1 ← i0 + quarter
+    let i2 ← i0 + half
+    let i ← i0 + half
+    let i3 ← i + quarter
+    let i4 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) words
-        i
-    let i2 ← i1 >>> shift
-    let d ← lift (i2 &&& 15#u64)
-    let f ← cpoly.field.Fp.new d
+        i0
+    let i5 ← i4 >>> shift
+    let c0 ← lift (i5 &&& 15#u64)
+    let i6 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) words
+        i1
+    let i7 ← i6 >>> shift
+    let c1 ← lift (i7 &&& 15#u64)
+    let i8 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) words
+        i2
+    let i9 ← i8 >>> shift
+    let c2 ← lift (i9 &&& 15#u64)
+    let i10 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) words
+        i3
+    let i11 ← i10 >>> shift
+    let c3 ← lift (i11 &&& 15#u64)
+    let i12 ← i0 * 16#usize
+    let i13 ← lift (UScalar.cast .Usize c0)
+    let i14 ← i12 + i13
+    let a0 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tab
+        i14
+    let i15 ← i1 * 16#usize
+    let i16 ← lift (UScalar.cast .Usize c1)
+    let i17 ← i15 + i16
+    let a1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tab
+        i17
+    let i18 ← i2 * 16#usize
+    let i19 ← lift (UScalar.cast .Usize c2)
+    let i20 ← i18 + i19
+    let a2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tab
+        i20
+    let i21 ← i3 * 16#usize
+    let i22 ← lift (UScalar.cast .Usize c3)
+    let i23 ← i21 + i22
+    let a3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tab
+        i23
+    let b0 ← ntt.gold_add a0 a2
+    let b1 ← ntt.gold_add a1 a3
+    let d0 ← ntt.gold_sub a0 a2
+    let i24 ← j * step1
+    let i25 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i24
+    let b2 ← ntt.gold_mul d0 i25
+    let d1 ← ntt.gold_sub a1 a3
+    let i26 ← j + quarter
+    let i27 ← i26 * step1
+    let i28 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i27
+    let b3 ← ntt.gold_mul d1 i28
+    let i29 ← ntt.gold_add b0 b1
     let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) w i
-    let i3 ← i + 1#usize
-    let v := index_mut_back f
-    ok (cont (v, i3))
-  else ok (done w)
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        dst i0
+    let e0 ← ntt.gold_sub b0 b1
+    let i30 ← j * step2
+    let i31 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i30
+    let i32 ← ntt.gold_mul e0 i31
+    let dst1 := index_mut_back i29
+    let i33 ← i0 + quarter
+    let (_, index_mut_back1) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        dst1 i33
+    let i34 ← ntt.gold_add b2 b3
+    let dst2 := index_mut_back1 i32
+    let i35 ← start + half
+    let i36 ← i35 + j
+    let (_, index_mut_back2) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        dst2 i36
+    let e1 ← ntt.gold_sub b2 b3
+    let i37 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i30
+    let i38 ← ntt.gold_mul e1 i37
+    let dst3 := index_mut_back2 i34
+    let i39 ← i35 + quarter
+    let i40 ← i39 + j
+    let (_, index_mut_back3) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        dst3 i40
+    let j1 ← j + 1#usize
+    let dst4 := index_mut_back3 i38
+    ok (cont (dst4, j1))
+  else ok (done dst)
 
-/-- [hachi::ring::fill_digit_from_words]: loop 0:
-    Source: 'src/ring.rs', lines 1619:4-1623:5
+/-- [hachi::ring::gold_dif_stage2_twist_tab]: loop 1:
+    Source: 'src/ring.rs', lines 1683:8-1709:9
     Visibility: public -/
 @[rust_loop]
-def ring.fill_digit_from_words_loop
-  (words : alloc.vec.Vec Std.U64) (n : Std.Usize) (shift : Std.Usize)
-  (w : ring.Rq) (i : Std.Usize) :
-  Result ring.Rq
+def ring.gold_dif_stage2_twist_tab_loop0_loop0
+  (words : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64)
+  (tab : alloc.vec.Vec Std.U64) (shift : Std.Usize) (half : Std.Usize)
+  (quarter : Std.Usize) (step1 : Std.Usize) (step2 : Std.Usize)
+  (dst : alloc.vec.Vec Std.U64) (start : Std.Usize) (j : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
   := do
   loop
-    (fun (w1, i1) => ring.fill_digit_from_words_loop.body words n shift w1 i1)
-    (w, i)
+    (fun (dst1, j1) => ring.gold_dif_stage2_twist_tab_loop0_loop0.body words tw
+      tab shift half quarter step1 step2 start dst1 j1)
+    (dst, j)
 
-/-- [hachi::ring::fill_digit_from_words]:
-    Source: 'src/ring.rs', lines 1614:0-1625:1
+/-- [hachi::ring::gold_dif_stage2_twist_tab]: loop body 0:
+    Source: 'src/ring.rs', lines 1681:4-1711:5
     Visibility: public -/
-def ring.fill_digit_from_words
-  (out : ring.Rq) (words : alloc.vec.Vec Std.U64) (e : Std.Usize) :
-  Result ring.Rq
+@[rust_loop_body]
+def ring.gold_dif_stage2_twist_tab_loop0.body
+  (words : alloc.vec.Vec Std.U64) (len : Std.Usize)
+  (tw : alloc.vec.Vec Std.U64) (tab : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (shift : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (dst : alloc.vec.Vec Std.U64)
+  (start : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if start < n
+  then
+    let dst1 ←
+      ring.gold_dif_stage2_twist_tab_loop0_loop0 words tw tab shift half
+        quarter step1 step2 dst start 0#usize
+    let start1 ← start + len
+    ok (cont (dst1, start1))
+  else ok (done dst)
+
+/-- [hachi::ring::gold_dif_stage2_twist_tab]: loop 0:
+    Source: 'src/ring.rs', lines 1681:4-1711:5
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_dif_stage2_twist_tab_loop0
+  (words : alloc.vec.Vec Std.U64) (len : Std.Usize)
+  (tw : alloc.vec.Vec Std.U64) (tab : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (shift : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (dst : alloc.vec.Vec Std.U64)
+  (start : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (dst1, start1) => ring.gold_dif_stage2_twist_tab_loop0.body words len
+      tw tab n shift half quarter step1 step2 dst1 start1)
+    (dst, start)
+
+/-- [hachi::ring::gold_dif_stage2_twist_tab]:
+    Source: 'src/ring.rs', lines 1665:0-1713:1
+    Visibility: public -/
+def ring.gold_dif_stage2_twist_tab
+  (words : alloc.vec.Vec Std.U64) (e : Std.Usize) (out : alloc.vec.Vec Std.U64)
+  (len : Std.Usize) (tw : alloc.vec.Vec Std.U64) (tab : alloc.vec.Vec Std.U64)
+  :
+  Result (alloc.vec.Vec Std.U64)
   := do
   let shift ← 4#usize * e
-  ring.fill_digit_from_words_loop words params.RING_DEGREE shift out 0#usize
+  let half ← len / 2#usize
+  let quarter ← len / 4#usize
+  let i ← ntt.NTT_LEN / len
+  let step1 ← 2#usize * i
+  let step2 ← 2#usize * step1
+  ring.gold_dif_stage2_twist_tab_loop0 words len tw tab ntt.NTT_LEN shift half
+    quarter step1 step2 out 0#usize
+
+/-- [hachi::ring::gold_dot_one_fused_tab]: loop body 0:
+    Source: 'src/ring.rs', lines 1736:4-1741:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.gold_dot_one_fused_tab_loop.body
+  (pt : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
+  (tmp : alloc.vec.Vec Std.U64) (len : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if len > 4#usize
+  then
+    let filled ← ntt.gold_dif_stage2 cur tmp len pt
+    let len1 ← len / 4#usize
+    ok (cont (filled, cur, len1))
+  else ok (done (cur, tmp))
+
+/-- [hachi::ring::gold_dot_one_fused_tab]: loop 0:
+    Source: 'src/ring.rs', lines 1736:4-1741:5
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_dot_one_fused_tab_loop
+  (pt : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
+  (tmp : alloc.vec.Vec Std.U64) (len : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (cur1, tmp1, len1) => ring.gold_dot_one_fused_tab_loop.body pt cur1
+      tmp1 len1)
+    (cur, tmp, len)
+
+/-- [hachi::ring::gold_dot_one_fused_tab]:
+    Source: 'src/ring.rs', lines 1721:0-1744:1
+    Visibility: public -/
+def ring.gold_dot_one_fused_tab
+  (words : alloc.vec.Vec Std.U64) (e : Std.Usize)
+  (cur0 : alloc.vec.Vec Std.U64) (tmp0 : alloc.vec.Vec Std.U64)
+  (acc0 : alloc.vec.Vec Std.U64) (pt : alloc.vec.Vec Std.U64)
+  (tab : alloc.vec.Vec Std.U64) (pfwd : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × (alloc.vec.Vec
+    Std.U64))
+  := do
+  let cur ← ring.gold_dif_stage2_twist_tab words e cur0 ntt.NTT_LEN pt tab
+  let len ← ntt.NTT_LEN / 4#usize
+  let (cur1, tmp) ← ring.gold_dot_one_fused_tab_loop pt cur tmp0 len
+  let acc ← ntt.gold_dif_stage2_mac cur1 acc0 4#usize pt pfwd base
+  ok (acc, cur1, tmp)
+
+/-- [hachi::ring::gold_twist_digit_table]: loop body 0:
+    Source: 'src/ring.rs', lines 1645:4-1649:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.gold_twist_digit_table_loop.body
+  (pt : alloc.vec.Vec Std.U64) (m : Std.Usize) (out : alloc.vec.Vec Std.U64)
+  (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if k < m
+  then
+    let i ← k % 16#usize
+    let d ← lift (UScalar.cast .U64 i)
+    let i1 ← k / 16#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pt i1
+    let i3 ← ntt.gold_mul d i2
+    let out1 ← alloc.vec.Vec.push out i3
+    let k1 ← k + 1#usize
+    ok (cont (out1, k1))
+  else ok (done out)
+
+/-- [hachi::ring::gold_twist_digit_table]: loop 0:
+    Source: 'src/ring.rs', lines 1645:4-1649:5
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_twist_digit_table_loop
+  (pt : alloc.vec.Vec Std.U64) (m : Std.Usize) (out : alloc.vec.Vec Std.U64)
+  (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, k1) => ring.gold_twist_digit_table_loop.body pt m out1 k1)
+    (out, k)
+
+/-- [hachi::ring::gold_twist_digit_table]:
+    Source: 'src/ring.rs', lines 1641:0-1651:1
+    Visibility: public -/
+def ring.gold_twist_digit_table
+  (pt : alloc.vec.Vec Std.U64) : Result (alloc.vec.Vec Std.U64) := do
+  let m ← 16#usize * ntt.NTT_LEN
+  let out := alloc.vec.Vec.with_capacity Std.U64 m
+  ring.gold_twist_digit_table_loop pt m out 0#usize
 
 /-- [hachi::ring::RawRq32]
     Source: 'src/ring.rs', lines 760:0-760:29
@@ -10664,7 +10899,7 @@ def ring.RawRq32.word
   else ok 0#u64
 
 /-- [hachi::ring::load_raw_words]: loop body 0:
-    Source: 'src/ring.rs', lines 1605:4-1608:5
+    Source: 'src/ring.rs', lines 1606:4-1609:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.load_raw_words_loop.body
@@ -10685,7 +10920,7 @@ def ring.load_raw_words_loop.body
   else ok (done w)
 
 /-- [hachi::ring::load_raw_words]: loop 0:
-    Source: 'src/ring.rs', lines 1605:4-1608:5
+    Source: 'src/ring.rs', lines 1606:4-1609:5
     Visibility: public -/
 @[rust_loop]
 def ring.load_raw_words_loop
@@ -10698,7 +10933,7 @@ def ring.load_raw_words_loop
     (w, i)
 
 /-- [hachi::ring::load_raw_words]:
-    Source: 'src/ring.rs', lines 1601:0-1610:1
+    Source: 'src/ring.rs', lines 1602:0-1611:1
     Visibility: public -/
 @[reducible]
 def ring.load_raw_words
@@ -10708,17 +10943,18 @@ def ring.load_raw_words
   ring.load_raw_words_loop row params.RING_DEGREE out 0#usize
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop body 0:
-    Source: 'src/ring.rs', lines 1641:4-1653:5
+    Source: 'src/ring.rs', lines 1762:4-1773:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_raw_digits_gold_loop0.body
   (prep : ring.PreparedVecG) (raw1 : alloc.vec.Vec ring.RawRq32)
   (n : Std.Usize) (deg : Std.Usize) (digits : Std.Usize)
-  (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
-  (scratch : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
-  (words : alloc.vec.Vec Std.U64) (dig : ring.Rq) (j : Std.Usize) :
+  (pt : alloc.vec.Vec Std.U64) (tab : alloc.vec.Vec Std.U64)
+  (acc : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
+  (cur : alloc.vec.Vec Std.U64) (words : alloc.vec.Vec Std.U64) (j : Std.Usize)
+  :
   Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
-    (alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × ring.Rq × Std.Usize)
+    (alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × Std.Usize)
     ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
   := do
   if j < n
@@ -10734,34 +10970,34 @@ def ring.dot_prepared_raw_digits_gold_loop0.body
             ring.RawRq32) raw1 i
         ring.load_raw_words words rr
       else ok words
-    let dig1 ← ring.fill_digit_from_words dig words1 e
     let i ← j * deg
     let (acc1, cur1, scratch1) ←
-      ring.gold_dot_one_fused dig1 cur scratch acc pt prep.fwd i
+      ring.gold_dot_one_fused_tab words1 e cur scratch acc pt tab prep.fwd i
     let j1 ← j + 1#usize
-    ok (cont (acc1, scratch1, cur1, words1, dig1, j1))
+    ok (cont (acc1, scratch1, cur1, words1, j1))
   else ok (done (acc, scratch))
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop 0:
-    Source: 'src/ring.rs', lines 1641:4-1653:5
+    Source: 'src/ring.rs', lines 1762:4-1773:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_raw_digits_gold_loop0
   (prep : ring.PreparedVecG) (raw1 : alloc.vec.Vec ring.RawRq32)
   (n : Std.Usize) (deg : Std.Usize) (digits : Std.Usize)
-  (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
-  (scratch : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
-  (words : alloc.vec.Vec Std.U64) (dig : ring.Rq) (j : Std.Usize) :
+  (pt : alloc.vec.Vec Std.U64) (tab : alloc.vec.Vec Std.U64)
+  (acc : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
+  (cur : alloc.vec.Vec Std.U64) (words : alloc.vec.Vec Std.U64) (j : Std.Usize)
+  :
   Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
   := do
   loop
-    (fun (acc1, scratch1, cur1, words1, dig1, j1) =>
+    (fun (acc1, scratch1, cur1, words1, j1) =>
       ring.dot_prepared_raw_digits_gold_loop0.body prep raw1 n deg digits pt
-      acc1 scratch1 cur1 words1 dig1 j1)
-    (acc, scratch, cur, words, dig, j)
+      tab acc1 scratch1 cur1 words1 j1)
+    (acc, scratch, cur, words, j)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop body 1:
-    Source: 'src/ring.rs', lines 1659:4-1662:5
+    Source: 'src/ring.rs', lines 1779:4-1782:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_raw_digits_gold_loop1.body
@@ -10783,7 +11019,7 @@ def ring.dot_prepared_raw_digits_gold_loop1.body
   else ok (done out)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop 1:
-    Source: 'src/ring.rs', lines 1659:4-1662:5
+    Source: 'src/ring.rs', lines 1779:4-1782:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_raw_digits_gold_loop1
@@ -10797,7 +11033,7 @@ def ring.dot_prepared_raw_digits_gold_loop1
     (out, t)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]:
-    Source: 'src/ring.rs', lines 1629:0-1664:1
+    Source: 'src/ring.rs', lines 1750:0-1784:1
     Visibility: public -/
 def ring.dot_prepared_raw_digits_gold
   (prep : ring.PreparedVecG) (raw1 : alloc.vec.Vec ring.RawRq32)
@@ -10806,11 +11042,11 @@ def ring.dot_prepared_raw_digits_gold
   := do
   let pt ← ntt.gold_psi_table ntt.GOLD_PSI
   let it ← ntt.gold_psi_table ntt.GOLD_PSIINV
+  let tab ← ring.gold_twist_digit_table pt
   let acc ← ntt.zeros params.RING_DEGREE
-  let dig ← ring.Rq.zero
   let (acc1, scratch) ←
     ring.dot_prepared_raw_digits_gold_loop0 prep raw1 n params.RING_DEGREE
-      params.GADGET_DIGITS pt acc acc acc acc dig 0#usize
+      params.GADGET_DIGITS pt tab acc acc acc acc 0#usize
   let i ← lift (UScalar.cast .U64 n)
   let scaled ← ntt.gold_mul ntt.GOLD_DOFF i
   let (v, _) ← ntt.gold_inverse acc1 scratch it
@@ -17765,6 +18001,54 @@ def ring.PreparedVecG.impl.len
 def ring.PreparedVecL2.impl.len
   (self : ring.PreparedVecL2) : Result Std.Usize := do
   ok self.len
+
+/-- [hachi::ring::fill_digit_from_words]: loop body 0:
+    Source: 'src/ring.rs', lines 1620:4-1624:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.fill_digit_from_words_loop.body
+  (words : alloc.vec.Vec Std.U64) (n : Std.Usize) (shift : Std.Usize)
+  (w : ring.Rq) (i : Std.Usize) :
+  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) words
+        i
+    let i2 ← i1 >>> shift
+    let d ← lift (i2 &&& 15#u64)
+    let f ← cpoly.field.Fp.new d
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) w i
+    let i3 ← i + 1#usize
+    let v := index_mut_back f
+    ok (cont (v, i3))
+  else ok (done w)
+
+/-- [hachi::ring::fill_digit_from_words]: loop 0:
+    Source: 'src/ring.rs', lines 1620:4-1624:5
+    Visibility: public -/
+@[rust_loop]
+def ring.fill_digit_from_words_loop
+  (words : alloc.vec.Vec Std.U64) (n : Std.Usize) (shift : Std.Usize)
+  (w : ring.Rq) (i : Std.Usize) :
+  Result ring.Rq
+  := do
+  loop
+    (fun (w1, i1) => ring.fill_digit_from_words_loop.body words n shift w1 i1)
+    (w, i)
+
+/-- [hachi::ring::fill_digit_from_words]:
+    Source: 'src/ring.rs', lines 1615:0-1626:1
+    Visibility: public -/
+def ring.fill_digit_from_words
+  (out : ring.Rq) (words : alloc.vec.Vec Std.U64) (e : Std.Usize) :
+  Result ring.Rq
+  := do
+  let shift ← 4#usize * e
+  ring.fill_digit_from_words_loop words params.RING_DEGREE shift out 0#usize
 
 /-- [hachi::ringswitch::{hachi::ringswitch::QuotientRow}::new]:
     Source: 'src/ringswitch.rs', lines 90:4-92:5

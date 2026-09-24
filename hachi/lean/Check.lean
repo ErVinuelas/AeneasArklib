@@ -2571,4 +2571,28 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.Raw32.apply_raw_digits_gold_specG
 #print axioms HachiEquiv.Raw32.commit_streamed_32_loop_specG
 
+-- Stage 6 card T65b (2026-09-24): the raw dot no longer fills a scratch `Rq`
+-- per term. It builds the twist table of `pt` once (`TwistTab`: entry
+-- `16 i + d` is `d · pt[i]`), and the first stage of each term reads digit
+-- `j % 8` of the buffered words and loads its twisted value from the table in
+-- place of `gold_mul(a.0[i].to_u64(), pt[i])`. The stage's specs are Part A's
+-- (`GoldFusedBoundary`) over `twSrcW`, the nibble-twisted words; the fused
+-- term's conclusion is `gold_dot_one_fused_spec`'s over the digit, and
+-- `gold_raw_terms_spec` (restated: no `dig` in the loop state, a `tab` and its
+-- `TwistTab` hypothesis added) takes one step where it took two.
+-- `gold_raw_dot_spec` and everything above it kept their statements byte for
+-- byte. `fill_digit_from_words` and its specs stay, off the hot path.
+#print axioms HachiEquiv.GoldDot.twSrcW_lt
+#print axioms HachiEquiv.GoldDot.twSrcW_cast
+#print axioms HachiEquiv.GoldDot.twSrcW_eq_twSrc
+#print axioms HachiEquiv.GoldDot.TwistTab.read
+#print axioms HachiEquiv.GoldDot.gold_twist_digit_table_loop_spec
+#print axioms HachiEquiv.GoldDot.gold_twist_digit_table_spec
+#print axioms HachiEquiv.GoldDot.nibble_val
+#print axioms HachiEquiv.GoldDot.twist_tab_loop0_loop0_spec
+#print axioms HachiEquiv.GoldDot.twist_tab_loop0_spec
+#print axioms HachiEquiv.GoldDot.gold_dif_stage2_twist_tab_spec
+#print axioms HachiEquiv.GoldDot.tab_loop_eq
+#print axioms HachiEquiv.GoldDot.gold_dot_one_fused_tab_spec
+
 end HachiEquiv.Check

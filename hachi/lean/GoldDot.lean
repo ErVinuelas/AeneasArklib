@@ -990,7 +990,9 @@ theorem prepare_vec_gold_spec (a : alloc.vec.Vec ring.Rq) (nU : Std.Usize)
 operand never built: term `j` is digit `j % 8` of compact row `j / 8`, filled
 into one recycled scratch `Rq` from a buffer of the row's canonical words that
 is refreshed once per row (at `j % 8 = 0`), and then handed to the unchanged
-[`gold_dot_one_fused`].
+[`gold_dot_one_fused`]. Card T65b removed the scratch: the first stage of
+`gold_dot_one_fused_tab` reads the digit out of the buffer itself and loads its
+twisted value from a table built once per dot ([`TwistTab`]).
 
 The proofs keep the vocabulary of [`gold_dot_spec`] by carrying the digit block
 as a **ghost** `B : Vec Rq` -- the vector `gadget_decompose` would have built --
@@ -1245,18 +1247,760 @@ theorem raw_refresh_spec (raw : alloc.vec.Vec ring.RawRq32) (words : alloc.vec.V
     refine ⟨hwl, fun k hk => ?_⟩
     rw [hwv hpos k hk, hdiv]
 
+/-! ## Card T65b: the digit read by the twist stage, through a twist table -/
+
+section TwistTab
+
+open HachiEquiv.GoldStage HachiEquiv.GoldFusedStage
+
+/-- The nibble-twisted source word: digit `e` of `words[u]` times `pt[u]`,
+reduced -- what `tab[16 u + ((words[u] >> 4e) & 15)]` holds for the twist
+table of `pt`. [`twSrc`] of the digit `fill_digit_from_words` would have
+filled ([`twSrcW_eq_twSrc`]). -/
+def twSrcW (words : alloc.vec.Vec Std.U64) (e : ℕ) (pt : alloc.vec.Vec Std.U64) (u : ℕ) : ℕ :=
+  ((wordAt words u / 16 ^ e) % 16 * wordAt pt u) % GP
+
+theorem twSrcW_lt (words : alloc.vec.Vec Std.U64) (e : ℕ) (pt : alloc.vec.Vec Std.U64)
+    (u : ℕ) : twSrcW words e pt u < GP :=
+  Nat.mod_lt _ GP_pos
+
+/-- In the ring, the nibble-twisted word is the twist of the digit: `d_u · ψ^u`. -/
+theorem twSrcW_cast (words : alloc.vec.Vec Std.U64) (e : ℕ) (pt : alloc.vec.Vec Std.U64)
+    (ps : ZMod GP) (hptv : ∀ t, t < N → resK GP pt t = ps ^ t) (u : ℕ) (hu : u < N) :
+    ((twSrcW words e pt u : ℕ) : ZMod GP)
+      = NttMath.twistR ps (fun v => (((wordAt words v / 16 ^ e) % 16 : ℕ) : ZMod GP)) u := by
+  simp only [twSrcW, NttMath.twistR]
+  rw [ZMod.natCast_mod, Nat.cast_mul]
+  have := hptv u hu
+  simp only [resK] at this
+  rw [this]
+
+/-- The nibble-twisted word is [`twSrc`] of any ring element holding digit `e`
+of the words -- `fill_digit_from_words words e`'s output, which the stage no
+longer builds. -/
+theorem twSrcW_eq_twSrc (words : alloc.vec.Vec Std.U64) (e : ℕ) (pt : alloc.vec.Vec Std.U64)
+    (a : ring.Rq) (ha : ∀ k, k < N → HachiEquiv.Ring.wordN a k = (wordAt words k / 16 ^ e) % 16)
+    (u : ℕ) (hu : u < N) : twSrcW words e pt u = twSrc a pt u := by
+  rw [twSrcW, twSrc, ha u hu]
+
+/-- `tab` is the twist table of `pt`: `16 N` entries, entry `16 i + d` being
+`d · pt[i]` reduced, for every coefficient `i < N` and digit `d < 16`. -/
+def TwistTab (tab pt : alloc.vec.Vec Std.U64) : Prop :=
+  tab.val.length = 16 * N
+  ∧ ∀ i, i < N → ∀ d, d < 16 → wordAt tab (16 * i + d) = d * wordAt pt i % GP
+
+/-- The table read the stage does, in the Rust's index order `i * 16 + c`. -/
+theorem TwistTab.read {tab pt : alloc.vec.Vec Std.U64} (htab : TwistTab tab pt)
+    (words : alloc.vec.Vec Std.U64) (e : ℕ) {i c : ℕ} (hi : i < N)
+    (hc : c = (wordAt words i / 16 ^ e) % 16) :
+    wordAt tab (i * 16 + c) = twSrcW words e pt i := by
+  rw [Nat.mul_comm, htab.2 i hi c (by rw [hc]; exact Nat.mod_lt _ (by norm_num)), hc]
+  rfl
+
+/-- The table builder's loop: after `k` pushes the table holds entries `0 .. k`,
+entry `k'` being `(k' % 16) · pt[k' / 16]` reduced. -/
+theorem gold_twist_digit_table_loop_spec (pt : alloc.vec.Vec Std.U64) (mU : Std.Usize)
+    (out : alloc.vec.Vec Std.U64) (kU : Std.Usize)
+    (hm : mU.val = 16 * N) (hpl : pt.val.length = N)
+    (hk : kU.val ≤ 16 * N) (hlen : out.val.length = kU.val)
+    (hval : ∀ k, k < kU.val → wordAt out k = (k % 16) * wordAt pt (k / 16) % GP) :
+    ring.gold_twist_digit_table_loop pt mU out kU
+      ⦃ z => z.val.length = 16 * N
+             ∧ ∀ k, k < 16 * N → wordAt z k = (k % 16) * wordAt pt (k / 16) % GP ⦄ := by
+  rw [ring.gold_twist_digit_table_loop]
+  apply loop.spec_decr_nat (fun s => mU.val - s.2.val)
+    (fun s => s.2.val ≤ 16 * N ∧ s.1.val.length = s.2.val
+      ∧ ∀ k, k < s.2.val → wordAt s.1 k = (k % 16) * wordAt pt (k / 16) % GP)
+  · rintro ⟨o1, k1⟩ ⟨hk1, hlen1, hval1⟩
+    dsimp only at hk1 hlen1 hval1
+    simp only [ring.gold_twist_digit_table_loop.body]
+    by_cases hlt : k1 < mU
+    · rw [if_pos hlt]
+      have hklt : k1.val < 16 * N := by rw [← hm]; scalar_tac
+      have hcap : o1.val.length < Usize.max := by rw [hlen1]; scalar_tac
+      step as ⟨r, hr⟩
+      have hrlt : r.val < 16 := by rw [hr]; exact Nat.mod_lt _ (by norm_num)
+      have hcast : lift (UScalar.cast .U64 r) ⦃ y => y.val = r.val ⦄ :=
+        UScalar.cast_inBounds_spec .U64 r (by scalar_tac)
+      step with hcast as ⟨d, hd⟩
+      step as ⟨q, hq⟩
+      have hqb : q.val < pt.val.length := by rw [hpl, hq]; omega
+      step as ⟨p, hp⟩
+      step with gold_mul_spec d p as ⟨m, hmv, hmlt⟩
+      step as ⟨o2, ho2⟩
+      step as ⟨k2, hk2⟩
+      refine ⟨by rw [hk2]; omega, ?_, ?_, by rw [hk2]; omega⟩
+      · rw [ho2, List.length_append, hlen1, hk2]; simp
+      · intro k hk
+        rw [hk2] at hk
+        rcases Nat.lt_or_ge k k1.val with hklt2 | hkge
+        · rw [wordAt_pushed_lt ho2 (by omega), hval1 k hklt2]
+        · have hkeq : k = o1.val.length := by omega
+          rw [hkeq, wordAt_pushed_eq ho2, hlen1, hmv, hd, hr, hp,
+            ← wordAt_of_lt (v := pt) (t := q.val) hqb, hq]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : k1.val = 16 * N := by rw [← hm]; scalar_tac
+      exact ⟨by rw [hlen1, heq], fun k hk => hval1 k (by rw [heq]; exact hk)⟩
+  · exact ⟨hk, hlen, hval⟩
+
+/-- **`gold_twist_digit_table`** builds the twist table of `pt`. -/
+theorem gold_twist_digit_table_spec (pt : alloc.vec.Vec Std.U64) (hpl : pt.val.length = N) :
+    ring.gold_twist_digit_table pt ⦃ z => TwistTab z pt ⦄ := by
+  rw [ring.gold_twist_digit_table]
+  step as ⟨m, hm⟩
+  have hmv : m.val = 16 * N := by rw [hm, ntt_NTT_LEN_val]
+  simp only [alloc.vec.Vec.with_capacity]
+  apply spec_mono (gold_twist_digit_table_loop_spec pt m (alloc.vec.Vec.new Std.U64) 0#usize
+    hmv hpl (by simp) (by simp) (by intro k hk; simp at hk))
+  rintro z ⟨hzl, hzv⟩
+  refine ⟨hzl, fun i hi d hd => ?_⟩
+  rw [hzv (16 * i + d) (by omega), show (16 * i + d) % 16 = d by omega,
+    show (16 * i + d) / 16 = i by omega]
+
+/-- The nibble of a buffered word, as the stage reads it: `(w >> 4e) & 15`. -/
+theorem nibble_val {x y c : Std.U64} {shift : Std.Usize} {e : ℕ} {w : ℕ}
+    (hsh : shift.val = 4 * e) (hxv : x.val = w) (hy : y.val = x.val >>> shift.val)
+    (hc : c.val = (y &&& 15#u64).val) : c.val = (w / 16 ^ e) % 16 := by
+  rw [hc, UScalar.val_and, hy, hsh, hxv]
+  exact nibble_shift_mask _ _
+
+set_option maxHeartbeats 4000000 in
+/-- One block's worth of fused groups of [`gold_dif_stage2_twist_tab`]:
+[`twist_loop0_loop0_spec`] with its four twisted reads replaced by table loads,
+so its conclusion is over [`twSrcW`]. The loop state is the pair `(dst, j)`:
+the buffered words are a shared borrow the extraction does not thread. -/
+theorem twist_tab_loop0_loop0_spec (words : alloc.vec.Vec Std.U64) (e : ℕ)
+    (tw tab pt dst : alloc.vec.Vec Std.U64)
+    (shift half quarter step1 step2 start j : Std.Usize)
+    (hwl : words.val.length = N) (hsh : shift.val = 4 * e) (he : e < 16)
+    (htab : TwistTab tab pt) (hdst : Canon GP dst) (htw : Canon GP tw)
+    (hhq : half.val = 2 * quarter.val) (hqpos : 0 < quarter.val)
+    (hblk : start.val + 2 * half.val ≤ N) (hj : j.val ≤ quarter.val)
+    (hs2 : step2.val = 2 * step1.val) (hstep : 0 < step1.val)
+    (hebd : half.val * step1.val ≤ N)
+    (hw0 : ∀ u, u < j.val →
+      wordAt dst (start.val + u) = f0 (twSrcW words e pt) half.val quarter.val start.val u)
+    (hw1 : ∀ u, u < j.val →
+      wordAt dst (start.val + u + quarter.val)
+        = f1 (twSrcW words e pt) (wordAt tw) half.val quarter.val step2.val start.val u)
+    (hw2 : ∀ u, u < j.val →
+      wordAt dst (start.val + half.val + u)
+        = f2 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val start.val u)
+    (hw3 : ∀ u, u < j.val →
+      wordAt dst (start.val + half.val + quarter.val + u)
+        = f3 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val step2.val
+            start.val u) :
+    ring.gold_dif_stage2_twist_tab_loop0_loop0 words tw tab shift half quarter step1 step2
+      dst start j
+      ⦃ z => Canon GP z
+             ∧ (∀ u, u < quarter.val →
+                 wordAt z (start.val + u)
+                   = f0 (twSrcW words e pt) half.val quarter.val start.val u)
+             ∧ (∀ u, u < quarter.val →
+                 wordAt z (start.val + u + quarter.val)
+                   = f1 (twSrcW words e pt) (wordAt tw) half.val quarter.val step2.val
+                       start.val u)
+             ∧ (∀ u, u < quarter.val →
+                 wordAt z (start.val + half.val + u)
+                   = f2 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+                       start.val u)
+             ∧ (∀ u, u < quarter.val →
+                 wordAt z (start.val + half.val + quarter.val + u)
+                   = f3 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+                       step2.val start.val u)
+             ∧ (∀ k, (k < start.val ∨ start.val + 2 * half.val ≤ k) →
+                 wordAt z k = wordAt dst k) ⦄ := by
+  rw [ring.gold_dif_stage2_twist_tab_loop0_loop0]
+  apply loop.spec_decr_nat (fun s => quarter.val - s.2.val)
+    (fun s => s.2.val ≤ quarter.val ∧ Canon GP s.1
+      ∧ (∀ u, u < s.2.val →
+          wordAt s.1 (start.val + u) = f0 (twSrcW words e pt) half.val quarter.val start.val u)
+      ∧ (∀ u, u < s.2.val →
+          wordAt s.1 (start.val + u + quarter.val)
+            = f1 (twSrcW words e pt) (wordAt tw) half.val quarter.val step2.val start.val u)
+      ∧ (∀ u, u < s.2.val →
+          wordAt s.1 (start.val + half.val + u)
+            = f2 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val start.val u)
+      ∧ (∀ u, u < s.2.val →
+          wordAt s.1 (start.val + half.val + quarter.val + u)
+            = f3 (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val step2.val
+                start.val u)
+      ∧ (∀ k, (k < start.val ∨ start.val + 2 * half.val ≤ k) →
+          wordAt s.1 k = wordAt dst k))
+  · rintro ⟨d, jj⟩ ⟨hjj, hcd, hv0, hv1, hv2, hv3, hfr⟩
+    dsimp only at hjj hcd hv0 hv1 hv2 hv3 hfr
+    simp only [ring.gold_dif_stage2_twist_tab_loop0_loop0.body]
+    by_cases hlt : jj < quarter
+    · rw [if_pos hlt]
+      have hjlt : jj.val < quarter.val := by scalar_tac
+      have hdl : d.val.length = N := hcd.1
+      have htl : tw.val.length = N := htw.1
+      have htabl : tab.val.length = 16 * N := htab.1
+      have hshlt : shift.val < 64 := by rw [hsh]; omega
+      have hbt1 : jj.val * step1.val < N := by
+        have h := Nat.mul_lt_mul_of_pos_right (show jj.val < half.val by omega) hstep
+        omega
+      have hbt2 : (jj.val + quarter.val) * step1.val < N := by
+        have h := Nat.mul_lt_mul_of_pos_right
+          (show jj.val + quarter.val < half.val by omega) hstep
+        omega
+      have hbt3 : jj.val * step2.val < N := by
+        have h := Nat.mul_lt_mul_of_pos_right
+          (show 2 * jj.val < half.val by omega) hstep
+        have he : jj.val * step2.val = 2 * jj.val * step1.val := by rw [hs2]; ring
+        omega
+      -- the four indices
+      step as ⟨i0, hi0⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨i2, hi2⟩
+      step as ⟨i, hi⟩
+      step as ⟨i3, hi3⟩
+      have hi0b : i0.val < N := by rw [hi0]; omega
+      have hi1b : i1.val < N := by rw [hi1, hi0]; omega
+      have hi2b : i2.val < N := by rw [hi2, hi0]; omega
+      have hi3b : i3.val < N := by rw [hi3, hi, hi0]; omega
+      -- the four nibbles: `(words[i] >> shift) & 15`
+      have hwb0 : i0.val < words.val.length := by rw [hwl]; exact hi0b
+      step as ⟨x0, hx0⟩
+      step as ⟨y0, hy0, _⟩
+      step as ⟨c0, hc0⟩
+      have hc0v : c0.val = (wordAt words i0.val / 16 ^ e) % 16 :=
+        nibble_val hsh (by rw [hx0, ← wordAt_of_lt (v := words) (t := i0.val) hwb0]) hy0 hc0
+      have hwb1 : i1.val < words.val.length := by rw [hwl]; exact hi1b
+      step as ⟨x1, hx1⟩
+      step as ⟨y1, hy1, _⟩
+      step as ⟨c1, hc1⟩
+      have hc1v : c1.val = (wordAt words i1.val / 16 ^ e) % 16 :=
+        nibble_val hsh (by rw [hx1, ← wordAt_of_lt (v := words) (t := i1.val) hwb1]) hy1 hc1
+      have hwb2 : i2.val < words.val.length := by rw [hwl]; exact hi2b
+      step as ⟨x2, hx2⟩
+      step as ⟨y2, hy2, _⟩
+      step as ⟨c2, hc2⟩
+      have hc2v : c2.val = (wordAt words i2.val / 16 ^ e) % 16 :=
+        nibble_val hsh (by rw [hx2, ← wordAt_of_lt (v := words) (t := i2.val) hwb2]) hy2 hc2
+      have hwb3 : i3.val < words.val.length := by rw [hwl]; exact hi3b
+      step as ⟨x3, hx3⟩
+      step as ⟨y3, hy3, _⟩
+      step as ⟨c3, hc3⟩
+      have hc3v : c3.val = (wordAt words i3.val / 16 ^ e) % 16 :=
+        nibble_val hsh (by rw [hx3, ← wordAt_of_lt (v := words) (t := i3.val) hwb3]) hy3 hc3
+      have hc0lt : c0.val < 16 := by rw [hc0v]; exact Nat.mod_lt _ (by norm_num)
+      have hc1lt : c1.val < 16 := by rw [hc1v]; exact Nat.mod_lt _ (by norm_num)
+      have hc2lt : c2.val < 16 := by rw [hc2v]; exact Nat.mod_lt _ (by norm_num)
+      have hc3lt : c3.val < 16 := by rw [hc3v]; exact Nat.mod_lt _ (by norm_num)
+      -- the four table loads: `tab[i * 16 + c]`
+      step as ⟨m0, hm0⟩
+      have hcast0 : lift (UScalar.cast .Usize c0) ⦃ y => y.val = c0.val ⦄ :=
+        UScalar.cast_inBounds_spec .Usize c0 (by scalar_tac)
+      step with hcast0 as ⟨u0, hu0⟩
+      step as ⟨k0, hk0⟩
+      have hk0v : k0.val = i0.val * 16 + c0.val := by rw [hk0, hm0, hu0]
+      have hk0b : k0.val < tab.val.length := by rw [htabl, hk0v]; omega
+      step as ⟨a0, ha0⟩
+      have ha0v : a0.val = twSrcW words e pt i0.val := by
+        rw [ha0, ← wordAt_of_lt (v := tab) (t := k0.val) hk0b, hk0v]
+        exact htab.read words e hi0b hc0v
+      have h0lt : a0.val < GP := by rw [ha0v]; exact twSrcW_lt _ _ _ _
+      step as ⟨m1, hm1⟩
+      have hcast1 : lift (UScalar.cast .Usize c1) ⦃ y => y.val = c1.val ⦄ :=
+        UScalar.cast_inBounds_spec .Usize c1 (by scalar_tac)
+      step with hcast1 as ⟨u1, hu1⟩
+      step as ⟨k1, hk1⟩
+      have hk1v : k1.val = i1.val * 16 + c1.val := by rw [hk1, hm1, hu1]
+      have hk1b : k1.val < tab.val.length := by rw [htabl, hk1v]; omega
+      step as ⟨a1, ha1⟩
+      have ha1v : a1.val = twSrcW words e pt i1.val := by
+        rw [ha1, ← wordAt_of_lt (v := tab) (t := k1.val) hk1b, hk1v]
+        exact htab.read words e hi1b hc1v
+      have h1lt : a1.val < GP := by rw [ha1v]; exact twSrcW_lt _ _ _ _
+      step as ⟨m2, hm2⟩
+      have hcast2 : lift (UScalar.cast .Usize c2) ⦃ y => y.val = c2.val ⦄ :=
+        UScalar.cast_inBounds_spec .Usize c2 (by scalar_tac)
+      step with hcast2 as ⟨u2, hu2⟩
+      step as ⟨k2, hk2⟩
+      have hk2v : k2.val = i2.val * 16 + c2.val := by rw [hk2, hm2, hu2]
+      have hk2b : k2.val < tab.val.length := by rw [htabl, hk2v]; omega
+      step as ⟨a2, ha2⟩
+      have ha2v : a2.val = twSrcW words e pt i2.val := by
+        rw [ha2, ← wordAt_of_lt (v := tab) (t := k2.val) hk2b, hk2v]
+        exact htab.read words e hi2b hc2v
+      have h2lt : a2.val < GP := by rw [ha2v]; exact twSrcW_lt _ _ _ _
+      step as ⟨m3, hm3⟩
+      have hcast3 : lift (UScalar.cast .Usize c3) ⦃ y => y.val = c3.val ⦄ :=
+        UScalar.cast_inBounds_spec .Usize c3 (by scalar_tac)
+      step with hcast3 as ⟨u3, hu3⟩
+      step as ⟨k3, hk3⟩
+      have hk3v : k3.val = i3.val * 16 + c3.val := by rw [hk3, hm3, hu3]
+      have hk3b : k3.val < tab.val.length := by rw [htabl, hk3v]; omega
+      step as ⟨a3, ha3⟩
+      have ha3v : a3.val = twSrcW words e pt i3.val := by
+        rw [ha3, ← wordAt_of_lt (v := tab) (t := k3.val) hk3b, hk3v]
+        exact htab.read words e hi3b hc3v
+      have h3lt : a3.val < GP := by rw [ha3v]; exact twSrcW_lt _ _ _ _
+      rw [hi0] at ha0v
+      rw [hi1, hi0] at ha1v
+      rw [hi2, hi0] at ha2v
+      rw [hi3, hi, hi0] at ha3v
+      have ha3v' : a3.val
+          = twSrcW words e pt (start.val + jj.val + quarter.val + half.val) := by
+        rw [ha3v]; congr 1; omega
+      -- the first stage's four values
+      step with gold_add_spec a0 a2 h0lt h2lt as ⟨b0, hb0v, hb0lt⟩
+      step with gold_add_spec a1 a3 h1lt h3lt as ⟨b1, hb1v, hb1lt⟩
+      step with gold_sub_spec a0 a2 h0lt h2lt as ⟨d0, hd0v, hd0lt⟩
+      step as ⟨i12, hi12⟩
+      have hi12b : i12.val < tw.val.length := by rw [htl, hi12]; exact hbt1
+      step as ⟨t1, ht1⟩
+      have ht1v : t1.val = wordAt tw (jj.val * step1.val) := by
+        rw [ht1, ← wordAt_of_lt (v := tw) (t := i12.val) hi12b, hi12]
+      step with gold_mul_spec d0 t1 as ⟨b2, hb2v, hb2lt⟩
+      step with gold_sub_spec a1 a3 h1lt h3lt as ⟨d1, hd1v, hd1lt⟩
+      step as ⟨i14, hi14⟩
+      step as ⟨i15, hi15⟩
+      have hi15b : i15.val < tw.val.length := by rw [htl, hi15, hi14]; exact hbt2
+      step as ⟨t2, ht2⟩
+      have ht2v : t2.val = wordAt tw ((jj.val + quarter.val) * step1.val) := by
+        rw [ht2, ← wordAt_of_lt (v := tw) (t := i15.val) hi15b, hi15, hi14]
+      step with gold_mul_spec d1 t2 as ⟨b3, hb3v, hb3lt⟩
+      -- the four intermediates, in the `bSum` / `bDif` form
+      have hb0f : b0.val = bSum (twSrcW words e pt) half.val (start.val + jj.val) := by
+        rw [hb0v, ha0v, ha2v]; rfl
+      have hb1f : b1.val
+          = bSum (twSrcW words e pt) half.val (start.val + jj.val + quarter.val) := by
+        rw [hb1v, ha1v, ha3v']; rfl
+      have hb2f : b2.val
+          = bDif (twSrcW words e pt) (wordAt tw) half.val (jj.val * step1.val)
+              (start.val + jj.val) := by
+        rw [hb2v, hd0v, ht1v, ha0v, ha2v]; rfl
+      have hb3f : b3.val
+          = bDif (twSrcW words e pt) (wordAt tw) half.val ((jj.val + quarter.val) * step1.val)
+              (start.val + jj.val + quarter.val) := by
+        rw [hb3v, hd1v, ht2v, ha1v, ha3v']; rfl
+      -- write 1: `start + jj`
+      step with gold_add_spec b0 b1 hb0lt hb1lt as ⟨o0, ho0v, ho0lt⟩
+      have hidb : i0.val < d.val.length := by rw [hdl]; exact hi0b
+      step as ⟨elem, back, helem, hback⟩
+      step with gold_sub_spec b0 b1 hb0lt hb1lt as ⟨e0, he0v, he0lt⟩
+      step as ⟨i18, hi18⟩
+      case hmax => scalar_tac
+      have hi18b : i18.val < tw.val.length := by rw [htl, hi18]; exact hbt3
+      step as ⟨t3, ht3⟩
+      have ht3v : t3.val = wordAt tw (jj.val * step2.val) := by
+        rw [ht3, ← wordAt_of_lt (v := tw) (t := i18.val) hi18b, hi18]
+      step with gold_mul_spec e0 t3 as ⟨o1, ho1v, ho1lt⟩
+      rw [hback]
+      -- write 2: `start + jj + quarter`
+      have hc1 : Canon GP (d.set i0 o0) := Canon_set hcd ho0lt
+      have hd1l : (d.set i0 o0).val.length = N := hc1.1
+      step as ⟨i21, hi21⟩
+      case hmax => scalar_tac
+      have hi21b : i21.val < (d.set i0 o0).val.length := by rw [hd1l, hi21, hi0]; omega
+      step as ⟨elem1, back1, helem1, hback1⟩
+      step with gold_add_spec b2 b3 hb2lt hb3lt as ⟨o2, ho2v, ho2lt⟩
+      rw [hback1]
+      -- write 3: `start + half + jj`
+      have hc2 : Canon GP ((d.set i0 o0).set i21 o1) := Canon_set hc1 ho1lt
+      have hd2l : ((d.set i0 o0).set i21 o1).val.length = N := hc2.1
+      step as ⟨i23, hi23⟩
+      case hmax => scalar_tac
+      step as ⟨i24, hi24⟩
+      case hmax => scalar_tac
+      have hi24b : i24.val < ((d.set i0 o0).set i21 o1).val.length := by
+        rw [hd2l, hi24, hi23]; omega
+      step as ⟨elem2, back2, helem2, hback2⟩
+      step with gold_sub_spec b2 b3 hb2lt hb3lt as ⟨e1, he1v, he1lt⟩
+      step as ⟨t4, ht4⟩
+      have ht4v : t4.val = wordAt tw (jj.val * step2.val) := by
+        rw [ht4, ← wordAt_of_lt (v := tw) (t := i18.val) hi18b, hi18]
+      step with gold_mul_spec e1 t4 as ⟨o3, ho3v, ho3lt⟩
+      rw [hback2]
+      -- write 4: `start + half + quarter + jj`
+      have hc3 : Canon GP (((d.set i0 o0).set i21 o1).set i24 o2) := Canon_set hc2 ho2lt
+      have hd3l : (((d.set i0 o0).set i21 o1).set i24 o2).val.length = N := hc3.1
+      step as ⟨i27, hi27⟩
+      case hmax => scalar_tac
+      have hi27b : i27.val + jj.val < N := by rw [hi27, hi23]; omega
+      step as ⟨i28, hi28⟩
+      case hmax => scalar_tac
+      have hi28b : i28.val < (((d.set i0 o0).set i21 o1).set i24 o2).val.length := by
+        rw [hd3l, hi28, hi27, hi23]; omega
+      step as ⟨elem3, back3, helem3, hback3⟩
+      step as ⟨j1, hj1⟩
+      case hmax => scalar_tac
+      rw [hback3]
+      -- the four positions, as naturals
+      have p0 : i0.val = start.val + jj.val := hi0
+      have p1 : i21.val = start.val + jj.val + quarter.val := by rw [hi21, hi0]
+      have p2 : i24.val = start.val + half.val + jj.val := by rw [hi24, hi23]
+      have p3 : i28.val = start.val + half.val + quarter.val + jj.val := by
+        rw [hi28, hi27, hi23]
+      have hdisA : ∀ u, u < jj.val →
+          (start.val + u ≠ i0.val ∧ start.val + u ≠ i21.val
+            ∧ start.val + u ≠ i24.val ∧ start.val + u ≠ i28.val)
+          ∧ (start.val + u + quarter.val ≠ i0.val
+            ∧ start.val + u + quarter.val ≠ i21.val
+            ∧ start.val + u + quarter.val ≠ i24.val
+            ∧ start.val + u + quarter.val ≠ i28.val)
+          ∧ (start.val + half.val + u ≠ i0.val
+            ∧ start.val + half.val + u ≠ i21.val
+            ∧ start.val + half.val + u ≠ i24.val
+            ∧ start.val + half.val + u ≠ i28.val)
+          ∧ (start.val + half.val + quarter.val + u ≠ i0.val
+            ∧ start.val + half.val + quarter.val + u ≠ i21.val
+            ∧ start.val + half.val + quarter.val + u ≠ i24.val
+            ∧ start.val + half.val + quarter.val + u ≠ i28.val) := by
+        clear * - p0 p1 p2 p3 hjlt hhq hqpos
+        intro u hu
+        refine ⟨⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩⟩
+      have hdisB :
+          (start.val + jj.val ≠ i21.val ∧ start.val + jj.val ≠ i24.val
+            ∧ start.val + jj.val ≠ i28.val)
+          ∧ (start.val + jj.val + quarter.val ≠ i24.val
+            ∧ start.val + jj.val + quarter.val ≠ i28.val)
+          ∧ start.val + half.val + jj.val ≠ i28.val := by
+        clear * - p0 p1 p2 p3 hjlt hhq hqpos
+        exact ⟨⟨by omega, by omega, by omega⟩, ⟨by omega, by omega⟩, by omega⟩
+      have hdisF : ∀ k, (k < start.val ∨ start.val + 2 * half.val ≤ k) →
+          k ≠ i0.val ∧ k ≠ i21.val ∧ k ≠ i24.val ∧ k ≠ i28.val := by
+        clear * - p0 p1 p2 p3 hjlt hhq hqpos
+        intro k hk
+        exact ⟨by omega, by omega, by omega, by omega⟩
+      refine ⟨by clear * - hj1 hjlt; omega, Canon_set hc3 ho3lt, ?_, ?_, ?_, ?_, ?_,
+        by clear * - hj1 hjlt hqpos; omega⟩
+      · intro u hu
+        rw [hj1] at hu
+        rcases Nat.lt_or_ge u jj.val with hlt2 | hge
+        · obtain ⟨⟨n0, n1, n2, n3⟩, -, -, -⟩ := hdisA u hlt2
+          rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1, wordAt_set_ne n0]
+          exact hv0 u hlt2
+        · have heu : u = jj.val := by clear * - hu hge; omega
+          subst heu
+          obtain ⟨⟨n1, n2, n3⟩, -, -⟩ := hdisB
+          rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1,
+            ← p0, wordAt_set_eq hidb, ho0v, hb0f, hb1f]
+          rfl
+      · intro u hu
+        rw [hj1] at hu
+        rcases Nat.lt_or_ge u jj.val with hlt2 | hge
+        · obtain ⟨-, ⟨n0, n1, n2, n3⟩, -, -⟩ := hdisA u hlt2
+          rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1, wordAt_set_ne n0]
+          exact hv1 u hlt2
+        · have heu : u = jj.val := by clear * - hu hge; omega
+          subst heu
+          obtain ⟨-, ⟨n2, n3⟩, -⟩ := hdisB
+          rw [wordAt_set_ne n3, wordAt_set_ne n2,
+            ← p1, wordAt_set_eq hi21b, ho1v, he0v, ht3v, hb0f, hb1f]
+          rfl
+      · intro u hu
+        rw [hj1] at hu
+        rcases Nat.lt_or_ge u jj.val with hlt2 | hge
+        · obtain ⟨-, -, ⟨n0, n1, n2, n3⟩, -⟩ := hdisA u hlt2
+          rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1, wordAt_set_ne n0]
+          exact hv2 u hlt2
+        · have heu : u = jj.val := by clear * - hu hge; omega
+          subst heu
+          obtain ⟨-, -, n3⟩ := hdisB
+          rw [wordAt_set_ne n3, ← p2, wordAt_set_eq hi24b, ho2v, hb2f, hb3f]
+          rfl
+      · intro u hu
+        rw [hj1] at hu
+        rcases Nat.lt_or_ge u jj.val with hlt2 | hge
+        · obtain ⟨-, -, -, ⟨n0, n1, n2, n3⟩⟩ := hdisA u hlt2
+          rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1, wordAt_set_ne n0]
+          exact hv3 u hlt2
+        · have heu : u = jj.val := by clear * - hu hge; omega
+          subst heu
+          rw [← p3, wordAt_set_eq hi28b, ho3v, he1v, ht4v, hb2f, hb3f]
+          rfl
+      · intro k hk
+        obtain ⟨n0, n1, n2, n3⟩ := hdisF k hk
+        rw [wordAt_set_ne n3, wordAt_set_ne n2, wordAt_set_ne n1, wordAt_set_ne n0]
+        exact hfr k hk
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : jj.val = quarter.val := by scalar_tac
+      exact ⟨hcd, fun u hu => hv0 u (by rw [heq]; exact hu),
+        fun u hu => hv1 u (by rw [heq]; exact hu),
+        fun u hu => hv2 u (by rw [heq]; exact hu),
+        fun u hu => hv3 u (by rw [heq]; exact hu), hfr⟩
+  · exact ⟨hj, hdst, hw0, hw1, hw2, hw3, fun k _ => rfl⟩
+
+set_option maxHeartbeats 4000000 in
+/-- The outer loop of the table-read twist stage: [`twist_loop0_spec`] over
+[`twSrcW`], the loop state the pair `(dst, start)`. -/
+theorem twist_tab_loop0_spec (words : alloc.vec.Vec Std.U64) (e : ℕ)
+    (tw tab pt dst : alloc.vec.Vec Std.U64)
+    (len shift half quarter step1 step2 start : Std.Usize)
+    (hwl : words.val.length = N) (hsh : shift.val = 4 * e) (he : e < 16)
+    (htab : TwistTab tab pt) (hdst : Canon GP dst) (htw : Canon GP tw)
+    (hlen : len.val = 2 * half.val) (hhq : half.val = 2 * quarter.val)
+    (hqpos : 0 < quarter.val) (hdvd : len.val ∣ N)
+    (hs2 : step2.val = 2 * step1.val) (hstep : 0 < step1.val)
+    (hebd : half.val * step1.val ≤ N)
+    (hstart : start.val ≤ N) (hmod : start.val % len.val = 0)
+    (hval : ∀ t, t < start.val →
+      wordAt dst t = difWord GP quarter.val step2.val
+        (difWord GP half.val step1.val (twSrcW words e pt) (wordAt tw)) (wordAt tw) t) :
+    ring.gold_dif_stage2_twist_tab_loop0 words len tw tab ntt.NTT_LEN shift half quarter
+      step1 step2 dst start
+      ⦃ z => Canon GP z
+             ∧ ∀ t, t < N →
+                 wordAt z t = difWord GP quarter.val step2.val
+                   (difWord GP half.val step1.val (twSrcW words e pt) (wordAt tw))
+                   (wordAt tw) t ⦄ := by
+  rw [ring.gold_dif_stage2_twist_tab_loop0]
+  apply loop.spec_decr_nat (fun s => N - s.2.val)
+    (fun s => s.2.val ≤ N ∧ s.2.val % len.val = 0 ∧ Canon GP s.1
+      ∧ (∀ t, t < s.2.val →
+          wordAt s.1 t = difWord GP quarter.val step2.val
+            (difWord GP half.val step1.val (twSrcW words e pt) (wordAt tw)) (wordAt tw) t))
+  · rintro ⟨d, ss⟩ ⟨hss, hmod1, hcd, hval1⟩
+    dsimp only at hss hmod1 hcd hval1
+    simp only [ring.gold_dif_stage2_twist_tab_loop0.body]
+    by_cases hlt : ss < ntt.NTT_LEN
+    · rw [if_pos hlt]
+      have hsslt : ss.val < N := by scalar_tac
+      have hlenpos : 0 < len.val := by omega
+      have hblk : ss.val + len.val ≤ N := by
+        obtain ⟨c, hc⟩ := Nat.dvd_of_mod_eq_zero hmod1
+        obtain ⟨m0, hm0⟩ := hdvd
+        have hcm : c < m0 := by
+          have hlm : len.val * c < len.val * m0 := by rw [← hc, ← hm0]; exact hsslt
+          exact Nat.lt_of_mul_lt_mul_left hlm
+        have hle : len.val * (c + 1) ≤ len.val * m0 :=
+          Nat.mul_le_mul (Nat.le_refl _) (by omega)
+        rw [Nat.mul_add, Nat.mul_one] at hle
+        omega
+      have hblk2 : ss.val + 2 * half.val ≤ N := by omega
+      have hsm : ss.val % (2 * half.val) = 0 := by rw [← hlen]; exact hmod1
+      step with twist_tab_loop0_loop0_spec words e tw tab pt d shift half quarter step1 step2
+        ss 0#usize hwl hsh he htab hcd htw hhq hqpos hblk2 (by simp) hs2 hstep hebd
+        (by intro u hu; simp at hu) (by intro u hu; simp at hu)
+        (by intro u hu; simp at hu) (by intro u hu; simp at hu)
+        as ⟨d1, hc1, hwr0, hwr1, hwr2, hwr3, hfr1⟩
+      step as ⟨ss1, hss1⟩
+      refine ⟨by omega, ?_, hc1, ?_, by omega⟩
+      · rw [hss1, Nat.add_mod_right, hmod1]
+      · intro t ht
+        rw [hss1] at ht
+        rcases Nat.lt_or_ge t ss.val with h1 | h1
+        · rw [hfr1 t (Or.inl h1)]
+          exact hval1 t h1
+        · rcases Nat.lt_or_ge (t - ss.val) quarter.val with h2 | h2
+          · rw [show t = ss.val + (t - ss.val) by omega, hwr0 (t - ss.val) h2]
+            exact (fusedA (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+              step2.val ss.val (t - ss.val) hhq h2 hsm).symm
+          · rcases Nat.lt_or_ge (t - ss.val) half.val with h3 | h3
+            · rw [show t = ss.val + (t - ss.val - quarter.val) + quarter.val by omega,
+                hwr1 (t - ss.val - quarter.val) (by omega)]
+              exact (fusedB (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+                step2.val ss.val (t - ss.val - quarter.val) hhq (by omega) hsm).symm
+            · rcases Nat.lt_or_ge (t - ss.val) (half.val + quarter.val) with h4 | h4
+              · rw [show t = ss.val + half.val + (t - ss.val - half.val) by omega,
+                  hwr2 (t - ss.val - half.val) (by omega)]
+                exact (fusedC (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+                  step2.val ss.val (t - ss.val - half.val) hhq (by omega) hsm).symm
+              · rw [show t = ss.val + half.val + quarter.val
+                      + (t - ss.val - half.val - quarter.val) by omega,
+                  hwr3 (t - ss.val - half.val - quarter.val) (by omega)]
+                exact (fusedD (twSrcW words e pt) (wordAt tw) half.val quarter.val step1.val
+                  step2.val ss.val (t - ss.val - half.val - quarter.val) hhq
+                  (by omega) hsm).symm
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ss.val = N := by scalar_tac
+      exact ⟨hcd, fun t ht => hval1 t (by rw [heq]; exact ht)⟩
+  · exact ⟨hstart, hmod, hdst, hval⟩
+
+/-- **The table-read twist stage**: [`gold_dif_stage2_twist_spec`]'s conclusion
+over [`twSrcW`], the words of digit `e` twisted through the table. -/
+theorem gold_dif_stage2_twist_tab_spec (words : alloc.vec.Vec Std.U64) (eU : Std.Usize)
+    (out tw tab pt : alloc.vec.Vec Std.U64)
+    (len : Std.Usize) (k : ℕ) (hk : k < 9) (hlen : len.val = 2 ^ (k + 2))
+    (hwl : words.val.length = N) (he : eU.val < 16)
+    (htab : TwistTab tab pt) (hout : Canon GP out) (htw : Canon GP tw) :
+    ring.gold_dif_stage2_twist_tab words eU out len tw tab
+      ⦃ z => Canon GP z
+             ∧ ∀ t, t < N →
+                 wordAt z t
+                   = difWord GP (2 ^ k) (2 * (N / 2 ^ (k + 1)))
+                       (difWord GP (2 ^ (k + 1)) (2 * (N / 2 ^ (k + 2)))
+                         (twSrcW words eU.val pt) (wordAt tw)) (wordAt tw) t ⦄ := by
+  obtain ⟨hd1, hd2, hdvd⟩ := fusedParams' k hk
+  have hlne : len.val ≠ 0 := by rw [hlen]; positivity
+  rw [ring.gold_dif_stage2_twist_tab]
+  step as ⟨sh, hsh⟩
+  step as ⟨hf, hhf⟩
+  have hhfv : hf.val = 2 ^ (k + 1) := by
+    rw [hhf, hlen, show k + 2 = (k + 1) + 1 by ring, pow_succ]
+    omega
+  step as ⟨qq, hqq⟩
+  have hqqv : qq.val = 2 ^ k := by
+    rw [hqq, hlen, show (2 : ℕ) ^ (k + 2) = 2 ^ k * 4 by ring]
+    omega
+  step as ⟨ii, hii⟩
+  have hiiv : ii.val = 2 ^ (8 - k) := by rw [hii, ntt_NTT_LEN_val, hlen, ← hd2]
+  have hiile : ii.val ≤ N := by rw [hii, ntt_NTT_LEN_val]; exact Nat.div_le_self _ _
+  step as ⟨st1, hst1⟩
+  have hst1v : st1.val = 2 * (N / 2 ^ (k + 2)) := by rw [hst1, hiiv, hd2]
+  have hst1le : st1.val ≤ 2 * N := by
+    rw [hst1v]
+    have := Nat.div_le_self N (2 ^ (k + 2))
+    omega
+  step as ⟨st2, hst2⟩
+  have hst2v : st2.val = 2 * (N / 2 ^ (k + 1)) := by
+    rw [hst2, hst1v, hd1, hd2, show 9 - k = (8 - k) + 1 by omega, pow_succ]
+    ring
+  rw [← hst2v, ← hst1v, ← hhfv, ← hqqv]
+  refine twist_tab_loop0_spec words eU.val tw tab pt out len sh hf qq st1 st2 0#usize
+    hwl hsh he htab hout htw ?_ ?_ ?_ ?_ ?_ ?_ ?_ (by simp) (by simp)
+    (by intro t ht; simp at ht)
+  · rw [hlen, hhfv, show k + 2 = (k + 1) + 1 by ring, pow_succ]; ring
+  · rw [hhfv, hqqv, pow_succ]; ring
+  · rw [hqqv]; positivity
+  · rw [hlen]; exact hdvd
+  · rw [hst2v, hst1v, hd1, hd2, show 9 - k = (8 - k) + 1 by omega, pow_succ]; ring
+  · rw [hst1v, hd2]; positivity
+  · rw [hhfv, hst1v, hd2, show (2 : ℕ) ^ (k + 1) * (2 * 2 ^ (8 - k))
+        = 2 * (2 ^ (k + 1) * 2 ^ (8 - k)) by ring, ← pow_add,
+      show k + 1 + (8 - k) = 9 by omega]
+    norm_num
+
+/-- The middle loop of the table-read term is the plain term's, byte for byte. -/
+theorem tab_loop_eq : ring.gold_dot_one_fused_tab_loop = ring.gold_dot_one_fused_loop := rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **One fused term, its operand digit `e` of the buffered words.**
+[`gold_dot_one_fused_spec`]'s conclusion with the ring element replaced by the
+digit, `(words[u] / 16^e) % 16` at every `u`: the first stage reads it through
+the twist table, and the middle and last passes are the plain term's. -/
+theorem gold_dot_one_fused_tab_spec (words : alloc.vec.Vec Std.U64) (eU : Std.Usize)
+    (cur0 tmp0 acc0 pt tab pfwd : alloc.vec.Vec Std.U64)
+    (baseU : Std.Usize) (ps : ZMod GP) (A : ℕ → ZMod GP)
+    (hwl : words.val.length = N) (he : eU.val < 16) (htab : TwistTab tab pt)
+    (hcur : Canon GP cur0) (htmp : Canon GP tmp0) (hacc : Canon GP acc0)
+    (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (hb : baseU.val + N ≤ pfwd.val.length)
+    (hA : ∀ t, t < N → ((wordAt pfwd (baseU.val + t) : ℕ) : ZMod GP) = A t) :
+    ring.gold_dot_one_fused_tab words eU cur0 tmp0 acc0 pt tab pfwd baseU
+      ⦃ z => Canon GP z.1 ∧ Canon GP z.2.1 ∧ Canon GP z.2.2
+             ∧ ∀ t, t < N → resK GP z.1 t
+                 = resK GP acc0 t
+                   + A t * NttMath.difRun (ps ^ 2) 10 1
+                       (NttMath.twistR ps
+                         (fun u => (((wordAt words u / 16 ^ eU.val) % 16 : ℕ)
+                           : ZMod GP))) t ⦄ := by
+  have hag : ∀ e, e < N → wordAt pt e = psiRep ps e := tw_agree' GP pt GP_pos hptC ps hptv
+  have htw0 : wordAt pt 0 = 1 := tw_zero_one GP pt (by norm_num) hptC ps hptv
+  set F : ℕ → ZMod GP := fun u => ((twSrcW words eU.val pt u : ℕ) : ZMod GP) with hF
+  rw [ring.gold_dot_one_fused_tab, tab_loop_eq]
+  -- (A) the table-read twist stage, the transform's first two stages at `len = N`
+  step with gold_dif_stage2_twist_tab_spec words eU cur0 pt tab pt ntt.NTT_LEN 8 (by norm_num)
+    (by rw [ntt_NTT_LEN_val]; norm_num) hwl he htab hcur hptC as ⟨c1, hc1C, hc1w⟩
+  have hstep1 : N / 2 ^ (8 + 1) = 2 ^ 1 := by norm_num
+  have hstep2 : N / 2 ^ (8 + 2) = 2 ^ 0 := by norm_num
+  have hinner : difWord GP (2 ^ (8 + 1)) (2 * (N / 2 ^ (8 + 2))) (twSrcW words eU.val pt)
+        (wordAt pt)
+      = difWord GP (2 ^ (8 + 1)) (2 * (N / 2 ^ (8 + 2))) (twSrcW words eU.val pt)
+        (psiRep ps) :=
+    funext (fun u => difWord_tw_congr GP (8 + 1) (by omega) (twSrcW words eU.val pt)
+      (wordAt pt) (psiRep ps) hag u)
+  have hres1 : ∀ t, t < N →
+      resK GP c1 t
+        = NttMath.difStage (2 ^ 8) (2 ^ 1) (ps ^ 2)
+            (NttMath.difStage (2 ^ (8 + 1)) (2 ^ 0) (ps ^ 2) F) t := by
+    intro t ht
+    have h1 : wordAt c1 t
+        = difWord GP (2 ^ 8) (2 * (N / 2 ^ (8 + 1)))
+            (difWord GP (2 ^ (8 + 1)) (2 * (N / 2 ^ (8 + 2))) (twSrcW words eU.val pt)
+              (psiRep ps))
+            (psiRep ps) t := by
+      rw [hc1w t ht, hinner]
+      exact difWord_tw_congr GP 8 (by omega) _ (wordAt pt) (psiRep ps) hag t
+    have hmid : (fun u => ((difWord GP (2 ^ (8 + 1)) (2 * 2 ^ 0) (twSrcW words eU.val pt)
+          (psiRep ps) u : ℕ) : ZMod GP))
+        = NttMath.difStage (2 ^ (8 + 1)) (2 ^ 0) (ps ^ 2) F :=
+      funext (fun u => difWord_cast GP (2 ^ (8 + 1)) (2 ^ 0) ps (twSrcW words eU.val pt)
+        (psiRep ps) (psiRep_cast GP_pos ps) (twSrcW_lt words eU.val pt) u)
+    have hlt2 : ∀ u, difWord GP (2 ^ (8 + 1)) (2 * 2 ^ 0) (twSrcW words eU.val pt)
+        (psiRep ps) u < GP :=
+      fun u => difWord_lt GP _ _ GP_pos _ _ u
+    rw [resK, h1, hstep1, hstep2,
+      difWord_cast GP (2 ^ 8) (2 ^ 1) ps _ (psiRep ps) (psiRep_cast GP_pos ps) hlt2 t, hmid]
+  -- the invariant the middle loop starts from: eight stages remain
+  have hinv0 : ∀ t, t < N →
+      NttMath.difRun (ps ^ 2) (2 * 4) (2 ^ (10 - 2 * 4)) (resK GP c1) t
+        = NttMath.difRun (ps ^ 2) 10 1 F t := by
+    intro t ht
+    have hdvd : (2 : ℕ) ^ (2 * 4) ∣ N := by norm_num
+    rw [difRun_congr (ps ^ 2) (2 * 4) hdvd (2 ^ (10 - 2 * 4)) (resK GP c1)
+      (NttMath.difStage (2 ^ 8) (2 ^ 1) (ps ^ 2)
+        (NttMath.difStage (2 ^ (8 + 1)) (2 ^ 0) (ps ^ 2) F)) hres1 t ht]
+    rfl
+  -- (C) the middle loop, from `len = N/4` down to `len = 4`
+  step as ⟨len, hlen⟩
+  have hlenv : len.val = 2 ^ (2 * 4) := by rw [hlen, ntt_NTT_LEN_val]; norm_num
+  step with gold_dot_one_fused_loop_spec pt c1 tmp0 len 4 (by norm_num) (le_refl 4) hlenv
+    hc1C htmp hptC ps hptv (NttMath.difRun (ps ^ 2) 10 1 F) hinv0
+    as ⟨c2, t2, hc2C, ht2C, hc2v⟩
+  -- (B) the MAC stage, the last two stages at `len = 4`
+  step with gold_dif_stage2_mac_spec c2 acc0 pt pfwd 4#usize baseU 0 (by norm_num)
+    (by norm_num) hc2C hacc hptC htw0 hb as ⟨acc1, hacc1C, hacc1w⟩
+  refine ⟨hacc1C, hc2C, ht2C, ?_⟩
+  intro t ht
+  have hstepM1 : N / 2 ^ (0 + 1) = 2 ^ 9 := by norm_num
+  have hstepM2 : N / 2 ^ (0 + 2) = 2 ^ 8 := by norm_num
+  have hinnerM : difWord GP (2 ^ (0 + 1)) (2 * (N / 2 ^ (0 + 2))) (wordAt c2) (wordAt pt)
+      = difWord GP (2 ^ (0 + 1)) (2 * (N / 2 ^ (0 + 2))) (wordAt c2) (psiRep ps) :=
+    funext (fun u => difWord_tw_congr GP (0 + 1) (by omega) (wordAt c2)
+      (wordAt pt) (psiRep ps) hag u)
+  have hswc : ∀ u, wordAt c2 u < GP := fun u => wordAt_lt hc2C GP_pos u
+  have hmidM : (fun u => ((difWord GP (2 ^ (0 + 1)) (2 * 2 ^ 8) (wordAt c2) (psiRep ps) u
+        : ℕ) : ZMod GP))
+      = NttMath.difStage (2 ^ (0 + 1)) (2 ^ 8) (ps ^ 2) (resK GP c2) :=
+    funext (fun u => difWord_cast GP (2 ^ (0 + 1)) (2 ^ 8) ps (wordAt c2) (psiRep ps)
+      (psiRep_cast GP_pos ps) hswc u)
+  have hlt2M : ∀ u, difWord GP (2 ^ (0 + 1)) (2 * 2 ^ 8) (wordAt c2) (psiRep ps) u < GP :=
+    fun u => difWord_lt GP _ _ GP_pos _ _ u
+  have hresM : ((difWord GP (2 ^ 0) (2 * (N / 2 ^ (0 + 1)))
+        (difWord GP (2 ^ (0 + 1)) (2 * (N / 2 ^ (0 + 2))) (wordAt c2) (wordAt pt))
+        (wordAt pt) t : ℕ) : ZMod GP)
+      = NttMath.difRun (ps ^ 2) 2 (2 ^ 8) (resK GP c2) t := by
+    rw [hinnerM, difWord_tw_congr GP 0 (by omega) _ (wordAt pt) (psiRep ps) hag t,
+      hstepM1, hstepM2,
+      difWord_cast GP (2 ^ 0) (2 ^ 9) ps _ (psiRep ps) (psiRep_cast GP_pos ps) hlt2M t, hmidM]
+    rfl
+  have hAt : ((pfW pfwd baseU.val t : ℕ) : ZMod GP) = A t := hA t ht
+  -- the nibble-twisted words agree with the twist below `N`, which is all `difRun` reads
+  have hFtw : NttMath.difRun (ps ^ 2) 10 1 F t
+      = NttMath.difRun (ps ^ 2) 10 1
+          (NttMath.twistR ps
+            (fun u => (((wordAt words u / 16 ^ eU.val) % 16 : ℕ) : ZMod GP))) t :=
+    difRun_congr (ps ^ 2) 10 (by norm_num) 1 F _
+      (fun u hu => twSrcW_cast words eU.val pt ps hptv u hu) t ht
+  rw [resK, hacc1w t ht, macAt_cast, hAt, hresM, hc2v t ht, hFtw]
+  rfl
+
+end TwistTab
+
 /-- **The raw terms loop** -- [`gold_terms_spec`] with the right operand read
 out of the compact rows. The ghost `B` is the digit block they denote
 ([`RawDigitsOf`]); the invariant gains the buffer (length `N`, and from the
-first turn on holding row `(j - 1) / 8`) and the scratch's length, and
-[`gold_dot_one_fused_spec`] is reused unchanged on the freshly filled scratch. -/
+first turn on holding row `(j - 1) / 8`). Since card T65b no digit is filled:
+[`gold_dot_one_fused_tab_spec`] reads digit `j % 8` of the buffer through the
+twist table `tab` of `pt`, and its operand is the ghost entry word for word. -/
 theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
     (a B : alloc.vec.Vec ring.Rq) (raw : alloc.vec.Vec ring.RawRq32)
-    (endU nU digitsU : Std.Usize) (pt : alloc.vec.Vec Std.U64)
-    (acc scratch cur words : alloc.vec.Vec Std.U64) (dig : ring.Rq) (jU : Std.Usize)
+    (endU nU digitsU : Std.Usize) (pt tab : alloc.vec.Vec Std.U64)
+    (acc scratch cur words : alloc.vec.Vec Std.U64) (jU : Std.Usize)
     (ps : ZMod GP)
     (hn : nU.val = N) (hdig : digitsU.val = 8) (hord : ps ^ N = -1)
     (hptC : Canon GP pt) (hptv : ∀ e, e < N → resK GP pt e = ps ^ e)
+    (htab : TwistTab tab pt)
     (hpl : endU.val * N ≤ prep.fwd.val.length)
     (hpv : ∀ j, j < endU.val → ∀ t, t < N →
         resK GP prep.fwd (j * N + t)
@@ -1269,27 +2013,25 @@ theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
     (hwl : words.val.length = N)
     (hwv : 0 < jU.val → ∀ k, k < N → wordAt words k
         = rawWordN (raw.val.getD ((jU.val - 1) / 8) (alloc.vec.Vec.new Std.U32)) k)
-    (hdl : dig.val.length = N)
     (hval : ∀ t, t < N → resK GP acc t
               = ∑ u ∈ Finset.Ico 0 jU.val, termFwd ps a B u t) :
-    ring.dot_prepared_raw_digits_gold_loop0 prep raw endU nU digitsU pt acc scratch cur
-      words dig jU
+    ring.dot_prepared_raw_digits_gold_loop0 prep raw endU nU digitsU pt tab acc scratch cur
+      words jU
       ⦃ z => Canon GP z.1 ∧ Canon GP z.2
              ∧ ∀ t, t < N → resK GP z.1 t
                  = ∑ u ∈ Finset.Ico 0 endU.val, termFwd ps a B u t ⦄ := by
   rw [ring.dot_prepared_raw_digits_gold_loop0]
-  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.2.2.val)
-    (fun r => r.2.2.2.2.2.val ≤ endU.val
+  apply loop.spec_decr_nat (fun r => endU.val - r.2.2.2.2.val)
+    (fun r => r.2.2.2.2.val ≤ endU.val
       ∧ Canon GP r.1 ∧ Canon GP r.2.1 ∧ Canon GP r.2.2.1
       ∧ r.2.2.2.1.val.length = N
-      ∧ (0 < r.2.2.2.2.2.val → ∀ k, k < N → wordAt r.2.2.2.1 k
-          = rawWordN (raw.val.getD ((r.2.2.2.2.2.val - 1) / 8)
+      ∧ (0 < r.2.2.2.2.val → ∀ k, k < N → wordAt r.2.2.2.1 k
+          = rawWordN (raw.val.getD ((r.2.2.2.2.val - 1) / 8)
               (alloc.vec.Vec.new Std.U32)) k)
-      ∧ r.2.2.2.2.1.val.length = N
       ∧ ∀ t, t < N → resK GP r.1 t
-              = ∑ u ∈ Finset.Ico 0 r.2.2.2.2.2.val, termFwd ps a B u t)
-  · rintro ⟨d, sc, cu, wd, dg, jj⟩ ⟨hjje, hcd, hcsc, hcuC, hwdl, hwdv, hdgl, hw⟩
-    dsimp only at hjje hcd hcsc hcuC hwdl hwdv hdgl hw
+              = ∑ u ∈ Finset.Ico 0 r.2.2.2.2.val, termFwd ps a B u t)
+  · rintro ⟨d, sc, cu, wd, jj⟩ ⟨hjje, hcd, hcsc, hcuC, hwdl, hwdv, hw⟩
+    dsimp only at hjje hcd hcsc hcuC hwdl hwdv hw
     simp only [ring.dot_prepared_raw_digits_gold_loop0.body]
     by_cases hlt : jj < endU
     · rw [if_pos hlt]
@@ -1299,8 +2041,6 @@ theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
       have hev : e.val = jj.val % 8 := by rw [he, hdig]
       step with raw_refresh_spec raw wd jj digitsU e hdig hev hrow hwdl hwdv
         as ⟨w1, hw1l, hw1v⟩
-      step with fill_digit_from_words_spec dg w1 e hdgl hw1l (by omega)
-        as ⟨dig1, hdig1W, hdig1v⟩
       step as ⟨off, hoff⟩
       have hoffv : off.val = jj.val * N := by rw [hoff, hn]
       have hslb : off.val + N ≤ prep.fwd.val.length := by
@@ -1315,27 +2055,34 @@ theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
         rw [hoffv]
         have := hpv jj.val hjjlt t ht
         simpa only [resK] using this
-      step with gold_dot_one_fused_spec dig1 cu sc d pt prep.fwd off ps
+      -- card T65b: the digit is read out of the buffer by the first stage,
+      -- through the twist table; no scratch `Rq` is filled
+      step with gold_dot_one_fused_tab_spec w1 e cu sc d pt tab prep.fwd off ps
         (fun t => NttMath.difRun (ps ^ 2) 10 1
           (NttMath.twistR ps (entryK GP a jj.val)) t)
-        hdig1W hcuC hcsc hcd hptC hptv hslb hFA
+        hw1l (by omega) htab hcuC hcsc hcd hptC hptv hslb hFA
         as ⟨acc1, cur1, sc1, hac1C, hcu1C, hsc1C, hac1v⟩
-      -- the scratch IS the ghost block's entry: same words below `N`, both
-      -- zero past it
+      -- the buffer's digit IS the ghost block's entry: same words below `N`,
+      -- both zero past it
       have hFB : NttMath.twistR ps
-            (fun u => ((HachiEquiv.Ring.wordN dig1 u : ℕ) : ZMod GP))
+            (fun u => (((wordAt w1 u / 16 ^ e.val) % 16 : ℕ) : ZMod GP))
           = NttMath.twistR ps (entryK GP B jj.val) := by
         obtain ⟨hBW, hBv⟩ := hB jj.val hjjlt
-        have hwords : ∀ u, HachiEquiv.Ring.wordN dig1 u
+        have hwords : ∀ u, (wordAt w1 u / 16 ^ e.val) % 16
             = HachiEquiv.Ring.wordN (B.val.getD jj.val (alloc.vec.Vec.new cpoly.field.Fp)) u := by
           intro u
           by_cases hu : u < N
-          · rw [hdig1v u hu, hw1v u hu, hBv u hu, hev]
-          · rw [wordN_of_ge hdig1W.1 (by omega), wordN_of_ge hBW.1 (by omega)]
+          · rw [hw1v u hu, hBv u hu, hev]
+          · have h0 : wordAt w1 u = 0 := by
+              unfold wordAt
+              rw [List.getD_eq_default _ _ (by rw [hw1l]; omega)]
+              rfl
+            rw [h0, wordN_of_ge hBW.1 (by omega)]
+            simp
         unfold entryK
         simp only [hwords]
       step as ⟨jj1, hjj1⟩
-      refine ⟨by rw [hjj1]; omega, hac1C, hsc1C, hcu1C, hw1l, ?_, hdig1W.1, ?_,
+      refine ⟨by rw [hjj1]; omega, hac1C, hsc1C, hcu1C, hw1l, ?_, ?_,
         by rw [hjj1]; omega⟩
       · intro _ k hk
         rw [hjj1, Nat.add_sub_cancel]
@@ -1359,7 +2106,7 @@ theorem gold_raw_terms_spec (prep : ring.PreparedVecG)
       refine ⟨hcd, hcsc, ?_⟩
       intro t ht
       rw [hw t ht, heq]
-  · exact ⟨hje, haccC, hscC, hcurC, hwl, hwv, hdl, hval⟩
+  · exact ⟨hje, haccC, hscC, hcurC, hwl, hwv, hval⟩
 
 /-- The pack loop of the raw dot is the plain dot's, byte for byte. -/
 theorem raw_out_loop_eq : ring.dot_prepared_raw_digits_gold_loop1
@@ -1396,12 +2143,12 @@ theorem gold_raw_dot_spec (prep : ring.PreparedVecG) (a B : alloc.vec.Vec ring.R
   rw [ring.dot_prepared_raw_digits_gold, hRN, raw_out_loop_eq]
   step with gold_psi_table_cast ntt.GOLD_PSI (by decide +kernel) as ⟨pt, hptC, hptv⟩
   step with gold_psi_table_cast ntt.GOLD_PSIINV (by decide +kernel) as ⟨it, hitC, hitv⟩
+  step with gold_twist_digit_table_spec pt hptC.1 as ⟨tab, htab⟩
   step with zeros_canon_zero GP GP_pos as ⟨acc0, hacc0C, hacc0v⟩
-  step with HachiEquiv.Ring.zero_spec as ⟨dg0, hdg0W, _⟩
-  step with gold_raw_terms_spec prep a B raw nU ntt.NTT_LEN params.GADGET_DIGITS pt
-    acc0 acc0 acc0 acc0 dg0 0#usize ps ntt_NTT_LEN_val (by simp [params.GADGET_DIGITS])
-    hord hptC hptv hpl hpv hB hraw (by simp) hacc0C hacc0C hacc0C hacc0C.1
-    (by intro h; simp at h) hdg0W.1
+  step with gold_raw_terms_spec prep a B raw nU ntt.NTT_LEN params.GADGET_DIGITS pt tab
+    acc0 acc0 acc0 acc0 0#usize ps ntt_NTT_LEN_val (by simp [params.GADGET_DIGITS])
+    hord hptC hptv htab hpl hpv hB hraw (by simp) hacc0C hacc0C hacc0C hacc0C.1
+    (by intro h; simp at h)
     (by intro t ht; rw [hacc0v t ht]; simp)
     as ⟨acc1, scratch, hac1C, hac2C, hac1v⟩
   -- from here on, `gold_dot_spec`'s proof with `b := B`

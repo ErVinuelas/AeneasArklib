@@ -1,0 +1,118 @@
+{
+  "run": "20260924T2021+0200-2b8deb54",
+  "source": {
+    "sha": "ca2e534",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "commit/commit_streamed/4",
+      "now_ns": 593478512.0,
+      "genesis_ns": 2624943613.0,
+      "vs_genesis": -0.7739080911830619,
+      "vs_genesis_sig": true,
+      "candidate_ns": 586886014.6666666,
+      "cand_vs_now": -0.011108232564506687,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.7764195726871538,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011964572136829449,
+      "cand_vs_now_adj": -0.02280001230934048,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "commit/commit_streamed_32/4",
+      "now_ns": 548346136.1666666,
+      "genesis_ns": 2632289859.6666665,
+      "vs_genesis": -0.7916847439300986,
+      "vs_genesis_sig": true,
+      "candidate_ns": 522758354.8333333,
+      "cand_vs_now": -0.04666355727827369,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8014054748136547,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011964572136829449,
+      "cand_vs_now_adj": -0.05793496237848139,
+      "cand_vs_now_verdict": "faster"
+    },
+    {
+      "case": "commit/generate_decomps/4",
+      "now_ns": 693748567.8333334,
+      "genesis_ns": 39318523756.666664,
+      "vs_genesis": -0.982355681201899,
+      "vs_genesis_sig": true,
+      "candidate_ns": 686916292.0,
+      "cand_vs_now": -0.00984834585629698,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.9825294485558215,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.011964572136829449,
+      "cand_vs_now_adj": -0.021555021384856543,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/commit/8192",
+      "now_ns": 33366731.555555556,
+      "genesis_ns": 34000755.333333336,
+      "vs_genesis": -0.018647343906392624,
+      "vs_genesis_sig": true,
+      "candidate_ns": 33765950.222222224,
+      "cand_vs_now": 0.011964572136829449,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.006905879260891476,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": 0.011964572136829449,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.018647343906392624,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": {
+    "commit": 0.011964572136829449
+  },
+  "candidate_slot": {
+    "diverged": [
+      "ring"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "4d48a98cbb27",
+      "ring": "bebcd68d9cfa",
+      "linalg": "8118d6f124dd",
+      "gadget": "e4cf27d35b5c",
+      "commit": "03af1edcbafa",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "0ab6082fe0f5",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "6a1be280d522",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
