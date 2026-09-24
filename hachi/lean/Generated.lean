@@ -3287,7 +3287,7 @@ def ntt.GARNER_P12 : Std.U64 := 468937312667959297#u64
 @[global_simps, irreducible] def ntt.AUX_P1 : Std.U64 := 469762049#u64
 
 /-- [hachi::ntt::garner]:
-    Source: 'src/ntt.rs', lines 969:0-976:1
+    Source: 'src/ntt.rs', lines 970:0-977:1
     Visibility: public -/
 def ntt.garner
   (r1 : Std.U64) (r2 : Std.U64) (r3 : Std.U64) : Result Std.U128 := do
@@ -3313,7 +3313,7 @@ def ntt.garner
 @[global_simps, irreducible] def ntt.NTT_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::ntt::untwist]: loop body 0:
-    Source: 'src/ntt.rs', lines 896:4-901:5
+    Source: 'src/ntt.rs', lines 897:4-902:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.untwist_loop.body
@@ -3338,7 +3338,7 @@ def ntt.untwist_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::untwist]: loop 0:
-    Source: 'src/ntt.rs', lines 896:4-901:5
+    Source: 'src/ntt.rs', lines 897:4-902:5
     Visibility: public -/
 @[rust_loop]
 def ntt.untwist_loop
@@ -3352,7 +3352,7 @@ def ntt.untwist_loop
     (out, t)
 
 /-- [hachi::ntt::untwist]:
-    Source: 'src/ntt.rs', lines 892:0-903:1
+    Source: 'src/ntt.rs', lines 893:0-904:1
     Visibility: public -/
 def ntt.untwist
   (src : alloc.vec.Vec Std.U64) (it : alloc.vec.Vec Std.U64) (ninv : Std.U64)
@@ -3363,7 +3363,7 @@ def ntt.untwist
   ntt.untwist_loop src it ninv boff p m ntt.NTT_LEN out 0#usize
 
 /-- [hachi::ntt::pointwise]: loop body 0:
-    Source: 'src/ntt.rs', lines 877:4-880:5
+    Source: 'src/ntt.rs', lines 878:4-881:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.pointwise_loop.body
@@ -3388,7 +3388,7 @@ def ntt.pointwise_loop.body
   else ok (done a)
 
 /-- [hachi::ntt::pointwise]: loop 0:
-    Source: 'src/ntt.rs', lines 877:4-880:5
+    Source: 'src/ntt.rs', lines 878:4-881:5
     Visibility: public -/
 @[rust_loop]
 def ntt.pointwise_loop
@@ -3401,7 +3401,7 @@ def ntt.pointwise_loop
     (a, i)
 
 /-- [hachi::ntt::pointwise]:
-    Source: 'src/ntt.rs', lines 874:0-882:1
+    Source: 'src/ntt.rs', lines 875:0-883:1
     Visibility: public -/
 @[reducible]
 def ntt.pointwise
@@ -3909,7 +3909,7 @@ def ntt.zeros (n : Std.Usize) : Result (alloc.vec.Vec Std.U64) := do
   ntt.zeros_loop n out 0#usize
 
 /-- [hachi::ntt::negconv_mod_p]:
-    Source: 'src/ntt.rs', lines 907:0-927:1
+    Source: 'src/ntt.rs', lines 908:0-928:1
     Visibility: public -/
 def ntt.negconv_mod_p
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (p : Std.U64)
@@ -3995,7 +3995,7 @@ def ntt.negconv_mod_p
 @[global_simps, irreducible] def ntt.AUX_M1 : Std.U64 := 39268272336#u64
 
 /-- [hachi::ntt::negconv_mod_q]: loop body 0:
-    Source: 'src/ntt.rs', lines 995:4-998:5
+    Source: 'src/ntt.rs', lines 996:4-999:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.negconv_mod_q_loop.body
@@ -4022,7 +4022,7 @@ def ntt.negconv_mod_q_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::negconv_mod_q]: loop 0:
-    Source: 'src/ntt.rs', lines 995:4-998:5
+    Source: 'src/ntt.rs', lines 996:4-999:5
     Visibility: public -/
 @[rust_loop]
 def ntt.negconv_mod_q_loop
@@ -4036,7 +4036,7 @@ def ntt.negconv_mod_q_loop
     (out, t)
 
 /-- [hachi::ntt::negconv_mod_q]:
-    Source: 'src/ntt.rs', lines 987:0-1000:1
+    Source: 'src/ntt.rs', lines 988:0-1001:1
     Visibility: public -/
 def ntt.negconv_mod_q
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) :
@@ -4885,7 +4885,7 @@ def ring.load_twisted_into
 def ntt.GOLD_NINV : Std.U64 := 18428729670909296641#u64
 
 /-- [hachi::ntt::gold_untwist_off]: loop body 0:
-    Source: 'src/ntt.rs', lines 864:4-869:5
+    Source: 'src/ntt.rs', lines 865:4-870:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_untwist_off_loop.body
@@ -4909,7 +4909,7 @@ def ntt.gold_untwist_off_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::gold_untwist_off]: loop 0:
-    Source: 'src/ntt.rs', lines 864:4-869:5
+    Source: 'src/ntt.rs', lines 865:4-870:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_untwist_off_loop
@@ -4922,7 +4922,7 @@ def ntt.gold_untwist_off_loop
     (out, t)
 
 /-- [hachi::ntt::gold_untwist_off]:
-    Source: 'src/ntt.rs', lines 860:0-871:1
+    Source: 'src/ntt.rs', lines 861:0-872:1
     Visibility: public -/
 def ntt.gold_untwist_off
   (src : alloc.vec.Vec Std.U64) (it : alloc.vec.Vec Std.U64) (off : Std.U64) :
@@ -4932,12 +4932,12 @@ def ntt.gold_untwist_off
   ntt.gold_untwist_off_loop src it off ntt.NTT_LEN out 0#usize
 
 /-- [hachi::ntt::GOLD_SOFF]
-    Source: 'src/ntt.rs', lines 843:0-843:46
+    Source: 'src/ntt.rs', lines 844:0-844:46
     Visibility: public -/
 @[global_simps, irreducible] def ntt.GOLD_SOFF : Std.U64 := 65970696145920#u64
 
 /-- [hachi::ntt::gold_dit_stage]: loop body 1:
-    Source: 'src/ntt.rs', lines 594:8-599:9
+    Source: 'src/ntt.rs', lines 601:8-608:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dit_stage_loop0_loop0.body
@@ -4950,6 +4950,8 @@ def ntt.gold_dit_stage_loop0_loop0.body
   if j < half
   then
     let i ← start + j
+    let a ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src i
     let i1 ← i + half
     let i2 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
@@ -4957,20 +4959,25 @@ def ntt.gold_dit_stage_loop0_loop0.body
     let i3 ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw e
     let v ← ntt.gold_mul i2 i3
-    let i4 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src i
-    let i5 ← ntt.gold_add i4 v
+    let i4 ← ntt.gold_add a v
     let (_, index_mut_back) ←
       alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
         dst i
+    let i5 ← ntt.gold_sub a v
+    let dst1 := index_mut_back i4
+    let i6 ← start + half
+    let i7 ← i6 + j
+    let (_, index_mut_back1) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        dst1 i7
     let j1 ← j + 1#usize
     let e1 ← e + step
-    let dst1 := index_mut_back i5
-    ok (cont (dst1, j1, e1))
+    let dst2 := index_mut_back1 i5
+    ok (cont (dst2, j1, e1))
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dit_stage]: loop 1:
-    Source: 'src/ntt.rs', lines 594:8-599:9
+    Source: 'src/ntt.rs', lines 601:8-608:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dit_stage_loop0_loop0
@@ -4984,59 +4991,8 @@ def ntt.gold_dit_stage_loop0_loop0
       start dst1 j1 e1)
     (dst, j, e)
 
-/-- [hachi::ntt::gold_dit_stage]: loop body 2:
-    Source: 'src/ntt.rs', lines 602:8-607:9
-    Visibility: public -/
-@[rust_loop_body]
-def ntt.gold_dit_stage_loop0_loop1.body
-  (src : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64) (half : Std.Usize)
-  (step : Std.Usize) (start : Std.Usize) (dst : alloc.vec.Vec Std.U64)
-  (i : Std.Usize) (e2 : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize × Std.Usize)
-    (alloc.vec.Vec Std.U64))
-  := do
-  if i < half
-  then
-    let i1 ← start + i
-    let i2 ← i1 + half
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
-        i2
-    let i4 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw e2
-    let v ← ntt.gold_mul i3 i4
-    let i5 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
-        i1
-    let i6 ← ntt.gold_sub i5 v
-    let i7 ← start + half
-    let i8 ← i7 + i
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        dst i8
-    let i9 ← i + 1#usize
-    let e21 ← e2 + step
-    let dst1 := index_mut_back i6
-    ok (cont (dst1, i9, e21))
-  else ok (done dst)
-
-/-- [hachi::ntt::gold_dit_stage]: loop 2:
-    Source: 'src/ntt.rs', lines 602:8-607:9
-    Visibility: public -/
-@[rust_loop]
-def ntt.gold_dit_stage_loop0_loop1
-  (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64)
-  (tw : alloc.vec.Vec Std.U64) (half : Std.Usize) (step : Std.Usize)
-  (start : Std.Usize) (i : Std.Usize) (e2 : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (dst1, i1, e21) => ntt.gold_dit_stage_loop0_loop1.body src tw half
-      step start dst1 i1 e21)
-    (dst, i, e2)
-
 /-- [hachi::ntt::gold_dit_stage]: loop body 0:
-    Source: 'src/ntt.rs', lines 591:4-609:5
+    Source: 'src/ntt.rs', lines 598:4-610:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dit_stage_loop0.body
@@ -5050,15 +5006,12 @@ def ntt.gold_dit_stage_loop0.body
   then
     let dst1 ←
       ntt.gold_dit_stage_loop0_loop0 src dst tw half step start 0#usize 0#usize
-    let dst2 ←
-      ntt.gold_dit_stage_loop0_loop1 src dst1 tw half step start 0#usize
-        0#usize
     let start1 ← start + len
-    ok (cont (dst2, start1))
+    ok (cont (dst1, start1))
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dit_stage]: loop 0:
-    Source: 'src/ntt.rs', lines 591:4-609:5
+    Source: 'src/ntt.rs', lines 598:4-610:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dit_stage_loop0
@@ -5073,7 +5026,7 @@ def ntt.gold_dit_stage_loop0
     (dst, start)
 
 /-- [hachi::ntt::gold_dit_stage]:
-    Source: 'src/ntt.rs', lines 586:0-611:1
+    Source: 'src/ntt.rs', lines 593:0-612:1
     Visibility: public -/
 def ntt.gold_dit_stage
   (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -5086,7 +5039,7 @@ def ntt.gold_dit_stage
   ntt.gold_dit_stage_loop0 src dst len tw ntt.NTT_LEN half step 0#usize
 
 /-- [hachi::ntt::gold_inverse]: loop body 0:
-    Source: 'src/ntt.rs', lines 789:4-794:5
+    Source: 'src/ntt.rs', lines 790:4-795:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_inverse_loop.body
@@ -5103,7 +5056,7 @@ def ntt.gold_inverse_loop.body
   else ok (done (cur, tmp))
 
 /-- [hachi::ntt::gold_inverse]: loop 0:
-    Source: 'src/ntt.rs', lines 789:4-794:5
+    Source: 'src/ntt.rs', lines 790:4-795:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_inverse_loop
@@ -5116,7 +5069,7 @@ def ntt.gold_inverse_loop
     (cur, tmp, len)
 
 /-- [hachi::ntt::gold_inverse]:
-    Source: 'src/ntt.rs', lines 785:0-796:1
+    Source: 'src/ntt.rs', lines 786:0-797:1
     Visibility: public -/
 @[reducible]
 def ntt.gold_inverse
@@ -5127,7 +5080,7 @@ def ntt.gold_inverse
   ntt.gold_inverse_loop tw cur0 tmp0 2#usize
 
 /-- [hachi::ntt::gold_dif_stage2]: loop body 1:
-    Source: 'src/ntt.rs', lines 645:8-663:9
+    Source: 'src/ntt.rs', lines 646:8-664:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_loop0_loop0.body
@@ -5207,7 +5160,7 @@ def ntt.gold_dif_stage2_loop0_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop 1:
-    Source: 'src/ntt.rs', lines 645:8-663:9
+    Source: 'src/ntt.rs', lines 646:8-664:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_loop0_loop0
@@ -5222,7 +5175,7 @@ def ntt.gold_dif_stage2_loop0_loop0
     (dst, j)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop body 0:
-    Source: 'src/ntt.rs', lines 643:4-665:5
+    Source: 'src/ntt.rs', lines 644:4-666:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_loop0.body
@@ -5242,7 +5195,7 @@ def ntt.gold_dif_stage2_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop 0:
-    Source: 'src/ntt.rs', lines 643:4-665:5
+    Source: 'src/ntt.rs', lines 644:4-666:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_loop0
@@ -5258,7 +5211,7 @@ def ntt.gold_dif_stage2_loop0
     (dst, start)
 
 /-- [hachi::ntt::gold_dif_stage2]:
-    Source: 'src/ntt.rs', lines 636:0-667:1
+    Source: 'src/ntt.rs', lines 637:0-668:1
     Visibility: public -/
 def ntt.gold_dif_stage2
   (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -5274,7 +5227,7 @@ def ntt.gold_dif_stage2
     0#usize
 
 /-- [hachi::ntt::gold_forward]: loop body 0:
-    Source: 'src/ntt.rs', lines 775:4-780:5
+    Source: 'src/ntt.rs', lines 776:4-781:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_forward_loop.body
@@ -5291,7 +5244,7 @@ def ntt.gold_forward_loop.body
   else ok (done (cur, tmp))
 
 /-- [hachi::ntt::gold_forward]: loop 0:
-    Source: 'src/ntt.rs', lines 775:4-780:5
+    Source: 'src/ntt.rs', lines 776:4-781:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_forward_loop
@@ -5304,7 +5257,7 @@ def ntt.gold_forward_loop
     (cur, tmp, len)
 
 /-- [hachi::ntt::gold_forward]:
-    Source: 'src/ntt.rs', lines 771:0-782:1
+    Source: 'src/ntt.rs', lines 772:0-783:1
     Visibility: public -/
 @[reducible]
 def ntt.gold_forward
@@ -9648,7 +9601,7 @@ def ring.gold_dif_stage2_twist
     step2 out 0#usize
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop body 1:
-    Source: 'src/ntt.rs', lines 738:8-764:9
+    Source: 'src/ntt.rs', lines 739:8-765:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_mac_loop0_loop0.body
@@ -9764,7 +9717,7 @@ def ntt.gold_dif_stage2_mac_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop 1:
-    Source: 'src/ntt.rs', lines 738:8-764:9
+    Source: 'src/ntt.rs', lines 739:8-765:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_mac_loop0_loop0
@@ -9780,7 +9733,7 @@ def ntt.gold_dif_stage2_mac_loop0_loop0
     (acc, j)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop body 0:
-    Source: 'src/ntt.rs', lines 716:4-766:5
+    Source: 'src/ntt.rs', lines 717:4-767:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_mac_loop0.body
@@ -9880,7 +9833,7 @@ def ntt.gold_dif_stage2_mac_loop0.body
   else ok (done acc)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop 0:
-    Source: 'src/ntt.rs', lines 716:4-766:5
+    Source: 'src/ntt.rs', lines 717:4-767:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_mac_loop0
@@ -9896,7 +9849,7 @@ def ntt.gold_dif_stage2_mac_loop0
     (acc, start)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]:
-    Source: 'src/ntt.rs', lines 702:0-768:1
+    Source: 'src/ntt.rs', lines 703:0-769:1
     Visibility: public -/
 def ntt.gold_dif_stage2_mac
   (src : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -9967,7 +9920,7 @@ structure ring.PreparedVecG where
   fwd : alloc.vec.Vec Std.U64
 
 /-- [hachi::ntt::GOLD_DOFF]
-    Source: 'src/ntt.rs', lines 847:0-847:46
+    Source: 'src/ntt.rs', lines 848:0-848:46
     Visibility: public -/
 @[global_simps, irreducible] def ntt.GOLD_DOFF : Std.U64 := 70368742555648#u64
 
@@ -13301,12 +13254,12 @@ def ring.dot_prep_chunk_mod_p
   ntt.untwist v it ninv scaled p m
 
 /-- [hachi::ntt::GA_GINV]
-    Source: 'src/ntt.rs', lines 803:0-803:35
+    Source: 'src/ntt.rs', lines 804:0-804:35
     Visibility: public -/
 @[global_simps, irreducible] def ntt.GA_GINV : Std.U64 := 4091113#u64
 
 /-- [hachi::ntt::garner_ga]:
-    Source: 'src/ntt.rs', lines 819:0-827:1
+    Source: 'src/ntt.rs', lines 820:0-828:1
     Visibility: public -/
 def ntt.garner_ga (rg : Std.U64) (ra : Std.U64) : Result Std.U128 := do
   let rgm ← rg % ntt.AUX_P1
@@ -13324,7 +13277,7 @@ def ntt.garner_ga (rg : Std.U64) (ra : Std.U64) : Result Std.U128 := do
   i + i1
 
 /-- [hachi::ntt::GOLD_BOFF]
-    Source: 'src/ntt.rs', lines 800:0-800:54
+    Source: 'src/ntt.rs', lines 801:0-801:54
     Visibility: public -/
 @[global_simps, irreducible]
 def ntt.GOLD_BOFF : Std.U64 := 18445877654261932033#u64
@@ -13649,7 +13602,7 @@ def linalg.PreparedMatrix.apply
 @[global_simps, irreducible] def ring.DOT_CHUNK_D : Std.Usize := 2048#usize
 
 /-- [hachi::ntt::garner2]:
-    Source: 'src/ntt.rs', lines 943:0-947:1
+    Source: 'src/ntt.rs', lines 944:0-948:1
     Visibility: public -/
 def ntt.garner2 (r1 : Std.U64) (r2 : Std.U64) : Result Std.U64 := do
   let d1 ← ntt.aux_sub r2 r1 ntt.AUX_P2

@@ -407,16 +407,26 @@ theorem gold_twist_spec (v pt : alloc.vec.Vec Std.U64)
   intro k hk
   exact hzval k (by rw [ntt_NTT_LEN_val]; exact hk)
 
+/-- One block of `dit_stage`, one butterfly per iteration (card T52c). Group `j`
+reads `a = src[start + j]`, forms `v = src[start + j + half] · tw[j · step]`
+once, and writes `a + v` to `start + j` and `a − v` to `start + half + j`. The
+two written clauses are exactly the ones the stage's two former inner loops
+delivered, one each; the frame is everything outside the block. -/
 theorem gold_dit_stage_loop0_loop0_spec (src dst tw : alloc.vec.Vec Std.U64)
-    (half step start j e : Std.Usize) 
+    (half step start j e : Std.Usize)
     (hsrc : Canon GP src) (hdst : Canon GP dst) (htw : Canon GP tw)
     (hblk : start.val + 2 * half.val ≤ N) (hj : j.val ≤ half.val)
     (hev : e.val = j.val * step.val) (hstep : 0 < step.val)
     (hebd : half.val * step.val ≤ N)
-    (hwrit : ∀ t, t < j.val →
+    (hwlo : ∀ t, t < j.val →
       wordAt dst (start.val + t)
         = (wordAt src (start.val + t)
             + wordAt src (start.val + t + half.val) * wordAt tw (t * step.val) % GP)
+          % GP)
+    (hwhi : ∀ t, t < j.val →
+      wordAt dst (start.val + half.val + t)
+        = (wordAt src (start.val + t) + GP
+            - wordAt src (start.val + t + half.val) * wordAt tw (t * step.val) % GP)
           % GP) :
     ntt.gold_dit_stage_loop0_loop0 src dst tw half step start j e
       ⦃ z => Canon GP z
@@ -425,7 +435,12 @@ theorem gold_dit_stage_loop0_loop0_spec (src dst tw : alloc.vec.Vec Std.U64)
                    = (wordAt src (start.val + t)
                        + wordAt src (start.val + t + half.val)
                          * wordAt tw (t * step.val) % GP) % GP)
-             ∧ (∀ k, (k < start.val ∨ start.val + half.val ≤ k) →
+             ∧ (∀ t, t < half.val →
+                 wordAt z (start.val + half.val + t)
+                   = (wordAt src (start.val + t) + GP
+                       - wordAt src (start.val + t + half.val)
+                         * wordAt tw (t * step.val) % GP) % GP)
+             ∧ (∀ k, (k < start.val ∨ start.val + 2 * half.val ≤ k) →
                  wordAt z k = wordAt dst k) ⦄ := by
   rw [ntt.gold_dit_stage_loop0_loop0]
   apply loop.spec_decr_nat (fun s => half.val - s.2.1.val)
@@ -436,10 +451,15 @@ theorem gold_dit_stage_loop0_loop0_spec (src dst tw : alloc.vec.Vec Std.U64)
             = (wordAt src (start.val + t)
                 + wordAt src (start.val + t + half.val)
                   * wordAt tw (t * step.val) % GP) % GP)
-      ∧ (∀ k, (k < start.val ∨ start.val + half.val ≤ k) →
+      ∧ (∀ t, t < s.2.1.val →
+          wordAt s.1 (start.val + half.val + t)
+            = (wordAt src (start.val + t) + GP
+                - wordAt src (start.val + t + half.val)
+                  * wordAt tw (t * step.val) % GP) % GP)
+      ∧ (∀ k, (k < start.val ∨ start.val + 2 * half.val ≤ k) →
           wordAt s.1 k = wordAt dst k))
-  · rintro ⟨dd, jj, ee⟩ ⟨hjj, hev1, hcd, hw, hfr⟩
-    dsimp only at hjj hev1 hcd hw hfr
+  · rintro ⟨dd, jj, ee⟩ ⟨hjj, hev1, hcd, hwl, hwh, hfr⟩
+    dsimp only at hjj hev1 hcd hwl hwh hfr
     simp only [ntt.gold_dit_stage_loop0_loop0.body]
     by_cases hlt : jj < half
     · rw [if_pos hlt]
@@ -447,7 +467,12 @@ theorem gold_dit_stage_loop0_loop0_spec (src dst tw : alloc.vec.Vec Std.U64)
       have hsl : src.val.length = N := hsrc.1
       have hdl : dd.val.length = N := hcd.1
       have htl : tw.val.length = N := htw.1
+      -- the three reads: `a`, the twiddled operand, its twiddle
       step as ⟨i, hi⟩
+      have hib : i.val < src.val.length := by rw [hsl, hi]; omega
+      step as ⟨a, ha⟩
+      have hav : a.val = wordAt src (start.val + jj.val) := by
+        rw [ha, ← wordAt_of_lt (v := src) (t := i.val) hib, hi]
       step as ⟨i1, hi1⟩
       have hi1b : i1.val < src.val.length := by rw [hsl, hi1, hi]; omega
       step as ⟨i2, hi2⟩
@@ -460,141 +485,69 @@ theorem gold_dit_stage_loop0_loop0_spec (src dst tw : alloc.vec.Vec Std.U64)
       step as ⟨i3, hi3⟩
       have hi3v : i3.val = wordAt tw (jj.val * step.val) := by
         rw [hi3, ← wordAt_of_lt (v := tw) (t := ee.val) heeb, hev1]
+      have halt : a.val < GP := by rw [hav]; exact wordAt_lt hsrc GP_pos _
       have h2lt : i2.val < GP := by rw [hi2v]; exact wordAt_lt hsrc GP_pos _
       have h3lt : i3.val < GP := by rw [hi3v]; exact wordAt_lt htw GP_pos _
       step with gold_mul_spec i2 i3 as ⟨v, hvv, hvlt⟩
-      have hib : i.val < src.val.length := by rw [hsl, hi]; omega
-      step as ⟨i4, hi4⟩
-      have hi4v : i4.val = wordAt src (start.val + jj.val) := by
-        rw [hi4, ← wordAt_of_lt (v := src) (t := i.val) hib, hi]
-      have h4lt : i4.val < GP := by rw [hi4v]; exact wordAt_lt hsrc GP_pos _
-      step with gold_add_spec i4 v h4lt hvlt as ⟨i5, hi5v, hi5lt⟩
+      -- write 1: `a + v` at `start + jj`
+      step with gold_add_spec a v halt hvlt as ⟨i4, hi4v, hi4lt⟩
       have hidb : i.val < dd.val.length := by rw [hdl, hi]; omega
+      step as ⟨elem, back, helem, hback⟩
+      rw [hback]
+      -- write 2: `a − v` at `start + half + jj`
+      step with gold_sub_spec a v halt hvlt as ⟨i5, hi5v, hi5lt⟩
+      have hc1 : Canon GP (dd.set i i4) := Canon_set hcd hi4lt
+      have hd1l : (dd.set i i4).val.length = N := hc1.1
+      step as ⟨i6, hi6⟩
+      step as ⟨i7, hi7⟩
+      have hi7v : i7.val = start.val + half.val + jj.val := by rw [hi7, hi6]
+      have hi7b : i7.val < (dd.set i i4).val.length := by rw [hd1l, hi7v]; omega
+      step as ⟨elem1, back1, helem1, hback1⟩
+      rw [hback1]
       have hebnd : ee.val + step.val ≤ N := by
         have hh1 : (jj.val + 1) * step.val ≤ half.val * step.val :=
           Nat.mul_le_mul_right _ (by omega)
         have hh2 : (jj.val + 1) * step.val = jj.val * step.val + step.val := by ring
         omega
-      step as ⟨elem, back, helem, hback⟩
-      rw [hback]
       step as ⟨j1, hj1⟩
       step as ⟨e1, he1⟩
-      refine ⟨by scalar_tac, by rw [he1, hev1, hj1]; ring, Canon_set hcd hi5lt, ?_, ?_,
+      refine ⟨by scalar_tac, by rw [he1, hev1, hj1]; ring, Canon_set hc1 hi5lt, ?_, ?_, ?_,
         by scalar_tac⟩
       · intro t ht
         rw [hj1] at ht
+        have hn7 : start.val + t ≠ i7.val := by rw [hi7v]; omega
+        rw [wordAt_set_ne hn7]
         rcases Nat.lt_or_ge t jj.val with htlt | htge
-        · rw [wordAt_set_ne (by omega)]
-          exact hw t htlt
+        · have hn : start.val + t ≠ i.val := by rw [hi]; omega
+          rw [wordAt_set_ne hn]
+          exact hwl t htlt
         · have hteq : t = jj.val := by omega
           subst hteq
-          rw [← hi, wordAt_set_eq hidb, hi5v, hvv, hi2v, hi3v, hi4v, hi]
+          rw [← hi, wordAt_set_eq hidb, hi4v, hvv, hav, hi2v, hi3v, hi]
+      · intro t ht
+        rw [hj1] at ht
+        rcases Nat.lt_or_ge t jj.val with htlt | htge
+        · have hn7 : start.val + half.val + t ≠ i7.val := by rw [hi7v]; omega
+          have hn : start.val + half.val + t ≠ i.val := by rw [hi]; omega
+          rw [wordAt_set_ne hn7, wordAt_set_ne hn]
+          exact hwh t htlt
+        · have hteq : t = jj.val := by omega
+          subst hteq
+          rw [← hi7v, wordAt_set_eq hi7b, hi5v, hvv, hav, hi2v, hi3v]
       · intro k hk
-        rw [wordAt_set_ne (by omega)]
+        have hn7 : k ≠ i7.val := by rw [hi7v]; omega
+        have hn : k ≠ i.val := by rw [hi]; omega
+        rw [wordAt_set_ne hn7, wordAt_set_ne hn]
         exact hfr k hk
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : jj.val = half.val := by scalar_tac
-      refine ⟨hcd, ?_, hfr⟩
-      intro t ht
-      exact hw t (by rw [heq]; exact ht)
-  · exact ⟨hj, hev, hdst, hwrit, fun k _ => rfl⟩
-
-theorem gold_dit_stage_loop0_loop1_spec (src dst tw : alloc.vec.Vec Std.U64)
-    (half step start i e : Std.Usize) 
-    (hsrc : Canon GP src) (hdst : Canon GP dst) (htw : Canon GP tw)
-    (hblk : start.val + 2 * half.val ≤ N) (hi : i.val ≤ half.val)
-    (hev : e.val = i.val * step.val) (hstep : 0 < step.val)
-    (hebd : half.val * step.val ≤ N)
-    (hwrit : ∀ t, t < i.val →
-      wordAt dst (start.val + half.val + t)
-        = (wordAt src (start.val + t) + GP
-            - wordAt src (start.val + t + half.val) * wordAt tw (t * step.val) % GP)
-          % GP) :
-    ntt.gold_dit_stage_loop0_loop1 src dst tw half step start i e
-      ⦃ z => Canon GP z
-             ∧ (∀ t, t < half.val →
-                 wordAt z (start.val + half.val + t)
-                   = (wordAt src (start.val + t) + GP
-                       - wordAt src (start.val + t + half.val)
-                         * wordAt tw (t * step.val) % GP) % GP)
-             ∧ (∀ k, (k < start.val + half.val ∨ start.val + 2 * half.val ≤ k) →
-                 wordAt z k = wordAt dst k) ⦄ := by
-  rw [ntt.gold_dit_stage_loop0_loop1]
-  apply loop.spec_decr_nat (fun s => half.val - s.2.1.val)
-    (fun s => s.2.1.val ≤ half.val ∧ s.2.2.val = s.2.1.val * step.val
-      ∧ Canon GP s.1
-      ∧ (∀ t, t < s.2.1.val →
-          wordAt s.1 (start.val + half.val + t)
-            = (wordAt src (start.val + t) + GP
-                - wordAt src (start.val + t + half.val)
-                  * wordAt tw (t * step.val) % GP) % GP)
-      ∧ (∀ k, (k < start.val + half.val ∨ start.val + 2 * half.val ≤ k) →
-          wordAt s.1 k = wordAt dst k))
-  · rintro ⟨dd, ii, ee⟩ ⟨hii, hev1, hcd, hw, hfr⟩
-    dsimp only at hii hev1 hcd hw hfr
-    simp only [ntt.gold_dit_stage_loop0_loop1.body]
-    by_cases hlt : ii < half
-    · rw [if_pos hlt]
-      have hiilt : ii.val < half.val := by scalar_tac
-      have hsl : src.val.length = N := hsrc.1
-      have hdl : dd.val.length = N := hcd.1
-      have htl : tw.val.length = N := htw.1
-      step as ⟨i1, hi1⟩
-      step as ⟨i2, hi2⟩
-      have hi2b : i2.val < src.val.length := by rw [hsl, hi2, hi1]; omega
-      step as ⟨i3, hi3⟩
-      have hi3v : i3.val = wordAt src (start.val + ii.val + half.val) := by
-        rw [hi3, ← wordAt_of_lt (v := src) (t := i2.val) hi2b, hi2, hi1]
-      have heeb : ee.val < tw.val.length := by
-        have hmul : ii.val * step.val < half.val * step.val :=
-          Nat.mul_lt_mul_of_pos_right hiilt hstep
-        rw [htl]; omega
-      step as ⟨i4, hi4⟩
-      have hi4v : i4.val = wordAt tw (ii.val * step.val) := by
-        rw [hi4, ← wordAt_of_lt (v := tw) (t := ee.val) heeb, hev1]
-      have h3lt : i3.val < GP := by rw [hi3v]; exact wordAt_lt hsrc GP_pos _
-      have h4lt : i4.val < GP := by rw [hi4v]; exact wordAt_lt htw GP_pos _
-      step with gold_mul_spec i3 i4 as ⟨v, hvv, hvlt⟩
-      have hi1b : i1.val < src.val.length := by rw [hsl, hi1]; omega
-      step as ⟨i5, hi5⟩
-      have hi5v : i5.val = wordAt src (start.val + ii.val) := by
-        rw [hi5, ← wordAt_of_lt (v := src) (t := i1.val) hi1b, hi1]
-      have h5lt : i5.val < GP := by rw [hi5v]; exact wordAt_lt hsrc GP_pos _
-      step with gold_sub_spec i5 v h5lt hvlt as ⟨i6, hi6v, hi6lt⟩
-      have hebnd : ee.val + step.val ≤ N := by
-        have hh1 : (ii.val + 1) * step.val ≤ half.val * step.val :=
-          Nat.mul_le_mul_right _ (by omega)
-        have hh2 : (ii.val + 1) * step.val = ii.val * step.val + step.val := by ring
-        omega
-      step as ⟨i7, hi7⟩
-      step as ⟨i8, hi8⟩
-      have hi8v : i8.val = start.val + half.val + ii.val := by rw [hi8, hi7]
-      have hidb : i8.val < dd.val.length := by rw [hdl, hi8v]; omega
-      step as ⟨elem, back, helem, hback⟩
-      rw [hback]
-      step as ⟨i9, hi9⟩
-      step as ⟨e1, he1⟩
-      refine ⟨by scalar_tac, by rw [he1, hev1, hi9]; ring, Canon_set hcd hi6lt, ?_, ?_,
-        by scalar_tac⟩
+      refine ⟨hcd, ?_, ?_, hfr⟩
       · intro t ht
-        rw [hi9] at ht
-        rcases Nat.lt_or_ge t ii.val with htlt | htge
-        · rw [wordAt_set_ne (by omega)]
-          exact hw t htlt
-        · have hteq : t = ii.val := by omega
-          subst hteq
-          rw [← hi8v, wordAt_set_eq hidb, hi6v, hvv, hi3v, hi4v, hi5v]
-      · intro k hk
-        rw [wordAt_set_ne (by omega)]
-        exact hfr k hk
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : ii.val = half.val := by scalar_tac
-      refine ⟨hcd, ?_, hfr⟩
-      intro t ht
-      exact hw t (by rw [heq]; exact ht)
-  · exact ⟨hi, hev, hdst, hwrit, fun k _ => rfl⟩
+        exact hwl t (by rw [heq]; exact ht)
+      · intro t ht
+        exact hwh t (by rw [heq]; exact ht)
+  · exact ⟨hj, hev, hdst, hwlo, hwhi, fun k _ => rfl⟩
 
 
 /-- The outer loop of `dit_stage`: block starts below `start` already hold the
@@ -643,17 +596,14 @@ theorem gold_dit_stage_loop0_spec (src dst tw : alloc.vec.Vec Std.U64) (len : St
         rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
       step with gold_dit_stage_loop0_loop0_spec src d tw half step ss 0#usize 0#usize
         hsrc hcd htw hblk2 (by simp) (by simp) hstep hebd
-        (by intro t ht; simp at ht) as ⟨d1, hc1, hwr1, hfr1⟩
-      step with gold_dit_stage_loop0_loop1_spec src d1 tw half step ss 0#usize 0#usize
-        hsrc hc1 htw hblk2 (by simp) (by simp) hstep hebd
-        (by intro t ht; simp at ht) as ⟨d2, hc2, hwr2, hfr2⟩
+        (by intro t ht; simp at ht) (by intro t ht; simp at ht) as ⟨d1, hc1, hwr1, hwr2, hfr1⟩
       step as ⟨ss1, hss1⟩
-      refine ⟨by omega, ?_, hc2, ?_, by omega⟩
+      refine ⟨by omega, ?_, hc1, ?_, by omega⟩
       · rw [hss1, Nat.add_mod_right, hmod1]
       · intro t ht
         rw [hss1] at ht
         rcases Nat.lt_or_ge t ss.val with h1 | h1
-        · rw [hfr2 t (Or.inl (by omega)), hfr1 t (Or.inl (by omega))]
+        · rw [hfr1 t (Or.inl (by omega))]
           exact hval1 t h1
         · have hmd : t % (2 * half.val) = t - ss.val := by
             rw [← hlen]; exact hmm t h1 (by omega)
@@ -661,7 +611,7 @@ theorem gold_dit_stage_loop0_spec (src dst tw : alloc.vec.Vec Std.U64) (len : St
           · have hr : ss.val + (t - ss.val) = t := by omega
             have e1 := hwr1 (t - ss.val) (by omega)
             rw [hr] at e1
-            rw [hfr2 t (Or.inl (by omega)), e1]
+            rw [e1]
             unfold ditWord
             rw [if_pos (by rw [hmd]; omega), hmd]
           · have hr2 : ss.val + half.val + (t - ss.val - half.val) = t := by omega

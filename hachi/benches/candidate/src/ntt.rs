@@ -583,6 +583,13 @@ pub fn gold_dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
 }
 
 /// One decimation-in-time stage in the Goldilocks lane.
+///
+/// Card T52c: each butterfly's twiddled operand `v = src[start+j+half] ·
+/// tw[e]` is computed once and feeds both outputs, `a + v` and `a − v`; the
+/// stage used to walk the group twice and pay the `gold_mul` in each walk, so
+/// an inverse transform paid 10 240 multiplies where 5 120 suffice. Same
+/// values, same write set: the merged loop writes `dst[start+j]` and
+/// `dst[start+half+j]` for every `j < half`, as the two loops did.
 pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
     let n: usize = NTT_LEN;
     let half: usize = len / 2;
@@ -592,18 +599,12 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
         let mut j: usize = 0;
         let mut e: usize = 0;
         while j < half {
+            let a: u64 = src[start + j];
             let v: u64 = gold_mul(src[start + j + half], tw[e]);
-            dst[start + j] = gold_add(src[start + j], v);
+            dst[start + j] = gold_add(a, v);
+            dst[start + half + j] = gold_sub(a, v);
             j += 1;
             e += step;
-        }
-        let mut i: usize = 0;
-        let mut e2: usize = 0;
-        while i < half {
-            let v: u64 = gold_mul(src[start + i + half], tw[e2]);
-            dst[start + half + i] = gold_sub(src[start + i], v);
-            i += 1;
-            e2 += step;
         }
         start += len;
     }

@@ -157,6 +157,10 @@ codegen-units = 1
 debug = false
 
 [[bench]]
+name = "ntt"
+harness = false
+
+[[bench]]
 name = "ring"
 harness = false
 
