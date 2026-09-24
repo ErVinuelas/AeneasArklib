@@ -1992,3 +1992,212 @@ pub fn round_poly_alpha_base_split_direct(w: &Vec<Fp>, low: &Vec<Ext4>, high: &V
     UnivariatePoly::from_coeffs(coeffs)
 }
 
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::ZERO_LANES
+// ---------------------------------------------------------------------------
+// Card T53b (2026-09-25): delayed accumulation of the zero side in u128 lanes.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// The number of `u128` lanes [`round_poly_zero`] accumulates in: four per
+/// shifted coefficient, `4 · SHIFT_DEG` (card T53b). A literal for the reason
+/// [`params::ROUND_NODES`] is -- a product is a `Result` in the extracted model.
+pub const ZERO_LANES: usize = 128;
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::ZERO_LANE_FLUSH
+/// How many accumulated pairs [`round_poly_zero_lanes`] lets pass between two
+/// lane reductions (card T53b): `2^31`.
+///
+/// The lanes must never wrap, and `round_poly_zero_spec` admits any
+/// `half < 2^63`, so a period is required for totality, not merely prudent.
+/// After a flush a lane is below `q`; each accumulated pair adds at most
+/// `7·(q−1)²` (component 0 of [`ext4_mul_raw`]); so between flushes a lane is
+/// at most `(q−1) + 2^31 · 7·(q−1)² < 2^97.81`. Any period up to
+/// `⌊(2^128 − q) / (7·(q−1)²)⌋ ≈ 2^61.19` would do; `2^31` is the largest power
+/// of two that is also a `usize` literal on a 32-bit target, and at the pin
+/// (`half ≤ 2^24`) the flush never fires.
+pub const ZERO_LANE_FLUSH: usize = 2_147_483_648;
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::ext4_mul_raw
+/// The quartic product `a · b` in `F_q[Y]/(Y^4 − 2)`, **unreduced** (card
+/// T53b): the four components of cpoly's schoolbook `Mul for Ext4` before its
+/// four `reduce_wide`s, as integers.
+///
+/// ```text
+///   r0 = a0·b0 + 2·(a1·b3 + a2·b2 + a3·b1)
+///   r1 = a0·b1 + a1·b0 + 2·(a2·b3 + a3·b2)
+///   r2 = a0·b2 + a1·b1 + a2·b0 + 2·a3·b3
+///   r3 = a0·b3 + a1·b2 + a2·b1 + a3·b0
+/// ```
+///
+/// Every coefficient of an `Fp` is below `q < 2^32`, so each base product is
+/// at most `(q−1)² < 2^64` and fits the `u64` multiply; the components are at
+/// most `7`, `6`, `5` and `4` times `(q−1)²` -- `r0 < 2^66.81` -- hence `u128`.
+/// Reducing each `r_i` mod `q` gives exactly the coefficients of `a * b`.
+/// cpoly's `add_product` / `reduce_wide` are private, so the product is
+/// written here over the public `to_u64()` components, as [`shift_inner`]
+/// does for `Fp × Ext4`.
+pub fn ext4_mul_raw(a: Ext4, b: Ext4) -> (u128, u128, u128, u128) {
+    let a0: u64 = a.c0.to_u64();
+    let a1: u64 = a.c1.to_u64();
+    let a2: u64 = a.c2.to_u64();
+    let a3: u64 = a.c3.to_u64();
+    let b0: u64 = b.c0.to_u64();
+    let b1: u64 = b.c1.to_u64();
+    let b2: u64 = b.c2.to_u64();
+    let b3: u64 = b.c3.to_u64();
+    let h0: u128 = (a1 * b3) as u128 + (a2 * b2) as u128 + (a3 * b1) as u128;
+    let r0: u128 = (a0 * b0) as u128 + 2 * h0;
+    let h1: u128 = (a2 * b3) as u128 + (a3 * b2) as u128;
+    let r1: u128 = (a0 * b1) as u128 + (a1 * b0) as u128 + 2 * h1;
+    let h2: u128 = (a3 * b3) as u128;
+    let r2: u128 = (a0 * b2) as u128 + (a1 * b1) as u128 + (a2 * b0) as u128 + 2 * h2;
+    let r3: u128 = (a0 * b3) as u128 + (a1 * b2) as u128 + (a2 * b1) as u128 + (a3 * b0) as u128;
+    (r0, r1, r2, r3)
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::zero_lanes
+/// [`ZERO_LANES`] zero lanes (card T53b).
+pub fn zero_lanes() -> Vec<u128> {
+    let n: usize = ZERO_LANES;
+    let mut out: Vec<u128> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        out.push(0);
+        i += 1;
+    }
+    out
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::lane_accum
+/// Add the unreduced product `a · b` ([`ext4_mul_raw`]) into lanes
+/// `base .. base + 4` (card T53b).
+///
+/// Each slot is read into a `let` before the write: `v[i] = v[i] + x` in one
+/// expression on a scalar `Vec` is the construct aeneas aborts on.
+pub fn lane_accum(mut lanes: Vec<u128>, base: usize, a: Ext4, b: Ext4) -> Vec<u128> {
+    let (p0, p1, p2, p3) = ext4_mul_raw(a, b);
+    let cur0: u128 = lanes[base];
+    let nv0: u128 = cur0 + p0;
+    lanes[base] = nv0;
+    let i1: usize = base + 1;
+    let cur1: u128 = lanes[i1];
+    let nv1: u128 = cur1 + p1;
+    lanes[i1] = nv1;
+    let i2: usize = base + 2;
+    let cur2: u128 = lanes[i2];
+    let nv2: u128 = cur2 + p2;
+    lanes[i2] = nv2;
+    let i3: usize = base + 3;
+    let cur3: u128 = lanes[i3];
+    let nv3: u128 = cur3 + p3;
+    lanes[i3] = nv3;
+    lanes
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::shift_accum_lanes
+/// [`shift_accum`] with the accumulator held as raw lanes (card T53b): lane
+/// group `m` gains the unreduced `e·Δ^m · S_m`.
+///
+/// Same `m` loop, same running `epow = e·Δ^m` (a full, reduced `Ext4`
+/// product: it is used multiplicatively), same [`shift_inner`]; only the
+/// `acc[m] += epow · s` changes, from a reduced product plus an `Ext4` add
+/// (four `reduce_wide`s and four modular adds) to four plain `u128` adds.
+pub fn shift_accum_lanes(mut lanes: Vec<u128>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec<u128> {
+    let n: usize = params::SHIFT_DEG;
+    let mut epow: Ext4 = e;
+    let mut m: usize = 0;
+    while m < n {
+        let s: Ext4 = shift_inner(lop, m);
+        lanes = lane_accum(lanes, 4 * m, epow, s);
+        epow = epow * d;
+        m += 1;
+    }
+    lanes
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::lanes_flush
+/// Reduce every lane mod `q` in place (card T53b): the residues are unchanged
+/// and each lane drops below `q`, restoring the headroom
+/// [`ZERO_LANE_FLUSH`] is computed from.
+pub fn lanes_flush(mut lanes: Vec<u128>) -> Vec<u128> {
+    let n: usize = lanes.len();
+    let qw: u128 = params::Q as u128;
+    let mut i: usize = 0;
+    while i < n {
+        let cur: u128 = lanes[i];
+        let nv: u128 = cur % qw;
+        lanes[i] = nv;
+        i += 1;
+    }
+    lanes
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::lanes_to_coeffs
+/// The [`params::SHIFT_DEG`] coefficients the lanes denote: coefficient `m`
+/// is `Ext4(lane[4m] mod q, …, lane[4m+3] mod q)` (card T53b). Capacity
+/// [`params::ROUND_NODES`], so [`round_poly_zero`]'s final `push` does not
+/// reallocate.
+pub fn lanes_to_coeffs(lanes: &Vec<u128>) -> Vec<Ext4> {
+    let n: usize = params::SHIFT_DEG;
+    let qw: u128 = params::Q as u128;
+    let mut out: Vec<Ext4> = Vec::with_capacity(params::ROUND_NODES);
+    let mut m: usize = 0;
+    while m < n {
+        let b0: usize = 4 * m;
+        let l0: u128 = lanes[b0];
+        let l1: u128 = lanes[b0 + 1];
+        let l2: u128 = lanes[b0 + 2];
+        let l3: u128 = lanes[b0 + 3];
+        out.push(Ext4::new(
+            Fp::new((l0 % qw) as u64),
+            Fp::new((l1 % qw) as u64),
+            Fp::new((l2 % qw) as u64),
+            Fp::new((l3 % qw) as u64),
+        ));
+        m += 1;
+    }
+    out
+}
+
+// @genesis 3fa816a 2026-09-25 — sumcheck::round_poly_zero_lanes
+/// [`round_poly_zero`]'s pair loop over raw lanes (card T53b): after the
+/// loop, lane `4m + r` is congruent mod `q` to component `r` of
+/// `Σ_y eq[y] · Δ_y^m · S_m(lo_y)`.
+///
+/// `since` counts the pairs accumulated since the last reduction; when it
+/// reaches `flush` the lanes are reduced ([`lanes_flush`]) and it restarts. The
+/// caller passes [`ZERO_LANE_FLUSH`]; the parameter exists so a test can force
+/// the flush with a tiny period. `flush = 0` behaves as `flush = 1`.
+///
+/// T55's zero-pair guard is kept verbatim: a skipped pair neither touches the
+/// lanes nor advances `since`.
+pub fn round_poly_zero_lanes(w: &Vec<Ext4>, eq: &Vec<Ext4>, flush: usize) -> Vec<u128> {
+    let half: usize = eq.len();
+    let mut lanes: Vec<u128> = zero_lanes();
+    let mut since: usize = 0;
+    let mut y: usize = 0;
+    while y < half {
+        let lo: Ext4 = w[2 * y];
+        let hi: Ext4 = w[2 * y + 1];
+        // Card T55: a pair with both entries zero contributes nothing -- its
+        // fold is the constant 0 and `P_b(0) = 0` (0 is a digit), so every
+        // shifted coefficient is 0 whatever `eq[y]` is. The honest table has
+        // three such classes at the pin, all measured (2026-09-24 histogram):
+        // the zero padding past `LIFT_COLS`, and the top one or two digits of
+        // every bounded-z row (max |z| = 3056 against a 34 952 threshold).
+        // The branch tests the values actually read, so it needs no
+        // hypothesis (T48z's precedent).
+        if !(lo.is_zero() && hi.is_zero()) {
+            let lop: Vec<Ext4> = shift_powers(lo);
+            lanes = shift_accum_lanes(lanes, &lop, hi - lo, eq[y]);
+            since += 1;
+            if since >= flush {
+                lanes = lanes_flush(lanes);
+                since = 0;
+            }
+        }
+        y += 1;
+    }
+    lanes
+}
+

@@ -1341,3 +1341,56 @@ fn round_poly_skipping_zero_pairs_is_the_whole_sum() {
         }
     }
 }
+
+/// Card T53b: the unreduced quartic product reduces to cpoly's `a * b`
+/// component by component, and at all-`(q-1)` inputs its components are
+/// exactly `7, 6, 5, 4` times `(q-1)^2`: the maxima the lane bound
+/// `ZERO_LANE_FLUSH` is computed from.
+#[test]
+fn ext4_mul_raw_reduces_to_the_product() {
+    use hachi::sumcheck::ext4_mul_raw;
+    let q = u128::from(Q);
+    let mut r = Lcg::new(0x53B0_0001);
+    for _ in 0..2000 {
+        let (a, b) = (ext4(&mut r), ext4(&mut r));
+        let (r0, r1, r2, r3) = ext4_mul_raw(a, b);
+        let p = a * b;
+        assert_eq!([r0 % q, r1 % q, r2 % q, r3 % q].map(|x| x as u64),
+                   [p.c0.to_u64(), p.c1.to_u64(), p.c2.to_u64(), p.c3.to_u64()]);
+    }
+    let m = Ext4::new(Fp::new(Q - 1), Fp::new(Q - 1), Fp::new(Q - 1), Fp::new(Q - 1));
+    let s = (q - 1) * (q - 1);
+    assert_eq!(ext4_mul_raw(m, m), (7 * s, 6 * s, 5 * s, 4 * s));
+    // headroom: one more pair after a full flush period still fits a u128
+    let per = 7 * s;
+    assert!((q - 1).checked_add(per.checked_mul(hachi::sumcheck::ZERO_LANE_FLUSH as u128 + 1).unwrap()).is_some());
+    assert_eq!(hachi::sumcheck::ZERO_LANES, 4 * hachi::params::SHIFT_DEG);
+}
+
+/// Card T53b: the flush keeps every lane's residue and lands it below `q`,
+/// so forcing it at tiny periods changes nothing: the lanes built with
+/// `flush` in {1, 2, 3, 7} reduce to the same coefficients as the unflushed
+/// run, and `round_poly_zero` (the real period) agrees with both.
+#[test]
+fn a_forced_lane_flush_changes_no_coefficient() {
+    use hachi::sumcheck::{lanes_flush, lanes_to_coeffs, round_poly_zero_lanes, ZERO_LANE_FLUSH};
+    let q = u128::from(Q);
+    let mut r = Lcg::new(0x53B0_0002);
+    for &half in &[1usize, 5, 16, 33] {
+        let w: Vec<Ext4> = (0..2 * half)
+            .map(|i| if (i / 2) % 4 == 1 { Ext4::ZERO } else { ext4(&mut r) })
+            .collect();
+        let eq: Vec<Ext4> = (0..half).map(|_| ext4(&mut r)).collect();
+        let base = lanes_to_coeffs(&round_poly_zero_lanes(&w, &eq, ZERO_LANE_FLUSH));
+        for &f in &[1usize, 2, 3, 7] {
+            let lanes = round_poly_zero_lanes(&w, &eq, f);
+            assert_eq!(lanes_to_coeffs(&lanes), base, "half {half}, flush {f}");
+            let flushed = lanes_flush(lanes.clone());
+            assert!(flushed.iter().all(|&l| l < q), "a flushed lane is not below q");
+            assert!(flushed.iter().zip(lanes.iter()).all(|(a, b)| a % q == b % q), "a flush moved a residue");
+        }
+        let mut want = base.clone();
+        want.push(Ext4::ZERO);
+        assert_eq!(round_poly_zero(&w, &eq).coeffs().to_vec(), want, "half {half}");
+    }
+}
