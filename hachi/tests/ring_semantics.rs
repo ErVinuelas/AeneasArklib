@@ -1117,3 +1117,43 @@ fn gold_dit_stage_merged_equals_the_two_walk_form() {
         }
     }
 }
+
+/// Card T65b: the twist stage reading the nibble straight from the raw
+/// words through the digit table equals the old stage fed the scratch `Rq`
+/// that `fill_digit_from_words` filled, word for word. Every digit
+/// `e < 8`, two stage lengths, and words over the whole u64 range: a nibble
+/// is below 16 < P whatever the word, so no canonicity is assumed. Also
+/// checks the table entry by entry.
+#[test]
+fn the_twist_stage_from_the_digit_table_equals_the_filled_one() {
+    use hachi::ntt::{gold_mul, gold_psi_table, GOLD_PSI, NTT_LEN};
+    use hachi::ring::{fill_digit_from_words, gold_dif_stage2_twist, gold_dif_stage2_twist_tab, gold_twist_digit_table};
+    let n = NTT_LEN;
+    let pt = gold_psi_table(GOLD_PSI);
+    let tab = gold_twist_digit_table(&pt);
+    assert_eq!(tab.len(), 16 * n);
+    for i in 0..n {
+        for d in 0..16u64 {
+            assert_eq!(tab[i * 16 + d as usize], gold_mul(d, pt[i]), "table entry ({i}, {d})");
+        }
+    }
+    let mut r = Lcg::new(0x7465_B00B);
+    for pass in 0..3 {
+        let words: Vec<u64> = (0..n)
+            .map(|i| match (pass, i % 5) {
+                (1, 0) => u64::MAX,
+                (1, 1) => Q - 1,
+                (2, _) => r.next_u64(),
+                _ => r.next_u64() % Q,
+            })
+            .collect();
+        for e in 0..8 {
+            for len in [n, n / 4] {
+                let a = fill_digit_from_words(Rq::zero(), &words, e);
+                let want = gold_dif_stage2_twist(&a, vec![0u64; n], len, &pt, &pt);
+                let got = gold_dif_stage2_twist_tab(&words, e, vec![0u64; n], len, &pt, &tab);
+                assert_eq!(got, want, "pass {pass}, digit {e}, len {len}");
+            }
+        }
+    }
+}
