@@ -2463,125 +2463,119 @@ theorem eq_prefix_spec {m₀ i : ℕ} (tau0 challenges : alloc.vec.Vec cpoly.fie
       exact ⟨hRacc, by rw [hacc, hkeq]⟩
   · exact ⟨by simp, hR1, by simp⟩
 
-/-- `getD` into the left part of an append. -/
-theorem getD_append_left' {α : Type} (l1 l2 : List α) (d : α) {j : ℕ} (h : j < l1.length) :
-    (l1 ++ l2).getD j d = l1.getD j d := by
-  rw [List.getD_eq_getElem _ _ (by simp only [List.length_append]; omega),
-    List.getD_eq_getElem _ _ h, List.getElem_append_left h]
+/-- Reading a `set` list at the written index is the written value. -/
+private theorem suffix_getD_set_eq {α : Type} (l : List α) (u : ℕ) (x d : α)
+    (hu : u < l.length) : (l.set u x).getD u d = x := by
+  rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hu), List.getElem_set]
+  simp
 
-/-- `getD` into the right part of an append. -/
-theorem getD_append_right' {α : Type} (l1 l2 : List α) (d : α) {j : ℕ} (h : l1.length ≤ j) :
-    (l1 ++ l2).getD j d = l2.getD (j - l1.length) d := by
-  by_cases hj : j - l1.length < l2.length
-  · rw [List.getD_eq_getElem _ _ (by simp only [List.length_append]; omega),
-      List.getD_eq_getElem _ _ hj, List.getElem_append_right h]
-  · rw [List.getD_eq_default _ _ (by simp only [List.length_append]; omega),
+/-- Reading a `set` list anywhere else is reading the list before the write. -/
+private theorem suffix_getD_set_ne {α : Type} (l : List α) (u k : ℕ) (x d : α) (h : k ≠ u) :
+    (l.set u x).getD k d = l.getD k d := by
+  by_cases hk : k < l.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
       List.getD_eq_default _ _ (by omega)]
 
-/-- Reading a represented vector's entry through the `toExt`-image list. -/
-theorem toExt_getD_map (v : alloc.vec.Vec cpoly.field.Ext4) (idx : ℕ) :
-    toExt (v.val.getD idx cpoly.field.Ext4.ZERO) = (v.val.map toExt).getD idx 0 := by
-  by_cases h : idx < v.val.length
-  · rw [List.getD_eq_getElem _ _ h, List.getD_eq_getElem _ _ (by simpa using h),
-      List.getElem_map]
-  · rw [List.getD_eq_default _ _ (by omega), List.getD_eq_default _ _ (by simpa using by omega),
-      toExt_ZERO]
-
-/-- The doubling loop of `eq_suffix_table`, scaling the current table by one
-factor and appending it to what has been accumulated. -/
-theorem eq_suffix_scale_loop_spec (tab : alloc.vec.Vec cpoly.field.Ext4)
-    (c : cpoly.field.Ext4) (half : Std.Usize)
-    (htab : VecReduced tab) (hc : Reduced c) (hhalf : half.val = tab.val.length)
-    (pre : List F) (hpre : pre.length + tab.val.length ≤ Usize.max) :
-    ∀ (next : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
-      VecReduced next → j.val ≤ half.val →
-      next.val.map toExt = pre ++ (tab.val.take j.val).map (fun u => toExt u * toExt c) →
-      sumcheck.eq_suffix_table_loop0_loop0 tab c half next j
-        ⦃ z => VecReduced z ∧
-          z.val.map toExt = pre ++ tab.val.map (fun u => toExt u * toExt c) ⦄ := by
-  intro next j hnred hj hnmap
+/-- The doubling loop of `eq_suffix_table` (card T64): one level of the table,
+built in place. `p` is the level's input table. Entry `j` is read once,
+`hi = p j · t` is formed once, `p j − hi = p j · (1 − t)` is written back to `j`
+and `hi` is pushed, where it lands at `half + j`. So the state has three parts
+rather than two: the entries already rewritten below `j`, the input still in
+place between `j` and `half`, and the multiples appended above `half`. The two
+written clauses of the postcondition are what the level's two former loops
+delivered, one each; the checked `push` needs the doubled length to fit a
+`usize`, which is `hcap`. -/
+theorem eq_suffix_double_loop_spec (tab : alloc.vec.Vec cpoly.field.Ext4)
+    (t : cpoly.field.Ext4) (half j : Std.Usize) (p : ℕ → F)
+    (ht : Reduced t) (hj : j.val ≤ half.val) (hcap : half.val + half.val ≤ Usize.max)
+    (hlen : tab.val.length = half.val + j.val) (hred : VecReduced tab)
+    (hdone : ∀ u, u < j.val →
+      toExt (tab.val.getD u cpoly.field.Ext4.ZERO) = p u * (1 - toExt t))
+    (htodo : ∀ u, j.val ≤ u → u < half.val →
+      toExt (tab.val.getD u cpoly.field.Ext4.ZERO) = p u)
+    (hhigh : ∀ u, u < j.val →
+      toExt (tab.val.getD (half.val + u) cpoly.field.Ext4.ZERO) = p u * toExt t) :
+    sumcheck.eq_suffix_table_loop0_loop0 tab t half j
+      ⦃ z => z.val.length = half.val + half.val ∧ VecReduced z ∧
+        (∀ u, u < half.val →
+          toExt (z.val.getD u cpoly.field.Ext4.ZERO) = p u * (1 - toExt t)) ∧
+        (∀ u, u < half.val →
+          toExt (z.val.getD (half.val + u) cpoly.field.Ext4.ZERO) = p u * toExt t) ⦄ := by
   rw [sumcheck.eq_suffix_table_loop0_loop0]
-  apply loop.spec_decr_nat (fun st => half.val - st.2.val)
-    (fun st => st.2.val ≤ half.val ∧ VecReduced st.1 ∧
-      st.1.val.map toExt = pre ++ (tab.val.take st.2.val).map (fun u => toExt u * toExt c))
-  · rintro ⟨nx, j1⟩ ⟨hj1, hnx, hmap⟩
-    dsimp only at hj1 hnx hmap
+  apply loop.spec_decr_nat (fun s => half.val - s.2.val)
+    (fun s => s.2.val ≤ half.val ∧ s.1.val.length = half.val + s.2.val ∧ VecReduced s.1 ∧
+      (∀ u, u < s.2.val →
+        toExt (s.1.val.getD u cpoly.field.Ext4.ZERO) = p u * (1 - toExt t)) ∧
+      (∀ u, s.2.val ≤ u → u < half.val →
+        toExt (s.1.val.getD u cpoly.field.Ext4.ZERO) = p u) ∧
+      (∀ u, u < s.2.val →
+        toExt (s.1.val.getD (half.val + u) cpoly.field.Ext4.ZERO) = p u * toExt t))
+  · rintro ⟨o1, j1⟩ ⟨hj1, hlen1, hred1, hdone1, htodo1, hhigh1⟩
+    dsimp only at hj1 hlen1 hred1 hdone1 htodo1 hhigh1
     simp only [sumcheck.eq_suffix_table_loop0_loop0.body]
     by_cases hlt : j1 < half
     · rw [if_pos hlt]
-      have hjt : j1.val < tab.val.length := by scalar_tac
-      have hnxlen : nx.val.length = pre.length + j1.val := by
-        have := congrArg List.length hmap
-        simp only [List.length_map, List.length_append, List.length_take] at this
-        omega
-      have hbound : nx.val.length < Usize.max := by omega
+      have hjb : j1.val < o1.val.length := by scalar_tac
+      have hjv : j1.val < half.val := by scalar_tac
       step as ⟨e, he⟩
-      have hRe : Reduced e := he ▸ htab _ (List.getElem_mem hjt)
+      have hRe : Reduced e := he ▸ hred1 _ (List.getElem_mem hjb)
+      have hev : toExt e = p j1.val := by
+        rw [he, ← List.getD_eq_getElem _ cpoly.field.Ext4.ZERO hjb]
+        exact htodo1 j1.val (Nat.le_refl _) hjv
+      step as ⟨hi, hRhi, hhi⟩
       step as ⟨e1, hRe1, he1⟩
-      step as ⟨nx1, hnx1⟩
+      step as ⟨elem, back, helem, hback⟩
+      rw [hback]
+      step as ⟨o2, ho2⟩
       step as ⟨j2, hj2⟩
-      refine ⟨by scalar_tac, ?_, ?_, by scalar_tac⟩
+      have hsetlen : (o1.val.set j1.val e1).length = o1.val.length := List.length_set
+      have hj2v : j2.val = j1.val + 1 := by scalar_tac
+      refine ⟨by scalar_tac, ?_, ?_, ?_, ?_, ?_, by scalar_tac⟩
+      · rw [ho2, alloc.vec.Vec.set_val_eq, List.length_append, hsetlen, hlen1, hj2v]
+        simp only [List.length_singleton]
+        omega
+      · intro z hz
+        rw [ho2, alloc.vec.Vec.set_val_eq] at hz
+        rcases List.mem_append.mp hz with h | h
+        · rcases List.mem_or_eq_of_mem_set h with h' | h'
+          · exact hred1 z h'
+          · rw [h']; exact hRe1
+        · rw [List.mem_singleton.mp h]; exact hRhi
       · intro u hu
-        rw [hnx1] at hu
-        rcases List.mem_append.mp hu with h | h
-        · exact hnx u h
-        · rw [List.mem_singleton.mp h]; exact hRe1
-      · rw [hnx1, show j2.val = j1.val + 1 from by scalar_tac,
-          ← List.take_concat_get' _ _ hjt]
-        simp only [List.map_append, List.map_cons, List.map_nil, hmap, he1, he, List.append_assoc]
+        rw [hj2v] at hu
+        rw [ho2, alloc.vec.Vec.set_val_eq,
+          getD_append_lt _ _ _ (by rw [hsetlen]; omega)]
+        rcases Nat.lt_or_ge u j1.val with hult | huge
+        · rw [suffix_getD_set_ne _ _ _ _ _ (by omega)]
+          exact hdone1 u hult
+        · have hueq : u = j1.val := by omega
+          rw [hueq, suffix_getD_set_eq _ _ _ _ hjb, he1, hhi, hev, mul_one_sub]
+      · intro u hu1 hu2
+        rw [hj2v] at hu1
+        rw [ho2, alloc.vec.Vec.set_val_eq,
+          getD_append_lt _ _ _ (by rw [hsetlen]; omega),
+          suffix_getD_set_ne _ _ _ _ _ (by omega)]
+        exact htodo1 u (by omega) hu2
+      · intro u hu
+        rw [hj2v] at hu
+        rw [ho2, alloc.vec.Vec.set_val_eq]
+        rcases Nat.lt_or_ge u j1.val with hult | huge
+        · rw [getD_append_lt _ _ _ (by rw [hsetlen]; omega),
+            suffix_getD_set_ne _ _ _ _ _ (by omega)]
+          exact hhigh1 u hult
+        · have hueq : u = j1.val := by omega
+          have hidx : half.val + u = (o1.val.set j1.val e1).length := by
+            rw [hsetlen, hlen1, hueq]
+          rw [hidx, getD_append_eq, hhi, hev, hueq]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
-      refine ⟨hnx, ?_⟩
-      rw [hmap, show j1.val = tab.val.length from by scalar_tac, List.take_length]
-  · exact ⟨hj, hnred, hnmap⟩
-
-/-- The second doubling loop of `eq_suffix_table`: the same shape at the other
-factor. -/
-theorem eq_suffix_scale_loop1_spec (tab : alloc.vec.Vec cpoly.field.Ext4)
-    (c : cpoly.field.Ext4) (half : Std.Usize)
-    (htab : VecReduced tab) (hc : Reduced c) (hhalf : half.val = tab.val.length)
-    (pre : List F) (hpre : pre.length + tab.val.length ≤ Usize.max) :
-    ∀ (next : alloc.vec.Vec cpoly.field.Ext4) (j : Std.Usize),
-      VecReduced next → j.val ≤ half.val →
-      next.val.map toExt = pre ++ (tab.val.take j.val).map (fun u => toExt u * toExt c) →
-      sumcheck.eq_suffix_table_loop0_loop1 tab c half next j
-        ⦃ z => VecReduced z ∧
-          z.val.map toExt = pre ++ tab.val.map (fun u => toExt u * toExt c) ⦄ := by
-  intro next j hnred hj hnmap
-  rw [sumcheck.eq_suffix_table_loop0_loop1]
-  apply loop.spec_decr_nat (fun st => half.val - st.2.val)
-    (fun st => st.2.val ≤ half.val ∧ VecReduced st.1 ∧
-      st.1.val.map toExt = pre ++ (tab.val.take st.2.val).map (fun u => toExt u * toExt c))
-  · rintro ⟨nx, j1⟩ ⟨hj1, hnx, hmap⟩
-    dsimp only at hj1 hnx hmap
-    simp only [sumcheck.eq_suffix_table_loop0_loop1.body]
-    by_cases hlt : j1 < half
-    · rw [if_pos hlt]
-      have hjt : j1.val < tab.val.length := by scalar_tac
-      have hnxlen : nx.val.length = pre.length + j1.val := by
-        have := congrArg List.length hmap
-        simp only [List.length_map, List.length_append, List.length_take] at this
-        omega
-      have hbound : nx.val.length < Usize.max := by omega
-      step as ⟨e, he⟩
-      have hRe : Reduced e := he ▸ htab _ (List.getElem_mem hjt)
-      step as ⟨e1, hRe1, he1⟩
-      step as ⟨nx1, hnx1⟩
-      step as ⟨j2, hj2⟩
-      refine ⟨by scalar_tac, ?_, ?_, by scalar_tac⟩
-      · intro u hu
-        rw [hnx1] at hu
-        rcases List.mem_append.mp hu with h | h
-        · exact hnx u h
-        · rw [List.mem_singleton.mp h]; exact hRe1
-      · rw [hnx1, show j2.val = j1.val + 1 from by scalar_tac,
-          ← List.take_concat_get' _ _ hjt]
-        simp only [List.map_append, List.map_cons, List.map_nil, hmap, he1, he, List.append_assoc]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      refine ⟨hnx, ?_⟩
-      rw [hmap, show j1.val = tab.val.length from by scalar_tac, List.take_length]
-  · exact ⟨hj, hnred, hnmap⟩
+      have heq : j1.val = half.val := by scalar_tac
+      refine ⟨by rw [hlen1, heq], hred1, ?_, ?_⟩
+      · intro u hu; exact hdone1 u (by rw [heq]; exact hu)
+      · intro u hu; exact hhigh1 u (by rw [heq]; exact hu)
+  · exact ⟨hj, hlen, hred, hdone, htodo, hhigh⟩
 
 /-- `eq_suffix_table` is the Lagrange basis of the suffix `τ₀|>i`, indexed
 little-endian (the first suffix coordinate is the low bit, as
@@ -2641,26 +2635,15 @@ theorem eq_suffix_table_spec {m₀ : ℕ} (tau0 : alloc.vec.Vec cpoly.field.Ext4
       have hkt : k.val < tau0.val.length := by omega
       step as ⟨t, ht⟩
       have hRt : Reduced t := ht ▸ h0red _ (List.getElem_mem hkt)
-      step as ⟨om, hRom, hom⟩
-      rw [toExt_ONE] at hom
-      apply spec_bind (eq_suffix_scale_loop_spec tab om (alloc.vec.Vec.len tab) hred hRom
-        (by simp) [] (by simpa using by omega) (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
-        (by intro u hu; simp at hu) (by simp) (by simp))
-      rintro nxt ⟨hnred, hnmap⟩
-      simp only [List.nil_append] at hnmap
-      have hnlen : nxt.val.length = tab.val.length := by
-        have := congrArg List.length hnmap
-        simpa using this
-      apply spec_bind (eq_suffix_scale_loop1_spec tab t (alloc.vec.Vec.len tab) hred hRt
-        (by simp) (nxt.val.map toExt) (by simp [hnlen]; omega) nxt 0#usize hnred (by simp)
-        (by simp))
-      rintro nxt1 ⟨hn1red, hn1map⟩
+      apply spec_bind (eq_suffix_double_loop_spec tab t (alloc.vec.Vec.len tab) 0#usize
+        (fun u => toExt (tab.val.getD u cpoly.field.Ext4.ZERO)) hRt (by simp)
+        (by simp only [alloc.vec.Vec.len_val, alloc.vec.Vec.length]; omega) (by simp) hred
+        (by intro u hu; simp at hu) (fun _ _ _ => rfl) (by intro u hu; simp at hu))
+      rintro nxt1 ⟨hn1len2, hn1red, hlo, hhi⟩
+      simp only [alloc.vec.Vec.len_val, alloc.vec.Vec.length] at hn1len2 hlo hhi
       step as ⟨k1, hk1v⟩
       have hk1n : k1.val = k.val + 1 := by scalar_tac
-      have hn1len : nxt1.val.length = 2 * tab.val.length := by
-        have := congrArg List.length hn1map
-        simp only [List.length_map, List.length_append] at this
-        omega
+      have hn1len : nxt1.val.length = 2 * tab.val.length := by omega
       refine ⟨by omega, by omega, ?_, ?_, ?_, by scalar_tac⟩
       · exact hn1red
       · rw [hk1n, hn1len, hdlen]
@@ -2674,14 +2657,10 @@ theorem eq_suffix_table_spec {m₀ : ℕ} (tau0 : alloc.vec.Vec cpoly.field.Ext4
         have htauk : toExt (tau0.val.getD k.val cpoly.field.Ext4.ZERO) = toExt t := by
           rw [ht, List.getD_eq_getElem _ _ hkt]
         rw [hdt, htauk]
-        rw [toExt_getD_map, hn1map]
         rcases Nat.lt_or_ge idx tab.val.length with hlow | hhigh
         · have hbitfalse : Nat.testBit idx (k.val - i.val - 1) = false :=
             Nat.testBit_lt_two_pow (by rw [← hdlen]; exact hlow)
-          rw [hbitfalse, if_neg (by simp),
-            getD_append_left' _ _ _ (by simp only [List.length_map, hnlen]; omega), hnmap,
-            List.getD_eq_getElem _ _ (by simpa using hlow), List.getElem_map,
-            ← List.getD_eq_getElem _ _ hlow, hval idx hlow, hom]
+          rw [hbitfalse, if_neg (by simp), hlo idx hlow, hval idx hlow]
         · have hidx' : idx - tab.val.length < tab.val.length := by
             rw [hn1len] at hidx; omega
           have hidxsplit : idx = 2 ^ (k.val - i.val - 1) + (idx - tab.val.length) := by
@@ -2701,11 +2680,9 @@ theorem eq_suffix_table_spec {m₀ : ℕ} (tau0 : alloc.vec.Vec cpoly.field.Ext4
               conv_lhs => rw [hidxsplit]
               exact Nat.testBit_two_pow_add_gt (Finset.mem_range.mp hs) _
             rw [hbit]
-          have hlenmap : (nxt.val.map toExt).length = tab.val.length := by simp [hnlen]
-          rw [hbittrue, if_pos rfl, Finset.prod_congr rfl hbitlow, ← hval _ hidx',
-            getD_append_right' _ _ _ (by rw [hlenmap]; omega), hlenmap,
-            List.getD_eq_getElem _ _ (by simpa using hidx'), List.getElem_map,
-            ← List.getD_eq_getElem _ _ hidx']
+          have hget := hhi (idx - tab.val.length) hidx'
+          rw [show tab.val.length + (idx - tab.val.length) = idx from by omega] at hget
+          rw [hbittrue, if_pos rfl, Finset.prod_congr rfl hbitlow, ← hval _ hidx', hget]
     · rw [if_neg hlt, WP.spec_ok]
       have hkm : m₀ ≤ k.val := by rw [← h0len] at hk2 ⊢; scalar_tac
       have hdeq : k.val - i.val - 1 = m₀ - i.val - 1 := by omega

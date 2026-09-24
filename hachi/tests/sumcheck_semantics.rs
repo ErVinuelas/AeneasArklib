@@ -677,6 +677,41 @@ fn the_three_equality_pieces_reconstruct_the_kernel() {
     }
 }
 
+/// Card T64: `eq_suffix_table` doubles in place with one multiply per entry
+/// (`hi = tab[j]·t`, low entry `tab[j] - hi`). Checked against the two-loop
+/// form it replaced, entry for entry: low half `tab[j]·(1 - t)`, high half
+/// `tab[j]·t`, into a fresh table. Every start `i`, lengths 0..=12, and
+/// coordinates drawn with 0, 1 and q - 1 components over-represented.
+#[test]
+fn eq_suffix_table_in_place_equals_the_two_loop_form() {
+    fn two_loop(tau0: &[Ext4], i: usize) -> Vec<Ext4> {
+        let mut tab = vec![Ext4::ONE];
+        for &t in tau0.iter().skip(i + 1) {
+            let one_minus = Ext4::ONE - t;
+            let mut next: Vec<Ext4> = tab.iter().map(|&e| e * one_minus).collect();
+            next.extend(tab.iter().map(|&e| e * t));
+            tab = next;
+        }
+        tab
+    }
+    let mut r = Lcg::new(0x7064_5EED_0000_0064);
+    for pass in 0..4 {
+        for m0 in 0..=12usize {
+            let tau0: Vec<Ext4> = (0..m0)
+                .map(|k| match (pass, k % 4) {
+                    (1, 0) => Ext4::ZERO,
+                    (1, 1) => Ext4::ONE,
+                    (2, _) => Ext4::new(Fp::new(Q - 1), Fp::new(Q - 1), Fp::new(Q - 1), Fp::new(Q - 1)),
+                    _ => ext4(&mut r),
+                })
+                .collect();
+            for i in 0..=m0 + 1 {
+                assert_eq!(eq_suffix_table(&tau0, i), two_loop(&tau0, i), "pass {pass}, m0 {m0}, i {i}");
+            }
+        }
+    }
+}
+
 // --- the sumcheck bridge (chain row 7) ------------------------------------
 
 /// `y(α)` by Horner, where the crate's `c_eval_at` is the specification's
