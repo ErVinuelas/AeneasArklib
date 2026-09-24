@@ -174,6 +174,16 @@ theorem tw_agree' (p : ℕ) (tw : alloc.vec.Vec Std.U64) (hp : 0 < p)
     _ = (((psiRep psi e : ℕ) : ZMod p)).val := by rw [h1]
     _ = psiRep psi e := ZMod.val_cast_of_lt (psiRep_lt hp psi e)
 
+/-- The ψ-table's word at `0` is `1`: [`tw_agree'`] at `e = 0`, where
+`psiRep psi 0 = (ψ^0).val = 1`. Card T49a's peeled group drops the three
+multiplies by `tw[0]`, and this is the fact that makes that exact. -/
+theorem tw_zero_one (p : ℕ) (tw : alloc.vec.Vec Std.U64) (hp : 1 < p)
+    (htw : Canon p tw) (psi : ZMod p)
+    (hpsi : ∀ e, e < N → resK p tw e = psi ^ e) :
+    wordAt tw 0 = 1 := by
+  rw [tw_agree' p tw (by omega) htw psi hpsi 0 (by norm_num), psiRep, pow_zero,
+    ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt hp]
+
 theorem stage_idx_lt (half t : ℕ) (hh : 0 < half) (hdvd : 2 * half ∣ N)
     (ht : t < N) (hc : t % (2 * half) < half) : t + half < N := by
   obtain ⟨m, hm⟩ := hdvd

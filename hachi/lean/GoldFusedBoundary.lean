@@ -555,7 +555,12 @@ theorem gold_dif_stage2_twist_spec (a : ring.Rq) (out tw pt : alloc.vec.Vec Std.
 The fused last stage writes `acc[o] = acc[o] + pfwd[base + o] · v` where
 `gold_dif_stage2` wrote `dst[o] = v`. [`macAt`] is that word; [`pfW`] is the
 prepared table read at the term's offset, the `A` of `gold_mac_off_spec`
-before the cast. -/
+before the cast.
+
+Since card T49a the Rust runs each block's group `j = 0` outside the inner
+loop, with its three multiplies by `tw[0] = 1` dropped. The inner loop's spec
+did not move -- it is entered at `j = 1` -- and the peel is proved in
+[`mac_loop0_spec`], against the same four `f`-words at `u = 0`. -/
 
 /-- The prepared table's word at `base + u`. -/
 def pfW (pfwd : alloc.vec.Vec Std.U64) (base u : ℕ) : ℕ := wordAt pfwd (base + u)
@@ -1023,12 +1028,56 @@ theorem mac_loop0_loop0_spec (src acc0 acc tw pfwd : alloc.vec.Vec Std.U64)
 def stage2W (sw tww : ℕ → ℕ) (half quarter step1 step2 t : ℕ) : ℕ :=
   difWord GP quarter step2 (difWord GP half step1 sw tww) tww t
 
+/-! ### The group at `j = 0`, twiddle-free (card T49a)
+
+At `u = 0` the three twiddles [`f1`], [`f2`] and [`f3`] read are all `tww 0`
+(`0 · step1` and `0 · step2`), so when `tww 0 = 1` each multiply is by one and
+drops out: the four words are the plain sums and differences the peeled group
+computes. `f2` and `f3` keep their fourth twiddle, `tww (quarter · step1)`,
+inside a [`bDif`]. -/
+
+/-- A butterfly difference at twiddle index `0` is the bare difference. -/
+theorem bDif_tw0 (sw tww : ℕ → ℕ) (htw0 : tww 0 = 1) (half t : ℕ) :
+    bDif sw tww half 0 t = (sw t + GP - sw (t + half)) % GP := by
+  simp only [bDif, htw0, Nat.mul_one, Nat.mod_mod]
+
+theorem f0_zero (sw : ℕ → ℕ) (half quarter s : ℕ) :
+    f0 sw half quarter s 0 = (bSum sw half s + bSum sw half (s + quarter)) % GP := by
+  simp only [f0, Nat.add_zero]
+
+theorem f1_tw0 (sw tww : ℕ → ℕ) (htw0 : tww 0 = 1) (half quarter step2 s : ℕ) :
+    f1 sw tww half quarter step2 s 0
+      = (bSum sw half s + GP - bSum sw half (s + quarter)) % GP := by
+  simp only [f1, Nat.add_zero, Nat.zero_mul, htw0, Nat.mul_one, Nat.mod_mod]
+
+theorem f2_tw0 (sw tww : ℕ → ℕ) (htw0 : tww 0 = 1) (half quarter step1 s : ℕ) :
+    f2 sw tww half quarter step1 s 0
+      = ((sw s + GP - sw (s + half)) % GP
+          + bDif sw tww half (quarter * step1) (s + quarter)) % GP := by
+  simp only [f2, Nat.add_zero, Nat.zero_mul, Nat.zero_add, bDif_tw0 sw tww htw0]
+
+theorem f3_tw0 (sw tww : ℕ → ℕ) (htw0 : tww 0 = 1) (half quarter step1 step2 s : ℕ) :
+    f3 sw tww half quarter step1 step2 s 0
+      = ((sw s + GP - sw (s + half)) % GP + GP
+          - bDif sw tww half (quarter * step1) (s + quarter)) % GP := by
+  simp only [f3, Nat.add_zero, Nat.zero_mul, Nat.zero_add, bDif_tw0 sw tww htw0, htw0,
+    Nat.mul_one, Nat.mod_mod]
+
 /-- The outer loop of the MAC stage. Two frames now: the finished blocks below
 `start` hold their `macAt` value, and the untouched ones at and above it still
-hold `acc0`'s words -- the latter is what each inner call reads. -/
+hold `acc0`'s words -- the latter is what each inner call reads.
+
+Card T49a peels each block's group `j = 0` out of the inner loop: it runs as
+straight-line code in this loop's body with its three multiplies by `tw[0]`
+dropped, and the inner loop starts at `j = 1`. The peel's four writes are the
+inner invariant's four written clauses at `u = 0` -- which is where
+`htw0 : tw[0] = 1` is spent, through [`f1_tw0`], [`f2_tw0`] and [`f3_tw0`] --
+and what it leaves alone is the four pending clauses for `1 ≤ u < quarter`,
+so [`mac_loop0_loop0_spec`] is called at `j = 1` as it stands. -/
 theorem mac_loop0_spec (src acc0 acc tw pfwd : alloc.vec.Vec Std.U64) (len : Std.Usize)
     (base half quarter step1 step2 start : Std.Usize)
     (hsrc : Canon GP src) (hacc : Canon GP acc) (htw : Canon GP tw)
+    (htw0 : wordAt tw 0 = 1)
     (hb : base.val + N ≤ pfwd.val.length)
     (hlen : len.val = 2 * half.val) (hhq : half.val = 2 * quarter.val)
     (hqpos : 0 < quarter.val) (hdvd : len.val ∣ N)
@@ -1074,21 +1123,320 @@ theorem mac_loop0_spec (src acc0 acc tw pfwd : alloc.vec.Vec Std.U64) (len : Std
       have hsm : ss.val % (2 * half.val) = 0 := by rw [← hlen]; exact hmod1
       -- inside the block the current buffer still holds `acc0`'s words
       have hpend : ∀ k, ss.val ≤ k → wordAt d k = wordAt acc0 k := hfr1
-      step with mac_loop0_loop0_spec src acc0 d tw pfwd base half quarter step1 step2
-        ss 0#usize hsrc hcd htw hb hhq hqpos hblk2 (by simp) hs2 hstep hebd
-        (by intro u hu; simp at hu) (by intro u hu; simp at hu)
-        (by intro u hu; simp at hu) (by intro u hu; simp at hu)
-        (by intro u _ _; exact hpend _ (by omega)) (by intro u _ _; exact hpend _ (by omega))
-        (by intro u _ _; exact hpend _ (by omega)) (by intro u _ _; exact hpend _ (by omega))
-        as ⟨d1, hc1, hwr0, hwr1, hwr2, hwr3, hfr2⟩
+      have hsl : src.val.length = N := hsrc.1
+      have hdl : d.val.length = N := hcd.1
+      have htl : tw.val.length = N := htw.1
+      have hbtq : quarter.val * step1.val < N := by
+        have h := Nat.mul_lt_mul_of_pos_right (show quarter.val < half.val by omega) hstep
+        omega
+      /- The peeled group `j = 0` (card T49a). The four reads of the source. -/
+      have hsb : ss.val < src.val.length := by rw [hsl]; exact hsslt
+      step as ⟨a0, ha0⟩
+      have ha0v : a0.val = wordAt src ss.val := by
+        rw [ha0, ← wordAt_of_lt (v := src) (t := ss.val) hsb]
+      step as ⟨i, hi⟩
+      have hib : i.val < src.val.length := by rw [hsl, hi]; omega
+      step as ⟨a1, ha1⟩
+      have ha1v : a1.val = wordAt src (ss.val + quarter.val) := by
+        rw [ha1, ← wordAt_of_lt (v := src) (t := i.val) hib, hi]
+      step as ⟨i1, hi1⟩
+      have hi1b : i1.val < src.val.length := by rw [hsl, hi1]; omega
+      step as ⟨a2, ha2⟩
+      have ha2v : a2.val = wordAt src (ss.val + half.val) := by
+        rw [ha2, ← wordAt_of_lt (v := src) (t := i1.val) hi1b, hi1]
+      step as ⟨i2, hi2⟩
+      have hi2b : i2.val < src.val.length := by rw [hsl, hi2, hi1]; omega
+      step as ⟨a3, ha3⟩
+      have ha3v : a3.val = wordAt src (ss.val + quarter.val + half.val) := by
+        rw [ha3, ← wordAt_of_lt (v := src) (t := i2.val) hi2b, hi2, hi1]
+        congr 1
+        omega
+      have h0lt : a0.val < GP := by rw [ha0v]; exact wordAt_lt hsrc GP_pos _
+      have h1lt : a1.val < GP := by rw [ha1v]; exact wordAt_lt hsrc GP_pos _
+      have h2lt : a2.val < GP := by rw [ha2v]; exact wordAt_lt hsrc GP_pos _
+      have h3lt : a3.val < GP := by rw [ha3v]; exact wordAt_lt hsrc GP_pos _
+      /- The first stage's four values. `b2` is the bare difference: its twiddle
+      is `tw[0]`. `b3` keeps its multiply, by `tw[quarter · step1]`. -/
+      step with gold_add_spec a0 a2 h0lt h2lt as ⟨b0, hb0v, hb0lt⟩
+      step with gold_add_spec a1 a3 h1lt h3lt as ⟨b1, hb1v, hb1lt⟩
+      step with gold_sub_spec a0 a2 h0lt h2lt as ⟨b2, hb2v, hb2lt⟩
+      step with gold_sub_spec a1 a3 h1lt h3lt as ⟨e1, he1v, he1lt⟩
+      step as ⟨i3, hi3⟩
+      have hi3b : i3.val < tw.val.length := by rw [htl, hi3]; exact hbtq
+      step as ⟨t2, ht2⟩
+      have ht2v : t2.val = wordAt tw (quarter.val * step1.val) := by
+        rw [ht2, ← wordAt_of_lt (v := tw) (t := i3.val) hi3b, hi3]
+      step with gold_mul_spec e1 t2 as ⟨b3, hb3v, hb3lt⟩
+      have hb0f : b0.val = bSum (wordAt src) half.val ss.val := by
+        rw [hb0v, ha0v, ha2v]; rfl
+      have hb1f : b1.val = bSum (wordAt src) half.val (ss.val + quarter.val) := by
+        rw [hb1v, ha1v, ha3v]; rfl
+      have hb2f : b2.val = (wordAt src ss.val + GP - wordAt src (ss.val + half.val)) % GP := by
+        rw [hb2v, ha0v, ha2v]
+      have hb3f : b3.val
+          = bDif (wordAt src) (wordAt tw) half.val (quarter.val * step1.val)
+              (ss.val + quarter.val) := by
+        rw [hb3v, he1v, ht2v, ha1v, ha3v]; rfl
+      -- the two positions named so far, as naturals
+      have p1 : i.val = ss.val + quarter.val := hi
+      have p2 : i1.val = ss.val + half.val := hi1
+      /- Write 1, at `start`. -/
+      step with gold_add_spec b0 b1 hb0lt hb1lt as ⟨v0, hv0v, hv0lt⟩
+      have hv0f : v0.val = f0 (wordAt src) half.val quarter.val ss.val 0 := by
+        rw [hv0v, hb0f, hb1f, f0_zero]
+      have hsdb : ss.val < d.val.length := by rw [hdl]; exact hsslt
+      step as ⟨c0, hc0⟩
+      have hc0v : c0.val = wordAt acc0 ss.val := by
+        rw [hc0, ← wordAt_of_lt (v := d) (t := ss.val) hsdb]
+        exact hpend ss.val (le_refl _)
+      have hc0lt : c0.val < GP := by
+        rw [hc0, ← wordAt_of_lt (v := d) (t := ss.val) hsdb]; exact wordAt_lt hcd GP_pos _
+      have hbs : base.val + ss.val < pfwd.val.length := by omega
+      step as ⟨k0, hk0⟩
+      have hk0b : k0.val < pfwd.val.length := by rw [hk0]; exact hbs
+      step as ⟨w0, hw0'⟩
+      have hw0v : w0.val = pfW pfwd base.val ss.val := by
+        rw [hw0', ← wordAt_of_lt (v := pfwd) (t := k0.val) hk0b, hk0]; rfl
+      step with gold_mul_spec w0 v0 as ⟨m0, hm0v, hm0lt⟩
+      step with gold_add_spec c0 m0 hc0lt hm0lt as ⟨o0, ho0v, ho0lt⟩
+      have ho0f : o0.val = macAt (wordAt acc0) (pfW pfwd base.val) ss.val
+          (f0 (wordAt src) half.val quarter.val ss.val 0) := by
+        rw [ho0v, hm0v, hc0v, hw0v, hv0f]; rfl
+      step as ⟨elem, back, helem, hback⟩
+      step with gold_sub_spec b0 b1 hb0lt hb1lt as ⟨v1, hv1v, hv1lt⟩
+      have hv1f : v1.val
+          = f1 (wordAt src) (wordAt tw) half.val quarter.val step2.val ss.val 0 := by
+        rw [hv1v, hb0f, hb1f, f1_tw0 (wordAt src) (wordAt tw) htw0]
+      rw [hback]
+      /- Write 2, at `start + quarter`. -/
+      have r10 : ss.val + quarter.val ≠ ss.val := by clear * - hqpos; omega
+      have hc1 : Canon GP (d.set ss o0) := Canon_set hcd ho0lt
+      have hd1l : (d.set ss o0).val.length = N := hc1.1
+      have ho1b : i.val < (d.set ss o0).val.length := by rw [hd1l, p1]; omega
+      step as ⟨c1, hc1'⟩
+      have hc1v : c1.val = wordAt acc0 (ss.val + quarter.val) := by
+        rw [hc1', ← wordAt_of_lt (v := d.set ss o0) (t := i.val) ho1b, p1, wordAt_set_ne r10]
+        exact hpend _ (by omega)
+      have hc1lt : c1.val < GP := by
+        rw [hc1', ← wordAt_of_lt (v := d.set ss o0) (t := i.val) ho1b]
+        exact wordAt_lt hc1 GP_pos _
+      have hbo1 : base.val + i.val < pfwd.val.length := by rw [p1]; omega
+      step as ⟨k1, hk1⟩
+      have hk1b : k1.val < pfwd.val.length := by rw [hk1]; exact hbo1
+      step as ⟨w1, hw1'⟩
+      have hw1v : w1.val = pfW pfwd base.val (ss.val + quarter.val) := by
+        rw [hw1', ← wordAt_of_lt (v := pfwd) (t := k1.val) hk1b, hk1, p1]; rfl
+      step with gold_mul_spec w1 v1 as ⟨m1, hm1v, hm1lt⟩
+      step with gold_add_spec c1 m1 hc1lt hm1lt as ⟨o1, ho1v, ho1lt⟩
+      have ho1f : o1.val = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + quarter.val)
+          (f1 (wordAt src) (wordAt tw) half.val quarter.val step2.val ss.val 0) := by
+        rw [ho1v, hm1v, hc1v, hw1v, hv1f]; rfl
+      step as ⟨elem1, back1, helem1, hback1⟩
+      step with gold_add_spec b2 b3 hb2lt hb3lt as ⟨v2, hv2v, hv2lt⟩
+      have hv2f : v2.val
+          = f2 (wordAt src) (wordAt tw) half.val quarter.val step1.val ss.val 0 := by
+        rw [hv2v, hb2f, hb3f, f2_tw0 (wordAt src) (wordAt tw) htw0]
+      rw [hback1]
+      /- Write 3, at `start + half`. -/
+      have r21 : ss.val + half.val ≠ i.val := by clear * - p1 hhq hqpos; omega
+      have r20 : ss.val + half.val ≠ ss.val := by clear * - hhq hqpos; omega
+      have hc2 : Canon GP ((d.set ss o0).set i o1) := Canon_set hc1 ho1lt
+      have hd2l : ((d.set ss o0).set i o1).val.length = N := hc2.1
+      have ho2b : i1.val < ((d.set ss o0).set i o1).val.length := by rw [hd2l, p2]; omega
+      step as ⟨c2, hc2'⟩
+      have hc2v : c2.val = wordAt acc0 (ss.val + half.val) := by
+        rw [hc2', ← wordAt_of_lt (v := (d.set ss o0).set i o1) (t := i1.val) ho2b, p2,
+          wordAt_set_ne r21, wordAt_set_ne r20]
+        exact hpend _ (by omega)
+      have hc2lt : c2.val < GP := by
+        rw [hc2', ← wordAt_of_lt (v := (d.set ss o0).set i o1) (t := i1.val) ho2b]
+        exact wordAt_lt hc2 GP_pos _
+      have hbo2 : base.val + i1.val < pfwd.val.length := by rw [p2]; omega
+      step as ⟨k2, hk2⟩
+      try (case hmax => scalar_tac)
+      have hk2b : k2.val < pfwd.val.length := by rw [hk2]; exact hbo2
+      step as ⟨w2, hw2'⟩
+      have hw2v : w2.val = pfW pfwd base.val (ss.val + half.val) := by
+        rw [hw2', ← wordAt_of_lt (v := pfwd) (t := k2.val) hk2b, hk2, p2]; rfl
+      step with gold_mul_spec w2 v2 as ⟨m2, hm2v, hm2lt⟩
+      step with gold_add_spec c2 m2 hc2lt hm2lt as ⟨o2, ho2v, ho2lt⟩
+      have ho2f : o2.val = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + half.val)
+          (f2 (wordAt src) (wordAt tw) half.val quarter.val step1.val ss.val 0) := by
+        rw [ho2v, hm2v, hc2v, hw2v, hv2f]; rfl
+      step as ⟨elem2, back2, helem2, hback2⟩
+      step as ⟨o3i, ho3i⟩
+      have p3 : o3i.val = ss.val + half.val + quarter.val := by rw [ho3i, hi1]
+      step with gold_sub_spec b2 b3 hb2lt hb3lt as ⟨v3, hv3v, hv3lt⟩
+      have hv3f : v3.val = f3 (wordAt src) (wordAt tw) half.val quarter.val step1.val step2.val
+          ss.val 0 := by
+        rw [hv3v, hb2f, hb3f, f3_tw0 (wordAt src) (wordAt tw) htw0]
+      rw [hback2]
+      /- Write 4, at `start + half + quarter`. -/
+      have r32 : ss.val + half.val + quarter.val ≠ i1.val := by clear * - p2 hqpos; omega
+      have r31 : ss.val + half.val + quarter.val ≠ i.val := by clear * - p1 hhq hqpos; omega
+      have r30 : ss.val + half.val + quarter.val ≠ ss.val := by clear * - hhq hqpos; omega
+      have hc3 : Canon GP (((d.set ss o0).set i o1).set i1 o2) := Canon_set hc2 ho2lt
+      have hd3l : (((d.set ss o0).set i o1).set i1 o2).val.length = N := hc3.1
+      have ho3b : o3i.val < (((d.set ss o0).set i o1).set i1 o2).val.length := by
+        rw [hd3l, p3]; omega
+      step as ⟨c3, hc3'⟩
+      have hc3v : c3.val = wordAt acc0 (ss.val + half.val + quarter.val) := by
+        rw [hc3', ← wordAt_of_lt (v := ((d.set ss o0).set i o1).set i1 o2) (t := o3i.val) ho3b,
+          p3, wordAt_set_ne r32, wordAt_set_ne r31, wordAt_set_ne r30]
+        exact hpend _ (by omega)
+      have hc3lt : c3.val < GP := by
+        rw [hc3', ← wordAt_of_lt (v := ((d.set ss o0).set i o1).set i1 o2) (t := o3i.val) ho3b]
+        exact wordAt_lt hc3 GP_pos _
+      have hbo3 : base.val + o3i.val < pfwd.val.length := by rw [p3]; omega
+      step as ⟨k3, hk3⟩
+      try (case hmax => scalar_tac)
+      have hk3b : k3.val < pfwd.val.length := by rw [hk3]; exact hbo3
+      step as ⟨w3, hw3'⟩
+      have hw3v : w3.val = pfW pfwd base.val (ss.val + half.val + quarter.val) := by
+        rw [hw3', ← wordAt_of_lt (v := pfwd) (t := k3.val) hk3b, hk3, p3]; rfl
+      step with gold_mul_spec w3 v3 as ⟨m3, hm3v, hm3lt⟩
+      step with gold_add_spec c3 m3 hc3lt hm3lt as ⟨o3, ho3v, ho3lt⟩
+      have ho3f : o3.val = macAt (wordAt acc0) (pfW pfwd base.val)
+          (ss.val + half.val + quarter.val)
+          (f3 (wordAt src) (wordAt tw) half.val quarter.val step1.val step2.val ss.val 0) := by
+        rw [ho3v, hm3v, hc3v, hw3v, hv3f]; rfl
+      step as ⟨elem3, back3, helem3, hback3⟩
+      rw [hback3]
+      /- The peel, as the inner invariant at `j = 1`: its four writes are the
+      written clauses at `u = 0`, and every other position of the block is
+      still pending. -/
+      have hc4 : Canon GP ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) :=
+        Canon_set hc3 ho3lt
+      have hone : (1#usize).val = 1 := by simp
+      have hself :
+          (ss.val ≠ i.val ∧ ss.val ≠ i1.val ∧ ss.val ≠ o3i.val)
+          ∧ (ss.val + quarter.val ≠ i1.val ∧ ss.val + quarter.val ≠ o3i.val)
+          ∧ ss.val + half.val ≠ o3i.val := by
+        clear * - p1 p2 p3 hhq hqpos
+        exact ⟨⟨by omega, by omega, by omega⟩, ⟨by omega, by omega⟩, by omega⟩
+      have hdisP : ∀ u, 1 ≤ u → u < quarter.val →
+          (ss.val + u ≠ ss.val ∧ ss.val + u ≠ i.val
+            ∧ ss.val + u ≠ i1.val ∧ ss.val + u ≠ o3i.val)
+          ∧ (ss.val + u + quarter.val ≠ ss.val ∧ ss.val + u + quarter.val ≠ i.val
+            ∧ ss.val + u + quarter.val ≠ i1.val ∧ ss.val + u + quarter.val ≠ o3i.val)
+          ∧ (ss.val + half.val + u ≠ ss.val ∧ ss.val + half.val + u ≠ i.val
+            ∧ ss.val + half.val + u ≠ i1.val ∧ ss.val + half.val + u ≠ o3i.val)
+          ∧ (ss.val + half.val + quarter.val + u ≠ ss.val
+            ∧ ss.val + half.val + quarter.val + u ≠ i.val
+            ∧ ss.val + half.val + quarter.val + u ≠ i1.val
+            ∧ ss.val + half.val + quarter.val + u ≠ o3i.val) := by
+        clear * - p1 p2 p3 hhq hqpos
+        intro u hu1 hu2
+        refine ⟨⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩,
+          ⟨by omega, by omega, by omega, by omega⟩⟩
+      have hdisF : ∀ k, (k < ss.val ∨ ss.val + 2 * half.val ≤ k) →
+          k ≠ ss.val ∧ k ≠ i.val ∧ k ≠ i1.val ∧ k ≠ o3i.val := by
+        clear * - p1 p2 p3 hhq hqpos
+        intro k hk
+        exact ⟨by omega, by omega, by omega, by omega⟩
+      have hW0 : ∀ u, u < (1#usize).val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + u)
+            = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + u)
+                (f0 (wordAt src) half.val quarter.val ss.val u) := by
+        intro u hu
+        rw [hone] at hu
+        obtain rfl : u = 0 := by omega
+        obtain ⟨⟨q1, q2, q3⟩, -, -⟩ := hself
+        simp only [Nat.add_zero]
+        rw [wordAt_set_ne q3, wordAt_set_ne q2, wordAt_set_ne q1, wordAt_set_eq hsdb]
+        exact ho0f
+      have hW1 : ∀ u, u < (1#usize).val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + u + quarter.val)
+            = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + u + quarter.val)
+                (f1 (wordAt src) (wordAt tw) half.val quarter.val step2.val ss.val u) := by
+        intro u hu
+        rw [hone] at hu
+        obtain rfl : u = 0 := by omega
+        obtain ⟨-, ⟨q2, q3⟩, -⟩ := hself
+        simp only [Nat.add_zero]
+        rw [wordAt_set_ne q3, wordAt_set_ne q2]
+        conv_lhs => rw [← p1]
+        rw [wordAt_set_eq ho1b]
+        exact ho1f
+      have hW2 : ∀ u, u < (1#usize).val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + half.val + u)
+            = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + half.val + u)
+                (f2 (wordAt src) (wordAt tw) half.val quarter.val step1.val ss.val u) := by
+        intro u hu
+        rw [hone] at hu
+        obtain rfl : u = 0 := by omega
+        obtain ⟨-, -, q3⟩ := hself
+        simp only [Nat.add_zero]
+        rw [wordAt_set_ne q3]
+        conv_lhs => rw [← p2]
+        rw [wordAt_set_eq ho2b]
+        exact ho2f
+      have hW3 : ∀ u, u < (1#usize).val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3)
+              (ss.val + half.val + quarter.val + u)
+            = macAt (wordAt acc0) (pfW pfwd base.val) (ss.val + half.val + quarter.val + u)
+                (f3 (wordAt src) (wordAt tw) half.val quarter.val step1.val step2.val
+                  ss.val u) := by
+        intro u hu
+        rw [hone] at hu
+        obtain rfl : u = 0 := by omega
+        simp only [Nat.add_zero]
+        conv_lhs => rw [← p3]
+        rw [wordAt_set_eq ho3b]
+        exact ho3f
+      have hP0 : ∀ u, (1#usize).val ≤ u → u < quarter.val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + u)
+            = wordAt acc0 (ss.val + u) := by
+        intro u hu1 hu2
+        rw [hone] at hu1
+        obtain ⟨⟨m0, m1, m2, m3⟩, -, -, -⟩ := hdisP u hu1 hu2
+        rw [wordAt_set_ne m3, wordAt_set_ne m2, wordAt_set_ne m1, wordAt_set_ne m0]
+        exact hpend _ (by omega)
+      have hP1 : ∀ u, (1#usize).val ≤ u → u < quarter.val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + u + quarter.val)
+            = wordAt acc0 (ss.val + u + quarter.val) := by
+        intro u hu1 hu2
+        rw [hone] at hu1
+        obtain ⟨-, ⟨m0, m1, m2, m3⟩, -, -⟩ := hdisP u hu1 hu2
+        rw [wordAt_set_ne m3, wordAt_set_ne m2, wordAt_set_ne m1, wordAt_set_ne m0]
+        exact hpend _ (by omega)
+      have hP2 : ∀ u, (1#usize).val ≤ u → u < quarter.val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3) (ss.val + half.val + u)
+            = wordAt acc0 (ss.val + half.val + u) := by
+        intro u hu1 hu2
+        rw [hone] at hu1
+        obtain ⟨-, -, ⟨m0, m1, m2, m3⟩, -⟩ := hdisP u hu1 hu2
+        rw [wordAt_set_ne m3, wordAt_set_ne m2, wordAt_set_ne m1, wordAt_set_ne m0]
+        exact hpend _ (by omega)
+      have hP3 : ∀ u, (1#usize).val ≤ u → u < quarter.val →
+          wordAt ((((d.set ss o0).set i o1).set i1 o2).set o3i o3)
+              (ss.val + half.val + quarter.val + u)
+            = wordAt acc0 (ss.val + half.val + quarter.val + u) := by
+        intro u hu1 hu2
+        rw [hone] at hu1
+        obtain ⟨-, -, -, ⟨m0, m1, m2, m3⟩⟩ := hdisP u hu1 hu2
+        rw [wordAt_set_ne m3, wordAt_set_ne m2, wordAt_set_ne m1, wordAt_set_ne m0]
+        exact hpend _ (by omega)
+      have hj1 : (1#usize).val ≤ quarter.val := by rw [hone]; omega
+      step with mac_loop0_loop0_spec src acc0 ((((d.set ss o0).set i o1).set i1 o2).set o3i o3)
+        tw pfwd base half quarter step1 step2 ss 1#usize hsrc hc4 htw hb hhq hqpos hblk2 hj1
+        hs2 hstep hebd hW0 hW1 hW2 hW3 hP0 hP1 hP2 hP3
+        as ⟨dn, hcn, hwr0, hwr1, hwr2, hwr3, hfr2⟩
+      -- outside the block, neither the peel nor the inner loop wrote
+      have hfr3 : ∀ k, (k < ss.val ∨ ss.val + 2 * half.val ≤ k) → wordAt dn k = wordAt d k := by
+        intro k hk
+        obtain ⟨m0, m1, m2, m3⟩ := hdisF k hk
+        rw [hfr2 k hk, wordAt_set_ne m3, wordAt_set_ne m2, wordAt_set_ne m1, wordAt_set_ne m0]
       step as ⟨ss1, hss1⟩
       try (case hmax => scalar_tac)
-      refine ⟨by omega, ?_, hc1, ?_, ?_, by omega⟩
+      refine ⟨by omega, ?_, hcn, ?_, ?_, by omega⟩
       · rw [hss1, Nat.add_mod_right, hmod1]
       · intro t ht
         rw [hss1] at ht
         rcases Nat.lt_or_ge t ss.val with h1 | h1
-        · rw [hfr2 t (Or.inl h1)]
+        · rw [hfr3 t (Or.inl h1)]
           exact hval1 t h1
         · simp only [stage2W]
           rcases Nat.lt_or_ge (t - ss.val) quarter.val with h2 | h2
@@ -1117,7 +1465,7 @@ theorem mac_loop0_spec (src acc0 acc tw pfwd : alloc.vec.Vec Std.U64) (len : Std
                     (by omega) hsm).symm
       · intro t ht
         rw [hss1] at ht
-        rw [hfr2 t (Or.inr (by omega))]
+        rw [hfr3 t (Or.inr (by omega))]
         exact hfr1 t (by omega)
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1126,10 +1474,13 @@ theorem mac_loop0_spec (src acc0 acc tw pfwd : alloc.vec.Vec Std.U64) (len : Std
   · exact ⟨hstart, hmod, hacc, hval, hfr⟩
 
 /-- **The MAC stage**: `acc[t] += pfwd[base + t] · (difWord ∘ difWord)(src)[t]`, as
-words. -/
+words. `htw0` is card T49a's: the peeled group at `j = 0` takes its three
+`tw[0]` multiplies as multiplies by one, so the table must start with `1` --
+every caller's does, being a ψ-table ([`GoldTransform.tw_zero_one`]). -/
 theorem gold_dif_stage2_mac_spec (src acc tw pfwd : alloc.vec.Vec Std.U64)
     (len base : Std.Usize) (k : ℕ) (hk : k < 9) (hlen : len.val = 2 ^ (k + 2))
     (hsrc : Canon GP src) (hacc : Canon GP acc) (htw : Canon GP tw)
+    (htw0 : wordAt tw 0 = 1)
     (hb : base.val + N ≤ pfwd.val.length) :
     ntt.gold_dif_stage2_mac src acc len tw pfwd base
       ⦃ z => Canon GP z
@@ -1165,7 +1516,7 @@ theorem gold_dif_stage2_mac_spec (src acc tw pfwd : alloc.vec.Vec Std.U64)
     ring
   rw [← hst2v, ← hst1v, ← hhfv, ← hqqv]
   refine mac_loop0_spec src acc acc tw pfwd len base hf qq st1 st2 0#usize
-    hsrc hacc htw hb ?_ ?_ ?_ ?_ ?_ ?_ ?_ (by simp) (by simp) (by intro t ht; simp at ht)
+    hsrc hacc htw htw0 hb ?_ ?_ ?_ ?_ ?_ ?_ ?_ (by simp) (by simp) (by intro t ht; simp at ht)
     (fun t _ => rfl)
   · rw [hlen, hhfv, show k + 2 = (k + 1) + 1 by ring, pow_succ]; ring
   · rw [hhfv, hqqv, pow_succ]; ring
@@ -1322,6 +1673,7 @@ theorem gold_dot_one_fused_spec (a : ring.Rq) (cur0 tmp0 acc0 pt pfwd : alloc.ve
                        (NttMath.twistR ps
                          (fun u => ((HachiEquiv.Ring.wordN a u : ℕ) : ZMod GP))) t ⦄ := by
   have hag : ∀ e, e < N → wordAt pt e = psiRep ps e := tw_agree' GP pt GP_pos hptC ps hptv
+  have htw0 : wordAt pt 0 = 1 := tw_zero_one GP pt (by norm_num) hptC ps hptv
   set F : ℕ → ZMod GP := fun u => ((twSrc a pt u : ℕ) : ZMod GP) with hF
   rw [ring.gold_dot_one_fused]
   -- (A) the twist stage, the transform's first two stages at `len = N`
@@ -1371,7 +1723,7 @@ theorem gold_dot_one_fused_spec (a : ring.Rq) (cur0 tmp0 acc0 pt pfwd : alloc.ve
     as ⟨c2, t2, hc2C, ht2C, hc2v⟩
   -- (B) the MAC stage, the last two stages at `len = 4`
   step with gold_dif_stage2_mac_spec c2 acc0 pt pfwd 4#usize baseU 0 (by norm_num)
-    (by norm_num) hc2C hacc hptC hb as ⟨acc1, hacc1C, hacc1w⟩
+    (by norm_num) hc2C hacc hptC htw0 hb as ⟨acc1, hacc1C, hacc1w⟩
   refine ⟨hacc1C, hc2C, ht2C, ?_⟩
   intro t ht
   have hstepM1 : N / 2 ^ (0 + 1) = 2 ^ 9 := by norm_num

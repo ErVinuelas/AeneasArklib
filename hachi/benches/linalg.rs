@@ -20,6 +20,13 @@
 //! arithmetic at all -- `flatten_blocks` is `Rq::copy` in a loop and `equals` is
 //! a coefficient compare.
 //!
+//! `apply_digits_gold` is the one case over a *prepared* matrix, and the one
+//! whose timed region deliberately leaves out work its caller does: the
+//! preparation of `A` and the gadget digits it is applied to are both built
+//! above the closure, so the row is the prepared Goldilocks dot and nothing
+//! else. Its size, and why it exists beside the `commit` rows that already
+//! reach it, are at its registration below.
+//!
 //! `vec_add` and `vec_sub` are separate rows for an identical loop shape. That is
 //! deliberate: they are separate items with separate equivalence obligations
 //! against the spec's `Pi` instances, and a shared shape is exactly the situation
@@ -47,6 +54,8 @@ macro_rules! define_cases {
 
             use $hachi as hc;
 
+            use cpoly::Fp;
+
             use crate::support::{self, Mode};
 
             type Rq = hc::ring::Rq;
@@ -68,6 +77,29 @@ macro_rules! define_cases {
                         seed.wrapping_add(i as u64 * 0x100),
                         degree,
                     )));
+                }
+                PolyVec::new(entries)
+            }
+
+            /// A `k`-entry vector of **gadget digits**: every coefficient in
+            /// `[0, GADGET_BASE)`, the only input the digit path is correct for
+            /// (`ring::dot_prepared_digits_gold`'s precondition). Derived from the
+            /// ordinary corpus, as `quadeval.rs`'s `box_coeffs` is, so both draws
+            /// share one seed discipline: each `[1, q)` draw reduced mod the base.
+            /// Zero is a legitimate digit and is reachable here, which relaxes the
+            /// corpus's no-zeros rule on purpose; nothing on this path skips work
+            /// for a zero coefficient.
+            fn digits_of(seed: u64, k: usize) -> PolyVec {
+                let degree = hc::params::RING_DEGREE;
+                let base = hc::params::GADGET_BASE;
+                let mut entries = Vec::with_capacity(k);
+                for i in 0..k {
+                    let coeffs: Vec<Fp> =
+                        support::corpus(seed.wrapping_add(i as u64 * 0x100), degree)
+                            .iter()
+                            .map(|c| Fp::new(c.to_u64() % base))
+                            .collect();
+                    entries.push(Rq::from_coeffs(&coeffs));
                 }
                 PolyVec::new(entries)
             }
@@ -200,6 +232,45 @@ macro_rules! define_cases {
                 )
             }
 
+            // -- the prepared digit path ------------------------------------
+
+            /// `A · v` through the prepared single-Goldilocks-lane digit path:
+            /// `INNER_ROWS` rows of `cols` columns, prepared once **above** the
+            /// closure, applied to `cols` gadget digits built above it too. What
+            /// is timed is `apply_digits_gold` and nothing else -- per column one
+            /// fused twist-transform-MAC term (`ring::gold_dot_one_fused`), then
+            /// per row one inverse transform and one untwist.
+            ///
+            /// This is `commit_streamed`'s inner product with its two neighbours
+            /// taken out. The `commit/*` rows time `prepare_digits_gold` (one
+            /// forward transform per column of `A`, paid once per call) and both
+            /// gadget decompositions of every block inside the same closure, so a
+            /// change confined to the dot's transform arrives there diluted. Card
+            /// T49a (the unit twiddles peeled out of the MAC pass, 768 of the
+            /// term's 7168 multiplies) is the case that forced the row: projected
+            /// at −4 to −7% of this dot, it projects to −2.7 to −4.6% on
+            /// `commit/commit_streamed/4`, under the 5% floor whatever it really
+            /// is. Here the dot is the whole row.
+            ///
+            /// The matrix entries are the ordinary `[1, q)` corpus, the digits a
+            /// separate tag's corpus reduced into `[0, GADGET_BASE)`
+            /// (`digits_of`); both are shared `Vec<Fp>`s, so every variant sees
+            /// the same numbers.
+            pub fn apply_digits_gold(m: Mode<'_, '_>, cols: usize) -> u64 {
+                let rows = hc::params::INNER_ROWS;
+                let mut entries = Vec::with_capacity(rows);
+                for i in 0..rows {
+                    entries.push(vec_of(0x1A1A_0000_0000_0000 + i as u64 * 0x0100_0000, cols));
+                }
+                let prep = PolyMatrix::new(entries).prepare_digits_gold();
+                let v = digits_of(0x1B1B_1B1B_0000_0002, cols);
+                support::run(
+                    m,
+                    || black_box(&prep).apply_digits_gold(black_box(&v)),
+                    d_polyvec,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -258,6 +329,34 @@ fn linalg_benches(c: &mut Criterion) {
 
     // @covers linalg::flatten_blocks
     bench_case!(c, "linalg/flatten_blocks", flatten_blocks, [block]);
+
+    // The prepared Goldilocks digit path with nothing around it (card T49's
+    // isolating row; the case doc says why the `commit` rows cannot stand in).
+    // `INNER_ROWS = 1` row at the pin's own width, one block's
+    // `MESSAGE_ROWS * GADGET_DIGITS = 8192` digit columns: the work per column
+    // is exactly the pin's, one fused term, and the per-row tail (two psi
+    // tables, one inverse transform, one untwist) is ~0.03% of the row. The
+    // loop is compute-bound -- ~16 KiB streamed per ~13 us term, a few percent
+    // of DRAM bandwidth, sequential and prefetchable, with the per-term hot set
+    // (cur, tmp, acc, the psi table: 32 KiB) in L1/L2 at any width -- so the
+    // width is the pin's for the parameter rule's sake, not for a cache
+    // argument (adversarial review 2026-09-24).
+    //
+    // `vs genesis` here is the cumulative gain of T34 (the allocation-free
+    // shell), the radix-4-equivalent pair and T37's fusion over card T27's
+    // first single-lane dot (twist pass, radix-2 transform, copied slice,
+    // separate MAC -- ~14 passes a term against 5); it says nothing about T49
+    // itself. The card's verdict is `cand vs now` only.
+    //
+    // `now` ~0.11 s and `genesis` ~0.2 s per iteration (projected from the
+    // pin profile's ~13 us per column): criterion's Auto mode runs these Flat
+    // at 2-3 iterations a sample. `samples: 20` is a choice -- fewer samples,
+    // each averaging more iterations -- not a necessity.
+    let digit_cols = 8192;
+    let digit_samples = 20;
+    // @covers linalg::PreparedMatrixG::apply_digits_gold
+    bench_case!(c, "linalg/apply_digits_gold", apply_digits_gold, [digit_cols],
+                samples: digit_samples);
 }
 
 criterion_group! {

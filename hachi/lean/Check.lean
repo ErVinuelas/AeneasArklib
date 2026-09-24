@@ -2385,6 +2385,19 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.GoldFusedBoundary.gold_dif_stage2_mac_spec
 #print axioms HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_loop_spec
 #print axioms HachiEquiv.GoldFusedBoundary.gold_dot_one_fused_spec
+-- Card T49a (2026-09-24): the MAC pass peels each block's group `j = 0`, whose
+-- three twiddles other than `tw[quarter * step1]` are all `tw[0] = psi^0 = 1`,
+-- and drops those multiplies. `mac_loop0_loop0_spec` is entered at `j = 1`
+-- unchanged; the peel's four writes are its written clauses at `u = 0`
+-- (`f1_tw0`, `f2_tw0`, `f3_tw0`), and `tw[0] = 1` is read off the psi-table by
+-- `tw_zero_one`. `gold_dot_one_fused_spec` and everything above it did not move.
+#print axioms HachiEquiv.GoldTransform.tw_zero_one
+#print axioms HachiEquiv.GoldFusedBoundary.bDif_tw0
+#print axioms HachiEquiv.GoldFusedBoundary.f0_zero
+#print axioms HachiEquiv.GoldFusedBoundary.f1_tw0
+#print axioms HachiEquiv.GoldFusedBoundary.f2_tw0
+#print axioms HachiEquiv.GoldFusedBoundary.f3_tw0
+#print axioms HachiEquiv.GoldFusedBoundary.mac_loop0_spec
 #print axioms HachiEquiv.GoldDot.gold_out_loop_spec
 #print axioms HachiEquiv.GoldDot.gold_untwist_spec
 #print axioms HachiEquiv.GoldDot.gold_untwist_cast

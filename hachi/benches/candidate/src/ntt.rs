@@ -686,6 +686,19 @@ pub fn gold_dif_stage2(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u
 /// destination indices in named `let`s rather than repeating the arithmetic
 /// is what keeps `acc[o] = ...acc[o]...` a single indexed read-modify-write,
 /// the shape the extraction models as an ordinary update.
+///
+/// **The group at `j = 0` is peeled** out of the inner loop (card T49a), which
+/// then starts at `j = 1` with its body unchanged. That group's three
+/// twiddles -- `tw[0 · step1]` for `b2`, `tw[0 · step2]` for `v1` and `v3` --
+/// are all `tw[0] = ψ^0 = 1`, and `gold_mul(x, 1) = x` for a canonical `x`, so
+/// the peeled group takes the differences as they are. Its fourth twiddle,
+/// `tw[quarter · step1] = tw[NTT_LEN / 2] = ψ^512` at every `len`, stays a
+/// multiply. This is the pass where it pays: the fused dot calls it at
+/// `len = 4`, where `quarter = 1` and *every* group is a `j = 0` group, so
+/// 768 of the pass's 1024 butterfly multiplies were by one, and the inner
+/// loop no longer runs at all. Exactness needs `tw[0] = 1` and a canonical
+/// `src`; every caller has both -- the table is a [`gold_psi_table`] and the
+/// source is the previous stage's output.
 pub fn gold_dif_stage2_mac(
     src: &Vec<u64>,
     mut acc: Vec<u64>,
@@ -701,7 +714,27 @@ pub fn gold_dif_stage2_mac(
     let step2: usize = 2 * step1;
     let mut start: usize = 0;
     while start < n {
-        let mut j: usize = 0;
+        let a0: u64 = src[start];
+        let a1: u64 = src[start + quarter];
+        let a2: u64 = src[start + half];
+        let a3: u64 = src[start + half + quarter];
+        let b0: u64 = gold_add(a0, a2);
+        let b1: u64 = gold_add(a1, a3);
+        let b2: u64 = gold_sub(a0, a2);
+        let d1: u64 = gold_sub(a1, a3);
+        let b3: u64 = gold_mul(d1, tw[quarter * step1]);
+        let v0: u64 = gold_add(b0, b1);
+        acc[start] = gold_add(acc[start], gold_mul(pfwd[base + start], v0));
+        let o1: usize = start + quarter;
+        let v1: u64 = gold_sub(b0, b1);
+        acc[o1] = gold_add(acc[o1], gold_mul(pfwd[base + o1], v1));
+        let o2: usize = start + half;
+        let v2: u64 = gold_add(b2, b3);
+        acc[o2] = gold_add(acc[o2], gold_mul(pfwd[base + o2], v2));
+        let o3: usize = start + half + quarter;
+        let v3: u64 = gold_sub(b2, b3);
+        acc[o3] = gold_add(acc[o3], gold_mul(pfwd[base + o3], v3));
+        let mut j: usize = 1;
         while j < quarter {
             let a0: u64 = src[start + j];
             let a1: u64 = src[start + j + quarter];
