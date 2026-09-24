@@ -2473,16 +2473,24 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZPacked.coeff_toRq_mul_fin
 #print axioms HachiEquiv.ZPacked.z_terms_spec
 -- Stage 6 card T47 (2026-09-23): the eight digit accumulators of a coefficient
--- share three `u64` words of three 20-bit lanes, the ninth lane a pass record;
--- every pass adds `16 ± d` per lane, so a lane's value is `lane_e - lane_8` in
--- `ZMod q`, and the block loop's `Z_LANE_CHUNK` flush keeps every lane below
--- `2^20` -- `laneOf_add` is the no-carry lemma the whole card rests on. T43's
--- region layer, `z_pass`/`z_reduce`/`z_apply_terms`/`z_row` and the merge loops
--- are deleted with the Rust items; `honest_z_from_raw_32_spec`'s STATEMENT is
--- T29's, verbatim, re-proved on the new loops. No new hypothesis anywhere.
-#print axioms HachiEquiv.ZPacked.laneOf_pack3
-#print axioms HachiEquiv.ZPacked.pack3_laneOf
+-- share packed `u64` lanes; every pass adds `16 ± d` per lane, and the block
+-- loop's `Z_LANE_CHUNK` flush keeps every lane from carrying -- `laneOf_add` is
+-- the no-carry lemma the whole card rests on. T43's region layer,
+-- `z_pass`/`z_reduce`/`z_apply_terms`/`z_row` and the merge loops are deleted
+-- with the Rust items; `honest_z_from_raw_32_spec`'s STATEMENT is T29's,
+-- verbatim, re-proved on the new loops. No new hypothesis anywhere.
+-- Stage 6 card T59 (2026-09-24): two `u64` words of four 16-bit lanes per
+-- coefficient (`pack4`), with no in-slot record lane: the bias is `16 · cnt[r]`,
+-- a per-row pass counter the block loop keeps beside the buffer (`laneD`'s
+-- count argument), bumped by `z_terms_passes` per row and zeroed with `zp` on a
+-- flush. `Z_LANE_CHUNK = 2048` keeps every lane below `2^16` (at most
+-- `31 · 2047`) and the decode's debit below `q` (at most `16 · 2047`).
+-- `nibN_eight` is deleted with the record lane; the headline statement is
+-- untouched again.
+#print axioms HachiEquiv.ZPacked.laneOf_pack4
+#print axioms HachiEquiv.ZPacked.pack4_laneOf
 #print axioms HachiEquiv.ZPacked.laneOf_add
+#print axioms HachiEquiv.ZPacked.add_ok
 #print axioms HachiEquiv.ZPacked.addW_cast
 #print axioms HachiEquiv.ZPacked.bias_add
 #print axioms HachiEquiv.ZPacked.bias_sub
@@ -2492,7 +2500,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZPacked.FrameR_slot
 #print axioms HachiEquiv.ZPacked.FrameR_laneRq
 #print axioms HachiEquiv.ZPacked.laneRq_zero
-#print axioms HachiEquiv.ZPacked.nibN_eight
 #print axioms HachiEquiv.ZPacked.laneRq_gain
 #print axioms HachiEquiv.ZPacked.z_spread_loop_spec
 #print axioms HachiEquiv.ZPacked.z_spread_spec
@@ -2503,6 +2510,8 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_loop0_loop0_spec
 #print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_loop0_spec
 #print axioms HachiEquiv.ZPacked.z_apply_terms_lanes_spec
+#print axioms HachiEquiv.ZPacked.z_terms_passes_loop_spec
+#print axioms HachiEquiv.ZPacked.z_terms_passes_spec
 #print axioms HachiEquiv.ZPacked.z_row_lanes_spec
 #print axioms HachiEquiv.ZPacked.z_lane_decode_loop_spec
 #print axioms HachiEquiv.ZPacked.z_lane_decode_spec
@@ -2510,6 +2519,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.ZPacked.z_lane_flush_spec
 #print axioms HachiEquiv.ZPacked.z_lane_zero_loop_spec
 #print axioms HachiEquiv.ZPacked.z_lane_zero_spec
+#print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_loop2_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_rows_spec
 #print axioms HachiEquiv.QuadEvalProtocol.lane_budget
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_32_block_loop_spec

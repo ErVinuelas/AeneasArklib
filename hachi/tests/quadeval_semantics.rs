@@ -1150,23 +1150,78 @@ fn the_fused_z_pass_equals_the_decomposed_one() {
     }
 }
 
-/// Card T47: the packed-lane constants say what their docs say, and the flush
-/// schedule is inside the lane width for any challenge -- a digit lane absorbs
-/// at most `31` per pass and the record lane exactly `16`, over at most
-/// `Z_LANE_CHUNK - 1` passes, so neither reaches `2^20`; and a short block's
-/// `OMEGA` passes fit one chunk. The lane-carry stress (2 200 one-row blocks at
-/// +-16, one mid-run flush) and a forced-flush copy were checked against the
-/// T43 champion outside the suite (ledger row, card T47): a debug build cannot
-/// afford the 2 048 blocks the real flush needs.
+/// Cards T47 and T59: the packed-lane constants say what their docs say, and
+/// the flush schedule stays inside the lane width for any challenge. Since T59
+/// there are four 16-bit lanes per word, two words per coefficient, and the
+/// record lane is gone; a per-row pass counter `cnt` (<= `Z_LANE_CHUNK - 1`)
+/// takes its place. A pass adds `16 +- d` in [1, 31] to a digit lane, so over
+/// at most `Z_LANE_CHUNK - 1` passes a lane stays below `2^16`, and since the
+/// top lane is bits 48-63, that is also the no-overflow of the u64 add. The
+/// decode's debit `16 * cnt[r]` stays below `q`. A short block's `OMEGA` passes
+/// fit one chunk. `a_real_flush_matches_the_unflushed_sum` below runs a real
+/// mid-run flush.
 #[test]
 fn the_lane_schedule_constants_hold() {
-    use hachi::quadeval::{Z_LANE_1, Z_LANE_2, Z_LANE_BIAS, Z_LANE_CHUNK, Z_LANE_MASK, Z_LANE_WORDS};
-    assert_eq!(Z_LANE_1, 1u64 << 20);
-    assert_eq!(Z_LANE_2, 1u64 << 40);
-    assert_eq!(Z_LANE_MASK, (1u64 << 20) - 1);
-    assert_eq!(Z_LANE_BIAS, 16 * (1 + Z_LANE_1 + Z_LANE_2));
-    assert_eq!(Z_LANE_WORDS * 3, 9, "three words of three lanes: eight digits and the record");
-    assert!(31 * (Z_LANE_CHUNK - 1) < (1u64 << 20), "a digit lane cannot carry");
-    assert!(16 * (Z_LANE_CHUNK - 1) < (1u64 << 20), "the record lane cannot carry");
-    assert!(Z_LANE_CHUNK > hachi::params::OMEGA, "a short block's passes fit one chunk");
+    use hachi::quadeval::{Z_LANE_1, Z_LANE_2, Z_LANE_3, Z_LANE_BIAS, Z_LANE_CHUNK, Z_LANE_MASK, Z_LANE_WORDS};
+    assert_eq!(Z_LANE_1, 1u64 << 16);
+    assert_eq!(Z_LANE_2, 1u64 << 32);
+    assert_eq!(Z_LANE_3, 1u64 << 48);
+    assert_eq!(Z_LANE_MASK, (1u64 << 16) - 1);
+    assert_eq!(Z_LANE_BIAS, 16 * (1 + Z_LANE_1 + Z_LANE_2 + Z_LANE_3));
+    assert_eq!(Z_LANE_WORDS * 4, 8, "two words of four lanes: the eight digits");
+    assert!(31 * (Z_LANE_CHUNK - 1) < (1u64 << 16), "a digit lane cannot carry");
+    assert!(16 * (Z_LANE_CHUNK - 1) < hachi::params::Q, "the decode's debit stays below q");
+    assert!(Z_LANE_CHUNK > hachi::params::OMEGA as u64, "a short block's passes fit one chunk");
+}
+
+/// Card T59: a real mid-run flush. 130 one-row blocks, each charging `OMEGA`
+/// = 16 passes against the 2 047-pass chunk, flush before block 127. Every
+/// word is `q - 1` (seven nibbles of 15) and every challenge a single `+16`,
+/// the largest a digit lane can absorb, so a flush that fired late would
+/// carry. The row's pass counter `cnt[0]` is what the decode debits; block
+/// rows beyond the first see no passes, which the per-row counter (and not a
+/// global one) gets right. The oracle is linearity over blocks.
+#[test]
+fn a_real_flush_matches_the_unflushed_sum() {
+    use hachi::linalg::RawVec32;
+    use hachi::params::{Q, RING_DEGREE};
+    let n = RING_DEGREE;
+    let blocks = 130usize;
+    let raw: Vec<hachi::linalg::PolyVec> = (0..blocks)
+        .map(|b| {
+            let cs: Vec<u64> = (0..n).map(|k| if (k + b) % 5 == 0 { Q - 2 } else { Q - 1 }).collect();
+            hachi::linalg::PolyVec::new(vec![support::rq_from_u64s(&cs)])
+        })
+        .collect();
+    let packed: Vec<RawVec32> = raw.iter().map(RawVec32::compact).collect();
+    let c = hachi::linalg::PolyVec::new(
+        (0..blocks)
+            .map(|b| {
+                let mut cs = vec![0u64; n];
+                cs[(b * 37) % n] = 16;
+                support::rq_from_u64s(&cs)
+            })
+            .collect(),
+    );
+    let got = hachi::quadeval::honest_z_from_raw_32(&packed, &c);
+    // z is a sum over blocks, and a single one-row block (16 passes) never
+    // flushes: the oracle is the sum of the 130 one-block runs
+    let mut want: Vec<hachi::ring::Rq> = Vec::new();
+    for b in 0..blocks {
+        let one = hachi::quadeval::honest_z_from_raw_32(
+            &vec![RawVec32::compact(&raw[b])],
+            &hachi::linalg::PolyVec::new(vec![c.get(b).copy()]),
+        );
+        if want.is_empty() {
+            want = (0..one.len()).map(|j| one.get(j).copy()).collect();
+        } else {
+            for j in 0..one.len() {
+                want[j] = want[j].add(one.get(j));
+            }
+        }
+    }
+    assert_eq!(got.len(), want.len());
+    for j in 0..want.len() {
+        assert!(got.get(j).equals(&want[j]), "column {j} differs after the flush");
+    }
 }

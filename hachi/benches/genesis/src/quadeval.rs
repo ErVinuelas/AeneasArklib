@@ -1979,3 +1979,29 @@ fn z_lane_zero(buf: Vec<u64>) -> Vec<u64> {
     out
 }
 
+
+// ---------------------------------------------------------------------------
+// Card T59 (2026-09-24): the two-word 16-bit z lanes' new items.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// The unit of lane `3` of a packed word, `2^48`.
+pub const Z_LANE_3: u64 = 281_474_976_710_656;
+
+/// How many passes [`z_apply_terms_lanes`] makes over one row: the sum of the
+/// magnitudes, read over the same `idx.len()` range its term loop runs.
+///
+/// At most [`params::OMEGA`] for anything [`z_terms`] returned. The block loop
+/// adds it to the counter of every row it passes (card T59), which is what
+/// [`z_lane_decode`] debits.
+fn z_terms_passes(terms: &ZTerms) -> u64 {
+    let count: usize = terms.idx.len();
+    let mut total: u64 = 0;
+    let mut t: usize = 0;
+    while t < count {
+        let m: u64 = terms.mag[t];
+        total = total + m;
+        t += 1;
+    }
+    total
+}
+

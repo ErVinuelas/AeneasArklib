@@ -1,8 +1,9 @@
 /-
-`ZPacked.lean` -- the fused z kernel on SWAR-packed digit lanes (Stage 6 card
-T47): `quadeval::z_terms`, `z_spread`, `z_pass_lanes`, `z_apply_terms_lanes`,
-`z_row_lanes`, `z_lane_decode`, `z_lane_flush` and `z_lane_zero`, the word
-level of `honest_z_from_raw_32`'s short branch.
+`ZPacked.lean` -- the fused z kernel on SWAR-packed digit lanes (Stage 6 cards
+T47, T59): `quadeval::z_terms`, `z_spread`, `z_pass_lanes`,
+`z_apply_terms_lanes`, `z_terms_passes`, `z_row_lanes`, `z_lane_decode`,
+`z_lane_flush` and `z_lane_zero`, the word level of `honest_z_from_raw_32`'s
+short branch.
 
 # What changed, and what did not
 
@@ -10,19 +11,21 @@ Card T43 made the short branch read each coefficient of a message block once
 and scatter its eight base-16 digits -- the eight *nibbles* of the word,
 because the chain's decomposer is the unsigned one and every canonical word is
 below `q < 2^32` -- into eight digit accumulators, one unreduced `u64` word per
-digit per coefficient. Card T47 packs those eight accumulators, and a ninth
-*record* lane, into three `u64` words of three 20-bit lanes each: slot
-`(r, p)` -- message row `r`, coefficient `p` -- is the three words at
-`3·(r·N + p)`, lane `e` sits in word `e / 3` at bit `20·(e % 3)`, and lane `8`
-(word 2, bit 40) is the record.
+digit per coefficient. Card T47 packed those eight accumulators into `u64`
+words of 20-bit lanes; card T59 packs them into **two** `u64` words of four
+16-bit lanes each: slot `(r, p)` -- message row `r`, coefficient `p` -- is the
+two words at `2·(r·N + p)`, and lane `e` sits in word `e / 4` at bit
+`16·(e % 4)`. There is no room left for T47's in-slot record lane.
 
 A signed update `±dₑ` would borrow across lanes, so every pass adds `16 ± dₑ`
-to lane `e`, and exactly `16` to the record -- whose "digit", the ninth nibble
-of a word below `2^32`, is `0`. The value a lane carries is therefore read as a
-*difference*, `lane_e − lane_8 = Σ ±dₑ` in `ZMod q` ([`laneD`]). The bound is
-`31` per lane per pass, which the block loop's `Z_LANE_CHUNK` schedule keeps
-below `2^20`, so a lane never carries into its neighbour: [`laneOf_add`] is the
-file's one piece of bit arithmetic.
+to lane `e`. The bias a lane has absorbed is `16` times the number of passes
+its row has taken since the last flush, which the block loop now keeps in a
+per-row counter `cnt[r]`. The value a lane carries is therefore read against
+that count, `lane_e − 16·P = Σ ±dₑ` in `ZMod q` ([`laneD`], whose `P` is the
+count). The bound is `31` per lane per pass, which the block loop's
+`Z_LANE_CHUNK` schedule keeps below `2^16`, so a lane never carries into its
+neighbour, nor out of the word: [`laneOf_add`] is the file's one piece of bit
+arithmetic.
 
 Nothing above the word level moves. The pure layer of `RingShort.lean` --
 `applied`, `passed`, `termsSum`, `descCoeffW`, `sgn`, `srcOf`/`dstOf`,
@@ -30,11 +33,11 @@ Nothing above the word level moves. The pure layer of `RingShort.lean` --
 nibble lemma [`digitK_eq_nibble`], the digit polynomial [`digitRq`] and
 [`coeff_toRq_mul_fin`]. What is new is:
 
-* the packed-word layer -- [`pack3`], [`laneOf`], [`WB`] and the no-carry lemma;
+* the packed-word layer -- [`pack4`], [`laneOf`], [`WB`] and the no-carry lemma;
 * the slot layer -- [`slotIdx`], [`slotW`], [`lane`], [`laneD`], [`laneRq`] and
   the row frame [`FrameR`] -- in place of T43's regions;
 * the per-lane pass invariant [`ProgL`] and its one-write lemma [`write_lane`]
-  (T43's `write_one`, three writes a step where there were eight).
+  (T43's `write_one`, two writes a step where there were eight).
 
 `honest_z_from_raw_32_spec`'s statement, in `QuadEvalProtocol.lean`, is carried
 over verbatim; its proof is restated on the loop specs there, which end in the
@@ -58,23 +61,27 @@ open HachiEquiv.RingShort
 
 /-! ## 1. The constants -/
 
-@[simp, scalar_tac_simps] theorem z_lane_words_val : (quadeval.Z_LANE_WORDS).val = 3 := by
+@[simp, scalar_tac_simps] theorem z_lane_words_val : (quadeval.Z_LANE_WORDS).val = 2 := by
   simp only [quadeval.Z_LANE_WORDS]; decide
 
-@[simp, scalar_tac_simps] theorem z_lane_1_val : (quadeval.Z_LANE_1).val = 1048576 := by
+@[simp, scalar_tac_simps] theorem z_lane_1_val : (quadeval.Z_LANE_1).val = 65536 := by
   simp only [quadeval.Z_LANE_1]; decide
 
-@[simp, scalar_tac_simps] theorem z_lane_2_val : (quadeval.Z_LANE_2).val = 1099511627776 := by
+@[simp, scalar_tac_simps] theorem z_lane_2_val : (quadeval.Z_LANE_2).val = 4294967296 := by
   simp only [quadeval.Z_LANE_2]; decide
 
-@[simp, scalar_tac_simps] theorem z_lane_mask_val : (quadeval.Z_LANE_MASK).val = 1048575 := by
+@[simp, scalar_tac_simps] theorem z_lane_3_val :
+    (quadeval.Z_LANE_3).val = 281474976710656 := by
+  simp only [quadeval.Z_LANE_3]; decide
+
+@[simp, scalar_tac_simps] theorem z_lane_mask_val : (quadeval.Z_LANE_MASK).val = 65535 := by
   simp only [quadeval.Z_LANE_MASK]; decide
 
 @[simp, scalar_tac_simps] theorem z_lane_bias_val :
-    (quadeval.Z_LANE_BIAS).val = 17592202821648 := by
+    (quadeval.Z_LANE_BIAS).val = 4503668347895824 := by
   simp only [quadeval.Z_LANE_BIAS]; decide
 
-@[simp, scalar_tac_simps] theorem z_lane_chunk_val : (quadeval.Z_LANE_CHUNK).val = 32768 := by
+@[simp, scalar_tac_simps] theorem z_lane_chunk_val : (quadeval.Z_LANE_CHUNK).val = 2048 := by
   simp only [quadeval.Z_LANE_CHUNK]; decide
 
 /-- `Usize.max` is at least `2^32 - 1` on either supported word size (a local
@@ -88,49 +95,55 @@ theorem u64_max_val : Std.U64.max = 18446744073709551615 := by
 
 /-! ## 2. Packed words
 
-A word is three 20-bit lanes. [`laneOf_add`] is the no-carry argument: as long
-as every lane stays below `2^20`, adding three lane increments to the word adds
-them lanewise. -/
+A word is four 16-bit lanes. [`laneOf_add`] is the no-carry argument: as long
+as every lane stays below `2^16`, adding four lane increments to the word adds
+them lanewise -- and, lane `3` being the top of the word, the sum stays a
+`u64`. -/
 
-/-- Three lanes packed in one word: `a + b·2^20 + c·2^40`. -/
-def pack3 (a b c : ℕ) : ℕ := a + b * 2 ^ 20 + c * 2 ^ 40
+/-- Four lanes packed in one word: `a + b·2^16 + c·2^32 + d·2^48`. -/
+def pack4 (a b c d : ℕ) : ℕ := a + b * 2 ^ 16 + c * 2 ^ 32 + d * 2 ^ 48
 
-/-- Lane `m` of a word: bits `[20m, 20m + 20)`. -/
-def laneOf (x m : ℕ) : ℕ := x / 2 ^ (20 * m) % 2 ^ 20
+/-- Lane `m` of a word: bits `[16m, 16m + 16)`. -/
+def laneOf (x m : ℕ) : ℕ := x / 2 ^ (16 * m) % 2 ^ 16
 
-theorem laneOf_zero (x : ℕ) : laneOf x 0 = x % 1048576 := by
+theorem laneOf_zero (x : ℕ) : laneOf x 0 = x % 65536 := by
   unfold laneOf; norm_num
 
-theorem laneOf_one (x : ℕ) : laneOf x 1 = x / 1048576 % 1048576 := by
+theorem laneOf_one (x : ℕ) : laneOf x 1 = x / 65536 % 65536 := by
   unfold laneOf; norm_num
 
-theorem laneOf_two (x : ℕ) : laneOf x 2 = x / 1099511627776 % 1048576 := by
+theorem laneOf_two (x : ℕ) : laneOf x 2 = x / 4294967296 % 65536 := by
   unfold laneOf; norm_num
 
-theorem laneOf_lt (x m : ℕ) : laneOf x m < 2 ^ 20 := Nat.mod_lt _ (by norm_num)
+theorem laneOf_three (x : ℕ) : laneOf x 3 = x / 281474976710656 % 65536 := by
+  unfold laneOf; norm_num
 
-theorem pack3_lt {a b c : ℕ} (ha : a < 2 ^ 20) (hb : b < 2 ^ 20) (hc : c < 2 ^ 20) :
-    pack3 a b c < 2 ^ 60 := by
-  unfold pack3; norm_num at ha hb hc ⊢; omega
+theorem laneOf_lt (x m : ℕ) : laneOf x m < 2 ^ 16 := Nat.mod_lt _ (by norm_num)
+
+theorem pack4_lt {a b c d : ℕ} (ha : a < 2 ^ 16) (hb : b < 2 ^ 16) (hc : c < 2 ^ 16)
+    (hd : d < 2 ^ 16) : pack4 a b c d < 2 ^ 64 := by
+  unfold pack4; norm_num at ha hb hc hd ⊢; omega
 
 /-- The lanes of a packed word are what was packed. -/
-theorem laneOf_pack3 {a b c : ℕ} (ha : a < 2 ^ 20) (hb : b < 2 ^ 20) (hc : c < 2 ^ 20) :
-    laneOf (pack3 a b c) 0 = a ∧ laneOf (pack3 a b c) 1 = b ∧ laneOf (pack3 a b c) 2 = c := by
-  rw [laneOf_zero, laneOf_one, laneOf_two]
-  unfold pack3
-  norm_num at ha hb hc ⊢
-  refine ⟨?_, ?_, ?_⟩ <;> omega
+theorem laneOf_pack4 {a b c d : ℕ} (ha : a < 2 ^ 16) (hb : b < 2 ^ 16) (hc : c < 2 ^ 16)
+    (hd : d < 2 ^ 16) :
+    laneOf (pack4 a b c d) 0 = a ∧ laneOf (pack4 a b c d) 1 = b
+      ∧ laneOf (pack4 a b c d) 2 = c ∧ laneOf (pack4 a b c d) 3 = d := by
+  rw [laneOf_zero, laneOf_one, laneOf_two, laneOf_three]
+  unfold pack4
+  norm_num at ha hb hc hd ⊢
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
 
-/-- A word below `2^60` is the packing of its three lanes. -/
-theorem pack3_laneOf {x : ℕ} (hx : x < 2 ^ 60) :
-    x = pack3 (laneOf x 0) (laneOf x 1) (laneOf x 2) := by
-  rw [laneOf_zero, laneOf_one, laneOf_two]
-  unfold pack3
+/-- A `u64`-sized word is the packing of its four lanes. -/
+theorem pack4_laneOf {x : ℕ} (hx : x < 2 ^ 64) :
+    x = pack4 (laneOf x 0) (laneOf x 1) (laneOf x 2) (laneOf x 3) := by
+  rw [laneOf_zero, laneOf_one, laneOf_two, laneOf_three]
+  unfold pack4
   norm_num at hx ⊢
   omega
 
-/-- A word with nothing above lane `2` and every lane at most `b`. -/
-def WB (x b : ℕ) : Prop := x < 2 ^ 60 ∧ ∀ m, m < 3 → laneOf x m ≤ b
+/-- A `u64`-sized word with every lane at most `b`. -/
+def WB (x b : ℕ) : Prop := x < 2 ^ 64 ∧ ∀ m, m < 4 → laneOf x m ≤ b
 
 theorem WB_mono {x b b' : ℕ} (h : WB x b) (hb : b ≤ b') : WB x b' :=
   ⟨h.1, fun m hm => le_trans (h.2 m hm) hb⟩
@@ -138,38 +151,62 @@ theorem WB_mono {x b b' : ℕ} (h : WB x b) (hb : b ≤ b') : WB x b' :=
 theorem WB_zero (b : ℕ) : WB 0 b :=
   ⟨by norm_num, fun m _ => by simp [laneOf]⟩
 
-/-- **No carry.** Three lane increments of at most `31` added to a word whose
-lanes are at most `b`, with `b + 31 < 2^20`, are added lanewise. -/
-theorem laneOf_add (x b : ℕ) (A : ℕ → ℕ) (hx : WB x b) (hA : ∀ j, j < 3 → A j ≤ 31)
-    (hb : b + 31 < 2 ^ 20) :
-    WB (x + pack3 (A 0) (A 1) (A 2)) (b + 31)
-      ∧ ∀ j, j < 3 → laneOf (x + pack3 (A 0) (A 1) (A 2)) j = laneOf x j + A j := by
-  obtain ⟨hx60, hxl⟩ := hx
+/-- **No carry.** Four lane increments of at most `31` added to a word whose
+lanes are at most `b`, with `b + 31 < 2^16`, are added lanewise. -/
+theorem laneOf_add (x b : ℕ) (A : ℕ → ℕ) (hx : WB x b) (hA : ∀ j, j < 4 → A j ≤ 31)
+    (hb : b + 31 < 2 ^ 16) :
+    WB (x + pack4 (A 0) (A 1) (A 2) (A 3)) (b + 31)
+      ∧ ∀ j, j < 4 → laneOf (x + pack4 (A 0) (A 1) (A 2) (A 3)) j = laneOf x j + A j := by
+  obtain ⟨hx64, hxl⟩ := hx
   have h0 := hxl 0 (by norm_num)
   have h1 := hxl 1 (by norm_num)
   have h2 := hxl 2 (by norm_num)
+  have h3 := hxl 3 (by norm_num)
   have a0 := hA 0 (by norm_num)
   have a1 := hA 1 (by norm_num)
   have a2 := hA 2 (by norm_num)
-  have hsum : x + pack3 (A 0) (A 1) (A 2)
-      = pack3 (laneOf x 0 + A 0) (laneOf x 1 + A 1) (laneOf x 2 + A 2) := by
-    conv_lhs => rw [pack3_laneOf hx60]
-    unfold pack3; ring
-  have hb' : b < 2 ^ 20 := by omega
-  have l0 : laneOf x 0 + A 0 < 2 ^ 20 := by omega
-  have l1 : laneOf x 1 + A 1 < 2 ^ 20 := by omega
-  have l2 : laneOf x 2 + A 2 < 2 ^ 20 := by omega
-  obtain ⟨e0, e1, e2⟩ := laneOf_pack3 l0 l1 l2
+  have a3 := hA 3 (by norm_num)
+  have hsum : x + pack4 (A 0) (A 1) (A 2) (A 3)
+      = pack4 (laneOf x 0 + A 0) (laneOf x 1 + A 1) (laneOf x 2 + A 2) (laneOf x 3 + A 3) := by
+    conv_lhs => rw [pack4_laneOf hx64]
+    unfold pack4; ring
+  have hb' : b < 2 ^ 16 := by omega
+  have l0 : laneOf x 0 + A 0 < 2 ^ 16 := by omega
+  have l1 : laneOf x 1 + A 1 < 2 ^ 16 := by omega
+  have l2 : laneOf x 2 + A 2 < 2 ^ 16 := by omega
+  have l3 : laneOf x 3 + A 3 < 2 ^ 16 := by omega
+  obtain ⟨e0, e1, e2, e3⟩ := laneOf_pack4 l0 l1 l2 l3
   rw [hsum]
-  refine ⟨⟨pack3_lt l0 l1 l2, fun m hm => ?_⟩, fun j hj => ?_⟩
-  · rcases (show m = 0 ∨ m = 1 ∨ m = 2 by omega) with h | h | h <;> subst h
+  refine ⟨⟨pack4_lt l0 l1 l2 l3, fun m hm => ?_⟩, fun j hj => ?_⟩
+  · rcases (show m = 0 ∨ m = 1 ∨ m = 2 ∨ m = 3 by omega) with h | h | h | h <;> subst h
     · rw [e0]; omega
     · rw [e1]; omega
     · rw [e2]; omega
-  · rcases (show j = 0 ∨ j = 1 ∨ j = 2 by omega) with h | h | h <;> subst h
+    · rw [e3]; omega
+  · rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 by omega) with h | h | h | h <;> subst h
     · exact e0
     · exact e1
     · exact e2
+    · exact e3
+
+/-- A `u64` add of a word with lanes at most `B` and four lane increments of at
+most `31` does not overflow, as long as `B + 31 < 2^16`: there is no slack
+above lane `3`, so this is [`laneOf_add`]'s bound, not a width argument. -/
+theorem add_ok {c B a0 a1 a2 a3 : ℕ} (hc : WB c B) (h0 : a0 ≤ 31) (h1 : a1 ≤ 31)
+    (h2 : a2 ≤ 31) (h3 : a3 ≤ 31) (hB : B + 31 < 2 ^ 16) :
+    c + pack4 a0 a1 a2 a3 ≤ Std.U64.max := by
+  obtain ⟨hc64, hcl⟩ := hc
+  have l0 := hcl 0 (by norm_num)
+  have l1 := hcl 1 (by norm_num)
+  have l2 := hcl 2 (by norm_num)
+  have l3 := hcl 3 (by norm_num)
+  have hsum : c + pack4 a0 a1 a2 a3
+      = pack4 (laneOf c 0 + a0) (laneOf c 1 + a1) (laneOf c 2 + a2) (laneOf c 3 + a3) := by
+    conv_lhs => rw [pack4_laneOf hc64]
+    unfold pack4; ring
+  have hlt := pack4_lt (a := laneOf c 0 + a0) (b := laneOf c 1 + a1) (c := laneOf c 2 + a2)
+    (d := laneOf c 3 + a3) (by omega) (by omega) (by omega) (by omega)
+  rw [hsum, u64_max_val]; norm_num at hlt; omega
 
 /-! ## 3. The bias
 
@@ -193,76 +230,79 @@ theorem addW_cast (pos : Bool) {d : ℕ} (hd : d ≤ 16) :
     simp only [Bool.false_eq_true, if_false]
     rw [Nat.cast_sub hd]; push_cast; ring
 
-theorem bias_add (a b c : ℕ) :
-    17592202821648 + pack3 a b c = pack3 (16 + a) (16 + b) (16 + c) := by
-  unfold pack3; norm_num; ring
+theorem bias_add (a b c d : ℕ) :
+    4503668347895824 + pack4 a b c d = pack4 (16 + a) (16 + b) (16 + c) (16 + d) := by
+  unfold pack4; ring
 
-theorem bias_sub {a b c : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) :
-    17592202821648 - pack3 a b c = pack3 (16 - a) (16 - b) (16 - c) := by
-  unfold pack3; norm_num; omega
+theorem bias_sub {a b c d : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) (hd : d ≤ 16) :
+    4503668347895824 - pack4 a b c d = pack4 (16 - a) (16 - b) (16 - c) (16 - d) := by
+  unfold pack4; norm_num; omega
 
-theorem pack3_le_bias {a b c : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) :
-    pack3 a b c ≤ 17592202821648 := by
-  unfold pack3; norm_num; omega
+theorem pack4_le_bias {a b c d : ℕ} (ha : a ≤ 16) (hb : b ≤ 16) (hc : c ≤ 16) (hd : d ≤ 16) :
+    pack4 a b c d ≤ 4503668347895824 := by
+  unfold pack4; norm_num; omega
 
 /-- The low run's addend: `BIAS − s` for a negative term, `BIAS + s` for a
 positive one. -/
-theorem addend_lo_spec (negt : Bool) (s : Std.U64) {a b c : ℕ} (hs : s.val = pack3 a b c)
-    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
+theorem addend_lo_spec (negt : Bool) (s : Std.U64) {a b c d : ℕ} (hs : s.val = pack4 a b c d)
+    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) (hd : d ≤ 15) :
     (if negt then quadeval.Z_LANE_BIAS - s else quadeval.Z_LANE_BIAS + s)
-      ⦃ r => r.val = pack3 (addW (!negt) a) (addW (!negt) b) (addW (!negt) c) ⦄ := by
-  have hle := pack3_le_bias (a := a) (b := b) (c := c) (by omega) (by omega) (by omega)
+      ⦃ r => r.val = pack4 (addW (!negt) a) (addW (!negt) b) (addW (!negt) c)
+        (addW (!negt) d) ⦄ := by
+  have hle := pack4_le_bias (a := a) (b := b) (c := c) (d := d)
+    (by omega) (by omega) (by omega) (by omega)
   rcases negt with _ | _
   · simp only [Bool.false_eq_true, if_false]
     have hadd : (quadeval.Z_LANE_BIAS).val + s.val ≤ Std.U64.max := by
-      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack3; norm_num; omega
+      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack4; norm_num; omega
     step as ⟨r, hr⟩
     rw [hr, z_lane_bias_val, hs, bias_add]
     rfl
   · simp only [if_true]
     have hsub : s.val ≤ (quadeval.Z_LANE_BIAS).val := by rw [z_lane_bias_val, hs]; exact hle
     step as ⟨r, hr⟩
-    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega)]
+    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega) (by omega)]
     rfl
 
 /-- The high run's addend: the sign flipped by the wrap. -/
-theorem addend_hi_spec (negt : Bool) (s : Std.U64) {a b c : ℕ} (hs : s.val = pack3 a b c)
-    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
+theorem addend_hi_spec (negt : Bool) (s : Std.U64) {a b c d : ℕ} (hs : s.val = pack4 a b c d)
+    (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) (hd : d ≤ 15) :
     (if negt then quadeval.Z_LANE_BIAS + s else quadeval.Z_LANE_BIAS - s)
-      ⦃ r => r.val = pack3 (addW negt a) (addW negt b) (addW negt c) ⦄ := by
-  have hle := pack3_le_bias (a := a) (b := b) (c := c) (by omega) (by omega) (by omega)
+      ⦃ r => r.val = pack4 (addW negt a) (addW negt b) (addW negt c) (addW negt d) ⦄ := by
+  have hle := pack4_le_bias (a := a) (b := b) (c := c) (d := d)
+    (by omega) (by omega) (by omega) (by omega)
   rcases negt with _ | _
   · simp only [Bool.false_eq_true, if_false]
     have hsub : s.val ≤ (quadeval.Z_LANE_BIAS).val := by rw [z_lane_bias_val, hs]; exact hle
     step as ⟨r, hr⟩
-    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega)]
+    rw [hr, z_lane_bias_val, hs, bias_sub (by omega) (by omega) (by omega) (by omega)]
     rfl
   · simp only [if_true]
     have hadd : (quadeval.Z_LANE_BIAS).val + s.val ≤ Std.U64.max := by
-      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack3; norm_num; omega
+      rw [z_lane_bias_val, hs, u64_max_val]; unfold pack4; norm_num; omega
     step as ⟨r, hr⟩
     rw [hr, z_lane_bias_val, hs, bias_add]
     rfl
 
 /-! ## 4. Slots, lanes and the row frame
 
-The accumulator is one `Vec Std.U64`; slot `(r, p)` is its three words at
-`3·(r·N + p)`. Lane `e < 8` of the slot holds digit `e`'s biased sum, lane `8`
-the record, and [`laneD`] their difference is the value. -/
+The accumulator is one `Vec Std.U64`; slot `(r, p)` is its two words at
+`2·(r·N + p)`. Lane `e < 8` of the slot holds digit `e`'s biased sum, and
+[`laneD`] -- the lane less `16·P`, `P` the row's pass count -- is the value. -/
 
 /-- Index of word `l` of slot `(r, p)`. -/
-def slotIdx (r p l : ℕ) : ℕ := 3 * (r * N + p) + l
+def slotIdx (r p l : ℕ) : ℕ := 2 * (r * N + p) + l
 
 /-- Two slot addresses coincide only when row, coefficient and word do. -/
-theorem slot_index_inj {r r' p p' l l' : ℕ} (hp : p < N) (hp' : p' < N) (hl : l < 3)
-    (hl' : l' < 3) (h : slotIdx r p l = slotIdx r' p' l') : r = r' ∧ p = p' ∧ l = l' := by
+theorem slot_index_inj {r r' p p' l l' : ℕ} (hp : p < N) (hp' : p' < N) (hl : l < 2)
+    (hl' : l' < 2) (h : slotIdx r p l = slotIdx r' p' l') : r = r' ∧ p = p' ∧ l = l' := by
   have hN : N = 1024 := rfl
   unfold slotIdx at h
   rw [hN] at h hp hp'
   omega
 
-theorem slotIdx_lt {r p l len : ℕ} (hp : p < N) (hl : l < 3)
-    (hcap : 3 * ((r + 1) * N) ≤ len) : slotIdx r p l < len := by
+theorem slotIdx_lt {r p l len : ℕ} (hp : p < N) (hl : l < 2)
+    (hcap : 2 * ((r + 1) * N) ≤ len) : slotIdx r p l < len := by
   have hN : N = 1024 := rfl
   unfold slotIdx
   rw [hN] at hp hcap ⊢
@@ -281,22 +321,21 @@ theorem slotW_set_ne {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64
     slotW (buf.set tU x) r p l = slotW buf r p l := by
   unfold slotW; exact bufN_set_ne hne
 
-/-- Lane `e` of slot `(r, p)`: word `e / 3`, bits `20·(e % 3)`. Lane `8` is the
-record. -/
-def lane (z : alloc.vec.Vec Std.U64) (r p e : ℕ) : ℕ := laneOf (slotW z r p (e / 3)) (e % 3)
+/-- Lane `e` of slot `(r, p)`: word `e / 4`, bits `16·(e % 4)`. -/
+def lane (z : alloc.vec.Vec Std.U64) (r p e : ℕ) : ℕ := laneOf (slotW z r p (e / 4)) (e % 4)
 
-/-- The value lane `e` of slot `(r, p)` carries: the lane less the record, in
-`ZMod q`. -/
-def laneD (z : alloc.vec.Vec Std.U64) (r p e : ℕ) : ZMod q :=
-  ((lane z r p e : ℕ) : ZMod q) - ((lane z r p 8 : ℕ) : ZMod q)
+/-- The value lane `e` of slot `(r, p)` carries when its row has taken `P`
+passes since the last flush: the lane less the bias `16·P`, in `ZMod q`. -/
+def laneD (z : alloc.vec.Vec Std.U64) (P r p e : ℕ) : ZMod q :=
+  ((lane z r p e : ℕ) : ZMod q) - 16 * ((P : ℕ) : ZMod q)
 
-/-- Digit `e`'s accumulator of row `r`, as a ring element. -/
-def laneRq (z : alloc.vec.Vec Std.U64) (r e : ℕ) : Rq Φ :=
-  Rq.ofFinCoeff Φ N (fun p => laneD z r p e)
+/-- Digit `e`'s accumulator of row `r`, at pass count `P`, as a ring element. -/
+def laneRq (z : alloc.vec.Vec Std.U64) (P r e : ℕ) : Rq Φ :=
+  Rq.ofFinCoeff Φ N (fun p => laneD z P r p e)
 
 /-- Words outside row `r0`'s slots agree. -/
 def FrameR (buf z : alloc.vec.Vec Std.U64) (r0 : ℕ) : Prop :=
-  ∀ t, (∀ p, p < N → ∀ l, l < 3 → t ≠ slotIdx r0 p l) → bufN z t = bufN buf t
+  ∀ t, (∀ p, p < N → ∀ l, l < 2 → t ≠ slotIdx r0 p l) → bufN z t = bufN buf t
 
 theorem FrameR_refl (buf : alloc.vec.Vec Std.U64) (r0 : ℕ) : FrameR buf buf r0 :=
   fun _ _ => rfl
@@ -307,7 +346,7 @@ theorem FrameR_trans {a b c : alloc.vec.Vec Std.U64} {r0 : ℕ}
 
 /-- The frame is preserved by a write inside one of the row's slots. -/
 theorem FrameR_set {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
-    {tU : Std.Usize} {x : Std.U64} {p l : ℕ} (hp : p < N) (hl : l < 3)
+    {tU : Std.Usize} {x : Std.U64} {p l : ℕ} (hp : p < N) (hl : l < 2)
     (ht : tU.val = slotIdx r0 p l) : FrameR buf (z.set tU x) r0 := by
   intro t htn
   rw [bufN_set_ne (by intro hc; exact htn p hp l hl (by rw [hc, ht]))]
@@ -315,22 +354,23 @@ theorem FrameR_set {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z 
 
 /-- Another row's slot is read unchanged through the frame. -/
 theorem FrameR_slot {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
-    {r p l : ℕ} (hr : r ≠ r0) (hp : p < N) (hl : l < 3) : slotW z r p l = slotW buf r p l := by
+    {r p l : ℕ} (hr : r ≠ r0) (hp : p < N) (hl : l < 2) : slotW z r p l = slotW buf r p l := by
   unfold slotW
   apply h
   intro p' hp' l' hl' hc
   exact hr (slot_index_inj hp hp' hl hl' hc).1
 
 theorem FrameR_laneRq {buf z : alloc.vec.Vec Std.U64} {r0 : ℕ} (h : FrameR buf z r0)
-    {r : ℕ} (hr : r ≠ r0) (e : ℕ) (he : e < 8) : laneRq z r e = laneRq buf r e := by
+    {r : ℕ} (hr : r ≠ r0) (P e : ℕ) (he : e < 8) : laneRq z P r e = laneRq buf P r e := by
   unfold laneRq
   refine ofFinCoeff_congr (fun p hp => ?_)
   unfold laneD lane
-  rw [FrameR_slot h hr hp (by omega), FrameR_slot h hr hp (by norm_num)]
+  rw [FrameR_slot h hr hp (by omega)]
 
-/-- A slot run of zeros is the zero ring element, lane by lane. -/
+/-- A slot run of zeros, at pass count `0`, is the zero ring element, lane by
+lane. -/
 theorem laneRq_zero (buf : alloc.vec.Vec Std.U64) (r e : ℕ) (he : e < 8)
-    (h : ∀ p, p < N → ∀ l, l < 3 → slotW buf r p l = 0) : laneRq buf r e = 0 := by
+    (h : ∀ p, p < N → ∀ l, l < 2 → slotW buf r p l = 0) : laneRq buf 0 r e = 0 := by
   unfold laneRq
   apply Subtype.ext
   rw [CompPoly.CPolynomial.eq_iff_coeff]
@@ -339,7 +379,7 @@ theorem laneRq_zero (buf : alloc.vec.Vec Std.U64) (r e : ℕ) (he : e < 8)
   by_cases hk : k < N
   · rw [if_pos hk]
     unfold laneD lane
-    rw [h k hk 2 (by norm_num), h k hk (e / 3) (by omega)]
+    rw [h k hk (e / 4) (by omega)]
     simp [laneOf]
   · rw [if_neg hk]
 
@@ -475,22 +515,15 @@ def nibN (row : ring.Rq) (e i : ℕ) : ℕ := wordN row i / 16 ^ e % 16
 theorem nibN_le (row : ring.Rq) (e i : ℕ) : nibN row e i ≤ 15 :=
   Nat.le_of_lt_succ (Nat.mod_lt _ (by norm_num))
 
-/-- The ninth nibble of a canonical word is `0`: the record lane's "digit". -/
-theorem nibN_eight (row : ring.Rq) (hrow : Wf row) (i : ℕ) : nibN row 8 i = 0 := by
-  unfold nibN
-  have h := wordN_lt hrow i
-  have hq : q = 4294967197 := rfl
-  rw [hq] at h
-  rw [Nat.div_eq_of_lt (by norm_num; omega)]
-
 /-- **A row's digit accumulator that gained the fused product, at the `Rq`
-level.** If lane `e` of row `r` of `z` carries lane `e` of `buf` plus
-`negConvF (coeffK ci) (nib row e)` coefficientwise, then as ring elements it
-gained `toRq ci * digitRq row e`. -/
-theorem laneRq_gain (z buf : alloc.vec.Vec Std.U64) (r : ℕ) (ci row : ring.Rq)
+level.** If lane `e` of row `r` of `z`, read at pass count `P'`, carries lane
+`e` of `buf` read at count `P`, plus `negConvF (coeffK ci) (nib row e)`
+coefficientwise, then as ring elements it gained `toRq ci * digitRq row e`. -/
+theorem laneRq_gain (z buf : alloc.vec.Vec Std.U64) (P P' r : ℕ) (ci row : ring.Rq)
     (hci : Wf ci) (hrow : Wf row) (e : ℕ)
-    (h : ∀ p, p < N → laneD z r p e = laneD buf r p e + negConvF (coeffK ci) (nib row e) p) :
-    laneRq z r e = laneRq buf r e + toRq ci * digitRq row e := by
+    (h : ∀ p, p < N →
+      laneD z P' r p e = laneD buf P r p e + negConvF (coeffK ci) (nib row e) p) :
+    laneRq z P' r e = laneRq buf P r e + toRq ci * digitRq row e := by
   apply Subtype.ext
   rw [CompPoly.CPolynomial.eq_iff_coeff]
   intro k
@@ -506,15 +539,15 @@ theorem laneRq_gain (z buf : alloc.vec.Vec Std.U64) (r : ℕ) (ci row : ring.Rq)
 
 /-! ## 6. `z_spread`: a row's digits, packed once
 
-Word `l` of coefficient `i` is `pack3` of digits `3l, 3l + 1, 3l + 2`. Digit `8`
-is `0` ([`nibN_eight`]), so word `2` is `d₆ + d₇·2^20` exactly as the Rust
-writes it, and every word has the same shape. -/
+Word `l` of coefficient `i` is `pack4` of digits `4l, 4l + 1, 4l + 2, 4l + 3`,
+exactly as the Rust writes it. -/
 
-/-- `src` holds, at `3i + l`, the packed digits `3l, 3l + 1, 3l + 2` of `D` at
+/-- `src` holds, at `2i + l`, the packed digits `4l, …, 4l + 3` of `D` at
 coefficient `i`. -/
 def SpreadOf (src : alloc.vec.Vec Std.U64) (D : ℕ → ℕ → ℕ) : Prop :=
-  src.val.length = 3 * N ∧ ∀ i, i < N → ∀ l, l < 3 →
-    bufN src (3 * i + l) = pack3 (D (3 * l) i) (D (3 * l + 1) i) (D (3 * l + 2) i)
+  src.val.length = 2 * N ∧ ∀ i, i < N → ∀ l, l < 2 →
+    bufN src (2 * i + l)
+      = pack4 (D (4 * l) i) (D (4 * l + 1) i) (D (4 * l + 2) i) (D (4 * l + 3) i)
 
 theorem bufN_push_lt {v v' : alloc.vec.Vec Std.U64} {x : Std.U64} (h : v'.val = v.val ++ [x])
     {t : ℕ} (ht : t < v.val.length) : bufN v' t = bufN v t := by
@@ -525,18 +558,20 @@ theorem bufN_push_eq {v v' : alloc.vec.Vec Std.U64} {x : Std.U64} (h : v'.val = 
   unfold bufN; rw [h, getD_append_eq]
 
 set_option maxHeartbeats 2000000 in
-/-- The spread loop: coefficient by coefficient, three packed words each. -/
+/-- The spread loop: coefficient by coefficient, two packed words each. -/
 theorem z_spread_loop_spec (row : ring.Rq) (nU : Std.Usize) (out : alloc.vec.Vec Std.U64)
     (iU : Std.Usize) (hrow : Wf row) (hn : nU.val = N) (hi : iU.val ≤ N)
-    (hlen : out.val.length = 3 * iU.val)
-    (hval : ∀ i, i < iU.val → ∀ l, l < 3 → bufN out (3 * i + l)
-      = pack3 (nibN row (3 * l) i) (nibN row (3 * l + 1) i) (nibN row (3 * l + 2) i)) :
+    (hlen : out.val.length = 2 * iU.val)
+    (hval : ∀ i, i < iU.val → ∀ l, l < 2 → bufN out (2 * i + l)
+      = pack4 (nibN row (4 * l) i) (nibN row (4 * l + 1) i) (nibN row (4 * l + 2) i)
+          (nibN row (4 * l + 3) i)) :
     quadeval.z_spread_loop row nU out iU ⦃ z => SpreadOf z (nibN row) ⦄ := by
   rw [quadeval.z_spread_loop]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
-    (fun t => t.2.val ≤ N ∧ t.1.val.length = 3 * t.2.val
-      ∧ ∀ i, i < t.2.val → ∀ l, l < 3 → bufN t.1 (3 * i + l)
-          = pack3 (nibN row (3 * l) i) (nibN row (3 * l + 1) i) (nibN row (3 * l + 2) i))
+    (fun t => t.2.val ≤ N ∧ t.1.val.length = 2 * t.2.val
+      ∧ ∀ i, i < t.2.val → ∀ l, l < 2 → bufN t.1 (2 * i + l)
+          = pack4 (nibN row (4 * l) i) (nibN row (4 * l + 1) i) (nibN row (4 * l + 2) i)
+              (nibN row (4 * l + 3) i))
   · rintro ⟨ws, ii⟩ ⟨hii, hwl, hwv⟩
     dsimp only at hii hwl hwv
     simp only [quadeval.z_spread_loop.body]
@@ -569,65 +604,65 @@ theorem z_spread_loop_spec (row : ring.Rq) (nU : Std.Usize) (out : alloc.vec.Vec
       have hd5v : d5.val = nibN row 5 ii.val := by unfold nibN; rw [hd5, hq5, hxv]; norm_num
       have hd6v : d6.val = nibN row 6 ii.val := by unfold nibN; rw [hd6, hq6, hxv]; norm_num
       have hd7v : d7.val = nibN row 7 ii.val := by unfold nibN; rw [hd7, hq7, hxv]; norm_num
+      have hb0 := nibN_le row 0 ii.val
       have hb1 := nibN_le row 1 ii.val
       have hb2 := nibN_le row 2 ii.val
+      have hb3 := nibN_le row 3 ii.val
       have hb4 := nibN_le row 4 ii.val
       have hb5 := nibN_le row 5 ii.val
-      have hb7 := nibN_le row 7 ii.val
-      have hb0 := nibN_le row 0 ii.val
-      have hb3 := nibN_le row 3 ii.val
       have hb6 := nibN_le row 6 ii.val
+      have hb7 := nibN_le row 7 ii.val
       step as ⟨i8, hi8⟩
       step as ⟨i9, hi9⟩
       step as ⟨i10, hi10⟩
-      step as ⟨s0, hs0⟩
       step as ⟨i11, hi11⟩
       step as ⟨i12, hi12⟩
+      step as ⟨s0, hs0⟩
       step as ⟨i13, hi13⟩
-      step as ⟨s1, hs1⟩
       step as ⟨i14, hi14⟩
-      step as ⟨s2, hs2⟩
-      have hs0v : s0.val = pack3 (nibN row 0 ii.val) (nibN row 1 ii.val) (nibN row 2 ii.val) := by
-        rw [hs0, hi9, hi10, hi8, z_lane_1_val, z_lane_2_val, hd0v, hd1v, hd2v]; unfold pack3; norm_num
-      have hs1v : s1.val = pack3 (nibN row 3 ii.val) (nibN row 4 ii.val) (nibN row 5 ii.val) := by
-        rw [hs1, hi12, hi13, hi11, z_lane_1_val, z_lane_2_val, hd3v, hd4v, hd5v]; unfold pack3; norm_num
-      have hs2v : s2.val = pack3 (nibN row 6 ii.val) (nibN row 7 ii.val) (nibN row 8 ii.val) := by
-        rw [hs2, hi14, z_lane_1_val, hd6v, hd7v, nibN_eight row hrow]; unfold pack3; norm_num
-      have hmax : ws.val.length + 3 ≤ Std.Usize.max := by
+      step as ⟨i15, hi15⟩
+      step as ⟨i16, hi16⟩
+      step as ⟨i17, hi17⟩
+      step as ⟨s1, hs1⟩
+      have hs0v : s0.val = pack4 (nibN row 0 ii.val) (nibN row 1 ii.val) (nibN row 2 ii.val)
+          (nibN row 3 ii.val) := by
+        rw [hs0, hi11, hi12, hi9, hi10, hi8, z_lane_1_val, z_lane_2_val, z_lane_3_val, hd0v,
+          hd1v, hd2v, hd3v]
+        unfold pack4; norm_num
+      have hs1v : s1.val = pack4 (nibN row 4 ii.val) (nibN row 5 ii.val) (nibN row 6 ii.val)
+          (nibN row 7 ii.val) := by
+        rw [hs1, hi16, hi17, hi14, hi15, hi13, z_lane_1_val, z_lane_2_val, z_lane_3_val, hd4v,
+          hd5v, hd6v, hd7v]
+        unfold pack4; norm_num
+      have hmax : ws.val.length + 2 ≤ Std.Usize.max := by
         rw [hwl]; have := usize_max_ge; have h3 : N = 1024 := rfl; omega
       step as ⟨o1, ho1⟩
       have hl1 : o1.val.length = ws.val.length + 1 := by rw [ho1]; simp
       have hm1 : o1.val.length < Std.Usize.max := by omega
       step as ⟨o2, ho2⟩
-      have hl2 : o2.val.length = ws.val.length + 2 := by rw [ho2, List.length_append, hl1]; simp
-      have hm2 : o2.val.length < Std.Usize.max := by omega
-      step as ⟨o3, ho3⟩
       step as ⟨ii1, hii1⟩
       refine ⟨by omega, ?_, ?_, by omega⟩
-      · rw [ho3, List.length_append, hl2, hwl, hii1]; simp; ring
+      · rw [ho2, List.length_append, hl1, hwl, hii1, List.length_singleton]; ring
       · intro i hi l hl
         rw [hii1] at hi
         rcases Nat.lt_or_ge i ii.val with hlt2 | hge
-        · have hidx : 3 * i + l < ws.val.length := by rw [hwl]; omega
-          rw [bufN_push_lt ho3 (by omega), bufN_push_lt ho2 (by omega), bufN_push_lt ho1 hidx]
+        · have hidx : 2 * i + l < ws.val.length := by rw [hwl]; omega
+          rw [bufN_push_lt ho2 (by omega), bufN_push_lt ho1 hidx]
           exact hwv i hlt2 l hl
         · have hieq : i = ii.val := by omega
           subst hieq
-          rcases (show l = 0 ∨ l = 1 ∨ l = 2 by omega) with h | h | h <;> subst h
-          · have h0 : 3 * ii.val + 0 = ws.val.length := by omega
-            rw [h0, bufN_push_lt ho3 (by omega), bufN_push_lt ho2 (by omega), bufN_push_eq ho1,
-              hs0v]
-          · have h0 : 3 * ii.val + 1 = o1.val.length := by omega
-            rw [h0, bufN_push_lt ho3 (by omega), bufN_push_eq ho2, hs1v]
-          · have h0 : 3 * ii.val + 2 = o2.val.length := by omega
-            rw [h0, bufN_push_eq ho3, hs2v]
+          rcases (show l = 0 ∨ l = 1 by omega) with h | h <;> subst h
+          · have h0 : 2 * ii.val + 0 = ws.val.length := by omega
+            rw [h0, bufN_push_lt ho2 (by omega), bufN_push_eq ho1, hs0v]
+          · have h0 : 2 * ii.val + 1 = o1.val.length := by omega
+            rw [h0, bufN_push_eq ho2, hs1v]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = N := by rw [← hn]; scalar_tac
       exact ⟨by rw [hwl, heq], fun i hi l hl => hwv i (by rw [heq]; exact hi) l hl⟩
   · exact ⟨hi, hlen, hval⟩
 
-/-- **`z_spread`.** The row's digits, packed three to a word, three words to a
+/-- **`z_spread`.** The row's digits, packed four to a word, two words to a
 coefficient. -/
 theorem z_spread_spec (row : ring.Rq) (hrow : Wf row) :
     quadeval.z_spread row ⦃ src => SpreadOf src (nibN row) ⦄ := by
@@ -641,9 +676,10 @@ theorem z_spread_spec (row : ring.Rq) (hrow : Wf row) :
 
 The invariant is per lane: lane `e` of slot `(r0, w)` has gained
 `16 + sgn · Dₑ(srcOf k w)` once source index `srcOf k w` has been processed
-([`appliedB`]). The record's digit `D 8` is `0`, so it gains exactly `16`, and
-the difference [`laneD`] ends up with `applied`'s signed digit -- the same pure
-function T43's regions and `short_pass_off` were proved against. -/
+([`appliedB`]). A pass touches every slot of the row once, so the row's count
+goes up by one, and [`laneD`] read at the new count ends up with `applied`'s
+signed digit -- the same pure function T43's regions and `short_pass_off` were
+proved against. -/
 
 /-- `applied` with the bias: every processed position also gained `16`. -/
 def appliedB (base sc : ℕ → ZMod q) (k : ℕ) (negt : Bool) (i : ℕ) : ℕ → ZMod q :=
@@ -680,20 +716,20 @@ theorem ite_src_skip {s ii : ℕ} (h : s ≠ ii) (c : Prop) [Decidable c] {α : 
 /-- The digits of `D`, in `ZMod q`. -/
 def dgZ (D : ℕ → ℕ → ℕ) (e : ℕ) : ℕ → ZMod q := fun i => ((D e i : ℕ) : ZMod q)
 
-/-- **Progress through one step's three writes.** Words `l < m` of the step's
+/-- **Progress through one step's two writes.** Words `l < m` of the step's
 slot have absorbed source index `ii`, words `l ≥ m` have not; every other slot
-is at `ii`. At `m = 0` this is the loop invariant at `ii`; at `m = 3` it is the
-invariant at `ii + 1` ([`ProgL_three`]). -/
+is at `ii`. At `m = 0` this is the loop invariant at `ii`; at `m = 2` it is the
+invariant at `ii + 1` ([`ProgL_two`]). -/
 def ProgL (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt : Bool) (r0 : ℕ) (base : ℕ → ℕ → ZMod q)
     (B ii m : ℕ) (z : alloc.vec.Vec Std.U64) : Prop :=
   ∀ p, p < N →
-    (∀ l, l < 3 → WB (slotW z r0 p l)
+    (∀ l, l < 2 → WB (slotW z r0 p l)
         (if srcOf kk p < (if l < m then ii + 1 else ii) then B + 31 else B))
-    ∧ ∀ e, e < 9 → ((lane z r0 p e : ℕ) : ZMod q)
-        = appliedB (base e) (dgZ D e) kk negt (if e / 3 < m then ii + 1 else ii) p
+    ∧ ∀ e, e < 8 → ((lane z r0 p e : ℕ) : ZMod q)
+        = appliedB (base e) (dgZ D e) kk negt (if e / 4 < m then ii + 1 else ii) p
 
-theorem ProgL_three {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ} {base : ℕ → ℕ → ZMod q}
-    {B ii : ℕ} {z : alloc.vec.Vec Std.U64} (h : ProgL D kk negt r0 base B ii 3 z) :
+theorem ProgL_two {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ} {base : ℕ → ℕ → ZMod q}
+    {B ii : ℕ} {z : alloc.vec.Vec Std.U64} (h : ProgL D kk negt r0 base B ii 2 z) :
     ProgL D kk negt r0 base B (ii + 1) 0 z := by
   intro p hp
   obtain ⟨hb, hv⟩ := h p hp
@@ -710,33 +746,34 @@ theorem ProgL_three {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ
 /-- The step's current word is still within `B`. -/
 theorem ProgL_cur {D : ℕ → ℕ → ℕ} {kk : ℕ} {negt : Bool} {r0 : ℕ} {base : ℕ → ℕ → ZMod q}
     {B ii m : ℕ} {d : alloc.vec.Vec Std.U64} (hprog : ProgL D kk negt r0 base B ii m d)
-    (hk : kk < N) (hii : ii < N) (hm : m < 3) : WB (slotW d r0 (dstOf kk ii) m) B := by
+    (hk : kk < N) (hii : ii < N) (hm : m < 2) : WB (slotW d r0 (dstOf kk ii) m) B := by
   have := (hprog (dstOf kk ii) (dstOf_lt hk hii)).1 m hm
   rwa [if_neg (Nat.lt_irrefl m), srcOf_dstOf hk hii, if_neg (Nat.lt_irrefl ii)] at this
 
-/-- **One write** of the three: word `m` of slot `(r0, dstOf kk ii)` gains the
+/-- **One write** of the two: word `m` of slot `(r0, dstOf kk ii)` gains the
 biased signed digits, lanewise and without carry; every other word is
 untouched. -/
 theorem write_lane (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt pos : Bool) (r0 : ℕ)
     (base : ℕ → ℕ → ZMod q) (B ii m : ℕ) (d : alloc.vec.Vec Std.U64)
     (wU : Std.Usize) (aU nvU : Std.U64)
-    (hk : kk < N) (hii : ii < N) (hm : m < 3) (hB : B + 31 < 2 ^ 20)
+    (hk : kk < N) (hii : ii < N) (hm : m < 2) (hB : B + 31 < 2 ^ 16)
     (hD : ∀ e i, D e i ≤ 15)
     (hpos : sgn negt kk (dstOf kk ii) = if pos then 1 else -1)
     (hprog : ProgL D kk negt r0 base B ii m d)
     (hwv : wU.val = slotIdx r0 (dstOf kk ii) m) (hwlt : wU.val < d.val.length)
-    (hav : aU.val = pack3 (addW pos (D (3 * m) ii)) (addW pos (D (3 * m + 1) ii))
-      (addW pos (D (3 * m + 2) ii)))
+    (hav : aU.val = pack4 (addW pos (D (4 * m) ii)) (addW pos (D (4 * m + 1) ii))
+      (addW pos (D (4 * m + 2) ii)) (addW pos (D (4 * m + 3) ii)))
     (hnvv : nvU.val = slotW d r0 (dstOf kk ii) m + aU.val) :
     ProgL D kk negt r0 base B ii (m + 1) (d.set wU nvU) := by
   have hdst : dstOf kk ii < N := dstOf_lt hk hii
   have hsrc : srcOf kk (dstOf kk ii) = ii := srcOf_dstOf hk hii
-  have hAle : ∀ j, j < 3 → (fun j => addW pos (D (3 * m + j) ii)) j ≤ 31 :=
+  have hAle : ∀ j, j < 4 → (fun j => addW pos (D (4 * m + j) ii)) j ≤ 31 :=
     fun j _ => addW_le pos (hD _ _)
-  have hav' : aU.val = pack3 ((fun j => addW pos (D (3 * m + j) ii)) 0)
-      ((fun j => addW pos (D (3 * m + j) ii)) 1) ((fun j => addW pos (D (3 * m + j) ii)) 2) := by
+  have hav' : aU.val = pack4 ((fun j => addW pos (D (4 * m + j) ii)) 0)
+      ((fun j => addW pos (D (4 * m + j) ii)) 1) ((fun j => addW pos (D (4 * m + j) ii)) 2)
+      ((fun j => addW pos (D (4 * m + j) ii)) 3) := by
     rw [hav]; simp only [Nat.add_zero]
-  obtain ⟨hnewB, hnewL⟩ := laneOf_add _ B (fun j => addW pos (D (3 * m + j) ii))
+  obtain ⟨hnewB, hnewL⟩ := laneOf_add _ B (fun j => addW pos (D (4 * m + j) ii))
     (ProgL_cur hprog hk hii hm) hAle hB
   intro p hp
   obtain ⟨hb, hv⟩ := hprog p hp
@@ -755,21 +792,21 @@ theorem write_lane (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt pos : Bool) (r0 : 
         · rw [if_neg hlt] at this; rw [if_neg (show ¬ (l < m + 1) by omega)]; exact this
     · have hv' := hv e he
       unfold lane at hv' ⊢
-      by_cases hem : e / 3 = m
+      by_cases hem : e / 4 = m
       · rw [hem] at hv' ⊢
         rw [if_neg (Nat.lt_irrefl m)] at hv'
-        rw [slotW_set_eq hwv hwlt, hnvv, hav', hnewL (e % 3) (Nat.mod_lt _ (by norm_num)),
+        rw [slotW_set_eq hwv hwlt, hnvv, hav', hnewL (e % 4) (Nat.mod_lt _ (by norm_num)),
           if_pos (Nat.lt_succ_self m), appliedB_succ, hsrc, if_pos rfl, Nat.cast_add, hv']
-        have he3 : 3 * m + e % 3 = e := by omega
-        simp only [he3]
+        have he4 : 4 * m + e % 4 = e := by omega
+        simp only [he4]
         rw [addW_cast pos (by have := hD e ii; omega), hpos]
         rfl
       · rw [slotW_set_ne (by
           rw [hwv]; intro hc; exact hem (slot_index_inj hp hp (by omega) hm hc).2.2)]
-        by_cases hlt : e / 3 < m
-        · rw [if_pos hlt] at hv'; rw [if_pos (show e / 3 < m + 1 by omega)]; exact hv'
-        · rw [if_neg hlt] at hv'; rw [if_neg (show ¬ (e / 3 < m + 1) by omega)]; exact hv'
-  · have hne : ∀ l, l < 3 → slotIdx r0 p l ≠ wU.val := by
+        by_cases hlt : e / 4 < m
+        · rw [if_pos hlt] at hv'; rw [if_pos (show e / 4 < m + 1 by omega)]; exact hv'
+        · rw [if_neg hlt] at hv'; rw [if_neg (show ¬ (e / 4 < m + 1) by omega)]; exact hv'
+  · have hne : ∀ l, l < 2 → slotIdx r0 p l ≠ wU.val := by
       intro l hl hc; rw [hwv] at hc; exact hpd (slot_index_inj hp hdst hl hm hc).2.1
     have hsne : srcOf kk p ≠ ii := by
       intro hc; exact hpd (by rw [← hc, dstOf_srcOf hk hp])
@@ -782,17 +819,6 @@ theorem write_lane (D : ℕ → ℕ → ℕ) (kk : ℕ) (negt pos : Bool) (r0 : 
       rw [slotW_set_ne (hne _ (by omega)), hv', appliedB_ite_skip _ _ _ _ hsne,
         appliedB_ite_skip _ _ _ _ hsne]
 
-/-- A `u64` add of two words below `2^60` does not overflow. -/
-theorem add_ok {c a : ℕ} (hc : c < 2 ^ 60) (ha : a < 2 ^ 60) : c + a ≤ Std.U64.max := by
-  rw [u64_max_val]; norm_num at hc ha ⊢; omega
-
-theorem addend_lt (pos : Bool) {a b c : ℕ} (ha : a ≤ 15) (hb : b ≤ 15) (hc : c ≤ 15) :
-    pack3 (addW pos a) (addW pos b) (addW pos c) < 2 ^ 60 := by
-  have h1 := addW_le pos ha
-  have h2 := addW_le pos hb
-  have h3 := addW_le pos hc
-  exact pack3_lt (by omega) (by omega) (by omega)
-
 theorem set_length {buf : alloc.vec.Vec Std.U64} {tU : Std.Usize} {x : Std.U64} :
     (buf.set tU x).val.length = buf.val.length := by
   rw [alloc.vec.Vec.set_val_eq, List.length_set]
@@ -804,9 +830,9 @@ theorem z_pass_lanes_loop0_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (
     (rbU limU : Std.Usize) (out : alloc.vec.Vec Std.U64) (iU : Std.Usize)
     (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
     (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
-    (hlim : limU.val = N - kU.val) (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
+    (hlim : limU.val = N - kU.val) (hk : kU.val < N) (hrb : rbU.val = 2 * (r0 * N))
     (hi : iU.val ≤ limU.val) (hlen : out.val.length = buf0.val.length)
-    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 20)
+    (hcap : 2 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 16)
     (hprog : ProgL D kU.val negt r0 base B iU.val 0 out) (hfr : FrameR buf0 out r0) :
     quadeval.z_pass_lanes_loop0 src kU negt rbU out limU iU
       ⦃ z => z.val.length = buf0.val.length ∧ ProgL D kU.val negt r0 base B limU.val 0 z
@@ -832,53 +858,41 @@ theorem z_pass_lanes_loop0_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (
         unfold wrapped
         rw [decide_eq_false hnowrap]
         cases negt <;> simp
-      have hcapd : 3 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
+      have hcapd : 2 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
       have hdmax : d.val.length ≤ Std.Usize.max := d.property
-      have hsl3 : 3 * ii.val + 2 < src.val.length := by rw [hsl]; omega
-      have hw2lt : slotIdx r0 (dstOf kU.val ii.val) 2 < d.val.length :=
+      have hsl2 : 2 * ii.val + 1 < src.val.length := by rw [hsl]; omega
+      have hw1lt : slotIdx r0 (dstOf kU.val ii.val) 1 < d.val.length :=
         slotIdx_lt hdstN (by norm_num) hcapd
       step as ⟨si, hsi⟩
-      have hsiv : si.val = 3 * ii.val := by rw [hsi, z_lane_words_val]
+      have hsiv : si.val = 2 * ii.val := by rw [hsi, z_lane_words_val]
       step as ⟨s0, hs0⟩
       step as ⟨i1, hi1⟩
       step as ⟨s1, hs1⟩
-      step as ⟨i2, hi2⟩
-      step as ⟨s2, hs2⟩
-      have hs0v : s0.val = pack3 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) := by
+      have hs0v : s0.val = pack4 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) (D 3 ii.val) := by
         have h := hsv ii.val hiilt 0 (by norm_num)
         rw [hs0, ← bufN_of_lt (v := src) (w := si.val) (by omega), hsiv]
         simpa using h
-      have hs1v : s1.val = pack3 (D 3 ii.val) (D 4 ii.val) (D 5 ii.val) := by
+      have hs1v : s1.val = pack4 (D 4 ii.val) (D 5 ii.val) (D 6 ii.val) (D 7 ii.val) := by
         have h := hsv ii.val hiilt 1 (by norm_num)
         rw [hs1, ← bufN_of_lt (v := src) (w := i1.val) (by omega), hi1, hsiv]
         simpa using h
-      have hs2v : s2.val = pack3 (D 6 ii.val) (D 7 ii.val) (D 8 ii.val) := by
-        have h := hsv ii.val hiilt 2 (by norm_num)
-        rw [hs2, ← bufN_of_lt (v := src) (w := i2.val) (by omega), hi2, hsiv]
-        simpa using h
-      step with addend_lo_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
-      step with addend_lo_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
-      step with addend_lo_spec negt s2 hs2v (hD _ _) (hD _ _) (hD _ _) as ⟨a2, ha2⟩
+      step with addend_lo_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
+      step with addend_lo_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
+      step as ⟨i2, hi2⟩
       step as ⟨i3, hi3⟩
-      step as ⟨i4, hi4⟩
-      have hi4v : i4.val = 3 * (kU.val + ii.val) := by rw [hi4, hi3, z_lane_words_val]
-      have hw0v' : rbU.val + i4.val = slotIdx r0 (dstOf kU.val ii.val) 0 := by
-        rw [hrb, hi4v, hdst]; unfold slotIdx; ring
-      have hw0max : rbU.val + i4.val ≤ Std.Usize.max := by
-        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 3) hcapd
+      have hi3v : i3.val = 2 * (kU.val + ii.val) := by rw [hi3, hi2, z_lane_words_val]
+      have hw0v' : rbU.val + i3.val = slotIdx r0 (dstOf kU.val ii.val) 0 := by
+        rw [hrb, hi3v, hdst]; unfold slotIdx; ring
+      have hw0max : rbU.val + i3.val ≤ Std.Usize.max := by
+        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 2) hcapd
         rw [hw0v']; omega
       step as ⟨w0, hw0⟩
       have hwv0 : w0.val = slotIdx r0 (dstOf kU.val ii.val) 0 := by rw [hw0, hw0v']
       have hwv1' : w0.val + 1 = slotIdx r0 (dstOf kU.val ii.val) 1 := by
         rw [hwv0]; unfold slotIdx; ring
-      have hwv2' : w0.val + 2 = slotIdx r0 (dstOf kU.val ii.val) 2 := by
-        rw [hwv0]; unfold slotIdx; ring
       have hw1max : w0.val + 1 ≤ Std.Usize.max := by omega
       step as ⟨w1, hw1⟩
-      have hw2max : w0.val + 2 ≤ Std.Usize.max := by omega
-      step as ⟨w2, hw2⟩
       have hwv1 : w1.val = slotIdx r0 (dstOf kU.val ii.val) 1 := by rw [hw1, hwv1']
-      have hwv2 : w2.val = slotIdx r0 (dstOf kU.val ii.val) 2 := by rw [hw2, hwv2']
       -- write 0
       have hwlt0 : w0.val < d.val.length := by
         rw [hwv0]; exact slotIdx_lt hdstN (by norm_num) hcapd
@@ -887,8 +901,8 @@ theorem z_pass_lanes_loop0_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (
         unfold slotW; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
       have hov0 : c0.val + a0.val ≤ Std.U64.max := by
         rw [hc0v, ha0]
-        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)) (addW_le _ (hD _ _))
+          (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) hB
       step as ⟨v0, hv0⟩
       step as ⟨xw0, back0, hxw0, hback0⟩
       rw [hback0]
@@ -904,39 +918,18 @@ theorem z_pass_lanes_loop0_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (
         unfold slotW; rw [hc1, ← bufN_of_lt (v := d.set w0 v0) (w := w1.val) hwlt1, hwv1]
       have hov1 : c1.val + a1.val ≤ Std.U64.max := by
         rw [hc1v, ha1]
-        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)) (addW_le _ (hD _ _))
+          (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) hB
       step as ⟨v1, hv1⟩
       step as ⟨xw1, back1, hxw1, hback1⟩
-      rw [hback1]
-      have hp2 := write_lane D kU.val negt (!negt) r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
-        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
-      have hl2 : ((d.set w0 v0).set w1 v1).val.length = buf0.val.length := by
-        rw [set_length, hl1]
-      have hf2 : FrameR buf0 ((d.set w0 v0).set w1 v1) r0 :=
-        FrameR_set hf1 hdstN (by norm_num) hwv1
-      -- write 2
-      have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by
-        rw [set_length, set_length, hwv2]; exact slotIdx_lt hdstN (by norm_num) hcapd
-      step as ⟨c2, hc2⟩
-      have hc2v : c2.val = slotW ((d.set w0 v0).set w1 v1) r0 (dstOf kU.val ii.val) 2 := by
-        unfold slotW
-        rw [hc2, ← bufN_of_lt (v := (d.set w0 v0).set w1 v1) (w := w2.val) hwlt2, hwv2]
-      have hov2 : c2.val + a2.val ≤ Std.U64.max := by
-        rw [hc2v, ha2]
-        exact add_ok (ProgL_cur hp2 hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
-      step as ⟨v2, hv2⟩
-      step as ⟨xw2, back2, hxw2, hback2⟩
       have hmaxb : ii.val + 1 ≤ Std.Usize.max := by
         have := usize_max_ge; have h3 : N = 1024 := rfl; omega
       step as ⟨ii1, hii1⟩
-      rw [hback2]
-      have hp3 := write_lane D kU.val negt (!negt) r0 base B ii.val 2 ((d.set w0 v0).set w1 v1)
-        w2 a2 v2 hk hiilt (by norm_num) hB hD hpos hp2 hwv2 hwlt2 (by rw [ha2])
-        (by rw [hv2, hc2v])
-      refine ⟨by omega, by rw [set_length, hl2], by rw [hii1]; exact ProgL_three hp3,
-        FrameR_set hf2 hdstN (by norm_num) hwv2, by omega⟩
+      rw [hback1]
+      have hp2 := write_lane D kU.val negt (!negt) r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
+        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
+      refine ⟨by omega, by rw [set_length, hl1], by rw [hii1]; exact ProgL_two hp2,
+        FrameR_set hf1 hdstN (by norm_num) hwv1, by omega⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = limU.val := by scalar_tac
@@ -950,9 +943,9 @@ theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
     (rbU nU limU : Std.Usize) (out : alloc.vec.Vec Std.U64) (jU : Std.Usize)
     (buf0 : alloc.vec.Vec Std.U64) (r0 k : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
     (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
-    (hn : nU.val = N) (hlim : limU.val = N - k) (hk : k < N) (hrb : rbU.val = 3 * (r0 * N))
+    (hn : nU.val = N) (hlim : limU.val = N - k) (hk : k < N) (hrb : rbU.val = 2 * (r0 * N))
     (hj1 : limU.val ≤ jU.val) (hj2 : jU.val ≤ N) (hlen : out.val.length = buf0.val.length)
-    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 20)
+    (hcap : 2 * ((r0 + 1) * N) ≤ buf0.val.length) (hB : B + 31 < 2 ^ 16)
     (hprog : ProgL D k negt r0 base B jU.val 0 out) (hfr : FrameR buf0 out r0) :
     quadeval.z_pass_lanes_loop1 src negt rbU nU out limU jU
       ⦃ z => z.val.length = buf0.val.length ∧ ProgL D k negt r0 base B N 0 z
@@ -977,53 +970,41 @@ theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
         unfold wrapped
         rw [decide_eq_true hwrap]
         cases negt <;> simp
-      have hcapd : 3 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
+      have hcapd : 2 * ((r0 + 1) * N) ≤ d.val.length := by rw [hdl]; exact hcap
       have hdmax : d.val.length ≤ Std.Usize.max := d.property
-      have hsl3 : 3 * ii.val + 2 < src.val.length := by rw [hsl]; omega
-      have hw2lt : slotIdx r0 (dstOf k ii.val) 2 < d.val.length :=
+      have hsl2 : 2 * ii.val + 1 < src.val.length := by rw [hsl]; omega
+      have hw1lt : slotIdx r0 (dstOf k ii.val) 1 < d.val.length :=
         slotIdx_lt hdstN (by norm_num) hcapd
       step as ⟨si, hsi⟩
-      have hsiv : si.val = 3 * ii.val := by rw [hsi, z_lane_words_val]
+      have hsiv : si.val = 2 * ii.val := by rw [hsi, z_lane_words_val]
       step as ⟨s0, hs0⟩
       step as ⟨i1, hi1⟩
       step as ⟨s1, hs1⟩
-      step as ⟨i2, hi2⟩
-      step as ⟨s2, hs2⟩
-      have hs0v : s0.val = pack3 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) := by
+      have hs0v : s0.val = pack4 (D 0 ii.val) (D 1 ii.val) (D 2 ii.val) (D 3 ii.val) := by
         have h := hsv ii.val hiilt 0 (by norm_num)
         rw [hs0, ← bufN_of_lt (v := src) (w := si.val) (by omega), hsiv]
         simpa using h
-      have hs1v : s1.val = pack3 (D 3 ii.val) (D 4 ii.val) (D 5 ii.val) := by
+      have hs1v : s1.val = pack4 (D 4 ii.val) (D 5 ii.val) (D 6 ii.val) (D 7 ii.val) := by
         have h := hsv ii.val hiilt 1 (by norm_num)
         rw [hs1, ← bufN_of_lt (v := src) (w := i1.val) (by omega), hi1, hsiv]
         simpa using h
-      have hs2v : s2.val = pack3 (D 6 ii.val) (D 7 ii.val) (D 8 ii.val) := by
-        have h := hsv ii.val hiilt 2 (by norm_num)
-        rw [hs2, ← bufN_of_lt (v := src) (w := i2.val) (by omega), hi2, hsiv]
-        simpa using h
-      step with addend_hi_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
-      step with addend_hi_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
-      step with addend_hi_spec negt s2 hs2v (hD _ _) (hD _ _) (hD _ _) as ⟨a2, ha2⟩
+      step with addend_hi_spec negt s0 hs0v (hD _ _) (hD _ _) (hD _ _) (hD _ _) as ⟨a0, ha0⟩
+      step with addend_hi_spec negt s1 hs1v (hD _ _) (hD _ _) (hD _ _) (hD _ _) as ⟨a1, ha1⟩
+      step as ⟨i2, hi2⟩
       step as ⟨i3, hi3⟩
-      step as ⟨i4, hi4⟩
-      have hi4v : i4.val = 3 * (ii.val - limU.val) := by rw [hi4, hi3, z_lane_words_val]
-      have hw0v' : rbU.val + i4.val = slotIdx r0 (dstOf k ii.val) 0 := by
-        rw [hrb, hi4v, hdst]; unfold slotIdx; ring
-      have hw0max : rbU.val + i4.val ≤ Std.Usize.max := by
-        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 3) hcapd
+      have hi3v : i3.val = 2 * (ii.val - limU.val) := by rw [hi3, hi2, z_lane_words_val]
+      have hw0v' : rbU.val + i3.val = slotIdx r0 (dstOf k ii.val) 0 := by
+        rw [hrb, hi3v, hdst]; unfold slotIdx; ring
+      have hw0max : rbU.val + i3.val ≤ Std.Usize.max := by
+        have := slotIdx_lt hdstN (by norm_num : (0 : ℕ) < 2) hcapd
         rw [hw0v']; omega
       step as ⟨w0, hw0⟩
       have hwv0 : w0.val = slotIdx r0 (dstOf k ii.val) 0 := by rw [hw0, hw0v']
       have hwv1' : w0.val + 1 = slotIdx r0 (dstOf k ii.val) 1 := by
         rw [hwv0]; unfold slotIdx; ring
-      have hwv2' : w0.val + 2 = slotIdx r0 (dstOf k ii.val) 2 := by
-        rw [hwv0]; unfold slotIdx; ring
       have hw1max : w0.val + 1 ≤ Std.Usize.max := by omega
       step as ⟨w1, hw1⟩
-      have hw2max : w0.val + 2 ≤ Std.Usize.max := by omega
-      step as ⟨w2, hw2⟩
       have hwv1 : w1.val = slotIdx r0 (dstOf k ii.val) 1 := by rw [hw1, hwv1']
-      have hwv2 : w2.val = slotIdx r0 (dstOf k ii.val) 2 := by rw [hw2, hwv2']
       -- write 0
       have hwlt0 : w0.val < d.val.length := by
         rw [hwv0]; exact slotIdx_lt hdstN (by norm_num) hcapd
@@ -1032,8 +1013,8 @@ theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
         unfold slotW; rw [hc0, ← bufN_of_lt (v := d) (w := w0.val) hwlt0, hwv0]
       have hov0 : c0.val + a0.val ≤ Std.U64.max := by
         rw [hc0v, ha0]
-        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+        exact add_ok (ProgL_cur hdp hk hiilt (by norm_num)) (addW_le _ (hD _ _))
+          (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) hB
       step as ⟨v0, hv0⟩
       step as ⟨xw0, back0, hxw0, hback0⟩
       rw [hback0]
@@ -1049,39 +1030,18 @@ theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
         unfold slotW; rw [hc1, ← bufN_of_lt (v := d.set w0 v0) (w := w1.val) hwlt1, hwv1]
       have hov1 : c1.val + a1.val ≤ Std.U64.max := by
         rw [hc1v, ha1]
-        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
+        exact add_ok (ProgL_cur hp1 hk hiilt (by norm_num)) (addW_le _ (hD _ _))
+          (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) (addW_le _ (hD _ _)) hB
       step as ⟨v1, hv1⟩
       step as ⟨xw1, back1, hxw1, hback1⟩
-      rw [hback1]
-      have hp2 := write_lane D k negt negt r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
-        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
-      have hl2 : ((d.set w0 v0).set w1 v1).val.length = buf0.val.length := by
-        rw [set_length, hl1]
-      have hf2 : FrameR buf0 ((d.set w0 v0).set w1 v1) r0 :=
-        FrameR_set hf1 hdstN (by norm_num) hwv1
-      -- write 2
-      have hwlt2 : w2.val < ((d.set w0 v0).set w1 v1).val.length := by
-        rw [set_length, set_length, hwv2]; exact slotIdx_lt hdstN (by norm_num) hcapd
-      step as ⟨c2, hc2⟩
-      have hc2v : c2.val = slotW ((d.set w0 v0).set w1 v1) r0 (dstOf k ii.val) 2 := by
-        unfold slotW
-        rw [hc2, ← bufN_of_lt (v := (d.set w0 v0).set w1 v1) (w := w2.val) hwlt2, hwv2]
-      have hov2 : c2.val + a2.val ≤ Std.U64.max := by
-        rw [hc2v, ha2]
-        exact add_ok (ProgL_cur hp2 hk hiilt (by norm_num)).1
-          (addend_lt _ (hD _ _) (hD _ _) (hD _ _))
-      step as ⟨v2, hv2⟩
-      step as ⟨xw2, back2, hxw2, hback2⟩
       have hmaxb : ii.val + 1 ≤ Std.Usize.max := by
         have := usize_max_ge; have h3 : N = 1024 := rfl; omega
       step as ⟨ii1, hii1⟩
-      rw [hback2]
-      have hp3 := write_lane D k negt negt r0 base B ii.val 2 ((d.set w0 v0).set w1 v1)
-        w2 a2 v2 hk hiilt (by norm_num) hB hD hpos hp2 hwv2 hwlt2 (by rw [ha2])
-        (by rw [hv2, hc2v])
-      refine ⟨by omega, by omega, by rw [set_length, hl2], by rw [hii1]; exact ProgL_three hp3,
-        FrameR_set hf2 hdstN (by norm_num) hwv2, by omega⟩
+      rw [hback1]
+      have hp2 := write_lane D k negt negt r0 base B ii.val 1 (d.set w0 v0) w1 a1 v1
+        hk hiilt (by norm_num) hB hD hpos hp1 hwv1 hwlt1 (by rw [ha1]) (by rw [hv1, hc1v])
+      refine ⟨by omega, by omega, by rw [set_length, hl1], by rw [hii1]; exact ProgL_two hp2,
+        FrameR_set hf1 hdstN (by norm_num) hwv1, by omega⟩
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : ii.val = N := by rw [← hn]; scalar_tac
@@ -1089,22 +1049,22 @@ theorem z_pass_lanes_loop1_spec (src : alloc.vec.Vec Std.U64) (negt : Bool)
   · exact ⟨hj1, hj2, hlen, hprog, hfr⟩
 
 /-- **`z_pass_lanes`.** Every lane of the row's slots gains `16 ± dₑ` -- so the
-bound grows by `31` -- and the value of lane `e`, less the record, gains one
-shifted, signed copy of digit `e`: `short_pass_off_spec` eight times over, with
-`applied` unchanged. Every other word of the buffer is untouched. -/
+bound grows by `31` -- and the value of lane `e`, read one pass count later,
+gains one shifted, signed copy of digit `e`: `short_pass_off_spec` eight times
+over, with `applied` unchanged. Every other word of the buffer is untouched. -/
 theorem z_pass_lanes_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt : Bool)
     (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (D : ℕ → ℕ → ℕ)
-    (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
-    (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
-    (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length) (hB : B + 31 < 2 ^ 20)
-    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B)
-    (hval : ∀ p, p < N → ∀ e, e < 8 → laneD buf r0 p e = base e p) :
+    (base : ℕ → ℕ → ZMod q) (B P : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hk : kU.val < N) (hrb : rbU.val = 2 * (r0 * N))
+    (hcap : 2 * ((r0 + 1) * N) ≤ buf.val.length) (hB : B + 31 < 2 ^ 16)
+    (hbnd : ∀ p, p < N → ∀ l, l < 2 → WB (slotW buf r0 p l) B)
+    (hval : ∀ p, p < N → ∀ e, e < 8 → laneD buf P r0 p e = base e p) :
     quadeval.z_pass_lanes src kU negt buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31))
+        ∧ (∀ p, p < N → ∀ l, l < 2 → WB (slotW z r0 p l) (B + 31))
         ∧ (∀ p, p < N → ∀ e, e < 8 →
-            laneD z r0 p e = applied (base e) (dgZ D e) kU.val negt N p)
+            laneD z (P + 1) r0 p e = applied (base e) (dgZ D e) kU.val negt N p)
         ∧ FrameR buf z r0 ⦄ := by
   rw [quadeval.z_pass_lanes]
   step as ⟨limU, hlimU⟩
@@ -1126,14 +1086,12 @@ theorem z_pass_lanes_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt :
     have := (h2 p hp).1 l hl
     rwa [if_neg (Nat.not_lt_zero _), if_pos (srcOf_lt hk hp)] at this
   · intro p hp e he
-    have hv := (h2 p hp).2 e (by omega)
-    have h8 := (h2 p hp).2 8 (by norm_num)
-    rw [if_neg (Nat.not_lt_zero _)] at hv h8
+    have hv := (h2 p hp).2 e he
+    rw [if_neg (Nat.not_lt_zero _)] at hv
     unfold laneD
-    rw [hv, h8]
+    rw [hv]
     unfold appliedB applied dgZ
-    rw [if_pos (srcOf_lt hk hp), if_pos (srcOf_lt hk hp), if_pos (srcOf_lt hk hp), hD8,
-      ← hval p hp e he]
+    rw [if_pos (srcOf_lt hk hp), if_pos (srcOf_lt hk hp), ← hval p hp e he]
     unfold laneD
     push_cast
     ring
@@ -1143,7 +1101,7 @@ theorem z_pass_lanes_spec (src : alloc.vec.Vec Std.U64) (kU : Std.Usize) (negt :
 No chunk counter here: `z_terms` admits at most `OMEGA = 16` passes per block,
 and the block loop's `Z_LANE_CHUNK` schedule reserves `16 · 31` of lane
 headroom for them before the row is touched. The bound therefore just grows by
-`31` per pass. -/
+`31` per pass, and the row's pass count by one. -/
 
 /-- The first `t` magnitudes, summed: the pass count. -/
 def magSum (vm : alloc.vec.Vec Std.U64) (t : ℕ) : ℕ := ∑ u ∈ Finset.range t, magAt vm u
@@ -1156,27 +1114,27 @@ theorem magSum_succ (vm : alloc.vec.Vec Std.U64) (t : ℕ) :
 theorem z_apply_terms_lanes_loop0_loop0_spec (src : alloc.vec.Vec Std.U64) (rbU : Std.Usize)
     (out : alloc.vec.Vec Std.U64) (kU : Std.Usize) (mU : Std.U64) (negt : Bool)
     (passU : Std.U64) (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ)
-    (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
-    (hk : kU.val < N) (hrb : rbU.val = 3 * (r0 * N))
-    (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length) (hlen : out.val.length = buf0.val.length)
-    (hp : passU.val ≤ mU.val) (hB : B + 31 * mU.val < 2 ^ 20)
-    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW out r0 p l) (B + 31 * passU.val))
+    (base : ℕ → ℕ → ZMod q) (B P : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hk : kU.val < N) (hrb : rbU.val = 2 * (r0 * N))
+    (hcap : 2 * ((r0 + 1) * N) ≤ buf0.val.length) (hlen : out.val.length = buf0.val.length)
+    (hp : passU.val ≤ mU.val) (hB : B + 31 * mU.val < 2 ^ 16)
+    (hbnd : ∀ p, p < N → ∀ l, l < 2 → WB (slotW out r0 p l) (B + 31 * passU.val))
     (hval : ∀ p, p < N → ∀ e, e < 8 →
-      laneD out r0 p e = passed (base e) (dgZ D e) kU.val negt passU.val p)
+      laneD out (P + passU.val) r0 p e = passed (base e) (dgZ D e) kU.val negt passU.val p)
     (hfr : FrameR buf0 out r0) :
     quadeval.z_apply_terms_lanes_loop0_loop0 src rbU out kU mU negt passU
       ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31 * mU.val))
+        ∧ (∀ p, p < N → ∀ l, l < 2 → WB (slotW z r0 p l) (B + 31 * mU.val))
         ∧ (∀ p, p < N → ∀ e, e < 8 →
-            laneD z r0 p e = passed (base e) (dgZ D e) kU.val negt mU.val p)
+            laneD z (P + mU.val) r0 p e = passed (base e) (dgZ D e) kU.val negt mU.val p)
         ∧ FrameR buf0 z r0 ⦄ := by
   rw [quadeval.z_apply_terms_lanes_loop0_loop0]
   apply loop.spec_decr_nat (fun t => mU.val - t.2.val)
     (fun t => t.2.val ≤ mU.val ∧ t.1.val.length = buf0.val.length
-      ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW t.1 r0 p l) (B + 31 * t.2.val))
+      ∧ (∀ p, p < N → ∀ l, l < 2 → WB (slotW t.1 r0 p l) (B + 31 * t.2.val))
       ∧ (∀ p, p < N → ∀ e, e < 8 →
-          laneD t.1 r0 p e = passed (base e) (dgZ D e) kU.val negt t.2.val p)
+          laneD t.1 (P + t.2.val) r0 p e = passed (base e) (dgZ D e) kU.val negt t.2.val p)
       ∧ FrameR buf0 t.1 r0)
   · rintro ⟨d, pp⟩ ⟨hpp, hdl, hdb, hdv, hdf⟩
     dsimp only at hpp hdl hdb hdv hdf
@@ -1184,10 +1142,10 @@ theorem z_apply_terms_lanes_loop0_loop0_spec (src : alloc.vec.Vec Std.U64) (rbU 
     by_cases hlt : pp < mU
     · rw [if_pos hlt]
       have hppm : pp.val < mU.val := by scalar_tac
-      have hBq : B + 31 * pp.val + 31 < 2 ^ 20 := by omega
+      have hBq : B + 31 * pp.val + 31 < 2 ^ 16 := by omega
       step with z_pass_lanes_spec src kU negt d rbU r0 D
         (fun e => passed (base e) (dgZ D e) kU.val negt pp.val) (B + 31 * pp.val)
-        hsrc hD hD8 hk hrb (by rw [hdl]; exact hcap) hBq hdb hdv
+        (P + pp.val) hsrc hD hk hrb (by rw [hdl]; exact hcap) hBq hdb hdv
         as ⟨z, hzl, hzb, hzv, hzf⟩
       step as ⟨pp1, hpp1⟩
       refine ⟨by omega, by rw [hzl]; exact hdl, ?_, ?_, FrameR_trans hdf hzf, by omega⟩
@@ -1196,7 +1154,7 @@ theorem z_apply_terms_lanes_loop0_loop0_spec (src : alloc.vec.Vec Std.U64) (rbU 
         have h2 : B + 31 * (pp.val + 1) = B + 31 * pp.val + 31 := by ring
         rw [h2]; exact hzb p hp l hl
       · intro p hp e he
-        rw [hpp1, hzv p hp e he,
+        rw [hpp1, ← add_assoc, hzv p hp e he,
           applied_passed (base e) (dgZ D e) kU.val negt pp.val p hk hp]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1220,31 +1178,34 @@ theorem termsSum_succ (sc : ℕ → ZMod q) (vi : alloc.vec.Vec Std.Usize)
 theorem z_apply_terms_lanes_loop0_spec (vi : alloc.vec.Vec Std.Usize)
     (vm : alloc.vec.Vec Std.U64) (vn : alloc.vec.Vec Bool) (src : alloc.vec.Vec Std.U64)
     (rbU : Std.Usize) (countU : Std.Usize) (out : alloc.vec.Vec Std.U64) (tU : Std.Usize)
-    (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q) (B : ℕ)
-    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
-    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf0.val.length)
+    (buf0 : alloc.vec.Vec Std.U64) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (base : ℕ → ℕ → ZMod q)
+    (B P : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hrb : rbU.val = 2 * (r0 * N)) (hcap : 2 * ((r0 + 1) * N) ≤ buf0.val.length)
     (hlen : out.val.length = buf0.val.length)
     (hcnt : vi.val.length = countU.val)
     (hmlen : countU.val ≤ vm.val.length) (hnlen : countU.val ≤ vn.val.length)
     (hidx : ∀ u, u < countU.val → idxAt vi u < N)
     (ht : tU.val ≤ countU.val)
-    (hB : B + 31 * magSum vm countU.val < 2 ^ 20)
-    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW out r0 p l) (B + 31 * magSum vm tU.val))
+    (hB : B + 31 * magSum vm countU.val < 2 ^ 16)
+    (hbnd : ∀ p, p < N → ∀ l, l < 2 → WB (slotW out r0 p l) (B + 31 * magSum vm tU.val))
     (hval : ∀ p, p < N → ∀ e, e < 8 →
-      laneD out r0 p e = base e p + termsSum (dgZ D e) vi vm vn tU.val p)
+      laneD out (P + magSum vm tU.val) r0 p e = base e p + termsSum (dgZ D e) vi vm vn tU.val p)
     (hfr : FrameR buf0 out r0) :
     quadeval.z_apply_terms_lanes_loop0 vi vm vn src rbU countU out tU
       ⦃ z => z.val.length = buf0.val.length
-        ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW z r0 p l) (B + 31 * magSum vm countU.val))
+        ∧ (∀ p, p < N → ∀ l, l < 2 → WB (slotW z r0 p l) (B + 31 * magSum vm countU.val))
         ∧ (∀ p, p < N → ∀ e, e < 8 →
-            laneD z r0 p e = base e p + termsSum (dgZ D e) vi vm vn countU.val p)
+            laneD z (P + magSum vm countU.val) r0 p e
+              = base e p + termsSum (dgZ D e) vi vm vn countU.val p)
         ∧ FrameR buf0 z r0 ⦄ := by
   rw [quadeval.z_apply_terms_lanes_loop0]
   apply loop.spec_decr_nat (fun r => countU.val - r.2.val)
     (fun r => r.2.val ≤ countU.val ∧ r.1.val.length = buf0.val.length
-      ∧ (∀ p, p < N → ∀ l, l < 3 → WB (slotW r.1 r0 p l) (B + 31 * magSum vm r.2.val))
+      ∧ (∀ p, p < N → ∀ l, l < 2 → WB (slotW r.1 r0 p l) (B + 31 * magSum vm r.2.val))
       ∧ (∀ p, p < N → ∀ e, e < 8 →
-          laneD r.1 r0 p e = base e p + termsSum (dgZ D e) vi vm vn r.2.val p)
+          laneD r.1 (P + magSum vm r.2.val) r0 p e
+            = base e p + termsSum (dgZ D e) vi vm vn r.2.val p)
       ∧ FrameR buf0 r.1 r0)
   · rintro ⟨d, tt⟩ ⟨htt, hdl, hdb, hdv, hdf⟩
     dsimp only at htt hdl hdb hdv hdf
@@ -1265,17 +1226,18 @@ theorem z_apply_terms_lanes_loop0_spec (vi : alloc.vec.Vec Std.Usize)
       have hnv : nn = negAt vn tt.val := by
         unfold negAt; rw [hnn, List.getD_eq_getElem _ _ htn]
       have hkN : kk.val < N := by rw [hkv]; exact hidx tt.val httc
-      have hBt : B + 31 * magSum vm tt.val + 31 * mm.val < 2 ^ 20 := by
+      have hBt : B + 31 * magSum vm tt.val + 31 * mm.val < 2 ^ 16 := by
         have h1 : magSum vm (tt.val + 1) ≤ magSum vm countU.val := magSum_mono vm (by omega)
         rw [magSum_succ, ← hmv] at h1
         omega
       step with z_apply_terms_lanes_loop0_loop0_spec src rbU d kk mm nn 0#u64 buf0 r0 D
         (fun e w => base e w + termsSum (dgZ D e) vi vm vn tt.val w)
-        (B + 31 * magSum vm tt.val) hsrc hD hD8 hkN hrb hcap hdl (by simp) hBt
+        (B + 31 * magSum vm tt.val) (P + magSum vm tt.val) hsrc hD hkN hrb hcap hdl
+        (by simp) hBt
         (by intro p hp l hl; simpa using hdb p hp l hl)
         (by
           intro p hp e he
-          rw [hdv p hp e he]
+          rw [show ((0#u64 : Std.U64).val) = 0 by simp, Nat.add_zero, hdv p hp e he]
           unfold passed; simp)
         hdf
         as ⟨z, hzl, hzb, hzv, hzf⟩
@@ -1288,7 +1250,7 @@ theorem z_apply_terms_lanes_loop0_spec (vi : alloc.vec.Vec Std.Usize)
             = B + 31 * magSum vm tt.val + 31 * mm.val := by ring
         rw [h3]; exact this
       · intro p hp e he
-        rw [htt1, hzv p hp e he, termsSum_succ, hkv, hmv, hnv,
+        rw [htt1, magSum_succ, ← hmv, ← add_assoc, hzv p hp e he, termsSum_succ, hkv, hmv, hnv,
           passed_eq_contribW, add_assoc]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1298,31 +1260,32 @@ theorem z_apply_terms_lanes_loop0_spec (vi : alloc.vec.Vec Std.Usize)
   · exact ⟨ht, hlen, hbnd, hval, hfr⟩
 
 /-- **`z_apply_terms_lanes`.** Lane `e` of each slot of the row gains the terms
-sum of digit `e`; the bound grows by `31` per pass. -/
+sum of digit `e`, read at a pass count grown by the magnitude sum; the bound
+grows by `31` per pass. -/
 theorem z_apply_terms_lanes_spec (terms : quadeval.ZTerms) (src : alloc.vec.Vec Std.U64)
-    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (B : ℕ)
-    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15) (hD8 : ∀ i, D 8 i = 0)
-    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length)
+    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (D : ℕ → ℕ → ℕ) (B P : ℕ)
+    (hsrc : SpreadOf src D) (hD : ∀ e i, D e i ≤ 15)
+    (hrb : rbU.val = 2 * (r0 * N)) (hcap : 2 * ((r0 + 1) * N) ≤ buf.val.length)
     (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
     (hnlen : terms.idx.val.length ≤ terms.neg.val.length)
     (hidx : ∀ u, u < terms.idx.val.length → idxAt terms.idx u < N)
-    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 20)
-    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B) :
+    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 16)
+    (hbnd : ∀ p, p < N → ∀ l, l < 2 → WB (slotW buf r0 p l) B) :
     quadeval.z_apply_terms_lanes terms src buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ p, p < N → ∀ l, l < 3 →
+        ∧ (∀ p, p < N → ∀ l, l < 2 →
             WB (slotW z r0 p l) (B + 31 * magSum terms.mag terms.idx.val.length))
-        ∧ (∀ p, p < N → ∀ e, e < 8 → laneD z r0 p e
-            = laneD buf r0 p e
+        ∧ (∀ p, p < N → ∀ e, e < 8 → laneD z (P + magSum terms.mag terms.idx.val.length) r0 p e
+            = laneD buf P r0 p e
               + termsSum (dgZ D e) terms.idx terms.mag terms.neg terms.idx.val.length p)
         ∧ FrameR buf z r0 ⦄ := by
   rw [quadeval.z_apply_terms_lanes]
   apply spec_mono (z_apply_terms_lanes_loop0_spec terms.idx terms.mag terms.neg src rbU
-    (alloc.vec.Vec.len terms.idx) buf 0#usize buf r0 D (fun e p => laneD buf r0 p e) B
-    hsrc hD hD8 hrb hcap rfl (by simp) (by simpa using hmlen) (by simpa using hnlen)
+    (alloc.vec.Vec.len terms.idx) buf 0#usize buf r0 D (fun e p => laneD buf P r0 p e) B P
+    hsrc hD hrb hcap rfl (by simp) (by simpa using hmlen) (by simpa using hnlen)
     (by simpa using hidx) (by simp) (by simpa using hB)
     (by intro p hp l hl; simpa [magSum] using hbnd p hp l hl)
-    (by intro p hp e he; simp [termsSum])
+    (by intro p hp e he; simp [termsSum, magSum])
     (FrameR_refl buf r0))
   rintro z ⟨h1, h2, h3, h4⟩
   refine ⟨h1, by simpa using h2, by simpa using h3, h4⟩
@@ -1494,32 +1457,82 @@ theorem z_terms_spec (c : ring.Rq) (hc : Wf c) :
     rw [e5 j, if_pos hj]
 
 
+/-- The pass-count loop: the running sum of the magnitudes. -/
+theorem z_terms_passes_loop_spec (vm : alloc.vec.Vec Std.U64) (countU : Std.Usize)
+    (totalU : Std.U64) (tU : Std.Usize)
+    (hmlen : countU.val ≤ vm.val.length) (ht : tU.val ≤ countU.val)
+    (hsum : magSum vm countU.val ≤ 16) (htot : totalU.val = magSum vm tU.val) :
+    quadeval.z_terms_passes_loop vm countU totalU tU
+      ⦃ r => r.val = magSum vm countU.val ⦄ := by
+  rw [quadeval.z_terms_passes_loop]
+  apply loop.spec_decr_nat (fun t => countU.val - t.2.val)
+    (fun t => t.2.val ≤ countU.val ∧ t.1.val = magSum vm t.2.val)
+  · rintro ⟨tot, tt⟩ ⟨htt, hto⟩
+    dsimp only at htt hto
+    simp only [quadeval.z_terms_passes_loop.body]
+    by_cases hlt : tt < countU
+    · rw [if_pos hlt]
+      have httc : tt.val < countU.val := by scalar_tac
+      have htm : tt.val < vm.val.length := by omega
+      step as ⟨mm, hmm⟩
+      have hmv : mm.val = magAt vm tt.val := by
+        unfold magAt; rw [hmm, List.getD_eq_getElem _ _ htm]
+      have hnext : magSum vm (tt.val + 1) = tot.val + mm.val := by
+        rw [magSum_succ, ← hto, hmv]
+      have hle : magSum vm (tt.val + 1) ≤ magSum vm countU.val := magSum_mono vm (by omega)
+      have hmax : tot.val + mm.val ≤ Std.U64.max := by
+        rw [u64_max_val]; omega
+      step as ⟨tot1, htot1⟩
+      step as ⟨tt1, htt1⟩
+      refine ⟨by omega, ?_, by omega⟩
+      rw [htot1, htt1, hnext]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : tt.val = countU.val := by scalar_tac
+      rw [hto, heq]
+  · exact ⟨ht, htot⟩
+
+/-- **`z_terms_passes`.** The number of passes `z_apply_terms_lanes` makes over
+a row: the magnitude sum over the term loop's range. -/
+theorem z_terms_passes_spec (terms : quadeval.ZTerms)
+    (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
+    (hsum : magSum terms.mag terms.idx.val.length ≤ 16) :
+    quadeval.z_terms_passes terms
+      ⦃ r => r.val = magSum terms.mag terms.idx.val.length ⦄ := by
+  rw [quadeval.z_terms_passes]
+  apply spec_mono (z_terms_passes_loop_spec terms.mag (alloc.vec.Vec.len terms.idx) 0#u64
+    0#usize (by simpa using hmlen) (by simp) (by simpa using hsum) (by simp [magSum]))
+  intro r hr
+  simpa using hr
+
 /-! ## 10. `z_row_lanes`: the spread, then the terms -/
 
-/-- **`z_row_lanes`.** Each of the row's eight digit accumulators gains the
-product of the challenge with that digit polynomial, as a ring element; the
-bound grows by `31` per pass; nothing outside the row's slots moves. -/
+/-- **`z_row_lanes`.** Each of the row's eight digit accumulators, read at a pass
+count grown by the magnitude sum, gains the product of the challenge with that
+digit polynomial, as a ring element; the bound grows by `31` per pass; nothing
+outside the row's slots moves. -/
 theorem z_row_lanes_spec (terms : quadeval.ZTerms) (row : ring.Rq)
-    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (ci : ring.Rq) (B : ℕ)
+    (buf : alloc.vec.Vec Std.U64) (rbU : Std.Usize) (r0 : ℕ) (ci : ring.Rq) (B P : ℕ)
     (hrow : Wf row) (hci : Wf ci)
-    (hrb : rbU.val = 3 * (r0 * N)) (hcap : 3 * ((r0 + 1) * N) ≤ buf.val.length)
+    (hrb : rbU.val = 2 * (r0 * N)) (hcap : 2 * ((r0 + 1) * N) ≤ buf.val.length)
     (hmlen : terms.idx.val.length ≤ terms.mag.val.length)
     (hnlen : terms.idx.val.length ≤ terms.neg.val.length)
     (hidx : ∀ u, u < terms.idx.val.length → idxAt terms.idx u < N)
     (hden : ∀ j, j < N →
       coeffK ci j = descCoeffW terms.idx terms.mag terms.neg terms.idx.val.length j)
-    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 20)
-    (hbnd : ∀ p, p < N → ∀ l, l < 3 → WB (slotW buf r0 p l) B) :
+    (hB : B + 31 * magSum terms.mag terms.idx.val.length < 2 ^ 16)
+    (hbnd : ∀ p, p < N → ∀ l, l < 2 → WB (slotW buf r0 p l) B) :
     quadeval.z_row_lanes terms row buf rbU
       ⦃ z => z.val.length = buf.val.length
-        ∧ (∀ p, p < N → ∀ l, l < 3 →
+        ∧ (∀ p, p < N → ∀ l, l < 2 →
             WB (slotW z r0 p l) (B + 31 * magSum terms.mag terms.idx.val.length))
-        ∧ (∀ e, e < 8 → laneRq z r0 e = laneRq buf r0 e + toRq ci * digitRq row e)
+        ∧ (∀ e, e < 8 → laneRq z (P + magSum terms.mag terms.idx.val.length) r0 e
+            = laneRq buf P r0 e + toRq ci * digitRq row e)
         ∧ FrameR buf z r0 ⦄ := by
   rw [quadeval.z_row_lanes]
   step with z_spread_spec row hrow as ⟨src, hsrc⟩
-  apply spec_mono (z_apply_terms_lanes_spec terms src buf rbU r0 (nibN row) B hsrc
-    (nibN_le row) (nibN_eight row hrow) hrb hcap hmlen hnlen hidx hB hbnd)
+  apply spec_mono (z_apply_terms_lanes_spec terms src buf rbU r0 (nibN row) B P hsrc
+    (nibN_le row) hrb hcap hmlen hnlen hidx hB hbnd)
   rintro z ⟨h1, h2, h3, h4⟩
   refine ⟨h1, h2, ?_, h4⟩
   intro e he
@@ -1533,7 +1546,7 @@ theorem z_row_lanes_spec (terms : quadeval.ZTerms) (row : ring.Rq)
       refine (Finset.sum_eq_zero (fun u hu => ?_)).symm
       unfold single
       rw [if_neg (by have := hidx u (by simpa using hu); omega)]
-  apply laneRq_gain z buf r0 ci row hci hrow e
+  apply laneRq_gain z buf P _ r0 ci row hci hrow e
   intro p hp
   rw [h3 p hp e he]
   have hdg : dgZ (nibN row) e = nib row e := rfl
@@ -1544,11 +1557,12 @@ theorem z_row_lanes_spec (terms : quadeval.ZTerms) (row : ring.Rq)
 
 /-! ## 11. Decoding, flushing and zeroing the packed accumulator
 
-The decode reads lane `e` and the record with a shift and a mask -- total, and
-exact whatever the words hold, because a lane is *defined* as those bits
-([`lane`]) -- and returns `lane_e + q − record`, which `Fp::new` reduces to
-[`laneD`]. The record is below `2^20 < q`, so the `u64` subtraction never
-borrows. -/
+The decode reads lane `e` with a shift and a mask -- total, and exact whatever
+the words hold, because a lane is *defined* as those bits ([`lane`]) -- and
+returns `lane_e + q − rec`, `rec = 16·P` the row's bias, which `Fp::new`
+reduces to [`laneD`]. The flush reads `P` from the row counter, and the block
+loop keeps it at most `Z_LANE_CHUNK − 1`, so `rec ≤ 16 · 2047 < q` and the
+`u64` subtraction never borrows. -/
 
 theorem vgetD_set_eq {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x d : α}
     (ht : t.val < v.val.length) : (v.set t x).val.getD t.val d = x := by
@@ -1578,22 +1592,24 @@ theorem vset_length {α : Type} {v : alloc.vec.Vec α} {t : Std.Usize} {x : α} 
     (v.set t x).val.length = v.val.length := by
   rw [alloc.vec.Vec.set_val_eq, List.length_set]
 
-/-- The decode loop: coefficient `p` is `laneD zp r p e`, reduced. -/
-theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU nU : Std.Usize)
+/-- The decode loop: coefficient `p` is `laneD zp P r p e`, reduced. -/
+theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU : Std.Usize)
+    (recU : Std.U64) (nU : Std.Usize)
     (qU : Std.U64) (wordU shiftU : Std.Usize) (out : alloc.vec.Vec cpoly.field.Fp)
-    (pU : Std.Usize) (r e : ℕ)
-    (hbase : baseU.val = 3 * (r * N)) (hn : nU.val = N) (hq : qU.val = q) (he : e < 8)
-    (hword : wordU.val = e / 3) (hshift : shiftU.val = 20 * (e % 3))
-    (hcap : 3 * ((r + 1) * N) ≤ zp.val.length)
+    (pU : Std.Usize) (r e P : ℕ)
+    (hbase : baseU.val = 2 * (r * N)) (hrec : recU.val = 16 * P) (hP : 16 * P ≤ q)
+    (hn : nU.val = N) (hq : qU.val = q) (he : e < 8)
+    (hword : wordU.val = e / 4) (hshift : shiftU.val = 16 * (e % 4))
+    (hcap : 2 * ((r + 1) * N) ≤ zp.val.length)
     (hp : pU.val ≤ N) (hlen : out.val.length = pU.val) (hred : ∀ u ∈ out.val, Red u)
-    (hval : ∀ p, p < pU.val → coeffK out p = laneD zp r p e) :
-    quadeval.z_lane_decode_loop zp baseU nU qU wordU shiftU out pU
+    (hval : ∀ p, p < pU.val → coeffK out p = laneD zp P r p e) :
+    quadeval.z_lane_decode_loop zp baseU recU nU qU wordU shiftU out pU
       ⦃ cs => cs.val.length = N ∧ (∀ u ∈ cs.val, Red u)
-        ∧ ∀ p, p < N → coeffK cs p = laneD zp r p e ⦄ := by
+        ∧ ∀ p, p < N → coeffK cs p = laneD zp P r p e ⦄ := by
   rw [quadeval.z_lane_decode_loop]
   apply loop.spec_decr_nat (fun t => nU.val - t.2.val)
     (fun t => t.2.val ≤ N ∧ t.1.val.length = t.2.val ∧ (∀ u ∈ t.1.val, Red u)
-      ∧ ∀ p, p < t.2.val → coeffK t.1 p = laneD zp r p e)
+      ∧ ∀ p, p < t.2.val → coeffK t.1 p = laneD zp P r p e)
   · rintro ⟨o, pp⟩ ⟨hpp, hol, hor, hov⟩
     dsimp only at hpp hol hor hov
     simp only [quadeval.z_lane_decode_loop.body]
@@ -1601,52 +1617,37 @@ theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU nU : Std.Usi
     · rw [if_pos hlt]
       have hpl : pp.val < N := by rw [← hn]; scalar_tac
       have hzmax : zp.val.length ≤ Std.Usize.max := zp.property
-      have hat2 : slotIdx r pp.val 2 < zp.val.length := slotIdx_lt hpl (by norm_num) hcap
-      have hatw : slotIdx r pp.val (e / 3) < zp.val.length := slotIdx_lt hpl (by omega) hcap
+      have hatw : slotIdx r pp.val (e / 4) < zp.val.length := slotIdx_lt hpl (by omega) hcap
       step as ⟨i, hi⟩
       have hat1v' : baseU.val + i.val = slotIdx r pp.val 0 := by
         rw [hbase, hi, z_lane_words_val]; unfold slotIdx; ring
       have hat1max : baseU.val + i.val ≤ Std.Usize.max := by
-        have := slotIdx_lt hpl (by norm_num : (0 : ℕ) < 3) hcap; omega
+        have := slotIdx_lt hpl (by norm_num : (0 : ℕ) < 2) hcap; omega
       step as ⟨at1, hat1⟩
       have hat1v : at1.val = slotIdx r pp.val 0 := by rw [hat1, hat1v']
-      have hi1v' : at1.val + wordU.val = slotIdx r pp.val (e / 3) := by
+      have hi1v' : at1.val + wordU.val = slotIdx r pp.val (e / 4) := by
         rw [hat1v, hword]; unfold slotIdx; ring
       have hi1max : at1.val + wordU.val ≤ Std.Usize.max := by omega
       step as ⟨i1, hi1⟩
-      have hi1v : i1.val = slotIdx r pp.val (e / 3) := by rw [hi1, hi1v']
+      have hi1v : i1.val = slotIdx r pp.val (e / 4) := by rw [hi1, hi1v']
       step as ⟨w, hw⟩
-      have hi2v' : at1.val + 2 = slotIdx r pp.val 2 := by rw [hat1v]; unfold slotIdx; ring
-      have hi2max : at1.val + 2 ≤ Std.Usize.max := by omega
-      step as ⟨i2, hi2⟩
-      have hi2v : i2.val = slotIdx r pp.val 2 := by rw [hi2, hi2v']
-      step as ⟨c, hc⟩
-      have hwv : w.val = slotW zp r pp.val (e / 3) := by
+      have hwv : w.val = slotW zp r pp.val (e / 4) := by
         unfold slotW; rw [hw, ← bufN_of_lt (v := zp) (w := i1.val) (by omega), hi1v]
-      have hcv : c.val = slotW zp r pp.val 2 := by
-        unfold slotW; rw [hc, ← bufN_of_lt (v := zp) (w := i2.val) (by omega), hi2v]
       have hsh : shiftU.val < 64 := by rw [hshift]; omega
-      step as ⟨i3, hi3, _⟩
+      step as ⟨i2, hi2, _⟩
       step as ⟨ln, hln, _⟩
-      step as ⟨i4, hi4, _⟩
-      step as ⟨rec, hrec, _⟩
-      have hmask : (1048575 : ℕ) = 2 ^ 20 - 1 := by norm_num
+      have hmask : (65535 : ℕ) = 2 ^ 16 - 1 := by norm_num
       have hlnv : ln.val = lane zp r pp.val e := by
-        rw [hln, UScalar.val_and, hi3, z_lane_mask_val, hwv, hshift, hmask,
+        rw [hln, UScalar.val_and, hi2, z_lane_mask_val, hwv, hshift, hmask,
           Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow]
         rfl
-      have hrecv : rec.val = lane zp r pp.val 8 := by
-        rw [hrec, UScalar.val_and, hi4, z_lane_mask_val, hcv, hmask,
-          Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow]
-        rfl
-      have hlnlt : ln.val < 2 ^ 20 := by rw [hlnv]; exact laneOf_lt _ _
-      have hreclt : rec.val < 2 ^ 20 := by rw [hrecv]; exact laneOf_lt _ _
+      have hlnlt : ln.val < 2 ^ 16 := by rw [hlnv]; exact laneOf_lt _ _
       have hqv : q = 4294967197 := rfl
-      have hi5max : ln.val + qU.val ≤ Std.U64.max := by
+      have hi3max : ln.val + qU.val ≤ Std.U64.max := by
         rw [hq, u64_max_val, hqv]; norm_num at hlnlt; omega
-      step as ⟨i5, hi5⟩
-      have hrecle : rec.val ≤ i5.val := by
-        rw [hi5, hq, hqv]; norm_num at hreclt; omega
+      step as ⟨i3, hi3⟩
+      have hrecle : recU.val ≤ i3.val := by
+        rw [hi3, hq, hrec]; omega
       step as ⟨v, hv⟩
       step with fp_new_spec v as ⟨f, hRf, hfv⟩
       have hmax : o.val.length < Std.Usize.max := by
@@ -1666,10 +1667,11 @@ theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU nU : Std.Usi
         rcases Nat.lt_or_ge p pp.val with hlt2 | hge
         · unfold coeffK; rw [ho1, getD_append_lt _ _ _ (by omega)]; exact hov p hlt2
         · have hpeq : p = pp.val := by omega
-          rw [hpeq, hkey, hfv, hv, hi5, hlnv, hrecv, hq]
+          have hsub : 16 * P ≤ ln.val + q := by omega
+          rw [hpeq, hkey, hfv, hv, hi3, hrec, hq]
           unfold laneD
-          rw [← hlnv, ← hrecv]
-          rw [Nat.cast_sub (by omega), Nat.cast_add, ZMod.natCast_self]
+          rw [← hlnv, Nat.cast_sub hsub, Nat.cast_add, ZMod.natCast_self]
+          push_cast
           ring
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
@@ -1677,48 +1679,54 @@ theorem z_lane_decode_loop_spec (zp : alloc.vec.Vec Std.U64) (baseU nU : Std.Usi
       exact ⟨by rw [hol, heq], hor, fun p hp => hov p (by rw [heq]; exact hp)⟩
   · exact ⟨hp, hlen, hred, hval⟩
 
-/-- **`z_lane_decode`.** Digit `e`'s polynomial of row `r`: coefficient `p` is
-`laneD zp r p e`, as a reduced field element. No hypothesis on the words. -/
-theorem z_lane_decode_spec (zp : alloc.vec.Vec Std.U64) (baseU eU : Std.Usize) (r : ℕ)
-    (hbase : baseU.val = 3 * (r * N)) (he : eU.val < 8)
-    (hcap : 3 * ((r + 1) * N) ≤ zp.val.length) :
-    quadeval.z_lane_decode zp baseU eU
+/-- **`z_lane_decode`.** Digit `e`'s polynomial of row `r` at pass count `P`
+(`rec = 16·P`): coefficient `p` is `laneD zp P r p e`, as a reduced field
+element. No hypothesis on the words. -/
+theorem z_lane_decode_spec (zp : alloc.vec.Vec Std.U64) (baseU eU : Std.Usize)
+    (recU : Std.U64) (r P : ℕ)
+    (hbase : baseU.val = 2 * (r * N)) (he : eU.val < 8)
+    (hrec : recU.val = 16 * P) (hP : 16 * P ≤ q)
+    (hcap : 2 * ((r + 1) * N) ≤ zp.val.length) :
+    quadeval.z_lane_decode zp baseU eU recU
       ⦃ cs => cs.val.length = N ∧ (∀ u ∈ cs.val, Red u)
-        ∧ ∀ p, p < N → coeffK cs p = laneD zp r p eU.val ⦄ := by
+        ∧ ∀ p, p < N → coeffK cs p = laneD zp P r p eU.val ⦄ := by
   rw [quadeval.z_lane_decode]
   step as ⟨word, hword⟩
   step as ⟨i, hi⟩
   step as ⟨shift, hshift⟩
   simp only [alloc.vec.Vec.with_capacity]
-  exact z_lane_decode_loop_spec zp baseU params.RING_DEGREE params.Q word shift
-    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize r eU.val hbase params_RING_DEGREE_val
+  exact z_lane_decode_loop_spec zp baseU recU params.RING_DEGREE params.Q word shift
+    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize r eU.val P hbase hrec hP params_RING_DEGREE_val
     params_Q_val he (by rw [hword]) (by rw [hshift, hi]) hcap (by simp) (by simp)
     (by intro u hu; simp at hu) (by intro p hp; simp at hp)
 
-/-- The flush loop: `out[j] = acc[j] + laneRq zp (j / 8) (j % 8)` for `j` done,
-`out[j] = acc[j]` for `j` to go. -/
-theorem z_lane_flush_loop_spec (zp : alloc.vec.Vec Std.U64) (nU digitsU widthU : Std.Usize)
+/-- The flush loop: `out[j] = acc[j] + laneRq zp cnt[j / 8] (j / 8) (j % 8)` for
+`j` done, `out[j] = acc[j]` for `j` to go. -/
+theorem z_lane_flush_loop_spec (zp cnt : alloc.vec.Vec Std.U64)
+    (nU digitsU widthU : Std.Usize)
     (out : alloc.vec.Vec ring.Rq) (jU : Std.Usize) (acc : alloc.vec.Vec ring.Rq)
     (hn : nU.val = N) (hd : digitsU.val = 8) (hw : widthU.val = 2 ^ 10 * 8)
-    (hzl : zp.val.length = 3 * (2 ^ 10 * N))
+    (hzl : zp.val.length = 2 * (2 ^ 10 * N)) (hcl : cnt.val.length = 2 ^ 10)
+    (hcb : ∀ r, r < 2 ^ 10 → bufN cnt r ≤ 2047)
     (hj : jU.val ≤ 2 ^ 10 * 8) (hol : out.val.length = 2 ^ 10 * 8)
     (howf : ∀ x ∈ out.val, Wf x)
     (hdone : ∀ t, t < jU.val → toRq (out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-      = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) + laneRq zp (t / 8) (t % 8))
+      = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
+        + laneRq zp (bufN cnt (t / 8)) (t / 8) (t % 8))
     (hrest : ∀ t, jU.val ≤ t → out.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
       = acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)) :
-    quadeval.z_lane_flush_loop zp nU digitsU widthU out jU
+    quadeval.z_lane_flush_loop zp cnt nU digitsU widthU out jU
       ⦃ z => z.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.val, Wf x)
         ∧ ∀ t, t < 2 ^ 10 * 8 → toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
             = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-              + laneRq zp (t / 8) (t % 8) ⦄ := by
+              + laneRq zp (bufN cnt (t / 8)) (t / 8) (t % 8) ⦄ := by
   have h1024 : (2 : ℕ) ^ 10 = 1024 := by norm_num
   rw [quadeval.z_lane_flush_loop]
   apply loop.spec_decr_nat (fun r => 2 ^ 10 * 8 - r.2.val)
     (fun r => r.2.val ≤ 2 ^ 10 * 8 ∧ r.1.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ r.1.val, Wf x)
       ∧ (∀ t, t < r.2.val → toRq (r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
           = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-            + laneRq zp (t / 8) (t % 8))
+            + laneRq zp (bufN cnt (t / 8)) (t / 8) (t % 8))
       ∧ ∀ t, r.2.val ≤ t → r.1.val.getD t (alloc.vec.Vec.new cpoly.field.Fp)
           = acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
   · rintro ⟨o, jj⟩ ⟨hjj, hol, how, hov, hor⟩
@@ -1738,15 +1746,25 @@ theorem z_lane_flush_loop_spec (zp : alloc.vec.Vec Std.U64) (nU digitsU widthU :
         rw [hi, hn, z_lane_words_val]
         have := usize_max_ge; have h3 : N = 1024 := rfl; rw [h3]; nlinarith
       step as ⟨base, hbase⟩
-      have hbv : base.val = 3 * (rr.val * N) := by
+      have hbv : base.val = 2 * (rr.val * N) := by
         rw [hbase, hi, hn, z_lane_words_val]; ring
-      have hcapz : 3 * ((rr.val + 1) * N) ≤ zp.val.length := by
+      have hcapz : 2 * ((rr.val + 1) * N) ≤ zp.val.length := by
         rw [hzl, h1024]
         exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
-      step with z_lane_decode_spec zp base ee rr.val hbv (by rw [heev]; omega) hcapz
+      have hrrc : rr.val < cnt.val.length := by rw [hcl, h1024]; exact hrr1024
+      step as ⟨seen, hseen⟩
+      have hseenv : seen.val = bufN cnt rr.val := by
+        rw [hseen, ← bufN_of_lt (v := cnt) (w := rr.val) hrrc]
+      have hseenb : seen.val ≤ 2047 := by
+        rw [hseenv]; exact hcb rr.val (by rw [h1024]; exact hrr1024)
+      have hrecmax : 16 * seen.val ≤ Std.U64.max := by rw [u64_max_val]; omega
+      step as ⟨recU, hrecU⟩
+      have hqv : q = 4294967197 := rfl
+      step with z_lane_decode_spec zp base ee recU rr.val (bufN cnt rr.val) hbv
+        (by rw [heev]; omega) (by rw [hrecU, hseenv]) (by rw [hqv, ← hseenv]; omega) hcapz
         as ⟨cs, hcsl, hcsr, hcsv⟩
       step with RqBridge.from_coeffs_spec cs hcsr as ⟨zr, hzrwf, hzrval⟩
-      have hzrl : toRq zr = laneRq zp (jj.val / 8) (jj.val % 8) := by
+      have hzrl : toRq zr = laneRq zp (bufN cnt (jj.val / 8)) (jj.val / 8) (jj.val % 8) := by
         rw [hzrval, ← hrrv, ← heev]
         unfold laneRq
         exact ofFinCoeff_congr (fun t ht => hcsv t ht)
@@ -1775,16 +1793,18 @@ theorem z_lane_flush_loop_spec (zp : alloc.vec.Vec Std.U64) (nU digitsU widthU :
       exact ⟨hol, how, fun t ht => hov t (by rw [heq]; exact ht)⟩
   · exact ⟨hj, hol, howf, hdone, hrest⟩
 
-/-- **`z_lane_flush`.** `acc[8r + e]` gains digit `e`'s accumulator of row `r`
-as a ring element; `zp` is read, never written. -/
-theorem z_lane_flush_spec (acc : alloc.vec.Vec ring.Rq) (zp : alloc.vec.Vec Std.U64)
+/-- **`z_lane_flush`.** `acc[8r + e]` gains digit `e`'s accumulator of row `r`,
+read at the row's pass count `cnt[r]`, as a ring element; `zp` and `cnt` are
+read, never written. -/
+theorem z_lane_flush_spec (acc : alloc.vec.Vec ring.Rq) (zp cnt : alloc.vec.Vec Std.U64)
     (hacc : acc.val.length = 2 ^ 10 * 8) (hwf : ∀ x ∈ acc.val, Wf x)
-    (hzl : zp.val.length = 3 * (2 ^ 10 * N)) :
-    quadeval.z_lane_flush acc zp
+    (hzl : zp.val.length = 2 * (2 ^ 10 * N)) (hcl : cnt.val.length = 2 ^ 10)
+    (hcb : ∀ r, r < 2 ^ 10 → bufN cnt r ≤ 2047) :
+    quadeval.z_lane_flush acc zp cnt
       ⦃ z => z.val.length = 2 ^ 10 * 8 ∧ (∀ x ∈ z.val, Wf x)
         ∧ ∀ t, t < 2 ^ 10 * 8 → toRq (z.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
             = toRq (acc.val.getD t (alloc.vec.Vec.new cpoly.field.Fp))
-              + laneRq zp (t / 8) (t % 8) ⦄ := by
+              + laneRq zp (bufN cnt (t / 8)) (t / 8) (t % 8) ⦄ := by
   rw [quadeval.z_lane_flush]
   step as ⟨width, hwidth⟩
   case hmax => simp [params.MESSAGE_ROWS, params.GADGET_DIGITS]; scalar_tac
@@ -1793,9 +1813,9 @@ theorem z_lane_flush_spec (acc : alloc.vec.Vec ring.Rq) (zp : alloc.vec.Vec Std.
     rw [h]
     simp only [params.MESSAGE_ROWS, params.GADGET_DIGITS] at hwidth
     scalar_tac
-  exact z_lane_flush_loop_spec zp params.RING_DEGREE params.GADGET_DIGITS width acc 0#usize acc
-    params_RING_DEGREE_val (by simp [params.GADGET_DIGITS]) hwv hzl (by simp) hacc hwf
-    (by intro t ht; simp at ht) (fun _ _ => rfl)
+  exact z_lane_flush_loop_spec zp cnt params.RING_DEGREE params.GADGET_DIGITS width acc 0#usize
+    acc params_RING_DEGREE_val (by simp [params.GADGET_DIGITS]) hwv hzl hcl hcb (by simp) hacc
+    hwf (by intro t ht; simp at ht) (fun _ _ => rfl)
 
 /-- The zeroing loop. -/
 theorem z_lane_zero_loop_spec (out : alloc.vec.Vec Std.U64) (lenU iU : Std.Usize)
