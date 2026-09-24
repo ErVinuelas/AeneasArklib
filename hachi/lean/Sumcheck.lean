@@ -2027,17 +2027,13 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
         ∀ x : F, CPolynomial.eval x (toUni out) =
           rangeSumZero (tableFn (m := k + 1) w) (tableFn (m := k) eq) x ⦄ := by
   rw [sumcheck.round_poly_zero]
-  simp only [alloc.vec.Vec.with_capacity]
-  step with HachiEquiv.SumcheckShift.zero_fill_spec params.SHIFT_DEG
-    (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize HachiEquiv.SumcheckShift.shift_deg_val
-    (by simp) (by simp) (by intro a ha; simp at ha) (by intro t ht; simp at ht)
-    as ⟨acc1, hacl, hacr, hacv⟩
-  have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
   have hwl : w.val.length = 2 * eq.val.length := by
     rw [hw.1, heq.1, pow_succ]; ring
-  step with HachiEquiv.SumcheckShift.pair_loop_spec w eq (alloc.vec.Vec.len eq) acc1 0#usize
-    hhalf hwl hw.2 heq.2 (by simp) hacl hacr
-    (by intro t ht; rw [hacv t ht]; simp)
+  -- card T53b: the pair loop runs over unreduced `u128` lanes, read back once
+  step with HachiEquiv.SumcheckShift.round_poly_zero_lanes_spec w eq sumcheck.ZERO_LANE_FLUSH
+    hwl hw.2 heq.2 (by rw [HachiEquiv.SumcheckShift.zero_lane_flush_val])
+    as ⟨lanes, hll, hlv⟩
+  step with HachiEquiv.SumcheckShift.lanes_to_coeffs_spec lanes hll
     as ⟨acc2, ha2l, ha2r, ha2v⟩
   have hmax : acc2.val.length < Std.Usize.max := by
     rw [ha2l]; have := usize_max_ge'; omega
@@ -2059,7 +2055,7 @@ theorem round_poly_zero_spec {k : ℕ} (w eq : alloc.vec.Vec cpoly.field.Ext4)
                 (HachiEquiv.SumcheckShift.dF w y') t := by
     intro t ht
     rw [ha3, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by rw [ha2l]; exact ht)]
-    rw [ha2v t ht, hhalf]
+    rw [ha2v t ht, hlv t ht]
   have hco32 : toExt (acc3.val.getD 32 cpoly.field.Ext4.ZERO) = 0 := by
     rw [ha3, show (32 : ℕ) = acc2.val.length by rw [ha2l],
       HachiEquiv.GoldTransform.getD_append_eq']

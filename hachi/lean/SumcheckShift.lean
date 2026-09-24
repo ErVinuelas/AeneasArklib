@@ -217,9 +217,10 @@ theorem rangeProduct_shift (lo d T : F) :
 
 /-! ## 3. The loops
 
-Four, and the first three are the new items: `shift_powers`, `shift_inner` and
-`shift_accum`. The fourth pair is `round_poly_zero`'s own zero-fill and pair
-loops, which changed shape with its body.
+`shift_powers`, `shift_inner` and `shift_accum`, then `round_poly_zero`'s own
+pair loop in § 4 -- since card T53b over `u128` lanes, through
+`shift_accum_lanes`. `shift_accum` stays specified because the Rust item stays,
+uncalled by `round_poly_zero`.
 -/
 
 /-- `shift_powers x` is `1, x, …, x^31`. -/
@@ -752,49 +753,7 @@ theorem shift_accum_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
     (by intro t ht; rw [hav t ht, if_neg (by simp)]; ring)
 
 
-/-! ## 4. `round_poly_zero`'s own two loops -/
-
-/-- The zero-fill: `SHIFT_DEG` zero coefficients. -/
-theorem zero_fill_spec (n : Std.Usize) (acc : alloc.vec.Vec cpoly.field.Ext4)
-    (i : Std.Usize) (hn : n.val = 32) (hi : i.val ≤ 32)
-    (hlen : acc.val.length = i.val) (har : VecReduced acc)
-    (hav : ∀ t, t < i.val → toExt (acc.val.getD t cpoly.field.Ext4.ZERO) = 0) :
-    sumcheck.round_poly_zero_loop0 n acc i
-      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
-          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = 0 ⦄ := by
-  rw [sumcheck.round_poly_zero_loop0]
-  apply loop.spec_decr_nat (fun r => 32 - r.2.val)
-    (fun r => r.2.val ≤ 32 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
-      ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = 0)
-  · rintro ⟨a, ii⟩ ⟨hii, hal, har', hav'⟩
-    dsimp only at hii hal har' hav'
-    simp only [sumcheck.round_poly_zero_loop0.body]
-    by_cases hlt : ii < n
-    · rw [if_pos hlt]
-      have hilt : ii.val < 32 := by rw [← hn]; scalar_tac
-      have hmax : a.val.length < Std.Usize.max := by rw [hal]; scalar_tac
-      step as ⟨a1, ha1⟩
-      step as ⟨ii1, hii1⟩
-      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
-      · rw [ha1, hii1, List.length_append, hal]; simp
-      · intro y hy
-        rw [ha1] at hy
-        rcases List.mem_append.mp hy with h | h
-        · exact har' y h
-        · rw [List.mem_singleton.mp h]; exact HachiEquiv.Ext.reduced_ZERO
-      · intro t ht
-        rw [hii1] at ht
-        rcases Nat.lt_or_ge t ii.val with hc | hc
-        · rw [ha1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
-          exact hav' t hc
-        · have heq : t = a.val.length := by omega
-          rw [heq, ha1, HachiEquiv.GoldTransform.getD_append_eq']
-          exact HachiEquiv.Ext.toExt_ZERO
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : ii.val = 32 := by rw [← hn]; scalar_tac
-      exact ⟨by rw [hal, heq], har', fun t ht => hav' t (by rw [heq]; exact ht)⟩
-  · exact ⟨hi, hlen, har, hav⟩
+/-! ## 4. `round_poly_zero`'s pair loop -/
 
 /-- The `lo`/`Δ` of pair `y`, as elements of `F`. -/
 def loF (w : alloc.vec.Vec cpoly.field.Ext4) (y : ℕ) : F :=
@@ -820,33 +779,721 @@ theorem shiftCoeff_zero_zero (m : ℕ) : shiftCoeff 0 0 m = 0 := by
   · simp
   · rw [zero_pow (Nat.pos_iff_ne_zero.mp hm), MulZeroClass.zero_mul]
 
-/-- The pair loop: after `y` pairs, coefficient `t` is the partial sum
-`Σ_{y' < y} eq[y'] · shiftCoeff lo_{y'} Δ_{y'} t`.
+/-! ### Card T53b: the pair loop over unreduced `u128` lanes
 
-Card T55 guards the body with `!(lo.is_zero() && hi.is_zero())`, so the step
-splits three ways on the two zero tests. Where both hold the accumulator is
-returned unchanged, and the new summand is `eq[y] · shiftCoeff 0 0 t = 0`
-([`shiftCoeff_zero_zero`]); the other two branches run the old body. -/
-theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize)
-    (acc : alloc.vec.Vec cpoly.field.Ext4) (y : Std.Usize)
-    (hhalf : half.val = eq.val.length) (hwl : w.val.length = 2 * eq.val.length)
-    (hwr : VecReduced w) (her : VecReduced eq)
-    (hy : y.val ≤ half.val) (halen : acc.val.length = 32) (har : VecReduced acc)
-    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
-      = ∑ y' ∈ Finset.range y.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t) :
-    sumcheck.round_poly_zero_loop1 w eq half acc y
+The sum over pairs is componentwise once each `epow · s` product is left
+unreduced, so `round_poly_zero` now holds its 32 coefficients as 128 `u128`
+lanes -- four per coefficient -- across the whole pair loop and reduces once
+per round (`lanes_to_coeffs`), plus a flush every `ZERO_LANE_FLUSH = 2^31`
+pairs that keeps the lanes total for every `half` the headline admits.
+
+The zero-fill and the `Ext4` pair loop are gone, and `zero_fill_spec` and
+`pair_loop_spec` with them. What replaces them: [`rawN`] is the unreduced
+product the machine holds, [`rawN_le`] and [`lane_room`] are the card's whole
+no-overflow argument (a lane below `q`, then `2^31` pairs of at most `7·q²`
+each, then one more, still fits a `u128`), [`rawN_coeff`] is the bridge back to
+`F`, and [`laneExt`] is what a lane group denotes. `round_poly_zero_spec`'s
+statement does not move; only its first two steps do. -/
+
+@[simp] theorem zero_lanes_val : (sumcheck.ZERO_LANES).val = 128 := by
+  simp only [sumcheck.ZERO_LANES]; decide
+
+@[simp] theorem zero_lane_flush_val : (sumcheck.ZERO_LANE_FLUSH).val = 2 ^ 31 := by
+  simp only [sumcheck.ZERO_LANE_FLUSH]; decide
+
+/-- The value lane `i` holds; `0` past the end. -/
+def lv (v : alloc.vec.Vec Std.U128) (i : ℕ) : ℕ := (v.val.getD i 0#u128).val
+
+theorem lv_of_lt {v : alloc.vec.Vec Std.U128} {i : ℕ} (h : i < v.val.length) :
+    lv v i = (v.val[i]).val := by
+  unfold lv; rw [List.getD_eq_getElem _ _ h]
+
+theorem lv_set_eq {v : alloc.vec.Vec Std.U128} {t : Std.Usize} {x : Std.U128} {k : ℕ}
+    (hk : k = t.val) (ht : t.val < v.val.length) : lv (v.set t x) k = x.val := by
+  subst hk
+  unfold lv
+  rw [alloc.vec.Vec.set_val_eq,
+    List.getD_eq_getElem _ _ (by rw [List.length_set]; exact ht), List.getElem_set]
+  simp
+
+theorem lv_set_ne {v : alloc.vec.Vec Std.U128} {t : Std.Usize} {x : Std.U128} {k : ℕ}
+    (h : k ≠ t.val) : lv (v.set t x) k = lv v k := by
+  unfold lv
+  rw [alloc.vec.Vec.set_val_eq]
+  by_cases hk : k < v.val.length
+  · rw [List.getD_eq_getElem _ _ (by rw [List.length_set]; exact hk),
+      List.getD_eq_getElem _ _ hk, List.getElem_set_ne (fun hh => h hh.symm)]
+  · rw [List.getD_eq_default _ _ (by rw [List.length_set]; omega),
+      List.getD_eq_default _ _ (by omega)]
+
+theorem lv_set_length (v : alloc.vec.Vec Std.U128) (t : Std.Usize) (x : Std.U128) :
+    (v.set t x).val.length = v.val.length := by
+  rw [alloc.vec.Vec.set_val_eq, List.length_set]
+
+/-- The four components of `a · b` in `F_q[Y]/(Y^4 − 2)` before any reduction,
+as natural numbers: what `ext4_mul_raw` returns. -/
+def rawN (a b : cpoly.field.Ext4) : ℕ → ℕ
+  | 0 => a.c0.val * b.c0.val + 2 * (a.c1.val * b.c3.val + a.c2.val * b.c2.val + a.c3.val * b.c1.val)
+  | 1 => a.c0.val * b.c1.val + a.c1.val * b.c0.val + 2 * (a.c2.val * b.c3.val + a.c3.val * b.c2.val)
+  | 2 => a.c0.val * b.c2.val + a.c1.val * b.c1.val + a.c2.val * b.c0.val + 2 * (a.c3.val * b.c3.val)
+  | _ => a.c0.val * b.c3.val + a.c1.val * b.c2.val + a.c2.val * b.c1.val + a.c3.val * b.c0.val
+
+/-- Seven base products at most, each below `q²`. -/
+theorem rawN_le (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) (r : ℕ) :
+    rawN a b r ≤ 7 * (q * q) := by
+  obtain ⟨a0, a1, a2, a3⟩ := ha
+  obtain ⟨b0, b1, b2, b3⟩ := hb
+  unfold Red at a0 a1 a2 a3 b0 b1 b2 b3
+  have p : ∀ x y : ℕ, x < q → y < q → x * y ≤ q * q :=
+    fun x y hx hy => Nat.mul_le_mul hx.le hy.le
+  have h00 := p _ _ a0 b0
+  have h01 := p _ _ a0 b1
+  have h02 := p _ _ a0 b2
+  have h03 := p _ _ a0 b3
+  have h10 := p _ _ a1 b0
+  have h11 := p _ _ a1 b1
+  have h12 := p _ _ a1 b2
+  have h13 := p _ _ a1 b3
+  have h20 := p _ _ a2 b0
+  have h21 := p _ _ a2 b1
+  have h22 := p _ _ a2 b2
+  have h23 := p _ _ a2 b3
+  have h30 := p _ _ a3 b0
+  have h31 := p _ _ a3 b1
+  have h32 := p _ _ a3 b2
+  have h33 := p _ _ a3 b3
+  match r with
+  | 0 => simp only [rawN]; omega
+  | 1 => simp only [rawN]; omega
+  | 2 => simp only [rawN]; omega
+  | (_ + 3) => simp only [rawN]; omega
+
+/-- The headroom the flush period is computed from: a lane below `q`, then
+`2^31` pairs of at most `7·q²` each, then one more pair, still fits a `u128`. -/
+theorem lane_room : q + 2 ^ 31 * (7 * (q * q)) + 7 * (q * q) ≤ Std.U128.max := by
+  have h : (q + 2 ^ 31 * (7 * (q * q)) + 7 * (q * q) : ℕ) = 277298556145458888396532419484 := by
+    unfold q; norm_num
+  rw [h]
+  scalar_tac
+
+theorem qq_le_u64 : q * q ≤ Std.U64.max := by
+  have h : (q * q : ℕ) = 18446743223306036809 := by unfold q; norm_num
+  rw [h]
+  scalar_tac
+
+/-- `fin_four_cases_d` as an equation on the index, as `Ext.lean`'s private
+`fin_four_eq` is. -/
+theorem fin_four_eq_d (i : Fin Hachi.ext4Params.toExtensionParams.d) :
+    i = ⟨0, by decide⟩ ∨ i = ⟨1, by decide⟩ ∨ i = ⟨2, by decide⟩ ∨ i = ⟨3, by decide⟩ := by
+  rcases fin_four_cases_d i with h | h | h | h
+  · exact Or.inl (Fin.ext h)
+  · exact Or.inr (Or.inl (Fin.ext h))
+  · exact Or.inr (Or.inr (Or.inl (Fin.ext h)))
+  · exact Or.inr (Or.inr (Or.inr (Fin.ext h)))
+
+/-- The reduction table of `X^4 − 2`, restated from `Ext.lean`'s private
+`coeff_monomialMod_val`. -/
+theorem coeff_monomialMod_val_d (k : ℕ) (m : Fin Hachi.ext4Params.toExtensionParams.d)
+    (hk : k < 7 := by norm_num) :
+    Ext.coeff (Ext.monomialMod k : F) m =
+      if k < 4 then (if (m : ℕ) = k then 1 else 0) else (if (m : ℕ) + 4 = k then 2 else 0) := by
+  rcases fin_four_eq_d m with rfl | rfl | rfl | rfl <;> interval_cases k <;> decide
+
+/-- **The unreduced product, read in `F`.** Component `i` of `toExt a * toExt b`
+is `rawN a b i` reduced: the schoolbook sum with `Y^4 = 2` folded in, which is
+`ext_mul_spec`'s specification half at natural-number level. -/
+theorem rawN_coeff (a b : cpoly.field.Ext4) (i : Fin Hachi.ext4Params.toExtensionParams.d) :
+    Ext.coeff (toExt a * toExt b) i = ((rawN a b i.val : ℕ) : ZMod q) := by
+  rw [Ext.coeff_mul, sum_univ_four' (rfl : Hachi.ext4Params.toExtensionParams.d = 4)]
+  simp only [sum_univ_four' (rfl : Hachi.ext4Params.toExtensionParams.d = 4), coeff_toExt_d]
+  rcases fin_four_eq_d i with rfl | rfl | rfl | rfl <;>
+    simp only [extCoeff, rawN, toK] <;>
+    norm_num <;>
+    simp only [coeff_monomialMod_val_d 1, coeff_monomialMod_val_d 2, coeff_monomialMod_val_d 3,
+      coeff_monomialMod_val_d 4, coeff_monomialMod_val_d 5, coeff_monomialMod_val_d 6] <;>
+    norm_num <;>
+    ring
+
+/-- `Fp::to_u64` then a widening cast: the value is the word's. -/
+theorem cast_u64_u128 (v : Std.U64) : lift (UScalar.cast .U128 v) ⦃ y => y.val = v.val ⦄ :=
+  UScalar.cast_inBounds_spec .U128 v (HachiEquiv.NttCRT.u64_le_u128_max v)
+
+/-- **`ext4_mul_raw`**: the four unreduced components, exactly. -/
+theorem ext4_mul_raw_spec (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b) :
+    sumcheck.ext4_mul_raw a b
+      ⦃ z => z.1.val = rawN a b 0 ∧ z.2.1.val = rawN a b 1 ∧ z.2.2.1.val = rawN a b 2
+          ∧ z.2.2.2.val = rawN a b 3 ⦄ := by
+  have hle := rawN_le a b ha hb
+  obtain ⟨a0, a1, a2, a3⟩ := ha
+  obtain ⟨b0, b1, b2, b3⟩ := hb
+  unfold Red at a0 a1 a2 a3 b0 b1 b2 b3
+  have hqq := qq_le_u64
+  have p : ∀ x y : ℕ, x < q → y < q → x * y ≤ q * q :=
+    fun x y hx hy => Nat.mul_le_mul hx.le hy.le
+  have h00 := p _ _ a0 b0
+  have h01 := p _ _ a0 b1
+  have h02 := p _ _ a0 b2
+  have h03 := p _ _ a0 b3
+  have h10 := p _ _ a1 b0
+  have h11 := p _ _ a1 b1
+  have h12 := p _ _ a1 b2
+  have h13 := p _ _ a1 b3
+  have h20 := p _ _ a2 b0
+  have h21 := p _ _ a2 b1
+  have h22 := p _ _ a2 b2
+  have h23 := p _ _ a2 b3
+  have h30 := p _ _ a3 b0
+  have h31 := p _ _ a3 b1
+  have h32 := p _ _ a3 b2
+  have h33 := p _ _ a3 b3
+  have hr0 := hle 0
+  have hr1 := hle 1
+  have hr2 := hle 2
+  have hr3 := hle 3
+  simp only [rawN] at hr0 hr1 hr2 hr3
+  have hroom : 7 * (q * q) ≤ Std.U128.max := le_trans (by omega) lane_room
+  rw [sumcheck.ext4_mul_raw]
+  step with to_u64_id a.c0 as ⟨x0, hx0⟩
+  step with to_u64_id a.c1 as ⟨x1, hx1⟩
+  step with to_u64_id a.c2 as ⟨x2, hx2⟩
+  step with to_u64_id a.c3 as ⟨x3, hx3⟩
+  step with to_u64_id b.c0 as ⟨y0, hy0⟩
+  step with to_u64_id b.c1 as ⟨y1, hy1⟩
+  step with to_u64_id b.c2 as ⟨y2, hy2⟩
+  step with to_u64_id b.c3 as ⟨y3, hy3⟩
+  simp only [← hx0, ← hx1, ← hx2, ← hx3, ← hy0, ← hy1, ← hy2, ← hy3] at h00 h01 h02 h03 h10 h11 h12 h13 h20 h21 h22 h23 h30 h31 h32 h33 hr0 hr1 hr2 hr3 ⊢
+  step as ⟨i, hi⟩
+  step with cast_u64_u128 i as ⟨i1, hi1⟩
+  step as ⟨i2, hi2⟩
+  step with cast_u64_u128 i2 as ⟨i3, hi3⟩
+  step as ⟨i4, hi4⟩
+  step as ⟨i5, hi5⟩
+  step with cast_u64_u128 i5 as ⟨i6, hi6⟩
+  step as ⟨h0, hh0⟩
+  step as ⟨i7, hi7⟩
+  step with cast_u64_u128 i7 as ⟨i8, hi8⟩
+  step as ⟨i9, hi9⟩
+  step as ⟨r0, hr0'⟩
+  step as ⟨i10, hi10⟩
+  step with cast_u64_u128 i10 as ⟨i11, hi11⟩
+  step as ⟨i12, hi12⟩
+  step with cast_u64_u128 i12 as ⟨i13, hi13⟩
+  step as ⟨h1, hh1⟩
+  step as ⟨i14, hi14⟩
+  step with cast_u64_u128 i14 as ⟨i15, hi15⟩
+  step as ⟨i16, hi16⟩
+  step with cast_u64_u128 i16 as ⟨i17, hi17⟩
+  step as ⟨i18, hi18⟩
+  step as ⟨i19, hi19⟩
+  step as ⟨r1, hr1'⟩
+  step as ⟨i20, hi20⟩
+  step with cast_u64_u128 i20 as ⟨h2, hh2⟩
+  step as ⟨i21, hi21⟩
+  step with cast_u64_u128 i21 as ⟨i22, hi22⟩
+  step as ⟨i23, hi23⟩
+  step with cast_u64_u128 i23 as ⟨i24, hi24⟩
+  step as ⟨i25, hi25⟩
+  step as ⟨i26, hi26⟩
+  step with cast_u64_u128 i26 as ⟨i27, hi27⟩
+  step as ⟨i28, hi28⟩
+  step as ⟨i29, hi29⟩
+  step as ⟨r2, hr2'⟩
+  step as ⟨i30, hi30⟩
+  step with cast_u64_u128 i30 as ⟨i31, hi31⟩
+  step as ⟨i32, hi32⟩
+  step with cast_u64_u128 i32 as ⟨i33, hi33⟩
+  step as ⟨i34, hi34⟩
+  step as ⟨i35, hi35⟩
+  step with cast_u64_u128 i35 as ⟨i36, hi36⟩
+  step as ⟨i37, hi37⟩
+  step as ⟨i38, hi38⟩
+  step with cast_u64_u128 i38 as ⟨i39, hi39⟩
+  step as ⟨r3, hr3'⟩
+  simp only [rawN, ← hx0, ← hx1, ← hx2, ← hx3, ← hy0, ← hy1, ← hy2, ← hy3]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
+
+/-- Lane `4m + r` read in the base field. -/
+def laneK (lanes : alloc.vec.Vec Std.U128) (m r : ℕ) : K :=
+  ((lv lanes (4 * m + r) : ℕ) : ZMod q)
+
+/-- **What lane group `m` denotes**: the extension element whose four
+coefficients are lanes `4m .. 4m + 3` reduced mod `q`. -/
+def laneExt (lanes : alloc.vec.Vec Std.U128) (m : ℕ) : F :=
+  Ext.ofFn (fun i => laneK lanes m i.val)
+
+theorem coeff_laneExt (lanes : alloc.vec.Vec Std.U128) (m : ℕ)
+    (i : Fin Hachi.ext4Params.toExtensionParams.d) :
+    Ext.coeff (laneExt lanes m) i = laneK lanes m i.val := Ext.coeff_ofFn _ _
+
+theorem fin_d_lt_four (i : Fin Hachi.ext4Params.toExtensionParams.d) : i.val < 4 := by
+  rcases fin_four_cases_d i with h | h | h | h <;> omega
+
+/-- Adding `rawN a b` into group `m` adds `a · b` to what it denotes. -/
+theorem laneExt_add (l z : alloc.vec.Vec Std.U128) (m : ℕ) (a b : cpoly.field.Ext4)
+    (h : ∀ r, r < 4 → lv z (4 * m + r) = lv l (4 * m + r) + rawN a b r) :
+    laneExt z m = laneExt l m + toExt a * toExt b := by
+  apply Ext.ext
+  intro i
+  rw [Ext.coeff_add, coeff_laneExt, coeff_laneExt, rawN_coeff]
+  simp only [laneK]
+  rw [h i.val (fin_d_lt_four i)]
+  push_cast
+  rfl
+
+/-- A group whose four lanes did not move denotes the same element. -/
+theorem laneExt_congr (l z : alloc.vec.Vec Std.U128) (m : ℕ)
+    (h : ∀ r, r < 4 → lv z (4 * m + r) = lv l (4 * m + r)) :
+    laneExt z m = laneExt l m := by
+  apply Ext.ext
+  intro i
+  rw [coeff_laneExt, coeff_laneExt]
+  simp only [laneK]
+  rw [h i.val (fin_d_lt_four i)]
+
+/-- Reducing the four lanes mod `q` does not move what the group denotes. -/
+theorem laneExt_mod (l z : alloc.vec.Vec Std.U128) (m : ℕ)
+    (h : ∀ r, r < 4 → lv z (4 * m + r) = lv l (4 * m + r) % q) :
+    laneExt z m = laneExt l m := by
+  apply Ext.ext
+  intro i
+  rw [coeff_laneExt, coeff_laneExt]
+  simp only [laneK]
+  rw [h i.val (fin_d_lt_four i), ZMod.natCast_mod]
+
+/-- All-zero lanes denote zero. -/
+theorem laneExt_zero (l : alloc.vec.Vec Std.U128) (m : ℕ) (h : ∀ i, lv l i = 0) :
+    laneExt l m = 0 := by
+  apply Ext.ext
+  intro i
+  rw [coeff_laneExt, Ext.coeff_zero]
+  simp only [laneK]
+  rw [h]
+  simp
+
+/-- **`lane_accum`**: lanes `base .. base + 3` gain the four unreduced
+components of `a · b`; every other lane is untouched. The room hypothesis is
+per lane, so the caller may hold the other lanes anywhere. -/
+theorem lane_accum_spec (lanes : alloc.vec.Vec Std.U128) (base : Std.Usize)
+    (a b : cpoly.field.Ext4) (ha : Reduced a) (hb : Reduced b)
+    (hlen : lanes.val.length = 128) (hbase : base.val + 4 ≤ 128)
+    (hroom : ∀ r, r < 4 → lv lanes (base.val + r) + 7 * (q * q) ≤ Std.U128.max) :
+    sumcheck.lane_accum lanes base a b
+      ⦃ z => z.val.length = 128
+          ∧ (∀ r, r < 4 → lv z (base.val + r) = lv lanes (base.val + r) + rawN a b r)
+          ∧ ∀ i, (i < base.val ∨ base.val + 4 ≤ i) → lv z i = lv lanes i ⦄ := by
+  have hle := rawN_le a b ha hb
+  have hr0 := hroom 0 (by omega)
+  have hr1 := hroom 1 (by omega)
+  have hr2 := hroom 2 (by omega)
+  have hr3 := hroom 3 (by omega)
+  have hle0 := hle 0
+  have hle1 := hle 1
+  have hle2 := hle 2
+  have hle3 := hle 3
+  rw [sumcheck.lane_accum]
+  step with ext4_mul_raw_spec a b ha hb as ⟨p0, p1, p2, p3, hp0, hp1, hp2, hp3⟩
+  -- slot 0
+  have hb0 : base.val < lanes.val.length := by omega
+  step as ⟨cur0, hcur0⟩
+  have hc0 : cur0.val = lv lanes base.val := by rw [hcur0, lv_of_lt hb0]
+  step as ⟨nv0, hnv0⟩
+  step as ⟨e0, back0, he0, hback0⟩
+  step as ⟨i1, hi1⟩
+  rw [hback0]
+  -- slot 1
+  have hl1 : (lanes.set base nv0).val.length = 128 := by rw [lv_set_length, hlen]
+  have hb1 : i1.val < (lanes.set base nv0).val.length := by rw [hl1]; omega
+  step as ⟨cur1, hcur1⟩
+  have hc1 : cur1.val = lv lanes (base.val + 1) := by
+    rw [hcur1, ← lv_of_lt hb1, lv_set_ne (by omega), hi1]
+  step as ⟨nv1, hnv1⟩
+  step as ⟨e1, back1, he1, hback1⟩
+  step as ⟨i2, hi2⟩
+  rw [hback1]
+  -- slot 2
+  have hl2 : ((lanes.set base nv0).set i1 nv1).val.length = 128 := by
+    rw [lv_set_length, hl1]
+  have hb2 : i2.val < ((lanes.set base nv0).set i1 nv1).val.length := by rw [hl2]; omega
+  step as ⟨cur2, hcur2⟩
+  have hc2 : cur2.val = lv lanes (base.val + 2) := by
+    rw [hcur2, ← lv_of_lt hb2, lv_set_ne (by omega), lv_set_ne (by omega), hi2]
+  step as ⟨nv2, hnv2⟩
+  step as ⟨e2, back2, he2, hback2⟩
+  step as ⟨i3, hi3⟩
+  rw [hback2]
+  -- slot 3
+  have hl3 : (((lanes.set base nv0).set i1 nv1).set i2 nv2).val.length = 128 := by
+    rw [lv_set_length, hl2]
+  have hb3 : i3.val < (((lanes.set base nv0).set i1 nv1).set i2 nv2).val.length := by
+    rw [hl3]; omega
+  step as ⟨cur3, hcur3⟩
+  have hc3 : cur3.val = lv lanes (base.val + 3) := by
+    rw [hcur3, ← lv_of_lt hb3, lv_set_ne (by omega), lv_set_ne (by omega),
+      lv_set_ne (by omega), hi3]
+  step as ⟨nv3, hnv3⟩
+  step as ⟨e3, back3, he3, hback3⟩
+  rw [hback3]
+  refine ⟨by rw [lv_set_length, hl3], ?_, ?_⟩
+  · intro r hr
+    rcases (by omega : r = 0 ∨ r = 1 ∨ r = 2 ∨ r = 3) with rfl | rfl | rfl | rfl
+    · rw [Nat.add_zero, lv_set_ne (by omega), lv_set_ne (by omega), lv_set_ne (by omega),
+        lv_set_eq rfl hb0, hnv0, hc0, hp0]
+    · rw [lv_set_ne (by omega), lv_set_ne (by omega), lv_set_eq (by omega) (by rw [hl1]; omega),
+        hnv1, hc1, hp1]
+    · rw [lv_set_ne (by omega), lv_set_eq (by omega) (by rw [hl2]; omega), hnv2, hc2, hp2]
+    · rw [lv_set_eq (by omega) (by rw [hl3]; omega), hnv3, hc3, hp3]
+  · intro i hi
+    rw [lv_set_ne (by omega), lv_set_ne (by omega), lv_set_ne (by omega), lv_set_ne (by omega)]
+
+/-- The `m` loop of `shift_accum_lanes`: group `m` gains the unreduced
+`e·Δ^m · S_m`, each lane by at most `7·q²` above its starting bound `B`. -/
+theorem shift_accum_lanes_loop_spec (lanes : alloc.vec.Vec Std.U128)
+    (lop : alloc.vec.Vec cpoly.field.Ext4) (d e : cpoly.field.Ext4) (n : Std.Usize)
+    (epow : cpoly.field.Ext4) (m : Std.Usize) (X : F)
+    (lanes0 : alloc.vec.Vec Std.U128) (B : ℕ)
+    (hn : n.val = 32) (hm : m.val ≤ 32)
+    (hlen : lop.val.length = 32) (hlr : VecReduced lop)
+    (hv : ∀ t, t < 32 → toExt (lop.val.getD t cpoly.field.Ext4.ZERO) = X ^ t)
+    (hdr : Reduced d)
+    (hroom : B + 7 * (q * q) ≤ Std.U128.max)
+    (hB0 : ∀ i, i < 128 → lv lanes0 i ≤ B)
+    (hL : lanes.val.length = 128)
+    (hepr : Reduced epow) (hepv : toExt epow = toExt e * toExt d ^ m.val)
+    (hbnd : ∀ i, i < 128 → lv lanes i ≤ B + 7 * (q * q))
+    (hun : ∀ i, i < 128 → 4 * m.val ≤ i → lv lanes i = lv lanes0 i)
+    (hval : ∀ t, t < 32 → laneExt lanes t
+      = laneExt lanes0 t + (if t < m.val then toExt e * shiftCoeff X (toExt d) t else 0)) :
+    sumcheck.shift_accum_lanes_loop lanes lop d n epow m
+      ⦃ z => z.val.length = 128 ∧ (∀ i, i < 128 → lv z i ≤ B + 7 * (q * q)) ∧
+          ∀ t, t < 32 → laneExt z t = laneExt lanes0 t + toExt e * shiftCoeff X (toExt d) t ⦄ := by
+  rw [sumcheck.shift_accum_lanes_loop]
+  apply loop.spec_decr_nat (fun r => 32 - r.2.2.val)
+    (fun r => r.2.2.val ≤ 32 ∧ r.1.val.length = 128 ∧ Reduced r.2.1
+      ∧ toExt r.2.1 = toExt e * toExt d ^ r.2.2.val
+      ∧ (∀ i, i < 128 → lv r.1 i ≤ B + 7 * (q * q))
+      ∧ (∀ i, i < 128 → 4 * r.2.2.val ≤ i → lv r.1 i = lv lanes0 i)
+      ∧ ∀ t, t < 32 → laneExt r.1 t
+          = laneExt lanes0 t + (if t < r.2.2.val then toExt e * shiftCoeff X (toExt d) t else 0))
+  · rintro ⟨l, ep, mm⟩ ⟨hmm, hl, hepr', hepv', hbnd', hun', hval'⟩
+    dsimp only at hmm hl hepr' hepv' hbnd' hun' hval'
+    simp only [sumcheck.shift_accum_lanes_loop.body]
+    by_cases hlt : mm < n
+    · rw [if_pos hlt]
+      have hmlt : mm.val < 32 := by rw [← hn]; scalar_tac
+      step with shift_inner_spec lop mm X hmlt hlen hlr hv as ⟨sv, hRsv, hsvv⟩
+      step as ⟨i, hi⟩
+      have hiv : i.val = 4 * mm.val := by rw [hi]
+      step with lane_accum_spec l i ep sv hepr' hRsv hl (by omega)
+        (fun r hr => by
+          rw [hun' _ (by omega) (by omega)]
+          have := hB0 (i.val + r) (by omega)
+          omega)
+        as ⟨l1, hl1len, hl1acc, hl1out⟩
+      step with HachiEquiv.Ext.ext_mul_spec ep d hepr' hdr as ⟨ep1, hRep1, hep1v⟩
+      step as ⟨mm1, hmm1⟩
+      refine ⟨by omega, hl1len, hRep1, ?_, ?_, ?_, ?_, by omega⟩
+      · rw [hep1v, hepv', hmm1, pow_succ]; ring
+      · intro j hj
+        by_cases hin : i.val ≤ j ∧ j < i.val + 4
+        · have hj' : j = i.val + (j - i.val) := by omega
+          rw [hj', hl1acc _ (by omega), ← hj', hun' j hj (by omega)]
+          have := hB0 j hj
+          have := rawN_le ep sv hepr' hRsv (j - i.val)
+          omega
+        · rw [hl1out j (by omega)]
+          exact hbnd' j hj
+      · intro j hj hj4
+        rw [hl1out j (by omega)]
+        exact hun' j hj (by omega)
+      · intro t ht
+        rw [hmm1]
+        rcases eq_or_ne t mm.val with heq | hne
+        · rw [heq, laneExt_add l l1 mm.val ep sv (fun r hr => by rw [← hiv]; exact hl1acc r hr),
+            hval' mm.val hmlt, if_neg (lt_irrefl _), if_pos (by omega), hepv', hsvv, shiftCoeff]
+          ring
+        · rw [laneExt_congr l l1 t (fun r hr => hl1out (4 * t + r) (by omega)), hval' t ht]
+          by_cases hc : t < mm.val
+          · rw [if_pos hc, if_pos (by omega)]
+          · rw [if_neg hc, if_neg (by omega)]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : mm.val = 32 := by rw [← hn]; scalar_tac
+      refine ⟨hl, hbnd', fun t ht => ?_⟩
+      rw [hval' t ht, if_pos (by omega)]
+  · exact ⟨hm, hL, hepr, hepv, hbnd, hun, hval⟩
+
+/-- **`shift_accum_lanes`**: one pair's contribution, into the lanes. -/
+theorem shift_accum_lanes_spec (lanes : alloc.vec.Vec Std.U128)
+    (lop : alloc.vec.Vec cpoly.field.Ext4) (d e : cpoly.field.Ext4) (X : F) (B : ℕ)
+    (hlen : lop.val.length = 32) (hlr : VecReduced lop)
+    (hv : ∀ t, t < 32 → toExt (lop.val.getD t cpoly.field.Ext4.ZERO) = X ^ t)
+    (hdr : Reduced d) (her : Reduced e)
+    (hL : lanes.val.length = 128) (hroom : B + 7 * (q * q) ≤ Std.U128.max)
+    (hB : ∀ i, i < 128 → lv lanes i ≤ B) :
+    sumcheck.shift_accum_lanes lanes lop d e
+      ⦃ z => z.val.length = 128 ∧ (∀ i, i < 128 → lv z i ≤ B + 7 * (q * q)) ∧
+          ∀ t, t < 32 → laneExt z t = laneExt lanes t + toExt e * shiftCoeff X (toExt d) t ⦄ :=
+  shift_accum_lanes_loop_spec lanes lop d e params.SHIFT_DEG e 0#usize X lanes B
+    shift_deg_val (by simp) hlen hlr hv hdr hroom hB hL her (by simp)
+    (fun i hi => le_trans (hB i hi) (Nat.le_add_right _ _)) (fun _ _ _ => rfl)
+    (fun t _ => by rw [if_neg (by simp)]; simp)
+
+/-- The zero-fill of the lanes. -/
+theorem zero_lanes_loop_spec (n : Std.Usize) (out : alloc.vec.Vec Std.U128) (i : Std.Usize)
+    (hn : n.val = 128) (hi : i.val ≤ 128) (hlen : out.val.length = i.val)
+    (hz : ∀ x ∈ out.val, x.val = 0) :
+    sumcheck.zero_lanes_loop n out i
+      ⦃ z => z.val.length = 128 ∧ ∀ x ∈ z.val, x.val = 0 ⦄ := by
+  rw [sumcheck.zero_lanes_loop]
+  apply loop.spec_decr_nat (fun r => 128 - r.2.val)
+    (fun r => r.2.val ≤ 128 ∧ r.1.val.length = r.2.val ∧ ∀ x ∈ r.1.val, x.val = 0)
+  · rintro ⟨o, ii⟩ ⟨hii, hol, hoz⟩
+    dsimp only at hii hol hoz
+    simp only [sumcheck.zero_lanes_loop.body]
+    by_cases hlt : ii < n
+    · rw [if_pos hlt]
+      have hilt : ii.val < 128 := by rw [← hn]; scalar_tac
+      have hmax : o.val.length < Std.Usize.max := by rw [hol]; scalar_tac
+      step as ⟨o1, ho1⟩
+      step as ⟨ii1, hii1⟩
+      refine ⟨by omega, ?_, ?_, by omega⟩
+      · rw [ho1, hii1, List.length_append, hol]; simp
+      · intro x hx
+        rw [ho1] at hx
+        rcases List.mem_append.mp hx with h | h
+        · exact hoz x h
+        · rw [List.mem_singleton.mp h]; rfl
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = 128 := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hol, heq], hoz⟩
+  · exact ⟨hi, hlen, hz⟩
+
+theorem lv_zero_of_mem {l : alloc.vec.Vec Std.U128} (h : ∀ x ∈ l.val, x.val = 0) (i : ℕ) :
+    lv l i = 0 := by
+  unfold lv
+  by_cases hi : i < l.val.length
+  · rw [List.getD_eq_getElem _ _ hi]; exact h _ (List.getElem_mem hi)
+  · rw [List.getD_eq_default _ _ (by omega)]; rfl
+
+/-- **`zero_lanes`**: `ZERO_LANES = 128` zero lanes. -/
+theorem zero_lanes_spec :
+    sumcheck.zero_lanes ⦃ z => z.val.length = 128 ∧ ∀ i, lv z i = 0 ⦄ := by
+  rw [sumcheck.zero_lanes]
+  simp only [alloc.vec.Vec.with_capacity]
+  apply spec_mono (zero_lanes_loop_spec sumcheck.ZERO_LANES (alloc.vec.Vec.new Std.U128) 0#usize
+    zero_lanes_val (by simp) (by simp) (by intro x hx; simp at hx))
+  rintro z ⟨hzl, hzz⟩
+  exact ⟨hzl, lv_zero_of_mem hzz⟩
+
+/-- The reduction loop of `lanes_flush`. -/
+theorem lanes_flush_loop_spec (lanes lanes0 : alloc.vec.Vec Std.U128) (n : Std.Usize)
+    (qw : Std.U128) (i : Std.Usize)
+    (hn : n.val = lanes0.val.length) (hqw : qw.val = q)
+    (hL : lanes.val.length = lanes0.val.length) (hi : i.val ≤ n.val)
+    (hdone : ∀ j, j < i.val → lv lanes j = lv lanes0 j % q)
+    (hrest : ∀ j, i.val ≤ j → lv lanes j = lv lanes0 j) :
+    sumcheck.lanes_flush_loop lanes n qw i
+      ⦃ z => z.val.length = lanes0.val.length
+          ∧ ∀ j, j < lanes0.val.length → lv z j = lv lanes0 j % q ⦄ := by
+  rw [sumcheck.lanes_flush_loop]
+  apply loop.spec_decr_nat (fun r => n.val - r.2.val)
+    (fun r => r.2.val ≤ n.val ∧ r.1.val.length = lanes0.val.length
+      ∧ (∀ j, j < r.2.val → lv r.1 j = lv lanes0 j % q)
+      ∧ ∀ j, r.2.val ≤ j → lv r.1 j = lv lanes0 j)
+  · rintro ⟨l, ii⟩ ⟨hii, hl, hd, hr⟩
+    dsimp only at hii hl hd hr
+    simp only [sumcheck.lanes_flush_loop.body]
+    by_cases hlt : ii < n
+    · rw [if_pos hlt]
+      have hib : ii.val < l.val.length := by rw [hl, ← hn]; scalar_tac
+      step as ⟨cur, hcur⟩
+      have hcv : cur.val = lv lanes0 ii.val := by
+        rw [hcur, ← lv_of_lt hib, hr ii.val le_rfl]
+      have hqpos : qw.val ≠ 0 := by rw [hqw]; unfold q; norm_num
+      step as ⟨nv, hnv⟩
+      step as ⟨e, back, he, hback⟩
+      step as ⟨ii1, hii1⟩
+      rw [hback]
+      refine ⟨by omega, by rw [lv_set_length, hl], ?_, ?_, by omega⟩
+      · intro j hj
+        rw [hii1] at hj
+        rcases Nat.lt_or_ge j ii.val with hc | hc
+        · rw [lv_set_ne (by omega)]; exact hd j hc
+        · rw [lv_set_eq (by omega) hib, hnv, hcv, hqw]
+          have : j = ii.val := by omega
+          rw [this]
+      · intro j hj
+        rw [hii1] at hj
+        rw [lv_set_ne (by omega)]
+        exact hr j (by omega)
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : ii.val = n.val := by scalar_tac
+      exact ⟨hl, fun j hj => hd j (by omega)⟩
+  · exact ⟨hi, hL, hdone, hrest⟩
+
+/-- **`lanes_flush`**: every lane reduced mod `q` in place. -/
+theorem lanes_flush_spec (lanes : alloc.vec.Vec Std.U128) :
+    sumcheck.lanes_flush lanes
+      ⦃ z => z.val.length = lanes.val.length
+          ∧ ∀ j, j < lanes.val.length → lv z j = lv lanes j % q ⦄ := by
+  rw [sumcheck.lanes_flush]
+  have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q (HachiEquiv.NttCRT.u64_le_u128_max _)
+  step with hcq as ⟨qw, hqw⟩
+  exact lanes_flush_loop_spec lanes lanes (alloc.vec.Vec.len lanes) qw 0#usize (by simp)
+    (by rw [hqw, params_Q_val]) rfl (by simp) (fun j hj => by simp at hj) (fun _ _ => rfl)
+
+theorem ext4_new_spec (a b c d : cpoly.field.Fp) :
+    cpoly.field.Ext4.new a b c d ⦃ e => e = { c0 := a, c1 := b, c2 := c, c3 := d } ⦄ := by
+  rw [cpoly.field.Ext4.new, WP.spec_ok]
+
+/-- The read-back loop of `lanes_to_coeffs`. -/
+theorem lanes_to_coeffs_loop_spec (lanes : alloc.vec.Vec Std.U128) (n : Std.Usize)
+    (qw : Std.U128) (out : alloc.vec.Vec cpoly.field.Ext4) (m : Std.Usize)
+    (hn : n.val = 32) (hqw : qw.val = q) (hL : lanes.val.length = 128)
+    (hm : m.val ≤ 32) (hlen : out.val.length = m.val) (hr : VecReduced out)
+    (hov : ∀ t, t < m.val → toExt (out.val.getD t cpoly.field.Ext4.ZERO) = laneExt lanes t) :
+    sumcheck.lanes_to_coeffs_loop lanes n qw out m
       ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
-          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
-            = ∑ y' ∈ Finset.range half.val,
-                eqF eq y' * shiftCoeff (loF w y') (dF w y') t ⦄ := by
-  rw [sumcheck.round_poly_zero_loop1]
-  apply loop.spec_decr_nat (fun r => half.val - r.2.val)
-    (fun r => r.2.val ≤ half.val ∧ r.1.val.length = 32 ∧ VecReduced r.1
-      ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
-          = ∑ y' ∈ Finset.range r.2.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
-  · rintro ⟨a, yy⟩ ⟨hyy, hal, har', hav'⟩
-    dsimp only at hyy hal har' hav'
-    simp only [sumcheck.round_poly_zero_loop1.body]
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = laneExt lanes t ⦄ := by
+  have hqpos : 0 < q := by unfold q; norm_num
+  have hqu64 : q ≤ UScalar.max UScalarTy.U64 := by
+    have h : UScalar.max UScalarTy.U64 = 18446744073709551615 := by
+      simp only [UScalar.max, UScalarTy.numBits]; norm_num
+    unfold q; omega
+  rw [sumcheck.lanes_to_coeffs_loop]
+  apply loop.spec_decr_nat (fun r => 32 - r.2.val)
+    (fun r => r.2.val ≤ 32 ∧ r.1.val.length = r.2.val ∧ VecReduced r.1
+      ∧ ∀ t, t < r.2.val → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO) = laneExt lanes t)
+  · rintro ⟨o, mm⟩ ⟨hmm, hol, hor, hov'⟩
+    dsimp only at hmm hol hor hov'
+    simp only [sumcheck.lanes_to_coeffs_loop.body]
+    by_cases hlt : mm < n
+    · rw [if_pos hlt]
+      have hmlt : mm.val < 32 := by rw [← hn]; scalar_tac
+      step as ⟨b0, hb0⟩
+      have hb0v : b0.val = 4 * mm.val := by rw [hb0]
+      step as ⟨l0, hl0⟩
+      step as ⟨i, hi⟩
+      step as ⟨l1, hl1⟩
+      step as ⟨i1, hi1⟩
+      step as ⟨l2, hl2⟩
+      step as ⟨i2, hi2⟩
+      step as ⟨l3, hl3⟩
+      have hv0 : l0.val = lv lanes (4 * mm.val + 0) := by
+        rw [hl0, ← lv_of_lt (by rw [hL]; omega), hb0v]; rfl
+      have hv1 : l1.val = lv lanes (4 * mm.val + 1) := by
+        rw [hl1, ← lv_of_lt (by rw [hL]; omega), hi, hb0v]
+      have hv2 : l2.val = lv lanes (4 * mm.val + 2) := by
+        rw [hl2, ← lv_of_lt (by rw [hL]; omega), hi1, hb0v]
+      have hv3 : l3.val = lv lanes (4 * mm.val + 3) := by
+        rw [hl3, ← lv_of_lt (by rw [hL]; omega), hi2, hb0v]
+      have hqz : qw.val ≠ 0 := by rw [hqw]; omega
+      -- component 0
+      step as ⟨u0, hu0⟩
+      have hu0lt : u0.val ≤ UScalar.max UScalarTy.U64 := by
+        rw [hu0, hqw]; have := Nat.mod_lt l0.val hqpos; omega
+      step with UScalar.cast_inBounds_spec .U64 u0 hu0lt as ⟨v0, hv0'⟩
+      step with HachiEquiv.Field.fp_new_spec v0 as ⟨f0, hRf0, hf0⟩
+      -- component 1
+      step as ⟨u1, hu1⟩
+      have hu1lt : u1.val ≤ UScalar.max UScalarTy.U64 := by
+        rw [hu1, hqw]; have := Nat.mod_lt l1.val hqpos; omega
+      step with UScalar.cast_inBounds_spec .U64 u1 hu1lt as ⟨v1, hv1'⟩
+      step with HachiEquiv.Field.fp_new_spec v1 as ⟨f1, hRf1, hf1⟩
+      -- component 2
+      step as ⟨u2, hu2⟩
+      have hu2lt : u2.val ≤ UScalar.max UScalarTy.U64 := by
+        rw [hu2, hqw]; have := Nat.mod_lt l2.val hqpos; omega
+      step with UScalar.cast_inBounds_spec .U64 u2 hu2lt as ⟨v2, hv2'⟩
+      step with HachiEquiv.Field.fp_new_spec v2 as ⟨f2, hRf2, hf2⟩
+      -- component 3
+      step as ⟨u3, hu3⟩
+      have hu3lt : u3.val ≤ UScalar.max UScalarTy.U64 := by
+        rw [hu3, hqw]; have := Nat.mod_lt l3.val hqpos; omega
+      step with UScalar.cast_inBounds_spec .U64 u3 hu3lt as ⟨v3, hv3'⟩
+      step with HachiEquiv.Field.fp_new_spec v3 as ⟨f3, hRf3, hf3⟩
+      step with ext4_new_spec f0 f1 f2 f3 as ⟨ex, hex⟩
+      have hRex : Reduced ex := by rw [hex]; exact ⟨hRf0, hRf1, hRf2, hRf3⟩
+      have hexv : toExt ex = laneExt lanes mm.val := by
+        apply Ext.ext
+        intro j
+        rw [coeff_toExt_d, coeff_laneExt, hex]
+        rcases fin_four_cases_d j with h | h | h | h <;> simp only [extCoeff, laneK, h]
+        · rw [hf0, hv0', hu0, hqw, ZMod.natCast_mod, hv0]
+        · rw [hf1, hv1', hu1, hqw, ZMod.natCast_mod, hv1]
+        · rw [hf2, hv2', hu2, hqw, ZMod.natCast_mod, hv2]
+        · rw [hf3, hv3', hu3, hqw, ZMod.natCast_mod, hv3]
+      have hmax : o.val.length < Std.Usize.max := by rw [hol]; scalar_tac
+      step as ⟨o1, ho1⟩
+      step as ⟨mm1, hmm1⟩
+      refine ⟨by omega, ?_, ?_, ?_, by omega⟩
+      · rw [ho1, hmm1, List.length_append, hol]; simp
+      · intro y hy
+        rw [ho1] at hy
+        rcases List.mem_append.mp hy with h | h
+        · exact hor y h
+        · rw [List.mem_singleton.mp h]; exact hRex
+      · intro t ht
+        rw [hmm1] at ht
+        rcases Nat.lt_or_ge t mm.val with hc | hc
+        · rw [ho1, HachiEquiv.GoldTransform.getD_append_lt' _ _ _ (by omega)]
+          exact hov' t hc
+        · have heq : t = o.val.length := by omega
+          rw [heq, ho1, HachiEquiv.GoldTransform.getD_append_eq', hol, hexv]
+    · rw [if_neg hlt, WP.spec_ok]
+      dsimp only
+      have heq : mm.val = 32 := by rw [← hn]; scalar_tac
+      exact ⟨by rw [hol, heq], hor, fun t ht => hov' t (by rw [heq]; exact ht)⟩
+  · exact ⟨hm, hlen, hr, hov⟩
+
+/-- **`lanes_to_coeffs`**: the 32 coefficients the lanes denote, reduced. -/
+theorem lanes_to_coeffs_spec (lanes : alloc.vec.Vec Std.U128) (hL : lanes.val.length = 128) :
+    sumcheck.lanes_to_coeffs lanes
+      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
+          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO) = laneExt lanes t ⦄ := by
+  rw [sumcheck.lanes_to_coeffs]
+  have hcq : lift (UScalar.cast .U128 params.Q) ⦃ y => y.val = (params.Q).val ⦄ :=
+    UScalar.cast_inBounds_spec .U128 params.Q (HachiEquiv.NttCRT.u64_le_u128_max _)
+  step with hcq as ⟨qw, hqw⟩
+  simp only [alloc.vec.Vec.with_capacity]
+  exact lanes_to_coeffs_loop_spec lanes params.SHIFT_DEG qw (alloc.vec.Vec.new cpoly.field.Ext4)
+    0#usize shift_deg_val (by rw [hqw, params_Q_val]) hL (by simp) (by simp)
+    (by intro a ha; simp at ha) (by intro t ht; simp at ht)
+
+/-- **The pair loop, over lanes** (card T53b; the restated `pair_loop_spec`).
+After `y` pairs, group `t` denotes the partial sum
+`Σ_{y' < y} eq[y'] · shiftCoeff lo_{y'} Δ_{y'} t`; every lane is at most
+`q + since · 7q²`, and `since < 2^31`, which with `flush ≤ 2^31` is what keeps
+every `u128` add in range ([`lane_room`]).
+
+T55's three-way split on the two zero tests is kept: where both hold the lanes
+and `since` come back unchanged and the summand is `eq[y] · shiftCoeff 0 0 t = 0`
+([`shiftCoeff_zero_zero`]); the other two branches run the body, which now ends
+in the flush split. -/
+theorem round_poly_zero_lanes_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4)
+    (flush half : Std.Usize) (lanes : alloc.vec.Vec Std.U128) (since y : Std.Usize)
+    (hhalf : half.val = eq.val.length) (hwl : w.val.length = 2 * eq.val.length)
+    (hwr : VecReduced w) (her : VecReduced eq) (hflush : flush.val ≤ 2 ^ 31)
+    (hy : y.val ≤ half.val) (hL : lanes.val.length = 128) (hs : since.val < 2 ^ 31)
+    (hbnd : ∀ i, i < 128 → lv lanes i ≤ q + since.val * (7 * (q * q)))
+    (hval : ∀ t, t < 32 → laneExt lanes t
+      = ∑ y' ∈ Finset.range y.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t) :
+    sumcheck.round_poly_zero_lanes_loop w eq flush half lanes since y
+      ⦃ z => z.val.length = 128 ∧
+          ∀ t, t < 32 → laneExt z t
+            = ∑ y' ∈ Finset.range half.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t ⦄ := by
+  rw [sumcheck.round_poly_zero_lanes_loop]
+  apply loop.spec_decr_nat (fun r => half.val - r.2.2.val)
+    (fun r => r.2.2.val ≤ half.val ∧ r.1.val.length = 128 ∧ r.2.1.val < 2 ^ 31
+      ∧ (∀ i, i < 128 → lv r.1 i ≤ q + r.2.1.val * (7 * (q * q)))
+      ∧ ∀ t, t < 32 → laneExt r.1 t
+          = ∑ y' ∈ Finset.range r.2.2.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
+  · rintro ⟨l, s, yy⟩ ⟨hyy, hl, hs', hbnd', hval'⟩
+    dsimp only at hyy hl hs' hbnd' hval'
+    simp only [sumcheck.round_poly_zero_lanes_loop.body]
     by_cases hlt : yy < half
     · rw [if_pos hlt]
       have hylt : yy.val < eq.val.length := by rw [← hhalf]; scalar_tac
@@ -866,14 +1513,21 @@ theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize
       have hhiv : toExt hiw = toExt (w.val.getD (2 * yy.val + 1) cpoly.field.Ext4.ZERO) := by
         rw [hhiw, ← List.getD_eq_getElem (l := w.val) (d := cpoly.field.Ext4.ZERO) hhib,
           hi1, hi]
-      -- the old body: one pair's shift, accumulated
+      -- the body: one pair's shift, into the lanes, then the flush split
       have hbody : (do
           let lop ← sumcheck.shift_powers lo
           let e ← cpoly.field.Ext4.Insts.CoreOpsArithSubExt4Ext4.sub hiw lo
           let e1 ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice cpoly.field.Ext4) eq yy
-          sumcheck.shift_accum a lop e e1)
-          ⦃ a1 => a1.val.length = 32 ∧ VecReduced a1 ∧
-            ∀ t, t < 32 → toExt (a1.val.getD t cpoly.field.Ext4.ZERO)
+          let lanes2 ← sumcheck.shift_accum_lanes l lop e e1
+          let since2 ← s + 1#usize
+          if since2 >= flush
+          then
+            let lanes3 ← sumcheck.lanes_flush lanes2
+            ok (lanes3, 0#usize)
+          else ok (lanes2, since2))
+          ⦃ p => p.1.val.length = 128 ∧ p.2.val < 2 ^ 31
+            ∧ (∀ i, i < 128 → lv p.1 i ≤ q + p.2.val * (7 * (q * q)))
+            ∧ ∀ t, t < 32 → laneExt p.1 t
               = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t ⦄ := by
         step with shift_powers_spec lo hRlo as ⟨lop, hlopl, hlopr, hlopv⟩
         step with HachiEquiv.Ext.ext_sub_spec hiw lo hRhi hRlo as ⟨dd, hRdd, hddv⟩
@@ -882,45 +1536,91 @@ theorem pair_loop_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (half : Std.Usize
         have hRev : Reduced ev := her _ (by rw [hev]; exact List.getElem_mem hylt)
         have hevv : toExt ev = eqF eq yy.val := by
           rw [hev, eqF, ← List.getD_eq_getElem (l := eq.val) (d := cpoly.field.Ext4.ZERO) hylt]
-        apply spec_mono (shift_accum_spec a lop dd ev (loF w yy.val)
-          (fun t => ∑ y' ∈ Finset.range yy.val, eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
-          hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hal har' hav')
-        rintro a1 ⟨ha1l, ha1r, ha1v⟩
-        refine ⟨ha1l, ha1r, fun t ht => ?_⟩
-        rw [ha1v t ht, Finset.sum_range_succ, hevv, hddval]
+        have hroomS : q + s.val * (7 * (q * q)) + 7 * (q * q) ≤ Std.U128.max := by
+          have h1 : s.val * (7 * (q * q)) ≤ 2 ^ 31 * (7 * (q * q)) :=
+            Nat.mul_le_mul_right _ (by omega)
+          exact le_trans (Nat.add_le_add_right (Nat.add_le_add_left h1 q) _) lane_room
+        step with shift_accum_lanes_spec l lop dd ev (loF w yy.val) (q + s.val * (7 * (q * q)))
+          hlopl hlopr (by intro t ht; rw [hlopv t ht, hlov]) hRdd hRev hl hroomS hbnd'
+          as ⟨l2, hl2len, hl2bnd, hl2val⟩
+        have hvals : ∀ t, t < 32 → laneExt l2 t
+            = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t := by
+          intro t ht
+          rw [hl2val t ht, hval' t ht, Finset.sum_range_succ, hevv, hddval]
+        step as ⟨s2, hs2⟩
+        by_cases hf : s2 >= flush
+        · rw [if_pos hf]
+          step with lanes_flush_spec l2 as ⟨l3, hl3len, hl3v⟩
+          refine ⟨by rw [hl3len, hl2len], by simp, ?_, ?_⟩
+          · intro j hj
+            rw [hl3v j (by rw [hl2len]; exact hj)]
+            have := Nat.mod_lt (lv l2 j) (by unfold q; norm_num : 0 < q)
+            have h0 : (0#usize : Std.Usize).val = 0 := by simp
+            rw [h0, Nat.zero_mul, Nat.add_zero]
+            exact le_of_lt this
+          · intro t ht
+            rw [laneExt_mod l2 l3 t (fun r hr => hl3v _ (by rw [hl2len]; omega))]
+            exact hvals t ht
+        · rw [if_neg hf, WP.spec_ok]
+          have hs2lt : s2.val < 2 ^ 31 := by scalar_tac
+          refine ⟨hl2len, hs2lt, ?_, hvals⟩
+          intro j hj
+          have := hl2bnd j hj
+          rw [hs2, Nat.succ_mul, ← Nat.add_assoc]
+          exact this
       -- the skipped pair: `lo = hi = 0`, so its summand is `eq[y] · 0`
       have hskip : toExt lo = 0 → toExt hiw = 0 →
-          ∀ t, t < 32 → toExt (a.val.getD t cpoly.field.Ext4.ZERO)
+          ∀ t, t < 32 → laneExt l t
             = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t := by
         intro h0 h1 t ht
-        have hl : loF w yy.val = 0 := by rw [← hlov, h0]
-        have hd : dF w yy.val = 0 := by rw [dF, ← hhiv, h1, hl, sub_zero]
-        rw [Finset.sum_range_succ, hl, hd, shiftCoeff_zero_zero, MulZeroClass.mul_zero, add_zero, hav' t ht]
+        have hl0 : loF w yy.val = 0 := by rw [← hlov, h0]
+        have hd : dF w yy.val = 0 := by rw [dF, ← hhiv, h1, hl0, sub_zero]
+        rw [Finset.sum_range_succ, hl0, hd, shiftCoeff_zero_zero, MulZeroClass.mul_zero, add_zero,
+          hval' t ht]
       step with HachiEquiv.Ext.ext_is_zero_spec lo hRlo as ⟨b, hb⟩
-      apply spec_bind (Pₘ := fun a1 : alloc.vec.Vec cpoly.field.Ext4 =>
-        a1.val.length = 32 ∧ VecReduced a1 ∧
-          ∀ t, t < 32 → toExt (a1.val.getD t cpoly.field.Ext4.ZERO)
+      apply spec_bind (Pₘ := fun p : alloc.vec.Vec Std.U128 × Std.Usize =>
+        p.1.val.length = 128 ∧ p.2.val < 2 ^ 31
+          ∧ (∀ i, i < 128 → lv p.1 i ≤ q + p.2.val * (7 * (q * q)))
+          ∧ ∀ t, t < 32 → laneExt p.1 t
             = ∑ y' ∈ Finset.range (yy.val + 1), eqF eq y' * shiftCoeff (loF w y') (dF w y') t)
       · by_cases e0 : b = true
         · rw [if_pos e0]
           step with HachiEquiv.Ext.ext_is_zero_spec hiw hRhi as ⟨b1, hb1⟩
           by_cases e1 : b1 = true
           · rw [if_pos e1, WP.spec_ok]
-            exact ⟨hal, har', hskip (hb.mp e0) (hb1.mp e1)⟩
+            exact ⟨hl, hs', hbnd', hskip (hb.mp e0) (hb1.mp e1)⟩
           · rw [if_neg e1]
             exact hbody
         · rw [if_neg e0]
           exact hbody
-      · rintro a1 ⟨ha1l, ha1r, ha1v⟩
+      · rintro ⟨l1, s1⟩ ⟨hl1l, hs1, hl1b, hl1v⟩
         step as ⟨yy1, hyy1⟩
-        refine ⟨by omega, ha1l, ha1r, ?_, by omega⟩
+        refine ⟨by omega, hl1l, hs1, hl1b, ?_, by omega⟩
         intro t ht
-        rw [ha1v t ht, hyy1]
+        rw [hl1v t ht, hyy1]
     · rw [if_neg hlt, WP.spec_ok]
       dsimp only
       have heq : yy.val = half.val := by scalar_tac
-      exact ⟨hal, har', fun t ht => by rw [hav' t ht, heq]⟩
-  · exact ⟨hy, halen, har, hav⟩
+      exact ⟨hl, fun t ht => by rw [hval' t ht, heq]⟩
+  · exact ⟨hy, hL, hs, hbnd, hval⟩
+
+/-- **`round_poly_zero_lanes`**: after the whole pair loop, group `t` denotes
+coefficient `t` of the shifted range sum, for any flush period up to `2^31`. -/
+theorem round_poly_zero_lanes_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (flush : Std.Usize)
+    (hwl : w.val.length = 2 * eq.val.length) (hwr : VecReduced w) (her : VecReduced eq)
+    (hflush : flush.val ≤ 2 ^ 31) :
+    sumcheck.round_poly_zero_lanes w eq flush
+      ⦃ z => z.val.length = 128 ∧
+          ∀ t, t < 32 → laneExt z t
+            = ∑ y' ∈ Finset.range eq.val.length, eqF eq y' * shiftCoeff (loF w y') (dF w y') t ⦄ := by
+  rw [sumcheck.round_poly_zero_lanes]
+  step with zero_lanes_spec as ⟨l0, hl0, hz⟩
+  have hhalf : (alloc.vec.Vec.len eq).val = eq.val.length := by simp
+  apply spec_mono (round_poly_zero_lanes_loop_spec w eq flush (alloc.vec.Vec.len eq) l0
+    0#usize 0#usize hhalf hwl hwr her hflush (by simp) hl0 (by simp)
+    (fun i _ => by rw [hz]; simp) (fun t _ => by rw [laneExt_zero l0 t hz]; simp))
+  rintro z ⟨hz1, hz2⟩
+  exact ⟨hz1, fun t ht => by rw [hz2 t ht, hhalf]⟩
 
 
 /-- `Usize.max` is at least `2^32 - 1`; a local copy, as `RingShort` has. -/

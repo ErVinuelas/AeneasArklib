@@ -2461,13 +2461,33 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.coeff_sum_eq_shiftNat
 #print axioms HachiEquiv.SumcheckShift.shift_inner_spec
 #print axioms HachiEquiv.SumcheckShift.shift_accum_spec
-#print axioms HachiEquiv.SumcheckShift.zero_fill_spec
 -- Card T55 (2026-09-24): the pair loop skips a pair whose `lo` and `hi` are
 -- both zero. The skipped summand is `eq[y] · shiftCoeff 0 0 t`, and this is the
 -- lemma that says it is `0` -- the coefficient form of `P_b(0) = 0`. The pair
 -- loop's statement, and `round_poly_zero_spec`'s above it, did not move.
 #print axioms HachiEquiv.SumcheckShift.shiftCoeff_zero_zero
-#print axioms HachiEquiv.SumcheckShift.pair_loop_spec
+-- Card T53b (2026-09-25): the pair loop accumulates `epow · s` UNREDUCED in 128
+-- `u128` lanes (four per shifted coefficient) and reduces once per round. The
+-- zero-fill and the `Ext4` pair loop are gone with `zero_fill_spec` and
+-- `pair_loop_spec`; `shift_accum_spec` stays because the Rust item does.
+-- `rawN_le` and `lane_room` are the card's whole no-overflow argument: a lane
+-- below `q`, `2^31` pairs of at most `7·q²`, and one more, fit a `u128`;
+-- `rawN_coeff` is the bridge from the unreduced components to `F`.
+-- `round_poly_zero_spec`'s statement did not move.
+#print axioms HachiEquiv.SumcheckShift.rawN_le
+#print axioms HachiEquiv.SumcheckShift.lane_room
+#print axioms HachiEquiv.SumcheckShift.rawN_coeff
+#print axioms HachiEquiv.SumcheckShift.ext4_mul_raw_spec
+#print axioms HachiEquiv.SumcheckShift.lane_accum_spec
+#print axioms HachiEquiv.SumcheckShift.laneExt_add
+#print axioms HachiEquiv.SumcheckShift.laneExt_mod
+#print axioms HachiEquiv.SumcheckShift.shift_accum_lanes_loop_spec
+#print axioms HachiEquiv.SumcheckShift.shift_accum_lanes_spec
+#print axioms HachiEquiv.SumcheckShift.zero_lanes_spec
+#print axioms HachiEquiv.SumcheckShift.lanes_flush_spec
+#print axioms HachiEquiv.SumcheckShift.lanes_to_coeffs_spec
+#print axioms HachiEquiv.SumcheckShift.round_poly_zero_lanes_loop_spec
+#print axioms HachiEquiv.SumcheckShift.round_poly_zero_lanes_spec
 #print axioms HachiEquiv.Sumcheck.round_poly_zero_spec
 
 -- Stage 6 card T43 (2026-09-22): `honest_z_from_raw_32` reads each message
