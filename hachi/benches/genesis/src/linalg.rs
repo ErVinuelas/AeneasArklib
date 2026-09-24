@@ -608,6 +608,7 @@ impl PreparedMatrixL2 {
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
 // ---------------------------------------------------------------------------
 impl PreparedMatrixG {
+    // @genesis 9232079 2026-09-24 — linalg::PreparedMatrixG::apply_raw_digits_gold
     /// `M · G⁻¹(x)` for the message block `x` a compact block denotes, with
     /// neither `x` nor `G⁻¹(x)` built (Stage 6 card T51a).
     ///

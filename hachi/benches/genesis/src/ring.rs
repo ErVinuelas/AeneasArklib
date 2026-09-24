@@ -1567,6 +1567,7 @@ pub fn load_twisted_signed_into(out: Vec<u64>, a: &Rq, pt: &Vec<u64>) -> Vec<u64
 }
 
 
+// @genesis 9232079 2026-09-24 — ring::load_raw_words
 // ---------------------------------------------------------------------------
 // Card T51a (2026-09-24): the commitment's digits straight from the raw words
 // (arm B2'). The row loader, the digit fill and the raw dot are first
@@ -1586,6 +1587,7 @@ pub fn load_raw_words(out: Vec<u64>, row: &RawRq32) -> Vec<u64> {
     w
 }
 
+// @genesis 9232079 2026-09-24 — ring::fill_digit_from_words
 /// Digit `e`'s polynomial from a row's canonical words, into `out`:
 /// coefficient `i` is `(words[i] >> 4e) & 15`.
 pub fn fill_digit_from_words(out: Rq, words: &Vec<u64>, e: usize) -> Rq {
@@ -1601,6 +1603,7 @@ pub fn fill_digit_from_words(out: Rq, words: &Vec<u64>, e: usize) -> Rq {
     w
 }
 
+// @genesis 9232079 2026-09-24 — ring::dot_prepared_raw_digits_gold
 /// B2' form of `dot_prepared_raw_digits_gold`: the row's words are loaded once
 /// per row, at `j % GADGET_DIGITS == 0`, and each digit is filled from them.
 pub fn dot_prepared_raw_digits_gold(prep: &PreparedVecG, raw: &Vec<RawRq32>, n: usize) -> Rq {
@@ -1647,6 +1650,7 @@ pub fn dot_prepared_raw_digits_gold(prep: &PreparedVecG, raw: &Vec<RawRq32>, n: 
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
 // ---------------------------------------------------------------------------
 impl RawRq32 {
+    // @genesis 9232079 2026-09-24 — ring::RawRq32::word
     /// Coefficient `i` of [`RawRq32::expand`]'s ring element as its canonical
     /// word, read straight from the compact carrier (Stage 6 card T58): for
     /// every `i < RING_DEGREE`, `self.word(i) == self.expand().coeff(i).to_u64()`,
