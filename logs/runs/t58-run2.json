@@ -1,0 +1,120 @@
+{
+  "run": "20260924T1011+0200-6294266b",
+  "source": {
+    "sha": "da50438",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "quadeval/honest_z_from_raw_32/8",
+      "now_ns": 233361318.33333334,
+      "genesis_ns": 1846900445.0,
+      "vs_genesis": -0.8736470506761217,
+      "vs_genesis_sig": true,
+      "candidate_ns": 217601112.0,
+      "cand_vs_now": -0.06753564149316924,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8821803781632637,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.008252350442859895,
+      "cand_vs_now_adj": -0.07516768188315204,
+      "cand_vs_now_verdict": "faster"
+    },
+    {
+      "case": "quadeval/honest_z_from_raw_32_dense/4",
+      "now_ns": 11417002216.0,
+      "genesis_ns": 38547647300.0,
+      "vs_genesis": -0.703821036673229,
+      "vs_genesis_sig": true,
+      "candidate_ns": 11366612927.666666,
+      "cand_vs_now": -0.004413530573088396,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.7051282315829774,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.008252350442859895,
+      "cand_vs_now_adj": -0.012562213230036146,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "quadeval/honest_z_from_raw_32_heavy/8",
+      "now_ns": 233152765.44444442,
+      "genesis_ns": 1817178602.3333333,
+      "vs_genesis": -0.871695184422122,
+      "vs_genesis_sig": true,
+      "candidate_ns": 217272099.0,
+      "cand_vs_now": -0.0681127089107097,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.8804343729774203,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": 0.008252350442859895,
+      "cand_vs_now_adj": -0.075740026115513,
+      "cand_vs_now_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/quadeval/8192",
+      "now_ns": 33129288.666666668,
+      "genesis_ns": 33237195.333333332,
+      "vs_genesis": -0.0032465635437790804,
+      "vs_genesis_sig": true,
+      "candidate_ns": 33402683.166666668,
+      "cand_vs_now": 0.008252350442859895,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": 0.004978995118982537,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": 0.008252350442859895,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.008252350442859895,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": {
+    "quadeval": 0.008252350442859895
+  },
+  "candidate_slot": {
+    "diverged": [
+      "ring",
+      "linalg",
+      "quadeval"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "1c1dd92e6eca",
+      "ring": "3c741dd65db0",
+      "linalg": "978885ca5b63",
+      "gadget": "e4cf27d35b5c",
+      "commit": "5ddd75c631bf",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "dc5f6e87dee8",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "8f63f73d7af3",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
