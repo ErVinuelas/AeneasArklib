@@ -1790,6 +1790,7 @@ pub fn gold_dot_one_fused_tab(
 }
 
 
+// @genesis 3e66f6a 2026-09-25 — ring::gold_dif_stage2_mac2
 // ---------------------------------------------------------------------------
 // Card T52a (2026-09-25): the carrier's fused two-limb kernel.
 // The FIRST translation, copied verbatim from hachi/src. Do not edit.
@@ -1888,6 +1889,7 @@ pub fn gold_dif_stage2_mac2(
     (acc0, acc1)
 }
 
+// @genesis 3e66f6a 2026-09-25 — ring::gold_dot_one_fused_limbs2
 /// One right-hand term of the two-limb dot, fused as [`gold_dot_one_fused`] is
 /// (card T52a): twist-and-first-pass, the three middle passes, and the last
 /// pass accumulating into both limbs.
