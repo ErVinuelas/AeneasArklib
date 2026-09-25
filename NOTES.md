@@ -10477,3 +10477,36 @@ Stage 6 exit criterion (a) now reads **231.1 s (−80.3% from 1170.8 s)**.
 What is left on the board is deferred by its own section-6 report (T42,
 T44, T45b/c, T48g, T48e's u128 arm). The largest phase is now the
 commitment (137 s, 59% of the prover), which no card on the board touches.
+
+### The pin profile after the 2026-09-24/25 second pass (T49a to T52a)
+
+`logs/runs/pin-profile-20260925-62c402a.log`, `BLOCKS=1024`, HEAD `62c402a`,
+control CPU spread within run **−1.7%**. Baseline: the 09-24 profile above
+(`4d9c0d3`). An intermediate profile at `399e964`
+(`pin-profile-20260924-399e964.log`, spread −8.9%) served as the pin gates'
+baseline for T59, T65b and T52a.
+
+| | 09-24 | 09-25 | | card |
+|---|---|---|---|---|
+| **commitment** | 136.9 s | **106.4 s** | **−22.3%** | T49a (MAC unit twiddles), T51a (digits from the raw words), T65b (twist through a digit table) |
+| **`carrier_decomp_from_raw`** | 21.7 s | **19.8 s** | −8.8% | T52c (one multiply per DIT butterfly), T52a (the fused two-limb kernel) |
+| **`honest_compute_resp` + stack** | 23.7 s | **16.0 s** | **−32.5%** | T59 (two-word 16-bit z lanes) |
+| lifted witness | 8.0 s | 8.0 s | 0 | none |
+| **`honest_round_messages`** | 35.9 s | **22.8 s** | **−36.5%** | T55 (zero pairs), T64 (suffix table in place), T53b (u128 lanes) |
+| **prover** | **231.1 s** | **183.2 s** | **−20.7%** | |
+| `chain_verify` (whole) | 4.2 s | 4.2 s | 0 | |
+| peak RSS | 5453 MiB | 5453 MiB | 0 | |
+
+Nine cards landed in the pass: T55, T49a, T51a, T52c, T64, T59, T65b, T53b
+and T52a. Each was benched twice (plus a pin gate where its card asked for
+one), proved with its headline statements byte-identical, stamped where it
+added items, and ledgered. T65b was accepted on the user's ruling: it cleared
+both of its own gates, but missed the card's 3-point margin over arm T65a,
+which failed its own row gate. Rejected with numbers: T58, T49b, T65a, T60 and
+T32 (the tile is noise: the prefetcher hides the stream). T57, T62, T66, T67
+and T68 were rejected on arithmetic. The lift phase's 9.6 s in T52a's gate
+profile was a one-off: it reads 8.0 s here.
+
+Stage 6 exit criterion (a) now reads **183.2 s (−84.4% from 1170.8 s)**. The
+commitment is still 58% of the prover. Open: T50 (lazy Goldilocks
+butterflies), to re-price on this profile.
