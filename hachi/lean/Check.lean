@@ -2069,6 +2069,22 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- T34's two helper specs are carried onto this branch for it.
 #print axioms HachiEquiv.GoldDot.load_twisted_into_spec
 #print axioms HachiEquiv.GoldDot.gold_mac_off_spec
+-- Card T52a (2026-09-25): each term of the chunk is one fused kernel,
+-- `gold_dot_one_fused_limbs2` -- T37's five passes with the last pass
+-- accumulating into both limbs (`gold_dif_stage2_mac2`, T49a's peel included).
+-- Each accumulator's invariant is stated and advanced once (`MacBlk`,
+-- `MacOut`) and applied twice; the middle loop is `gold_dot_one_fused_loop`
+-- (`gold_dot_one_fused_limbs2_loop_eq`, by `rfl`). `limb_terms_spec` takes one
+-- kernel step per term; `limb_chunk_spec` and everything above it did not move.
+#print axioms HachiEquiv.RingLimb.MacBlk_step
+#print axioms HachiEquiv.RingLimb.MacBlk_self
+#print axioms HachiEquiv.RingLimb.MacOut_blk0
+#print axioms HachiEquiv.RingLimb.MacOut_next
+#print axioms HachiEquiv.RingLimb.mac2_loop0_loop0_spec
+#print axioms HachiEquiv.RingLimb.mac2_loop0_spec
+#print axioms HachiEquiv.RingLimb.gold_dif_stage2_mac2_spec
+#print axioms HachiEquiv.RingLimb.gold_dot_one_fused_limbs2_loop_eq
+#print axioms HachiEquiv.RingLimb.gold_dot_one_fused_limbs2_spec
 #print axioms HachiEquiv.RingLimb.limb_terms_spec
 #print axioms HachiEquiv.RingLimb.lane_words_eq
 #print axioms HachiEquiv.RingLimb.gold_loff2_val
