@@ -1157,3 +1157,36 @@ fn the_twist_stage_from_the_digit_table_equals_the_filled_one() {
         }
     }
 }
+
+/// Card T52a: the carrier's two-accumulator fused kernel equals the
+/// commitment's one-accumulator kernel run once per limb table: same twist,
+/// same three middle passes, and the last pass accumulating the same
+/// butterfly outputs into both accumulators. Random canonical accumulators
+/// and tables, three table offsets, random and edge coefficients.
+#[test]
+fn the_two_limb_fused_kernel_is_the_fused_kernel_twice() {
+    use hachi::ntt::{gold_psi_table, GOLD_P, GOLD_PSI, NTT_LEN};
+    use hachi::ring::{gold_dot_one_fused, gold_dot_one_fused_limbs2};
+    let n = NTT_LEN;
+    let pt = gold_psi_table(GOLD_PSI);
+    let mut r = Lcg::new(0x752A_F05E);
+    let mut canon = |r: &mut Lcg, len: usize| -> Vec<u64> { (0..len).map(|_| r.next_u64() % GOLD_P).collect() };
+    for pass in 0..4 {
+        let a = if pass == 1 {
+            rq_from_u64s(&(0..n).map(|i| if i % 3 == 0 { Q - 1 } else { 0 }).collect::<Vec<u64>>())
+        } else {
+            rq_from_u64s(&(0..n).map(|_| r.next_u64() % Q).collect::<Vec<u64>>())
+        };
+        let pf0 = canon(&mut r, 3 * n);
+        let pf1 = canon(&mut r, 3 * n);
+        let acc0 = canon(&mut r, n);
+        let acc1 = canon(&mut r, n);
+        for base in [0, n, 2 * n] {
+            let got = gold_dot_one_fused_limbs2(&a, vec![0u64; n], vec![0u64; n], acc0.clone(), acc1.clone(), &pt, &pf0, &pf1, base);
+            let w0 = gold_dot_one_fused(&a, vec![0u64; n], vec![0u64; n], acc0.clone(), &pt, &pf0, base);
+            let w1 = gold_dot_one_fused(&a, vec![0u64; n], vec![0u64; n], acc1.clone(), &pt, &pf1, base);
+            assert_eq!(got.0, w0.0, "pass {pass}, base {base}: limb 0");
+            assert_eq!(got.1, w1.0, "pass {pass}, base {base}: limb 1");
+        }
+    }
+}

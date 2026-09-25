@@ -10853,7 +10853,7 @@ def commit.commit_streamed
   ok (u, ts)
 
 /-- [hachi::ring::gold_dif_stage2_twist_tab]: loop body 1:
-    Source: 'src/ring.rs', lines 1683:8-1709:9
+    Source: 'src/ring.rs', lines 1838:8-1864:9
     Visibility: public -/
 @[rust_loop_body]
 def ring.gold_dif_stage2_twist_tab_loop0_loop0.body
@@ -10969,7 +10969,7 @@ def ring.gold_dif_stage2_twist_tab_loop0_loop0.body
   else ok (done dst)
 
 /-- [hachi::ring::gold_dif_stage2_twist_tab]: loop 1:
-    Source: 'src/ring.rs', lines 1683:8-1709:9
+    Source: 'src/ring.rs', lines 1838:8-1864:9
     Visibility: public -/
 @[rust_loop]
 def ring.gold_dif_stage2_twist_tab_loop0_loop0
@@ -10985,7 +10985,7 @@ def ring.gold_dif_stage2_twist_tab_loop0_loop0
     (dst, j)
 
 /-- [hachi::ring::gold_dif_stage2_twist_tab]: loop body 0:
-    Source: 'src/ring.rs', lines 1681:4-1711:5
+    Source: 'src/ring.rs', lines 1836:4-1866:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.gold_dif_stage2_twist_tab_loop0.body
@@ -11007,7 +11007,7 @@ def ring.gold_dif_stage2_twist_tab_loop0.body
   else ok (done dst)
 
 /-- [hachi::ring::gold_dif_stage2_twist_tab]: loop 0:
-    Source: 'src/ring.rs', lines 1681:4-1711:5
+    Source: 'src/ring.rs', lines 1836:4-1866:5
     Visibility: public -/
 @[rust_loop]
 def ring.gold_dif_stage2_twist_tab_loop0
@@ -11024,7 +11024,7 @@ def ring.gold_dif_stage2_twist_tab_loop0
     (dst, start)
 
 /-- [hachi::ring::gold_dif_stage2_twist_tab]:
-    Source: 'src/ring.rs', lines 1665:0-1713:1
+    Source: 'src/ring.rs', lines 1820:0-1868:1
     Visibility: public -/
 def ring.gold_dif_stage2_twist_tab
   (words : alloc.vec.Vec Std.U64) (e : Std.Usize) (out : alloc.vec.Vec Std.U64)
@@ -11042,7 +11042,7 @@ def ring.gold_dif_stage2_twist_tab
     quarter step1 step2 out 0#usize
 
 /-- [hachi::ring::gold_dot_one_fused_tab]: loop body 0:
-    Source: 'src/ring.rs', lines 1736:4-1741:5
+    Source: 'src/ring.rs', lines 1891:4-1896:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.gold_dot_one_fused_tab_loop.body
@@ -11059,7 +11059,7 @@ def ring.gold_dot_one_fused_tab_loop.body
   else ok (done (cur, tmp))
 
 /-- [hachi::ring::gold_dot_one_fused_tab]: loop 0:
-    Source: 'src/ring.rs', lines 1736:4-1741:5
+    Source: 'src/ring.rs', lines 1891:4-1896:5
     Visibility: public -/
 @[rust_loop]
 def ring.gold_dot_one_fused_tab_loop
@@ -11073,7 +11073,7 @@ def ring.gold_dot_one_fused_tab_loop
     (cur, tmp, len)
 
 /-- [hachi::ring::gold_dot_one_fused_tab]:
-    Source: 'src/ring.rs', lines 1721:0-1744:1
+    Source: 'src/ring.rs', lines 1876:0-1899:1
     Visibility: public -/
 def ring.gold_dot_one_fused_tab
   (words : alloc.vec.Vec Std.U64) (e : Std.Usize)
@@ -11091,7 +11091,7 @@ def ring.gold_dot_one_fused_tab
   ok (acc, cur1, tmp)
 
 /-- [hachi::ring::gold_twist_digit_table]: loop body 0:
-    Source: 'src/ring.rs', lines 1645:4-1649:5
+    Source: 'src/ring.rs', lines 1800:4-1804:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.gold_twist_digit_table_loop.body
@@ -11114,7 +11114,7 @@ def ring.gold_twist_digit_table_loop.body
   else ok (done out)
 
 /-- [hachi::ring::gold_twist_digit_table]: loop 0:
-    Source: 'src/ring.rs', lines 1645:4-1649:5
+    Source: 'src/ring.rs', lines 1800:4-1804:5
     Visibility: public -/
 @[rust_loop]
 def ring.gold_twist_digit_table_loop
@@ -11127,7 +11127,7 @@ def ring.gold_twist_digit_table_loop
     (out, k)
 
 /-- [hachi::ring::gold_twist_digit_table]:
-    Source: 'src/ring.rs', lines 1641:0-1651:1
+    Source: 'src/ring.rs', lines 1796:0-1806:1
     Visibility: public -/
 def ring.gold_twist_digit_table
   (pt : alloc.vec.Vec Std.U64) : Result (alloc.vec.Vec Std.U64) := do
@@ -11157,7 +11157,7 @@ def ring.RawRq32.word
   else ok 0#u64
 
 /-- [hachi::ring::load_raw_words]: loop body 0:
-    Source: 'src/ring.rs', lines 1606:4-1609:5
+    Source: 'src/ring.rs', lines 1761:4-1764:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.load_raw_words_loop.body
@@ -11178,7 +11178,7 @@ def ring.load_raw_words_loop.body
   else ok (done w)
 
 /-- [hachi::ring::load_raw_words]: loop 0:
-    Source: 'src/ring.rs', lines 1606:4-1609:5
+    Source: 'src/ring.rs', lines 1761:4-1764:5
     Visibility: public -/
 @[rust_loop]
 def ring.load_raw_words_loop
@@ -11191,7 +11191,7 @@ def ring.load_raw_words_loop
     (w, i)
 
 /-- [hachi::ring::load_raw_words]:
-    Source: 'src/ring.rs', lines 1602:0-1611:1
+    Source: 'src/ring.rs', lines 1757:0-1766:1
     Visibility: public -/
 @[reducible]
 def ring.load_raw_words
@@ -11201,7 +11201,7 @@ def ring.load_raw_words
   ring.load_raw_words_loop row params.RING_DEGREE out 0#usize
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop body 0:
-    Source: 'src/ring.rs', lines 1762:4-1773:5
+    Source: 'src/ring.rs', lines 1917:4-1928:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_raw_digits_gold_loop0.body
@@ -11236,7 +11236,7 @@ def ring.dot_prepared_raw_digits_gold_loop0.body
   else ok (done (acc, scratch))
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop 0:
-    Source: 'src/ring.rs', lines 1762:4-1773:5
+    Source: 'src/ring.rs', lines 1917:4-1928:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_raw_digits_gold_loop0
@@ -11255,7 +11255,7 @@ def ring.dot_prepared_raw_digits_gold_loop0
     (acc, scratch, cur, words, j)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop body 1:
-    Source: 'src/ring.rs', lines 1779:4-1782:5
+    Source: 'src/ring.rs', lines 1934:4-1937:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_raw_digits_gold_loop1.body
@@ -11277,7 +11277,7 @@ def ring.dot_prepared_raw_digits_gold_loop1.body
   else ok (done out)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]: loop 1:
-    Source: 'src/ring.rs', lines 1779:4-1782:5
+    Source: 'src/ring.rs', lines 1934:4-1937:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_raw_digits_gold_loop1
@@ -11291,7 +11291,7 @@ def ring.dot_prepared_raw_digits_gold_loop1
     (out, t)
 
 /-- [hachi::ring::dot_prepared_raw_digits_gold]:
-    Source: 'src/ring.rs', lines 1750:0-1784:1
+    Source: 'src/ring.rs', lines 1905:0-1939:1
     Visibility: public -/
 def ring.dot_prepared_raw_digits_gold
   (prep : ring.PreparedVecG) (raw1 : alloc.vec.Vec ring.RawRq32)
@@ -14383,8 +14383,425 @@ def linalg.PolyMatrix.prepare_limbs2
   let rows1 ← linalg.PolyMatrix.prepare_limbs2_loop self n c rows 0#usize
   ok { rows := rows1, cols := c }
 
+/-- [hachi::ring::gold_dif_stage2_mac2]: loop body 1:
+    Source: 'src/ring.rs', lines 1593:8-1623:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.gold_dif_stage2_mac2_loop0_loop0.body
+  (src : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64)
+  (pf0 : alloc.vec.Vec Std.U64) (pf1 : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (start : Std.Usize)
+  (acc0 : alloc.vec.Vec Std.U64) (acc1 : alloc.vec.Vec Std.U64) (j : Std.Usize)
+  :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if j < quarter
+  then
+    let i ← start + j
+    let a0 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src i
+    let i1 ← i + quarter
+    let a1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        i1
+    let i2 ← i + half
+    let a2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        i2
+    let i3 ← i + half
+    let i4 ← i3 + quarter
+    let a3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        i4
+    let b0 ← ntt.gold_add a0 a2
+    let b1 ← ntt.gold_add a1 a3
+    let d0 ← ntt.gold_sub a0 a2
+    let i5 ← j * step1
+    let i6 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw i5
+    let b2 ← ntt.gold_mul d0 i6
+    let d1 ← ntt.gold_sub a1 a3
+    let i7 ← j + quarter
+    let i8 ← i7 * step1
+    let i9 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw i8
+    let b3 ← ntt.gold_mul d1 i9
+    let v0 ← ntt.gold_add b0 b1
+    let i10 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc0
+        i
+    let i11 ← base + i
+    let i12 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i11
+    let i13 ← ntt.gold_mul i12 v0
+    let i14 ← ntt.gold_add i10 i13
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc0 i
+    let i15 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc1
+        i
+    let i16 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i11
+    let i17 ← ntt.gold_mul i16 v0
+    let i18 ← ntt.gold_add i15 i17
+    let (_, index_mut_back1) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc1 i
+    let o1 ← i + quarter
+    let e0 ← ntt.gold_sub b0 b1
+    let i19 ← j * step2
+    let i20 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i19
+    let v1 ← ntt.gold_mul e0 i20
+    let acc01 := index_mut_back i14
+    let i21 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc01
+        o1
+    let i22 ← base + o1
+    let i23 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i22
+    let i24 ← ntt.gold_mul i23 v1
+    let i25 ← ntt.gold_add i21 i24
+    let (_, index_mut_back2) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc01 o1
+    let acc11 := index_mut_back1 i18
+    let i26 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc11
+        o1
+    let i27 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i22
+    let i28 ← ntt.gold_mul i27 v1
+    let i29 ← ntt.gold_add i26 i28
+    let (_, index_mut_back3) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc11 o1
+    let i30 ← start + half
+    let o2 ← i30 + j
+    let v2 ← ntt.gold_add b2 b3
+    let acc02 := index_mut_back2 i25
+    let i31 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc02
+        o2
+    let i32 ← base + o2
+    let i33 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i32
+    let i34 ← ntt.gold_mul i33 v2
+    let i35 ← ntt.gold_add i31 i34
+    let (_, index_mut_back4) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc02 o2
+    let acc12 := index_mut_back3 i29
+    let i36 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc12
+        o2
+    let i37 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i32
+    let i38 ← ntt.gold_mul i37 v2
+    let i39 ← ntt.gold_add i36 i38
+    let (_, index_mut_back5) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc12 o2
+    let i40 ← i30 + quarter
+    let o3 ← i40 + j
+    let e1 ← ntt.gold_sub b2 b3
+    let i41 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw
+        i19
+    let v3 ← ntt.gold_mul e1 i41
+    let acc03 := index_mut_back4 i35
+    let i42 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc03
+        o3
+    let i43 ← base + o3
+    let i44 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i43
+    let i45 ← ntt.gold_mul i44 v3
+    let i46 ← ntt.gold_add i42 i45
+    let (_, index_mut_back6) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc03 o3
+    let acc13 := index_mut_back5 i39
+    let i47 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc13
+        o3
+    let i48 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i43
+    let i49 ← ntt.gold_mul i48 v3
+    let i50 ← ntt.gold_add i47 i49
+    let (_, index_mut_back7) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc13 o3
+    let j1 ← j + 1#usize
+    let acc14 := index_mut_back7 i50
+    let acc04 := index_mut_back6 i46
+    ok (cont (acc04, acc14, j1))
+  else ok (done (acc0, acc1))
+
+/-- [hachi::ring::gold_dif_stage2_mac2]: loop 1:
+    Source: 'src/ring.rs', lines 1593:8-1623:9
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_dif_stage2_mac2_loop0_loop0
+  (src : alloc.vec.Vec Std.U64) (acc0 : alloc.vec.Vec Std.U64)
+  (acc1 : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64)
+  (pf0 : alloc.vec.Vec Std.U64) (pf1 : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (start : Std.Usize) (j : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (acc01, acc11, j1) => ring.gold_dif_stage2_mac2_loop0_loop0.body src
+      tw pf0 pf1 base half quarter step1 step2 start acc01 acc11 j1)
+    (acc0, acc1, j)
+
+/-- [hachi::ring::gold_dif_stage2_mac2]: loop body 0:
+    Source: 'src/ring.rs', lines 1565:4-1625:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.gold_dif_stage2_mac2_loop0.body
+  (src : alloc.vec.Vec Std.U64) (len : Std.Usize) (tw : alloc.vec.Vec Std.U64)
+  (pf0 : alloc.vec.Vec Std.U64) (pf1 : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) (n : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (acc0 : alloc.vec.Vec Std.U64)
+  (acc1 : alloc.vec.Vec Std.U64) (start : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if start < n
+  then
+    let a0 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        start
+    let i ← start + quarter
+    let a1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src i
+    let i1 ← start + half
+    let a2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        i1
+    let i2 ← i1 + quarter
+    let a3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
+        i2
+    let b0 ← ntt.gold_add a0 a2
+    let b1 ← ntt.gold_add a1 a3
+    let b2 ← ntt.gold_sub a0 a2
+    let d1 ← ntt.gold_sub a1 a3
+    let i3 ← quarter * step1
+    let i4 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw i3
+    let b3 ← ntt.gold_mul d1 i4
+    let v0 ← ntt.gold_add b0 b1
+    let i5 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc0
+        start
+    let i6 ← base + start
+    let i7 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i6
+    let i8 ← ntt.gold_mul i7 v0
+    let i9 ← ntt.gold_add i5 i8
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc0 start
+    let i10 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc1
+        start
+    let i11 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i6
+    let i12 ← ntt.gold_mul i11 v0
+    let i13 ← ntt.gold_add i10 i12
+    let (_, index_mut_back1) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc1 start
+    let v1 ← ntt.gold_sub b0 b1
+    let acc01 := index_mut_back i9
+    let i14 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc01
+        i
+    let i15 ← base + i
+    let i16 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i15
+    let i17 ← ntt.gold_mul i16 v1
+    let i18 ← ntt.gold_add i14 i17
+    let (_, index_mut_back2) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc01 i
+    let acc11 := index_mut_back1 i13
+    let i19 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc11
+        i
+    let i20 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i15
+    let i21 ← ntt.gold_mul i20 v1
+    let i22 ← ntt.gold_add i19 i21
+    let (_, index_mut_back3) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc11 i
+    let v2 ← ntt.gold_add b2 b3
+    let acc02 := index_mut_back2 i18
+    let i23 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc02
+        i1
+    let i24 ← base + i1
+    let i25 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i24
+    let i26 ← ntt.gold_mul i25 v2
+    let i27 ← ntt.gold_add i23 i26
+    let (_, index_mut_back4) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc02 i1
+    let acc12 := index_mut_back3 i22
+    let i28 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc12
+        i1
+    let i29 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i24
+    let i30 ← ntt.gold_mul i29 v2
+    let i31 ← ntt.gold_add i28 i30
+    let (_, index_mut_back5) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc12 i1
+    let o3 ← i1 + quarter
+    let v3 ← ntt.gold_sub b2 b3
+    let acc03 := index_mut_back4 i27
+    let i32 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc03
+        o3
+    let i33 ← base + o3
+    let i34 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf0
+        i33
+    let i35 ← ntt.gold_mul i34 v3
+    let i36 ← ntt.gold_add i32 i35
+    let (_, index_mut_back6) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc03 o3
+    let acc13 := index_mut_back5 i31
+    let i37 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) acc13
+        o3
+    let i38 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pf1
+        i33
+    let i39 ← ntt.gold_mul i38 v3
+    let i40 ← ntt.gold_add i37 i39
+    let (_, index_mut_back7) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        acc13 o3
+    let acc14 := index_mut_back7 i40
+    let acc04 := index_mut_back6 i36
+    let (acc05, acc15) ←
+      ring.gold_dif_stage2_mac2_loop0_loop0 src acc04 acc14 tw pf0 pf1 base
+        half quarter step1 step2 start 1#usize
+    let start1 ← start + len
+    ok (cont (acc05, acc15, start1))
+  else ok (done (acc0, acc1))
+
+/-- [hachi::ring::gold_dif_stage2_mac2]: loop 0:
+    Source: 'src/ring.rs', lines 1565:4-1625:5
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_dif_stage2_mac2_loop0
+  (src : alloc.vec.Vec Std.U64) (acc0 : alloc.vec.Vec Std.U64)
+  (acc1 : alloc.vec.Vec Std.U64) (len : Std.Usize) (tw : alloc.vec.Vec Std.U64)
+  (pf0 : alloc.vec.Vec Std.U64) (pf1 : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) (n : Std.Usize) (half : Std.Usize) (quarter : Std.Usize)
+  (step1 : Std.Usize) (step2 : Std.Usize) (start : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (acc01, acc11, start1) => ring.gold_dif_stage2_mac2_loop0.body src len
+      tw pf0 pf1 base n half quarter step1 step2 acc01 acc11 start1)
+    (acc0, acc1, start)
+
+/-- [hachi::ring::gold_dif_stage2_mac2]:
+    Source: 'src/ring.rs', lines 1549:0-1627:1
+    Visibility: public -/
+def ring.gold_dif_stage2_mac2
+  (src : alloc.vec.Vec Std.U64) (acc0 : alloc.vec.Vec Std.U64)
+  (acc1 : alloc.vec.Vec Std.U64) (len : Std.Usize) (tw : alloc.vec.Vec Std.U64)
+  (pf0 : alloc.vec.Vec Std.U64) (pf1 : alloc.vec.Vec Std.U64)
+  (base : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  let half ← len / 2#usize
+  let quarter ← len / 4#usize
+  let i ← ntt.NTT_LEN / len
+  let step1 ← 2#usize * i
+  let step2 ← 2#usize * step1
+  ring.gold_dif_stage2_mac2_loop0 src acc0 acc1 len tw pf0 pf1 base ntt.NTT_LEN
+    half quarter step1 step2 0#usize
+
+/-- [hachi::ring::gold_dot_one_fused_limbs2]: loop body 0:
+    Source: 'src/ring.rs', lines 1656:4-1661:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.gold_dot_one_fused_limbs2_loop.body
+  (pt : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
+  (tmp : alloc.vec.Vec Std.U64) (len : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if len > 4#usize
+  then
+    let filled ← ntt.gold_dif_stage2 cur tmp len pt
+    let len1 ← len / 4#usize
+    ok (cont (filled, cur, len1))
+  else ok (done (cur, tmp))
+
+/-- [hachi::ring::gold_dot_one_fused_limbs2]: loop 0:
+    Source: 'src/ring.rs', lines 1656:4-1661:5
+    Visibility: public -/
+@[rust_loop]
+def ring.gold_dot_one_fused_limbs2_loop
+  (pt : alloc.vec.Vec Std.U64) (cur : alloc.vec.Vec Std.U64)
+  (tmp : alloc.vec.Vec Std.U64) (len : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (cur1, tmp1, len1) => ring.gold_dot_one_fused_limbs2_loop.body pt cur1
+      tmp1 len1)
+    (cur, tmp, len)
+
+/-- [hachi::ring::gold_dot_one_fused_limbs2]:
+    Source: 'src/ring.rs', lines 1641:0-1665:1
+    Visibility: public -/
+def ring.gold_dot_one_fused_limbs2
+  (a : ring.Rq) (cur0 : alloc.vec.Vec Std.U64) (tmp0 : alloc.vec.Vec Std.U64)
+  (acc0 : alloc.vec.Vec Std.U64) (acc1 : alloc.vec.Vec Std.U64)
+  (pt : alloc.vec.Vec Std.U64) (pf0 : alloc.vec.Vec Std.U64)
+  (pf1 : alloc.vec.Vec Std.U64) (base : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × (alloc.vec.Vec
+    Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  let cur ← ring.gold_dif_stage2_twist a cur0 ntt.NTT_LEN pt pt
+  let len ← ntt.NTT_LEN / 4#usize
+  let (cur1, tmp) ← ring.gold_dot_one_fused_limbs2_loop pt cur tmp0 len
+  let (v, v1) ←
+    ring.gold_dif_stage2_mac2 cur1 acc0 acc1 4#usize pt pf0 pf1 base
+  ok (v, v1, cur1, tmp)
+
 /-- [hachi::ring::dot_prep_chunk_limbs2]: loop body 0:
-    Source: 'src/ring.rs', lines 1541:4-1549:5
+    Source: 'src/ring.rs', lines 1695:4-1704:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prep_chunk_limbs2_loop.body
@@ -14392,7 +14809,7 @@ def ring.dot_prep_chunk_limbs2_loop.body
   (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize) (n : Std.Usize)
   (pt : alloc.vec.Vec Std.U64) (acc0 : alloc.vec.Vec Std.U64)
   (acc1 : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
-  (buf : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  (cur : alloc.vec.Vec Std.U64) (j : Std.Usize) :
   Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
     (alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × Std.Usize)
     ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × (alloc.vec.Vec
@@ -14402,18 +14819,15 @@ def ring.dot_prep_chunk_limbs2_loop.body
   then
     let r ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) b j
-    let buf1 ← ring.load_twisted_into buf r pt
-    let fwb ← ntt.gold_forward buf1 scratch pt
     let i ← j * n
-    let (buf2, scratch1) := fwb
-    let acc01 ← ring.mac_into_gold_off acc0 f0 i buf2 n
-    let acc11 ← ring.mac_into_gold_off acc1 f1 i buf2 n
+    let (acc01, acc11, cur1, scratch1) ←
+      ring.gold_dot_one_fused_limbs2 r cur scratch acc0 acc1 pt f0 f1 i
     let j1 ← j + 1#usize
-    ok (cont (acc01, acc11, scratch1, buf2, j1))
+    ok (cont (acc01, acc11, scratch1, cur1, j1))
   else ok (done (acc0, acc1, scratch))
 
 /-- [hachi::ring::dot_prep_chunk_limbs2]: loop 0:
-    Source: 'src/ring.rs', lines 1541:4-1549:5
+    Source: 'src/ring.rs', lines 1695:4-1704:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prep_chunk_limbs2_loop
@@ -14421,18 +14835,18 @@ def ring.dot_prep_chunk_limbs2_loop
   (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize) (n : Std.Usize)
   (pt : alloc.vec.Vec Std.U64) (acc0 : alloc.vec.Vec Std.U64)
   (acc1 : alloc.vec.Vec Std.U64) (scratch : alloc.vec.Vec Std.U64)
-  (buf : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  (cur : alloc.vec.Vec Std.U64) (j : Std.Usize) :
   Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) × (alloc.vec.Vec
     Std.U64))
   := do
   loop
-    (fun (acc01, acc11, scratch1, buf1, j1) =>
+    (fun (acc01, acc11, scratch1, cur1, j1) =>
       ring.dot_prep_chunk_limbs2_loop.body f0 f1 b end1 n pt acc01 acc11
-      scratch1 buf1 j1)
-    (acc0, acc1, scratch, buf, j)
+      scratch1 cur1 j1)
+    (acc0, acc1, scratch, cur, j)
 
 /-- [hachi::ring::dot_prep_chunk_limbs2]:
-    Source: 'src/ring.rs', lines 1525:0-1557:1
+    Source: 'src/ring.rs', lines 1679:0-1712:1
     Visibility: public -/
 def ring.dot_prep_chunk_limbs2
   (f0 : alloc.vec.Vec Std.U64) (f1 : alloc.vec.Vec Std.U64)
@@ -14467,7 +14881,7 @@ def ring.dot_prep_chunk_limbs2
 def ring.GOLD_LOFF2 : Std.U64 := 288230369507934208#u64
 
 /-- [hachi::ring::dot_prepared_limbs2]: loop body 1:
-    Source: 'src/ring.rs', lines 1577:8-1581:9
+    Source: 'src/ring.rs', lines 1732:8-1736:9
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_limbs2_loop0_loop0.body
@@ -14497,7 +14911,7 @@ def ring.dot_prepared_limbs2_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::ring::dot_prepared_limbs2]: loop 1:
-    Source: 'src/ring.rs', lines 1577:8-1581:9
+    Source: 'src/ring.rs', lines 1732:8-1736:9
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_limbs2_loop0_loop0
@@ -14512,7 +14926,7 @@ def ring.dot_prepared_limbs2_loop0_loop0
     (out, t)
 
 /-- [hachi::ring::dot_prepared_limbs2]: loop body 0:
-    Source: 'src/ring.rs', lines 1569:4-1584:5
+    Source: 'src/ring.rs', lines 1724:4-1739:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.dot_prepared_limbs2_loop0.body
@@ -14537,7 +14951,7 @@ def ring.dot_prepared_limbs2_loop0.body
   else ok (done acc)
 
 /-- [hachi::ring::dot_prepared_limbs2]: loop 0:
-    Source: 'src/ring.rs', lines 1569:4-1584:5
+    Source: 'src/ring.rs', lines 1724:4-1739:5
     Visibility: public -/
 @[rust_loop]
 def ring.dot_prepared_limbs2_loop0
@@ -14551,7 +14965,7 @@ def ring.dot_prepared_limbs2_loop0
     (acc, start)
 
 /-- [hachi::ring::dot_prepared_limbs2]:
-    Source: 'src/ring.rs', lines 1564:0-1586:1
+    Source: 'src/ring.rs', lines 1719:0-1741:1
     Visibility: public -/
 def ring.dot_prepared_limbs2
   (prep : ring.PreparedVecL2) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) :
@@ -18261,7 +18675,7 @@ def ring.PreparedVecL2.impl.len
   ok self.len
 
 /-- [hachi::ring::fill_digit_from_words]: loop body 0:
-    Source: 'src/ring.rs', lines 1620:4-1624:5
+    Source: 'src/ring.rs', lines 1775:4-1779:5
     Visibility: public -/
 @[rust_loop_body]
 def ring.fill_digit_from_words_loop.body
@@ -18286,7 +18700,7 @@ def ring.fill_digit_from_words_loop.body
   else ok (done w)
 
 /-- [hachi::ring::fill_digit_from_words]: loop 0:
-    Source: 'src/ring.rs', lines 1620:4-1624:5
+    Source: 'src/ring.rs', lines 1775:4-1779:5
     Visibility: public -/
 @[rust_loop]
 def ring.fill_digit_from_words_loop
@@ -18299,7 +18713,7 @@ def ring.fill_digit_from_words_loop
     (w, i)
 
 /-- [hachi::ring::fill_digit_from_words]:
-    Source: 'src/ring.rs', lines 1615:0-1626:1
+    Source: 'src/ring.rs', lines 1770:0-1781:1
     Visibility: public -/
 def ring.fill_digit_from_words
   (out : ring.Rq) (words : alloc.vec.Vec Std.U64) (e : Std.Usize) :

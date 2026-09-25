@@ -1515,6 +1515,155 @@ pub fn prepare_vec_limbs2(a: &Vec<Rq>, n: usize) -> PreparedVecL2 {
     PreparedVecL2 { len: n, f0: prepare_one_gold(&l0, n), f1: prepare_one_gold(&l1, n) }
 }
 
+// ---------------------------------------------------------------------------
+// Card T52a: T37's fused term on the limb path (CANDIDATE, 2026-09-24)
+// ---------------------------------------------------------------------------
+//
+// The limb chunk ran each right-hand term through the pre-T37 shape: a twist
+// pass (`load_twisted_into`), five radix-4 pair passes (`gold_forward`, whose
+// last pass is the UNPEELED `gold_dif_stage2` at `len = 4`, 768 of its 1024
+// butterfly multiplies by `tw[0] = 1`), then two MAC passes that read the
+// transform output back -- eight passes and 8192 `gold_mul` per term. The
+// commitment's term (`gold_dot_one_fused`) has been five passes since T37.
+// Here the limb term takes the same five: the twist folded into the first
+// pass, the same three middle passes, and the last pass accumulating into
+// BOTH limb accumulators from the one butterfly -- 7424 `gold_mul` per term.
+// The two functions below are the commitment's two, with the accumulate
+// doubled and nothing else changed; they live here rather than in `ntt` so
+// the card touches one file.
+
+/// [`crate::ntt::gold_dif_stage2_mac`] with **two** prepared tables and two
+/// accumulators (card T52a): the limb path's fused last pass.
+///
+/// Each butterfly output `v` is computed once and accumulated into both limbs:
+/// `acc0[o] += pf0[base + o] · v` and `acc1[o] += pf1[base + o] · v`. That is
+/// what the limb chunk's two `mac_into_gold_off` passes did with the transform
+/// output, without the 8 KiB buffer they read it back from.
+///
+/// The body is [`crate::ntt::gold_dif_stage2_mac`] verbatim -- including card
+/// T49a's peeled `j = 0` group, exact for a canonical `src` and `tw[0] = 1`,
+/// which the caller's ψ table has -- with each accumulate written twice, limb
+/// 0 first. The two accumulators never read each other, so its specification
+/// is the single-table one's conjunction, once per `(acc, pf)` pair.
+#[allow(clippy::too_many_arguments)]
+pub fn gold_dif_stage2_mac2(
+    src: &Vec<u64>,
+    mut acc0: Vec<u64>,
+    mut acc1: Vec<u64>,
+    len: usize,
+    tw: &Vec<u64>,
+    pf0: &Vec<u64>,
+    pf1: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut start: usize = 0;
+    while start < n {
+        let a0: u64 = src[start];
+        let a1: u64 = src[start + quarter];
+        let a2: u64 = src[start + half];
+        let a3: u64 = src[start + half + quarter];
+        let b0: u64 = crate::ntt::gold_add(a0, a2);
+        let b1: u64 = crate::ntt::gold_add(a1, a3);
+        let b2: u64 = crate::ntt::gold_sub(a0, a2);
+        let d1: u64 = crate::ntt::gold_sub(a1, a3);
+        let b3: u64 = crate::ntt::gold_mul(d1, tw[quarter * step1]);
+        let v0: u64 = crate::ntt::gold_add(b0, b1);
+        acc0[start] =
+            crate::ntt::gold_add(acc0[start], crate::ntt::gold_mul(pf0[base + start], v0));
+        acc1[start] =
+            crate::ntt::gold_add(acc1[start], crate::ntt::gold_mul(pf1[base + start], v0));
+        let o1: usize = start + quarter;
+        let v1: u64 = crate::ntt::gold_sub(b0, b1);
+        acc0[o1] = crate::ntt::gold_add(acc0[o1], crate::ntt::gold_mul(pf0[base + o1], v1));
+        acc1[o1] = crate::ntt::gold_add(acc1[o1], crate::ntt::gold_mul(pf1[base + o1], v1));
+        let o2: usize = start + half;
+        let v2: u64 = crate::ntt::gold_add(b2, b3);
+        acc0[o2] = crate::ntt::gold_add(acc0[o2], crate::ntt::gold_mul(pf0[base + o2], v2));
+        acc1[o2] = crate::ntt::gold_add(acc1[o2], crate::ntt::gold_mul(pf1[base + o2], v2));
+        let o3: usize = start + half + quarter;
+        let v3: u64 = crate::ntt::gold_sub(b2, b3);
+        acc0[o3] = crate::ntt::gold_add(acc0[o3], crate::ntt::gold_mul(pf0[base + o3], v3));
+        acc1[o3] = crate::ntt::gold_add(acc1[o3], crate::ntt::gold_mul(pf1[base + o3], v3));
+        let mut j: usize = 1;
+        while j < quarter {
+            let a0: u64 = src[start + j];
+            let a1: u64 = src[start + j + quarter];
+            let a2: u64 = src[start + j + half];
+            let a3: u64 = src[start + j + half + quarter];
+            let b0: u64 = crate::ntt::gold_add(a0, a2);
+            let b1: u64 = crate::ntt::gold_add(a1, a3);
+            let d0: u64 = crate::ntt::gold_sub(a0, a2);
+            let b2: u64 = crate::ntt::gold_mul(d0, tw[j * step1]);
+            let d1: u64 = crate::ntt::gold_sub(a1, a3);
+            let b3: u64 = crate::ntt::gold_mul(d1, tw[(j + quarter) * step1]);
+            let o0: usize = start + j;
+            let v0: u64 = crate::ntt::gold_add(b0, b1);
+            acc0[o0] = crate::ntt::gold_add(acc0[o0], crate::ntt::gold_mul(pf0[base + o0], v0));
+            acc1[o0] = crate::ntt::gold_add(acc1[o0], crate::ntt::gold_mul(pf1[base + o0], v0));
+            let o1: usize = start + j + quarter;
+            let e0: u64 = crate::ntt::gold_sub(b0, b1);
+            let v1: u64 = crate::ntt::gold_mul(e0, tw[j * step2]);
+            acc0[o1] = crate::ntt::gold_add(acc0[o1], crate::ntt::gold_mul(pf0[base + o1], v1));
+            acc1[o1] = crate::ntt::gold_add(acc1[o1], crate::ntt::gold_mul(pf1[base + o1], v1));
+            let o2: usize = start + half + j;
+            let v2: u64 = crate::ntt::gold_add(b2, b3);
+            acc0[o2] = crate::ntt::gold_add(acc0[o2], crate::ntt::gold_mul(pf0[base + o2], v2));
+            acc1[o2] = crate::ntt::gold_add(acc1[o2], crate::ntt::gold_mul(pf1[base + o2], v2));
+            let o3: usize = start + half + quarter + j;
+            let e1: u64 = crate::ntt::gold_sub(b2, b3);
+            let v3: u64 = crate::ntt::gold_mul(e1, tw[j * step2]);
+            acc0[o3] = crate::ntt::gold_add(acc0[o3], crate::ntt::gold_mul(pf0[base + o3], v3));
+            acc1[o3] = crate::ntt::gold_add(acc1[o3], crate::ntt::gold_mul(pf1[base + o3], v3));
+            j += 1;
+        }
+        start += len;
+    }
+    (acc0, acc1)
+}
+
+/// One right-hand term of the two-limb dot, fused as [`gold_dot_one_fused`] is
+/// (card T52a): twist-and-first-pass, the three middle passes, and the last
+/// pass accumulating into both limbs.
+///
+/// [`gold_dot_one_fused`] line for line, with [`gold_dif_stage2_mac2`] in
+/// place of [`crate::ntt::gold_dif_stage2_mac`]: the first pass is the same
+/// [`gold_dif_stage2_twist`] and the middle loop the same
+/// [`crate::ntt::gold_dif_stage2`] calls, so the returned `cur`/`tmp` are the
+/// buffers [`gold_dot_one_fused`] would return on the same inputs.
+///
+/// Returns `(acc0, acc1, cur, tmp)`, so the chunk recycles all four.
+#[allow(clippy::too_many_arguments)]
+pub fn gold_dot_one_fused_limbs2(
+    a: &Rq,
+    cur0: Vec<u64>,
+    tmp0: Vec<u64>,
+    acc0: Vec<u64>,
+    acc1: Vec<u64>,
+    pt: &Vec<u64>,
+    pf0: &Vec<u64>,
+    pf1: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut cur: Vec<u64> = gold_dif_stage2_twist(a, cur0, n, pt, pt);
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = n / 4;
+    while len > 4 {
+        let filled: Vec<u64> = crate::ntt::gold_dif_stage2(&cur, tmp, len, pt);
+        tmp = cur;
+        cur = filled;
+        len = len / 4;
+    }
+    let accs: (Vec<u64>, Vec<u64>) =
+        gold_dif_stage2_mac2(&cur, acc0, acc1, 4, pt, pf0, pf1, base);
+    (accs.0, accs.1, cur, tmp)
+}
+
 /// One chunk of the two-limb fused dot: the right operand is transformed
 /// **once** and multiply-accumulated into both limb accumulators.
 ///
@@ -1522,6 +1671,11 @@ pub fn prepare_vec_limbs2(a: &Vec<Rq>, n: usize) -> PreparedVecL2 {
 /// `b[j]` in each of its lanes; here there is one lane and one transform, and
 /// the limbs cost a MAC each -- `N` multiplications against a transform's
 /// `N log N`.
+///
+/// Card T52a: each term is one [`gold_dot_one_fused_limbs2`] -- five passes
+/// where the twist, `gold_forward` and two `mac_into_gold_off` made eight --
+/// and the loop carries the transform's own buffer pair, exactly as
+/// [`dot_prepared_digits_gold`]'s does. The tail is unchanged.
 pub fn dot_prep_chunk_limbs2(
     f0: &Vec<u64>,
     f1: &Vec<u64>,
@@ -1536,15 +1690,16 @@ pub fn dot_prep_chunk_limbs2(
     let mut acc0: Vec<u64> = crate::ntt::zeros(n);
     let mut acc1: Vec<u64> = crate::ntt::zeros(n);
     let mut scratch: Vec<u64> = crate::ntt::zeros(n);
-    let mut buf: Vec<u64> = crate::ntt::zeros(n);
+    let mut cur: Vec<u64> = crate::ntt::zeros(n);
     let mut j: usize = start;
     while j < end {
-        buf = load_twisted_into(buf, &b[j], &pt);
-        let fwb: (Vec<u64>, Vec<u64>) = crate::ntt::gold_forward(buf, scratch, &pt);
-        acc0 = mac_into_gold_off(acc0, f0, j * n, &fwb.0, n);
-        acc1 = mac_into_gold_off(acc1, f1, j * n, &fwb.0, n);
-        buf = fwb.0;
-        scratch = fwb.1;
+        // `j * n` is the ABSOLUTE offset into both prepared tables, as before.
+        let r: (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) =
+            gold_dot_one_fused_limbs2(&b[j], cur, scratch, acc0, acc1, &pt, f0, f1, j * n);
+        acc0 = r.0;
+        acc1 = r.1;
+        cur = r.2;
+        scratch = r.3;
         j += 1;
     }
     let len: u64 = (end - start) as u64;

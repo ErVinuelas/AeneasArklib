@@ -22,6 +22,13 @@
 //! fact is a row nobody can compare. The three constructors that take no length
 //! argument assert theirs instead of asserting nothing.
 //!
+//! The one row whose parameter is *not* `RING_DEGREE` is
+//! `ring/dot_prepared_limbs2`: its parameter is the dot's **term count**, set
+//! to `MESSAGE_ROWS = 1024`, the width every call of the carrier makes at the
+//! pin (numerically equal to `RING_DEGREE`, which is a coincidence of the
+//! parameter set, not a reason). It is not REDUCED -- one call is the pin's own
+//! shape -- and what it leaves out is recorded at its registration.
+//!
 //! # Allocation is part of the measurement
 //!
 //! Every operation here returns a freshly allocated `Rq`, and the timed region
@@ -72,6 +79,20 @@ macro_rules! define_cases {
 
             fn rq(seed: u64, n: usize) -> hc::ring::Rq {
                 hc::ring::Rq::from_coeffs(&support::corpus(seed, n))
+            }
+
+            /// `k` full-degree ring elements, one stream per entry
+            /// (`seed + 0x100·i`): `benches/quadeval.rs`'s `vec_of` without the
+            /// `PolyVec` wrapper, so one seed draws the same vector in both files.
+            fn rq_vec(seed: u64, k: usize) -> Vec<hc::ring::Rq> {
+                let degree = hc::params::RING_DEGREE;
+                let mut out = Vec::with_capacity(k);
+                let mut i = 0usize;
+                while i < k {
+                    out.push(rq(seed.wrapping_add(i as u64 * 0x100), degree));
+                    i += 1;
+                }
+                out
             }
 
             // -- digests (outside every timed region) -----------------------
@@ -200,6 +221,40 @@ macro_rules! define_cases {
                 support::run(m, || black_box(&a).equals(black_box(&a)), d_bool)
             }
 
+            // -- the prepared two-limb dot (the carrier's kernel) -------------
+
+            /// `Σⱼ a[j] · b[j]` over `n` terms through the prepared two-limb
+            /// general path: `a` split into two 16-bit limbs and both limbs
+            /// forward-transformed **above** the closure (`prepare_vec_limbs2`),
+            /// `b` built above it too. What is timed is `dot_prepared_limbs2` and
+            /// nothing else -- per term one right-hand transform accumulated into
+            /// both limbs, per chunk of `LIMB2_CHUNK = 32` terms two inverse
+            /// transforms and two untwists, then the `r₀ + 2¹⁶·r₁ mod q`
+            /// recombination.
+            ///
+            /// This is one block of `quadeval::carrier_from_raw_32` with its
+            /// neighbours taken out. The carrier rows prepare `a` inside their
+            /// closure (`2n` forward transforms per call, ~20% of the 8-block row)
+            /// and expand the compact rows, so a change confined to the term
+            /// kernel arrives there diluted. Card T52a (T37's fusion on the limb
+            /// term, 8 passes to 5 and 768 of the term's 8192 multiplies) is the
+            /// case that forced the row.
+            ///
+            /// The draw is `quadeval/carrier_from_raw_32`'s: `a` is that row's `a`
+            /// (tag `…0014`) and `b` its block 0 (tag `…0013`), both the ordinary
+            /// `[1, q)` corpus, so this row computes that row's first output entry.
+            pub fn dot_prepared_limbs2(m: Mode<'_, '_>, n: usize) -> u64 {
+                let a = rq_vec(0x2117_0000_0000_0014, n);
+                let b = rq_vec(0x2117_0000_0000_0013, n);
+                let prep = hc::ring::prepare_vec_limbs2(&a, n);
+                assert_eq!(prep.len(), n, "ring/dot_prepared_limbs2: wrong prepared length");
+                support::run(
+                    m,
+                    || hc::ring::dot_prepared_limbs2(black_box(&prep), black_box(&b), black_box(n)),
+                    d_rq,
+                )
+            }
+
             // -- the A/B fairness control -----------------------------------
 
             /// The harness's A/B fairness control. Every variant of this case runs
@@ -255,6 +310,28 @@ fn ring_benches(c: &mut Criterion) {
     bench_case!(c, "ring/mul", mul, [n]);
     // @covers ring::Rq::equals
     bench_case!(c, "ring/equals", equals, [n]);
+
+    // The prepared two-limb dot with nothing around it (card T52a's isolating
+    // row; the case doc says why the `quadeval/carrier_*` rows cannot stand in).
+    // NOT REDUCED: `n = MESSAGE_ROWS = 1024` terms is exactly one carrier call
+    // at the pin -- `a` is the statement's `2^ML_VARS_LOW = 1024`-entry vector
+    // and each raw block has `MESSAGE_ROWS` rows -- so the work per call is the
+    // pin's: 1024 fused terms, 32 chunks, 64 inverse transforms. What the row
+    // leaves out is the carrier's own loop (`BLOCKS = 1024` calls at the pin,
+    // one prepared `a` shared by all of them) and the compact-row expansion.
+    //
+    // `vs genesis` here is the cumulative gain of everything under the limb
+    // path since card T35 froze it (the radix-4 pair, T49a's peel reaching it
+    // only through T52a's last pass, T52a's fusion); the card's verdict is
+    // `cand vs now` only.
+    //
+    // `now` ~21 ms per iteration (the 2026-09-24 section-6 report: 21.2 ms per
+    // carrier block, 90.8% of it in the terms): criterion's Auto mode runs it
+    // Flat at ~3 iterations a sample, ~6-7 s per variant at the default 100
+    // samples, so no `samples:` override is needed.
+    let limb_terms = hachi::params::MESSAGE_ROWS;
+    // @covers ring::dot_prepared_limbs2
+    bench_case!(c, "ring/dot_prepared_limbs2", dot_prepared_limbs2, [limb_terms]);
 }
 
 criterion_group! {

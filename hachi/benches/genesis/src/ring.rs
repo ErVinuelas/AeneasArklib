@@ -1789,3 +1789,142 @@ pub fn gold_dot_one_fused_tab(
     (acc, cur, tmp)
 }
 
+
+// @genesis 3e66f6a 2026-09-25 — ring::gold_dif_stage2_mac2
+// ---------------------------------------------------------------------------
+// Card T52a (2026-09-25): the carrier's fused two-limb kernel.
+// The FIRST translation, copied verbatim from hachi/src. Do not edit.
+// ---------------------------------------------------------------------------
+/// [`crate::ntt::gold_dif_stage2_mac`] with **two** prepared tables and two
+/// accumulators (card T52a): the limb path's fused last pass.
+///
+/// Each butterfly output `v` is computed once and accumulated into both limbs:
+/// `acc0[o] += pf0[base + o] · v` and `acc1[o] += pf1[base + o] · v`. That is
+/// what the limb chunk's two `mac_into_gold_off` passes did with the transform
+/// output, without the 8 KiB buffer they read it back from.
+///
+/// The body is [`crate::ntt::gold_dif_stage2_mac`] verbatim -- including card
+/// T49a's peeled `j = 0` group, exact for a canonical `src` and `tw[0] = 1`,
+/// which the caller's ψ table has -- with each accumulate written twice, limb
+/// 0 first. The two accumulators never read each other, so its specification
+/// is the single-table one's conjunction, once per `(acc, pf)` pair.
+#[allow(clippy::too_many_arguments)]
+pub fn gold_dif_stage2_mac2(
+    src: &Vec<u64>,
+    mut acc0: Vec<u64>,
+    mut acc1: Vec<u64>,
+    len: usize,
+    tw: &Vec<u64>,
+    pf0: &Vec<u64>,
+    pf1: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let half: usize = len / 2;
+    let quarter: usize = len / 4;
+    let step1: usize = 2 * (n / len);
+    let step2: usize = 2 * step1;
+    let mut start: usize = 0;
+    while start < n {
+        let a0: u64 = src[start];
+        let a1: u64 = src[start + quarter];
+        let a2: u64 = src[start + half];
+        let a3: u64 = src[start + half + quarter];
+        let b0: u64 = crate::ntt::gold_add(a0, a2);
+        let b1: u64 = crate::ntt::gold_add(a1, a3);
+        let b2: u64 = crate::ntt::gold_sub(a0, a2);
+        let d1: u64 = crate::ntt::gold_sub(a1, a3);
+        let b3: u64 = crate::ntt::gold_mul(d1, tw[quarter * step1]);
+        let v0: u64 = crate::ntt::gold_add(b0, b1);
+        acc0[start] =
+            crate::ntt::gold_add(acc0[start], crate::ntt::gold_mul(pf0[base + start], v0));
+        acc1[start] =
+            crate::ntt::gold_add(acc1[start], crate::ntt::gold_mul(pf1[base + start], v0));
+        let o1: usize = start + quarter;
+        let v1: u64 = crate::ntt::gold_sub(b0, b1);
+        acc0[o1] = crate::ntt::gold_add(acc0[o1], crate::ntt::gold_mul(pf0[base + o1], v1));
+        acc1[o1] = crate::ntt::gold_add(acc1[o1], crate::ntt::gold_mul(pf1[base + o1], v1));
+        let o2: usize = start + half;
+        let v2: u64 = crate::ntt::gold_add(b2, b3);
+        acc0[o2] = crate::ntt::gold_add(acc0[o2], crate::ntt::gold_mul(pf0[base + o2], v2));
+        acc1[o2] = crate::ntt::gold_add(acc1[o2], crate::ntt::gold_mul(pf1[base + o2], v2));
+        let o3: usize = start + half + quarter;
+        let v3: u64 = crate::ntt::gold_sub(b2, b3);
+        acc0[o3] = crate::ntt::gold_add(acc0[o3], crate::ntt::gold_mul(pf0[base + o3], v3));
+        acc1[o3] = crate::ntt::gold_add(acc1[o3], crate::ntt::gold_mul(pf1[base + o3], v3));
+        let mut j: usize = 1;
+        while j < quarter {
+            let a0: u64 = src[start + j];
+            let a1: u64 = src[start + j + quarter];
+            let a2: u64 = src[start + j + half];
+            let a3: u64 = src[start + j + half + quarter];
+            let b0: u64 = crate::ntt::gold_add(a0, a2);
+            let b1: u64 = crate::ntt::gold_add(a1, a3);
+            let d0: u64 = crate::ntt::gold_sub(a0, a2);
+            let b2: u64 = crate::ntt::gold_mul(d0, tw[j * step1]);
+            let d1: u64 = crate::ntt::gold_sub(a1, a3);
+            let b3: u64 = crate::ntt::gold_mul(d1, tw[(j + quarter) * step1]);
+            let o0: usize = start + j;
+            let v0: u64 = crate::ntt::gold_add(b0, b1);
+            acc0[o0] = crate::ntt::gold_add(acc0[o0], crate::ntt::gold_mul(pf0[base + o0], v0));
+            acc1[o0] = crate::ntt::gold_add(acc1[o0], crate::ntt::gold_mul(pf1[base + o0], v0));
+            let o1: usize = start + j + quarter;
+            let e0: u64 = crate::ntt::gold_sub(b0, b1);
+            let v1: u64 = crate::ntt::gold_mul(e0, tw[j * step2]);
+            acc0[o1] = crate::ntt::gold_add(acc0[o1], crate::ntt::gold_mul(pf0[base + o1], v1));
+            acc1[o1] = crate::ntt::gold_add(acc1[o1], crate::ntt::gold_mul(pf1[base + o1], v1));
+            let o2: usize = start + half + j;
+            let v2: u64 = crate::ntt::gold_add(b2, b3);
+            acc0[o2] = crate::ntt::gold_add(acc0[o2], crate::ntt::gold_mul(pf0[base + o2], v2));
+            acc1[o2] = crate::ntt::gold_add(acc1[o2], crate::ntt::gold_mul(pf1[base + o2], v2));
+            let o3: usize = start + half + quarter + j;
+            let e1: u64 = crate::ntt::gold_sub(b2, b3);
+            let v3: u64 = crate::ntt::gold_mul(e1, tw[j * step2]);
+            acc0[o3] = crate::ntt::gold_add(acc0[o3], crate::ntt::gold_mul(pf0[base + o3], v3));
+            acc1[o3] = crate::ntt::gold_add(acc1[o3], crate::ntt::gold_mul(pf1[base + o3], v3));
+            j += 1;
+        }
+        start += len;
+    }
+    (acc0, acc1)
+}
+
+// @genesis 3e66f6a 2026-09-25 — ring::gold_dot_one_fused_limbs2
+/// One right-hand term of the two-limb dot, fused as [`gold_dot_one_fused`] is
+/// (card T52a): twist-and-first-pass, the three middle passes, and the last
+/// pass accumulating into both limbs.
+///
+/// [`gold_dot_one_fused`] line for line, with [`gold_dif_stage2_mac2`] in
+/// place of [`crate::ntt::gold_dif_stage2_mac`]: the first pass is the same
+/// [`gold_dif_stage2_twist`] and the middle loop the same
+/// [`crate::ntt::gold_dif_stage2`] calls, so the returned `cur`/`tmp` are the
+/// buffers [`gold_dot_one_fused`] would return on the same inputs.
+///
+/// Returns `(acc0, acc1, cur, tmp)`, so the chunk recycles all four.
+#[allow(clippy::too_many_arguments)]
+pub fn gold_dot_one_fused_limbs2(
+    a: &Rq,
+    cur0: Vec<u64>,
+    tmp0: Vec<u64>,
+    acc0: Vec<u64>,
+    acc1: Vec<u64>,
+    pt: &Vec<u64>,
+    pf0: &Vec<u64>,
+    pf1: &Vec<u64>,
+    base: usize,
+) -> (Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>) {
+    let n: usize = crate::ntt::NTT_LEN;
+    let mut cur: Vec<u64> = gold_dif_stage2_twist(a, cur0, n, pt, pt);
+    let mut tmp: Vec<u64> = tmp0;
+    let mut len: usize = n / 4;
+    while len > 4 {
+        let filled: Vec<u64> = crate::ntt::gold_dif_stage2(&cur, tmp, len, pt);
+        tmp = cur;
+        cur = filled;
+        len = len / 4;
+    }
+    let accs: (Vec<u64>, Vec<u64>) =
+        gold_dif_stage2_mac2(&cur, acc0, acc1, 4, pt, pf0, pf1, base);
+    (accs.0, accs.1, cur, tmp)
+}
+

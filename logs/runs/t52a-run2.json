@@ -1,0 +1,137 @@
+{
+  "run": "20260925T0011+0200-8a9ee277",
+  "source": {
+    "sha": "84b87f7",
+    "src_dirty": true,
+    "read_at": "start"
+  },
+  "rows": [
+    {
+      "case": "quadeval/carrier_from_raw_32/8",
+      "now_ns": 193154102.2222222,
+      "genesis_ns": 854483358.3333334,
+      "vs_genesis": -0.7739521778411594,
+      "vs_genesis_sig": true,
+      "candidate_ns": 180158694.36666667,
+      "cand_vs_now": -0.0672799992650657,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.7891606751498759,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": -0.006141401875142691,
+      "cand_vs_now_adj": -0.061516394289162446,
+      "cand_vs_now_verdict": "faster"
+    },
+    {
+      "case": "ring/dot_prepared_limbs2/1024",
+      "now_ns": 19047733.555555556,
+      "genesis_ns": 24688484.777777776,
+      "vs_genesis": -0.2284770115701668,
+      "vs_genesis_sig": true,
+      "candidate_ns": 17632111.333333332,
+      "cand_vs_now": -0.07431971988128407,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.2858163839522432,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "faster",
+      "cand_vs_genesis_verdict": "faster",
+      "cand_lean": -0.0038440761590513794,
+      "cand_vs_now_adj": -0.0707476028958346,
+      "cand_vs_now_verdict": "faster"
+    }
+  ],
+  "control": [
+    {
+      "case": "_control/quadeval/8192",
+      "now_ns": 33902058.666666664,
+      "genesis_ns": 34048285.0,
+      "vs_genesis": -0.00429467543911054,
+      "vs_genesis_sig": false,
+      "candidate_ns": 33693852.5,
+      "cand_vs_now": -0.006141401875142691,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.01040970198645835,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": -0.006141401875142691,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "_control/ring/8192",
+      "now_ns": 34234320.0,
+      "genesis_ns": 34028379.0,
+      "vs_genesis": 0.006052036742625912,
+      "vs_genesis_sig": true,
+      "candidate_ns": 34102720.666666664,
+      "cand_vs_now": -0.0038440761590513794,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": 0.002184696093418502,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": -0.0038440761590513794,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    },
+    {
+      "case": "_control/ringswitch/8192",
+      "now_ns": 34047858.5,
+      "genesis_ns": 33862257.333333336,
+      "vs_genesis": 0.0054810630265916165,
+      "vs_genesis_sig": true,
+      "candidate_ns": 33157360.888888884,
+      "cand_vs_now": -0.026154291351719393,
+      "cand_vs_now_sig": true,
+      "cand_vs_genesis": -0.020816581644442392,
+      "threshold_vs_genesis": 0.05,
+      "vs_genesis_verdict": "noise",
+      "cand_vs_genesis_verdict": "noise",
+      "cand_lean": -0.026154291351719393,
+      "cand_vs_now_adj": 0.0,
+      "cand_vs_now_verdict": "noise"
+    }
+  ],
+  "machine": {
+    "hostname": "pablo-evo14a8",
+    "os": "Linux 6.17.0-1032-oem",
+    "arch": "x86_64",
+    "cpu": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics",
+    "cores": 16,
+    "id": "d19cb42225da"
+  },
+  "toolchain": {
+    "name": "nightly-2026-06-01",
+    "rustc": "rustc 1.98.0-nightly (14210df0e 2026-05-31)"
+  },
+  "ab_bias": 0.026154291351719393,
+  "usable": true,
+  "threshold_vs_genesis": 0.05,
+  "cand_leans": {
+    "quadeval": -0.006141401875142691,
+    "ring": -0.0038440761590513794,
+    "ringswitch": -0.026154291351719393
+  },
+  "candidate_slot": {
+    "diverged": [
+      "ring"
+    ],
+    "sha": {
+      "params": "b5b7c0294715",
+      "ntt": "324ecf8f043e",
+      "ring": "d91a04c4967a",
+      "linalg": "8118d6f124dd",
+      "gadget": "e4cf27d35b5c",
+      "commit": "03af1edcbafa",
+      "evalsplit": "aeded22df1bd",
+      "ringswitch": "2107d85c1e02",
+      "quadeval": "0ab6082fe0f5",
+      "endpiece": "4fb84f61d68e",
+      "zerocheck": "e0cbf4a03287",
+      "sumcheck": "6a1be280d522",
+      "chain": "0a3ea33f76fa"
+    }
+  }
+}
