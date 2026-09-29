@@ -1,0 +1,23 @@
+// The high 64 bits of the unsigned product x * y:
+//
+//     hachi_jazz_mul_hi_u64(x, y) = (x * y) / 2^64   (integer division)
+//
+// This is the fallback integration target of the first-Jasmin-optimization
+// plan: the same quantity `aux_reduce` in hachi/src/ntt.rs forms as
+// `((x as u128) * (m as u128)) / BARRETT_SCALE`. The routine is one MULX
+// instruction; its semantics come from Jasmin's instruction model and the
+// verified Jasmin compiler, not from anything proved in this repository.
+//
+// MULX requires BMI2. The safe Rust wrapper in src/lib.rs checks for BMI2
+// before ever reaching this symbol.
+//
+// Toolchain pin: jasminc 2026.03.2 (nixpkgs f45c6f04c2f013f004bf94e284e95d72898d9393,
+// store path /nix/store/9v6p3bfnjvc3dkazahg1asf35hr7a4an-jasmin-compiler-2026.03.2-bin).
+// Regenerate ../jazz/mul_hi_u64.s with:
+//     jasminc -arch x86-64 -o mul_hi_u64.s mul_hi_u64.jazz
+export
+fn hachi_jazz_mul_hi_u64(reg u64 x, reg u64 y) -> reg u64 {
+    reg u64 hi lo;
+    hi, lo = #MULX(x, y);
+    return hi;
+}

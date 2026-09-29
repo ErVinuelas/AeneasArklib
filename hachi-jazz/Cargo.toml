@@ -1,0 +1,49 @@
+# The Jasmin integration sibling of `hachi` — the fallback (integration-only)
+# milestone of the first-Jasmin-optimization plan.
+#
+# This crate exists to hold the one thing `hachi` must never contain: the
+# unsafe FFI boundary to Jasmin-generated assembly. `hachi` keeps
+# `#![forbid(unsafe_code)]` and does NOT depend on this crate; nothing here is
+# extracted by charon/Aeneas or reachable from the proved code. The dependency
+# points the other way: the differential tests pull `hachi` in as a
+# dev-dependency to compare against its scalar reference (`ntt::aux_reduce`).
+[package]
+name = "hachi-jazz"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Jasmin-generated assembly kernels for hachi, behind a safe wrapper: the FFI experiment lives here so hachi itself stays free of unsafe code"
+publish = false
+
+[lib]
+name = "hachi_jazz"
+path = "src/lib.rs"
+bench = false
+
+# `jazz/*.s` is generated from `jazz/*.jazz` by the pinned Jasmin compiler and
+# checked in, so building this crate needs a C toolchain (to assemble) but not
+# Jasmin. Regeneration instructions are in the .jazz header and README.md.
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+# The scalar reference the differential tests compare against.
+hachi = { path = "../hachi" }
+# Same criterion pin and features as hachi/Cargo.toml, for the same reasons.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[[test]]
+name = "differential"
+
+[[bench]]
+name = "mul_hi"
+harness = false
+
+# Same bench pins as hachi/Cargo.toml: comparability before speed. Fat LTO
+# cannot inline across the FFI boundary — that call overhead is precisely what
+# the microbenchmark is measuring.
+[profile.bench]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = false
