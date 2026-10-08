@@ -157,9 +157,16 @@ decision.
 
 ### Two things every skill here obeys
 
-**Agents stage; they never commit.** [`.claude/settings.json`](.claude/settings.json)
-denies `git commit`, so this is enforced rather than trusted, and every loop run
-ends by handing you an ordered commit plan.
+**A commit goes through the gate.** [`.claude/settings.json`](.claude/settings.json)
+runs [`.claude/hooks/commit-gate.sh`](.claude/hooks/commit-gate.sh) before any
+`git commit` an agent issues. When the commit touches `hachi/lean/`, `hachi/src/`
+or the lake manifests it runs `make build` first (and `make test` too when Rust
+sources, tests or benches change) and refuses the commit on any error or `sorry`;
+it also refuses to build while a benchmark is running. A commit that touches none
+of those paths passes straight through. The gate is enforced rather than trusted;
+the loop skills still end their runs by staging and handing you an ordered commit
+plan, and an agent commits only when you ask it to. Verdicts are logged in
+`.make/commit-gate.log`.
 
 **Only a benchmark accepts an optimization.** Not operation counts, not reasoning
 about what ought to be faster. Measurements are compared only *within* one
@@ -200,10 +207,11 @@ report, `CANDIDATE=1` to also time the candidate slot (the A/B), and
 ### Logs
 
 [`logs/ledger.jsonl`](logs/ledger.jsonl) is the append-only optimization and
-verification ledger, and it is currently empty — see
-[`logs/README.md`](logs/README.md) for the row kinds and why the ledger exists
-alongside `NOTES.md`. `logs/aristotle-sessions.jsonl` is the append-only record of
-asynchronous Aristotle proof sessions, created on first use.
+verification ledger. It holds 140 validated candidate/campaign rows at the
+2026-10-06 close-out — see [`logs/README.md`](logs/README.md) for the row kinds,
+the no-cross-run rule and why the ledger exists alongside `NOTES.md`.
+`logs/aristotle-sessions.jsonl` is the append-only record of asynchronous
+Aristotle proof sessions.
 
 ---
 

@@ -1,9 +1,23 @@
 {
   "permissions": {
-    "deny": [
+    "allow": [
       "Bash(git commit)",
-      "Bash(git commit:*)",
       "Bash(git commit *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/.claude/hooks/commit-gate.sh",
+            "timeout": 3600,
+            "statusMessage": "commit gate: running make build / make test for the paths this commit touches"
+          }
+        ]
+      }
     ]
   }
 }
