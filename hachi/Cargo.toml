@@ -105,6 +105,9 @@ bench = false
 # re-baseline attached, not a `cargo update`.
 [dependencies]
 cpoly = { git = "https://github.com/tobias-rothmann/AeneasCompPoly.git", rev = "d7e26bb42feb80a1d96f904d3c14f85786751513" }
+# Native-only orchestration for independent commitment blocks.  It is optional
+# so the default crate remains the `no_std`, Aeneas-extracted arithmetic core.
+rayon = { version = "1.10", optional = true }
 
 # `cargo build --lib` -- all that `charon cargo --preset=aeneas -- --lib` asks
 # for -- does not build dev-dependencies, so nothing here reaches
@@ -135,6 +138,11 @@ hachi-candidate = { path = "benches/candidate" }
 [features]
 # Adds the `candidate` variant to every bench case, for `make run-bench CANDIDATE=1`.
 candidate = []
+# Parallelizes the independent per-block work in `commit_streamed_32`.  This is
+# deliberately opt-in: `make extract` builds without it, so Rayon and `std`
+# never enter the verified model.  Native callers can set `RAYON_NUM_THREADS`
+# to measure a chosen worker count.
+parallel = ["dep:rayon"]
 
 # Benchmarks are the fitness function of this project, so their build is pinned
 # rather than left to whatever cargo defaults to this month.

@@ -1206,7 +1206,7 @@ fn the_commitment_and_z_pass_split_per_block() {
 //
 // This is a faithful REPLICA of the `apply_digits` path with `u32` transform
 // words, living in the test rather than in `hachi/src`. That is deliberate:
-// every `AuxTransform` spec is stated over `Vec Std.U64`, so retyping the
+// every `NttTransform` spec is stated over `Vec Std.U64`, so retyping the
 // transform layer breaks ~1186 lines of Lean the moment it lands, and
 // `make build` is a hard gate. The goal's rule is that the caller-level gain
 // comes first and the proof second, so the measurement is taken without
@@ -3738,7 +3738,7 @@ fn the_radix4_gate() {
 /// radix-4 theory: `dif4Run`, its multiplicativity, its inverse. Fusing the
 /// pair instead leaves `difRun` alone — `difRun om (k+2) step` IS
 /// `difRun om k (step*4)` after this one pass, by `difRun_succ` twice — so
-/// `gold_forward_spec`'s statement does not move and `AuxProduct`'s
+/// `gold_forward_spec`'s statement does not move and `NttProduct`'s
 /// `prod_difRun` and `inv_value` are untouched.
 ///
 /// The memory pattern is the radix-4 one either way: four reads and four

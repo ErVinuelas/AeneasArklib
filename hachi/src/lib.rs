@@ -133,6 +133,12 @@
 // worth it".
 #![allow(missing_debug_implementations)]
 
+// Rayon is an optional, native orchestration layer around independent whole
+// blocks.  Keeping this import feature-gated preserves the `no_std` surface
+// and ensures the Aeneas extraction continues to see only the arithmetic core.
+#[cfg(feature = "parallel")]
+extern crate std;
+
 extern crate alloc;
 
 pub mod params;

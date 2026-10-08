@@ -712,3 +712,113 @@ fn commit_streamed_agrees_with_commit() {
     }
     assert!(u_got.equals(&u_want), "streamed outer commitment differs");
 }
+
+/// The optional native scheduler is observationally identical to the extracted
+/// sequential implementation, including the block order consumed by the outer
+/// matrix. Run with `cargo test --features parallel --test commit_semantics`.
+#[cfg(feature = "parallel")]
+#[test]
+fn parallel_raw_streamed_commit_agrees_with_sequential_commit() {
+    let mut rng = Lcg::new(0xC032);
+    let a = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
+    let b = rng.next_poly_matrix(OUTER_ROWS, 2 * (INNER_ROWS * GADGET_DIGITS));
+    let pp = PublicParams::new(a, b);
+    let message: Vec<PolyVec> = (0..2).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+    let raw = message
+        .iter()
+        .map(hachi::linalg::RawVec32::compact)
+        .collect();
+
+    let (u_want, ts_want) = hachi::commit::commit_streamed(&pp, &message);
+    let (u_got, ts_got) = hachi::commit::commit_streamed_32(&pp, &raw);
+
+    assert_eq!(ts_got.len(), ts_want.len(), "block count");
+    for i in 0..ts_got.len() {
+        assert!(ts_got[i].equals(&ts_want[i]), "block {i} differs");
+    }
+    assert!(u_got.equals(&u_want), "outer commitment differs");
+}
+
+/// Pin-shaped timing harness for the raw streamed committer alone.  It leaves
+/// parameter and message construction outside the timed region, so worker-count
+/// sweeps measure precisely the operation scheduled by the `parallel` feature.
+#[cfg(feature = "parallel")]
+#[test]
+#[ignore = "instrument: pin-scale commitment timing; set RAYON_NUM_THREADS"]
+fn parallel_raw_streamed_commit_profile() {
+    use hachi::linalg::RawVec32;
+    use std::time::Instant;
+
+    let blocks = std::env::var("HACHI_COMMIT_BLOCKS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(BLOCKS);
+    let mut rng = Lcg::new(0xC0DE_3200);
+    let inner = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
+    let outer = rng.next_poly_matrix(OUTER_ROWS, blocks * INNER_ROWS * GADGET_DIGITS);
+    let pp = PublicParams::new(inner, outer);
+    let mut raw = Vec::with_capacity(blocks);
+    for _ in 0..blocks {
+        raw.push(RawVec32::compact(&rng.next_poly_vec(MESSAGE_ROWS)));
+    }
+
+    let started = Instant::now();
+    let (u, ts) = hachi::commit::commit_streamed_32(&pp, &raw);
+    let elapsed = started.elapsed();
+    eprintln!(
+        "[commit-profile] blocks={blocks} threads={} elapsed={elapsed:.3?} output_blocks={} output_rows={}",
+        std::env::var("RAYON_NUM_THREADS").unwrap_or_else(|_| "auto".to_owned()),
+        ts.len(),
+        u.len(),
+    );
+    assert_eq!(ts.len(), blocks);
+    assert_eq!(u.len(), OUTER_ROWS);
+}
+
+/// Pin-shaped breakdown of the native parallel orchestration.  This mirrors
+/// `commit_streamed_32` exactly while placing clocks around its three stages.
+#[cfg(feature = "parallel")]
+#[test]
+#[ignore = "instrument: pin-scale commitment timing; set RAYON_NUM_THREADS"]
+fn parallel_raw_streamed_commit_breakdown_profile() {
+    use hachi::linalg::{flatten_blocks, RawVec32};
+    use rayon::prelude::*;
+    use std::time::Instant;
+
+    let blocks = std::env::var("HACHI_COMMIT_BLOCKS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(BLOCKS);
+    let mut rng = Lcg::new(0xC0DE_3200);
+    let inner = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
+    let outer = rng.next_poly_matrix(OUTER_ROWS, blocks * INNER_ROWS * GADGET_DIGITS);
+    let pp = PublicParams::new(inner, outer);
+    let mut raw = Vec::with_capacity(blocks);
+    for _ in 0..blocks {
+        raw.push(RawVec32::compact(&rng.next_poly_vec(MESSAGE_ROWS)));
+    }
+
+    let started = Instant::now();
+    let prep = pp.inner_matrix().prepare_digits_gold();
+    let preparation = started.elapsed();
+    let started = Instant::now();
+    let ts: Vec<PolyVec> = raw
+        .par_iter()
+        .map(|block| {
+            let inner = prep.apply_raw_digits_gold(block);
+            hachi::gadget::gadget_decompose(&inner)
+        })
+        .collect();
+    let block_work = started.elapsed();
+    let started = Instant::now();
+    let flat = flatten_blocks(&ts);
+    let u = pp.outer_matrix().mat_vec_mul(&flat);
+    let finish = started.elapsed();
+    let total = preparation + block_work + finish;
+    eprintln!(
+        "[commit-breakdown] blocks={blocks} threads={} prep={preparation:.3?} blocks={block_work:.3?} flatten_outer={finish:.3?} total={total:.3?}",
+        std::env::var("RAYON_NUM_THREADS").unwrap_or_else(|_| "auto".to_owned()),
+    );
+    assert_eq!(ts.len(), blocks);
+    assert_eq!(u.len(), OUTER_ROWS);
+}

@@ -492,10 +492,14 @@ run-bench: bench-toolchain
 #
 # BLOCKS overrides the instance size; the default is the paper's.
 BLOCKS ?= 1024
+# Set `PARALLEL=1` only for native scaling runs.  The feature is opt-in so the
+# default profile and `make extract` retain the Aeneas-extracted serial core;
+# choose a worker count with `RAYON_NUM_THREADS=<n>` in the environment.
+PARALLEL ?= 0
 run-profile:
 	@set -euo pipefail; cd $(PKG) && \
 	  GLIBC_TUNABLES=glibc.malloc.hugetlb=1 HACHI_CHAIN_BLOCKS='$(BLOCKS)' \
-	  cargo test --release --test chain_semantics -- \
+	  cargo test --release $(if $(filter 1,$(PARALLEL)),--features parallel,) --test chain_semantics -- \
 	    --ignored --nocapture the_honest_chain_profile
 
 # The scale-walled correctness tests, at the paper's own constants.
