@@ -1,0 +1,11 @@
+{
+  "pilot_blocks": [64, 128],
+  "full_blocks": [1024],
+  "workers": [1, 2, 4, 8, 16],
+  "pilot_repetitions": 1,
+  "full_repetitions": 5,
+  "timeout_seconds": 10800,
+  "seed": 20261008,
+  "cpu_affinity": null,
+  "prover_profile": false
+}

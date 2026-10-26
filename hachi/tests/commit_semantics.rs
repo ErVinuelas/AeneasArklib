@@ -713,30 +713,28 @@ fn commit_streamed_agrees_with_commit() {
     assert!(u_got.equals(&u_want), "streamed outer commitment differs");
 }
 
-/// The optional native scheduler is observationally identical to the extracted
-/// sequential implementation, including the block order consumed by the outer
-/// matrix. Run with `cargo test --features parallel --test commit_semantics`.
-#[cfg(feature = "parallel")]
+/// The raw streamed path is observationally identical to the ordinary streamed
+/// implementation, including the block order consumed by the outer matrix.
+/// With `parallel`, this directly checks the Rayon scheduler against the same
+/// sequential reference.  The three sizes catch both the single-block case and
+/// ordering across multiple independently scheduled blocks.
 #[test]
-fn parallel_raw_streamed_commit_agrees_with_sequential_commit() {
+fn raw_streamed_commit_agrees_with_sequential_commit() {
     let mut rng = Lcg::new(0xC032);
-    let a = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
-    let b = rng.next_poly_matrix(OUTER_ROWS, 2 * (INNER_ROWS * GADGET_DIGITS));
-    let pp = PublicParams::new(a, b);
-    let message: Vec<PolyVec> = (0..2).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
-    let raw = message
-        .iter()
-        .map(hachi::linalg::RawVec32::compact)
-        .collect();
-
-    let (u_want, ts_want) = hachi::commit::commit_streamed(&pp, &message);
-    let (u_got, ts_got) = hachi::commit::commit_streamed_32(&pp, &raw);
-
-    assert_eq!(ts_got.len(), ts_want.len(), "block count");
-    for i in 0..ts_got.len() {
-        assert!(ts_got[i].equals(&ts_want[i]), "block {i} differs");
+    for blocks in [1, 2, 4] {
+        let a = rng.next_poly_matrix(INNER_ROWS, MESSAGE_ROWS * GADGET_DIGITS);
+        let b = rng.next_poly_matrix(OUTER_ROWS, blocks * (INNER_ROWS * GADGET_DIGITS));
+        let pp = PublicParams::new(a, b);
+        let message: Vec<PolyVec> = (0..blocks).map(|_| rng.next_poly_vec(MESSAGE_ROWS)).collect();
+        let raw = message.iter().map(hachi::linalg::RawVec32::compact).collect();
+        let (u_want, ts_want) = hachi::commit::commit_streamed(&pp, &message);
+        let (u_got, ts_got) = hachi::commit::commit_streamed_32(&pp, &raw);
+        assert_eq!(ts_got.len(), ts_want.len(), "block count at {blocks}");
+        for i in 0..ts_got.len() {
+            assert!(ts_got[i].equals(&ts_want[i]), "block {i} differs at {blocks} blocks");
+        }
+        assert!(u_got.equals(&u_want), "outer commitment differs at {blocks} blocks");
     }
-    assert!(u_got.equals(&u_want), "outer commitment differs");
 }
 
 /// Pin-shaped timing harness for the raw streamed committer alone.  It leaves
@@ -775,13 +773,16 @@ fn parallel_raw_streamed_commit_profile() {
     assert_eq!(u.len(), OUTER_ROWS);
 }
 
-/// Pin-shaped breakdown of the native parallel orchestration.  This mirrors
+/// Pin-shaped breakdown of the streamed committer. This mirrors
 /// `commit_streamed_32` exactly while placing clocks around its three stages.
-#[cfg(feature = "parallel")]
+/// It is deliberately an integration-test-only probe: neither the clocks nor
+/// Rayon enter the extracted arithmetic path. With the `parallel` feature the
+/// middle stage uses Rayon; without it, it is the primary serial baseline.
 #[test]
 #[ignore = "instrument: pin-scale commitment timing; set RAYON_NUM_THREADS"]
-fn parallel_raw_streamed_commit_breakdown_profile() {
+fn raw_streamed_commit_breakdown_profile() {
     use hachi::linalg::{flatten_blocks, RawVec32};
+    #[cfg(feature = "parallel")]
     use rayon::prelude::*;
     use std::time::Instant;
 
@@ -802,8 +803,17 @@ fn parallel_raw_streamed_commit_breakdown_profile() {
     let prep = pp.inner_matrix().prepare_digits_gold();
     let preparation = started.elapsed();
     let started = Instant::now();
+    #[cfg(feature = "parallel")]
     let ts: Vec<PolyVec> = raw
         .par_iter()
+        .map(|block| {
+            let inner = prep.apply_raw_digits_gold(block);
+            hachi::gadget::gadget_decompose(&inner)
+        })
+        .collect();
+    #[cfg(not(feature = "parallel"))]
+    let ts: Vec<PolyVec> = raw
+        .iter()
         .map(|block| {
             let inner = prep.apply_raw_digits_gold(block);
             hachi::gadget::gadget_decompose(&inner)
@@ -816,7 +826,8 @@ fn parallel_raw_streamed_commit_breakdown_profile() {
     let finish = started.elapsed();
     let total = preparation + block_work + finish;
     eprintln!(
-        "[commit-breakdown] blocks={blocks} threads={} prep={preparation:.3?} blocks={block_work:.3?} flatten_outer={finish:.3?} total={total:.3?}",
+        "[commit-breakdown] variant={} blocks={blocks} threads={} prep={preparation:.3?} blocks={block_work:.3?} flatten_outer={finish:.3?} total={total:.3?}",
+        if cfg!(feature = "parallel") { "rayon" } else { "serial" },
         std::env::var("RAYON_NUM_THREADS").unwrap_or_else(|_| "auto".to_owned()),
     );
     assert_eq!(ts.len(), blocks);

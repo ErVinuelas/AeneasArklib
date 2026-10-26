@@ -111,9 +111,11 @@ help:
 	@echo '  Variables:'
 	@echo '    AENEAS=<path>  aeneas binary for `extract` (default ./toolchain/aeneas)'
 	@echo '    BENCH=<regex>  bench only the cases whose id matches this regex'
+	@echo '    BLOCKS=<n>     message blocks for `run-profile` (default 1024, the pin)'
 	@echo '    CANDIDATE=1    also time the candidate slot, for the optimization loop'
 	@echo '    CHARON=<path>  charon binary for `extract` (default ./toolchain/charon)'
 	@echo '    JSON=<path>    also write the bench report as JSON, for an agent'
+	@echo '    PARALLEL=1     `run-profile` with the native Rayon block scheduler (not extracted)'
 	@echo ''
 
 # --- setup -------------------------------------------------------------------

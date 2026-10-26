@@ -77,6 +77,14 @@ target/
 /hachi/benches/candidate/Cargo.lock
 
 
+# Outputs of the out-of-loop benchmark harnesses under benchmarks/ (the Rayon
+# scaling campaign and the paired comparison with the paper's implementation),
+# and the reference clone plus its 4 GiB witness file that the latter works in.
+# Same reason as the bench reports above: a timing describes one machine at one
+# moment. The harnesses themselves are tracked.
+/benchmarks/*/results/
+/benchmarks/paper-compare/work/
+
 # --- Local planning documents --------------------------------------------------
 #
 # The plan files, the Stage 2 scoping record and the per-target briefs are
@@ -88,6 +96,7 @@ target/
 /PLAN_*.md
 /OPTIMIZATION_AGENT_ROADMAP.md
 /STAGE*_*.md
+/STAGE*_*.html
 /briefs/
 
 
