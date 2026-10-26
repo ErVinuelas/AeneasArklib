@@ -10623,3 +10623,29 @@ Still open, all by decision rather than by debt: the composed-chain Criterion
 row (`benches/exclusions.toml` § `chain::chain_verify`), whether `chain_open`
 should call `honest_lift_witness` itself, and external PR #2, a draft based
 before the final Stage 6 passes (see the entry above).
+
+**Second pass, same day: code with no caller.** A call graph over
+`Generated.lean`, rooted at the chain and at everything a test or bench names,
+found eleven non-mirror functions that nothing reached. Seven went, with the
+Lean that existed only to prove them: `evalsplit::two_pow`/`test_bit` (dead
+since candidates M and N), `PolyMatrix::prepare_ga`/`PreparedMatrixGA::apply_ga`
+(the G2 matrix wrapper, superseded by T35's limbs), `ntt::gold_dif_stage`
+(superseded by the fused pair; `GoldStage.lean` held only its proof and is
+deleted), `quadeval::honest_compute_v_from_raw`/`_from_raw_32` (superseded by
+T28's `from_decomp`), and `sumcheck::shift_accum` (superseded by
+`shift_accum_lanes`). Three stay, though nothing calls them in Rust, because live
+proofs go through their specs: `honest_compute_g_base` (under
+`honest_round_messages_spec`), and `carrier_commit_from_raw` and
+`honest_compute_resp_from_raw` (under the `_32` and `from_decomp` proofs). The
+mirrors (`rel_out`, `paper_rel_out`, `honest_compute_v`, `carrier_commit`) stay
+too, since translating ArkLib is the point. The re-extraction differs from the
+previous model only by the removed definitions and reordering. 779 audited specs.
+`logs/scratch/` (uncited change-7 prototypes) and `benchmarks/rayon/parse.py`
+(an unused shim) are gone. The README was rewritten shorter: 496 → 190 lines,
+with nothing it states dropped that is not in this file.
+
+What remains unreachable from the chain on purpose is the set of superseded
+implementations that tests still use as oracles (the three-lane, two-lane and
+old digit paths of the prepared dot, the 64-bit raw-message carriers, the
+first short multiply, the pre-bucket sumcheck variants). Removing them is
+possible but means rewriting those tests and dropping their proved specs.

@@ -128,8 +128,8 @@ explicitly rather than quietly picking a side.
    into: `Rq` (a `Vec<Fp>` newtype, exactly `RING_DEGREE` coefficients by
    construction), `PolyVec` / `PolyMatrix`, and `Fp` / `Ext4` **taken from the
    `cpoly` dependency, never reimplemented** — reuse of that field layer is a
-   hard rule of the project (`hachi/src/lib.rs`, README § "The field layer
-   comes from cpoly"). For a genuinely new carrier, propose with the reasoning
+   hard rule of the project (`hachi/src/lib.rs`, README § "Design choices",
+   "The field comes from `cpoly`"). For a genuinely new carrier, propose with the reasoning
    pattern of the existing ones: small fixed dimension → named-fields struct
    so the extracted model is straight-line; dynamic length → `Vec` newtype
    whose constructors establish the shape invariant, since Aeneas cannot see a

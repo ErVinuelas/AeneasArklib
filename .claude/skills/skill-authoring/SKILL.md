@@ -7,7 +7,7 @@ description: Writing, versioning, or composing a skill in this repo — the hous
 
 For work on `.claude/skills/` — every skill of the optimization loop lives
 there, tracked in git as part of the project, and `README.md` § Layout calls it
-"the written procedures the pipeline runs, one per directory". Read this
+"the written procedures the agents follow". Read this
 **before** adding, editing, versioning, or composing a skill. The exemplars for
 shape and tone are `aeneas-idiomatic-rust` and `rust-bench`. The vendored
 upstream files follow their own meta-rules (`skill-file-authoring` in
@@ -30,9 +30,9 @@ uses on itself.
 discipline.** Almost none of the numbers in this directory were measured here;
 the ledger rows that were (Stages 5–6) arrived after the skills. This repository's house form for a borrowed number
 is already visible in the code: `hachi/Cargo.toml` names AeneasCompPoly when it
-justifies `lto = "fat"` with a 28% artefact, and `README.md` § "The benchmark
-baseline is checked, not trusted" says the accept rule's noise floor is
-inherited and documented as borrowed where it is used. Skills hold themselves to
+justifies `lto = "fat"` with a 28% artefact, and `INSTRUCTIONS.md` says the
+accept rule's noise floor was inherited from AeneasCompPoly until the
+2026-09-07 null-slot sweep measured it here. Skills hold themselves to
 that:
 
 * a claim measured elsewhere names where — "AeneasCompPoly measured …",

@@ -67,7 +67,7 @@ commit plan the user executes — never a pile of unverified speed.
 ## Pacing under /loop
 
 * An iteration spans hours, and here the verification half dominates:
-  `make build` takes hours on a cold Mathlib cache (README § "Usage"), so a
+  `make build` takes hours on a cold Mathlib cache (README § "Getting started"), so a
   single campaign can outlast a working day. /loop firings are checkpoints,
   not iterations. On each firing: if a stage is still running, `noop` with a
   long delay; if a stage just finished, advance to the next; if the iteration

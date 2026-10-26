@@ -1,9 +1,8 @@
 # AeneasArklib
 
-Executable Rust for Lean specifications, with a machine-checked proof that the
-Rust computes what the specification says — here for the Hachi lattice-based
-multilinear polynomial commitment scheme ([NOZ26]), as formalized in
-[Verified-zkEVM/ArkLib](https://github.com/Verified-zkEVM/ArkLib).
+A Rust implementation of the Hachi lattice-based multilinear polynomial
+commitment scheme ([NOZ26]), with Lean proofs that the Rust computes exactly what
+[ArkLib](https://github.com/Verified-zkEVM/ArkLib)'s specification of Hachi says.
 
 ```
         Lean world             ┊             Rust world
@@ -20,465 +19,163 @@ multilinear polynomial commitment scheme ([NOZ26]), as formalized in
    └──────────────────┘        ┊
 ```
 
-The intent is that every operation is proved to succeed and to commute with its
-ArkLib counterpart. What *is* trusted is enumerated under
-[Trusted computing base](#trusted-computing-base).
+Each function in `hachi/src` is a translation of an ArkLib definition.
+[Aeneas](https://github.com/AeneasVerif/aeneas) turns the Rust into a Lean model
+(`hachi/lean/Generated.lean`), and the proofs show that every modelled function,
+under its stated preconditions, terminates without error and returns what the
+ArkLib definition returns. The
+project follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
+in structure and method, and uses its `cpoly` crate for the coefficient field.
 
-This repository follows [AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly)
-in structure and in method, and depends on it for the coefficient field.
+## Status
 
-> **Status: the commitment scheme and every link of the protocol layer are
-> implemented, tested, extracted, and proved equivalent to the specification —
-> build-enforced, up to perfect correctness of the scheme and the composed
-> chain's honest `open`/`verify` pair.**
->
-> Thirteen modules are in place — [`params`](hachi/src/params.rs),
-> [`ntt`](hachi/src/ntt.rs) (the number-theoretic transform the ring
-> multiplication runs on — three auxiliary Barrett primes for the general
-> path, one Goldilocks lane for the digit path, and the fused pair of
-> decimation-in-frequency stages that halves the passes over the buffer),
-> [`ring`](hachi/src/ring.rs) (the negacyclic ring `R_q = Z_q[X]/(X^N+1)`),
-> [`linalg`](hachi/src/linalg.rs), [`gadget`](hachi/src/gadget.rs) (base-`b` digit
-> decomposition, unsigned and balanced, and the gadget matrix),
-> [`commit`](hachi/src/commit.rs) (the inner-outer Ajtai commitment and its
-> weak-opening verifier), [`evalsplit`](hachi/src/evalsplit.rs) (the multilinear
-> evaluation split), [`ringswitch`](hachi/src/ringswitch.rs) (the quotient digits
-> of the ring switch, the lift, and the honest lift prover),
-> [`quadeval`](hachi/src/quadeval.rs) (the QuadEval fold, its Eq. (20) checks and
-> the `R^lin` adapter), [`zerocheck`](hachi/src/zerocheck.rs) (the `H₀`/`H_α`
-> sides and the mixed evaluation), [`sumcheck`](hachi/src/sumcheck.rs) (the
-> paired sumcheck's round polynomials, checks and loops),
-> [`endpiece`](hachi/src/endpiece.rs) (the final evaluation claim's three
-> conjuncts) and [`chain`](hachi/src/chain.rs) (the composed honest `open` and
-> `verify` over the proved links). 262 tests pass, including perfect correctness
-> and every rejection path of the verifier; 52 more are `#[ignore]`d, each
-> reason opening with a tag that says which kind it is: **27 `instrument:`**
-> (timing gates, kill-gates and the profile, which must never join a
-> correctness sweep; a 28th exists only under the `parallel` feature), **8 `scale:`** (correctness at the paper's constants,
-> run by `make test-scale` — green in 25 minutes on 2026-09-20) and **17
-> `scale-xl:`** (past this machine, each carrying the measurement that put it
-> there). `scripts/scale_tests.py --check` fails an untagged one. `make extract` produces a model with
-> no axioms and no opaque bodies; every mirrored item is benched or excluded by
-> name, and the 557 frozen baseline items are verified against git. The
-> optimization loop has run to a standstill: `logs/ledger.jsonl` holds 140
-> candidate and campaign rows, accepted and rejected, and the pin-scale prover
-> has gone from 1170.8 s to **183.2 s** (−84.4%) at an unchanged 5453 MiB peak.
-> The composed verifier is **4.2 s** at the same pin. Every
-> accepted champion is proof-carrying — some as an optimized definition in
-> [`lean/Opt.lean`](hachi/lean/Opt.lean) with its `opt_eq_spec`, the rest as a
-> re-proof of the item's own spec with the statement unmoved — and no theorem
-> statement was weakened to let one land (NOTES.md, the Stage 6 sections).
->
-> `make build` passes, and every layer it checks is proved:
->
-> * the base field ([`lean/Field.lean`](hachi/lean/Field.lean)) — the four `Fp`
->   operator impls total and equal to `ZMod q` arithmetic;
-> * the coefficient level of the ring ([`lean/Ring.lean`](hachi/lean/Ring.lean)) —
->   all thirteen operations total, length-preserving and coefficientwise correct,
->   `mul` being the negacyclic convolution and `equals`/`is_zero` being decision
->   procedures proved correct in both directions;
-> * the lift of that ring layer to ArkLib's `Rq Φ`
->   ([`lean/RqBridge.lean`](hachi/lean/RqBridge.lean)) — each operation's `toRq` is
->   the ArkLib operation applied to the `toRq`s of the inputs, `mul` against
->   `modByMonic (X^N + 1)` included;
-> * `linalg`, `gadget` and `commit` ([`lean/Scheme.lean`](hachi/lean/Scheme.lean)) —
->   the vector and matrix operations, both directions of the gadget (including
->   `gadget_round_trip`: the extracted `gadget_mul` inverts the extracted
->   `gadget_decompose`, and the materialized `gadget_matrix` *is* `gadgetMatrix`,
->   tensor layout and all), the digit vector `digit_decompose` in specification
->   order, the four centered norms, and the commitment against the
->   specification's own `InnerOuter` definitions. `verify_weak_spec` and
->   `verify_spec` — the full verifier a caller actually invokes — are equalities
->   of *decisions*, so the rejection paths are part of the claim rather than
->   outside it, and the composition ends at `honest_verifies_full`: **perfect
->   correctness of the extracted scheme at its top-level API** — an honest
->   commitment and its honest opening pass `commit::verify`, derived-message
->   check included;
-> * the multilinear evaluation layer ([`lean/EvalSplit.lean`](hachi/lean/EvalSplit.lean))
->   — the `evalsplit` module and `linalg::split_form` against ArkLib's
->   `Hachi.evalSplit`/`evalSplitEval`;
-> * the balanced digit layer ([`lean/Balanced.lean`](hachi/lean/Balanced.lean)) —
->   the Hachi gadget inverse `G⁻¹` proper (balanced digits in `[-8, 7]`), the
->   bounded `z`-side digit map at `τ = 5`, the quotient digits, and
->   `commit_balanced_spec`: the honest Hachi commitment, `Hachi.commit` itself;
-> * the QuadEval fold ([`lean/QuadEval.lean`](hachi/lean/QuadEval.lean)) — the
->   `z`-side gadget at `τ = 5` with its conditional round trip, the carrier entry,
->   `tensorG1`, and the Eq. (20) box and relation decisions, stated as iffs
->   against the `Prop`s ArkLib states them as;
-> * the QuadEval protocol layer ([`lean/QuadEvalProtocol.lean`](hachi/lean/QuadEvalProtocol.lean))
->   — the three carriers, the honest prover's `z`/`v`/response, and both output
->   relations — over the `Ext4` extension field
->   ([`lean/Ext.lean`](hachi/lean/Ext.lean)), ported from cpoly's own development;
-> * the ring-switch link ([`lean/RingSwitch.lean`](hachi/lean/RingSwitch.lean)) —
->   the quotient-row presentation change, the quotient digits, the lifted message
->   and its Ajtai commitment, and both shortness decisions, unconditionally — and
->   the `R^lin` adapter ([`lean/Rlin.lean`](hachi/lean/Rlin.lean)), whose
->   `rlin_stmt_spec` is what makes the reshaped `Jᵀ(Gᵀa)` form faithful to a
->   product that would be 320 GiB if it were ever materialized;
-> * the zero check ([`lean/ZeroCheck.lean`](hachi/lean/ZeroCheck.lean)) and the
->   paired sumcheck ([`lean/Sumcheck.lean`](hachi/lean/Sumcheck.lean)) — the round
->   polynomials in both forms, the verifier's two decisions, the honest prover's
->   messages, and the round loop three ways;
-> * the end piece ([`lean/EndPiece.lean`](hachi/lean/EndPiece.lean)), the honest
->   lift prover ([`lean/LiftProver.lean`](hachi/lean/LiftProver.lean)) — including
->   the one carrier this crate does not fold back into `Rq`, a `CPolynomial` of
->   degree up to `2N − 2` — and the composed chain
->   ([`lean/Chain.lean`](hachi/lean/Chain.lean)): the verifier's verdict against
->   `chainVerdict` and the honest prover's four wire messages, both through the
->   statement thread `chainStart`.
->
-> [`lean/Check.lean`](hachi/lean/Check.lean) additionally checks that the parameters
-> discharge the specification's side conditions, and prints the axiom dependencies
-> of every proved spec — 787 `#print axioms` lines, headline specs, the
-> `opt_eq_spec`/length lemmas and the helper specs alike: the three Lean kernel
-> axioms, nothing else. `make spec-check` reports 155 mirrored items, 155
-> stated, 0 owed.
-> [`hachi/lean-wip/`](hachi/lean-wip) — the staging area for statements not yet
-> proved — is **empty**; its [README](hachi/lean-wip/README.md) holds the
-> procedure for promoting a file, which the next translated operation will need.
-> [`NOTES.md`](NOTES.md) § "The scheme layer is proved, and checked" scores every
-> claim in this repository as verified or not.
->
-> Every protocol link of `Composition.lean`'s chain is translated, stated **and
-> proved**: the bridge, QuadEval, the `R^lin` adapter, the ring-switch lift,
-> zero-check, the sumcheck bridge, the paired sumcheck rounds, the final
-> evaluation, the end piece and the honest lift prover, plus the composed
-> `chain_open`/`chain_verify` pair over them. What is absent is no longer code
-> but reach:
->
-> * `chain_open` still takes the lifted witness as an **input** rather than
->   computing it with the now-translated `ringswitch::honest_lift_witness`. That
->   is the specification's own shape either way (`honestLiftWitnessC` is a
->   separate definition) and the proofs are stated against it as it is; making
->   the call is an API decision, left open at close-out;
-> * **the composed chain has no Criterion bench row.** The former algorithmic
->   and memory walls are down: the pin-shaped profile now fits in 5453 MiB and
->   measures the verifier at 4.2 s. What remains is a harness decision: an
->   accepting sample must use the pin's `m₀ = 26`, needs an explicitly small
->   Criterion sample size and a long measurement window, and adds little beyond
->   the separately measured phases. `chain::chain_verify` and
->   `chain::chain_open` therefore remain excluded by name, with this removal
->   condition recorded in `benches/exclusions.toml`;
-> * an **acceptance test** — an honest transcript that verifies end to end — is
->   in `tests/chain_semantics.rs` as `the_honest_chain_verifies`, at one block
->   and otherwise the pin. It remains `#[ignore]`d as a scale test. It first
->   passed on 2026-09-14 in 2202 s; after the Stage 6 optimizations it passed
->   again on 2026-09-20 in **221 s**. The plumbing, rejection paths and
->   cross-route identity around it are part of the ordinary passing suite.
+The work is complete.
 
-### Current close-out status
+* **Implemented and proved.** The commitment scheme (commit, open, verify) and
+  every step of the evaluation protocol: QuadEval, the ring switch and its lift,
+  the zero check, the paired sumcheck, the end piece, and the composed honest
+  prover `chain_open` and verifier `chain_verify`. The top-level theorems
+  include perfect correctness: an honest commitment and opening are accepted.
+* **Audited.** `make build` checks every proof and fails on any `sorry`.
+  [`Check.lean`](hachi/lean/Check.lean) prints the axioms behind each of the
+  779 proved specs: only Lean's three standard axioms appear. All 155 functions
+  that mirror an ArkLib definition have a proved spec (`make spec-check`).
+* **Tested.** 262 tests pass. 52 more are `#[ignore]`d, each tagged with why:
+  27 `instrument:` (timing probes), 8 `scale:` (correctness at the paper's
+  parameters, `make test-scale`, about 25 minutes) and 17 `scale-xl:` (need
+  more memory than a 30 GiB machine).
+* **Fast.** At the paper's parameters (ℓ = 30, 1024 blocks) the prover went
+  from 1170.8 s to **183.2 s** through a series of optimizations, each one
+  benchmarked and re-proved before it landed. The verifier takes 4.2 s and
+  the peak memory is 5.3 GiB. The end-to-end acceptance test (an honest proof
+  that verifies) last passed in 221 s.
 
-As of 2026-10-06, the proof, ordinary-test, specification-coverage, frozen-
-baseline and ledger gates all pass on `main`. Stage 6's planned optimization
-board is closed: every registered card has landed, been rejected by its gate,
-or been deferred with a measured reason. The later Jasmin experiment is also
-closed: its scalar `MULX` kernel was correct but slower across the FFI boundary,
-so it is retained only as an integration pattern in
-[`hachi-jazz/`](hachi-jazz/README.md), not linked into `hachi`.
+Left open by decision rather than unfinished: the full chain has no Criterion
+benchmark row of its own (each of its phases has one), and `chain_open` takes
+the lifted witness as an input instead of computing it with
+`honest_lift_witness`. [`NOTES.md`](NOTES.md) is the full decision record.
 
-The remaining work is release and measurement work rather than an unproved
-protocol layer:
+### What the proofs cover
 
-* add the optional composed-chain Criterion row, or formally keep the existing
-  named exclusion now that the old memory walls are gone;
-* decide whether the convenience API `chain_open` should call
-  `honest_lift_witness` itself instead of accepting the already-computed witness;
-* run the eight `scale:` tests when a release needs fresh paper-constant
-  evidence. The 17 `scale-xl:` cases are explicitly beyond this machine's
-  measured memory/time envelope;
-* treat the two post-T50 ideas (a carry-form Goldilocks add and a `u128` MAC
-  accumulator) as new research cards, not as unfinished Stage 6 obligations.
+They prove **functional equivalence** at the pinned parameters: each Rust
+function computes its ArkLib definition. They do not prove cryptographic
+security, constant-time execution, or the correctness of the compiler and the
+extraction. See [Trusted computing base](#trusted-computing-base).
 
-### Proof scope
-
-The proved claim is **functional equivalence**: for the pinned parameters, the
-extracted Rust operations terminate successfully and compute the corresponding
-ArkLib definitions; the top-level honest commitment/opening and composed-chain
-correctness theorems are included. This is not a cryptographic security proof,
-a constant-time proof, or a proof of the Rust compiler and extraction pipeline.
-ArkLib's specifications, Aeneas/Charon, rustc/LLVM and the Lean kernel remain in
-the trusted computing base described below.
-
-## Usage
+## Getting started
 
 ```sh
-make setup       # install everything: elan, the Lean dependencies, rust, the extraction binaries
-make build       # check the proofs
-make extract     # regenerate hachi/lean/Generated.lean from src/
-make test        # the Rust-side semantics tests (ignored ones excluded)
-make spec-check  # every mirrored item has a stated spec
-make run-bench   # time every operation against its frozen first translation
-make bench-check # verify that frozen baseline against git, and bench coverage
-make ledger-check  # logs/ledger.jsonl schema, and append-only against HEAD
-make test-scale  # the `scale:` tests at the paper's constants (tens of minutes)
-make run-profile # the pin-scale prover and verifier, phase by phase (BLOCKS=1024)
+make setup         # once: elan, the Lean dependencies, Rust, the extraction binaries
+make build         # check the proofs
+make test          # the Rust tests
+make extract       # regenerate hachi/lean/Generated.lean from hachi/src
+make spec-check    # every mirrored function has a proved spec
+make bench-check   # the frozen benchmark baseline is intact, and every function is covered
+make ledger-check  # logs/ledger.jsonl is valid and append-only
+make run-bench     # time every function against its first translation
+make run-profile   # the full prover and verifier at the paper's parameters, phase by phase
+make test-scale    # the scale tests at the paper's parameters
 ```
 
-`make` on its own lists the targets.
+`make` alone lists every target and variable. `make setup` installs nothing
+system-wide: the extraction binaries go in `./toolchain`, everything else in
+the directories elan and rustup manage. On a network that only reaches GitHub
+it still works, but Mathlib then compiles from source, which takes hours.
 
-A fresh clone needs `make setup` once. It takes a few minutes, and installs
-nothing system-wide: the extraction binaries go in `./toolchain`, the rest into
-the per-user directories elan and rustup manage. On a host whose egress policy
-allows only GitHub it still works — [`scripts/install-lean.sh`](scripts/install-lean.sh)
-falls back to the GitHub release assets for elan and the toolchain — with one
-caveat it cannot fix: the Mathlib olean cache has no GitHub mirror, so `lake exe
-cache get` fails there and Mathlib and ArkLib compile from source, which is hours
-rather than minutes. `make setup` says so and continues.
+The crate has one optional feature, `parallel`, which commits independent blocks
+on Rayon worker threads. It is for native use only: the default build, the
+extraction and all proofs use the serial code, and a test checks that both
+produce the same commitment. `make run-profile PARALLEL=1` uses it; set the
+thread count with `RAYON_NUM_THREADS`.
 
-`make build` fails if any declaration under `lean/` uses `sorry`, or if `sorryAx`
-turns up in the axiom dependencies `Check.lean` prints.
-
-`make clean` drops the build output and keeps the downloads. Overriding
-`CHARON=` or `AENEAS=` on the command line points `make extract` at binaries kept
-elsewhere.
-
-The crate's optional `parallel` feature schedules `commit_streamed_32`'s
-independent blocks across Rayon workers, collecting them in input order. It is
-native-only: the default build, and so `make extract` and every proof, stay on the
-`no_std` serial loop, and `tests/commit_semantics.rs` checks that both paths
-produce the same commitment. `make run-profile PARALLEL=1` uses it, with the
-worker count from `RAYON_NUM_THREADS`.
+CI (`.github/workflows/`) runs the tests, clippy, `bench-check`, `ledger-check`,
+an extraction-determinism check and the proof build on pushes to `main` (the
+last two only when the Rust or Lean changed).
 
 ## Layout
 
 ```
-Makefile              setup, build, test, extraction, benchmarks
-NOTES.md              decisions, spec observations, Aeneas surprises
-INSTRUCTIONS.md       the skill catalogue: what to invoke, and what it asks
-PLAN_*.md, STAGE2_SCOPING.md, briefs/
-                      local planning documents; ignored, never pushed. Code and
-                      NOTES.md cite them by prose name ("the target-4 brief",
-                      "the Stage 2 scoping document") rather than by path, so
-                      that no tracked file points at a file the repository does
-                      not contain. The four frozen copies under
-                      benches/genesis/src/ are the documented exception: they
-                      still carry literal paths, because that directory is
-                      append-only and may not be edited even to fix a
-                      reference.
-.claude/skills/       the written procedures the pipeline runs, one per directory
-logs/
-  ledger.jsonl        append-only candidate and campaign rows (140 at close-out)
-  runs/               full benchmark reports and pin-profile logs cited by the ledger
-  paper-impl/         timings of the paper's reference implementation, 2026-08-28
-  aristotle-sessions.jsonl  append-only record of the remote Aristotle proof sessions
-scripts/
-  install-lean.sh     elan + the pinned toolchain, from GitHub if the usual
-                      hosts are blocked (used by `make setup`)
-  scale_tests.py, spec_coverage.py, gains.py, changes.py
-                      the `make` gates and reports for the ignore tags, spec
-                      coverage, the per-row gains and accepted-row commits
-benchmarks/           out-of-loop harnesses; never read by the accept rule
-  rayon/              the `parallel` feature's commitment scaling campaign
-  paper-compare/      paired runs against the paper's reference implementation
-.github/workflows/    CI: rust.yml (tests, clippy, bench and ledger gates),
-                      lean.yml (extraction determinism, proof build)
-toolchain/            charon and aeneas, put there by `make setup`; not in git
-
-hachi/
-  Cargo.toml          the `hachi` crate: a library; depends on cpoly, plus rayon
-                      under the optional native `parallel` feature
-  src/                the Rust implementation, strictly bottom-up
-    params.rs         every parameter of the scheme, as consts
-    ntt.rs            auxiliary-prime and Goldilocks transforms used by ring products
-    ring.rs           R_q = Z_q[X]/(X^N + 1), the negacyclic ring
-    linalg.rs         vectors and matrices over R_q
-    gadget.rs         base-b digit decomposition, the gadget matrix G, and G⁻¹
-    commit.rs         the inner-outer Ajtai commitment, its weak verifier, the norms
-    evalsplit.rs      the multilinear evaluation split uᵀ M v
-    ringswitch.rs     the ring switch: quotient digits, the lift, and the honest lift prover
-    quadeval.rs       the QuadEval fold: carrier, tensors, honest z, the Eq. (20) checks
-    zerocheck.rs      the zero-check's H₀ and H_α tables and their two decisions
-    endpiece.rs       the end piece: check, prover and witness map
-    sumcheck.rs       the paired sumcheck: round messages, per-round checks, the loops, final check
-    chain.rs          the composed chain: honest `open` and `verify` over the proved links
-  tests/              Rust-side semantics tests, one per src/ module
-  benches/            criterion benchmarks, one file per src/ module
-    support/          the corpus, the digest oracle, and the case macros
-    harness.py        stamping, the integrity gates, and the run report
-    rustitems.py      the item scanner both gates read spans from
-    exclusions.toml   mirrored items that deliberately have no benchmark
-    genesis/          the frozen first translation; append-only, never edited
-    candidate/        the optimization loop's A/B slot
-
-  lakefile.lean       Lean library, srcDir `lean/`
-  lean/
-    Generated.lean    the extracted model -- DERIVED by `make extract`, never hand-edit
-    Field.lean        the base field `Fp` against `ZMod q` -- proved
-    Ring.lean         the ring operations at the coefficient level -- proved
-    NttArith.lean     the transform's modular arithmetic at a runtime prime (Barrett) -- proved
-    NttMath.lean      the transform as mathematics: DIF/DIT stages over any ring, no code -- proved
-    NttCRT.lean       the three auxiliary primes and the exact Garner reconstruction -- proved
-    NttStage.lean     the extracted DIF stage against the word-level stage function -- proved
-    NttTransform.lean the extracted DIT stage, twist, pointwise and the two transform loops -- proved
-    NttProduct.lean   the per-prime pipeline and negconv_mod_p / negconv_mod_q -- proved
-    GoldArith.lean    the Goldilocks lane's arithmetic at p = 2^64 - 2^32 + 1 -- proved
-    GoldStage.lean    the Goldilocks DIF stage -- proved
-    GoldFusedStage.lean  two DIF stages in one pass (the radix-4 memory pattern) -- proved
-    GoldFusedBoundary.lean  the boundary passes fused with the twist and the MAC (card T37) -- proved
-    GoldTransform.lean   the Goldilocks twiddles, twist, DIT stage and transform loops -- proved
-    GoldDot.lean      the Goldilocks digit-path dot: accumulation, offset, headline -- proved
-    RingShort.lean    multiplication by a short element, the word level -- proved
-    RingFused.lean    the fused dot product in the transform domain -- proved
-    RingTwoLane.lean  the general dot on one Goldilocks and one 31-bit lane (G2) -- proved
-    RingLimb.lean     the 16-bit limb split of the reusable operand (card T35) -- proved
-    RingSigned.lean   centred coefficients in the Goldilocks lane (card T40) -- proved
-    RqBridge.lean     the lift of the ring layer to ArkLib's `Rq Φ` -- proved
-    Raw32.lean        the compact u32 raw-message carrier -- proved
-    SchemeTwoLane.lean, SchemeLimb.lean
-                      the prepared matrix product on the two-lane and limb stores -- proved
-    Scheme.lean       linalg / gadget / commit, up to perfect correctness -- proved; the honest
-                      path also at arbitrary rows/blocks (`...specG`), the pinned specs its instances
-    EvalSplit.lean    the evalsplit module against ArkLib's split evaluation -- proved
-    Balanced.lean     the balanced digit layer, up to the honest Hachi commitment -- proved
-    QuadEval.lean     the QuadEval fold's gadget, carrier and Eq. (20) decisions -- proved
-    QuadEvalProtocol.lean  the QuadEval carriers, honest prover and output relations -- proved
-    ZPacked.lean      the honest z kernel on SWAR-packed digit lanes (cards T47, T59) -- proved
-    Ext.lean          the `Ext4` extension-field layer, ported from cpoly -- proved
-    RingSwitch.lean   the ring-switch lift, commitment and shortness decisions -- proved
-    ZeroCheck.lean    the zero-check's `H₀` and `H_α` sides, plus the mixed evaluation -- proved
-    EndPiece.lean     the end piece's check, prover and witness map -- proved
-    Rlin.lean         the `R^lin` adapter and the polynomial-level bridge -- proved
-    Sumcheck.lean     the paired sumcheck: round polynomials, checks, loops, final check -- proved
-    SumcheckShift.lean  the Taylor-shift round polynomial (candidate T3) -- proved
-    SumcheckBucket.lean the round-0 sumcheck bucketed by digit-pair type (T46a) -- proved
-    Chain.lean        the composed chain's honest `open` and `verify` -- proved
-    LiftProver.lean   the honest lift prover, and the one unfolded `CPolynomial` carrier -- proved
-    LiftGadget.lean   gadget contraction in the lift's high-half row sum (card T45a) -- proved
-    Opt.lean          umbrella over the optimization loop's `Foo.opt` variants and `opt_eq_spec` lemmas:
-    OptFold.lean        the fold lemmas the parts share -- proved
-    OptZeroCheck.lean   zerocheck's variants, and the two ringswitch evaluations of the α side -- proved
-    OptSumcheck.lean    sumcheck's variants -- proved
-    OptRingSwitch.lean  ringswitch::lift_commit's variant -- proved
-    OptEvalSplit.lean   evalsplit's two Rq-valued bases -- proved
-    OptRingShort.lean   the short multiply's algebra (MulShort) -- proved
-    Check.lean        audit: the specs are not vacuous, and no `sorryAx` hides under one
-  lean-wip/           staging for statements not yet proved; NOT a Lake root, NOT audited
-                      -- currently EMPTY: every statement is proved and audited
-    README.md         what has to happen before a file moves into lean/
-
-hachi-jazz/           rejected scalar-Jasmin experiment; kept as a tested integration
-                      pattern, not a dependency of the proved hachi crate
+hachi/                  the crate and its proofs
+  src/                  the Rust, one module per protocol step:
+    params.rs             every parameter, as a constant
+    ntt.rs, ring.rs       the ring Z_q[X]/(X^N + 1) and the NTT behind its products
+    linalg.rs, gadget.rs  vectors and matrices; digit decomposition and the gadget matrix
+    commit.rs             the Ajtai commitment and its verifier
+    evalsplit.rs          the multilinear evaluation split
+    quadeval.rs           QuadEval: the fold, the honest prover, the Eq. (20) checks
+    ringswitch.rs         the ring switch, the lift, and the honest lift prover
+    zerocheck.rs          the zero check
+    sumcheck.rs           the paired sumcheck
+    endpiece.rs           the final evaluation claim
+    chain.rs              the composed honest prover and verifier
+  lean/                 the proofs
+    Generated.lean        the extracted model; derived by `make extract`, never edit
+    Field, Ext            the base field and its quartic extension
+    Ring*, Ntt*, Gold*    ring arithmetic, the NTT, the Goldilocks lanes
+    RqBridge, Raw32       the lift to ArkLib's `Rq`, the compact message format
+    Scheme*, Balanced     linear algebra, gadgets, the commitment
+    EvalSplit             the evaluation split
+    QuadEval*, ZPacked    QuadEval
+    RingSwitch, Rlin, Lift*   the ring switch and the lift prover
+    ZeroCheck, Sumcheck*  the zero check and the sumcheck
+    EndPiece, Chain       the end piece and the composed chain
+    Opt*                  optimized variants and their equivalence lemmas
+    Check.lean            the audit: specs are not vacuous, axioms are standard
+  lean-wip/             staging for unproved statements; empty
+  tests/                one test file per module
+  benches/              Criterion benchmarks, the frozen baseline (genesis/),
+                        and the A/B slot the optimization loop uses (candidate/)
+benchmarks/             standalone campaigns: Rayon scaling, and a paired run
+                        against the paper's reference implementation
+logs/                   the optimization ledger, benchmark reports, proof sessions
+scripts/                helpers the Makefile calls
+.claude/skills/         the written procedures the agents follow
+hachi-jazz/             a Jasmin integration experiment, rejected at its gate
+NOTES.md                the decision record
+INSTRUCTIONS.md         the catalogue of skills
 ```
 
-Each module names the ArkLib file it is a translation of, and each operation the
-definition it mirrors, in its docstring. The correspondence is the point of the
-repository, so it is written down where the code is rather than only in a proof.
+## Design choices
 
-## The field layer comes from cpoly
+**The field comes from `cpoly`.** The base field (`q = 2^32 − 99`) and its
+quartic extension are taken from AeneasCompPoly's verified `cpoly` crate, not
+rewritten. `make extract` passes `--include 'cpoly::_'` so that charon translates
+those items instead of turning them into axioms, and `Check.lean` fails the build
+if that flag is ever lost.
 
-The base field `F_P` with `P = 2^32 - 99` (the "Hachi" prime) and its quartic
-extension `Ext4 = F_P[Y] / (Y^4 - 2)` are **not** reimplemented here. They are
-already written and verified in AeneasCompPoly's `cpoly` crate, and this crate
-takes them as a cargo dependency pinned by commit.
+**Concrete, not generic.** ArkLib's Hachi is generic in its parameters. This
+crate fixes all of them as constants in [`params.rs`](hachi/src/params.rs), so
+each proof instantiates a generic ArkLib statement at known values. The file
+says which values are forced and which are choices.
 
-Charon can follow that dependency across the crate boundary, but only when told
-to: `make extract` passes `--include 'cpoly::_'`, without which every `cpoly` item
-lands in `Generated.lean` as an `axiom` — an uninterpreted field with an
-uninterpreted addition. [`lean/Check.lean`](hachi/lean/Check.lean) § 2 asserts the
-transparent form, so the flag cannot be dropped silently. See
-[`NOTES.md`](NOTES.md) § "The cpoly dependency" for the three extractions that
-settled this, and § "What the cpoly dependency does *not* buy" for the one piece
-of reuse that is unavailable and why.
+**Benchmarks against a frozen baseline.** Every function's first translation is
+frozen in `hachi/benches/genesis/` and timed in the same run as the current
+code, so "faster than the original" is measured, never remembered.
+`make bench-check` verifies that the frozen copies match the commits they came
+from, and that every mirrored function is either benchmarked or excluded with
+a written reason (`benches/exclusions.toml`). Before timing, the harness checks
+that both versions give the same answers.
 
-## Concrete, not generic
-
-The ArkLib specification is generic in all four of `(q, α, b, digits)` and pins
-none of them. This crate is the opposite by design: no type parameters over the
-ring or the field, and every parameter a `const` in
-[`hachi/src/params.rs`](hachi/src/params.rs), so each equivalence proof
-instantiates a generic ArkLib statement at fixed values. Which values are forced
-by a dependency and which are choices is recorded per-constant there, and
-summarized in [`NOTES.md`](NOTES.md) § "Chosen parameters".
-
-## The benchmark baseline is checked, not trusted
-
-Speed is the other half of the point, and it is measured against
-[`hachi/benches/genesis/`](hachi/benches/genesis) — a real crate holding the
-*first* translation of every operation, compiled the same way `hachi` is and
-measured in the **same criterion session**, so a "vs genesis" reading is a
-comparison made now rather than a remembered number. Nothing is ever compared
-across runs.
-
-That only means something if the frozen text cannot move, so it is verified
-rather than promised. Every frozen item carries a `// @genesis <sha> <date>`
-stamp, and `make bench-check` proves three things before any measurement is
-believed:
-
-* **`check-genesis`** — each frozen item, *attributes included*, is byte-for-byte
-  what `hachi/src` held at the commit its stamp names. An edited baseline would
-  make every past and present "vs genesis" figure wrong, silently and
-  retroactively; `make run-bench` therefore refuses to run without this.
-* **`check-candidate`** — the A/B slot
-  ([`hachi/benches/candidate/`](hachi/benches/candidate)) is a *null* candidate at
-  rest: byte-copies of `hachi/src`, no symlink, no extra file, `lib.rs` and
-  `Cargo.toml` pinned to git.
-* **`coverage --strict`** — every item whose docstring claims to mirror an ArkLib
-  definition is either benchmarked or excluded *by name, with a reason*, in
-  [`hachi/benches/exclusions.toml`](hachi/benches/exclusions.toml). Silence is not
-  an exclusion.
-
-Each case also has exactly one body, which the harness either times or runs once
-and digests; the digests of `hachi`, the frozen copy and the candidate slot must
-agree *before* anything is timed. So an "optimization" that changes an answer
-fails the run instead of being reported as a speedup.
-
-The first measurement-grade local calibration ran on 2026-09-07. It confirmed
-that the flat 5% floor is adequate outside the 100 ns–2 µs band on this host,
-but found false 5–8% verdicts on byte-identical code inside that band. Candidate
-timings there are therefore not actionable until the harness gains a per-band
-floor or a case-local control. See [`NOTES.md`](NOTES.md) § "The certified
-null-slot sweep" and [`INSTRUCTIONS.md`](INSTRUCTIONS.md) for the procedures
-that act on this result.
-
-## Dependencies and pins
-
-Lake fetches the Lean dependencies itself and records the exact revision of each
-in `lake-manifest.json`, which is what makes a clone reproducible:
-
-* **ArkLib** — `Verified-zkEVM/ArkLib`, pinned to a **commit** rather than `main`.
-  The specs are the reference this development is proved against, and a spec that
-  moves under a proof turns a passing build into a failing one for reasons that
-  have nothing to do with the Rust. Bump with `lake update Arklib`.
-
-* **aeneas** — our Lean 4.33 port of `AeneasVerif/aeneas`: commit `6125cb9e`
-  ("bump to 4.33"), one commit on top of upstream `3a8586f` — the commit the
-  pinned extraction binaries are built from — fetched by a `file://` require
-  from the sibling `../aeneas` checkout. The Lean CI job stands a bare clone of
-  the public fork [ErVinuelas/aeneas](https://github.com/ErVinuelas/aeneas) in
-  at that same path and refuses to build if it lacks the pinned rev. Upstream
-  releases stop at Lean/Mathlib v4.31.0 while ArkLib `main` is on v4.33.1; the
-  port's regenerated builtins table is semantically identical to upstream's, so
-  the release binaries stay valid. See the comment on `require aeneas` in
-  `hachi/lakefile.lean` and [`NOTES.md`](NOTES.md) § "Upstream aeneas, no fork"
-  (superseding entry).
-
-* **cpoly** — `tobias-rothmann/AeneasCompPoly`, a cargo dependency pinned by
-  `rev`. Pinned by commit so the frozen bench baseline cannot drift.
-
-The charon and aeneas *binaries* `make extract` runs are a separate artifact,
-pinned by `AENEAS_TAG` and `AENEAS_COMMIT` in the `Makefile` and downloaded from
-the release. They have to stay on the same Aeneas commit as the backend, since
-`lean/Generated.lean` is only valid against the version that produced it —
-`make setup` checks both directions and `make extract` re-checks the binaries.
-
-A Lean bump therefore moves `lake-manifest.json`, `lean-toolchain` and the
-Makefile pins together, and a further Mathlib bump means rebasing the port,
-which rebuilds the extraction binaries and re-baselines the extraction — a
-project decision with its own verify-campaign, never maintenance
-(the protocol-layer plan, Decision 2).
+**Pinned dependencies.** ArkLib is pinned to a commit in
+`hachi/lake-manifest.json`. The Lean side of Aeneas is our Lean 4.33 port, one
+commit on top of upstream `3a8586f`. It is fetched from a sibling `../aeneas`
+checkout, and CI substitutes the public fork
+[ErVinuelas/aeneas](https://github.com/ErVinuelas/aeneas). `cpoly` is pinned
+by git revision, and the charon and aeneas binaries by `AENEAS_TAG` in the
+`Makefile`. The binaries and the Lean backend must come from the same Aeneas
+commit; `make setup` and `make extract` check this.
 
 ## Trusted computing base
 
-The trusted computing base (TCB): components trusted because they lie outside our
-verification boundary.
+What the proofs rely on without checking:
 
-| Trusted | Why it cannot be checked away | If it is wrong |
+| Trusted | Why it can't be checked | If it is wrong |
 |---|---|---|
-| **[Lean kernel](https://github.com/leanprover/lean4/tree/v4.33.1/src/kernel)** — ~8k lines of C++, plus `propext`, `Classical.choice`, `Quot.sound` | No machine-checked proof of it exists; its C fast path for `Nat` carries every `decide` in the parameter checks | A false theorem, with no diagnostic |
-| **Aeneas extraction** — [charon](https://github.com/AeneasVerif/charon) + [aeneas](https://github.com/AeneasVerif/aeneas), and their hand-written [model of Rust `std`](https://github.com/AeneasVerif/aeneas/blob/main/backends/lean/Aeneas/Std/Vec.lean) | `Generated.lean` is asserted to model `src/`, never proved: the paper proof covers a fragment, the OCaml that ran does not | The proofs are about a different program |
-| **The charon whitelist** — `--include 'cpoly::_'` decides which foreign items are translated rather than axiomatized | Nothing checks that the whitelist is *complete*; a missed item becomes an `axiom`, which is visible but only if someone reads for it | A spec that quantifies over an uninterpreted symbol, and so says nothing |
-| **Rust to machine code** — rustc, LLVM, linker, libc, OS, CPU | No verified Rust compiler exists; memory safety is inherited from the borrow checker, not proved | The binary betrays a correct proof |
-| **The specs** — [ArkLib](https://github.com/Verified-zkEVM/ArkLib)'s Hachi definitions, and the parameter choices they are instantiated at | They *are* the definition of correct; degenerate ones would make every spec true and empty | True theorems about the wrong thing |
+| **The Lean kernel**, plus `propext`, `Classical.choice`, `Quot.sound` | Nothing verifies the kernel itself | A false theorem, silently |
+| **Aeneas and charon** | `Generated.lean` is assumed to model `src/`; that is not proved | The proofs are about a different program |
+| **The `cpoly` include list** | Nothing checks that it covers every item; a missed one becomes an axiom | A spec about an uninterpreted symbol |
+| **rustc, LLVM, the OS and the CPU** | No verified Rust compiler exists | The binary differs from the proved model |
+| **ArkLib's Hachi definitions and our parameter choices** | They *are* the definition of correct | True theorems about the wrong thing |
 
 ## References
 
@@ -489,8 +186,5 @@ verification boundary.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE). The same terms as
-[ArkLib](https://github.com/Verified-zkEVM/ArkLib),
-[AeneasCompPoly](https://github.com/tobias-rothmann/AeneasCompPoly) and
-[aeneas](https://github.com/AeneasVerif/aeneas), so combining them adds no
-further obligations.
+Apache-2.0, see [LICENSE](LICENSE): the same terms as ArkLib, AeneasCompPoly
+and Aeneas.

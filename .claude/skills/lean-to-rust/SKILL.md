@@ -34,7 +34,7 @@ that purpose the dial stays where AeneasCompPoly's evidence left it.
 
 `Fp` (the Hachi prime `2^32 - 99`) and `Ext4` come from the `cpoly` crate and
 are **never** reimplemented — that is a hard rule of the project
-(`hachi/src/lib.rs`, README § "The field layer comes from cpoly"), and the
+(`hachi/src/lib.rs`, README § "Design choices", "The field comes from `cpoly`"), and the
 extraction depends on it: `make extract` passes `--include 'cpoly::_'` so the
 field arrives transparently instead of as an `axiom`, and `hachi/lean/Check.lean`
 § 2 asserts the transparent form. A translation that finds itself writing field

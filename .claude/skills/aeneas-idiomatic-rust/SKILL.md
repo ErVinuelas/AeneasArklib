@@ -7,7 +7,7 @@ description: Making an Aeneas-extracted Rust crate idiomatic (newtypes, core::op
 
 For work on `hachi/src/` — turning transliterated-Lean Rust into Rust, while
 `make build` stays green and no `sorry` appears. Read this **before** touching
-`src/`, and read `README.md` § "Concrete, not generic" plus `src/lib.rs`'s
+`src/`, and read `README.md` § "Design choices" ("Concrete, not generic") plus `src/lib.rs`'s
 § "Style notes" and the `[lints.clippy]` block in `hachi/Cargo.toml`, which
 record the decisions this skill explains how to make.
 
