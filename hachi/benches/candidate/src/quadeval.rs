@@ -55,8 +55,6 @@
 
 use alloc::vec::Vec;
 
-use cpoly::Fp;
-
 use crate::commit::{centered_abs, PublicParams};
 use crate::gadget;
 use crate::linalg::{self, PolyMatrix, PolyVec};
@@ -700,8 +698,8 @@ fn z_row_lanes(terms: &ZTerms, row: &Rq, buf: Vec<u64>, rbase: usize) -> Vec<u64
 /// the bias the row's lanes have absorbed since the last flush. Lane `e` sits
 /// in word `e / 4` of the slot at bit `16·(e % 4)`. The lane holds
 /// `rec + Σ ±dₑ`, so `lane + q - rec` is the signed digit sum plus `q` --
-/// never negative, because `rec ≤ 16 · 2 047 < q` -- and [`Fp::new`] reduces
-/// it.
+/// never negative, because `rec ≤ 16 · 2 047 < q` -- and [`cpoly::Fp::new`]
+/// reduces it.
 fn z_lane_decode(zp: &Vec<u64>, base: usize, e: usize, rec: u64) -> Vec<cpoly::Fp> {
     let n: usize = params::RING_DEGREE;
     let q: u64 = params::Q;

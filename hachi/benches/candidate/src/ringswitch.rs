@@ -474,6 +474,10 @@ impl RlinBlocks {
 /// `match` on a custom enum was on the extraction's unprobed list until
 /// 2026-09-21; it extracts to a Lean `inductive` and a native `match`, with a
 /// shared borrow out of a variant coming back as the value itself.
+// Unboxed on purpose: a `Box` around the larger variant is one more layer for
+// every `match` in the extracted model and its proofs to see through, and the
+// enum exists once per statement, never in a collection.
+#[allow(clippy::large_enum_variant)]
 pub enum RlinMat {
     /// The matrix as assembled, entry by entry.
     Dense(PolyMatrix),
@@ -782,7 +786,8 @@ pub fn c_row_sum(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
 }
 
 /// The **high half** of [`long_mul`]: coefficients `N … 2N − 2` of `a · b`,
-/// which are the only ones [`div_by_modulus`] reads (Stage 6 candidate T1a).
+/// which are the only ones the division by `X^N + 1` reads (Stage 6 candidate
+/// T1a; see [`c_quotient`]).
 ///
 /// [`long_mul`]'s body with the output loop started at `N` instead of `0`. The
 /// antidiagonal `i + j = k` for `k ≥ N` is clipped on both sides — `i` runs
@@ -830,8 +835,7 @@ fn long_mul_high(a: &Rq, b: &Rq) -> Vec<Fp> {
 /// `c_row_sum_high_spec` keeps its statement (rule 4, totality over
 /// preconditions).
 ///
-/// Private: a helper of [`c_quotient`] alone, measured through it, exactly as
-/// [`div_by_modulus`] is.
+/// Private: a helper of [`c_quotient`] alone, measured through it.
 fn c_row_sum_high(s: &RlinStatement, z: &PolyVec, i: usize) -> Vec<Fp> {
     match s.m() {
         RlinMat::Dense(_) => {
@@ -1131,53 +1135,6 @@ fn jt_gadget_weights() -> Vec<Fp> {
     w
 }
 
-/// The quotient of a `Zq[X]` polynomial with `2N - 1` coefficients by the monic
-/// modulus `X^N + 1` (spec: `CPolynomial.divByMonic` at `Φ.φ`,
-/// `CompPoly/Univariate/Basic.lean:841`, the division `cQuotient` performs).
-///
-/// Mirrors `CPolynomial.divByMonic` at `Φ.φ`.
-///
-/// The specification's `divModByMonicAux.go` (`Univariate/Raw/Division.lean:31`)
-/// peels one leading term per step: with `lc` the leading coefficient and `k`
-/// the degree gap, it subtracts `lc · X^k · (X^N + 1)` from the dividend, adds
-/// `lc · X^k` to the quotient, and trims. On the fixed-width carrier the
-/// leading slot is `k + N` for `k` counting down from `N - 2`, and a slot that
-/// holds zero is a step the specification skips by trimming -- subtracting
-/// `0 · X^k · (X^N + 1)` -- so walking every slot is the same computation with
-/// no-op steps made explicit. Each step reads `p[k + N]`, writes it into
-/// `q[k]`, and subtracts it from `p[k]`: that subtraction is `X^N ≡ -1`, the
-/// sign [`Rq::mul`] folds in and this function keeps separate. The quotient
-/// has degree at most `N - 2`, so it fits a [`QuotientRow`] with its top
-/// coefficient zero -- inside `LiftedWitness.hρ`'s bound `d - 1`.
-///
-/// `p.len() = 2N - 1` is the fail point `p[k + N]` and travels as a `_spec`
-/// hypothesis. Private: a helper of [`c_quotient`] alone, measured through it.
-fn div_by_modulus(p: &Vec<Fp>) -> Vec<Fp> {
-    let n: usize = params::RING_DEGREE;
-    let mut rem: Vec<Fp> = Vec::new();
-    let mut t: usize = 0;
-    while t < p.len() {
-        rem.push(p[t]);
-        t += 1;
-    }
-    let mut quot: Vec<Fp> = Vec::new();
-    let mut u: usize = 0;
-    while u < n {
-        quot.push(Fp::ZERO);
-        u += 1;
-    }
-    let mut k: usize = n - 1;
-    while k > 0 {
-        k -= 1;
-        let lead: usize = k + n;
-        let c: Fp = rem[lead];
-        quot[k] = c;
-        rem[k] = rem[k] - c;
-        rem[lead] = Fp::ZERO;
-    }
-    quot
-}
-
 /// The computable honest quotient of row `i`: the lifted row defect
 /// `Σⱼ Mᵢⱼ·zⱼ − yᵢ` divided by the modulus (spec: `cQuotient`,
 /// `RingSwitch/ComputableWitness.lean:65`).
@@ -1192,10 +1149,12 @@ pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
     let n: usize = params::RING_DEGREE;
     // **The quotient IS the high half** (Stage 6 candidate T1a).
     //
-    // [`div_by_modulus`] reads only `rem[k + n]` for `k` from `n − 2` down to
-    // `0`; the leads run over `[n, 2n − 2]` and the only writes it makes are
-    // `rem[k] -= c` at `k ≤ n − 2` and `rem[lead] = 0` at a lead it has just
-    // consumed and never revisits, so every read sees the *original* word.
+    // Dividing by the monic `X^n + 1` one leading term at a time (the
+    // specification's `divModByMonicAux.go`) reads only `rem[k + n]` for `k`
+    // from `n − 2` down to `0`; the leads run over `[n, 2n − 2]` and the only
+    // writes it makes are `rem[k] -= c` at `k ≤ n − 2` and `rem[lead] = 0` at a
+    // lead it has just consumed and never revisits, so every read sees the
+    // *original* word.
     // And the `y` subtraction above it touched coefficients `< n` only. So
     // `quot[k] = c_row_sum[k + n]` for `k ≤ n − 2`, and `quot[n − 1] = 0`
     // because that slot is never written.
@@ -1211,7 +1170,7 @@ pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
         quot.push(hi[k]);
         k += 1;
     }
-    // the top coefficient `div_by_modulus` never wrote
+    // the top coefficient the division never writes
     quot.push(Fp::ZERO);
     QuotientRow::new(&quot)
 }
@@ -1226,7 +1185,7 @@ pub fn c_quotient(s: &RlinStatement, z: &PolyVec, i: usize) -> QuotientRow {
 /// § "The composed verifier was not a verifier"). The specification's `hd`
 /// (`0 < Φ.φ.natDegree`) and `hρ` (the degree bound) are `Prop`s and erase;
 /// `hd` holds at `N = 1024`, and the degree bound is what
-/// [`div_by_modulus`]'s zero top coefficient delivers. `z` is copied because
+/// [`c_quotient`]'s zero top coefficient delivers. `z` is copied because
 /// the witness owns its block and `clone` has no model.
 pub fn honest_lift_witness(s: &RlinStatement, z: &PolyVec) -> LiftedWitness {
     let rows: usize = s.m().rows();

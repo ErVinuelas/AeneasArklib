@@ -613,6 +613,10 @@ fn short_pass_off(s: &Rq, k: usize, negt: bool, acc: Vec<u64>) -> Vec<u64> {
 }
 
 /// Every slot of a [`short_pass_off`] buffer, reduced mod `q`.
+// By value, not `&[u64]`: the caller hands its buffer over (`buf =
+// short_reduce_buf(buf)`), and a slice parameter is the coercion `ptr_arg`'s
+// allow in `Cargo.toml` keeps out of the extraction.
+#[allow(clippy::needless_pass_by_value)]
 fn short_reduce_buf(acc: Vec<u64>) -> Vec<u64> {
     let n: usize = params::RING_DEGREE;
     let q: u64 = params::Q;

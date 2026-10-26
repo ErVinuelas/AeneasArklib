@@ -958,7 +958,7 @@ fn the_bounded_dot_survives_its_worst_case() {
 /// would show here and nowhere else.
 #[test]
 fn the_compact_raw_carrier_round_trips() {
-    let mut rng = Lcg::new(0x2A_32_0001);
+    let mut rng = Lcg::new(0x2A32_0001);
     let q = hachi::params::Q;
 
     let mut cases: Vec<hachi::ring::Rq> = Vec::new();
@@ -983,7 +983,7 @@ fn the_compact_raw_carrier_round_trips() {
 /// The same, one level up, and at a width that is not `RING_DEGREE`.
 #[test]
 fn the_compact_raw_block_round_trips() {
-    let mut rng = Lcg::new(0x2A_32_0002);
+    let mut rng = Lcg::new(0x2A32_0002);
     for &k in &[1usize, 2, 17, 64] {
         let v = rng.next_poly_vec(k);
         let back = hachi::linalg::RawVec32::compact(&v).expand();
@@ -1170,7 +1170,7 @@ fn the_two_limb_fused_kernel_is_the_fused_kernel_twice() {
     let n = NTT_LEN;
     let pt = gold_psi_table(GOLD_PSI);
     let mut r = Lcg::new(0x752A_F05E);
-    let mut canon = |r: &mut Lcg, len: usize| -> Vec<u64> { (0..len).map(|_| r.next_u64() % GOLD_P).collect() };
+    let canon = |r: &mut Lcg, len: usize| -> Vec<u64> { (0..len).map(|_| r.next_u64() % GOLD_P).collect() };
     for pass in 0..4 {
         let a = if pass == 1 {
             rq_from_u64s(&(0..n).map(|i| if i % 3 == 0 { Q - 1 } else { 0 }).collect::<Vec<u64>>())

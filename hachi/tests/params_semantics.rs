@@ -444,7 +444,7 @@ fn shift_t_is_the_binomial_table() {
     for k in 0..=top {
         pascal[k][0] = 1;
         for m in 1..=k {
-            pascal[k][m] = pascal[k - 1][m - 1] + if m <= k - 1 { pascal[k - 1][m] } else { 0 };
+            pascal[k][m] = pascal[k - 1][m - 1] + if m < k { pascal[k - 1][m] } else { 0 };
         }
     }
     assert_eq!(pascal[31][15], 300_540_195, "the largest binomial in the table");

@@ -294,3 +294,8 @@ return_self_not_must_use = "allow"
 # specification itself uses (`coeff k`, `digit c e`), and matching them is what
 # makes a loop readable next to the Lean it mirrors.
 many_single_char_names = "allow"
+# `similar_names` objects to a count beside the vector it sizes (`d_rows` and
+# `drows`) and to a tuple beside the parts it collects (`acc0`, `accs`). Those
+# are the names the extracted loops carry into `lean/Generated.lean`, and the
+# specs read next to them; a rename buys nothing a reader of either side needs.
+similar_names = "allow"

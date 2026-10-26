@@ -444,19 +444,44 @@ pub fn commit_streamed(pp: &PublicParams, m: &Vec<PolyVec>) -> (PolyVec, Vec<Pol
 /// allocations) and its `MESSAGE_ROWS · GADGET_DIGITS` digit polynomials
 /// (64 MiB, `16 384` allocations) gone; the outer `t̂ᵢ = G⁻¹(A · G⁻¹(xᵢ))`
 /// decomposition of the one-row product is unchanged.
+///
+/// Enabling the native `parallel` feature schedules the independent block
+/// computations across Rayon workers, while collecting their `t̂ᵢ` values in
+/// input order. The default remains the serial, `no_std` implementation used
+/// by the Aeneas extraction.
 pub fn commit_streamed_32(
     pp: &PublicParams,
     m: &Vec<linalg::RawVec32>,
 ) -> (PolyVec, Vec<PolyVec>) {
+    #[cfg(not(feature = "parallel"))]
     let blocks: usize = m.len();
     let prep: linalg::PreparedMatrixG = pp.inner_matrix().prepare_digits_gold();
-    let mut ts: Vec<PolyVec> = Vec::new();
-    let mut i: usize = 0;
-    while i < blocks {
-        let inner: PolyVec = prep.apply_raw_digits_gold(&m[i]);
-        ts.push(gadget::gadget_decompose(&inner));
-        i += 1;
-    }
+    #[cfg(feature = "parallel")]
+    let ts: Vec<PolyVec> = {
+        use rayon::prelude::*;
+
+        // `IndexedParallelIterator::collect` writes each result at its source
+        // index, so this has precisely the order of the sequential loop.  The
+        // work below is read-only in `prep` and `m`; all arithmetic remains in
+        // the verified no_std implementation called by each worker.
+        m.par_iter()
+            .map(|block| {
+                let inner: PolyVec = prep.apply_raw_digits_gold(block);
+                gadget::gadget_decompose(&inner)
+            })
+            .collect()
+    };
+    #[cfg(not(feature = "parallel"))]
+    let ts: Vec<PolyVec> = {
+        let mut ts: Vec<PolyVec> = Vec::new();
+        let mut i: usize = 0;
+        while i < blocks {
+            let inner: PolyVec = prep.apply_raw_digits_gold(&m[i]);
+            ts.push(gadget::gadget_decompose(&inner));
+            i += 1;
+        }
+        ts
+    };
     let flat: PolyVec = linalg::flatten_blocks(&ts);
     let u: PolyVec = pp.outer_matrix().mat_vec_mul(&flat);
     (u, ts)

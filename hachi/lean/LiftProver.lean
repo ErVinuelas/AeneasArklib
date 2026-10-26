@@ -498,8 +498,8 @@ theorem long_mul_spec (a b : ring.Rq) (ha : Wf a) (hb : Wf b) :
 
 /-! ### The high half (Stage 6 candidate T1a)
 
-`div_by_modulus` reads only coefficients `N … 2N − 2` of the defect, and the
-`y` subtraction touches only those below `N`. So the quotient is the **high
+The division by the modulus reads only coefficients `N … 2N − 2` of the defect,
+and the `y` subtraction touches only those below `N`. So the quotient is the **high
 half of `cRowSum`**, and the low half of every `long_mul` — half the schoolbook
 work — was computed and discarded. `long_mul_high` and `c_row_sum_high`
 compute only what survives.
@@ -1287,135 +1287,10 @@ theorem c_row_sum_high_spec {n μ : ℕ} (s : ringswitch.RlinStatement) (z : lin
   rw [hentry]
   rfl
 
-/-! ### `div_by_modulus` -/
+/-! ### The quotient by the modulus
 
-/-- The copy loop of `div_by_modulus`. -/
-theorem div_by_modulus_copy_loop_spec (p rem : alloc.vec.Vec cpoly.field.Fp) (t : Std.Usize)
-    (ht : t.val ≤ p.val.length) (hrem : rem.val = p.val.take t.val) :
-    ringswitch.div_by_modulus_loop0 p rem t ⦃ z => z.val = p.val ⦄ := by
-  have hmax : p.val.length ≤ Usize.max := p.property
-  rw [ringswitch.div_by_modulus_loop0]
-  apply loop.spec_decr_nat (fun s => p.val.length - s.2.val)
-    (fun s => s.2.val ≤ p.val.length ∧ s.1.val = p.val.take s.2.val)
-  · rintro ⟨r1, t1⟩ ⟨ht1, hr1⟩
-    dsimp only at ht1 hr1
-    simp only [ringswitch.div_by_modulus_loop0.body]
-    have hlen : r1.val.length = t1.val := by
-      rw [hr1, List.length_take]; omega
-    by_cases hlt : t1 < alloc.vec.Vec.len p
-    · rw [if_pos hlt]
-      have hb : t1.val < p.val.length := by scalar_tac
-      step as ⟨f, hf⟩
-      step as ⟨r2, hr2⟩
-      step as ⟨t2, ht2⟩
-      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-      rw [hr2, ht2, hr1, hf, List.take_add_one, List.getElem?_eq_getElem hb]
-      simp
-    · rw [if_neg hlt, WP.spec_ok]
-      show r1.val = p.val
-      have heq : t1.val = p.val.length := by scalar_tac
-      rw [hr1, heq, List.take_length]
-  · exact ⟨ht, hrem⟩
-
-/-- The zeroing loop of `div_by_modulus`: `n` copies of `Fp::ZERO`. -/
-theorem div_by_modulus_zero_loop_spec (n : Std.Usize) (quot : alloc.vec.Vec cpoly.field.Fp)
-    (u : Std.Usize) (hu : u.val ≤ n.val)
-    (hquot : quot.val = List.replicate u.val cpoly.field.Fp.ZERO) :
-    ringswitch.div_by_modulus_loop1 n quot u
-      ⦃ z => z.val = List.replicate n.val cpoly.field.Fp.ZERO ⦄ := by
-  rw [ringswitch.div_by_modulus_loop1]
-  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
-    (fun s => s.2.val ≤ n.val ∧ s.1.val = List.replicate s.2.val cpoly.field.Fp.ZERO)
-  · rintro ⟨o1, i1⟩ ⟨hi1, ho1⟩
-    dsimp only at hi1 ho1
-    simp only [ringswitch.div_by_modulus_loop1.body]
-    by_cases hlt : i1 < n
-    · rw [if_pos hlt]
-      have hlen : o1.val.length = i1.val := by rw [ho1, List.length_replicate]
-      step as ⟨o2, ho2⟩
-      step as ⟨i2, hi2⟩
-      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-      rw [ho2, hi2, ho1, List.replicate_succ']
-    · rw [if_neg hlt, WP.spec_ok]
-      show o1.val = List.replicate n.val cpoly.field.Fp.ZERO
-      have heq : i1.val = n.val := by scalar_tac
-      rw [ho1, heq]
-  · exact ⟨hu, hquot⟩
-
-/-- The division loop of `div_by_modulus`, counting `k` down from `N − 1`: the
-quotient words at and above `k` are already the high words of `p`. -/
-theorem div_by_modulus_main_loop_spec (p : alloc.vec.Vec cpoly.field.Fp)
-    (n : Std.Usize) (hn : n.val = N)
-    (rem quot : alloc.vec.Vec cpoly.field.Fp) (k : Std.Usize)
-    (hrl : rem.val.length = 2 * N - 1) (hrr : ∀ x ∈ rem.val, Red x)
-    (hql : quot.val.length = N) (hqr : ∀ x ∈ quot.val, Red x)
-    (hk : k.val ≤ N - 1)
-    (hrem : ∀ u, u < k.val → coeffK rem (u + N) = coeffK p (u + N))
-    (hquot : ∀ u, coeffK quot u = if k.val ≤ u ∧ u < N - 1 then coeffK p (u + N) else 0) :
-    ringswitch.div_by_modulus_loop2 n rem quot k
-      ⦃ z => z.val.length = N ∧ (∀ x ∈ z.val, Red x) ∧
-        ∀ u, coeffK z u = if u < N - 1 then coeffK p (u + N) else 0 ⦄ := by
-  rw [ringswitch.div_by_modulus_loop2]
-  apply loop.spec_decr_nat (fun st => st.2.2.val)
-    (fun st => st.2.2.val ≤ N - 1 ∧ st.1.val.length = 2 * N - 1 ∧ (∀ x ∈ st.1.val, Red x) ∧
-      st.2.1.val.length = N ∧ (∀ x ∈ st.2.1.val, Red x) ∧
-      (∀ u, u < st.2.2.val → coeffK st.1 (u + N) = coeffK p (u + N)) ∧
-      (∀ u, coeffK st.2.1 u = if st.2.2.val ≤ u ∧ u < N - 1 then coeffK p (u + N) else 0))
-  · rintro ⟨r1, q1, k1⟩ ⟨hk1, hrl1, hrr1, hql1, hqr1, hrem1, hquot1⟩
-    dsimp only at hk1 hrl1 hrr1 hql1 hqr1 hrem1 hquot1
-    simp only [ringswitch.div_by_modulus_loop2.body]
-    by_cases hlt : k1 > 0#usize
-    · rw [if_pos hlt]
-      have hk1pos : 0 < k1.val := by scalar_tac
-      step as ⟨k2, hk2⟩
-      have hk2N : k2.val < N - 1 := by omega
-      step as ⟨lead, hlead⟩
-      have hleadb : lead.val < r1.val.length := by rw [hrl1]; omega
-      step as ⟨c, hc⟩
-      have hRc : Red c := by rw [hc]; exact hrr1 _ (List.getElem_mem hleadb)
-      have hk2q : k2.val < q1.val.length := by rw [hql1]; omega
-      step as ⟨xq, backq, hxq, hbackq⟩
-      have hk2r : k2.val < r1.val.length := by rw [hrl1]; omega
-      step as ⟨f, hf⟩
-      have hRf : Red f := by rw [hf]; exact hrr1 _ (List.getElem_mem hk2r)
-      step with HachiEquiv.Field.fp_sub_spec f c hRf hRc as ⟨f1, hRf1, hf1⟩
-      step as ⟨xr, backr, hxr, hbackr⟩
-      have hrem1w : (backr f1).val = r1.val.set k2.val f1 := by rw [hbackr]; simp
-      have hrem1l : (backr f1).val.length = 2 * N - 1 := by
-        rw [hrem1w, List.length_set, hrl1]
-      have hleadb' : lead.val < (backr f1).val.length := by rw [hrem1l]; omega
-      step as ⟨xr2, backr2, hxr2, hbackr2⟩
-      have hrem2w : (backr2 cpoly.field.Fp.ZERO).val
-          = (backr f1).val.set lead.val cpoly.field.Fp.ZERO := by rw [hbackr2]; simp
-      have hquot1w : (backq c).val = q1.val.set k2.val c := by rw [hbackq]; simp
-      refine ⟨by omega, ?_, ?_, ?_, ?_, ?_, ?_, by omega⟩
-      · rw [hrem2w, List.length_set, hrem1l]
-      · exact Red_set hrem2w (Red_set hrem1w hrr1 hRf1) Red_zero
-      · rw [hquot1w, List.length_set, hql1]
-      · exact Red_set hquot1w hqr1 hRc
-      · intro u hu
-        rw [coeffK_set_ne hrem2w (by omega), coeffK_set_ne hrem1w (by omega)]
-        exact hrem1 u (by omega)
-      · intro u
-        by_cases hu : u = k2.val
-        · subst hu
-          rw [coeffK_set_eq hquot1w hk2q, if_pos ⟨le_refl _, hk2N⟩, hc, ← coeffK_of_lt hleadb,
-            show lead.val = k2.val + N by omega]
-          exact hrem1 k2.val (by omega)
-        · rw [coeffK_set_ne hquot1w hu, hquot1 u]
-          by_cases hc2 : k2.val ≤ u ∧ u < N - 1
-          · rw [if_pos hc2, if_pos ⟨by omega, hc2.2⟩]
-          · rw [if_neg hc2, if_neg (by rintro ⟨h1, h2⟩; exact hc2 ⟨by omega, h2⟩)]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have hk10 : k1.val = 0 := by scalar_tac
-      refine ⟨hql1, hqr1, ?_⟩
-      intro u
-      rw [hquot1 u, hk10]
-      by_cases hu : u < N - 1
-      · rw [if_pos ⟨Nat.zero_le _, hu⟩, if_pos hu]
-      · rw [if_neg (by rintro ⟨-, h⟩; exact hu h), if_neg hu]
-  · exact ⟨hk, hrl, hrr, hql, hqr, hrem, hquot⟩
+Used by `c_quotient_spec`: the quotient by `X^N + 1` of a `2N − 1`-word
+vector is its high block. -/
 
 /-- Uniqueness of the quotient by the monic `X^d + 1`, stated at an abstract
 degree. The modulus is kept as `X ^ d + 1` rather than as `Φ.φ.toPoly`
@@ -1467,41 +1342,6 @@ theorem toCPolyK_eq_divByMonic (p out : alloc.vec.Vec cpoly.field.Fp)
   intro m hm
   have hmN : N ≤ m := by exact_mod_cast hm
   rw [Polynomial.coeff_sub, hPc, hgQ m hmN, sub_self]
-
-/-- `div_by_modulus` is `CPolynomial.divByMonic` at the modulus, on a word
-vector of exactly `2N − 1` coefficients. Exactly `N` words come back, and the
-quotient's degree is below `N − 1` (its top word is zero), which is what lets
-`QuotientRow::new` hold it. -/
-theorem div_by_modulus_spec (p : alloc.vec.Vec cpoly.field.Fp) (hp : WfWords (2 * N - 1) p) :
-    ringswitch.div_by_modulus p
-      ⦃ out => WfWords N out ∧ toCPolyK out = (toCPolyK p).divByMonic Φ.φ ⦄ := by
-  rw [ringswitch.div_by_modulus]
-  step with div_by_modulus_copy_loop_spec p (alloc.vec.Vec.new cpoly.field.Fp) 0#usize
-    (by simp) (by simp) as ⟨rem, hrem⟩
-  step with div_by_modulus_zero_loop_spec params.RING_DEGREE
-    (alloc.vec.Vec.new cpoly.field.Fp) 0#usize (by simp) (by simp) as ⟨quot, hquot⟩
-  have hql : quot.val.length = N := by
-    rw [hquot, List.length_replicate, params_RING_DEGREE_val]
-  have hqr : ∀ x ∈ quot.val, Red x := by
-    intro x hx
-    rw [hquot] at hx
-    rw [List.eq_of_mem_replicate hx]
-    exact Red_zero
-  have hq0 : ∀ u, coeffK quot u = 0 := by
-    intro u
-    unfold coeffK
-    rw [hquot]
-    by_cases hu : u < (List.replicate ((params.RING_DEGREE).val) cpoly.field.Fp.ZERO).length
-    · rw [List.getD_eq_getElem _ _ hu, List.getElem_replicate, toK_zero]
-    · rw [List.getD_eq_default _ _ (by omega), toK_zero]
-  step as ⟨k, hk⟩
-  apply spec_mono (div_by_modulus_main_loop_spec p params.RING_DEGREE (by simp) rem quot k
-    (by rw [hrem, hp.1]) (by intro x hx; rw [hrem] at hx; exact hp.2 x hx) hql hqr
-    (by scalar_tac)
-    (by intro u _; unfold coeffK; rw [hrem])
-    (by intro u; rw [hq0 u]; exact (if_neg (by scalar_tac)).symm))
-  rintro z ⟨hzl, hzr, hzc⟩
-  exact ⟨⟨hzl, hzr⟩, toCPolyK_eq_divByMonic p z hp.1 hzc⟩
 
 /-! ## The three ArkLib definitions -/
 

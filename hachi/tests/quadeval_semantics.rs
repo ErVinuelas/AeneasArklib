@@ -24,6 +24,9 @@
 
 #![allow(clippy::cast_possible_wrap)]
 #![allow(clippy::cast_sign_loss)]
+// The z-lane layout test asserts its constants' headroom, which is a check on
+// constants by design (as in `params_semantics.rs`).
+#![allow(clippy::assertions_on_constants)]
 
 mod support;
 
@@ -1171,7 +1174,7 @@ fn the_lane_schedule_constants_hold() {
     assert_eq!(Z_LANE_WORDS * 4, 8, "two words of four lanes: the eight digits");
     assert!(31 * (Z_LANE_CHUNK - 1) < (1u64 << 16), "a digit lane cannot carry");
     assert!(16 * (Z_LANE_CHUNK - 1) < hachi::params::Q, "the decode's debit stays below q");
-    assert!(Z_LANE_CHUNK > hachi::params::OMEGA as u64, "a short block's passes fit one chunk");
+    assert!(Z_LANE_CHUNK > hachi::params::OMEGA, "a short block's passes fit one chunk");
 }
 
 /// Card T59: a real mid-run flush. 130 one-row blocks, each charging `OMEGA`

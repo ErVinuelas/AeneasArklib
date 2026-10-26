@@ -35,7 +35,10 @@
 //! § "The dropped eq~ factor" records how the gap arose and why no benchmark
 //! or digest could have found it.
 
+// The signed-digit oracles round-trip digits through `i64` and back, on values
+// far inside both ranges.
 #![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 
 mod support;
 
@@ -1327,7 +1330,7 @@ fn round_poly_skipping_zero_pairs_is_the_whole_sum() {
                 .map(|i| match kind {
                     0 => if (i / 2) % 3 == 0 { Ext4::ZERO } else { ext4(&mut r) },
                     1 => if i % 2 == 0 { Ext4::ZERO } else { ext4(&mut r) },
-                    2 => if (i / 2) % 2 == 0 { Ext4::ZERO } else if i % 5 == 0 { Ext4::ZERO } else { ext4(&mut r) },
+                    2 => if (i / 2) % 2 == 0 || i % 5 == 0 { Ext4::ZERO } else { ext4(&mut r) },
                     _ => Ext4::ZERO,
                 })
                 .collect();

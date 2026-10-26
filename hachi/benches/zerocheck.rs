@@ -133,7 +133,7 @@ macro_rules! define_cases {
             use $hachi as hc;
 
             use crate::support::{self, Mode};
-            use crate::{ALPHA_ROWS, ALPHA_VARS, MAT_RLIN_COLS, RHO_ROWS, Z_COLS};
+            use crate::{ALPHA_ROWS, ALPHA_VARS, RHO_ROWS, Z_COLS};
 
             type Rq = hc::ring::Rq;
             type PolyVec = hc::linalg::PolyVec;
@@ -430,7 +430,7 @@ macro_rules! define_cases {
             }
 
             /// A REDUCED `R^lin` statement through `quadeval::rlin_stmt` at the
-            /// pinned digit counts; see [`MAT_RLIN_COLS`].
+            /// pinned digit counts; see [`crate::MAT_RLIN_COLS`].
             fn statement_rlin(seed: u64, cols: usize) -> RlinStatement {
                 let md = hc::params::GADGET_DIGITS;
                 let zd = hc::params::Z_DIGITS;

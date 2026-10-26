@@ -762,13 +762,11 @@ example (c : cpoly.field.Fp) : Result cpoly.field.Fp := zerocheck.range_product_
 -- item to be translated (2026-09-11). Two shape facts: the unreduced row sum is a `Vec Fp` of
 -- `2N - 1` words -- a `CPolynomial (ZMod q)` in the `Raw` array reading, the
 -- first carrier in this crate for a product that is *not* folded back into
--- `Rq` -- and the division by the modulus returns the `N`-word quotient that
--- `QuotientRow::new` wraps. The two helpers are private and still extracted.
+-- `Rq` -- and the quotient is the `N`-word vector that `QuotientRow::new`
+-- wraps. The helpers are private and still extracted.
 example (a b : ring.Rq) : Result (alloc.vec.Vec cpoly.field.Fp) := ringswitch.long_mul a b
 example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
     Result (alloc.vec.Vec cpoly.field.Fp) := ringswitch.c_row_sum s z i
-example (p : alloc.vec.Vec cpoly.field.Fp) : Result (alloc.vec.Vec cpoly.field.Fp) :=
-  ringswitch.div_by_modulus p
 example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) (i : Std.Usize) :
     Result ringswitch.QuotientRow := ringswitch.c_quotient s z i
 example (s : ringswitch.RlinStatement) (z : linalg.PolyVec) : Result ringswitch.LiftedWitness :=
@@ -1702,10 +1700,9 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.LiftProver.longSum_cast
 #print axioms HachiEquiv.LiftProver.long_mul_loop0_loop0_spec
 #print axioms HachiEquiv.LiftProver.long_mul_loop0_spec
-#print axioms HachiEquiv.LiftProver.div_by_modulus_spec
 #print axioms HachiEquiv.LiftProver.c_row_sum_spec
 #print axioms HachiEquiv.LiftProver.c_quotient_spec
--- Candidate T1a (Stage 6) -- the lift's HIGH HALF. `div_by_modulus` reads only
+-- Candidate T1a (Stage 6) -- the lift's HIGH HALF. The division reads only
 -- coefficients `N … 2N−2` of the defect, and the `y` subtraction touches only
 -- those below `N`, so the quotient IS the high half of `cRowSum` and the low
 -- half of every `long_mul` was computed, reduced, accumulated over `2N−1`

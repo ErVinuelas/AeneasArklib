@@ -769,8 +769,9 @@ fn t45a_lazy_quotient_equals_dense_on_gadget_blocks() {
 /// and must still be right: the contraction holds for any leader.
 #[test]
 fn t45a_tampered_blocks_fall_back_and_still_agree() {
+    type Tamper = (&'static str, Box<dyn Fn(&mut T45Pieces)>);
     let two = Fp::new(2);
-    let tampers: Vec<(&str, Box<dyn Fn(&mut T45Pieces)>)> = vec![
+    let tampers: Vec<Tamper> = vec![
         ("g_b interior", Box::new(|p: &mut T45Pieces| {
             let mut v: Vec<Rq> = (0..p.g_b.len()).map(|k| p.g_b.get(k).copy()).collect();
             v[3] = v[3].scalar_mul(Fp::new(3));

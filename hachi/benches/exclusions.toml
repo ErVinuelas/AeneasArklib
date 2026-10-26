@@ -519,13 +519,6 @@ so its cost is `ring/mul`'s and its shape is measured through
 `ringswitch/c_row_sum`, which calls it once per column. A case here would
 restate `ring/mul` without the fold and report it as a new number."""
 
-"ringswitch::div_by_modulus" = """
-private (`hachi/src/ringswitch.rs`): one `O(N)` pass over a `2N - 1`-word vector
-with one subtraction per slot, no products -- microseconds against the
-milliseconds of the long products it follows. Measured through
-`ringswitch/c_quotient`, which is exactly one row sum, one `yᵢ` subtraction and
-one division; the division's share of that row is the `O(N)` term."""
-
 "ringswitch::rho_digits_at" = """
 one bounds-checked `Vec` index over the benched `ringswitch/rho_digits`
 (`hachi/src/ringswitch.rs`): the body is `rho_digits(&rho[i].0, u)` and nothing

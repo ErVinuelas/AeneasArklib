@@ -60,7 +60,14 @@
 //! (two for the honest-side test, sequentially), and the cube is the only
 //! dimension that is reduced. Run with `cargo test --release -- --ignored`.
 
+// The instrument tests turn counts and durations into `f64` rates for
+// printing, and the prototype kernels near the end are scratch copies of word
+// arithmetic tried against the crate: signed digits carried through `u64`,
+// `#[inline(always)]` on the butterflies they time, and buffers taken by value
+// as the `src` signatures they imitate take them. None of that is crate code.
 #![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+#![allow(clippy::inline_always, clippy::needless_pass_by_value, clippy::too_many_lines)]
 
 mod support;
 
@@ -896,6 +903,7 @@ fn profile_control_cpu(reps: usize) -> (std::time::Duration, u64) {
 #[allow(clippy::too_many_lines)]
 fn the_honest_chain_profile() {
     use std::time::Instant;
+    const CTL_CPU_REPS: usize = 2_000_000;
     let t0 = Instant::now();
     let blocks = chain_blocks_from_env();
     let message_rows = hachi::params::MESSAGE_ROWS;
@@ -904,7 +912,6 @@ fn the_honest_chain_profile() {
     let inner_digits = hachi::params::GADGET_DIGITS;
     let z_digits = hachi::params::Z_DIGITS;
     let m0 = hachi::params::M_ZERO;
-    const CTL_CPU_REPS: usize = 2_000_000;
     let (ctl_cpu_before, ctl_x0) = profile_control_cpu(CTL_CPU_REPS);
     eprintln!("[profile] control CPU (frozen genesis range_product_base x{CTL_CPU_REPS}): \
                {ctl_cpu_before:.1?} = {:.2} ns/call",
@@ -1075,7 +1082,7 @@ fn the_commitment_and_z_pass_split_per_block() {
         std::time::Duration::ZERO,
         std::time::Duration::ZERO,
     );
-    for b in raw.iter() {
+    for b in &raw {
         let c0 = std::time::Instant::now();
         let block = b.expand();
         t_expand += c0.elapsed();
@@ -1161,7 +1168,7 @@ fn the_commitment_and_z_pass_split_per_block() {
         );
     }
     eprintln!("[split]   {:34} {commit_tot:>9.2?}         {:>8.2} ns/coeff", "TOTAL", per(commit_tot));
-    let commit_gold = commit_tot - t_apply + t_apply_g;
+    let commit_gold = commit_tot.checked_sub(t_apply).unwrap() + t_apply_g;
     eprintln!(
         "[split]   --- candidate T27, one Goldilocks lane (agrees: {gold_agrees}) ---\n         [split]   {:34} {:>9.2?}  {:>5.1}%  {:>8.2} ns/coeff   ({:+.1}% vs the two-prime lane)",
         "apply_digits_gold", t_apply_g,
@@ -1392,7 +1399,7 @@ fn the_u32_transform_at_the_caller() {
 
     let (mut t64, mut t32) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
     let mut agree = true;
-    for b in raw.iter() {
+    for b in &raw {
         let s = hachi::gadget::gadget_decompose(&b.expand());
 
         let c0 = std::time::Instant::now();
@@ -1570,7 +1577,7 @@ fn the_decomposer_kernel_against_its_kill_gate() {
     let x = r.next_poly_vec(rows);
     let coeffs = (rows * RING_DEGREE) as f64;
 
-    let mut timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
+    let timed = |name: &str, f: fn(&PolyVec) -> PolyVec| -> f64 {
         let warm = f(&x);
         std::hint::black_box(warm.len());
         let mut best = f64::MAX;
@@ -1753,9 +1760,9 @@ fn the_gather_form_against_its_kill_gate() {
     // one reduction per coefficient, at the end
     let q = Q as i64;
     let mut out_g: Vec<Rq> = Vec::with_capacity(width);
-    for a in acc_g.iter() {
+    for a in &acc_g {
         let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(RING_DEGREE);
-        for &v in a.iter() {
+        for &v in a {
             let m = v % q;
             coeffs.push(cpoly::field::Fp::new(if m < 0 { (m + q) as u64 } else { m as u64 }));
         }
@@ -1777,9 +1784,9 @@ fn the_gather_form_against_its_kill_gate() {
         }
     }
     let mut out_i: Vec<Rq> = Vec::with_capacity(width);
-    for a in acc_i.iter() {
+    for a in &acc_i {
         let mut coeffs: Vec<cpoly::field::Fp> = Vec::with_capacity(RING_DEGREE);
-        for &v in a.iter() {
+        for &v in a {
             let m = v % q;
             coeffs.push(cpoly::field::Fp::new(if m < 0 { (m + q) as u64 } else { m as u64 }));
         }
@@ -1814,7 +1821,8 @@ fn the_gather_form_against_its_kill_gate() {
 // essentially all `c_row_sum`: five rows, each a sum of `long_mul`s over the
 // nonzero entries of `M`, at `O(N^2)` per product.
 //
-// `div_by_modulus` reads ONLY the high half. Its loop is
+// The division by the modulus (the former `div_by_modulus`, removed once
+// `c_quotient` stopped calling it) reads ONLY the high half. Its loop is
 // `quot[k] = rem[k + n]` for `k` from `n-2` down to 0; the leads run over
 // `[n, 2n-2]` and the writes it makes (`rem[k] -= c`) all land below `n`, so
 // the two ranges never meet. `c_quotient` subtracts `y` from the low half
@@ -1881,7 +1889,7 @@ fn c_quotient_high_half_v2(m_row: &PolyVec, z: &PolyVec, cols: usize) -> Vec<cpo
 
 /// The FAIR high-half prototype: `long_mul`'s own shape -- the antidiagonal
 /// with a `u128` register accumulator and one reduction per output
-/// coefficient -- restricted to the half that survives `div_by_modulus`.
+/// coefficient -- restricted to the half that survives the division.
 ///
 /// The first two attempts here were not fair and are kept in the history as
 /// the mistake they were: they accumulated in `Fp`, paying a modular reduction
@@ -2138,16 +2146,16 @@ fn the_big_table_walk_under_huge_pages() {
 //
 // q = 2^32 - 99 is untouched throughout: these are AUXILIARY primes.
 
-const GP: u64 = 18446744069414584321;
-const GPSI: u64 = 455906449640507599;
-const GEPI: u64 = 8548973421900915981;
-const GNINV: u64 = 18428729670909296641;
+const GP: u64 = 18_446_744_069_414_584_321;
+const GPSI: u64 = 455_906_449_640_507_599;
+const GEPI: u64 = 8_548_973_421_900_915_981;
+const GNINV: u64 = 18_428_729_670_909_296_641;
 
 // The EXTRACTION-ADMISSIBLE forms. `overflowing_add`/`overflowing_sub` are not
 // in the ceiling table and `checked_add` + `match` measured 7.995 ns/butterfly
 // against 2.787 for this shape -- the `Option` match defeats the carry path --
 // so `u128` intermediates, which ARE in the table, are what this has to use.
-const GPC: u128 = 18446744069414584321;
+const GPC: u128 = 18_446_744_069_414_584_321;
 #[inline] fn ga(a: u64, b: u64) -> u64 {
     let s: u128 = (a as u128) + (b as u128);
     if s >= GPC { (s - GPC) as u64 } else { s as u64 }
@@ -2267,7 +2275,7 @@ fn the_goldilocks_lane_at_the_caller() {
 
     let (mut t2, mut t1) = (std::time::Duration::ZERO, std::time::Duration::ZERO);
     let mut agree = true;
-    for b in raw.iter() {
+    for b in &raw {
         let s = hachi::gadget::gadget_decompose(&b.expand());
         let c0 = std::time::Instant::now();
         let got2 = prep2.apply_digits(&s);
@@ -2317,7 +2325,7 @@ fn t3_shift_table() -> Vec<cpoly::field::Fp> {
         c[k * 32] = 1;
         for m in 1..=k {
             let left = c[(k - 1) * 32 + m - 1] as u128;
-            let right = if m <= k - 1 { c[(k - 1) * 32 + m] as u128 } else { 0 };
+            let right = if m < k { c[(k - 1) * 32 + m] as u128 } else { 0 };
             c[k * 32 + m] = ((left + right) % q) as u64;
         }
     }
@@ -2393,13 +2401,13 @@ fn the_taylor_shift_round_poly_against_its_kill_gate() {
     use std::time::Instant;
     let tab = t3_shift_table();
     let mut r = Lcg::new(0x7A1_0123);
-    let mut e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
+    let e4 = |r: &mut Lcg| Ext4::from_base(cpoly::field::Fp::new(r.next_u64() % hachi::params::Q));
 
     // --- equality, at a width where a mismatch is readable ------------------
     for half in [1usize, 2, 3, 17, 64] {
         let w: Vec<Ext4> = (0..2 * half).map(|_| e4(&mut r)).collect();
         let eq: Vec<Ext4> = (0..half).map(|_| e4(&mut r)).collect();
-        let a = hachi::sumcheck::round_poly_zero(&w.to_vec(), &eq.to_vec());
+        let a = hachi::sumcheck::round_poly_zero(&w.clone(), &eq.clone());
         let b = round_poly_zero_taylor(&w, &eq, &tab);
         let (ca, cb) = (a.coeffs(), b.coeffs());
         let n = ca.len().max(cb.len());
@@ -2415,8 +2423,8 @@ fn the_taylor_shift_round_poly_against_its_kill_gate() {
     let half: usize = 1 << 18;
     let w: Vec<Ext4> = (0..2 * half).map(|_| e4(&mut r)).collect();
     let eq: Vec<Ext4> = (0..half).map(|_| e4(&mut r)).collect();
-    let wv = w.to_vec();
-    let eqv = eq.to_vec();
+    let wv = w.clone();
+    let eqv = eq.clone();
 
     // warm up both, then best-of-5 each: the first call of either reads cold
     // pages, and that lie cost a measurement once already (card T11).
@@ -2511,7 +2519,7 @@ fn the_taylor_shift_against_the_real_round_mix() {
         let eq: Vec<Ext4> = (0..half)
             .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q)))
             .collect();
-        let a = hachi::sumcheck::round_poly_zero_base(&w.to_vec(), &eq.to_vec());
+        let a = hachi::sumcheck::round_poly_zero_base(&w.clone(), &eq.clone());
         let b = round_poly_zero_base_taylor(&w, &eq, &tab);
         let (ca, cb) = (a.coeffs(), b.coeffs());
         for i in 0..ca.len().max(cb.len()) {
@@ -2532,7 +2540,7 @@ fn the_taylor_shift_against_the_real_round_mix() {
     let eq: Vec<Ext4> = (0..half)
         .map(|_| Ext4::from_base(Fp::new(r.next_u64() % q)))
         .collect();
-    let (wfpv, we4v, eqv) = (wfp.to_vec(), we4.to_vec(), eq.to_vec());
+    let (wfpv, we4v, eqv) = (wfp.clone(), we4.clone(), eq.clone());
 
     let best = |mut f: Box<dyn FnMut()>| -> f64 {
         f();
@@ -3042,7 +3050,7 @@ fn mont_sub(a: u64, b: u64) -> u64 {
 #[inline(always)]
 fn aux31_mul(a: u64, b: u64, p: u64, m: u64) -> u64 {
     let t: u128 = (a as u128) * (b as u128);
-    let hi: u64 = (((t >> 32) as u128 * m as u128) >> 32) as u64;
+    let hi: u64 = (((t >> 32) * m as u128) >> 32) as u64;
     let r: u64 = (t as u64).wrapping_sub(hi.wrapping_mul(p));
     if r >= p { r - p } else { r }
 }
@@ -3330,7 +3338,6 @@ fn t33_percall(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
 fn the_short_multiply_per_call_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
-    let q = hachi::params::Q;
     let omega = hachi::params::OMEGA as usize;
     let mut r = Lcg::new(0x5401_7EE0);
     let mut idx: Vec<usize> = Vec::new();
@@ -3450,7 +3457,6 @@ fn t33_percall_u128(desc_idx: &[usize], desc_mag: &[u64], desc_neg: &[bool],
 fn the_short_multiply_u128_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
-    let q = hachi::params::Q;
     let omega = hachi::params::OMEGA as usize;
     let mut r = Lcg::new(0x5401_7EF0);
     let mut idx: Vec<usize> = Vec::new();
@@ -3703,7 +3709,7 @@ fn the_radix4_gate() {
     let mut s2 = o2.clone(); s2.sort_unstable();
     let mut s4 = o4.clone(); s4.sort_unstable();
     assert_eq!(s2, s4, "radix-4 is not a permutation of radix-2's DFT");
-    eprintln!("[r4] the two transforms agree as multisets ({} points)", n);
+    eprintln!("[r4] the two transforms agree as multisets ({n} points)");
 
     let best = |mut f: Box<dyn FnMut()>| -> f64 {
         for _ in 0..200 { f(); }
@@ -3793,7 +3799,7 @@ fn the_radix4_fused_gate() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
     let gp = 18_446_744_069_414_584_321u64;
-    let mut r = Lcg::new(0x4AD1_F0);
+    let mut r = Lcg::new(0x004A_D1F0);
     let tw = gtab(GPSI, 3 * n);
     let input: Vec<u64> = (0..n).map(|_| r.next_u64() % gp).collect();
 
@@ -3925,7 +3931,7 @@ fn afwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize)
 fn the_radix4_fused_gate_general() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
-    let mut r = Lcg::new(0x4AD1_F1);
+    let mut r = Lcg::new(0x004A_D1F1);
     let tw = atab(APSI, 3 * n);
     let input: Vec<u64> = (0..n).map(|_| r.next_u64() % AP).collect();
 
@@ -4018,7 +4024,7 @@ fn xfwd_fused(mut cur: Vec<u64>, mut tmp: Vec<u64>, tw: &[u64], n: usize, p: u64
 fn the_radix4_general_runtime_prime_diagnostic() {
     use std::time::Instant;
     let n = hachi::params::RING_DEGREE;
-    let mut r = Lcg::new(0x4AD1_F2);
+    let mut r = Lcg::new(0x004A_D1F2);
     let tw = atab(APSI, 3 * n);
     let input: Vec<u64> = (0..n).map(|_| r.next_u64() % AP).collect();
     let (p, m) = (std::hint::black_box(AP), std::hint::black_box(AM));
