@@ -1251,7 +1251,7 @@ theorem raw_refresh_spec (raw : alloc.vec.Vec ring.RawRq32) (words : alloc.vec.V
 
 section TwistTab
 
-open HachiEquiv.GoldStage HachiEquiv.GoldFusedStage
+open HachiEquiv.GoldFusedStage
 
 /-- The nibble-twisted source word: digit `e` of `words[u]` times `pt[u]`,
 reduced -- what `tab[16 u + ((words[u] >> 4e) & 15)]` holds for the twist

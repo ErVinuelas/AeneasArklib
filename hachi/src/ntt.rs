@@ -557,31 +557,6 @@ pub fn gold_twist(v: &Vec<u64>, pt: &Vec<u64>) -> Vec<u64> {
     out
 }
 
-/// One decimation-in-frequency stage in the Goldilocks lane.
-pub fn gold_dif_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u64>) -> Vec<u64> {
-    let n: usize = NTT_LEN;
-    let half: usize = len / 2;
-    let step: usize = 2 * (n / len);
-    let mut start: usize = 0;
-    while start < n {
-        let mut j: usize = 0;
-        while j < half {
-            dst[start + j] = gold_add(src[start + j], src[start + j + half]);
-            j += 1;
-        }
-        let mut i: usize = 0;
-        let mut e: usize = 0;
-        while i < half {
-            let d: u64 = gold_sub(src[start + i], src[start + i + half]);
-            dst[start + half + i] = gold_mul(d, tw[e]);
-            i += 1;
-            e += step;
-        }
-        start += len;
-    }
-    dst
-}
-
 /// One decimation-in-time stage in the Goldilocks lane.
 ///
 /// Card T52c: each butterfly's twiddled operand `v = src[start+j+half] ·
@@ -614,8 +589,8 @@ pub fn gold_dit_stage(src: &Vec<u64>, mut dst: Vec<u64>, len: usize, tw: &Vec<u6
 /// **Two** decimation-in-frequency stages in one pass -- the radix-4 shape, in
 /// the Goldilocks lane.
 ///
-/// Computes exactly what [`gold_dif_stage`] at `len` followed by
-/// [`gold_dif_stage`] at `len / 2` computes: the same values, at the same
+/// Computes exactly what one radix-2 DIF stage at `len` followed by another at
+/// `len / 2` computes: the same values, at the same
 /// positions, from the same twiddles. That is the whole design. A textbook
 /// radix-4 butterfly permutes its four outputs, so it agrees with the radix-2
 /// transform only up to base-4 digit reversal, and proving it would mean a

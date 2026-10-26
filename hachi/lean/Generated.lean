@@ -747,7 +747,7 @@ structure ringswitch.RlinStatement where
   bound : Std.U64
 
 /-- [hachi::sumcheck::NestedZeroCheckStmt]
-    Source: 'src/sumcheck.rs', lines 1893:0-1899:1
+    Source: 'src/sumcheck.rs', lines 1865:0-1871:1
     Visibility: public -/
 structure sumcheck.NestedZeroCheckStmt where
   rlin : ringswitch.RlinStatement
@@ -757,7 +757,7 @@ structure sumcheck.NestedZeroCheckStmt where
   tau1 : alloc.vec.Vec cpoly.field.Ext4
 
 /-- [hachi::sumcheck::RoundStatement]
-    Source: 'src/sumcheck.rs', lines 1986:0-1991:1
+    Source: 'src/sumcheck.rs', lines 1958:0-1963:1
     Visibility: public -/
 structure sumcheck.RoundStatement where
   zc : sumcheck.NestedZeroCheckStmt
@@ -766,28 +766,28 @@ structure sumcheck.RoundStatement where
   target_alpha : cpoly.field.Ext4
 
 /-- [hachi::sumcheck::RoundMsg]
-    Source: 'src/sumcheck.rs', lines 1955:0-1958:1
+    Source: 'src/sumcheck.rs', lines 1927:0-1930:1
     Visibility: public -/
 structure sumcheck.RoundMsg where
   g_zero : cpoly.univariate.UnivariatePoly
   g_alpha : cpoly.univariate.UnivariatePoly
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::g_alpha]:
-    Source: 'src/sumcheck.rs', lines 1972:4-1974:5
+    Source: 'src/sumcheck.rs', lines 1944:4-1946:5
     Visibility: public -/
 def sumcheck.RoundMsg.impl.g_alpha
   (self : sumcheck.RoundMsg) : Result cpoly.univariate.UnivariatePoly := do
   ok self.g_alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::g_zero]:
-    Source: 'src/sumcheck.rs', lines 1967:4-1969:5
+    Source: 'src/sumcheck.rs', lines 1939:4-1941:5
     Visibility: public -/
 def sumcheck.RoundMsg.impl.g_zero
   (self : sumcheck.RoundMsg) : Result cpoly.univariate.UnivariatePoly := do
   ok self.g_zero
 
 /-- [hachi::sumcheck::round_out]:
-    Source: 'src/sumcheck.rs', lines 2168:0-2179:1
+    Source: 'src/sumcheck.rs', lines 2140:0-2151:1
     Visibility: public -/
 def sumcheck.round_out
   (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg)
@@ -802,21 +802,21 @@ def sumcheck.round_out
   ok { stmt with challenges, target_zero, target_alpha }
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::target_alpha]:
-    Source: 'src/sumcheck.rs', lines 2025:4-2027:5
+    Source: 'src/sumcheck.rs', lines 1997:4-1999:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.target_alpha
   (self : sumcheck.RoundStatement) : Result cpoly.field.Ext4 := do
   ok self.target_alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::target_zero]:
-    Source: 'src/sumcheck.rs', lines 2020:4-2022:5
+    Source: 'src/sumcheck.rs', lines 1992:4-1994:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.target_zero
   (self : sumcheck.RoundStatement) : Result cpoly.field.Ext4 := do
   ok self.target_zero
 
 /-- [hachi::sumcheck::round_check]:
-    Source: 'src/sumcheck.rs', lines 2152:0-2156:1
+    Source: 'src/sumcheck.rs', lines 2124:0-2128:1
     Visibility: public -/
 def sumcheck.round_check
   (stmt : sumcheck.RoundStatement) (g : sumcheck.RoundMsg) : Result Bool := do
@@ -837,14 +837,14 @@ def sumcheck.round_check
   else ok false
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::zc]:
-    Source: 'src/sumcheck.rs', lines 2010:4-2012:5
+    Source: 'src/sumcheck.rs', lines 1982:4-1984:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.zc
   (self : sumcheck.RoundStatement) : Result sumcheck.NestedZeroCheckStmt := do
   ok self.zc
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::tau0]:
-    Source: 'src/sumcheck.rs', lines 1936:4-1938:5
+    Source: 'src/sumcheck.rs', lines 1908:4-1910:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.tau0
   (self : sumcheck.NestedZeroCheckStmt) :
@@ -853,7 +853,7 @@ def sumcheck.NestedZeroCheckStmt.impl.tau0
   ok self.tau0
 
 /-- [hachi::sumcheck::round_verify_loop]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 2419:4-2429:1
+    Source: 'src/sumcheck.rs', lines 2391:4-2401:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_verify_loop_loop.body
@@ -881,7 +881,7 @@ def sumcheck.round_verify_loop_loop.body
   else ok (done (some current))
 
 /-- [hachi::sumcheck::round_verify_loop]: loop 0:
-    Source: 'src/sumcheck.rs', lines 2419:4-2429:1
+    Source: 'src/sumcheck.rs', lines 2391:4-2401:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_verify_loop_loop
@@ -896,7 +896,7 @@ def sumcheck.round_verify_loop_loop
     (current, i)
 
 /-- [hachi::sumcheck::round_verify_loop]:
-    Source: 'src/sumcheck.rs', lines 2411:0-2429:1
+    Source: 'src/sumcheck.rs', lines 2383:0-2401:1
     Visibility: public -/
 def sumcheck.round_verify_loop
   (stmt : sumcheck.RoundStatement) (msgs : alloc.vec.Vec sumcheck.RoundMsg)
@@ -1132,7 +1132,7 @@ def zerocheck.zc_target_alpha
     0#usize
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::new]:
-    Source: 'src/sumcheck.rs', lines 1995:4-2007:5
+    Source: 'src/sumcheck.rs', lines 1967:4-1979:5
     Visibility: public -/
 def sumcheck.RoundStatement.new
   (zc : sumcheck.NestedZeroCheckStmt)
@@ -1143,7 +1143,7 @@ def sumcheck.RoundStatement.new
   ok { zc, challenges, target_zero, target_alpha }
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::tau1]:
-    Source: 'src/sumcheck.rs', lines 1941:4-1943:5
+    Source: 'src/sumcheck.rs', lines 1913:4-1915:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.tau1
   (self : sumcheck.NestedZeroCheckStmt) :
@@ -1152,21 +1152,21 @@ def sumcheck.NestedZeroCheckStmt.impl.tau1
   ok self.tau1
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::alpha]:
-    Source: 'src/sumcheck.rs', lines 1931:4-1933:5
+    Source: 'src/sumcheck.rs', lines 1903:4-1905:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.alpha
   (self : sumcheck.NestedZeroCheckStmt) : Result cpoly.field.Ext4 := do
   ok self.alpha
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::rlin]:
-    Source: 'src/sumcheck.rs', lines 1921:4-1923:5
+    Source: 'src/sumcheck.rs', lines 1893:4-1895:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.rlin
   (self : sumcheck.NestedZeroCheckStmt) : Result ringswitch.RlinStatement := do
   ok self.rlin
 
 /-- [hachi::sumcheck::nested_to_round_statement]:
-    Source: 'src/sumcheck.rs', lines 2296:0-2299:1
+    Source: 'src/sumcheck.rs', lines 2268:0-2271:1
     Visibility: public -/
 def sumcheck.nested_to_round_statement
   (zc : sumcheck.NestedZeroCheckStmt) : Result sumcheck.RoundStatement := do
@@ -1266,7 +1266,7 @@ def zerocheck.range_product
   cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul v acc1
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundStatement}::challenges]:
-    Source: 'src/sumcheck.rs', lines 2015:4-2017:5
+    Source: 'src/sumcheck.rs', lines 1987:4-1989:5
     Visibility: public -/
 def sumcheck.RoundStatement.impl.challenges
   (self : sumcheck.RoundStatement) :
@@ -1785,7 +1785,7 @@ def zerocheck.eq_weight_table
   zerocheck.eq_weight_table_loop tau1 n vars out 0#usize
 
 /-- [hachi::sumcheck::cube_size]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 606:4-609:5 -/
+    Source: 'src/sumcheck.rs', lines 577:4-580:5 -/
 @[rust_loop_body]
 def sumcheck.cube_size_loop.body
   (vars : Std.Usize) (sz : Std.Usize) (k : Std.Usize) :
@@ -1798,7 +1798,7 @@ def sumcheck.cube_size_loop.body
   else ok (done sz)
 
 /-- [hachi::sumcheck::cube_size]: loop 0:
-    Source: 'src/sumcheck.rs', lines 606:4-609:5 -/
+    Source: 'src/sumcheck.rs', lines 577:4-580:5 -/
 @[rust_loop]
 def sumcheck.cube_size_loop
   (vars : Std.Usize) (sz : Std.Usize) (k : Std.Usize) : Result Std.Usize := do
@@ -1807,13 +1807,13 @@ def sumcheck.cube_size_loop
     (sz, k)
 
 /-- [hachi::sumcheck::cube_size]:
-    Source: 'src/sumcheck.rs', lines 603:0-611:1 -/
+    Source: 'src/sumcheck.rs', lines 574:0-582:1 -/
 @[reducible]
 def sumcheck.cube_size (vars : Std.Usize) : Result Std.Usize := do
   sumcheck.cube_size_loop vars 1#usize 0#usize
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1351:4-1354:5
+    Source: 'src/sumcheck.rs', lines 1323:4-1326:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_mle_eval_loop0.body
@@ -1830,7 +1830,7 @@ def sumcheck.alpha_public_mle_eval_loop0.body
   else ok (done (k, sz))
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1351:4-1354:5
+    Source: 'src/sumcheck.rs', lines 1323:4-1326:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_mle_eval_loop0
@@ -1843,7 +1843,7 @@ def sumcheck.alpha_public_mle_eval_loop0
     (k, sz)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1357:4-1360:5
+    Source: 'src/sumcheck.rs', lines 1329:4-1332:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_mle_eval_loop1.body
@@ -1864,7 +1864,7 @@ def sumcheck.alpha_public_mle_eval_loop1.body
   else ok (done low)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1357:4-1360:5
+    Source: 'src/sumcheck.rs', lines 1329:4-1332:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_mle_eval_loop1
@@ -1877,7 +1877,7 @@ def sumcheck.alpha_public_mle_eval_loop1
     (low, j)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop body 3:
-    Source: 'src/sumcheck.rs', lines 1369:8-1374:9
+    Source: 'src/sumcheck.rs', lines 1341:8-1346:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_mle_eval_loop2_loop0.body
@@ -1909,7 +1909,7 @@ def sumcheck.alpha_public_mle_eval_loop2_loop0.body
   else ok (done sum)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop 3:
-    Source: 'src/sumcheck.rs', lines 1369:8-1374:9
+    Source: 'src/sumcheck.rs', lines 1341:8-1346:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_mle_eval_loop2_loop0
@@ -1924,7 +1924,7 @@ def sumcheck.alpha_public_mle_eval_loop2_loop0
     (sum, i)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop body 2:
-    Source: 'src/sumcheck.rs', lines 1366:4-1377:5
+    Source: 'src/sumcheck.rs', lines 1338:4-1349:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_mle_eval_loop2.body
@@ -1946,7 +1946,7 @@ def sumcheck.alpha_public_mle_eval_loop2.body
   else ok (done high)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop 2:
-    Source: 'src/sumcheck.rs', lines 1366:4-1377:5
+    Source: 'src/sumcheck.rs', lines 1338:4-1349:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_mle_eval_loop2
@@ -1962,7 +1962,7 @@ def sumcheck.alpha_public_mle_eval_loop2
     (high, u)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop body 4:
-    Source: 'src/sumcheck.rs', lines 1379:4-1382:5
+    Source: 'src/sumcheck.rs', lines 1351:4-1354:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_mle_eval_loop3.body
@@ -1983,7 +1983,7 @@ def sumcheck.alpha_public_mle_eval_loop3.body
   else ok (done high)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]: loop 4:
-    Source: 'src/sumcheck.rs', lines 1379:4-1382:5
+    Source: 'src/sumcheck.rs', lines 1351:4-1354:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_mle_eval_loop3
@@ -1997,7 +1997,7 @@ def sumcheck.alpha_public_mle_eval_loop3
     (high, j2)
 
 /-- [hachi::sumcheck::alpha_public_mle_eval]:
-    Source: 'src/sumcheck.rs', lines 1339:0-1384:1
+    Source: 'src/sumcheck.rs', lines 1311:0-1356:1
     Visibility: public -/
 def sumcheck.alpha_public_mle_eval
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -2032,7 +2032,7 @@ def sumcheck.alpha_public_mle_eval
   cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul e e1
 
 /-- [hachi::sumcheck::eq_prefix]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 632:4-637:5
+    Source: 'src/sumcheck.rs', lines 603:4-608:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.eq_prefix_loop.body
@@ -2062,7 +2062,7 @@ def sumcheck.eq_prefix_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::eq_prefix]: loop 0:
-    Source: 'src/sumcheck.rs', lines 632:4-637:5
+    Source: 'src/sumcheck.rs', lines 603:4-608:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.eq_prefix_loop
@@ -2076,7 +2076,7 @@ def sumcheck.eq_prefix_loop
     (acc, k)
 
 /-- [hachi::sumcheck::eq_prefix]:
-    Source: 'src/sumcheck.rs', lines 628:0-639:1
+    Source: 'src/sumcheck.rs', lines 599:0-610:1
     Visibility: public -/
 def sumcheck.eq_prefix
   (tau0 : alloc.vec.Vec cpoly.field.Ext4)
@@ -2094,7 +2094,7 @@ def ringswitch.RlinStatement.impl.bound
   ok self.bound
 
 /-- [hachi::sumcheck::final_check]:
-    Source: 'src/sumcheck.rs', lines 2222:0-2229:1
+    Source: 'src/sumcheck.rs', lines 2194:0-2201:1
     Visibility: public -/
 def sumcheck.final_check
   (stmt : sumcheck.RoundStatement) (y_prime : cpoly.field.Ext4)
@@ -2125,7 +2125,7 @@ def sumcheck.final_check
   else ok false
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::new]:
-    Source: 'src/sumcheck.rs', lines 1904:4-1918:5
+    Source: 'src/sumcheck.rs', lines 1876:4-1890:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.new
   (rlin : ringswitch.RlinStatement) (t : linalg.PolyVec)
@@ -2370,7 +2370,7 @@ def linalg.PolyVec.new
   ok entries
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 3:
-    Source: 'src/quadeval.rs', lines 1389:16-1397:17
+    Source: 'src/quadeval.rs', lines 1365:16-1373:17
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0.body
@@ -2395,7 +2395,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 3:
-    Source: 'src/quadeval.rs', lines 1389:16-1397:17
+    Source: 'src/quadeval.rs', lines 1365:16-1373:17
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0
@@ -2410,7 +2410,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0_loop0
     (row, f)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1387:12-1399:13
+    Source: 'src/quadeval.rs', lines 1363:12-1375:13
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0.body
@@ -2429,7 +2429,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 2:
-    Source: 'src/quadeval.rs', lines 1387:12-1399:13
+    Source: 'src/quadeval.rs', lines 1363:12-1375:13
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0_loop0
@@ -2443,7 +2443,7 @@ def quadeval.tensor_g_matrix_loop0_loop0_loop0
     (row, e)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1385:8-1401:9
+    Source: 'src/quadeval.rs', lines 1361:8-1377:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0_loop0.body
@@ -2462,7 +2462,7 @@ def quadeval.tensor_g_matrix_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 1:
-    Source: 'src/quadeval.rs', lines 1385:8-1401:9
+    Source: 'src/quadeval.rs', lines 1361:8-1377:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0_loop0
@@ -2477,7 +2477,7 @@ def quadeval.tensor_g_matrix_loop0_loop0
     (row, i)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1382:4-1404:5
+    Source: 'src/quadeval.rs', lines 1358:4-1380:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.tensor_g_matrix_loop0.body
@@ -2498,7 +2498,7 @@ def quadeval.tensor_g_matrix_loop0.body
   else ok (done rows)
 
 /-- [hachi::quadeval::tensor_g_matrix]: loop 0:
-    Source: 'src/quadeval.rs', lines 1382:4-1404:5
+    Source: 'src/quadeval.rs', lines 1358:4-1380:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.tensor_g_matrix_loop0
@@ -2512,7 +2512,7 @@ def quadeval.tensor_g_matrix_loop0
     (rows, p)
 
 /-- [hachi::quadeval::tensor_g_matrix]:
-    Source: 'src/quadeval.rs', lines 1378:0-1406:1
+    Source: 'src/quadeval.rs', lines 1354:0-1382:1
     Visibility: public -/
 def quadeval.tensor_g_matrix
   (k : Std.Usize) (digits : Std.Usize) (c : linalg.PolyVec) :
@@ -2525,7 +2525,7 @@ def quadeval.tensor_g_matrix
   linalg.PolyMatrix.new rows
 
 /-- [hachi::quadeval::rlin_cz]:
-    Source: 'src/quadeval.rs', lines 1303:0-1305:1
+    Source: 'src/quadeval.rs', lines 1279:0-1281:1
     Visibility: public -/
 def quadeval.rlin_cz
   (message_rows : Std.Usize) (message_digits : Std.Usize)
@@ -2536,7 +2536,7 @@ def quadeval.rlin_cz
   i * z_digits
 
 /-- [hachi::quadeval::rlin_ct]:
-    Source: 'src/quadeval.rs', lines 1295:0-1297:1
+    Source: 'src/quadeval.rs', lines 1271:0-1273:1
     Visibility: public -/
 def quadeval.rlin_ct
   (blocks : Std.Usize) (inner_rows : Std.Usize) (inner_digits : Std.Usize) :
@@ -2546,7 +2546,7 @@ def quadeval.rlin_ct
   blocks * i
 
 /-- [hachi::quadeval::rlin_cw]:
-    Source: 'src/quadeval.rs', lines 1287:0-1289:1
+    Source: 'src/quadeval.rs', lines 1263:0-1265:1
     Visibility: public -/
 def quadeval.rlin_cw
   (blocks : Std.Usize) (message_digits : Std.Usize) : Result Std.Usize := do
@@ -2709,7 +2709,7 @@ def commit.PublicParams.impl.inner_matrix
   ok self.inner_matrix
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1694:8-1697:9
+    Source: 'src/quadeval.rs', lines 1670:8-1673:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop0_loop0.body
@@ -2730,7 +2730,7 @@ def quadeval.rlin_stmt_loop0_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 1:
-    Source: 'src/quadeval.rs', lines 1694:8-1697:9
+    Source: 'src/quadeval.rs', lines 1670:8-1673:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop0_loop0
@@ -2743,7 +2743,7 @@ def quadeval.rlin_stmt_loop0_loop0
     (row, k)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1691:4-1700:5
+    Source: 'src/quadeval.rs', lines 1667:4-1676:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop0.body
@@ -2764,7 +2764,7 @@ def quadeval.rlin_stmt_loop0.body
   else ok (done drows)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 0:
-    Source: 'src/quadeval.rs', lines 1691:4-1700:5
+    Source: 'src/quadeval.rs', lines 1667:4-1676:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop0
@@ -2778,7 +2778,7 @@ def quadeval.rlin_stmt_loop0
     (drows, di)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 3:
-    Source: 'src/quadeval.rs', lines 1708:8-1711:9
+    Source: 'src/quadeval.rs', lines 1684:8-1687:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1_loop0.body
@@ -2800,7 +2800,7 @@ def quadeval.rlin_stmt_loop1_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 3:
-    Source: 'src/quadeval.rs', lines 1708:8-1711:9
+    Source: 'src/quadeval.rs', lines 1684:8-1687:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1_loop0
@@ -2813,7 +2813,7 @@ def quadeval.rlin_stmt_loop1_loop0
     (row, k)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1705:4-1714:5
+    Source: 'src/quadeval.rs', lines 1681:4-1690:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop1.body
@@ -2834,7 +2834,7 @@ def quadeval.rlin_stmt_loop1.body
   else ok (done brows)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 2:
-    Source: 'src/quadeval.rs', lines 1705:4-1714:5
+    Source: 'src/quadeval.rs', lines 1681:4-1690:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop1
@@ -2848,7 +2848,7 @@ def quadeval.rlin_stmt_loop1
     (brows, bi)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 4:
-    Source: 'src/quadeval.rs', lines 1719:4-1722:5
+    Source: 'src/quadeval.rs', lines 1695:4-1698:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop2.body
@@ -2867,7 +2867,7 @@ def quadeval.rlin_stmt_loop2.body
   else ok (done njga)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 4:
-    Source: 'src/quadeval.rs', lines 1719:4-1722:5
+    Source: 'src/quadeval.rs', lines 1695:4-1698:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop2
@@ -2880,7 +2880,7 @@ def quadeval.rlin_stmt_loop2
     (njga, k4z)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 6:
-    Source: 'src/quadeval.rs', lines 1731:8-1734:9
+    Source: 'src/quadeval.rs', lines 1707:8-1710:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop3_loop0.body
@@ -2899,7 +2899,7 @@ def quadeval.rlin_stmt_loop3_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 6:
-    Source: 'src/quadeval.rs', lines 1731:8-1734:9
+    Source: 'src/quadeval.rs', lines 1707:8-1710:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop3_loop0
@@ -2912,7 +2912,7 @@ def quadeval.rlin_stmt_loop3_loop0
     (row, kz)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 5:
-    Source: 'src/quadeval.rs', lines 1726:4-1737:5
+    Source: 'src/quadeval.rs', lines 1702:4-1713:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop3.body
@@ -2937,7 +2937,7 @@ def quadeval.rlin_stmt_loop3.body
   else ok (done ajrows)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 5:
-    Source: 'src/quadeval.rs', lines 1726:4-1737:5
+    Source: 'src/quadeval.rs', lines 1702:4-1713:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop3
@@ -2952,7 +2952,7 @@ def quadeval.rlin_stmt_loop3
     (ajrows, p)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 7:
-    Source: 'src/quadeval.rs', lines 1755:4-1758:5
+    Source: 'src/quadeval.rs', lines 1731:4-1734:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop4.body
@@ -2971,7 +2971,7 @@ def quadeval.rlin_stmt_loop4.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 7:
-    Source: 'src/quadeval.rs', lines 1755:4-1758:5
+    Source: 'src/quadeval.rs', lines 1731:4-1734:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop4
@@ -2983,7 +2983,7 @@ def quadeval.rlin_stmt_loop4
     (y, a)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 8:
-    Source: 'src/quadeval.rs', lines 1760:4-1763:5
+    Source: 'src/quadeval.rs', lines 1736:4-1739:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop5.body
@@ -3004,7 +3004,7 @@ def quadeval.rlin_stmt_loop5.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 8:
-    Source: 'src/quadeval.rs', lines 1760:4-1763:5
+    Source: 'src/quadeval.rs', lines 1736:4-1739:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop5
@@ -3017,7 +3017,7 @@ def quadeval.rlin_stmt_loop5
     (y, b)
 
 /-- [hachi::quadeval::rlin_stmt]: loop body 9:
-    Source: 'src/quadeval.rs', lines 1767:4-1770:5
+    Source: 'src/quadeval.rs', lines 1743:4-1746:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_stmt_loop6.body
@@ -3034,7 +3034,7 @@ def quadeval.rlin_stmt_loop6.body
   else ok (done y)
 
 /-- [hachi::quadeval::rlin_stmt]: loop 9:
-    Source: 'src/quadeval.rs', lines 1767:4-1770:5
+    Source: 'src/quadeval.rs', lines 1743:4-1746:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_stmt_loop6
@@ -3047,7 +3047,7 @@ def quadeval.rlin_stmt_loop6
     (y, e)
 
 /-- [hachi::quadeval::rlin_stmt]:
-    Source: 'src/quadeval.rs', lines 1656:0-1773:1
+    Source: 'src/quadeval.rs', lines 1632:0-1749:1
     Visibility: public -/
 def quadeval.rlin_stmt
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -3101,7 +3101,7 @@ def quadeval.rlin_stmt
   ringswitch.RlinStatement.new_lazy blocks1 pv3 gamma
 
 /-- [hachi::quadeval::PolyEvalStatement]
-    Source: 'src/quadeval.rs', lines 1207:0-1212:1
+    Source: 'src/quadeval.rs', lines 1183:0-1188:1
     Visibility: public -/
 structure quadeval.PolyEvalStatement where
   u : linalg.PolyVec
@@ -3110,28 +3110,28 @@ structure quadeval.PolyEvalStatement where
   y : ring.Rq
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::y]:
-    Source: 'src/quadeval.rs', lines 1236:4-1238:5
+    Source: 'src/quadeval.rs', lines 1212:4-1214:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.y
   (self : quadeval.PolyEvalStatement) : Result ring.Rq := do
   ok self.y
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::xh]:
-    Source: 'src/quadeval.rs', lines 1231:4-1233:5
+    Source: 'src/quadeval.rs', lines 1207:4-1209:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.xh
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
   ok self.xh
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::xl]:
-    Source: 'src/quadeval.rs', lines 1226:4-1228:5
+    Source: 'src/quadeval.rs', lines 1202:4-1204:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.xl
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
   ok self.xl
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::u]:
-    Source: 'src/quadeval.rs', lines 1221:4-1223:5
+    Source: 'src/quadeval.rs', lines 1197:4-1199:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.impl.u
   (self : quadeval.PolyEvalStatement) : Result linalg.PolyVec := do
@@ -3287,7 +3287,7 @@ def ntt.GARNER_P12 : Std.U64 := 468937312667959297#u64
 @[global_simps, irreducible] def ntt.AUX_P1 : Std.U64 := 469762049#u64
 
 /-- [hachi::ntt::garner]:
-    Source: 'src/ntt.rs', lines 970:0-977:1
+    Source: 'src/ntt.rs', lines 945:0-952:1
     Visibility: public -/
 def ntt.garner
   (r1 : Std.U64) (r2 : Std.U64) (r3 : Std.U64) : Result Std.U128 := do
@@ -3313,7 +3313,7 @@ def ntt.garner
 @[global_simps, irreducible] def ntt.NTT_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::ntt::untwist]: loop body 0:
-    Source: 'src/ntt.rs', lines 897:4-902:5
+    Source: 'src/ntt.rs', lines 872:4-877:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.untwist_loop.body
@@ -3338,7 +3338,7 @@ def ntt.untwist_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::untwist]: loop 0:
-    Source: 'src/ntt.rs', lines 897:4-902:5
+    Source: 'src/ntt.rs', lines 872:4-877:5
     Visibility: public -/
 @[rust_loop]
 def ntt.untwist_loop
@@ -3352,7 +3352,7 @@ def ntt.untwist_loop
     (out, t)
 
 /-- [hachi::ntt::untwist]:
-    Source: 'src/ntt.rs', lines 893:0-904:1
+    Source: 'src/ntt.rs', lines 868:0-879:1
     Visibility: public -/
 def ntt.untwist
   (src : alloc.vec.Vec Std.U64) (it : alloc.vec.Vec Std.U64) (ninv : Std.U64)
@@ -3363,7 +3363,7 @@ def ntt.untwist
   ntt.untwist_loop src it ninv boff p m ntt.NTT_LEN out 0#usize
 
 /-- [hachi::ntt::pointwise]: loop body 0:
-    Source: 'src/ntt.rs', lines 878:4-881:5
+    Source: 'src/ntt.rs', lines 853:4-856:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.pointwise_loop.body
@@ -3388,7 +3388,7 @@ def ntt.pointwise_loop.body
   else ok (done a)
 
 /-- [hachi::ntt::pointwise]: loop 0:
-    Source: 'src/ntt.rs', lines 878:4-881:5
+    Source: 'src/ntt.rs', lines 853:4-856:5
     Visibility: public -/
 @[rust_loop]
 def ntt.pointwise_loop
@@ -3401,7 +3401,7 @@ def ntt.pointwise_loop
     (a, i)
 
 /-- [hachi::ntt::pointwise]:
-    Source: 'src/ntt.rs', lines 875:0-883:1
+    Source: 'src/ntt.rs', lines 850:0-858:1
     Visibility: public -/
 @[reducible]
 def ntt.pointwise
@@ -3909,7 +3909,7 @@ def ntt.zeros (n : Std.Usize) : Result (alloc.vec.Vec Std.U64) := do
   ntt.zeros_loop n out 0#usize
 
 /-- [hachi::ntt::negconv_mod_p]:
-    Source: 'src/ntt.rs', lines 908:0-928:1
+    Source: 'src/ntt.rs', lines 883:0-903:1
     Visibility: public -/
 def ntt.negconv_mod_p
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) (p : Std.U64)
@@ -3995,7 +3995,7 @@ def ntt.negconv_mod_p
 @[global_simps, irreducible] def ntt.AUX_M1 : Std.U64 := 39268272336#u64
 
 /-- [hachi::ntt::negconv_mod_q]: loop body 0:
-    Source: 'src/ntt.rs', lines 996:4-999:5
+    Source: 'src/ntt.rs', lines 971:4-974:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.negconv_mod_q_loop.body
@@ -4022,7 +4022,7 @@ def ntt.negconv_mod_q_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::negconv_mod_q]: loop 0:
-    Source: 'src/ntt.rs', lines 996:4-999:5
+    Source: 'src/ntt.rs', lines 971:4-974:5
     Visibility: public -/
 @[rust_loop]
 def ntt.negconv_mod_q_loop
@@ -4036,7 +4036,7 @@ def ntt.negconv_mod_q_loop
     (out, t)
 
 /-- [hachi::ntt::negconv_mod_q]:
-    Source: 'src/ntt.rs', lines 988:0-1001:1
+    Source: 'src/ntt.rs', lines 963:0-976:1
     Visibility: public -/
 def ntt.negconv_mod_q
   (a : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec Std.U64) :
@@ -4217,7 +4217,7 @@ def ring.Rq.one : Result ring.Rq := do
   ring.Rq.constant cpoly.field.Fp.ONE
 
 /-- [hachi::evalsplit::monomial_basis]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 169:8-173:9
+    Source: 'src/evalsplit.rs', lines 127:8-131:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.monomial_basis_loop0_loop0.body
@@ -4237,7 +4237,7 @@ def evalsplit.monomial_basis_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::monomial_basis]: loop 1:
-    Source: 'src/evalsplit.rs', lines 169:8-173:9
+    Source: 'src/evalsplit.rs', lines 127:8-131:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.monomial_basis_loop0_loop0
@@ -4251,7 +4251,7 @@ def evalsplit.monomial_basis_loop0_loop0
     (out, i)
 
 /-- [hachi::evalsplit::monomial_basis]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 165:4-175:5
+    Source: 'src/evalsplit.rs', lines 123:4-133:5
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.monomial_basis_loop0.body
@@ -4270,7 +4270,7 @@ def evalsplit.monomial_basis_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::monomial_basis]: loop 0:
-    Source: 'src/evalsplit.rs', lines 165:4-175:5
+    Source: 'src/evalsplit.rs', lines 123:4-133:5
     Visibility: public -/
 @[rust_loop]
 def evalsplit.monomial_basis_loop0
@@ -4283,7 +4283,7 @@ def evalsplit.monomial_basis_loop0
     (out, j)
 
 /-- [hachi::evalsplit::monomial_basis]:
-    Source: 'src/evalsplit.rs', lines 160:0-177:1
+    Source: 'src/evalsplit.rs', lines 118:0-135:1
     Visibility: public -/
 def evalsplit.monomial_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← linalg.PolyVec.len w
@@ -4293,7 +4293,7 @@ def evalsplit.monomial_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   linalg.PolyVec.new out1
 
 /-- [hachi::quadeval::to_quad_eval_statement]:
-    Source: 'src/quadeval.rs', lines 1261:0-1265:1
+    Source: 'src/quadeval.rs', lines 1237:0-1241:1
     Visibility: public -/
 def quadeval.to_quad_eval_statement
   (s : quadeval.PolyEvalStatement) : Result quadeval.QuadEvalStatement := do
@@ -4885,7 +4885,7 @@ def ring.load_twisted_into
 def ntt.GOLD_NINV : Std.U64 := 18428729670909296641#u64
 
 /-- [hachi::ntt::gold_untwist_off]: loop body 0:
-    Source: 'src/ntt.rs', lines 865:4-870:5
+    Source: 'src/ntt.rs', lines 840:4-845:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_untwist_off_loop.body
@@ -4909,7 +4909,7 @@ def ntt.gold_untwist_off_loop.body
   else ok (done out)
 
 /-- [hachi::ntt::gold_untwist_off]: loop 0:
-    Source: 'src/ntt.rs', lines 865:4-870:5
+    Source: 'src/ntt.rs', lines 840:4-845:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_untwist_off_loop
@@ -4922,7 +4922,7 @@ def ntt.gold_untwist_off_loop
     (out, t)
 
 /-- [hachi::ntt::gold_untwist_off]:
-    Source: 'src/ntt.rs', lines 861:0-872:1
+    Source: 'src/ntt.rs', lines 836:0-847:1
     Visibility: public -/
 def ntt.gold_untwist_off
   (src : alloc.vec.Vec Std.U64) (it : alloc.vec.Vec Std.U64) (off : Std.U64) :
@@ -4932,12 +4932,12 @@ def ntt.gold_untwist_off
   ntt.gold_untwist_off_loop src it off ntt.NTT_LEN out 0#usize
 
 /-- [hachi::ntt::GOLD_SOFF]
-    Source: 'src/ntt.rs', lines 844:0-844:46
+    Source: 'src/ntt.rs', lines 819:0-819:46
     Visibility: public -/
 @[global_simps, irreducible] def ntt.GOLD_SOFF : Std.U64 := 65970696145920#u64
 
 /-- [hachi::ntt::gold_dit_stage]: loop body 1:
-    Source: 'src/ntt.rs', lines 601:8-608:9
+    Source: 'src/ntt.rs', lines 576:8-583:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dit_stage_loop0_loop0.body
@@ -4977,7 +4977,7 @@ def ntt.gold_dit_stage_loop0_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dit_stage]: loop 1:
-    Source: 'src/ntt.rs', lines 601:8-608:9
+    Source: 'src/ntt.rs', lines 576:8-583:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dit_stage_loop0_loop0
@@ -4992,7 +4992,7 @@ def ntt.gold_dit_stage_loop0_loop0
     (dst, j, e)
 
 /-- [hachi::ntt::gold_dit_stage]: loop body 0:
-    Source: 'src/ntt.rs', lines 598:4-610:5
+    Source: 'src/ntt.rs', lines 573:4-585:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dit_stage_loop0.body
@@ -5011,7 +5011,7 @@ def ntt.gold_dit_stage_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dit_stage]: loop 0:
-    Source: 'src/ntt.rs', lines 598:4-610:5
+    Source: 'src/ntt.rs', lines 573:4-585:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dit_stage_loop0
@@ -5026,7 +5026,7 @@ def ntt.gold_dit_stage_loop0
     (dst, start)
 
 /-- [hachi::ntt::gold_dit_stage]:
-    Source: 'src/ntt.rs', lines 593:0-612:1
+    Source: 'src/ntt.rs', lines 568:0-587:1
     Visibility: public -/
 def ntt.gold_dit_stage
   (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -5039,7 +5039,7 @@ def ntt.gold_dit_stage
   ntt.gold_dit_stage_loop0 src dst len tw ntt.NTT_LEN half step 0#usize
 
 /-- [hachi::ntt::gold_inverse]: loop body 0:
-    Source: 'src/ntt.rs', lines 790:4-795:5
+    Source: 'src/ntt.rs', lines 765:4-770:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_inverse_loop.body
@@ -5056,7 +5056,7 @@ def ntt.gold_inverse_loop.body
   else ok (done (cur, tmp))
 
 /-- [hachi::ntt::gold_inverse]: loop 0:
-    Source: 'src/ntt.rs', lines 790:4-795:5
+    Source: 'src/ntt.rs', lines 765:4-770:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_inverse_loop
@@ -5069,7 +5069,7 @@ def ntt.gold_inverse_loop
     (cur, tmp, len)
 
 /-- [hachi::ntt::gold_inverse]:
-    Source: 'src/ntt.rs', lines 786:0-797:1
+    Source: 'src/ntt.rs', lines 761:0-772:1
     Visibility: public -/
 @[reducible]
 def ntt.gold_inverse
@@ -5080,7 +5080,7 @@ def ntt.gold_inverse
   ntt.gold_inverse_loop tw cur0 tmp0 2#usize
 
 /-- [hachi::ntt::gold_dif_stage2]: loop body 1:
-    Source: 'src/ntt.rs', lines 646:8-664:9
+    Source: 'src/ntt.rs', lines 621:8-639:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_loop0_loop0.body
@@ -5160,7 +5160,7 @@ def ntt.gold_dif_stage2_loop0_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop 1:
-    Source: 'src/ntt.rs', lines 646:8-664:9
+    Source: 'src/ntt.rs', lines 621:8-639:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_loop0_loop0
@@ -5175,7 +5175,7 @@ def ntt.gold_dif_stage2_loop0_loop0
     (dst, j)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop body 0:
-    Source: 'src/ntt.rs', lines 644:4-666:5
+    Source: 'src/ntt.rs', lines 619:4-641:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_loop0.body
@@ -5195,7 +5195,7 @@ def ntt.gold_dif_stage2_loop0.body
   else ok (done dst)
 
 /-- [hachi::ntt::gold_dif_stage2]: loop 0:
-    Source: 'src/ntt.rs', lines 644:4-666:5
+    Source: 'src/ntt.rs', lines 619:4-641:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_loop0
@@ -5211,7 +5211,7 @@ def ntt.gold_dif_stage2_loop0
     (dst, start)
 
 /-- [hachi::ntt::gold_dif_stage2]:
-    Source: 'src/ntt.rs', lines 637:0-668:1
+    Source: 'src/ntt.rs', lines 612:0-643:1
     Visibility: public -/
 def ntt.gold_dif_stage2
   (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -5227,7 +5227,7 @@ def ntt.gold_dif_stage2
     0#usize
 
 /-- [hachi::ntt::gold_forward]: loop body 0:
-    Source: 'src/ntt.rs', lines 776:4-781:5
+    Source: 'src/ntt.rs', lines 751:4-756:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_forward_loop.body
@@ -5244,7 +5244,7 @@ def ntt.gold_forward_loop.body
   else ok (done (cur, tmp))
 
 /-- [hachi::ntt::gold_forward]: loop 0:
-    Source: 'src/ntt.rs', lines 776:4-781:5
+    Source: 'src/ntt.rs', lines 751:4-756:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_forward_loop
@@ -5257,7 +5257,7 @@ def ntt.gold_forward_loop
     (cur, tmp, len)
 
 /-- [hachi::ntt::gold_forward]:
-    Source: 'src/ntt.rs', lines 772:0-783:1
+    Source: 'src/ntt.rs', lines 747:0-758:1
     Visibility: public -/
 @[reducible]
 def ntt.gold_forward
@@ -6348,7 +6348,7 @@ def zerocheck.c_w_table_fp
   zerocheck.c_w_table_fp_loop0 w size params.RING_DEGREE values 0#usize 0#usize
 
 /-- [hachi::sumcheck::poly_mul]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1872:8-1877:9
+    Source: 'src/sumcheck.rs', lines 1844:8-1849:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.poly_mul_loop0_loop0.body
@@ -6381,7 +6381,7 @@ def sumcheck.poly_mul_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::sumcheck::poly_mul]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1872:8-1877:9
+    Source: 'src/sumcheck.rs', lines 1844:8-1849:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.poly_mul_loop0_loop0
@@ -6395,7 +6395,7 @@ def sumcheck.poly_mul_loop0_loop0
     (out, j)
 
 /-- [hachi::sumcheck::poly_mul]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1870:4-1879:5
+    Source: 'src/sumcheck.rs', lines 1842:4-1851:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.poly_mul_loop0.body
@@ -6413,7 +6413,7 @@ def sumcheck.poly_mul_loop0.body
   else ok (done out)
 
 /-- [hachi::sumcheck::poly_mul]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1870:4-1879:5
+    Source: 'src/sumcheck.rs', lines 1842:4-1851:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.poly_mul_loop0
@@ -6427,7 +6427,7 @@ def sumcheck.poly_mul_loop0
     (out, i)
 
 /-- [hachi::sumcheck::poly_mul]:
-    Source: 'src/sumcheck.rs', lines 1862:0-1881:1
+    Source: 'src/sumcheck.rs', lines 1834:0-1853:1
     Visibility: public -/
 def sumcheck.poly_mul
   (a : cpoly.univariate.UnivariatePoly) (b : cpoly.univariate.UnivariatePoly) :
@@ -6451,7 +6451,7 @@ def sumcheck.poly_mul
       cpoly.univariate.UnivariatePoly.trim up
 
 /-- [hachi::sumcheck::round_poly_alpha_split_pairs]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1656:4-1666:5
+    Source: 'src/sumcheck.rs', lines 1628:4-1638:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_alpha_split_pairs_loop.body
@@ -6514,7 +6514,7 @@ def sumcheck.round_poly_alpha_split_pairs_loop.body
   else ok (done (c0, c1, c2))
 
 /-- [hachi::sumcheck::round_poly_alpha_split_pairs]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1656:4-1666:5
+    Source: 'src/sumcheck.rs', lines 1628:4-1638:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_alpha_split_pairs_loop
@@ -6530,7 +6530,7 @@ def sumcheck.round_poly_alpha_split_pairs_loop
     (c0, c1, c2, y)
 
 /-- [hachi::sumcheck::round_poly_alpha_split_pairs]:
-    Source: 'src/sumcheck.rs', lines 1645:0-1672:1
+    Source: 'src/sumcheck.rs', lines 1617:0-1644:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_split_pairs
   (w : alloc.vec.Vec cpoly.field.Ext4) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -6550,7 +6550,7 @@ def sumcheck.round_poly_alpha_split_pairs
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::alpha_block_sums]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1574:4-1588:5
+    Source: 'src/sumcheck.rs', lines 1546:4-1560:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_block_sums_loop.body
@@ -6591,7 +6591,7 @@ def sumcheck.alpha_block_sums_loop.body
   else ok (done (s0, s1, s2))
 
 /-- [hachi::sumcheck::alpha_block_sums]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1574:4-1588:5
+    Source: 'src/sumcheck.rs', lines 1546:4-1560:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_block_sums_loop
@@ -6606,7 +6606,7 @@ def sumcheck.alpha_block_sums_loop
     (s0, s1, s2, t)
 
 /-- [hachi::sumcheck::alpha_block_sums]:
-    Source: 'src/sumcheck.rs', lines 1564:0-1590:1
+    Source: 'src/sumcheck.rs', lines 1536:0-1562:1
     Visibility: public -/
 @[reducible]
 def sumcheck.alpha_block_sums
@@ -6618,7 +6618,7 @@ def sumcheck.alpha_block_sums
     cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_poly_alpha_split_blocks]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1622:4-1632:5
+    Source: 'src/sumcheck.rs', lines 1594:4-1604:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_alpha_split_blocks_loop.body
@@ -6656,7 +6656,7 @@ def sumcheck.round_poly_alpha_split_blocks_loop.body
   else ok (done (c0, c1, c2))
 
 /-- [hachi::sumcheck::round_poly_alpha_split_blocks]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1622:4-1632:5
+    Source: 'src/sumcheck.rs', lines 1594:4-1604:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_alpha_split_blocks_loop
@@ -6673,7 +6673,7 @@ def sumcheck.round_poly_alpha_split_blocks_loop
     (c0, c1, c2, y0, b)
 
 /-- [hachi::sumcheck::round_poly_alpha_split_blocks]:
-    Source: 'src/sumcheck.rs', lines 1610:0-1638:1
+    Source: 'src/sumcheck.rs', lines 1582:0-1610:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_split_blocks
   (w : alloc.vec.Vec cpoly.field.Ext4) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -6695,7 +6695,7 @@ def sumcheck.round_poly_alpha_split_blocks
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::round_poly_alpha]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 783:4-791:5
+    Source: 'src/sumcheck.rs', lines 754:4-762:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_alpha_loop.body
@@ -6751,7 +6751,7 @@ def sumcheck.round_poly_alpha_loop.body
   else ok (done (c0, c1, c2))
 
 /-- [hachi::sumcheck::round_poly_alpha]: loop 0:
-    Source: 'src/sumcheck.rs', lines 783:4-791:5
+    Source: 'src/sumcheck.rs', lines 754:4-762:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_alpha_loop
@@ -6766,7 +6766,7 @@ def sumcheck.round_poly_alpha_loop
     (c0, c1, c2, y)
 
 /-- [hachi::sumcheck::round_poly_alpha]:
-    Source: 'src/sumcheck.rs', lines 777:0-797:1
+    Source: 'src/sumcheck.rs', lines 748:0-768:1
     Visibility: public -/
 def sumcheck.round_poly_alpha
   (w : alloc.vec.Vec cpoly.field.Ext4) (a_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -6785,7 +6785,7 @@ def sumcheck.round_poly_alpha
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::round_poly_alpha_split]:
-    Source: 'src/sumcheck.rs', lines 1538:0-1548:1
+    Source: 'src/sumcheck.rs', lines 1510:0-1520:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_split
   (w : alloc.vec.Vec cpoly.field.Ext4) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -6810,7 +6810,7 @@ def sumcheck.round_poly_alpha_split
       else sumcheck.round_poly_alpha_split_blocks w low high
 
 /-- [hachi::sumcheck::eval_mle_layer_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1247:4-1252:5
+    Source: 'src/sumcheck.rs', lines 1219:4-1224:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.eval_mle_layer_base_loop.body
@@ -6839,7 +6839,7 @@ def sumcheck.eval_mle_layer_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::eval_mle_layer_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1247:4-1252:5
+    Source: 'src/sumcheck.rs', lines 1219:4-1224:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.eval_mle_layer_base_loop
@@ -6854,7 +6854,7 @@ def sumcheck.eval_mle_layer_base_loop
     (out, j)
 
 /-- [hachi::sumcheck::eval_mle_layer_base]:
-    Source: 'src/sumcheck.rs', lines 1242:0-1254:1
+    Source: 'src/sumcheck.rs', lines 1214:0-1226:1
     Visibility: public -/
 def sumcheck.eval_mle_layer_base
   (values : alloc.vec.Vec cpoly.field.Fp) (x0 : cpoly.field.Ext4) :
@@ -6868,25 +6868,25 @@ def sumcheck.eval_mle_layer_base
   sumcheck.eval_mle_layer_base_loop values x0 half one_minus out 0#usize
 
 /-- [hachi::sumcheck::BUCKET_MIN_PAIRS1]
-    Source: 'src/sumcheck.rs', lines 1042:0-1042:47
+    Source: 'src/sumcheck.rs', lines 1013:0-1013:47
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.BUCKET_MIN_PAIRS1 : Std.Usize := 2097152#usize
 
 /-- [hachi::sumcheck::QUAD_TYPES]
-    Source: 'src/sumcheck.rs', lines 1037:0-1037:38
+    Source: 'src/sumcheck.rs', lines 1008:0-1008:38
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.QUAD_TYPES : Std.Usize := 524288#usize
 
 /-- [hachi::sumcheck::DIGIT_ALPHABET]
-    Source: 'src/sumcheck.rs', lines 895:0-895:37
+    Source: 'src/sumcheck.rs', lines 866:0-866:37
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.DIGIT_ALPHABET : Std.Usize := 24#usize
 
 /-- [hachi::sumcheck::quad_type_table_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1099:4-1111:5
+    Source: 'src/sumcheck.rs', lines 1070:4-1082:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.quad_type_table_base_loop.body
@@ -6924,7 +6924,7 @@ def sumcheck.quad_type_table_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::quad_type_table_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1099:4-1111:5
+    Source: 'src/sumcheck.rs', lines 1070:4-1082:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.quad_type_table_base_loop
@@ -6938,7 +6938,7 @@ def sumcheck.quad_type_table_base_loop
     (out, t)
 
 /-- [hachi::sumcheck::quad_type_table_base]:
-    Source: 'src/sumcheck.rs', lines 1094:0-1113:1
+    Source: 'src/sumcheck.rs', lines 1065:0-1084:1
     Visibility: public -/
 def sumcheck.quad_type_table_base : Result (alloc.vec.Vec cpoly.field.Fp) := do
   let i ← 4#usize * sumcheck.QUAD_TYPES
@@ -6948,13 +6948,13 @@ def sumcheck.quad_type_table_base : Result (alloc.vec.Vec cpoly.field.Fp) := do
   sumcheck.quad_type_table_base_loop out eight used 0#usize
 
 /-- [hachi::sumcheck::Q_MINUS_HALF]
-    Source: 'src/sumcheck.rs', lines 908:0-908:44
+    Source: 'src/sumcheck.rs', lines 879:0-879:44
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.Q_MINUS_HALF : Std.U64 := 4294967189#u64
 
 /-- [hachi::sumcheck::digit_id]:
-    Source: 'src/sumcheck.rs', lines 918:0-929:1
+    Source: 'src/sumcheck.rs', lines 889:0-900:1
     Visibility: public -/
 def sumcheck.digit_id (x : cpoly.field.Fp) : Result Std.Usize := do
   let v ← cpoly.field.Fp.to_u64 x
@@ -6968,7 +6968,7 @@ def sumcheck.digit_id (x : cpoly.field.Fp) : Result Std.Usize := do
     else ok sumcheck.DIGIT_ALPHABET
 
 /-- [hachi::sumcheck::bucket_quads_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1052:4-1055:5
+    Source: 'src/sumcheck.rs', lines 1023:4-1026:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.bucket_quads_base_loop0.body
@@ -6984,7 +6984,7 @@ def sumcheck.bucket_quads_base_loop0.body
   else ok (done b)
 
 /-- [hachi::sumcheck::bucket_quads_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1052:4-1055:5
+    Source: 'src/sumcheck.rs', lines 1023:4-1026:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.bucket_quads_base_loop0
@@ -6996,7 +6996,7 @@ def sumcheck.bucket_quads_base_loop0
     (b, t0)
 
 /-- [hachi::sumcheck::bucket_quads_base]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1057:4-1087:1
+    Source: 'src/sumcheck.rs', lines 1028:4-1058:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.bucket_quads_base_loop1.body
@@ -7062,7 +7062,7 @@ def sumcheck.bucket_quads_base_loop1.body
   else ok (done (some b))
 
 /-- [hachi::sumcheck::bucket_quads_base]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1057:4-1087:1
+    Source: 'src/sumcheck.rs', lines 1028:4-1058:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.bucket_quads_base_loop1
@@ -7075,7 +7075,7 @@ def sumcheck.bucket_quads_base_loop1
     (b, y)
 
 /-- [hachi::sumcheck::bucket_quads_base]:
-    Source: 'src/sumcheck.rs', lines 1048:0-1087:1
+    Source: 'src/sumcheck.rs', lines 1019:0-1058:1
     Visibility: public -/
 def sumcheck.bucket_quads_base
   (w : alloc.vec.Vec cpoly.field.Fp) (eq : alloc.vec.Vec cpoly.field.Ext4) :
@@ -7087,7 +7087,7 @@ def sumcheck.bucket_quads_base
   sumcheck.bucket_quads_base_loop1 w eq half b1 0#usize
 
 /-- [hachi::sumcheck::lanes_flush]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 478:4-483:5
+    Source: 'src/sumcheck.rs', lines 449:4-454:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.lanes_flush_loop.body
@@ -7111,7 +7111,7 @@ def sumcheck.lanes_flush_loop.body
   else ok (done lanes)
 
 /-- [hachi::sumcheck::lanes_flush]: loop 0:
-    Source: 'src/sumcheck.rs', lines 478:4-483:5
+    Source: 'src/sumcheck.rs', lines 449:4-454:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.lanes_flush_loop
@@ -7124,7 +7124,7 @@ def sumcheck.lanes_flush_loop
     (lanes, i)
 
 /-- [hachi::sumcheck::lanes_flush]:
-    Source: 'src/sumcheck.rs', lines 474:0-485:1
+    Source: 'src/sumcheck.rs', lines 445:0-456:1
     Visibility: public -/
 def sumcheck.lanes_flush
   (lanes : alloc.vec.Vec Std.U128) : Result (alloc.vec.Vec Std.U128) := do
@@ -7133,7 +7133,7 @@ def sumcheck.lanes_flush
   sumcheck.lanes_flush_loop lanes n qw 0#usize
 
 /-- [hachi::sumcheck::ext4_mul_raw]:
-    Source: 'src/sumcheck.rs', lines 395:0-412:1
+    Source: 'src/sumcheck.rs', lines 365:0-382:1
     Visibility: public -/
 def sumcheck.ext4_mul_raw
   (a : cpoly.field.Ext4) (b : cpoly.field.Ext4) :
@@ -7197,7 +7197,7 @@ def sumcheck.ext4_mul_raw
   ok (r0, r1, r2, r3)
 
 /-- [hachi::sumcheck::lane_accum]:
-    Source: 'src/sumcheck.rs', lines 431:0-449:1
+    Source: 'src/sumcheck.rs', lines 401:0-419:1
     Visibility: public -/
 def sumcheck.lane_accum
   (lanes : alloc.vec.Vec Std.U128) (base : Std.Usize) (a : cpoly.field.Ext4)
@@ -7430,7 +7430,7 @@ def sumcheck.shift_inner
   cpoly.field.Ext4.new f f1 f2 f3
 
 /-- [hachi::sumcheck::shift_accum_lanes]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 462:4-467:5
+    Source: 'src/sumcheck.rs', lines 433:4-438:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.shift_accum_lanes_loop.body
@@ -7450,7 +7450,7 @@ def sumcheck.shift_accum_lanes_loop.body
   else ok (done lanes)
 
 /-- [hachi::sumcheck::shift_accum_lanes]: loop 0:
-    Source: 'src/sumcheck.rs', lines 462:4-467:5
+    Source: 'src/sumcheck.rs', lines 433:4-438:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.shift_accum_lanes_loop
@@ -7465,7 +7465,7 @@ def sumcheck.shift_accum_lanes_loop
     (lanes, epow, m)
 
 /-- [hachi::sumcheck::shift_accum_lanes]:
-    Source: 'src/sumcheck.rs', lines 458:0-469:1
+    Source: 'src/sumcheck.rs', lines 429:0-440:1
     Visibility: public -/
 @[reducible]
 def sumcheck.shift_accum_lanes
@@ -7476,12 +7476,12 @@ def sumcheck.shift_accum_lanes
   sumcheck.shift_accum_lanes_loop lanes lop d params.SHIFT_DEG e 0#usize
 
 /-- [hachi::sumcheck::ZERO_LANES]
-    Source: 'src/sumcheck.rs', lines 362:0-362:34
+    Source: 'src/sumcheck.rs', lines 332:0-332:34
     Visibility: public -/
 @[global_simps, irreducible] def sumcheck.ZERO_LANES : Std.Usize := 128#usize
 
 /-- [hachi::sumcheck::zero_lanes]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 419:4-422:5
+    Source: 'src/sumcheck.rs', lines 389:4-392:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.zero_lanes_loop.body
@@ -7497,7 +7497,7 @@ def sumcheck.zero_lanes_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::zero_lanes]: loop 0:
-    Source: 'src/sumcheck.rs', lines 419:4-422:5
+    Source: 'src/sumcheck.rs', lines 389:4-392:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.zero_lanes_loop
@@ -7509,7 +7509,7 @@ def sumcheck.zero_lanes_loop
     (out, i)
 
 /-- [hachi::sumcheck::zero_lanes]:
-    Source: 'src/sumcheck.rs', lines 415:0-424:1
+    Source: 'src/sumcheck.rs', lines 385:0-394:1
     Visibility: public -/
 def sumcheck.zero_lanes : Result (alloc.vec.Vec Std.U128) := do
   let out := alloc.vec.Vec.with_capacity Std.U128 sumcheck.ZERO_LANES
@@ -7556,7 +7556,7 @@ def sumcheck.shift_powers
     0#usize
 
 /-- [hachi::sumcheck::round_poly_zero_lanes]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 529:4-550:5
+    Source: 'src/sumcheck.rs', lines 500:4-521:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_zero_lanes_loop.body
@@ -7614,7 +7614,7 @@ def sumcheck.round_poly_zero_lanes_loop.body
   else ok (done lanes)
 
 /-- [hachi::sumcheck::round_poly_zero_lanes]: loop 0:
-    Source: 'src/sumcheck.rs', lines 529:4-550:5
+    Source: 'src/sumcheck.rs', lines 500:4-521:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_zero_lanes_loop
@@ -7629,7 +7629,7 @@ def sumcheck.round_poly_zero_lanes_loop
     (lanes, since, y)
 
 /-- [hachi::sumcheck::round_poly_zero_lanes]:
-    Source: 'src/sumcheck.rs', lines 524:0-552:1
+    Source: 'src/sumcheck.rs', lines 495:0-523:1
     Visibility: public -/
 def sumcheck.round_poly_zero_lanes
   (w : alloc.vec.Vec cpoly.field.Ext4) (eq : alloc.vec.Vec cpoly.field.Ext4)
@@ -7646,7 +7646,7 @@ def sumcheck.round_poly_zero_lanes
 @[global_simps, irreducible] def params.ROUND_NODES : Std.Usize := 33#usize
 
 /-- [hachi::sumcheck::lanes_to_coeffs]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 496:4-509:5
+    Source: 'src/sumcheck.rs', lines 467:4-480:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.lanes_to_coeffs_loop.body
@@ -7692,7 +7692,7 @@ def sumcheck.lanes_to_coeffs_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::lanes_to_coeffs]: loop 0:
-    Source: 'src/sumcheck.rs', lines 496:4-509:5
+    Source: 'src/sumcheck.rs', lines 467:4-480:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.lanes_to_coeffs_loop
@@ -7705,7 +7705,7 @@ def sumcheck.lanes_to_coeffs_loop
     (out, m)
 
 /-- [hachi::sumcheck::lanes_to_coeffs]:
-    Source: 'src/sumcheck.rs', lines 491:0-511:1
+    Source: 'src/sumcheck.rs', lines 462:0-482:1
     Visibility: public -/
 def sumcheck.lanes_to_coeffs
   (lanes : alloc.vec.Vec Std.U128) :
@@ -7716,13 +7716,13 @@ def sumcheck.lanes_to_coeffs
   sumcheck.lanes_to_coeffs_loop lanes params.SHIFT_DEG qw out 0#usize
 
 /-- [hachi::sumcheck::ZERO_LANE_FLUSH]
-    Source: 'src/sumcheck.rs', lines 375:0-375:49
+    Source: 'src/sumcheck.rs', lines 345:0-345:49
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.ZERO_LANE_FLUSH : Std.Usize := 2147483648#usize
 
 /-- [hachi::sumcheck::round_poly_zero]:
-    Source: 'src/sumcheck.rs', lines 589:0-594:1
+    Source: 'src/sumcheck.rs', lines 560:0-565:1
     Visibility: public -/
 def sumcheck.round_poly_zero
   (w : alloc.vec.Vec cpoly.field.Ext4) (eq : alloc.vec.Vec cpoly.field.Ext4) :
@@ -7734,7 +7734,7 @@ def sumcheck.round_poly_zero
   cpoly.univariate.UnivariatePoly.from_coeffs acc1
 
 /-- [hachi::sumcheck::round_poly_zero_fold1_bucketed]:
-    Source: 'src/sumcheck.rs', lines 1019:0-1027:1
+    Source: 'src/sumcheck.rs', lines 990:0-998:1
     Visibility: public -/
 def sumcheck.round_poly_zero_fold1_bucketed
   (w_fp : alloc.vec.Vec cpoly.field.Fp) (a0 : cpoly.field.Ext4)
@@ -7751,7 +7751,7 @@ def sumcheck.round_poly_zero_fold1_bucketed
     ok (some up)
 
 /-- [hachi::sumcheck::round_poly_zero_fold1]:
-    Source: 'src/sumcheck.rs', lines 999:0-1012:1
+    Source: 'src/sumcheck.rs', lines 970:0-983:1
     Visibility: public -/
 def sumcheck.round_poly_zero_fold1
   (w_fp : alloc.vec.Vec cpoly.field.Fp) (a0 : cpoly.field.Ext4)
@@ -7770,7 +7770,7 @@ def sumcheck.round_poly_zero_fold1
   | some p => ok p
 
 /-- [hachi::sumcheck::eq_free_factor]:
-    Source: 'src/sumcheck.rs', lines 692:0-697:1
+    Source: 'src/sumcheck.rs', lines 663:0-668:1
     Visibility: public -/
 def sumcheck.eq_free_factor
   (t : cpoly.field.Ext4) : Result cpoly.univariate.UnivariatePoly := do
@@ -7784,7 +7784,7 @@ def sumcheck.eq_free_factor
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs1
 
 /-- [hachi::sumcheck::eq_suffix_table]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 669:8-674:9
+    Source: 'src/sumcheck.rs', lines 640:8-645:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.eq_suffix_table_loop0_loop0.body
@@ -7810,7 +7810,7 @@ def sumcheck.eq_suffix_table_loop0_loop0.body
   else ok (done tab)
 
 /-- [hachi::sumcheck::eq_suffix_table]: loop 1:
-    Source: 'src/sumcheck.rs', lines 669:8-674:9
+    Source: 'src/sumcheck.rs', lines 640:8-645:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.eq_suffix_table_loop0_loop0
@@ -7824,7 +7824,7 @@ def sumcheck.eq_suffix_table_loop0_loop0
     (tab, j)
 
 /-- [hachi::sumcheck::eq_suffix_table]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 662:4-676:5
+    Source: 'src/sumcheck.rs', lines 633:4-647:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.eq_suffix_table_loop0.body
@@ -7845,7 +7845,7 @@ def sumcheck.eq_suffix_table_loop0.body
   else ok (done tab)
 
 /-- [hachi::sumcheck::eq_suffix_table]: loop 0:
-    Source: 'src/sumcheck.rs', lines 662:4-676:5
+    Source: 'src/sumcheck.rs', lines 633:4-647:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.eq_suffix_table_loop0
@@ -7858,7 +7858,7 @@ def sumcheck.eq_suffix_table_loop0
     (tab, k)
 
 /-- [hachi::sumcheck::eq_suffix_table]:
-    Source: 'src/sumcheck.rs', lines 657:0-678:1
+    Source: 'src/sumcheck.rs', lines 628:0-649:1
     Visibility: public -/
 def sumcheck.eq_suffix_table
   (tau0 : alloc.vec.Vec cpoly.field.Ext4) (i : Std.Usize) :
@@ -7872,7 +7872,7 @@ def sumcheck.eq_suffix_table
   sumcheck.eq_suffix_table_loop0 tau0 m0 tab k
 
 /-- [hachi::sumcheck::honest_compute_g_fold1_split]:
-    Source: 'src/sumcheck.rs', lines 2125:0-2142:1
+    Source: 'src/sumcheck.rs', lines 2097:0-2114:1
     Visibility: public -/
 def sumcheck.honest_compute_g_fold1_split
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -7899,7 +7899,7 @@ def sumcheck.honest_compute_g_fold1_split
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::alpha_block_sums_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1780:4-1794:5
+    Source: 'src/sumcheck.rs', lines 1752:4-1766:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_block_sums_base_loop.body
@@ -7940,7 +7940,7 @@ def sumcheck.alpha_block_sums_base_loop.body
   else ok (done (s0, s1, s2))
 
 /-- [hachi::sumcheck::alpha_block_sums_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1780:4-1794:5
+    Source: 'src/sumcheck.rs', lines 1752:4-1766:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_block_sums_base_loop
@@ -7955,7 +7955,7 @@ def sumcheck.alpha_block_sums_base_loop
     (s0, s1, s2, t)
 
 /-- [hachi::sumcheck::alpha_block_sums_base]:
-    Source: 'src/sumcheck.rs', lines 1770:0-1796:1
+    Source: 'src/sumcheck.rs', lines 1742:0-1768:1
     Visibility: public -/
 @[reducible]
 def sumcheck.alpha_block_sums_base
@@ -7967,7 +7967,7 @@ def sumcheck.alpha_block_sums_base
     cpoly.field.Ext4.ZERO cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_blocks]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1812:4-1822:5
+    Source: 'src/sumcheck.rs', lines 1784:4-1794:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_alpha_base_split_blocks_loop.body
@@ -8005,7 +8005,7 @@ def sumcheck.round_poly_alpha_base_split_blocks_loop.body
   else ok (done (c0, c1, c2))
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_blocks]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1812:4-1822:5
+    Source: 'src/sumcheck.rs', lines 1784:4-1794:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_alpha_base_split_blocks_loop
@@ -8022,7 +8022,7 @@ def sumcheck.round_poly_alpha_base_split_blocks_loop
     (c0, c1, c2, y0, b)
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_blocks]:
-    Source: 'src/sumcheck.rs', lines 1800:0-1828:1
+    Source: 'src/sumcheck.rs', lines 1772:0-1800:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_base_split_blocks
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -8044,7 +8044,7 @@ def sumcheck.round_poly_alpha_base_split_blocks
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_direct]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1746:4-1758:5
+    Source: 'src/sumcheck.rs', lines 1718:4-1730:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_alpha_base_split_direct_loop.body
@@ -8100,7 +8100,7 @@ def sumcheck.round_poly_alpha_base_split_direct_loop.body
   else ok (done (c0, c1, c2))
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_direct]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1746:4-1758:5
+    Source: 'src/sumcheck.rs', lines 1718:4-1730:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_alpha_base_split_direct_loop
@@ -8117,7 +8117,7 @@ def sumcheck.round_poly_alpha_base_split_direct_loop
     (c0, c1, c2, y)
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split_direct]:
-    Source: 'src/sumcheck.rs', lines 1733:0-1764:1
+    Source: 'src/sumcheck.rs', lines 1705:0-1736:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_base_split_direct
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -8137,7 +8137,7 @@ def sumcheck.round_poly_alpha_base_split_direct
   cpoly.univariate.UnivariatePoly.from_coeffs coeffs3
 
 /-- [hachi::sumcheck::round_poly_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1722:0-1729:1
+    Source: 'src/sumcheck.rs', lines 1694:0-1701:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_base_split
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -8154,7 +8154,7 @@ def sumcheck.round_poly_alpha_base_split
     else sumcheck.round_poly_alpha_base_split_blocks w low high
 
 /-- [hachi::sumcheck::shift_inner_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1164:4-1168:5
+    Source: 'src/sumcheck.rs', lines 1135:4-1139:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.shift_inner_base_loop.body
@@ -8181,7 +8181,7 @@ def sumcheck.shift_inner_base_loop.body
   else ok (done s)
 
 /-- [hachi::sumcheck::shift_inner_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1164:4-1168:5
+    Source: 'src/sumcheck.rs', lines 1135:4-1139:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.shift_inner_base_loop
@@ -8194,7 +8194,7 @@ def sumcheck.shift_inner_base_loop
     (s, j)
 
 /-- [hachi::sumcheck::shift_inner_base]:
-    Source: 'src/sumcheck.rs', lines 1159:0-1170:1
+    Source: 'src/sumcheck.rs', lines 1130:0-1141:1
     Visibility: public -/
 def sumcheck.shift_inner_base
   (lop : alloc.vec.Vec cpoly.field.Fp) (m : Std.Usize) :
@@ -8205,7 +8205,7 @@ def sumcheck.shift_inner_base
     cpoly.field.Fp.ZERO j
 
 /-- [hachi::sumcheck::shift_accum_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1178:4-1185:5
+    Source: 'src/sumcheck.rs', lines 1150:4-1157:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.shift_accum_base_loop.body
@@ -8234,7 +8234,7 @@ def sumcheck.shift_accum_base_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::shift_accum_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1178:4-1185:5
+    Source: 'src/sumcheck.rs', lines 1150:4-1157:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.shift_accum_base_loop
@@ -8249,7 +8249,7 @@ def sumcheck.shift_accum_base_loop
     (acc, dpow, m)
 
 /-- [hachi::sumcheck::shift_accum_base]:
-    Source: 'src/sumcheck.rs', lines 1174:0-1187:1
+    Source: 'src/sumcheck.rs', lines 1146:0-1159:1
     Visibility: public -/
 @[reducible]
 def sumcheck.shift_accum_base
@@ -8261,7 +8261,7 @@ def sumcheck.shift_accum_base
     cpoly.field.Fp.ONE 0#usize
 
 /-- [hachi::sumcheck::shift_powers_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1150:4-1154:5
+    Source: 'src/sumcheck.rs', lines 1121:4-1125:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.shift_powers_base_loop.body
@@ -8279,7 +8279,7 @@ def sumcheck.shift_powers_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::shift_powers_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1150:4-1154:5
+    Source: 'src/sumcheck.rs', lines 1121:4-1125:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.shift_powers_base_loop
@@ -8293,7 +8293,7 @@ def sumcheck.shift_powers_base_loop
     (out, cur, k)
 
 /-- [hachi::sumcheck::shift_powers_base]:
-    Source: 'src/sumcheck.rs', lines 1145:0-1156:1
+    Source: 'src/sumcheck.rs', lines 1116:0-1127:1
     Visibility: public -/
 def sumcheck.shift_powers_base
   (x : cpoly.field.Fp) : Result (alloc.vec.Vec cpoly.field.Fp) := do
@@ -8302,7 +8302,7 @@ def sumcheck.shift_powers_base
     0#usize
 
 /-- [hachi::sumcheck::round_poly_zero_base_plain]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1128:4-1131:5
+    Source: 'src/sumcheck.rs', lines 1099:4-1102:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_zero_base_plain_loop0.body
@@ -8318,7 +8318,7 @@ def sumcheck.round_poly_zero_base_plain_loop0.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_poly_zero_base_plain]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1128:4-1131:5
+    Source: 'src/sumcheck.rs', lines 1099:4-1102:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_zero_base_plain_loop0
@@ -8331,7 +8331,7 @@ def sumcheck.round_poly_zero_base_plain_loop0
     (acc, i)
 
 /-- [hachi::sumcheck::round_poly_zero_base_plain]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1133:4-1139:5
+    Source: 'src/sumcheck.rs', lines 1104:4-1110:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_poly_zero_base_plain_loop1.body
@@ -8361,7 +8361,7 @@ def sumcheck.round_poly_zero_base_plain_loop1.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_poly_zero_base_plain]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1133:4-1139:5
+    Source: 'src/sumcheck.rs', lines 1104:4-1110:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_poly_zero_base_plain_loop1
@@ -8375,7 +8375,7 @@ def sumcheck.round_poly_zero_base_plain_loop1
     (acc, y)
 
 /-- [hachi::sumcheck::round_poly_zero_base_plain]:
-    Source: 'src/sumcheck.rs', lines 1117:0-1142:1
+    Source: 'src/sumcheck.rs', lines 1088:0-1113:1
     Visibility: public -/
 def sumcheck.round_poly_zero_base_plain
   (w : alloc.vec.Vec cpoly.field.Fp) (eq : alloc.vec.Vec cpoly.field.Ext4) :
@@ -8390,12 +8390,12 @@ def sumcheck.round_poly_zero_base_plain
   cpoly.univariate.UnivariatePoly.from_coeffs acc3
 
 /-- [hachi::sumcheck::PAIR_TYPES]
-    Source: 'src/sumcheck.rs', lines 903:0-903:35
+    Source: 'src/sumcheck.rs', lines 874:0-874:35
     Visibility: public -/
 @[global_simps, irreducible] def sumcheck.PAIR_TYPES : Std.Usize := 1024#usize
 
 /-- [hachi::sumcheck::pair_type_table_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 970:4-976:5
+    Source: 'src/sumcheck.rs', lines 941:4-947:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.pair_type_table_base_loop.body
@@ -8421,7 +8421,7 @@ def sumcheck.pair_type_table_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::pair_type_table_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 970:4-976:5
+    Source: 'src/sumcheck.rs', lines 941:4-947:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.pair_type_table_base_loop
@@ -8434,7 +8434,7 @@ def sumcheck.pair_type_table_base_loop
     (out, t)
 
 /-- [hachi::sumcheck::pair_type_table_base]:
-    Source: 'src/sumcheck.rs', lines 966:0-978:1
+    Source: 'src/sumcheck.rs', lines 937:0-949:1
     Visibility: public -/
 def sumcheck.pair_type_table_base : Result (alloc.vec.Vec cpoly.field.Fp) := do
   let i ← 2#usize * sumcheck.PAIR_TYPES
@@ -8443,7 +8443,7 @@ def sumcheck.pair_type_table_base : Result (alloc.vec.Vec cpoly.field.Fp) := do
   sumcheck.pair_type_table_base_loop out eight 0#usize
 
 /-- [hachi::sumcheck::bucket_pairs_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 938:4-941:5
+    Source: 'src/sumcheck.rs', lines 909:4-912:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.bucket_pairs_base_loop0.body
@@ -8459,7 +8459,7 @@ def sumcheck.bucket_pairs_base_loop0.body
   else ok (done b)
 
 /-- [hachi::sumcheck::bucket_pairs_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 938:4-941:5
+    Source: 'src/sumcheck.rs', lines 909:4-912:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.bucket_pairs_base_loop0
@@ -8471,7 +8471,7 @@ def sumcheck.bucket_pairs_base_loop0
     (b, t0)
 
 /-- [hachi::sumcheck::bucket_pairs_base]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 943:4-960:1
+    Source: 'src/sumcheck.rs', lines 914:4-931:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.bucket_pairs_base_loop1.body
@@ -8516,7 +8516,7 @@ def sumcheck.bucket_pairs_base_loop1.body
   else ok (done (some b))
 
 /-- [hachi::sumcheck::bucket_pairs_base]: loop 1:
-    Source: 'src/sumcheck.rs', lines 943:4-960:1
+    Source: 'src/sumcheck.rs', lines 914:4-931:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.bucket_pairs_base_loop1
@@ -8529,7 +8529,7 @@ def sumcheck.bucket_pairs_base_loop1
     (b, y)
 
 /-- [hachi::sumcheck::bucket_pairs_base]:
-    Source: 'src/sumcheck.rs', lines 934:0-960:1
+    Source: 'src/sumcheck.rs', lines 905:0-931:1
     Visibility: public -/
 def sumcheck.bucket_pairs_base
   (w : alloc.vec.Vec cpoly.field.Fp) (eq : alloc.vec.Vec cpoly.field.Ext4) :
@@ -8541,13 +8541,13 @@ def sumcheck.bucket_pairs_base
   sumcheck.bucket_pairs_base_loop1 w eq half b1 0#usize
 
 /-- [hachi::sumcheck::BUCKET_MIN_PAIRS0]
-    Source: 'src/sumcheck.rs', lines 913:0-913:42
+    Source: 'src/sumcheck.rs', lines 884:0-884:42
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.BUCKET_MIN_PAIRS0 : Std.Usize := 2048#usize
 
 /-- [hachi::sumcheck::round_poly_zero_base]:
-    Source: 'src/sumcheck.rs', lines 881:0-890:1
+    Source: 'src/sumcheck.rs', lines 852:0-861:1
     Visibility: public -/
 def sumcheck.round_poly_zero_base
   (w : alloc.vec.Vec cpoly.field.Fp) (eq : alloc.vec.Vec cpoly.field.Ext4) :
@@ -8565,7 +8565,7 @@ def sumcheck.round_poly_zero_base
   else sumcheck.round_poly_zero_base_plain w eq
 
 /-- [hachi::sumcheck::honest_compute_g_base_split]:
-    Source: 'src/sumcheck.rs', lines 2105:0-2120:1
+    Source: 'src/sumcheck.rs', lines 2077:0-2092:1
     Visibility: public -/
 def sumcheck.honest_compute_g_base_split
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -8591,7 +8591,7 @@ def sumcheck.honest_compute_g_base_split
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g_split]:
-    Source: 'src/sumcheck.rs', lines 2086:0-2102:1
+    Source: 'src/sumcheck.rs', lines 2058:0-2074:1
     Visibility: public -/
 def sumcheck.honest_compute_g_split
   (stmt : sumcheck.RoundStatement) (w_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -8617,7 +8617,7 @@ def sumcheck.honest_compute_g_split
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::alpha_split_fold]:
-    Source: 'src/sumcheck.rs', lines 1459:0-1467:1
+    Source: 'src/sumcheck.rs', lines 1431:0-1439:1
     Visibility: public -/
 def sumcheck.alpha_split_fold
   (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -8636,7 +8636,7 @@ def sumcheck.alpha_split_fold
     ok (low, high1)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1430:4-1433:5
+    Source: 'src/sumcheck.rs', lines 1402:4-1405:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_split_high_loop0.body
@@ -8653,7 +8653,7 @@ def sumcheck.alpha_split_high_loop0.body
   else ok (done k)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1430:4-1433:5
+    Source: 'src/sumcheck.rs', lines 1402:4-1405:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_split_high_loop0
@@ -8665,7 +8665,7 @@ def sumcheck.alpha_split_high_loop0
     (k, sz)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop body 2:
-    Source: 'src/sumcheck.rs', lines 1442:8-1447:9
+    Source: 'src/sumcheck.rs', lines 1414:8-1419:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_split_high_loop1_loop0.body
@@ -8697,7 +8697,7 @@ def sumcheck.alpha_split_high_loop1_loop0.body
   else ok (done sum)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop 2:
-    Source: 'src/sumcheck.rs', lines 1442:8-1447:9
+    Source: 'src/sumcheck.rs', lines 1414:8-1419:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_split_high_loop1_loop0
@@ -8712,7 +8712,7 @@ def sumcheck.alpha_split_high_loop1_loop0
     (sum, i)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1439:4-1450:5
+    Source: 'src/sumcheck.rs', lines 1411:4-1422:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_split_high_loop1.body
@@ -8734,7 +8734,7 @@ def sumcheck.alpha_split_high_loop1.body
   else ok (done high)
 
 /-- [hachi::sumcheck::alpha_split_high]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1439:4-1450:5
+    Source: 'src/sumcheck.rs', lines 1411:4-1422:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_split_high_loop1
@@ -8750,7 +8750,7 @@ def sumcheck.alpha_split_high_loop1
     (high, u)
 
 /-- [hachi::sumcheck::alpha_split_high]:
-    Source: 'src/sumcheck.rs', lines 1419:0-1452:1
+    Source: 'src/sumcheck.rs', lines 1391:0-1424:1
     Visibility: public -/
 def sumcheck.alpha_split_high
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -8772,7 +8772,7 @@ def sumcheck.alpha_split_high
   sumcheck.alpha_split_high_loop1 rows cols hsz eqw mt high 0#usize
 
 /-- [hachi::sumcheck::alpha_split_low]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1409:4-1412:5
+    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_split_low_loop.body
@@ -8789,7 +8789,7 @@ def sumcheck.alpha_split_low_loop.body
   else ok (done sz)
 
 /-- [hachi::sumcheck::alpha_split_low]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1409:4-1412:5
+    Source: 'src/sumcheck.rs', lines 1381:4-1384:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_split_low_loop
@@ -8801,7 +8801,7 @@ def sumcheck.alpha_split_low_loop
     (k, sz)
 
 /-- [hachi::sumcheck::alpha_split_low]:
-    Source: 'src/sumcheck.rs', lines 1405:0-1414:1
+    Source: 'src/sumcheck.rs', lines 1377:0-1386:1
     Visibility: public -/
 def sumcheck.alpha_split_low
   (alpha : cpoly.field.Ext4) (m0 : Std.Usize) :
@@ -8812,7 +8812,7 @@ def sumcheck.alpha_split_low
   zerocheck.alpha_pow_table alpha sz
 
 /-- [hachi::sumcheck::honest_round_messages]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 2378:8-2388:9
+    Source: 'src/sumcheck.rs', lines 2350:8-2360:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.honest_round_messages_loop.body
@@ -8842,7 +8842,7 @@ def sumcheck.honest_round_messages_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::honest_round_messages]: loop 0:
-    Source: 'src/sumcheck.rs', lines 2378:8-2388:9
+    Source: 'src/sumcheck.rs', lines 2350:8-2360:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.honest_round_messages_loop
@@ -8860,7 +8860,7 @@ def sumcheck.honest_round_messages_loop
     (low, high, current, out, w_tab, i)
 
 /-- [hachi::sumcheck::honest_round_messages]:
-    Source: 'src/sumcheck.rs', lines 2338:0-2391:1
+    Source: 'src/sumcheck.rs', lines 2310:0-2363:1
     Visibility: public -/
 def sumcheck.honest_round_messages
   (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)
@@ -8909,7 +8909,7 @@ def sumcheck.honest_round_messages
   else ok (alloc.vec.Vec.new sumcheck.RoundMsg)
 
 /-- [hachi::sumcheck::honest_compute_y]:
-    Source: 'src/sumcheck.rs', lines 2189:0-2195:1
+    Source: 'src/sumcheck.rs', lines 2161:0-2167:1
     Visibility: public -/
 def sumcheck.honest_compute_y
   (w : ringswitch.LiftedWitness) (m0 : Std.Usize)
@@ -9256,7 +9256,7 @@ def linalg.PolyMatrix.mat_vec_mul
   ok out
 
 /-- [hachi::quadeval::honest_compute_v_from_decomp]:
-    Source: 'src/quadeval.rs', lines 913:0-915:1
+    Source: 'src/quadeval.rs', lines 904:0-906:1
     Visibility: public -/
 def quadeval.honest_compute_v_from_decomp
   (d_matrix : linalg.PolyMatrix) (carrier_dec : linalg.PolyVec) :
@@ -9824,7 +9824,7 @@ def ring.gold_dif_stage2_twist
     step2 out 0#usize
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop body 1:
-    Source: 'src/ntt.rs', lines 739:8-765:9
+    Source: 'src/ntt.rs', lines 714:8-740:9
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_mac_loop0_loop0.body
@@ -9940,7 +9940,7 @@ def ntt.gold_dif_stage2_mac_loop0_loop0.body
   else ok (done acc)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop 1:
-    Source: 'src/ntt.rs', lines 739:8-765:9
+    Source: 'src/ntt.rs', lines 714:8-740:9
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_mac_loop0_loop0
@@ -9956,7 +9956,7 @@ def ntt.gold_dif_stage2_mac_loop0_loop0
     (acc, j)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop body 0:
-    Source: 'src/ntt.rs', lines 717:4-767:5
+    Source: 'src/ntt.rs', lines 692:4-742:5
     Visibility: public -/
 @[rust_loop_body]
 def ntt.gold_dif_stage2_mac_loop0.body
@@ -10056,7 +10056,7 @@ def ntt.gold_dif_stage2_mac_loop0.body
   else ok (done acc)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]: loop 0:
-    Source: 'src/ntt.rs', lines 717:4-767:5
+    Source: 'src/ntt.rs', lines 692:4-742:5
     Visibility: public -/
 @[rust_loop]
 def ntt.gold_dif_stage2_mac_loop0
@@ -10072,7 +10072,7 @@ def ntt.gold_dif_stage2_mac_loop0
     (acc, start)
 
 /-- [hachi::ntt::gold_dif_stage2_mac]:
-    Source: 'src/ntt.rs', lines 703:0-769:1
+    Source: 'src/ntt.rs', lines 678:0-744:1
     Visibility: public -/
 def ntt.gold_dif_stage2_mac
   (src : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64) (len : Std.Usize)
@@ -10143,7 +10143,7 @@ structure ring.PreparedVecG where
   fwd : alloc.vec.Vec Std.U64
 
 /-- [hachi::ntt::GOLD_DOFF]
-    Source: 'src/ntt.rs', lines 848:0-848:46
+    Source: 'src/ntt.rs', lines 823:0-823:46
     Visibility: public -/
 @[global_simps, irreducible] def ntt.GOLD_DOFF : Std.U64 := 70368742555648#u64
 
@@ -10247,14 +10247,14 @@ def ring.dot_prepared_digits_gold
   ok out1
 
 /-- [hachi::linalg::PreparedMatrixG]
-    Source: 'src/linalg.rs', lines 431:0-434:1
+    Source: 'src/linalg.rs', lines 389:0-392:1
     Visibility: public -/
 structure linalg.PreparedMatrixG where
   rows : alloc.vec.Vec ring.PreparedVecG
   cols : Std.Usize
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_digits_gold]: loop body 0:
-    Source: 'src/linalg.rs', lines 463:8-466:9
+    Source: 'src/linalg.rs', lines 421:8-424:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PreparedMatrixG.apply_digits_gold_loop.body
@@ -10276,7 +10276,7 @@ def linalg.PreparedMatrixG.apply_digits_gold_loop.body
   else ok (done out)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_digits_gold]: loop 0:
-    Source: 'src/linalg.rs', lines 463:8-466:9
+    Source: 'src/linalg.rs', lines 421:8-424:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PreparedMatrixG.apply_digits_gold_loop
@@ -10291,7 +10291,7 @@ def linalg.PreparedMatrixG.apply_digits_gold_loop
     (out, i)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_digits_gold]:
-    Source: 'src/linalg.rs', lines 458:4-468:5
+    Source: 'src/linalg.rs', lines 416:4-426:5
     Visibility: public -/
 def linalg.PreparedMatrixG.apply_digits_gold
   (self : linalg.PreparedMatrixG) (v : linalg.PolyVec) :
@@ -10477,7 +10477,7 @@ def ring.prepare_vec_gold
   ok { len := n, fwd }
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_digits_gold]: loop body 0:
-    Source: 'src/linalg.rs', lines 443:8-446:9
+    Source: 'src/linalg.rs', lines 401:8-404:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PolyMatrix.prepare_digits_gold_loop.body
@@ -10498,7 +10498,7 @@ def linalg.PolyMatrix.prepare_digits_gold_loop.body
   else ok (done rows)
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_digits_gold]: loop 0:
-    Source: 'src/linalg.rs', lines 443:8-446:9
+    Source: 'src/linalg.rs', lines 401:8-404:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PolyMatrix.prepare_digits_gold_loop
@@ -10512,7 +10512,7 @@ def linalg.PolyMatrix.prepare_digits_gold_loop
     (rows, i)
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_digits_gold]:
-    Source: 'src/linalg.rs', lines 438:4-448:5
+    Source: 'src/linalg.rs', lines 396:4-406:5
     Visibility: public -/
 def linalg.PolyMatrix.prepare_digits_gold
   (self : linalg.PolyMatrix) : Result linalg.PreparedMatrixG := do
@@ -11322,7 +11322,7 @@ def ring.dot_prepared_raw_digits_gold
 def linalg.RawVec32 := alloc.vec.Vec ring.RawRq32
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_raw_digits_gold]: loop body 0:
-    Source: 'src/linalg.rs', lines 483:8-486:9
+    Source: 'src/linalg.rs', lines 441:8-444:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PreparedMatrixG.apply_raw_digits_gold_loop.body
@@ -11344,7 +11344,7 @@ def linalg.PreparedMatrixG.apply_raw_digits_gold_loop.body
   else ok (done out)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_raw_digits_gold]: loop 0:
-    Source: 'src/linalg.rs', lines 483:8-486:9
+    Source: 'src/linalg.rs', lines 441:8-444:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PreparedMatrixG.apply_raw_digits_gold_loop
@@ -11359,7 +11359,7 @@ def linalg.PreparedMatrixG.apply_raw_digits_gold_loop
     (out, i)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::apply_raw_digits_gold]:
-    Source: 'src/linalg.rs', lines 477:4-488:5
+    Source: 'src/linalg.rs', lines 435:4-446:5
     Visibility: public -/
 def linalg.PreparedMatrixG.apply_raw_digits_gold
   (self : linalg.PreparedMatrixG) (raw1 : linalg.RawVec32) :
@@ -11850,73 +11850,14 @@ def evalsplit.split_equiv_inv
   let y ← k % params.ML_LOW_LEN
   ok (x, y)
 
-/-- [hachi::evalsplit::two_pow]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 102:4-105:5 -/
-@[rust_loop_body]
-def evalsplit.two_pow_loop.body
-  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
-  := do
-  if t < n
-  then
-    let size1 ← size * 2#usize
-    let t1 ← t + 1#usize
-    ok (cont (size1, t1))
-  else ok (done size)
-
-/-- [hachi::evalsplit::two_pow]: loop 0:
-    Source: 'src/evalsplit.rs', lines 102:4-105:5 -/
-@[rust_loop]
-def evalsplit.two_pow_loop
-  (n : Std.Usize) (size : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
-  loop
-    (fun (size1, t1) => evalsplit.two_pow_loop.body n size1 t1)
-    (size, t)
-
-/-- [hachi::evalsplit::two_pow]:
-    Source: 'src/evalsplit.rs', lines 99:0-107:1 -/
-@[reducible]
-def evalsplit.two_pow (n : Std.Usize) : Result Std.Usize := do
-  evalsplit.two_pow_loop n 1#usize 0#usize
-
-/-- [hachi::evalsplit::test_bit]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 118:4-121:5 -/
-@[rust_loop_body]
-def evalsplit.test_bit_loop.body
-  (j : Std.Usize) (rest : Std.Usize) (t : Std.Usize) :
-  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
-  := do
-  if t < j
-  then
-    let rest1 ← rest / 2#usize
-    let t1 ← t + 1#usize
-    ok (cont (rest1, t1))
-  else ok (done rest)
-
-/-- [hachi::evalsplit::test_bit]: loop 0:
-    Source: 'src/evalsplit.rs', lines 118:4-121:5 -/
-@[rust_loop]
-def evalsplit.test_bit_loop
-  (j : Std.Usize) (rest : Std.Usize) (t : Std.Usize) : Result Std.Usize := do
-  loop
-    (fun (rest1, t1) => evalsplit.test_bit_loop.body j rest1 t1)
-    (rest, t)
-
-/-- [hachi::evalsplit::test_bit]:
-    Source: 'src/evalsplit.rs', lines 115:0-123:1 -/
-def evalsplit.test_bit (i : Std.Usize) (j : Std.Usize) : Result Bool := do
-  let rest ← evalsplit.test_bit_loop j i 0#usize
-  let i1 ← rest % 2#usize
-  ok (i1 = 1#usize)
-
 /-- [hachi::evalsplit::MlPoly]
-    Source: 'src/evalsplit.rs', lines 132:0-132:27
+    Source: 'src/evalsplit.rs', lines 90:0-90:27
     Visibility: public -/
 @[reducible]
 def evalsplit.MlPoly := alloc.vec.Vec ring.Rq
 
 /-- [hachi::evalsplit::MlEvals]
-    Source: 'src/evalsplit.rs', lines 141:0-141:28
+    Source: 'src/evalsplit.rs', lines 99:0-99:28
     Visibility: public -/
 @[reducible]
 def evalsplit.MlEvals := alloc.vec.Vec ring.Rq
@@ -11968,7 +11909,7 @@ def ring.Rq.sub (self : ring.Rq) (rhs : ring.Rq) : Result ring.Rq := do
   ok out1
 
 /-- [hachi::evalsplit::lagrange_basis]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 208:8-214:9
+    Source: 'src/evalsplit.rs', lines 166:8-172:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.lagrange_basis_loop0_loop0.body
@@ -11993,7 +11934,7 @@ def evalsplit.lagrange_basis_loop0_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::lagrange_basis]: loop 1:
-    Source: 'src/evalsplit.rs', lines 208:8-214:9
+    Source: 'src/evalsplit.rs', lines 166:8-172:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.lagrange_basis_loop0_loop0
@@ -12007,7 +11948,7 @@ def evalsplit.lagrange_basis_loop0_loop0
     (out, i)
 
 /-- [hachi::evalsplit::lagrange_basis]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 204:4-216:5
+    Source: 'src/evalsplit.rs', lines 162:4-174:5
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.lagrange_basis_loop0.body
@@ -12026,7 +11967,7 @@ def evalsplit.lagrange_basis_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::lagrange_basis]: loop 0:
-    Source: 'src/evalsplit.rs', lines 204:4-216:5
+    Source: 'src/evalsplit.rs', lines 162:4-174:5
     Visibility: public -/
 @[rust_loop]
 def evalsplit.lagrange_basis_loop0
@@ -12039,7 +11980,7 @@ def evalsplit.lagrange_basis_loop0
     (out, j)
 
 /-- [hachi::evalsplit::lagrange_basis]:
-    Source: 'src/evalsplit.rs', lines 199:0-218:1
+    Source: 'src/evalsplit.rs', lines 157:0-176:1
     Visibility: public -/
 def evalsplit.lagrange_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← linalg.PolyVec.len w
@@ -12049,20 +11990,20 @@ def evalsplit.lagrange_basis (w : linalg.PolyVec) : Result linalg.PolyVec := do
   linalg.PolyVec.new out1
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::new]:
-    Source: 'src/evalsplit.rs', lines 223:4-225:5
+    Source: 'src/evalsplit.rs', lines 181:4-183:5
     Visibility: public -/
 def evalsplit.MlPoly.new
   (coeffs : alloc.vec.Vec ring.Rq) : Result evalsplit.MlPoly := do
   ok coeffs
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::len]:
-    Source: 'src/evalsplit.rs', lines 228:4-230:5
+    Source: 'src/evalsplit.rs', lines 186:4-188:5
     Visibility: public -/
 def evalsplit.MlPoly.len (self : evalsplit.MlPoly) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::get]:
-    Source: 'src/evalsplit.rs', lines 233:4-235:5
+    Source: 'src/evalsplit.rs', lines 191:4-193:5
     Visibility: public -/
 def evalsplit.MlPoly.get
   (self : evalsplit.MlPoly) (k : Std.Usize) : Result ring.Rq := do
@@ -12074,7 +12015,7 @@ def evalsplit.MlPoly.get
 @[global_simps, irreducible] def params.ML_HIGH_LEN : Std.Usize := 1024#usize
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 254:12-258:13
+    Source: 'src/evalsplit.rs', lines 212:12-216:13
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlPoly.to_matrix_loop0_loop0.body
@@ -12096,7 +12037,7 @@ def evalsplit.MlPoly.to_matrix_loop0_loop0.body
   else ok (done (self, row))
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop 1:
-    Source: 'src/evalsplit.rs', lines 254:12-258:13
+    Source: 'src/evalsplit.rs', lines 212:12-216:13
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlPoly.to_matrix_loop0_loop0
@@ -12110,7 +12051,7 @@ def evalsplit.MlPoly.to_matrix_loop0_loop0
     (self, row, j)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 251:8-261:9
+    Source: 'src/evalsplit.rs', lines 209:8-219:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlPoly.to_matrix_loop0.body
@@ -12131,7 +12072,7 @@ def evalsplit.MlPoly.to_matrix_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]: loop 0:
-    Source: 'src/evalsplit.rs', lines 251:8-261:9
+    Source: 'src/evalsplit.rs', lines 209:8-219:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlPoly.to_matrix_loop0
@@ -12145,7 +12086,7 @@ def evalsplit.MlPoly.to_matrix_loop0
     (self, out, i)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::to_matrix]:
-    Source: 'src/evalsplit.rs', lines 246:4-263:5
+    Source: 'src/evalsplit.rs', lines 204:4-221:5
     Visibility: public -/
 def evalsplit.MlPoly.to_matrix
   (self : evalsplit.MlPoly) : Result linalg.PolyMatrix := do
@@ -12165,7 +12106,7 @@ def linalg.PolyMatrix.split_form
   linalg.PolyVec.dot u mv
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlPoly}::eval_split]:
-    Source: 'src/evalsplit.rs', lines 275:4-280:5
+    Source: 'src/evalsplit.rs', lines 233:4-238:5
     Visibility: public -/
 def evalsplit.MlPoly.eval_split
   (self : evalsplit.MlPoly) (xl : linalg.PolyVec) (xh : linalg.PolyVec) :
@@ -12183,7 +12124,7 @@ def evalsplit.MlPoly.eval_split
 def params.ML_POLY_LEN : Std.Usize := 1048576#usize
 
 /-- [hachi::evalsplit::to_polynomial]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 297:4-303:5
+    Source: 'src/evalsplit.rs', lines 255:4-261:5
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.to_polynomial_loop.body
@@ -12204,7 +12145,7 @@ def evalsplit.to_polynomial_loop.body
   else ok (done out)
 
 /-- [hachi::evalsplit::to_polynomial]: loop 0:
-    Source: 'src/evalsplit.rs', lines 297:4-303:5
+    Source: 'src/evalsplit.rs', lines 255:4-261:5
     Visibility: public -/
 @[rust_loop]
 def evalsplit.to_polynomial_loop
@@ -12217,7 +12158,7 @@ def evalsplit.to_polynomial_loop
     (out, k)
 
 /-- [hachi::evalsplit::to_polynomial]:
-    Source: 'src/evalsplit.rs', lines 293:0-305:1
+    Source: 'src/evalsplit.rs', lines 251:0-263:1
     Visibility: public -/
 def evalsplit.to_polynomial
   (m : linalg.PolyMatrix) : Result evalsplit.MlPoly := do
@@ -12227,27 +12168,27 @@ def evalsplit.to_polynomial
   ok out
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::new]:
-    Source: 'src/evalsplit.rs', lines 310:4-312:5
+    Source: 'src/evalsplit.rs', lines 268:4-270:5
     Visibility: public -/
 def evalsplit.MlEvals.new
   (values : alloc.vec.Vec ring.Rq) : Result evalsplit.MlEvals := do
   ok values
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::len]:
-    Source: 'src/evalsplit.rs', lines 315:4-317:5
+    Source: 'src/evalsplit.rs', lines 273:4-275:5
     Visibility: public -/
 def evalsplit.MlEvals.len (self : evalsplit.MlEvals) : Result Std.Usize := do
   ok (alloc.vec.Vec.len self)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::get]:
-    Source: 'src/evalsplit.rs', lines 320:4-322:5
+    Source: 'src/evalsplit.rs', lines 278:4-280:5
     Visibility: public -/
 def evalsplit.MlEvals.get
   (self : evalsplit.MlEvals) (k : Std.Usize) : Result ring.Rq := do
   alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) self k
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop body 1:
-    Source: 'src/evalsplit.rs', lines 339:12-343:13
+    Source: 'src/evalsplit.rs', lines 297:12-301:13
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlEvals.to_matrix_eval_loop0_loop0.body
@@ -12269,7 +12210,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0_loop0.body
   else ok (done (self, row))
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop 1:
-    Source: 'src/evalsplit.rs', lines 339:12-343:13
+    Source: 'src/evalsplit.rs', lines 297:12-301:13
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlEvals.to_matrix_eval_loop0_loop0
@@ -12283,7 +12224,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0_loop0
     (self, row, j)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop body 0:
-    Source: 'src/evalsplit.rs', lines 336:8-346:9
+    Source: 'src/evalsplit.rs', lines 294:8-304:9
     Visibility: public -/
 @[rust_loop_body]
 def evalsplit.MlEvals.to_matrix_eval_loop0.body
@@ -12304,7 +12245,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0.body
   else ok (done out)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]: loop 0:
-    Source: 'src/evalsplit.rs', lines 336:8-346:9
+    Source: 'src/evalsplit.rs', lines 294:8-304:9
     Visibility: public -/
 @[rust_loop]
 def evalsplit.MlEvals.to_matrix_eval_loop0
@@ -12318,7 +12259,7 @@ def evalsplit.MlEvals.to_matrix_eval_loop0
     (self, out, i)
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::to_matrix_eval]:
-    Source: 'src/evalsplit.rs', lines 331:4-348:5
+    Source: 'src/evalsplit.rs', lines 289:4-306:5
     Visibility: public -/
 def evalsplit.MlEvals.to_matrix_eval
   (self : evalsplit.MlEvals) : Result linalg.PolyMatrix := do
@@ -12328,7 +12269,7 @@ def evalsplit.MlEvals.to_matrix_eval
   linalg.PolyMatrix.new out
 
 /-- [hachi::evalsplit::{hachi::evalsplit::MlEvals}::eval_split_eval]:
-    Source: 'src/evalsplit.rs', lines 358:4-363:5
+    Source: 'src/evalsplit.rs', lines 316:4-321:5
     Visibility: public -/
 def evalsplit.MlEvals.eval_split_eval
   (self : evalsplit.MlEvals) (xl : linalg.PolyVec) (xh : linalg.PolyVec) :
@@ -13300,266 +13241,19 @@ def linalg.PolyMatrix.prepare_digits
       ring.PreparedVec) 0#usize
   ok { rows, cols := c }
 
-/-- [hachi::ring::PreparedVecGA]
-    Source: 'src/ring.rs', lines 1013:0-1017:1
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::rows]:
+    Source: 'src/linalg.rs', lines 411:4-413:5
     Visibility: public -/
-structure ring.PreparedVecGA where
-  len : Std.Usize
-  fwd_g : alloc.vec.Vec Std.U64
-  fwd_a : alloc.vec.Vec Std.U64
+def linalg.PreparedMatrixG.impl.rows
+  (self : linalg.PreparedMatrixG) : Result Std.Usize := do
+  ok (alloc.vec.Vec.len self.rows)
 
-/-- [hachi::linalg::PreparedMatrixGA]
-    Source: 'src/linalg.rs', lines 390:0-393:1
+/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::rows]:
+    Source: 'src/linalg.rs', lines 451:4-453:5
     Visibility: public -/
-structure linalg.PreparedMatrixGA where
-  rows : alloc.vec.Vec ring.PreparedVecGA
-  cols : Std.Usize
-
-/-- [hachi::ring::prepare_vec_ga]:
-    Source: 'src/ring.rs', lines 1027:0-1032:1
-    Visibility: public -/
-def ring.prepare_vec_ga
-  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) : Result ring.PreparedVecGA := do
-  let fwd_g ← ring.prepare_one_gold a n
-  let fwd_a ← ring.prepare_one a n ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
-  ok { len := n, fwd_g, fwd_a }
-
-/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_ga]: loop body 0:
-    Source: 'src/linalg.rs', lines 405:8-408:9
-    Visibility: public -/
-@[rust_loop_body]
-def linalg.PolyMatrix.prepare_ga_loop.body
-  (v : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (c : Std.Usize)
-  (rows : alloc.vec.Vec ring.PreparedVecGA) (i : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec ring.PreparedVecGA) × Std.Usize)
-    (alloc.vec.Vec ring.PreparedVecGA))
-  := do
-  if i < n
-  then
-    let pv ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        linalg.PolyVec) v i
-    let pvg ← ring.prepare_vec_ga pv c
-    let rows1 ← alloc.vec.Vec.push rows pvg
-    let i1 ← i + 1#usize
-    ok (cont (rows1, i1))
-  else ok (done rows)
-
-/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_ga]: loop 0:
-    Source: 'src/linalg.rs', lines 405:8-408:9
-    Visibility: public -/
-@[rust_loop]
-def linalg.PolyMatrix.prepare_ga_loop
-  (v : alloc.vec.Vec linalg.PolyVec) (n : Std.Usize) (c : Std.Usize)
-  (rows : alloc.vec.Vec ring.PreparedVecGA) (i : Std.Usize) :
-  Result (alloc.vec.Vec ring.PreparedVecGA)
-  := do
-  loop
-    (fun (rows1, i1) => linalg.PolyMatrix.prepare_ga_loop.body v n c rows1 i1)
-    (rows, i)
-
-/-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_ga]:
-    Source: 'src/linalg.rs', lines 400:4-410:5
-    Visibility: public -/
-def linalg.PolyMatrix.prepare_ga
-  (self : linalg.PolyMatrix) : Result linalg.PreparedMatrixGA := do
-  let n := alloc.vec.Vec.len self
-  let c ← linalg.PolyMatrix.cols self
-  let rows ←
-    linalg.PolyMatrix.prepare_ga_loop self n c (alloc.vec.Vec.new
-      ring.PreparedVecGA) 0#usize
-  ok { rows, cols := c }
-
-/-- [hachi::ring::mac_into_gold]: loop body 0:
-    Source: 'src/ring.rs', lines 1427:4-1431:5
-    Visibility: public -/
-@[rust_loop_body]
-def ring.mac_into_gold_loop.body
-  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if k < n
-  then
-    let i ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) af k
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) bf k
-    let prod ← ntt.gold_mul i i1
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) out k
-    let i3 ← ntt.gold_add i2 prod
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        out k
-    let k1 ← k + 1#usize
-    let out1 := index_mut_back i3
-    ok (cont (out1, k1))
-  else ok (done out)
-
-/-- [hachi::ring::mac_into_gold]: loop 0:
-    Source: 'src/ring.rs', lines 1427:4-1431:5
-    Visibility: public -/
-@[rust_loop]
-def ring.mac_into_gold_loop
-  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (out1, k1) => ring.mac_into_gold_loop.body af bf n out1 k1)
-    (out, k)
-
-/-- [hachi::ring::mac_into_gold]:
-    Source: 'src/ring.rs', lines 1424:0-1433:1
-    Visibility: public -/
-@[reducible]
-def ring.mac_into_gold
-  (acc : alloc.vec.Vec Std.U64) (af : alloc.vec.Vec Std.U64)
-  (bf : alloc.vec.Vec Std.U64) (n : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  ring.mac_into_gold_loop af bf n acc 0#usize
-
-/-- [hachi::ring::slice_out]: loop body 0:
-    Source: 'src/ring.rs', lines 895:4-898:5
-    Visibility: public -/
-@[rust_loop_body]
-def ring.slice_out_loop.body
-  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if c < n
-  then
-    let i ← base + c
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pfwd
-        i
-    let out1 ← alloc.vec.Vec.push out i1
-    let c1 ← c + 1#usize
-    ok (cont (out1, c1))
-  else ok (done out)
-
-/-- [hachi::ring::slice_out]: loop 0:
-    Source: 'src/ring.rs', lines 895:4-898:5
-    Visibility: public -/
-@[rust_loop]
-def ring.slice_out_loop
-  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
-  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (out1, c1) => ring.slice_out_loop.body pfwd base n out1 c1)
-    (out, c)
-
-/-- [hachi::ring::slice_out]:
-    Source: 'src/ring.rs', lines 892:0-900:1
-    Visibility: public -/
-def ring.slice_out
-  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let out := alloc.vec.Vec.with_capacity Std.U64 n
-  ring.slice_out_loop pfwd base n out 0#usize
-
-/-- [hachi::ring::dot_prep_chunk_gold]: loop body 1:
-    Source: 'src/ring.rs', lines 990:8-993:9
-    Visibility: public -/
-@[rust_loop_body]
-def ring.dot_prep_chunk_gold_loop0_loop0.body
-  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
-  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if u < n
-  then
-    let r ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) b j
-    let f ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Fp) r u
-    let i ← cpoly.field.Fp.to_u64 f
-    let bw1 ← alloc.vec.Vec.push bw i
-    let u1 ← u + 1#usize
-    ok (cont (bw1, u1))
-  else ok (done bw)
-
-/-- [hachi::ring::dot_prep_chunk_gold]: loop 1:
-    Source: 'src/ring.rs', lines 990:8-993:9
-    Visibility: public -/
-@[rust_loop]
-def ring.dot_prep_chunk_gold_loop0_loop0
-  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
-  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (bw1, u1) => ring.dot_prep_chunk_gold_loop0_loop0.body b n j bw1 u1)
-    (bw, u)
-
-/-- [hachi::ring::dot_prep_chunk_gold]: loop body 0:
-    Source: 'src/ring.rs', lines 987:4-1000:5
-    Visibility: public -/
-@[rust_loop_body]
-def ring.dot_prep_chunk_gold_loop0.body
-  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
-  (n : Std.Usize) (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
-  (scratch : alloc.vec.Vec Std.U64) (j : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
-    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
-  := do
-  if j < end1
-  then
-    let bw := alloc.vec.Vec.with_capacity Std.U64 n
-    let bw1 ← ring.dot_prep_chunk_gold_loop0_loop0 b n j bw 0#usize
-    let tb ← ntt.gold_twist bw1 pt
-    let fwb ← ntt.gold_forward tb scratch pt
-    let i ← j * n
-    let af ← ring.slice_out pfwd i n
-    let (v, scratch1) := fwb
-    let acc1 ← ring.mac_into_gold acc af v n
-    let j1 ← j + 1#usize
-    ok (cont (acc1, scratch1, j1))
-  else ok (done (acc, scratch))
-
-/-- [hachi::ring::dot_prep_chunk_gold]: loop 0:
-    Source: 'src/ring.rs', lines 987:4-1000:5
-    Visibility: public -/
-@[rust_loop]
-def ring.dot_prep_chunk_gold_loop0
-  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
-  (n : Std.Usize) (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
-  (scratch : alloc.vec.Vec Std.U64) (j : Std.Usize) :
-  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
-  := do
-  loop
-    (fun (acc1, scratch1, j1) => ring.dot_prep_chunk_gold_loop0.body pfwd b
-      end1 n pt acc1 scratch1 j1)
-    (acc, scratch, j)
-
-/-- [hachi::ring::dot_prep_chunk_gold]:
-    Source: 'src/ring.rs', lines 974:0-1005:1
-    Visibility: public -/
-def ring.dot_prep_chunk_gold
-  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq)
-  (start : Std.Usize) (end1 : Std.Usize) (boff : Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let pt ← ntt.gold_psi_table ntt.GOLD_PSI
-  let it ← ntt.gold_psi_table ntt.GOLD_PSIINV
-  let acc ← ntt.zeros ntt.NTT_LEN
-  let (acc1, scratch) ←
-    ring.dot_prep_chunk_gold_loop0 pfwd b end1 ntt.NTT_LEN pt acc acc start
-  let i ← end1 - start
-  let len ← lift (UScalar.cast .U64 i)
-  let scaled ← ntt.gold_mul boff len
-  let (v, _) ← ntt.gold_inverse acc1 scratch it
-  ntt.gold_untwist_off v it scaled
+def linalg.PreparedMatrix.impl.rows
+  (self : linalg.PreparedMatrix) : Result Std.Usize := do
+  ok (alloc.vec.Vec.len self.rows)
 
 /-- [hachi::ring::mac_into]: loop body 0:
     Source: 'src/ring.rs', lines 910:4-914:5
@@ -13612,6 +13306,50 @@ def ring.mac_into
   Result (alloc.vec.Vec Std.U64)
   := do
   ring.mac_into_loop af bf n p m acc 0#usize
+
+/-- [hachi::ring::slice_out]: loop body 0:
+    Source: 'src/ring.rs', lines 895:4-898:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.slice_out_loop.body
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if c < n
+  then
+    let i ← base + c
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) pfwd
+        i
+    let out1 ← alloc.vec.Vec.push out i1
+    let c1 ← c + 1#usize
+    ok (cont (out1, c1))
+  else ok (done out)
+
+/-- [hachi::ring::slice_out]: loop 0:
+    Source: 'src/ring.rs', lines 895:4-898:5
+    Visibility: public -/
+@[rust_loop]
+def ring.slice_out_loop
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (c : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, c1) => ring.slice_out_loop.body pfwd base n out1 c1)
+    (out, c)
+
+/-- [hachi::ring::slice_out]:
+    Source: 'src/ring.rs', lines 892:0-900:1
+    Visibility: public -/
+def ring.slice_out
+  (pfwd : alloc.vec.Vec Std.U64) (base : Std.Usize) (n : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let out := alloc.vec.Vec.with_capacity Std.U64 n
+  ring.slice_out_loop pfwd base n out 0#usize
 
 /-- [hachi::ring::dot_prep_chunk_mod_p]: loop body 1:
     Source: 'src/ring.rs', lines 947:8-950:9
@@ -13711,196 +13449,6 @@ def ring.dot_prep_chunk_mod_p
   let scaled ← ntt.aux_mul boff len p m
   let (v, _) ← ntt.ntt_inverse acc1 scratch it p m
   ntt.untwist v it ninv scaled p m
-
-/-- [hachi::ntt::GA_GINV]
-    Source: 'src/ntt.rs', lines 804:0-804:35
-    Visibility: public -/
-@[global_simps, irreducible] def ntt.GA_GINV : Std.U64 := 4091113#u64
-
-/-- [hachi::ntt::garner_ga]:
-    Source: 'src/ntt.rs', lines 820:0-828:1
-    Visibility: public -/
-def ntt.garner_ga (rg : Std.U64) (ra : Std.U64) : Result Std.U128 := do
-  let rgm ← rg % ntt.AUX_P1
-  let diff ←
-    if ra >= rgm
-    then ra - rgm
-    else do
-         let i ← ra + ntt.AUX_P1
-         i - rgm
-  let t ← ntt.aux_mul diff ntt.GA_GINV ntt.AUX_P1 ntt.AUX_M1
-  let g ← lift (UScalar.cast .U128 ntt.GOLD_P)
-  let tw ← lift (UScalar.cast .U128 t)
-  let i ← lift (UScalar.cast .U128 rg)
-  let i1 ← g * tw
-  i + i1
-
-/-- [hachi::ntt::GOLD_BOFF]
-    Source: 'src/ntt.rs', lines 801:0-801:54
-    Visibility: public -/
-@[global_simps, irreducible]
-def ntt.GOLD_BOFF : Std.U64 := 18445877654261932033#u64
-
-/-- [hachi::ring::dot_prepared_ga]: loop body 1:
-    Source: 'src/ring.rs', lines 1063:8-1066:9
-    Visibility: public -/
-@[rust_loop_body]
-def ring.dot_prepared_ga_loop0_loop0.body
-  (deg : Std.Usize) (qw : Std.U128) (rg : alloc.vec.Vec Std.U64)
-  (ra : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
-  (t : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
-    (alloc.vec.Vec cpoly.field.Fp))
-  := do
-  if t < deg
-  then
-    let i ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) rg t
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) ra t
-    let i2 ← ntt.garner_ga i i1
-    let i3 ← i2 % qw
-    let i4 ← lift (UScalar.cast .U64 i3)
-    let f ← cpoly.field.Fp.new i4
-    let out1 ← alloc.vec.Vec.push out f
-    let t1 ← t + 1#usize
-    ok (cont (out1, t1))
-  else ok (done out)
-
-/-- [hachi::ring::dot_prepared_ga]: loop 1:
-    Source: 'src/ring.rs', lines 1063:8-1066:9
-    Visibility: public -/
-@[rust_loop]
-def ring.dot_prepared_ga_loop0_loop0
-  (deg : Std.Usize) (qw : Std.U128) (rg : alloc.vec.Vec Std.U64)
-  (ra : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
-  (t : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Fp)
-  := do
-  loop
-    (fun (out1, t1) => ring.dot_prepared_ga_loop0_loop0.body deg qw rg ra out1
-      t1)
-    (out, t)
-
-/-- [hachi::ring::dot_prepared_ga]: loop body 0:
-    Source: 'src/ring.rs', lines 1052:4-1069:5
-    Visibility: public -/
-@[rust_loop_body]
-def ring.dot_prepared_ga_loop0.body
-  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
-  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
-  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
-  := do
-  if start < n
-  then
-    let remaining ← n - start
-    let take ←
-      if remaining < ring.DOT_CHUNK
-      then ok remaining
-      else ok ring.DOT_CHUNK
-    let end1 ← start + take
-    let rg ← ring.dot_prep_chunk_gold prep.fwd_g b start end1 ntt.GOLD_BOFF
-    let ra ←
-      ring.dot_prep_chunk_mod_p prep.fwd_a b start end1 ntt.AUX_P1 ntt.AUX_M1
-        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1
-    let out := alloc.vec.Vec.with_capacity cpoly.field.Fp deg
-    let out1 ← ring.dot_prepared_ga_loop0_loop0 deg qw rg ra out 0#usize
-    let acc1 ← ring.Rq.add acc out1
-    ok (cont (acc1, end1))
-  else ok (done acc)
-
-/-- [hachi::ring::dot_prepared_ga]: loop 0:
-    Source: 'src/ring.rs', lines 1052:4-1069:5
-    Visibility: public -/
-@[rust_loop]
-def ring.dot_prepared_ga_loop0
-  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
-  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
-  Result ring.Rq
-  := do
-  loop
-    (fun (acc1, start1) => ring.dot_prepared_ga_loop0.body prep b n deg qw acc1
-      start1)
-    (acc, start)
-
-/-- [hachi::ring::dot_prepared_ga]:
-    Source: 'src/ring.rs', lines 1047:0-1071:1
-    Visibility: public -/
-def ring.dot_prepared_ga
-  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) :
-  Result ring.Rq
-  := do
-  let qw ← lift (UScalar.cast .U128 params.Q)
-  let acc ← ring.Rq.zero
-  ring.dot_prepared_ga_loop0 prep b n params.RING_DEGREE qw acc 0#usize
-
-/-- [hachi::linalg::{hachi::linalg::PreparedMatrixGA}::apply_ga]: loop body 0:
-    Source: 'src/linalg.rs', lines 422:8-425:9
-    Visibility: public -/
-@[rust_loop_body]
-def linalg.PreparedMatrixGA.apply_ga_loop.body
-  (v : alloc.vec.Vec ring.PreparedVecGA) (v1 : alloc.vec.Vec ring.Rq)
-  (n : Std.Usize) (w : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-  :
-  Result (ControlFlow ((alloc.vec.Vec ring.Rq) × Std.Usize) (alloc.vec.Vec
-    ring.Rq))
-  := do
-  if i < n
-  then
-    let pvg ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        ring.PreparedVecGA) v i
-    let r ← ring.dot_prepared_ga pvg v1 w
-    let out1 ← alloc.vec.Vec.push out r
-    let i1 ← i + 1#usize
-    ok (cont (out1, i1))
-  else ok (done out)
-
-/-- [hachi::linalg::{hachi::linalg::PreparedMatrixGA}::apply_ga]: loop 0:
-    Source: 'src/linalg.rs', lines 422:8-425:9
-    Visibility: public -/
-@[rust_loop]
-def linalg.PreparedMatrixGA.apply_ga_loop
-  (v : alloc.vec.Vec ring.PreparedVecGA) (v1 : alloc.vec.Vec ring.Rq)
-  (n : Std.Usize) (w : Std.Usize) (out : alloc.vec.Vec ring.Rq) (i : Std.Usize)
-  :
-  Result (alloc.vec.Vec ring.Rq)
-  := do
-  loop
-    (fun (out1, i1) => linalg.PreparedMatrixGA.apply_ga_loop.body v v1 n w out1
-      i1)
-    (out, i)
-
-/-- [hachi::linalg::{hachi::linalg::PreparedMatrixGA}::apply_ga]:
-    Source: 'src/linalg.rs', lines 417:4-427:5
-    Visibility: public -/
-def linalg.PreparedMatrixGA.apply_ga
-  (self : linalg.PreparedMatrixGA) (v : linalg.PolyVec) :
-  Result linalg.PolyVec
-  := do
-  let n := alloc.vec.Vec.len self.rows
-  let i := alloc.vec.Vec.len v
-  let w ← if self.cols <= i
-            then ok self.cols
-            else ok (alloc.vec.Vec.len v)
-  let out ←
-    linalg.PreparedMatrixGA.apply_ga_loop self.rows v n w (alloc.vec.Vec.new
-      ring.Rq) 0#usize
-  ok out
-
-/-- [hachi::linalg::{hachi::linalg::PreparedMatrixG}::rows]:
-    Source: 'src/linalg.rs', lines 453:4-455:5
-    Visibility: public -/
-def linalg.PreparedMatrixG.impl.rows
-  (self : linalg.PreparedMatrixG) : Result Std.Usize := do
-  ok (alloc.vec.Vec.len self.rows)
-
-/-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::rows]:
-    Source: 'src/linalg.rs', lines 493:4-495:5
-    Visibility: public -/
-def linalg.PreparedMatrix.impl.rows
-  (self : linalg.PreparedMatrix) : Result Std.Usize := do
-  ok (alloc.vec.Vec.len self.rows)
 
 /-- [hachi::ring::dot_prepared]: loop body 1:
     Source: 'src/ring.rs', lines 1456:8-1459:9
@@ -14003,7 +13551,7 @@ def ring.dot_prepared
   ring.dot_prepared_loop0 prep b n params.RING_DEGREE qw acc 0#usize
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]: loop body 0:
-    Source: 'src/linalg.rs', lines 505:8-508:9
+    Source: 'src/linalg.rs', lines 463:8-466:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PreparedMatrix.apply_loop.body
@@ -14025,7 +13573,7 @@ def linalg.PreparedMatrix.apply_loop.body
   else ok (done out)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]: loop 0:
-    Source: 'src/linalg.rs', lines 505:8-508:9
+    Source: 'src/linalg.rs', lines 463:8-466:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PreparedMatrix.apply_loop
@@ -14039,7 +13587,7 @@ def linalg.PreparedMatrix.apply_loop
     (out, i)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply]:
-    Source: 'src/linalg.rs', lines 500:4-510:5
+    Source: 'src/linalg.rs', lines 458:4-468:5
     Visibility: public -/
 def linalg.PreparedMatrix.apply
   (self : linalg.PreparedMatrix) (v : linalg.PolyVec) :
@@ -14061,7 +13609,7 @@ def linalg.PreparedMatrix.apply
 @[global_simps, irreducible] def ring.DOT_CHUNK_D : Std.Usize := 2048#usize
 
 /-- [hachi::ntt::garner2]:
-    Source: 'src/ntt.rs', lines 944:0-948:1
+    Source: 'src/ntt.rs', lines 919:0-923:1
     Visibility: public -/
 def ntt.garner2 (r1 : Std.U64) (r2 : Std.U64) : Result Std.U64 := do
   let d1 ← ntt.aux_sub r2 r1 ntt.AUX_P2
@@ -14174,7 +13722,7 @@ def ring.dot_prepared_digits
     0#usize
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply_digits]: loop body 0:
-    Source: 'src/linalg.rs', lines 526:8-529:9
+    Source: 'src/linalg.rs', lines 484:8-487:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PreparedMatrix.apply_digits_loop.body
@@ -14196,7 +13744,7 @@ def linalg.PreparedMatrix.apply_digits_loop.body
   else ok (done out)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply_digits]: loop 0:
-    Source: 'src/linalg.rs', lines 526:8-529:9
+    Source: 'src/linalg.rs', lines 484:8-487:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PreparedMatrix.apply_digits_loop
@@ -14211,7 +13759,7 @@ def linalg.PreparedMatrix.apply_digits_loop
     (out, i)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrix}::apply_digits]:
-    Source: 'src/linalg.rs', lines 521:4-531:5
+    Source: 'src/linalg.rs', lines 479:4-489:5
     Visibility: public -/
 def linalg.PreparedMatrix.apply_digits
   (self : linalg.PreparedMatrix) (v : linalg.PolyVec) :
@@ -14236,7 +13784,7 @@ structure ring.PreparedVecL2 where
   f1 : alloc.vec.Vec Std.U64
 
 /-- [hachi::linalg::PreparedMatrixL2]
-    Source: 'src/linalg.rs', lines 539:0-542:1
+    Source: 'src/linalg.rs', lines 497:0-500:1
     Visibility: public -/
 structure linalg.PreparedMatrixL2 where
   rows : alloc.vec.Vec ring.PreparedVecL2
@@ -14338,7 +13886,7 @@ def ring.prepare_vec_limbs2
   ok { len := n, f0 := v, f1 := v1 }
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_limbs2]: loop body 0:
-    Source: 'src/linalg.rs', lines 551:8-554:9
+    Source: 'src/linalg.rs', lines 509:8-512:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PolyMatrix.prepare_limbs2_loop.body
@@ -14359,7 +13907,7 @@ def linalg.PolyMatrix.prepare_limbs2_loop.body
   else ok (done rows)
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_limbs2]: loop 0:
-    Source: 'src/linalg.rs', lines 551:8-554:9
+    Source: 'src/linalg.rs', lines 509:8-512:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PolyMatrix.prepare_limbs2_loop
@@ -14373,7 +13921,7 @@ def linalg.PolyMatrix.prepare_limbs2_loop
     (rows, i)
 
 /-- [hachi::linalg::{hachi::linalg::PolyMatrix}::prepare_limbs2]:
-    Source: 'src/linalg.rs', lines 546:4-556:5
+    Source: 'src/linalg.rs', lines 504:4-514:5
     Visibility: public -/
 def linalg.PolyMatrix.prepare_limbs2
   (self : linalg.PolyMatrix) : Result linalg.PreparedMatrixL2 := do
@@ -14976,7 +14524,7 @@ def ring.dot_prepared_limbs2
   ring.dot_prepared_limbs2_loop0 prep b n params.RING_DEGREE qw acc 0#usize
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixL2}::apply_limbs2]: loop body 0:
-    Source: 'src/linalg.rs', lines 567:8-570:9
+    Source: 'src/linalg.rs', lines 525:8-528:9
     Visibility: public -/
 @[rust_loop_body]
 def linalg.PreparedMatrixL2.apply_limbs2_loop.body
@@ -14998,7 +14546,7 @@ def linalg.PreparedMatrixL2.apply_limbs2_loop.body
   else ok (done out)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixL2}::apply_limbs2]: loop 0:
-    Source: 'src/linalg.rs', lines 567:8-570:9
+    Source: 'src/linalg.rs', lines 525:8-528:9
     Visibility: public -/
 @[rust_loop]
 def linalg.PreparedMatrixL2.apply_limbs2_loop
@@ -15013,7 +14561,7 @@ def linalg.PreparedMatrixL2.apply_limbs2_loop
     (out, i)
 
 /-- [hachi::linalg::{hachi::linalg::PreparedMatrixL2}::apply_limbs2]:
-    Source: 'src/linalg.rs', lines 562:4-572:5
+    Source: 'src/linalg.rs', lines 520:4-530:5
     Visibility: public -/
 def linalg.PreparedMatrixL2.apply_limbs2
   (self : linalg.PreparedMatrixL2) (v : linalg.PolyVec) :
@@ -15034,147 +14582,34 @@ def linalg.PreparedMatrixL2.apply_limbs2
     Visibility: public -/
 @[global_simps, irreducible] def ntt.NTT_LOG : Std.Usize := 10#usize
 
-/-- [hachi::ntt::gold_dif_stage]: loop body 1:
-    Source: 'src/ntt.rs', lines 568:8-571:9
+/-- [hachi::ntt::GOLD_BOFF]
+    Source: 'src/ntt.rs', lines 776:0-776:54
     Visibility: public -/
-@[rust_loop_body]
-def ntt.gold_dif_stage_loop0_loop0.body
-  (src : alloc.vec.Vec Std.U64) (half : Std.Usize) (start : Std.Usize)
-  (dst : alloc.vec.Vec Std.U64) (j : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if j < half
-  then
-    let i ← start + j
-    let i1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src i
-    let i2 ← i + half
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
-        i2
-    let i4 ← ntt.gold_add i1 i3
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        dst i
-    let j1 ← j + 1#usize
-    let dst1 := index_mut_back i4
-    ok (cont (dst1, j1))
-  else ok (done dst)
+@[global_simps, irreducible]
+def ntt.GOLD_BOFF : Std.U64 := 18445877654261932033#u64
 
-/-- [hachi::ntt::gold_dif_stage]: loop 1:
-    Source: 'src/ntt.rs', lines 568:8-571:9
+/-- [hachi::ntt::GA_GINV]
+    Source: 'src/ntt.rs', lines 779:0-779:35
     Visibility: public -/
-@[rust_loop]
-def ntt.gold_dif_stage_loop0_loop0
-  (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64)
-  (half : Std.Usize) (start : Std.Usize) (j : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (dst1, j1) => ntt.gold_dif_stage_loop0_loop0.body src half start dst1
-      j1)
-    (dst, j)
+@[global_simps, irreducible] def ntt.GA_GINV : Std.U64 := 4091113#u64
 
-/-- [hachi::ntt::gold_dif_stage]: loop body 2:
-    Source: 'src/ntt.rs', lines 574:8-579:9
+/-- [hachi::ntt::garner_ga]:
+    Source: 'src/ntt.rs', lines 795:0-803:1
     Visibility: public -/
-@[rust_loop_body]
-def ntt.gold_dif_stage_loop0_loop1.body
-  (src : alloc.vec.Vec Std.U64) (tw : alloc.vec.Vec Std.U64) (half : Std.Usize)
-  (step : Std.Usize) (start : Std.Usize) (dst : alloc.vec.Vec Std.U64)
-  (i : Std.Usize) (e : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize × Std.Usize)
-    (alloc.vec.Vec Std.U64))
-  := do
-  if i < half
-  then
-    let i1 ← start + i
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
-        i1
-    let i3 ← i1 + half
-    let i4 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) src
-        i3
-    let d ← ntt.gold_sub i2 i4
-    let i5 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) tw e
-    let i6 ← ntt.gold_mul d i5
-    let i7 ← start + half
-    let i8 ← i7 + i
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
-        dst i8
-    let i9 ← i + 1#usize
-    let e1 ← e + step
-    let dst1 := index_mut_back i6
-    ok (cont (dst1, i9, e1))
-  else ok (done dst)
-
-/-- [hachi::ntt::gold_dif_stage]: loop 2:
-    Source: 'src/ntt.rs', lines 574:8-579:9
-    Visibility: public -/
-@[rust_loop]
-def ntt.gold_dif_stage_loop0_loop1
-  (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64)
-  (tw : alloc.vec.Vec Std.U64) (half : Std.Usize) (step : Std.Usize)
-  (start : Std.Usize) (i : Std.Usize) (e : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (dst1, i1, e1) => ntt.gold_dif_stage_loop0_loop1.body src tw half step
-      start dst1 i1 e1)
-    (dst, i, e)
-
-/-- [hachi::ntt::gold_dif_stage]: loop body 0:
-    Source: 'src/ntt.rs', lines 566:4-581:5
-    Visibility: public -/
-@[rust_loop_body]
-def ntt.gold_dif_stage_loop0.body
-  (src : alloc.vec.Vec Std.U64) (len : Std.Usize) (tw : alloc.vec.Vec Std.U64)
-  (n : Std.Usize) (half : Std.Usize) (step : Std.Usize)
-  (dst : alloc.vec.Vec Std.U64) (start : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
-    Std.U64))
-  := do
-  if start < n
-  then
-    let dst1 ← ntt.gold_dif_stage_loop0_loop0 src dst half start 0#usize
-    let dst2 ←
-      ntt.gold_dif_stage_loop0_loop1 src dst1 tw half step start 0#usize
-        0#usize
-    let start1 ← start + len
-    ok (cont (dst2, start1))
-  else ok (done dst)
-
-/-- [hachi::ntt::gold_dif_stage]: loop 0:
-    Source: 'src/ntt.rs', lines 566:4-581:5
-    Visibility: public -/
-@[rust_loop]
-def ntt.gold_dif_stage_loop0
-  (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
-  (tw : alloc.vec.Vec Std.U64) (n : Std.Usize) (half : Std.Usize)
-  (step : Std.Usize) (start : Std.Usize) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  loop
-    (fun (dst1, start1) => ntt.gold_dif_stage_loop0.body src len tw n half step
-      dst1 start1)
-    (dst, start)
-
-/-- [hachi::ntt::gold_dif_stage]:
-    Source: 'src/ntt.rs', lines 561:0-583:1
-    Visibility: public -/
-def ntt.gold_dif_stage
-  (src : alloc.vec.Vec Std.U64) (dst : alloc.vec.Vec Std.U64) (len : Std.Usize)
-  (tw : alloc.vec.Vec Std.U64) :
-  Result (alloc.vec.Vec Std.U64)
-  := do
-  let half ← len / 2#usize
-  let i ← ntt.NTT_LEN / len
-  let step ← 2#usize * i
-  ntt.gold_dif_stage_loop0 src dst len tw ntt.NTT_LEN half step 0#usize
+def ntt.garner_ga (rg : Std.U64) (ra : Std.U64) : Result Std.U128 := do
+  let rgm ← rg % ntt.AUX_P1
+  let diff ←
+    if ra >= rgm
+    then ra - rgm
+    else do
+         let i ← ra + ntt.AUX_P1
+         i - rgm
+  let t ← ntt.aux_mul diff ntt.GA_GINV ntt.AUX_P1 ntt.AUX_M1
+  let g ← lift (UScalar.cast .U128 ntt.GOLD_P)
+  let tw ← lift (UScalar.cast .U128 t)
+  let i ← lift (UScalar.cast .U128 rg)
+  let i1 ← g * tw
+  i + i1
 
 /-- [hachi::params::EXT_DEGREE]
     Source: 'src/params.rs', lines 74:0-74:32
@@ -17195,20 +16630,8 @@ def quadeval.carrier_commit_from_raw_32
   let what ← quadeval.carrier_decomp_from_raw_32 a raw1
   linalg.PolyMatrix.mat_vec_mul d_matrix what
 
-/-- [hachi::quadeval::honest_compute_v_from_raw_32]:
-    Source: 'src/quadeval.rs', lines 894:0-900:1
-    Visibility: public -/
-def quadeval.honest_compute_v_from_raw_32
-  (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
-  (raw1 : alloc.vec.Vec linalg.RawVec32) :
-  Result linalg.PolyVec
-  := do
-  let pm ← quadeval.PublicParamsD.impl.d_matrix pp
-  let pv ← quadeval.QuadEvalStatement.impl.avec stmt
-  quadeval.carrier_commit_from_raw_32 pm pv raw1
-
 /-- [hachi::quadeval::honest_compute_resp_from_raw_32]: loop body 0:
-    Source: 'src/quadeval.rs', lines 935:4-938:5
+    Source: 'src/quadeval.rs', lines 926:4-929:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.honest_compute_resp_from_raw_32_loop.body
@@ -17230,7 +16653,7 @@ def quadeval.honest_compute_resp_from_raw_32_loop.body
   else ok (done inner)
 
 /-- [hachi::quadeval::honest_compute_resp_from_raw_32]: loop 0:
-    Source: 'src/quadeval.rs', lines 935:4-938:5
+    Source: 'src/quadeval.rs', lines 926:4-929:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.honest_compute_resp_from_raw_32_loop
@@ -17244,7 +16667,7 @@ def quadeval.honest_compute_resp_from_raw_32_loop
     (inner, i)
 
 /-- [hachi::quadeval::honest_compute_resp_from_raw_32]:
-    Source: 'src/quadeval.rs', lines 924:0-940:1
+    Source: 'src/quadeval.rs', lines 915:0-931:1
     Visibility: public -/
 def quadeval.honest_compute_resp_from_raw_32
   (carrier_dec : linalg.PolyVec) (raw1 : alloc.vec.Vec linalg.RawVec32)
@@ -17260,7 +16683,7 @@ def quadeval.honest_compute_resp_from_raw_32
   quadeval.QuadEvalResponse.new carrier_dec1 inner z_dec
 
 /-- [hachi::quadeval::honest_compute_v]:
-    Source: 'src/quadeval.rs', lines 946:0-952:1
+    Source: 'src/quadeval.rs', lines 937:0-943:1
     Visibility: public -/
 def quadeval.honest_compute_v
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -17271,20 +16694,8 @@ def quadeval.honest_compute_v
   let pv ← quadeval.QuadEvalStatement.impl.avec stmt
   quadeval.carrier_commit pm pv message
 
-/-- [hachi::quadeval::honest_compute_v_from_raw]:
-    Source: 'src/quadeval.rs', lines 961:0-967:1
-    Visibility: public -/
-def quadeval.honest_compute_v_from_raw
-  (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
-  (raw1 : alloc.vec.Vec linalg.PolyVec) :
-  Result linalg.PolyVec
-  := do
-  let pm ← quadeval.PublicParamsD.impl.d_matrix pp
-  let pv ← quadeval.QuadEvalStatement.impl.avec stmt
-  quadeval.carrier_commit_from_raw pm pv raw1
-
 /-- [hachi::quadeval::honest_compute_resp]: loop body 0:
-    Source: 'src/quadeval.rs', lines 989:4-992:5
+    Source: 'src/quadeval.rs', lines 965:4-968:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.honest_compute_resp_loop.body
@@ -17306,7 +16717,7 @@ def quadeval.honest_compute_resp_loop.body
   else ok (done inner)
 
 /-- [hachi::quadeval::honest_compute_resp]: loop 0:
-    Source: 'src/quadeval.rs', lines 989:4-992:5
+    Source: 'src/quadeval.rs', lines 965:4-968:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.honest_compute_resp_loop
@@ -17320,7 +16731,7 @@ def quadeval.honest_compute_resp_loop
     (inner, i)
 
 /-- [hachi::quadeval::honest_compute_resp]:
-    Source: 'src/quadeval.rs', lines 978:0-994:1
+    Source: 'src/quadeval.rs', lines 954:0-970:1
     Visibility: public -/
 def quadeval.honest_compute_resp
   (stmt : quadeval.QuadEvalStatement) (message : alloc.vec.Vec linalg.PolyVec)
@@ -17337,7 +16748,7 @@ def quadeval.honest_compute_resp
   quadeval.QuadEvalResponse.new carrier_dec inner z_dec
 
 /-- [hachi::quadeval::honest_compute_resp_from_raw]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1016:4-1019:5
+    Source: 'src/quadeval.rs', lines 992:4-995:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.honest_compute_resp_from_raw_loop.body
@@ -17359,7 +16770,7 @@ def quadeval.honest_compute_resp_from_raw_loop.body
   else ok (done inner)
 
 /-- [hachi::quadeval::honest_compute_resp_from_raw]: loop 0:
-    Source: 'src/quadeval.rs', lines 1016:4-1019:5
+    Source: 'src/quadeval.rs', lines 992:4-995:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.honest_compute_resp_from_raw_loop
@@ -17373,7 +16784,7 @@ def quadeval.honest_compute_resp_from_raw_loop
     (inner, i)
 
 /-- [hachi::quadeval::honest_compute_resp_from_raw]:
-    Source: 'src/quadeval.rs', lines 1005:0-1021:1
+    Source: 'src/quadeval.rs', lines 981:0-997:1
     Visibility: public -/
 def quadeval.honest_compute_resp_from_raw
   (stmt : quadeval.QuadEvalStatement) (raw1 : alloc.vec.Vec linalg.PolyVec)
@@ -17390,7 +16801,7 @@ def quadeval.honest_compute_resp_from_raw
   quadeval.QuadEvalResponse.new carrier_dec inner z_dec
 
 /-- [hachi::quadeval::in_sb]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1044:4-1058:5
+    Source: 'src/quadeval.rs', lines 1020:4-1034:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.in_sb_loop.body
@@ -17417,7 +16828,7 @@ def quadeval.in_sb_loop.body
   else ok (done ok1)
 
 /-- [hachi::quadeval::in_sb]: loop 0:
-    Source: 'src/quadeval.rs', lines 1044:4-1058:5
+    Source: 'src/quadeval.rs', lines 1020:4-1034:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.in_sb_loop
@@ -17429,14 +16840,14 @@ def quadeval.in_sb_loop
     (ok1, k)
 
 /-- [hachi::quadeval::in_sb]:
-    Source: 'src/quadeval.rs', lines 1038:0-1060:1
+    Source: 'src/quadeval.rs', lines 1014:0-1036:1
     Visibility: public -/
 def quadeval.in_sb (a : ring.Rq) : Result Bool := do
   let half ← params.Q / 2#u64
   quadeval.in_sb_loop a params.RING_DEGREE half true 0#usize
 
 /-- [hachi::quadeval::vec_in_sb]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1073:4-1078:5
+    Source: 'src/quadeval.rs', lines 1049:4-1054:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.vec_in_sb_loop.body
@@ -17455,7 +16866,7 @@ def quadeval.vec_in_sb_loop.body
   else ok (done ok1)
 
 /-- [hachi::quadeval::vec_in_sb]: loop 0:
-    Source: 'src/quadeval.rs', lines 1073:4-1078:5
+    Source: 'src/quadeval.rs', lines 1049:4-1054:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.vec_in_sb_loop
@@ -17467,21 +16878,21 @@ def quadeval.vec_in_sb_loop
     (ok1, i)
 
 /-- [hachi::quadeval::vec_in_sb]:
-    Source: 'src/quadeval.rs', lines 1069:0-1080:1
+    Source: 'src/quadeval.rs', lines 1045:0-1056:1
     Visibility: public -/
 def quadeval.vec_in_sb (v : linalg.PolyVec) : Result Bool := do
   let n ← linalg.PolyVec.len v
   quadeval.vec_in_sb_loop v n true 0#usize
 
 /-- [hachi::quadeval::j_mul]:
-    Source: 'src/quadeval.rs', lines 1090:0-1093:1
+    Source: 'src/quadeval.rs', lines 1066:0-1069:1
     Visibility: public -/
 def quadeval.j_mul (z_dec : linalg.PolyVec) : Result linalg.PolyVec := do
   let n ← params.MESSAGE_ROWS * params.GADGET_DIGITS
   gadget.gadget_mul_z n z_dec
 
 /-- [hachi::quadeval::rel_out]:
-    Source: 'src/quadeval.rs', lines 1110:0-1143:1
+    Source: 'src/quadeval.rs', lines 1086:0-1119:1
     Visibility: public -/
 def quadeval.rel_out
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -17542,7 +16953,7 @@ def quadeval.rel_out
   else ok false
 
 /-- [hachi::quadeval::paper_rel_out]:
-    Source: 'src/quadeval.rs', lines 1155:0-1185:1
+    Source: 'src/quadeval.rs', lines 1131:0-1161:1
     Visibility: public -/
 def quadeval.paper_rel_out
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -17602,7 +17013,7 @@ def quadeval.paper_rel_out
   else ok false
 
 /-- [hachi::quadeval::{hachi::quadeval::PolyEvalStatement}::new]:
-    Source: 'src/quadeval.rs', lines 1216:4-1218:5
+    Source: 'src/quadeval.rs', lines 1192:4-1194:5
     Visibility: public -/
 def quadeval.PolyEvalStatement.new
   (u : linalg.PolyVec) (xl : linalg.PolyVec) (xh : linalg.PolyVec)
@@ -17612,7 +17023,7 @@ def quadeval.PolyEvalStatement.new
   ok { u, xl, xh, y }
 
 /-- [hachi::quadeval::rlin_cols]:
-    Source: 'src/quadeval.rs', lines 1315:0-1326:1
+    Source: 'src/quadeval.rs', lines 1291:0-1302:1
     Visibility: public -/
 def quadeval.rlin_cols
   (blocks : Std.Usize) (message_rows : Std.Usize) (message_digits : Std.Usize)
@@ -17626,7 +17037,7 @@ def quadeval.rlin_cols
   i + i3
 
 /-- [hachi::quadeval::rlin_rows]:
-    Source: 'src/quadeval.rs', lines 1335:0-1337:1
+    Source: 'src/quadeval.rs', lines 1311:0-1313:1
     Visibility: public -/
 def quadeval.rlin_rows
   (inner_rows : Std.Usize) (outer_rows : Std.Usize) (d_rows : Std.Usize) :
@@ -17638,7 +17049,7 @@ def quadeval.rlin_rows
   d_rows + i2
 
 /-- [hachi::quadeval::unflatten]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1354:8-1357:9
+    Source: 'src/quadeval.rs', lines 1330:8-1333:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unflatten_loop0_loop0.body
@@ -17658,7 +17069,7 @@ def quadeval.unflatten_loop0_loop0.body
   else ok (done block)
 
 /-- [hachi::quadeval::unflatten]: loop 1:
-    Source: 'src/quadeval.rs', lines 1354:8-1357:9
+    Source: 'src/quadeval.rs', lines 1330:8-1333:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.unflatten_loop0_loop0
@@ -17672,7 +17083,7 @@ def quadeval.unflatten_loop0_loop0
     (block, w)
 
 /-- [hachi::quadeval::unflatten]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1351:4-1360:5
+    Source: 'src/quadeval.rs', lines 1327:4-1336:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unflatten_loop0.body
@@ -17693,7 +17104,7 @@ def quadeval.unflatten_loop0.body
   else ok (done out)
 
 /-- [hachi::quadeval::unflatten]: loop 0:
-    Source: 'src/quadeval.rs', lines 1351:4-1360:5
+    Source: 'src/quadeval.rs', lines 1327:4-1336:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unflatten_loop0
@@ -17707,7 +17118,7 @@ def quadeval.unflatten_loop0
     (out, base)
 
 /-- [hachi::quadeval::unflatten]:
-    Source: 'src/quadeval.rs', lines 1347:0-1362:1
+    Source: 'src/quadeval.rs', lines 1323:0-1338:1
     Visibility: public -/
 def quadeval.unflatten
   (v : linalg.PolyVec) (width : Std.Usize) :
@@ -17718,7 +17129,7 @@ def quadeval.unflatten
     0#usize
 
 /-- [hachi::quadeval::stack]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1420:4-1423:5
+    Source: 'src/quadeval.rs', lines 1396:4-1399:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop0.body
@@ -17739,7 +17150,7 @@ def quadeval.stack_loop0.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 0:
-    Source: 'src/quadeval.rs', lines 1420:4-1423:5
+    Source: 'src/quadeval.rs', lines 1396:4-1399:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop0
@@ -17752,7 +17163,7 @@ def quadeval.stack_loop0
     (out, i)
 
 /-- [hachi::quadeval::stack]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1425:4-1428:5
+    Source: 'src/quadeval.rs', lines 1401:4-1404:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop1.body
@@ -17771,7 +17182,7 @@ def quadeval.stack_loop1.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 1:
-    Source: 'src/quadeval.rs', lines 1425:4-1428:5
+    Source: 'src/quadeval.rs', lines 1401:4-1404:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop1
@@ -17783,7 +17194,7 @@ def quadeval.stack_loop1
     (out, j)
 
 /-- [hachi::quadeval::stack]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1430:4-1433:5
+    Source: 'src/quadeval.rs', lines 1406:4-1409:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.stack_loop2.body
@@ -17804,7 +17215,7 @@ def quadeval.stack_loop2.body
   else ok (done out)
 
 /-- [hachi::quadeval::stack]: loop 2:
-    Source: 'src/quadeval.rs', lines 1430:4-1433:5
+    Source: 'src/quadeval.rs', lines 1406:4-1409:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.stack_loop2
@@ -17817,7 +17228,7 @@ def quadeval.stack_loop2
     (out, k)
 
 /-- [hachi::quadeval::stack]:
-    Source: 'src/quadeval.rs', lines 1416:0-1435:1
+    Source: 'src/quadeval.rs', lines 1392:0-1411:1
     Visibility: public -/
 def quadeval.stack
   (resp : quadeval.QuadEvalResponse) : Result linalg.PolyVec := do
@@ -17829,7 +17240,7 @@ def quadeval.stack
   linalg.PolyVec.new out2
 
 /-- [hachi::quadeval::unstack]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1448:4-1451:5
+    Source: 'src/quadeval.rs', lines 1424:4-1427:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop0.body
@@ -17848,7 +17259,7 @@ def quadeval.unstack_loop0.body
   else ok (done carrier)
 
 /-- [hachi::quadeval::unstack]: loop 0:
-    Source: 'src/quadeval.rs', lines 1448:4-1451:5
+    Source: 'src/quadeval.rs', lines 1424:4-1427:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop0
@@ -17861,7 +17272,7 @@ def quadeval.unstack_loop0
     (carrier, i)
 
 /-- [hachi::quadeval::unstack]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1454:4-1457:5
+    Source: 'src/quadeval.rs', lines 1430:4-1433:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop1.body
@@ -17881,7 +17292,7 @@ def quadeval.unstack_loop1.body
   else ok (done middle)
 
 /-- [hachi::quadeval::unstack]: loop 1:
-    Source: 'src/quadeval.rs', lines 1454:4-1457:5
+    Source: 'src/quadeval.rs', lines 1430:4-1433:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop1
@@ -17894,7 +17305,7 @@ def quadeval.unstack_loop1
     (middle, j)
 
 /-- [hachi::quadeval::unstack]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1460:4-1463:5
+    Source: 'src/quadeval.rs', lines 1436:4-1439:5
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.unstack_loop2.body
@@ -17913,7 +17324,7 @@ def quadeval.unstack_loop2.body
   else ok (done z)
 
 /-- [hachi::quadeval::unstack]: loop 2:
-    Source: 'src/quadeval.rs', lines 1460:4-1463:5
+    Source: 'src/quadeval.rs', lines 1436:4-1439:5
     Visibility: public -/
 @[rust_loop]
 def quadeval.unstack_loop2
@@ -17925,7 +17336,7 @@ def quadeval.unstack_loop2
     (z, k)
 
 /-- [hachi::quadeval::unstack]:
-    Source: 'src/quadeval.rs', lines 1445:0-1469:1
+    Source: 'src/quadeval.rs', lines 1421:0-1445:1
     Visibility: public -/
 def quadeval.unstack
   (zeta : linalg.PolyVec) (cw : Std.Usize) (ct : Std.Usize)
@@ -17945,7 +17356,7 @@ def quadeval.unstack
   quadeval.QuadEvalResponse.new pv v pv2
 
 /-- [hachi::quadeval::rlin_row]: loop body 0:
-    Source: 'src/quadeval.rs', lines 1525:8-1528:9
+    Source: 'src/quadeval.rs', lines 1501:8-1504:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop0.body
@@ -17966,7 +17377,7 @@ def quadeval.rlin_row_loop0.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 0:
-    Source: 'src/quadeval.rs', lines 1525:8-1528:9
+    Source: 'src/quadeval.rs', lines 1501:8-1504:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop0
@@ -17979,7 +17390,7 @@ def quadeval.rlin_row_loop0
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 1:
-    Source: 'src/quadeval.rs', lines 1530:8-1533:9
+    Source: 'src/quadeval.rs', lines 1506:8-1509:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop1.body
@@ -17998,7 +17409,7 @@ def quadeval.rlin_row_loop1.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 1:
-    Source: 'src/quadeval.rs', lines 1530:8-1533:9
+    Source: 'src/quadeval.rs', lines 1506:8-1509:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop1
@@ -18011,7 +17422,7 @@ def quadeval.rlin_row_loop1
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 2:
-    Source: 'src/quadeval.rs', lines 1538:8-1541:9
+    Source: 'src/quadeval.rs', lines 1514:8-1517:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop2.body
@@ -18028,7 +17439,7 @@ def quadeval.rlin_row_loop2.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 2:
-    Source: 'src/quadeval.rs', lines 1538:8-1541:9
+    Source: 'src/quadeval.rs', lines 1514:8-1517:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop2
@@ -18040,7 +17451,7 @@ def quadeval.rlin_row_loop2
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 3:
-    Source: 'src/quadeval.rs', lines 1543:8-1546:9
+    Source: 'src/quadeval.rs', lines 1519:8-1522:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop3.body
@@ -18062,7 +17473,7 @@ def quadeval.rlin_row_loop3.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 3:
-    Source: 'src/quadeval.rs', lines 1543:8-1546:9
+    Source: 'src/quadeval.rs', lines 1519:8-1522:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop3
@@ -18075,7 +17486,7 @@ def quadeval.rlin_row_loop3
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 4:
-    Source: 'src/quadeval.rs', lines 1548:8-1551:9
+    Source: 'src/quadeval.rs', lines 1524:8-1527:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop4.body
@@ -18092,7 +17503,7 @@ def quadeval.rlin_row_loop4.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 4:
-    Source: 'src/quadeval.rs', lines 1548:8-1551:9
+    Source: 'src/quadeval.rs', lines 1524:8-1527:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop4
@@ -18104,7 +17515,7 @@ def quadeval.rlin_row_loop4
     (row, z2)
 
 /-- [hachi::quadeval::rlin_row]: loop body 5:
-    Source: 'src/quadeval.rs', lines 1556:8-1559:9
+    Source: 'src/quadeval.rs', lines 1532:8-1535:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop5.body
@@ -18123,7 +17534,7 @@ def quadeval.rlin_row_loop5.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 5:
-    Source: 'src/quadeval.rs', lines 1556:8-1559:9
+    Source: 'src/quadeval.rs', lines 1532:8-1535:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop5
@@ -18136,7 +17547,7 @@ def quadeval.rlin_row_loop5
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 6:
-    Source: 'src/quadeval.rs', lines 1561:8-1564:9
+    Source: 'src/quadeval.rs', lines 1537:8-1540:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop6.body
@@ -18155,7 +17566,7 @@ def quadeval.rlin_row_loop6.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 6:
-    Source: 'src/quadeval.rs', lines 1561:8-1564:9
+    Source: 'src/quadeval.rs', lines 1537:8-1540:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop6
@@ -18168,7 +17579,7 @@ def quadeval.rlin_row_loop6
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 7:
-    Source: 'src/quadeval.rs', lines 1572:8-1575:9
+    Source: 'src/quadeval.rs', lines 1548:8-1551:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop7.body
@@ -18187,7 +17598,7 @@ def quadeval.rlin_row_loop7.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 7:
-    Source: 'src/quadeval.rs', lines 1572:8-1575:9
+    Source: 'src/quadeval.rs', lines 1548:8-1551:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop7
@@ -18200,7 +17611,7 @@ def quadeval.rlin_row_loop7
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 8:
-    Source: 'src/quadeval.rs', lines 1577:8-1580:9
+    Source: 'src/quadeval.rs', lines 1553:8-1556:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop8.body
@@ -18217,7 +17628,7 @@ def quadeval.rlin_row_loop8.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 8:
-    Source: 'src/quadeval.rs', lines 1577:8-1580:9
+    Source: 'src/quadeval.rs', lines 1553:8-1556:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop8
@@ -18229,7 +17640,7 @@ def quadeval.rlin_row_loop8
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 9:
-    Source: 'src/quadeval.rs', lines 1582:8-1585:9
+    Source: 'src/quadeval.rs', lines 1558:8-1561:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop9.body
@@ -18248,7 +17659,7 @@ def quadeval.rlin_row_loop9.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 9:
-    Source: 'src/quadeval.rs', lines 1582:8-1585:9
+    Source: 'src/quadeval.rs', lines 1558:8-1561:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop9
@@ -18261,7 +17672,7 @@ def quadeval.rlin_row_loop9
     (row, kz)
 
 /-- [hachi::quadeval::rlin_row]: loop body 10:
-    Source: 'src/quadeval.rs', lines 1593:8-1596:9
+    Source: 'src/quadeval.rs', lines 1569:8-1572:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop10.body
@@ -18278,7 +17689,7 @@ def quadeval.rlin_row_loop10.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 10:
-    Source: 'src/quadeval.rs', lines 1593:8-1596:9
+    Source: 'src/quadeval.rs', lines 1569:8-1572:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop10
@@ -18290,7 +17701,7 @@ def quadeval.rlin_row_loop10
     (row, z)
 
 /-- [hachi::quadeval::rlin_row]: loop body 11:
-    Source: 'src/quadeval.rs', lines 1598:8-1601:9
+    Source: 'src/quadeval.rs', lines 1574:8-1577:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop11.body
@@ -18310,7 +17721,7 @@ def quadeval.rlin_row_loop11.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 11:
-    Source: 'src/quadeval.rs', lines 1598:8-1601:9
+    Source: 'src/quadeval.rs', lines 1574:8-1577:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop11
@@ -18323,7 +17734,7 @@ def quadeval.rlin_row_loop11
     (row, k)
 
 /-- [hachi::quadeval::rlin_row]: loop body 12:
-    Source: 'src/quadeval.rs', lines 1603:8-1606:9
+    Source: 'src/quadeval.rs', lines 1579:8-1582:9
     Visibility: public -/
 @[rust_loop_body]
 def quadeval.rlin_row_loop12.body
@@ -18342,7 +17753,7 @@ def quadeval.rlin_row_loop12.body
   else ok (done row)
 
 /-- [hachi::quadeval::rlin_row]: loop 12:
-    Source: 'src/quadeval.rs', lines 1603:8-1606:9
+    Source: 'src/quadeval.rs', lines 1579:8-1582:9
     Visibility: public -/
 @[rust_loop]
 def quadeval.rlin_row_loop12
@@ -18355,7 +17766,7 @@ def quadeval.rlin_row_loop12
     (row, kz)
 
 /-- [hachi::quadeval::rlin_row]:
-    Source: 'src/quadeval.rs', lines 1502:0-1609:1
+    Source: 'src/quadeval.rs', lines 1478:0-1585:1
     Visibility: public -/
 def quadeval.rlin_row
   (pp : quadeval.PublicParamsD) (stmt : quadeval.QuadEvalStatement)
@@ -18653,12 +18064,269 @@ def ring.PreparedVec.impl.len
   (self : ring.PreparedVec) : Result Std.Usize := do
   ok self.len
 
+/-- [hachi::ring::mac_into_gold]: loop body 0:
+    Source: 'src/ring.rs', lines 1427:4-1431:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.mac_into_gold_loop.body
+  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if k < n
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) af k
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) bf k
+    let prod ← ntt.gold_mul i i1
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) out k
+    let i3 ← ntt.gold_add i2 prod
+    let (_, index_mut_back) ←
+      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+        out k
+    let k1 ← k + 1#usize
+    let out1 := index_mut_back i3
+    ok (cont (out1, k1))
+  else ok (done out)
+
+/-- [hachi::ring::mac_into_gold]: loop 0:
+    Source: 'src/ring.rs', lines 1427:4-1431:5
+    Visibility: public -/
+@[rust_loop]
+def ring.mac_into_gold_loop
+  (af : alloc.vec.Vec Std.U64) (bf : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (out1, k1) => ring.mac_into_gold_loop.body af bf n out1 k1)
+    (out, k)
+
+/-- [hachi::ring::mac_into_gold]:
+    Source: 'src/ring.rs', lines 1424:0-1433:1
+    Visibility: public -/
+@[reducible]
+def ring.mac_into_gold
+  (acc : alloc.vec.Vec Std.U64) (af : alloc.vec.Vec Std.U64)
+  (bf : alloc.vec.Vec Std.U64) (n : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  ring.mac_into_gold_loop af bf n acc 0#usize
+
+/-- [hachi::ring::dot_prep_chunk_gold]: loop body 1:
+    Source: 'src/ring.rs', lines 990:8-993:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prep_chunk_gold_loop0_loop0.body
+  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
+  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × Std.Usize) (alloc.vec.Vec
+    Std.U64))
+  := do
+  if u < n
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ring.Rq) b j
+    let f ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        cpoly.field.Fp) r u
+    let i ← cpoly.field.Fp.to_u64 f
+    let bw1 ← alloc.vec.Vec.push bw i
+    let u1 ← u + 1#usize
+    ok (cont (bw1, u1))
+  else ok (done bw)
+
+/-- [hachi::ring::dot_prep_chunk_gold]: loop 1:
+    Source: 'src/ring.rs', lines 990:8-993:9
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prep_chunk_gold_loop0_loop0
+  (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) (j : Std.Usize)
+  (bw : alloc.vec.Vec Std.U64) (u : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  loop
+    (fun (bw1, u1) => ring.dot_prep_chunk_gold_loop0_loop0.body b n j bw1 u1)
+    (bw, u)
+
+/-- [hachi::ring::dot_prep_chunk_gold]: loop body 0:
+    Source: 'src/ring.rs', lines 987:4-1000:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prep_chunk_gold_loop0.body
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
+  (n : Std.Usize) (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
+  (scratch : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize) ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64)))
+  := do
+  if j < end1
+  then
+    let bw := alloc.vec.Vec.with_capacity Std.U64 n
+    let bw1 ← ring.dot_prep_chunk_gold_loop0_loop0 b n j bw 0#usize
+    let tb ← ntt.gold_twist bw1 pt
+    let fwb ← ntt.gold_forward tb scratch pt
+    let i ← j * n
+    let af ← ring.slice_out pfwd i n
+    let (v, scratch1) := fwb
+    let acc1 ← ring.mac_into_gold acc af v n
+    let j1 ← j + 1#usize
+    ok (cont (acc1, scratch1, j1))
+  else ok (done (acc, scratch))
+
+/-- [hachi::ring::dot_prep_chunk_gold]: loop 0:
+    Source: 'src/ring.rs', lines 987:4-1000:5
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prep_chunk_gold_loop0
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq) (end1 : Std.Usize)
+  (n : Std.Usize) (pt : alloc.vec.Vec Std.U64) (acc : alloc.vec.Vec Std.U64)
+  (scratch : alloc.vec.Vec Std.U64) (j : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × (alloc.vec.Vec Std.U64))
+  := do
+  loop
+    (fun (acc1, scratch1, j1) => ring.dot_prep_chunk_gold_loop0.body pfwd b
+      end1 n pt acc1 scratch1 j1)
+    (acc, scratch, j)
+
+/-- [hachi::ring::dot_prep_chunk_gold]:
+    Source: 'src/ring.rs', lines 974:0-1005:1
+    Visibility: public -/
+def ring.dot_prep_chunk_gold
+  (pfwd : alloc.vec.Vec Std.U64) (b : alloc.vec.Vec ring.Rq)
+  (start : Std.Usize) (end1 : Std.Usize) (boff : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let pt ← ntt.gold_psi_table ntt.GOLD_PSI
+  let it ← ntt.gold_psi_table ntt.GOLD_PSIINV
+  let acc ← ntt.zeros ntt.NTT_LEN
+  let (acc1, scratch) ←
+    ring.dot_prep_chunk_gold_loop0 pfwd b end1 ntt.NTT_LEN pt acc acc start
+  let i ← end1 - start
+  let len ← lift (UScalar.cast .U64 i)
+  let scaled ← ntt.gold_mul boff len
+  let (v, _) ← ntt.gold_inverse acc1 scratch it
+  ntt.gold_untwist_off v it scaled
+
+/-- [hachi::ring::PreparedVecGA]
+    Source: 'src/ring.rs', lines 1013:0-1017:1
+    Visibility: public -/
+structure ring.PreparedVecGA where
+  len : Std.Usize
+  fwd_g : alloc.vec.Vec Std.U64
+  fwd_a : alloc.vec.Vec Std.U64
+
 /-- [hachi::ring::{hachi::ring::PreparedVecGA}::len]:
     Source: 'src/ring.rs', lines 1021:4-1023:5
     Visibility: public -/
 def ring.PreparedVecGA.impl.len
   (self : ring.PreparedVecGA) : Result Std.Usize := do
   ok self.len
+
+/-- [hachi::ring::prepare_vec_ga]:
+    Source: 'src/ring.rs', lines 1027:0-1032:1
+    Visibility: public -/
+def ring.prepare_vec_ga
+  (a : alloc.vec.Vec ring.Rq) (n : Std.Usize) : Result ring.PreparedVecGA := do
+  let fwd_g ← ring.prepare_one_gold a n
+  let fwd_a ← ring.prepare_one a n ntt.AUX_P1 ntt.AUX_M1 ntt.AUX_PSI1
+  ok { len := n, fwd_g, fwd_a }
+
+/-- [hachi::ring::dot_prepared_ga]: loop body 1:
+    Source: 'src/ring.rs', lines 1063:8-1066:9
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prepared_ga_loop0_loop0.body
+  (deg : Std.Usize) (qw : Std.U128) (rg : alloc.vec.Vec Std.U64)
+  (ra : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
+  (t : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Fp) × Std.Usize)
+    (alloc.vec.Vec cpoly.field.Fp))
+  := do
+  if t < deg
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) rg t
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) ra t
+    let i2 ← ntt.garner_ga i i1
+    let i3 ← i2 % qw
+    let i4 ← lift (UScalar.cast .U64 i3)
+    let f ← cpoly.field.Fp.new i4
+    let out1 ← alloc.vec.Vec.push out f
+    let t1 ← t + 1#usize
+    ok (cont (out1, t1))
+  else ok (done out)
+
+/-- [hachi::ring::dot_prepared_ga]: loop 1:
+    Source: 'src/ring.rs', lines 1063:8-1066:9
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prepared_ga_loop0_loop0
+  (deg : Std.Usize) (qw : Std.U128) (rg : alloc.vec.Vec Std.U64)
+  (ra : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec cpoly.field.Fp)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec cpoly.field.Fp)
+  := do
+  loop
+    (fun (out1, t1) => ring.dot_prepared_ga_loop0_loop0.body deg qw rg ra out1
+      t1)
+    (out, t)
+
+/-- [hachi::ring::dot_prepared_ga]: loop body 0:
+    Source: 'src/ring.rs', lines 1052:4-1069:5
+    Visibility: public -/
+@[rust_loop_body]
+def ring.dot_prepared_ga_loop0.body
+  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
+  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
+  Result (ControlFlow (ring.Rq × Std.Usize) ring.Rq)
+  := do
+  if start < n
+  then
+    let remaining ← n - start
+    let take ←
+      if remaining < ring.DOT_CHUNK
+      then ok remaining
+      else ok ring.DOT_CHUNK
+    let end1 ← start + take
+    let rg ← ring.dot_prep_chunk_gold prep.fwd_g b start end1 ntt.GOLD_BOFF
+    let ra ←
+      ring.dot_prep_chunk_mod_p prep.fwd_a b start end1 ntt.AUX_P1 ntt.AUX_M1
+        ntt.AUX_PSI1 ntt.AUX_PSIINV1 ntt.AUX_NINV1 ntt.AUX_BOFF1
+    let out := alloc.vec.Vec.with_capacity cpoly.field.Fp deg
+    let out1 ← ring.dot_prepared_ga_loop0_loop0 deg qw rg ra out 0#usize
+    let acc1 ← ring.Rq.add acc out1
+    ok (cont (acc1, end1))
+  else ok (done acc)
+
+/-- [hachi::ring::dot_prepared_ga]: loop 0:
+    Source: 'src/ring.rs', lines 1052:4-1069:5
+    Visibility: public -/
+@[rust_loop]
+def ring.dot_prepared_ga_loop0
+  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize)
+  (deg : Std.Usize) (qw : Std.U128) (acc : ring.Rq) (start : Std.Usize) :
+  Result ring.Rq
+  := do
+  loop
+    (fun (acc1, start1) => ring.dot_prepared_ga_loop0.body prep b n deg qw acc1
+      start1)
+    (acc, start)
+
+/-- [hachi::ring::dot_prepared_ga]:
+    Source: 'src/ring.rs', lines 1047:0-1071:1
+    Visibility: public -/
+def ring.dot_prepared_ga
+  (prep : ring.PreparedVecGA) (b : alloc.vec.Vec ring.Rq) (n : Std.Usize) :
+  Result ring.Rq
+  := do
+  let qw ← lift (UScalar.cast .U128 params.Q)
+  let acc ← ring.Rq.zero
+  ring.dot_prepared_ga_loop0 prep b n params.RING_DEGREE qw acc 0#usize
 
 /-- [hachi::ring::{hachi::ring::PreparedVecG}::len]:
     Source: 'src/ring.rs', lines 1160:4-1162:5
@@ -20183,62 +19851,8 @@ def sumcheck.round_values_zero
   sumcheck.round_values_zero_loop0 w eq params.ROUND_NODES (alloc.vec.Vec.new
     cpoly.field.Ext4) 0#usize
 
-/-- [hachi::sumcheck::shift_accum]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 349:4-355:5
-    Visibility: public -/
-@[rust_loop_body]
-def sumcheck.shift_accum_loop.body
-  (lop : alloc.vec.Vec cpoly.field.Ext4) (d : cpoly.field.Ext4) (n : Std.Usize)
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (epow : cpoly.field.Ext4)
-  (m : Std.Usize) :
-  Result (ControlFlow ((alloc.vec.Vec cpoly.field.Ext4) × cpoly.field.Ext4 ×
-    Std.Usize) (alloc.vec.Vec cpoly.field.Ext4))
-  := do
-  if m < n
-  then
-    let s ← sumcheck.shift_inner lop m
-    let cur ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) acc m
-    let e ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul epow s
-    let e1 ← cpoly.field.Ext4.Insts.CoreOpsArithAddExt4Ext4.add cur e
-    let (_, index_mut_back) ←
-      alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
-        cpoly.field.Ext4) acc m
-    let epow1 ← cpoly.field.Ext4.Insts.CoreOpsArithMulExt4Ext4.mul epow d
-    let m1 ← m + 1#usize
-    let acc1 := index_mut_back e1
-    ok (cont (acc1, epow1, m1))
-  else ok (done acc)
-
-/-- [hachi::sumcheck::shift_accum]: loop 0:
-    Source: 'src/sumcheck.rs', lines 349:4-355:5
-    Visibility: public -/
-@[rust_loop]
-def sumcheck.shift_accum_loop
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (lop : alloc.vec.Vec cpoly.field.Ext4)
-  (d : cpoly.field.Ext4) (n : Std.Usize) (epow : cpoly.field.Ext4)
-  (m : Std.Usize) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  loop
-    (fun (acc1, epow1, m1) => sumcheck.shift_accum_loop.body lop d n acc1 epow1
-      m1)
-    (acc, epow, m)
-
-/-- [hachi::sumcheck::shift_accum]:
-    Source: 'src/sumcheck.rs', lines 338:0-357:1
-    Visibility: public -/
-@[reducible]
-def sumcheck.shift_accum
-  (acc : alloc.vec.Vec cpoly.field.Ext4) (lop : alloc.vec.Vec cpoly.field.Ext4)
-  (d : cpoly.field.Ext4) (e : cpoly.field.Ext4) :
-  Result (alloc.vec.Vec cpoly.field.Ext4)
-  := do
-  sumcheck.shift_accum_loop acc lop d params.SHIFT_DEG e 0#usize
-
 /-- [hachi::sumcheck::round_value_alpha]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 714:4-719:5
+    Source: 'src/sumcheck.rs', lines 685:4-690:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_value_alpha_loop.body
@@ -20278,7 +19892,7 @@ def sumcheck.round_value_alpha_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_value_alpha]: loop 0:
-    Source: 'src/sumcheck.rs', lines 714:4-719:5
+    Source: 'src/sumcheck.rs', lines 685:4-690:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_value_alpha_loop
@@ -20293,7 +19907,7 @@ def sumcheck.round_value_alpha_loop
     (acc, y)
 
 /-- [hachi::sumcheck::round_value_alpha]:
-    Source: 'src/sumcheck.rs', lines 709:0-721:1
+    Source: 'src/sumcheck.rs', lines 680:0-692:1
     Visibility: public -/
 def sumcheck.round_value_alpha
   (w : alloc.vec.Vec cpoly.field.Ext4) (a_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -20309,7 +19923,7 @@ def sumcheck.round_value_alpha
     cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_values_alpha]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 732:4-735:5
+    Source: 'src/sumcheck.rs', lines 703:4-706:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_values_alpha_loop.body
@@ -20328,7 +19942,7 @@ def sumcheck.round_values_alpha_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_values_alpha]: loop 0:
-    Source: 'src/sumcheck.rs', lines 732:4-735:5
+    Source: 'src/sumcheck.rs', lines 703:4-706:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_values_alpha_loop
@@ -20342,7 +19956,7 @@ def sumcheck.round_values_alpha_loop
     (out, t)
 
 /-- [hachi::sumcheck::round_values_alpha]:
-    Source: 'src/sumcheck.rs', lines 728:0-737:1
+    Source: 'src/sumcheck.rs', lines 699:0-708:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_values_alpha
@@ -20354,7 +19968,7 @@ def sumcheck.round_values_alpha
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
 /-- [hachi::sumcheck::round_node_weights_alpha]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 748:4-751:5
+    Source: 'src/sumcheck.rs', lines 719:4-722:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_node_weights_alpha_loop.body
@@ -20372,7 +19986,7 @@ def sumcheck.round_node_weights_alpha_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_node_weights_alpha]: loop 0:
-    Source: 'src/sumcheck.rs', lines 748:4-751:5
+    Source: 'src/sumcheck.rs', lines 719:4-722:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_node_weights_alpha_loop
@@ -20384,7 +19998,7 @@ def sumcheck.round_node_weights_alpha_loop
     (out, i)
 
 /-- [hachi::sumcheck::round_node_weights_alpha]:
-    Source: 'src/sumcheck.rs', lines 744:0-753:1
+    Source: 'src/sumcheck.rs', lines 715:0-724:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_node_weights_alpha
@@ -20431,7 +20045,7 @@ def zerocheck.range_product_base
   zerocheck.range_product_base_loop params.GADGET_BASE c2 c 1#u64
 
 /-- [hachi::sumcheck::round_value_zero_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 838:4-845:5
+    Source: 'src/sumcheck.rs', lines 809:4-816:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_value_zero_base_loop.body
@@ -20464,7 +20078,7 @@ def sumcheck.round_value_zero_base_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_value_zero_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 838:4-845:5
+    Source: 'src/sumcheck.rs', lines 809:4-816:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_value_zero_base_loop
@@ -20479,7 +20093,7 @@ def sumcheck.round_value_zero_base_loop
     (acc, y)
 
 /-- [hachi::sumcheck::round_value_zero_base]:
-    Source: 'src/sumcheck.rs', lines 833:0-847:1
+    Source: 'src/sumcheck.rs', lines 804:0-818:1
     Visibility: public -/
 def sumcheck.round_value_zero_base
   (w : alloc.vec.Vec cpoly.field.Fp) (eq : alloc.vec.Vec cpoly.field.Ext4)
@@ -20493,7 +20107,7 @@ def sumcheck.round_value_zero_base
     cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_values_zero_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 859:4-862:5
+    Source: 'src/sumcheck.rs', lines 830:4-833:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_values_zero_base_loop.body
@@ -20513,7 +20127,7 @@ def sumcheck.round_values_zero_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_values_zero_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 859:4-862:5
+    Source: 'src/sumcheck.rs', lines 830:4-833:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_values_zero_base_loop
@@ -20527,7 +20141,7 @@ def sumcheck.round_values_zero_base_loop
     (out, t)
 
 /-- [hachi::sumcheck::round_values_zero_base]:
-    Source: 'src/sumcheck.rs', lines 855:0-864:1
+    Source: 'src/sumcheck.rs', lines 826:0-835:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_values_zero_base
@@ -20538,13 +20152,13 @@ def sumcheck.round_values_zero_base
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
 /-- [hachi::sumcheck::QUAD_TYPES_USED]
-    Source: 'src/sumcheck.rs', lines 1031:0-1031:43
+    Source: 'src/sumcheck.rs', lines 1002:0-1002:43
     Visibility: public -/
 @[global_simps, irreducible]
 def sumcheck.QUAD_TYPES_USED : Std.Usize := 331776#usize
 
 /-- [hachi::sumcheck::round_value_alpha_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1203:4-1208:5
+    Source: 'src/sumcheck.rs', lines 1175:4-1180:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_value_alpha_base_loop.body
@@ -20586,7 +20200,7 @@ def sumcheck.round_value_alpha_base_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_value_alpha_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1203:4-1208:5
+    Source: 'src/sumcheck.rs', lines 1175:4-1180:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_value_alpha_base_loop
@@ -20602,7 +20216,7 @@ def sumcheck.round_value_alpha_base_loop
     (acc, y)
 
 /-- [hachi::sumcheck::round_value_alpha_base]:
-    Source: 'src/sumcheck.rs', lines 1196:0-1210:1
+    Source: 'src/sumcheck.rs', lines 1168:0-1182:1
     Visibility: public -/
 def sumcheck.round_value_alpha_base
   (w : alloc.vec.Vec cpoly.field.Fp) (a_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -20621,7 +20235,7 @@ def sumcheck.round_value_alpha_base
     one_minus_ext cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_values_alpha_base]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1218:4-1221:5
+    Source: 'src/sumcheck.rs', lines 1190:4-1193:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_values_alpha_base_loop.body
@@ -20641,7 +20255,7 @@ def sumcheck.round_values_alpha_base_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_values_alpha_base]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1218:4-1221:5
+    Source: 'src/sumcheck.rs', lines 1190:4-1193:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_values_alpha_base_loop
@@ -20655,7 +20269,7 @@ def sumcheck.round_values_alpha_base_loop
     (out, t)
 
 /-- [hachi::sumcheck::round_values_alpha_base]:
-    Source: 'src/sumcheck.rs', lines 1214:0-1223:1
+    Source: 'src/sumcheck.rs', lines 1186:0-1195:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_values_alpha_base
@@ -20666,7 +20280,7 @@ def sumcheck.round_values_alpha_base
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
 /-- [hachi::sumcheck::round_poly_alpha_base]:
-    Source: 'src/sumcheck.rs', lines 1227:0-1231:1
+    Source: 'src/sumcheck.rs', lines 1199:0-1203:1
     Visibility: public -/
 def sumcheck.round_poly_alpha_base
   (w : alloc.vec.Vec cpoly.field.Fp) (a_tab : alloc.vec.Vec cpoly.field.Ext4) :
@@ -20677,7 +20291,7 @@ def sumcheck.round_poly_alpha_base
   sumcheck.interpolate values weights
 
 /-- [hachi::sumcheck::alpha_public_table]: loop body 1:
-    Source: 'src/sumcheck.rs', lines 1300:8-1305:9
+    Source: 'src/sumcheck.rs', lines 1272:8-1277:9
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_table_loop0_loop0.body
@@ -20709,7 +20323,7 @@ def sumcheck.alpha_public_table_loop0_loop0.body
   else ok (done sum)
 
 /-- [hachi::sumcheck::alpha_public_table]: loop 1:
-    Source: 'src/sumcheck.rs', lines 1300:8-1305:9
+    Source: 'src/sumcheck.rs', lines 1272:8-1277:9
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_table_loop0_loop0
@@ -20724,7 +20338,7 @@ def sumcheck.alpha_public_table_loop0_loop0
     (sum, i)
 
 /-- [hachi::sumcheck::alpha_public_table]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1295:4-1308:5
+    Source: 'src/sumcheck.rs', lines 1267:4-1280:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.alpha_public_table_loop0.body
@@ -20752,7 +20366,7 @@ def sumcheck.alpha_public_table_loop0.body
   else ok (done out)
 
 /-- [hachi::sumcheck::alpha_public_table]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1295:4-1308:5
+    Source: 'src/sumcheck.rs', lines 1267:4-1280:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.alpha_public_table_loop0
@@ -20768,7 +20382,7 @@ def sumcheck.alpha_public_table_loop0
     (out, idx)
 
 /-- [hachi::sumcheck::alpha_public_table]:
-    Source: 'src/sumcheck.rs', lines 1280:0-1310:1
+    Source: 'src/sumcheck.rs', lines 1252:0-1282:1
     Visibility: public -/
 def sumcheck.alpha_public_table
   (s : ringswitch.RlinStatement) (alpha : cpoly.field.Ext4)
@@ -20789,7 +20403,7 @@ def sumcheck.alpha_public_table
     out 0#usize
 
 /-- [hachi::sumcheck::round_value_alpha_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1483:4-1490:5
+    Source: 'src/sumcheck.rs', lines 1455:4-1462:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_value_alpha_split_loop.body
@@ -20844,7 +20458,7 @@ def sumcheck.round_value_alpha_split_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_value_alpha_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1483:4-1490:5
+    Source: 'src/sumcheck.rs', lines 1455:4-1462:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_value_alpha_split_loop
@@ -20860,7 +20474,7 @@ def sumcheck.round_value_alpha_split_loop
     (acc, y)
 
 /-- [hachi::sumcheck::round_value_alpha_split]:
-    Source: 'src/sumcheck.rs', lines 1472:0-1492:1
+    Source: 'src/sumcheck.rs', lines 1444:0-1464:1
     Visibility: public -/
 def sumcheck.round_value_alpha_split
   (w : alloc.vec.Vec cpoly.field.Ext4) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -20877,7 +20491,7 @@ def sumcheck.round_value_alpha_split
     cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_values_alpha_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1499:4-1502:5
+    Source: 'src/sumcheck.rs', lines 1471:4-1474:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_values_alpha_split_loop.body
@@ -20897,7 +20511,7 @@ def sumcheck.round_values_alpha_split_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_values_alpha_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1499:4-1502:5
+    Source: 'src/sumcheck.rs', lines 1471:4-1474:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_values_alpha_split_loop
@@ -20912,7 +20526,7 @@ def sumcheck.round_values_alpha_split_loop
     (out, t)
 
 /-- [hachi::sumcheck::round_values_alpha_split]:
-    Source: 'src/sumcheck.rs', lines 1495:0-1504:1
+    Source: 'src/sumcheck.rs', lines 1467:0-1476:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_values_alpha_split
@@ -20924,7 +20538,7 @@ def sumcheck.round_values_alpha_split
     (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
 /-- [hachi::sumcheck::round_value_alpha_base_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1689:4-1696:5
+    Source: 'src/sumcheck.rs', lines 1661:4-1668:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_value_alpha_base_split_loop.body
@@ -20980,7 +20594,7 @@ def sumcheck.round_value_alpha_base_split_loop.body
   else ok (done acc)
 
 /-- [hachi::sumcheck::round_value_alpha_base_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1689:4-1696:5
+    Source: 'src/sumcheck.rs', lines 1661:4-1668:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_value_alpha_base_split_loop
@@ -20997,7 +20611,7 @@ def sumcheck.round_value_alpha_base_split_loop
     (acc, y)
 
 /-- [hachi::sumcheck::round_value_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1676:0-1698:1
+    Source: 'src/sumcheck.rs', lines 1648:0-1670:1
     Visibility: public -/
 def sumcheck.round_value_alpha_base_split
   (w : alloc.vec.Vec cpoly.field.Fp) (low : alloc.vec.Vec cpoly.field.Ext4)
@@ -21017,7 +20631,7 @@ def sumcheck.round_value_alpha_base_split
     node_ext one_minus_ext cpoly.field.Ext4.ZERO 0#usize
 
 /-- [hachi::sumcheck::round_values_alpha_base_split]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 1705:4-1708:5
+    Source: 'src/sumcheck.rs', lines 1677:4-1680:5
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_values_alpha_base_split_loop.body
@@ -21038,7 +20652,7 @@ def sumcheck.round_values_alpha_base_split_loop.body
   else ok (done out)
 
 /-- [hachi::sumcheck::round_values_alpha_base_split]: loop 0:
-    Source: 'src/sumcheck.rs', lines 1705:4-1708:5
+    Source: 'src/sumcheck.rs', lines 1677:4-1680:5
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_values_alpha_base_split_loop
@@ -21053,7 +20667,7 @@ def sumcheck.round_values_alpha_base_split_loop
     (out, t)
 
 /-- [hachi::sumcheck::round_values_alpha_base_split]:
-    Source: 'src/sumcheck.rs', lines 1701:0-1710:1
+    Source: 'src/sumcheck.rs', lines 1673:0-1682:1
     Visibility: public -/
 @[reducible]
 def sumcheck.round_values_alpha_base_split
@@ -21065,14 +20679,14 @@ def sumcheck.round_values_alpha_base_split
     params.ROUND_NODES_ALPHA (alloc.vec.Vec.new cpoly.field.Ext4) 0#usize
 
 /-- [hachi::sumcheck::{hachi::sumcheck::NestedZeroCheckStmt}::t]:
-    Source: 'src/sumcheck.rs', lines 1926:4-1928:5
+    Source: 'src/sumcheck.rs', lines 1898:4-1900:5
     Visibility: public -/
 def sumcheck.NestedZeroCheckStmt.impl.t
   (self : sumcheck.NestedZeroCheckStmt) : Result linalg.PolyVec := do
   ok self.t
 
 /-- [hachi::sumcheck::{hachi::sumcheck::RoundMsg}::new]:
-    Source: 'src/sumcheck.rs', lines 1962:4-1964:5
+    Source: 'src/sumcheck.rs', lines 1934:4-1936:5
     Visibility: public -/
 def sumcheck.RoundMsg.new
   (g_zero : cpoly.univariate.UnivariatePoly)
@@ -21082,7 +20696,7 @@ def sumcheck.RoundMsg.new
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g]:
-    Source: 'src/sumcheck.rs', lines 2045:0-2060:1
+    Source: 'src/sumcheck.rs', lines 2017:0-2032:1
     Visibility: public -/
 def sumcheck.honest_compute_g
   (stmt : sumcheck.RoundStatement) (w_tab : alloc.vec.Vec cpoly.field.Ext4)
@@ -21107,7 +20721,7 @@ def sumcheck.honest_compute_g
   ok { g_zero, g_alpha }
 
 /-- [hachi::sumcheck::honest_compute_g_base]:
-    Source: 'src/sumcheck.rs', lines 2068:0-2082:1
+    Source: 'src/sumcheck.rs', lines 2040:0-2054:1
     Visibility: public -/
 def sumcheck.honest_compute_g_base
   (stmt : sumcheck.RoundStatement) (w_fp : alloc.vec.Vec cpoly.field.Fp)
@@ -21142,7 +20756,7 @@ def zerocheck.c_w_table_mle
   cpoly.multilinear.MultilinearEvals.from_values values
 
 /-- [hachi::sumcheck::round_loop]: loop body 0:
-    Source: 'src/sumcheck.rs', lines 2257:4-2269:1
+    Source: 'src/sumcheck.rs', lines 2229:4-2241:1
     Visibility: public -/
 @[rust_loop_body]
 def sumcheck.round_loop_loop.body
@@ -21174,7 +20788,7 @@ def sumcheck.round_loop_loop.body
   else ok (done (some current))
 
 /-- [hachi::sumcheck::round_loop]: loop 0:
-    Source: 'src/sumcheck.rs', lines 2257:4-2269:1
+    Source: 'src/sumcheck.rs', lines 2229:4-2241:1
     Visibility: public -/
 @[rust_loop]
 def sumcheck.round_loop_loop
@@ -21190,7 +20804,7 @@ def sumcheck.round_loop_loop
     (w_tab, a_tab, current, i)
 
 /-- [hachi::sumcheck::round_loop]:
-    Source: 'src/sumcheck.rs', lines 2242:0-2269:1
+    Source: 'src/sumcheck.rs', lines 2214:0-2241:1
     Visibility: public -/
 def sumcheck.round_loop
   (stmt : sumcheck.RoundStatement) (w : ringswitch.LiftedWitness)

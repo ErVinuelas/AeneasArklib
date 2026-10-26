@@ -338,7 +338,7 @@ section T52a
 set_option maxHeartbeats 4000000
 set_option maxRecDepth 8192
 
-open HachiEquiv.GoldStage HachiEquiv.GoldFusedStage HachiEquiv.GoldFusedBoundary
+open HachiEquiv.GoldFusedStage HachiEquiv.GoldFusedBoundary
 
 /-- One accumulator's state inside a block of the fused MAC stage. -/
 def MacBlk (src tw pfwd acc0 accE : alloc.vec.Vec Std.U64)

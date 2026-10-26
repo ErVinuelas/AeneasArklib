@@ -12,20 +12,20 @@ pass of it is exactly two passes of the old stage -- the same values, at the
 same positions, from the same table.
 
 The payoff is at the top: [`gold_dif_stage2_spec`]'s conclusion is literally
-[`difWord`] of [`difWord`], the two shapes `gold_dif_stage_spec` already
-produces at consecutive block lengths, so `gold_forward_spec`'s statement does
+[`difWord`] of [`difWord`], two radix-2 stages at consecutive block lengths, so `gold_forward_spec`'s statement does
 not move and `NttProduct.prod_difRun`, `inv_value` and `gold_dot_spec` are
 untouched. `difRun_succ` is `rfl`, which is what makes the two-at-a-time
 invariant step as cheap as the one-at-a-time one.
 
-The structure mirrors `GoldStage`'s: an inner loop over the groups of one
+The structure mirrors `NttStage`'s DIF stage: an inner loop over the groups of one
 block, an outer loop over the blocks, a top-level spec that fixes the
 parameters. What changes is the inner loop, which now writes *four* entries per
 iteration at four separated positions rather than one, so its specification has
 four written-value clauses instead of one and its frame condition has to survive
 four `Vec.set`s.
 -/
-import GoldStage
+import NttStage
+import GoldArith
 
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
@@ -35,7 +35,9 @@ open hachi
 
 namespace HachiEquiv.GoldFusedStage
 
-open HachiEquiv.NttStage HachiEquiv.GoldArith HachiEquiv.GoldStage
+open HachiEquiv.NttStage HachiEquiv.GoldArith
+
+theorem GP_pos : 0 < GP := by norm_num
 
 /-! ## The four words one group writes
 
@@ -520,7 +522,7 @@ end Block
 
 /-! ## The outer loop and the stage
 
-Unchanged in shape from `GoldStage`'s: the blocks are walked in order, each
+Unchanged in shape from `NttStage`'s: the blocks are walked in order, each
 one filled by the inner loop, and the frame condition carries the finished
 blocks forward. Only the per-index reconciliation is new, and that is the four
 lemmas above. -/

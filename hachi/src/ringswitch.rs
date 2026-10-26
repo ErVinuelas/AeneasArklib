@@ -979,7 +979,7 @@ fn high_zeros() -> Vec<Fp> {
 /// Its own function so that no caller's loop both reads a borrowed vector and
 /// writes this accumulator (the `aeneas-extract` ceiling row of 2026-09-17:
 /// that nesting aborts the extraction, a helper boundary does not). The read
-/// goes through a `let` before the write, as `sumcheck::shift_accum` does.
+/// goes through a `let` before the write, as `sumcheck::shift_accum_base` does.
 fn add_high_into(mut acc: Vec<Fp>, prod: &Vec<Fp>) -> Vec<Fp> {
     let n: usize = params::RING_DEGREE;
     let mut t: usize = 0;

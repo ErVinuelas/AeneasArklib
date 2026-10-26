@@ -15,9 +15,9 @@ multilinear layer needs (`toVector`, and the polynomial readings `toMlPoly` /
 `ML_VARS_HIGH = 2` (`params.rs`; `2^nl = BLOCKS`, `2^nh = MESSAGE_ROWS`, the
 shape `derivedMsgMatrix` fixes).
 
-Two model-artefact hypotheses appear, in the `flatten_blocks_spec` tradition:
-`two_pow` multiplies its way to `2^n`, so any statement through it carries
-`2 ^ n ≤ Usize.max`; everything else is exact.
+One model-artefact hypothesis appears, in the `flatten_blocks_spec` tradition:
+a statement that builds `2^n` by checked doubling carries `2 ^ n ≤ Usize.max`;
+everything else is exact.
 -/
 import Scheme
 import ArkLib.Commitments.Functional.Hachi.EvalSplit
@@ -57,74 +57,6 @@ attribute [local step] HachiEquiv.RqBridge.mul_spec HachiEquiv.RqBridge.sub_spec
   HachiEquiv.RqBridge.one_spec HachiEquiv.RqBridge.copy_spec
 
 /-! ## Index helpers -/
-
-/-- The loop of `two_pow`: the accumulator is `2 ^ t` after `t` doublings. -/
-theorem two_pow_loop_spec (n size t : Std.Usize) (hn : 2 ^ n.val ≤ Usize.max)
-    (ht : t.val ≤ n.val) (hsize : size.val = 2 ^ t.val) :
-    evalsplit.two_pow_loop n size t ⦃ s => s.val = 2 ^ n.val ⦄ := by
-  rw [evalsplit.two_pow_loop]
-  apply loop.spec_decr_nat (fun s => n.val - s.2.val)
-    (fun s => s.2.val ≤ n.val ∧ s.1.val = 2 ^ s.2.val)
-  · rintro ⟨s1, t1⟩ ⟨ht1, hs1⟩
-    dsimp only at ht1 hs1
-    simp only [evalsplit.two_pow_loop.body]
-    by_cases hlt : t1 < n
-    · rw [if_pos hlt]
-      have hfit : s1.val * 2 ≤ Usize.max := by
-        have hmono : 2 ^ (t1.val + 1) ≤ 2 ^ n.val :=
-          Nat.pow_le_pow_right (by norm_num) (by scalar_tac)
-        rw [hs1, ← pow_succ] at *
-        omega
-      step as ⟨s2, hs2⟩
-      step as ⟨t2, ht2⟩
-      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-      rw [hs2, hs1, ht2, pow_succ]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : t1.val = n.val := by scalar_tac
-      rw [hs1, heq]
-  · exact ⟨ht, hsize⟩
-
-/-- `two_pow` is `2 ^ n`, total up to the `usize` ceiling (the checked
-multiplication is the model artefact the hypothesis discharges). -/
-theorem two_pow_spec (n : Std.Usize) (hn : 2 ^ n.val ≤ Usize.max) :
-    evalsplit.two_pow n ⦃ s => s.val = 2 ^ n.val ⦄ :=
-  two_pow_loop_spec n 1#usize 0#usize hn (by simp) (by simp)
-
-/-- The loop of `test_bit`: after `t` halvings the remaining word is `i / 2ᵗ`. -/
-theorem test_bit_loop_spec (j rest t : Std.Usize) (i0 : ℕ)
-    (ht : t.val ≤ j.val) (hrest : rest.val = i0 / 2 ^ t.val) :
-    evalsplit.test_bit_loop j rest t ⦃ z => z.val = i0 / 2 ^ j.val ⦄ := by
-  rw [evalsplit.test_bit_loop]
-  apply loop.spec_decr_nat (fun s => j.val - s.2.val)
-    (fun s => s.2.val ≤ j.val ∧ s.1.val = i0 / 2 ^ s.2.val)
-  · rintro ⟨r1, t1⟩ ⟨ht1, hr1⟩
-    dsimp only at ht1 hr1
-    simp only [evalsplit.test_bit_loop.body]
-    by_cases hlt : t1 < j
-    · rw [if_pos hlt]
-      step as ⟨r2, hr2⟩
-      step as ⟨t2, ht2⟩
-      refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-      rw [hr2, hr1, ht2, Nat.div_div_eq_div_mul, ← pow_succ]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : t1.val = j.val := by scalar_tac
-      rw [hr1, heq]
-  · exact ⟨ht, hrest⟩
-
-/-- `test_bit` is `Nat.testBit`, i.e. the spec's `(BitVec.ofFin i).getLsb j`.
-Total unconditionally: the loop only divides. -/
-theorem test_bit_spec (i j : Std.Usize) :
-    evalsplit.test_bit i j ⦃ b => b = Nat.testBit i.val j.val ⦄ := by
-  rw [evalsplit.test_bit]
-  step with test_bit_loop_spec j i 0#usize i.val (by simp) (by simp) as ⟨r, hr⟩
-  step as ⟨m, hm⟩
-  have hmval : m.val = i.val / 2 ^ j.val % 2 := by rw [hm, hr]
-  rw [Nat.testBit_eq_decide_div_mod_eq, ← hmval, decide_eq_decide]
-  constructor
-  · intro h; rw [h]; rfl
-  · intro h; scalar_tac
 
 /-- `split_equiv` is the value of ArkLib's `splitEquiv nl nh` (`splitEquiv_val`:
 `(x, y) ↦ y + 2^nl · x`). The `Fin` bounds arrive as hypotheses; totality of the
@@ -614,7 +546,6 @@ theorem lagrange_basis_outer_loop_spec {n : ℕ} (w : linalg.PolyVec) (nn : Std.
         intro t ht; rw [← heq] at ht ⊢; exact hval1 t ht⟩
   · exact ⟨hj, hlen, hwf, hval⟩
 
-
 /-- The spec's Lagrange basis, entrywise, in the vocabulary of the extracted
 vector. -/
 theorem lagrangeBasis_get_toVector {n : ℕ} (w : linalg.PolyVec) (t : Fin (2 ^ n)) :
@@ -741,7 +672,6 @@ theorem to_matrix_inner_loop_spec (p : evalsplit.MlPoly) (cols i : Std.Usize)
       exact ⟨rfl, by rw [hlen1, heq, hcols], hwf1, by
         intro t ht; exact hval1 t (by rw [heq, hcols]; exact ht)⟩
   · exact ⟨rfl, hj, hlen, hwf, hval⟩
-
 
 /-- The outer loop of `MlPoly::to_matrix`: row `s` already written is the row of the
 reshaped matrix. -/

@@ -214,13 +214,10 @@ theorem rangeProduct_shift (lo d T : F) :
   refine Finset.sum_congr rfl (fun j _ => ?_)
   ring
 
-
 /-! ## 3. The loops
 
-`shift_powers`, `shift_inner` and `shift_accum`, then `round_poly_zero`'s own
-pair loop in § 4 -- since card T53b over `u128` lanes, through
-`shift_accum_lanes`. `shift_accum` stays specified because the Rust item stays,
-uncalled by `round_poly_zero`.
+`shift_powers` and `shift_inner`, then `round_poly_zero`'s own pair loop in
+§ 4 -- since card T53b over `u128` lanes, through `shift_accum_lanes`.
 -/
 
 /-- `shift_powers x` is `1, x, …, x^31`. -/
@@ -278,7 +275,6 @@ theorem shift_powers_spec (x : cpoly.field.Ext4) (hx : Reduced x) :
   exact shift_powers_loop_spec x hx (alloc.vec.Vec.new cpoly.field.Ext4)
     cpoly.field.Ext4.ONE 0#usize (by simp) (by simp) (by intro a ha; simp at ha)
     reduced_ONE (by simp) (by intro e he; simp at he)
-
 
 /-! ### Card T36: the delayed reduction, at natural-number level
 
@@ -661,97 +657,6 @@ theorem shift_inner_spec (lop : alloc.vec.Vec cpoly.field.Ext4) (m : Std.Usize) 
   · exact hcast 1 v1 f1 (by rw [hv1, hu1v]) hf1
   · exact hcast 2 v2 f2 (by rw [hv2, hu2v]) hf2
   · exact hcast 3 v3 f3 (by rw [hv3, hu3v]) hf3
-
-/-- The `m` loop of `shift_accum`: coefficient `m` gains `e · Δ^m · S_m`, and
-`Δ^m` is the running scalar. -/
-theorem shift_accum_loop_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
-    (d e : cpoly.field.Ext4) (n : Std.Usize) (dpow : cpoly.field.Ext4) (m : Std.Usize)
-    (X : F) (acc0 : ℕ → F)
-    (hn : n.val = 32) (hm : m.val ≤ 32)
-    (hlen : lop.val.length = 32) (hlr : VecReduced lop)
-    (hv : ∀ t, t < 32 → toExt (lop.val.getD t cpoly.field.Ext4.ZERO) = X ^ t)
-    (hdr : Reduced d) (her : Reduced e)
-    (halen : acc.val.length = 32) (har : VecReduced acc)
-    (hdpr : Reduced dpow) (hdpv : toExt dpow = toExt e * toExt d ^ m.val)
-    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO)
-      = acc0 t + (if t < m.val then toExt e * shiftCoeff X (toExt d) t else 0)) :
-    sumcheck.shift_accum_loop acc lop d n dpow m
-      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
-          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
-            = acc0 t + toExt e * shiftCoeff X (toExt d) t ⦄ := by
-  rw [sumcheck.shift_accum_loop]
-  apply loop.spec_decr_nat (fun r => 32 - r.2.2.val)
-    (fun r => r.2.2.val ≤ 32 ∧ r.1.val.length = 32 ∧ VecReduced r.1
-      ∧ Reduced r.2.1 ∧ toExt r.2.1 = toExt e * toExt d ^ r.2.2.val
-      ∧ ∀ t, t < 32 → toExt (r.1.val.getD t cpoly.field.Ext4.ZERO)
-          = acc0 t + (if t < r.2.2.val then toExt e * shiftCoeff X (toExt d) t else 0))
-  · rintro ⟨a, dp, mm⟩ ⟨hmm, hal, har', hdpr', hdpv', hav'⟩
-    dsimp only at hmm hal har' hdpr' hdpv' hav'
-    simp only [sumcheck.shift_accum_loop.body]
-    by_cases hlt : mm < n
-    · rw [if_pos hlt]
-      have hmlt : mm.val < 32 := by rw [← hn]; scalar_tac
-      step with shift_inner_spec lop mm X hmlt hlen hlr hv as ⟨sv, hRsv, hsvv⟩
-      have hab : mm.val < a.val.length := by rw [hal]; exact hmlt
-      step as ⟨e1, he1⟩
-      have hRe1 : Reduced e1 := har' _ (by rw [he1]; exact List.getElem_mem hab)
-      have he1v : toExt e1 = acc0 mm.val + 0 := by
-        rw [he1, ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO) hab,
-          hav' mm.val hmlt, if_neg (by omega)]
-      step with HachiEquiv.Ext.ext_mul_spec dp sv hdpr' hRsv as ⟨e3, hRe3, he3v⟩
-      step with HachiEquiv.Ext.ext_add_spec e1 e3 hRe1 hRe3 as ⟨e4, hRe4, he4v⟩
-      step as ⟨elem, back, helem, hback⟩
-      step with HachiEquiv.Ext.ext_mul_spec dp d hdpr' hdr as ⟨dp1, hRdp1, hdp1v⟩
-      step as ⟨mm1, hmm1⟩
-      have hset : back e4 = a.set mm e4 := by rw [hback]
-      have he4val : toExt e4 = acc0 mm.val + toExt e * shiftCoeff X (toExt d) mm.val := by
-        rw [he4v, he1v, he3v, hsvv, hdpv', shiftCoeff]
-        ring
-      refine ⟨by omega, ?_, ?_, hRdp1, ?_, ?_, by omega⟩
-      · rw [hset, alloc.vec.Vec.set_val_eq, List.length_set, hal]
-      · intro y hy
-        rw [hset, alloc.vec.Vec.set_val_eq] at hy
-        rcases List.mem_or_eq_of_mem_set hy with h | h
-        · exact har' y h
-        · rw [h]; exact hRe4
-      · rw [hdp1v, hdpv', hmm1, pow_succ]; ring
-      · intro t ht
-        rw [hset, alloc.vec.Vec.set_val_eq, hmm1]
-        rcases eq_or_ne t mm.val with rfl | hne
-        · rw [List.getD_eq_getElem _ _ (by rw [List.length_set, hal]; exact ht),
-            List.getElem_set_self, he4val, if_pos (by omega)]
-        · rw [List.getD_eq_getElem _ _ (by rw [List.length_set, hal]; exact ht),
-            List.getElem_set_ne (by omega),
-            ← List.getD_eq_getElem (l := a.val) (d := cpoly.field.Ext4.ZERO) (by rw [hal]; exact ht),
-            hav' t ht]
-          by_cases hc : t < mm.val
-          · rw [if_pos hc, if_pos (by omega)]
-          · rw [if_neg hc, if_neg (by omega)]
-    · rw [if_neg hlt, WP.spec_ok]
-      dsimp only
-      have heq : mm.val = 32 := by rw [← hn]; scalar_tac
-      refine ⟨hal, har', fun t ht => ?_⟩
-      rw [hav' t ht, if_pos (by omega)]
-  · exact ⟨hm, halen, har, hdpr, hdpv, hav⟩
-
-/-- **`shift_accum`**: one pair's contribution to the 32 shifted coefficients. -/
-theorem shift_accum_spec (acc lop : alloc.vec.Vec cpoly.field.Ext4)
-    (d e : cpoly.field.Ext4) (X : F) (acc0 : ℕ → F)
-    (hlen : lop.val.length = 32) (hlr : VecReduced lop)
-    (hv : ∀ t, t < 32 → toExt (lop.val.getD t cpoly.field.Ext4.ZERO) = X ^ t)
-    (hdr : Reduced d) (her : Reduced e)
-    (halen : acc.val.length = 32) (har : VecReduced acc)
-    (hav : ∀ t, t < 32 → toExt (acc.val.getD t cpoly.field.Ext4.ZERO) = acc0 t) :
-    sumcheck.shift_accum acc lop d e
-      ⦃ z => z.val.length = 32 ∧ VecReduced z ∧
-          ∀ t, t < 32 → toExt (z.val.getD t cpoly.field.Ext4.ZERO)
-            = acc0 t + toExt e * shiftCoeff X (toExt d) t ⦄ := by
-  rw [sumcheck.shift_accum]
-  exact shift_accum_loop_spec acc lop d e params.SHIFT_DEG e 0#usize
-    X acc0 shift_deg_val (by simp) hlen hlr hv hdr her halen har
-    her (by simp)
-    (by intro t ht; rw [hav t ht, if_neg (by simp)]; ring)
-
 
 /-! ## 4. `round_poly_zero`'s pair loop -/
 
@@ -1622,7 +1527,6 @@ theorem round_poly_zero_lanes_spec (w eq : alloc.vec.Vec cpoly.field.Ext4) (flus
   rintro z ⟨hz1, hz2⟩
   exact ⟨hz1, fun t ht => by rw [hz2 t ht, hhalf]⟩
 
-
 /-- `Usize.max` is at least `2^32 - 1`; a local copy, as `RingShort` has. -/
 private theorem usize_max_ge4' : (4294967295 : ℕ) ≤ Std.Usize.max := by
   rw [Std.Usize.max_def]
@@ -1786,7 +1690,6 @@ theorem shift_inner_base_spec (lop : alloc.vec.Vec cpoly.field.Fp) (m : Std.Usiz
     cpoly.field.Fp.ZERO j X shift_rows_val shift_deg_val hm hlen hlr hv
     (by omega) (by omega) HachiEquiv.Field.Red_zero
     (by rw [HachiEquiv.Field.toK_zero, hjv]; simp)
-
 
 /-- **`shift_accum_base`**: one pair's contribution, with the base-field
 coefficient embedded exactly once per slot. -/
@@ -1990,6 +1893,5 @@ theorem pair_loop_base_spec (w : alloc.vec.Vec cpoly.field.Fp)
       have heq : yy.val = half.val := by scalar_tac
       exact ⟨hal, har', fun t ht => by rw [hav' t ht, heq]⟩
   · exact ⟨hy, halen, har, hav⟩
-
 
 end HachiEquiv.SumcheckShift

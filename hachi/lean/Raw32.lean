@@ -528,29 +528,6 @@ theorem carrier_commit_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
   rw [quadeval.carrier_commit_from_raw_32, quadeval.carrier_commit_from_raw,
     carrier_decomp_from_raw_32_eq a hex]
 
-theorem honest_compute_v_from_raw_32_eq {raw32 : alloc.vec.Vec linalg.RawVec32}
-    {raw : alloc.vec.Vec linalg.PolyVec} (pp : quadeval.PublicParamsD)
-    (stmt : quadeval.QuadEvalStatement) (hex : ExpandsTo raw32 raw) :
-    quadeval.honest_compute_v_from_raw_32 pp stmt raw32
-      = quadeval.honest_compute_v_from_raw pp stmt raw := by
-  have hL : ∀ (pm : linalg.PolyMatrix) (pv : linalg.PolyVec),
-      quadeval.carrier_commit_from_raw_32 pm pv raw32
-        = quadeval.carrier_commit_from_raw pm pv raw :=
-    fun pm pv => carrier_commit_from_raw_32_eq pm pv hex
-  rw [quadeval.honest_compute_v_from_raw_32, quadeval.honest_compute_v_from_raw]
-  simp only [hL]
-
--- `honest_z_from_raw_32_loop1_eq` and `honest_z_from_raw_32_eq` -- "the `_32`
--- z pass is the `_64` one on the message it denotes" -- lived here until card
--- T43 (2026-09-22). The `_32` item now has its own short branch and the
--- equality is false as a statement about programs, so it is gone; see
--- `QuadEvalProtocol.lean` § "The fused z pass".
--- `honest_compute_resp_from_raw_32_eq` lived here until candidate T28 changed
--- that item's signature: it now takes the carrier decomposition instead of
--- computing it, so it is no longer the `_64` item on a re-carriered message and
--- the equality no longer even typechecks. Its specification is proved directly
--- in `QuadEvalProtocol.lean`, from `honest_z_from_raw_32_spec` plus the
--- supplied decomposition.
 /-! ## The raw-digit commit (Stage 6 card T51a)
 
 `commit_streamed_32`'s loop computes `A · G⁻¹(xᵢ)` without building `xᵢ` or

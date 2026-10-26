@@ -1296,10 +1296,8 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- reshapes against `Hachi.toMatrix`/`toPolynomial`/`toMatrixEval`, and the two
 -- headline evaluations against `Hachi.evalSplit`/`evalSplitEval` -- which carry
 -- the `CMlPolynomial.eval` reading through ArkLib's own `evalSplit_eq_eval`.
--- `two_pow_spec` (and everything stated through it) carries the one
--- model-artefact hypothesis `2 ^ n ≤ Usize.max`; the rest are exact.
-#print axioms HachiEquiv.EvalSplit.two_pow_spec
-#print axioms HachiEquiv.EvalSplit.test_bit_spec
+-- Statements that size a `2^n` table carry the one model-artefact hypothesis
+-- `2 ^ n ≤ Usize.max`; the rest are exact.
 #print axioms HachiEquiv.EvalSplit.split_equiv_spec
 #print axioms HachiEquiv.EvalSplit.split_equiv_inv_spec
 #print axioms HachiEquiv.EvalSplit.monomial_basis_spec
@@ -1650,7 +1648,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_z_from_raw_32_spec
-#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_32_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_32_spec
 -- Candidate T28: the carrier decomposition computed ONCE. `ŵ = G⁻¹(a · raw)`
 -- is what `v = D ŵ` needs and it is also the response's carrier slot, and both
@@ -2232,8 +2229,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.RingTwoLane.prep_chunk_ga_loop_spec
 #print axioms HachiEquiv.RingTwoLane.dot_prepared_ga_spec
 #print axioms HachiEquiv.SchemeTwoLane.dot_prepared_ga_rq_spec
-#print axioms HachiEquiv.SchemeTwoLane.prepare_ga_spec
-#print axioms HachiEquiv.SchemeTwoLane.apply_ga_spec
 #print axioms HachiEquiv.RingFused.prepare_vec_spec
 #print axioms HachiEquiv.RqBridge.dot_prepared_spec
 #print axioms HachiEquiv.Scheme.dot_prep_spec
@@ -2339,7 +2334,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- hiding.
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_decomp_from_raw_spec
 #print axioms HachiEquiv.QuadEvalProtocol.carrier_commit_from_raw_spec
-#print axioms HachiEquiv.QuadEvalProtocol.honest_compute_v_from_raw_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_loop_spec
 #print axioms HachiEquiv.QuadEvalProtocol.honest_compute_resp_from_raw_spec
 #print axioms HachiEquiv.Chain.chain_open_spec
@@ -2363,15 +2357,13 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Barrett reduction is needed. One lane carries the whole 8192-term sum
 -- (`2 * 8192 * BOUND_D = 1.15e18 < 1.84e19`), so there is no chunking and no
 -- Garner. Three layers: the arithmetic (GoldArith), the transform
--- (GoldStage/GoldTransform) and the dot product below.
+-- (GoldFusedStage/GoldTransform) and the dot product below.
 #print axioms HachiEquiv.GoldTransform.gold_psi_table_spec
 #print axioms HachiEquiv.GoldTransform.gold_psi_table_cast
 #print axioms HachiEquiv.GoldTransform.gold_twist_spec
-#print axioms HachiEquiv.GoldStage.gold_dif_stage_spec
 -- The fused stage: two DIF stages in one pass over the array, the radix-4
 -- memory pattern without a radix-4 theory. Its conclusion is `difWord` of
--- `difWord` -- literally the two shapes `gold_dif_stage_spec` produces at
--- consecutive block lengths -- so `gold_forward_spec` below states exactly what
+-- `difWord` -- literally two radix-2 stages at consecutive block lengths -- so `gold_forward_spec` below states exactly what
 -- it stated before, and `NttProduct.prod_difRun` never learns this happened.
 #print axioms HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_loop0_spec
 #print axioms HachiEquiv.GoldFusedStage.gold_dif_stage2_loop0_spec
@@ -2473,7 +2465,6 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 #print axioms HachiEquiv.SumcheckShift.coeff_finset_sum
 #print axioms HachiEquiv.SumcheckShift.coeff_sum_eq_shiftNat
 #print axioms HachiEquiv.SumcheckShift.shift_inner_spec
-#print axioms HachiEquiv.SumcheckShift.shift_accum_spec
 -- Card T55 (2026-09-24): the pair loop skips a pair whose `lo` and `hi` are
 -- both zero. The skipped summand is `eq[y] · shiftCoeff 0 0 t`, and this is the
 -- lemma that says it is `0` -- the coefficient form of `P_b(0) = 0`. The pair
@@ -2482,7 +2473,7 @@ and the honest lift prover, the last file to pass through `lean-wip/`, on
 -- Card T53b (2026-09-25): the pair loop accumulates `epow · s` UNREDUCED in 128
 -- `u128` lanes (four per shifted coefficient) and reduces once per round. The
 -- zero-fill and the `Ext4` pair loop are gone with `zero_fill_spec` and
--- `pair_loop_spec`; `shift_accum_spec` stays because the Rust item does.
+-- `pair_loop_spec`.
 -- `rawN_le` and `lane_room` are the card's whole no-overflow argument: a lane
 -- below `q`, `2^31` pairs of at most `7·q²`, and one more, fit a `u128`;
 -- `rawN_coeff` is the bridge from the unreduced components to `F`.

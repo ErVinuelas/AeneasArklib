@@ -890,18 +890,9 @@ pub fn carrier_commit_from_raw_32(
     d_matrix.mat_vec_mul(&what)
 }
 
-/// [`honest_compute_v_from_raw`] over the compact raw carrier.
-pub fn honest_compute_v_from_raw_32(
-    pp: &PublicParamsD,
-    stmt: &QuadEvalStatement,
-    raw: &Vec<linalg::RawVec32>,
-) -> PolyVec {
-    carrier_commit_from_raw_32(pp.d_matrix(), stmt.avec(), raw)
-}
-
 /// `v = D · ŵ` from a carrier decomposition computed **once** (candidate T28).
 ///
-/// [`honest_compute_v_from_raw_32`] and [`honest_compute_resp_from_raw_32`] both
+/// Computing `v` and [`honest_compute_resp_from_raw_32`] both
 /// need `ŵ = G⁻¹(a · raw)`, and at the paper's parameters that carrier costs
 /// **98.7 s** measured on the pin profile. Computing it in each of them paid it
 /// twice. This item is the second half of the split: the caller computes `ŵ`
@@ -949,21 +940,6 @@ pub fn honest_compute_v(
     message: &Vec<PolyVec>,
 ) -> PolyVec {
     carrier_commit(pp.d_matrix(), stmt.avec(), message)
-}
-
-/// The prover's round-0 message `v = D ŵ` from the **raw** message (spec: the
-/// same `honestComputeV` [`honest_compute_v`] mirrors, composed with
-/// `gadgetDecompose`).
-///
-/// What [`chain_open`](crate::chain::chain_open) calls, so that the honest
-/// prover never holds the decomposed message. The decomposition cancels here
-/// rather than streaming: see [`carrier_from_raw`].
-pub fn honest_compute_v_from_raw(
-    pp: &PublicParamsD,
-    stmt: &QuadEvalStatement,
-    raw: &Vec<PolyVec>,
-) -> PolyVec {
-    carrier_commit_from_raw(pp.d_matrix(), stmt.avec(), raw)
 }
 
 /// The honest output witness `(ŵ, t̂, ẑ)` (spec: `honestComputeResp`,

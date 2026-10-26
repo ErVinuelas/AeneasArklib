@@ -46,7 +46,7 @@ open hachi
 
 namespace HachiEquiv.GoldFusedBoundary
 
-open HachiEquiv.NttStage HachiEquiv.GoldArith HachiEquiv.GoldStage
+open HachiEquiv.NttStage HachiEquiv.GoldArith
 open HachiEquiv.GoldFusedStage HachiEquiv.GoldTransform
 
 theorem GP_pos : 0 < GP := by norm_num

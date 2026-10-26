@@ -3,7 +3,7 @@ The **Goldilocks transform** (candidate T27): `NttTransform.lean`'s twiddle
 table, twist, DIT stage and the two transform loops, ported to the single
 64-bit lane.
 
-As in `GoldStage.lean`, nothing structural is restated: `wordAt`, `Canon`,
+As in `GoldFusedStage.lean`, nothing structural is restated: `wordAt`, `Canon`,
 `resK`, `difWord`, `ditWord` and the two ring-level bridges `difWord_cast` and
 `ditWord_cast` are already generic in the prime and are used here unchanged.
 What this file supplies is the arithmetic, which moves from `aux_*_lt` at a
@@ -16,7 +16,6 @@ holds the signed coefficient whole and lifts it centred. It is specified in
 -/
 import NttTransform
 import GoldArith
-import GoldStage
 import GoldFusedStage
 
 set_option autoImplicit false
@@ -27,7 +26,6 @@ open hachi
 namespace HachiEquiv.GoldTransform
 
 open HachiEquiv.NttStage HachiEquiv.NttTransform HachiEquiv.GoldArith
-open HachiEquiv.GoldStage
 
 theorem GP_pos : 0 < GP := by norm_num
 theorem GP_two_le : 2 ≤ GP := by norm_num

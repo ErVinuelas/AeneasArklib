@@ -1734,31 +1734,6 @@ theorem carrier_commit_from_raw_spec (d_matrix : linalg.PolyMatrix) (a : linalg.
   rintro z ⟨hzwf, hzval⟩
   exact ⟨hzwf, by rw [Hachi.carrierCommit, Simple.commit, hzval, hwhat]⟩
 
-/-- **`honest_compute_v_from_raw` computes `honestComputeV`** -- the same round-0
-message, from the raw blocks. This is what `chain_open` calls. -/
-theorem honest_compute_v_from_raw_spec (pp : quadeval.PublicParamsD)
-    (stmt : quadeval.QuadEvalStatement) (raw : alloc.vec.Vec linalg.PolyVec)
-    (sp : Hachi.PublicParamsD Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
-    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
-    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
-    (hpp : RepParamsD pp sp) (hst : RepStmt stmt ss)
-    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
-            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
-          = wo.message)
-    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
-    quadeval.honest_compute_v_from_raw pp stmt raw
-      ⦃ out => WfVec 1 out ∧
-        toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
-  obtain ⟨hWpi, hWpd, hpi, hpd⟩ := hpp
-  obtain ⟨hWu, hWa, hWb, hWy, hu, ha, hb, hy⟩ := hst
-  rw [quadeval.honest_compute_v_from_raw]
-  simp only [quadeval.PublicParamsD.impl.d_matrix, quadeval.QuadEvalStatement.impl.avec,
-    bind_tc_ok]
-  apply spec_mono (carrier_commit_from_raw_spec pp.d_matrix stmt.avec raw hWpd hWa hWraw)
-  rintro z ⟨hzwf, hzval⟩
-  refine ⟨hzwf, ?_⟩
-  rw [hzval, hpd, ha, hm, InnerOuter.honestComputeV]
-
 /-- **`honest_compute_resp_from_raw` computes `honestComputeResp`** -- the second
 half of the streamed prover. -/
 theorem honest_compute_resp_from_raw_spec (stmt : quadeval.QuadEvalStatement)
@@ -1798,7 +1773,6 @@ theorem honest_compute_resp_from_raw_spec (stmt : quadeval.QuadEvalStatement)
   · show toVec (k := 2 ^ 10 * 8 * 5) zdec
       = Hachi.zDecompBounded Φ bddZ (InnerOuter.honestZ Φ wo (toChals c hc))
     rw [hDval, hZval, Hachi.zDecompBounded]
-
 
 /-! ## The compact raw carrier
 
@@ -2416,30 +2390,9 @@ theorem honest_z_from_raw_32_spec (raw32 : alloc.vec.Vec linalg.RawVec32)
           (toVec (k := 2 ^ 10) (raw.val.getD j (alloc.vec.Vec.new ring.Rq))))) (2 ^ 10)]
   rfl
 
-
-/-- **`honest_compute_v_from_raw_32` computes `honestComputeV`** -- what
-`chain_open` calls, over the carrier the prover actually holds. -/
-theorem honest_compute_v_from_raw_32_spec (pp : quadeval.PublicParamsD)
-    (stmt : quadeval.QuadEvalStatement) (raw32 : alloc.vec.Vec linalg.RawVec32)
-    (raw : alloc.vec.Vec linalg.PolyVec)
-    (sp : Hachi.PublicParamsD Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
-    (ss : InnerOuter.QuadEvalStatement Φ 1 (2 ^ 10) 8 1 (2 ^ 10) 8 1)
-    (wo : InnerOuter.Opening Φ 1 (2 ^ 10) 8 (2 ^ 10) 8)
-    (hex : Raw32.ExpandsTo raw32 raw)
-    (hpp : RepParamsD pp sp) (hst : RepStmt stmt ss)
-    (hm : (fun i : Fin (2 ^ 10) => gadgetDecompose Φ dd
-            (toVec (k := 2 ^ 10) (raw.val.getD i.val (alloc.vec.Vec.new ring.Rq))))
-          = wo.message)
-    (hWraw : WfBlocks (2 ^ 10) (2 ^ 10) raw) :
-    quadeval.honest_compute_v_from_raw_32 pp stmt raw32
-      ⦃ out => WfVec 1 out ∧
-        toVec (k := 1) out = InnerOuter.honestComputeV Φ sp ddBal ss wo ⦄ := by
-  rw [Raw32.honest_compute_v_from_raw_32_eq pp stmt hex]
-  exact honest_compute_v_from_raw_spec pp stmt raw sp ss wo hpp hst hm hWraw
-
 /-! ### The carrier decomposition, computed once (candidate T28)
 
-`honest_compute_v_from_raw_32` computed `ŵ = G⁻¹(a · raw)` and
+The prover used to compute `ŵ = G⁻¹(a · raw)` once for `v` and
 `honest_compute_resp_from_raw_32` computed it again; at the pin that second pass
 is 98.7 s. Both now take it. The specifications below are what makes that a
 scheduling change rather than a protocol one: the *conclusions* are the ones
@@ -2527,7 +2480,6 @@ theorem honest_compute_resp_from_raw_32_spec (carrier_dec : linalg.PolyVec)
     rw [hDval, hZval, Hachi.zDecompBounded]
 
 /-! ## The two output relations
-
 
 Both are decision procedures for specification `Set`s, so both are iffs. -/
 

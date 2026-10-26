@@ -3,12 +3,12 @@ The **linalg layer of the 16-bit limb carrier path** (card T35).
 
 `PolyMatrix::prepare_limbs2` and `PreparedMatrixL2::apply_limbs2` are
 `PolyMatrix::prepare` and `PreparedMatrix::apply` with a two-limb store, so
-this file is `SchemeTwoLane.lean`'s block with the store changed and nothing
-else. The *statements* are again the original ones -- the prepared product is
+this file is `Scheme.lean`'s prepared block with the store changed and
+nothing else. The *statements* are again the original ones -- the prepared product is
 `matVecMul` whichever store computes it, which is the whole claim of the card
 at this level.
 
-The one structural difference from `SchemeTwoLane.lean` is that a prepared row
+The one structural difference from `Scheme.lean`'s is that a prepared row
 here does not name the limbs it was split into: `prepare_vec_limbs2` produces
 them internally and `dot_prepared_limbs2` consumes them, so [`PrepRowL2`]
 quantifies over them existentially and the row spec re-opens the pair.

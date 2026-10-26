@@ -80,48 +80,6 @@ pub fn split_equiv_inv(k: usize) -> (usize, usize) {
     (x, y)
 }
 
-/// `2^n`, by repeated doubling (spec: the `2 ^ n` in `Vector R (2 ^ n)`).
-///
-/// A helper rather than `1 << n`, so the extracted model stays in plain
-/// `Usize` arithmetic (see `lib.rs` § "Style notes"); the callers' concrete
-/// `n` is at most `ML_VARS_LOW + ML_VARS_HIGH`, so the checked multiplication
-/// is far from overflow.
-// Dead since Stage 6 candidates M and N: the doubling builds of the two bases
-// index nothing and form no power, so nothing in this module calls either
-// helper any more. They stay rather than go, and the `allow` is the cheap half
-// of that decision: both are frozen in the genesis corpus, both carry proved
-// specs that `lean/Check.lean` § 4 audits (`two_pow_spec`, `test_bit_spec`), and
-// charon translates every local item whether or not the crate reaches it -- so
-// the model and those specs are still exactly about this code. Deleting proved
-// specs is the larger and less reversible move; `zerocheck::two_pow` is a
-// separate function and still has callers.
-#[allow(dead_code)]
-fn two_pow(n: usize) -> usize {
-    let mut size: usize = 1;
-    let mut t: usize = 0;
-    while t < n {
-        size = size * 2;
-        t += 1;
-    }
-    size
-}
-
-/// Bit `j` of `i` (spec: `(BitVec.ofFin i).getLsb j`, i.e. `Nat.testBit`).
-///
-/// By repeated division, like [`crate::gadget::digit_at`]: `j` halvings, then
-/// the parity of what is left. Little-endian -- bit `0` is the least
-/// significant.
-#[allow(dead_code)]
-fn test_bit(i: usize, j: usize) -> bool {
-    let mut rest: usize = i;
-    let mut t: usize = 0;
-    while t < j {
-        rest = rest / 2;
-        t += 1;
-    }
-    rest % 2 == 1
-}
-
 /// A multilinear polynomial over `R_q` by its `2^n` monomial coefficients,
 /// little-endian (spec: `CMlPolynomial (Rq Φ) n`, `Multilinear/Basic.lean:35`).
 ///

@@ -326,36 +326,6 @@ pub fn shift_inner(lop: &Vec<Ext4>, m: usize) -> Ext4 {
     )
 }
 
-/// One pair's contribution to the shifted coefficients: `acc[m] += e · Δ^m · S_m`
-/// (Stage 6 candidate T3).
-///
-/// `Δ^m` is carried as a running scalar rather than a second power table,
-/// because the `m` loop visits the powers in order; only `lo`'s powers are read
-/// out of order (at `k − m`) and so have to be stored.
-///
-/// The accumulator is taken by value and written through `IndexMut`, the shape
-/// `Rq::mul`'s accumulator already uses.
-pub fn shift_accum(mut acc: Vec<Ext4>, lop: &Vec<Ext4>, d: Ext4, e: Ext4) -> Vec<Ext4> {
-    let n: usize = params::SHIFT_DEG;
-    // `e·d^m`, threaded, rather than `d^m` multiplied by `e` at every step:
-    // `e · (d^m · s) = (e · d^m) · s`, so the weight rides along with the
-    // power and the body drops from three full `Ext4` products to two. This
-    // is the innermost loop of `round_poly_zero`, which the phase split
-    // (2026-09-20) measured at 92% of `honest_compute_g` and so ~22% of the
-    // whole prover; the other 8% is the alpha side, where the same reasoning
-    // bought nothing.
-    let mut epow: Ext4 = e;
-    let mut m: usize = 0;
-    while m < n {
-        let s: Ext4 = shift_inner(lop, m);
-        let cur: Ext4 = acc[m];
-        acc[m] = cur + epow * s;
-        epow = epow * d;
-        m += 1;
-    }
-    acc
-}
-
 /// The number of `u128` lanes [`round_poly_zero`] accumulates in: four per
 /// shifted coefficient, `4 · SHIFT_DEG` (card T53b). A literal for the reason
 /// [`params::ROUND_NODES`] is -- a product is a `Result` in the extracted model.
@@ -448,8 +418,9 @@ pub fn lane_accum(mut lanes: Vec<u128>, base: usize, a: Ext4, b: Ext4) -> Vec<u1
     lanes
 }
 
-/// [`shift_accum`] with the accumulator held as raw lanes (card T53b): lane
-/// group `m` gains the unreduced `e·Δ^m · S_m`.
+/// One pair's contribution to the shifted coefficients, `acc[m] += e·Δ^m·S_m`
+/// (Stage 6 candidate T3), with the accumulator held as raw lanes (card T53b):
+/// lane group `m` gains the unreduced `e·Δ^m · S_m`.
 ///
 /// Same `m` loop, same running `epow = e·Δ^m` (a full, reduced `Ext4`
 /// product: it is used multiplicatively), same [`shift_inner`]; only the
@@ -585,7 +556,7 @@ pub fn round_poly_zero_lanes(w: &Vec<Ext4>, eq: &Vec<Ext4>, flush: usize) -> Vec
 /// ([`lanes_to_coeffs`]), plus a flush every [`ZERO_LANE_FLUSH`] pairs that
 /// keeps the lanes total for every `half` the spec admits. Per pair this
 /// deletes 128 `reduce_wide`s and 32 `Ext4` adds; the two full `Ext4` products
-/// per `m` of [`shift_accum`] become one full (`epow · Δ`) and one raw.
+/// per `m` of the reduced accumulator become one full (`epow · Δ`) and one raw.
 pub fn round_poly_zero(w: &Vec<Ext4>, eq: &Vec<Ext4>) -> UnivariatePoly {
     let lanes: Vec<u128> = round_poly_zero_lanes(w, eq, ZERO_LANE_FLUSH);
     let mut acc: Vec<Ext4> = lanes_to_coeffs(&lanes);
@@ -1169,7 +1140,8 @@ pub fn shift_inner_base(lop: &Vec<Fp>, m: usize) -> Fp {
     s
 }
 
-/// [`shift_accum`] with a base-field `lo` and `Δ`: only the final `eq[y] · c_m`
+/// [`shift_accum_lanes`]'s contribution, reduced, with a base-field `lo` and
+/// `Δ`: only the final `eq[y] · c_m`
 /// is a mixed product, and there is exactly one of those per coefficient.
 pub fn shift_accum_base(mut acc: Vec<Ext4>, lop: &Vec<Fp>, d: Fp, e: Ext4) -> Vec<Ext4> {
     let n: usize = params::SHIFT_DEG;
