@@ -27,8 +27,8 @@ responsible is amended in the same session, the pattern `prove-sorry` already
 uses on itself.
 
 **These skills arrived before their corpus, so attribution is the whole
-discipline.** `logs/ledger.jsonl` is empty; almost none of the numbers in this
-directory were measured here. This repository's house form for a borrowed number
+discipline.** Almost none of the numbers in this directory were measured here;
+the ledger rows that were (Stages 5–6) arrived after the skills. This repository's house form for a borrowed number
 is already visible in the code: `hachi/Cargo.toml` names AeneasCompPoly when it
 justifies `lto = "fat"` with a 28% artefact, and `README.md` § "The benchmark
 baseline is checked, not trusted" says the accept rule's noise floor is

@@ -22,7 +22,15 @@ one, the skill is right and this file is a bug.
 > skill. This repository's first measurement-grade null-slot sweep ran on
 > 2026-09-07; see [`NOTES.md`](NOTES.md) § "The certified null-slot sweep".
 > It validated the 5% floor only outside the 100 ns–2 µs timing band and found
-> false 5–8% verdicts on byte-identical code inside it. The ledger remains empty.
+> false 5–8% verdicts on byte-identical code inside it. `logs/ledger.jsonl` now
+> holds the 140 rows of Stages 5–6 (closed 2026-10-06).
+>
+> **Worked examples are historical.** Several skills illustrate their procedure on
+> the state the repository had when they were written: `N = 64`, a schoolbook
+> `Rq::mul`, an empty ledger. Since then the ring runs at `N = 1024` on the
+> verified NTT and the Goldilocks lanes ([`README.md`](README.md) § Layout), and
+> the Stage 6 board closed. Read those examples for the method, not as a
+> description of the current code.
 
 ---
 

@@ -5,11 +5,17 @@
 Append-only, one JSON object per line: the machine-readable record of what the
 optimization loop and the verification pass did, and what it cost.
 
-It is **empty**, and that is the current true state of this repository. No
-candidate has been benched to measurement grade and no verification campaign has
-run — [`NOTES.md`](../NOTES.md) § "Benchmark numbers from this session are not
-measurement-grade" is the standing record. The first row will be written by the
-first `perf-loop` or `verify-campaign` run.
+It contains **140 validated rows** at the 2026-10-06 close-out. They record the
+verification campaigns and the accepted, rejected and deferred optimization
+experiments that took the pin-scale prover from 1170.8 s to 183.2 s. The file is
+not a queue: a historical row can describe a rejected candidate, and the fact
+that it remains present does not make the candidate open. The chronological
+Stage 6 disposition in [`NOTES.md`](../NOTES.md), together with the final
+candidate-board entries, is the prose source of truth.
+
+`make ledger-check` currently reports all 140 rows valid and append-only against
+`HEAD`. `make gains` reconstructs the cumulative per-row performance record;
+`make changes` follows accepted rows to the commits that landed them.
 
 Two kinds of row, distinguished by the presence of `"kind": "campaign"`:
 
@@ -48,15 +54,19 @@ accept something a later campaign could not prove?" — which is the question th
 decides whether the loop's cadence (one campaign per accepted champion) can ever
 be relaxed. That answer has to be computed over rows, so the rows exist.
 
-## Nothing here is a timing
+## Which timings live here
 
-Criterion's own output lands under `hachi/target/criterion`, which `.gitignore`
-covers, and the optional `JSON=` report is ignored at the root. No absolute time
-is ever committed: an absolute time is not comparable to another run's, nor to
-another row's in the same run, so keeping one invites exactly the cross-run
-comparison the harness refuses to make. What a ledger row keeps is a *delta*
-measured inside one criterion session, together with the conditions of that
-session.
+Criterion's cache lands under `hachi/target/criterion`, which `.gitignore`
+covers. The committed `JSON=` reports retain absolute observations for forensic
+context, but the optimization accept rule uses only within-run comparisons:
+`vs_genesis` and `cand_vs_now_adj`. Absolute times from different Criterion runs
+or machines are not acceptance evidence.
+
+Pin profiles are a separate, deliberate exception. Files named
+`pin-profile-*.log` record end-to-end phase spans, peak RSS and an in-run control
+for one fully identified tree. They support statements such as "the prover was
+183.2 s at `62c402a`"; they do not retroactively turn two unrelated microbench
+runs into a valid A/B comparison.
 
 One deliberate exception lives in [`paper-impl/`](paper-impl/README.md):
 absolute timings of the **paper's reference implementation**
@@ -82,8 +92,9 @@ the slot fingerprint. Two columns are the ones to compare over time:
 * `cand_vs_now_adj` — one candidate's increment, valid only as that run's claim.
 
 Absolute times (`now_ns`, `genesis_ns`) are not comparable across runs or
-machines; only the within-run ratios are. The reference implementation's
-absolute spans live in `paper-impl/` and are compared to nothing by tooling.
+machines; only the within-run ratios are. Pin-profile spans are reported only
+with their commit and control. The reference implementation's absolute spans
+live in `paper-impl/` and are compared to nothing by tooling.
 
 ## From a row to the change behind it — `make changes`
 

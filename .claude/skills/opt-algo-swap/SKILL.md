@@ -56,7 +56,10 @@ variant, the candidate is "mirror the spec's own lemma" and nothing lands in
 
 ## The moves this strategy owns
 
-* **Splitting the negacyclic convolution.** `ring::Rq::mul` is the schoolbook
+* **Splitting the negacyclic convolution.** (Historical example: since the NTT
+  merge `Rq::mul` runs on the verified auxiliary-prime NTT at `N = 1024`; see
+  `INSTRUCTIONS.md` on worked examples.)
+  `ring::Rq::mul` was the schoolbook
   `O(N²)` product at `N = 64` — 4096 coefficient multiplications, each with a
   reduction — and everything above it is that in a loop (`linalg::dot` over
   128 entries is 128 of them). Karatsuba over `a = a₀ + X^{N/2}a₁` gives 3

@@ -11,8 +11,8 @@ below. This is deliberately the supervised form — the session is watchable
 and interruptible, and its gates block rather than self-approve. Scheduled
 routines and CI triggers have no procedure here on purpose: they get one
 only after the loop has proved itself under supervision, and the ledger
-rows from these runs are that proof. `logs/ledger.jsonl` is empty, so nothing
-has been proved that way yet.
+rows from these runs are that proof. `logs/ledger.jsonl` holds 140 rows, all
+from supervised Stage 5–6 sessions, so nothing has been proved that way yet.
 
 ## Invocation
 

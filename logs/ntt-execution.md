@@ -1,5 +1,13 @@
 # NTT execution log
 
+> **Completed historical log.** The NTT merged, its genesis stamps and ledger
+> records landed, and its proof now participates in the ordinary green build.
+> Later Stage 6 work also landed the Goldilocks digit lane, fused stages and
+> other transform kernels. Statements below such as “ledger is empty,” “stamps
+> are not derived,” or “next action” describe the checkpoint at which they were
+> written; they are not current repository status. The constant-time caveat in
+> the final limitations section remains current.
+
 Execution of `NTT_EXECUTION_PLAYBOOK_v2.md`: replace the schoolbook Rust
 `Rq::mul` with an auxiliary-prime NTT + CRT multiplication, preserving
 `HachiEquiv.Ring.mul_spec` and `HachiEquiv.RqBridge.mul_spec`.

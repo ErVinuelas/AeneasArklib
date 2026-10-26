@@ -98,7 +98,10 @@ explicitly rather than quietly picking a side.
      coincide here at `b = 2` (`NOTES.md` § "One digit count, not two").
 4. **Cost model.** Count ring and field operations as a function of the size
    parameters; name what dominates and what allocates. Above the ring
-   everything is `ring::mul` in a loop: `mul` is the schoolbook `O(N²)`
+   everything is `ring::mul` in a loop. (Historical example: since the NTT
+   merge `Rq::mul` runs on the verified auxiliary-prime NTT at `N = 1024`; see
+   `INSTRUCTIONS.md` on worked examples.)
+   In the example, `mul` is the schoolbook `O(N²)`
    negacyclic convolution at `N = 64` (`hachi/src/ring.rs`, `Rq::mul`), a
    matrix-vector product is `rows · cols` of those, and the norms are
    invisible beside it. Say it in the terms the bench thinks in

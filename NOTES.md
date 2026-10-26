@@ -10510,3 +10510,116 @@ profile was a one-off: it reads 8.0 s here.
 Stage 6 exit criterion (a) now reads **183.2 s (−84.4% from 1170.8 s)**. The
 commitment is still 58% of the prover. Open: T50 (lazy Goldilocks
 butterflies), to re-price on this profile.
+
+## Stage 6 is closed, the Jasmin scalar gate rejects, and the docs catch up (2026-09-25 → 2026-10-06)
+
+The “Open: T50” sentence immediately above is the last point-in-time status in
+the performance narrative, not the current board. T50 was re-priced at
+`0a9c1f5` and **rejected on arithmetic without Rust**: Goldilocks leaves only
+`2^32 - 1` non-canonical `u64` values above `p`, so `[0, 2p)` needs 65 bits.
+The representable wrapping/carry form still folds after every operation and
+therefore defers no reduction. Its projected −20 to −40 s exceeded the entire
+15–25 s compare/select ceiling, for roughly 4.4–4.9K lines of proof churn. The
+candidate board records two possible new experiments — a carry-form canonical
+add and a `u128` MAC accumulator — but neither is a promised Stage 6 item.
+Every registered card in the Stage 6 board now has a verdict.
+
+The follow-up Jasmin milestone also ran to its gate. Its original target,
+`fill_digit_from_words`, was already off the hot path after T65b and LLVM was
+already vectorizing it. The pivot target, a two-instruction BMI2 `MULX` kernel
+for `mul_hi_u64`, is correct across edge products, boundary pairs, one million
+random pairs and the three live Barrett moduli. It is nevertheless slower than
+the inlined Rust: 0.53 → 1.28 ns/op for `mul_hi`, and 0.84 → 1.48 ns/op in the
+`aux_reduce` shape. The approximately 0.75 ns call-boundary cost rejects the
+candidate. `hachi-jazz/` stays as a tested integration pattern; `hachi` does
+not depend on it, and no Lean theorem or trust boundary moved.
+
+The repository-wide close-out audit on 2026-10-06 ran the live gates rather
+than copying older README counts:
+
+* `make build`: 3902 jobs, no local `sorry`, axiom audit clean;
+* `make test`: 261 passed, 0 failed, 51 tagged ignores (26 instrument, 8 scale,
+  17 scale-xl);
+* `make spec-check`: 156 mirrored, 156 stated, 0 owed;
+* `make bench-check`: 557 frozen items intact; 156 mirrored items accounted for
+  by 82 rows and 74 named exclusions, plus 19 non-mirrored rows;
+* `make ledger-check`: 140 rows valid and append-only;
+* `hachi-jazz` release tests: 5 passed.
+
+The remaining composed-chain gap is measurement, not semantics. The former
+memory and `2^m₀` implementation walls are down, the current pin profile fits in
+5453 MiB, and `chain_verify` is 4.2 s. A Criterion row still needs an accepting
+pin-shaped sample, a deliberately small sample count and a long measurement
+window; all of its substantive phases already have rows. The honest acceptance
+test remains tagged `scale:` and last passed in 221 s on 2026-09-20. Separately,
+`chain_open` still accepts the computed lift witness and carrier decomposition
+instead of rebuilding them; that is its proved API, and changing it is a
+convenience/integration decision.
+
+PR #2, “[DO NOT MERGE] Verified Hachi allocation and fixed-profile fast paths,”
+was reviewed again on 2026-10-06 and deliberately left open. It is a draft with
+no checks or reviews, explicitly requires controlled benchmarking before merge,
+and is based on `681c7be`, before the final Stage 6 passes. Its large allocation
+patch overlaps code whose hot paths and cost model subsequently changed. Its
+report remains useful historical evidence, but it is not a merge candidate in
+its current form.
+
+## The final clean-up: CI back to green, one dead mirror removed, the docs re-counted (2026-10-26)
+
+The two pushes after the 2026-10-06 close-out (`427936e`, the optional Rayon
+block scheduler, and `cfb5bec`, the commit gate) left all three CI gates red,
+and only one of them was new:
+
+* **extraction determinism** — `427936e` moved lines in `src/commit.rs` without
+  a re-extraction, so `Generated.lean`'s `Source:` spans were stale. Re-extracted;
+  apart from those spans the only change is the removal below, and a second
+  `make extract` reports `unchanged`.
+* **bench & ledger integrity** — the same commit did not mirror `commit.rs` into
+  the candidate slot. Restored by copy. The slot's `lib.rs` already allows all
+  warnings, so the undeclared `parallel` cfg there simply evaluates false.
+* **clippy** — red since at least 2026-09-24. In `src/`, the 262 hits were all
+  `SHIFT_T`'s literals, now written with separators like `RANGE_Q_COEFFS`
+  (same values, same lines, so the extraction does not move), plus one unused
+  import and three local `allow`s with their reasons: `similar_names`
+  crate-wide in `Cargo.toml`, `needless_pass_by_value` on `short_reduce_buf`,
+  and `large_enum_variant` on `RlinMat`. With the library compiling, the test
+  targets surfaced about 120 more, mostly numeric casts in instrument and
+  prototype code. These are fixed mechanically where clippy could, by hand
+  where it mattered (a `Duration` subtraction, two dead bindings), and
+  otherwise by extending each file's existing `#![allow(clippy::cast_*)]`
+  header. `cargo clippy --all-targets --features candidate -- -D warnings` is
+  clean, with and without `parallel`.
+
+**`ringswitch::div_by_modulus` is gone.** Card T1a stopped `c_quotient` calling
+it: the quotient is read straight off the high half of the row sum, proved via
+`divByMonic_of_high`. Since then it was a dead private function with a
+`Mirrors` tag, an exclusion whose reason still said it was "measured through
+`c_quotient`", and four orphaned specs (`div_by_modulus_spec` and its three
+loop specs) that nothing used. The function, those specs, its `Check.lean`
+shape and audit lines, and the exclusion are removed. The two lemmas the
+`c_quotient` proof does use (`divByMonic_X_pow_add_one_eq`,
+`toCPolyK_eq_divByMonic`) stay. Counts move accordingly: 155 mirrored and
+stated items, 73 named exclusions, 787 `#print axioms` lines, still only the
+three kernel axioms.
+
+Live gates on the clean-up tree: `make build` 3902 jobs, no `sorry`;
+`make test` 262 passed, 0 failed, 52 ignored (27 instrument, 8 scale,
+17 scale-xl; a 28th instrument test exists only under `parallel`);
+`make spec-check` 155/155/0; `make bench-check` 557 frozen items intact and
+the slot null; `make ledger-check` 140 rows; `hachi-jazz` 5 passed.
+
+Repository hygiene. The 14 merged champion worktrees and their branches,
+the August `some-changes` branch and the `ntt` remote are removed. The
+paired comparison against the paper's implementation (three scripts, last
+run 2026-10-11, interrupted after six pairs) moves to
+`benchmarks/paper-compare/` beside the Rayon campaign in `benchmarks/rayon/`.
+Both are tracked, and their outputs, the reference clone and its 4 GiB
+witness are ignored. Raw console logs whose JSON reports are already tracked
+were deleted. The skills' worked examples still describe the `N = 64`
+schoolbook ring; their outright status claims ("the ledger is empty") are
+corrected, and `INSTRUCTIONS.md` says to read the examples for method.
+
+Still open, all by decision rather than by debt: the composed-chain Criterion
+row (`benches/exclusions.toml` § `chain::chain_verify`), whether `chain_open`
+should call `honest_lift_witness` itself, and external PR #2, a draft based
+before the final Stage 6 passes (see the entry above).

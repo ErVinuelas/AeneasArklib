@@ -1,6 +1,14 @@
 # Autonomous Execution Playbook v2
 ## Verified NTT-Based `Rq::mul` for AeneasArklib
 
+> **Historical execution plan — completed.** The production NTT, its auxiliary
+> prime/CRT path, the Goldilocks digit path, extraction, Lean proofs and
+> downstream theorem preservation are all on `main`. The detailed outcome is
+> in [`logs/ntt-execution.md`](logs/ntt-execution.md); the current project status
+> and final Stage 6 measurements are in [`README.md`](README.md) and the end of
+> [`NOTES.md`](NOTES.md). Imperatives and “next action” fields below describe the
+> original gate sequence and are not present-day TODOs.
+
 **Repository:** `ErVinuelas/AeneasArklib`  
 **Primary component:** `hachi`  
 **Execution model:** autonomous agent working in an isolated clone/branch with minimal human interaction  

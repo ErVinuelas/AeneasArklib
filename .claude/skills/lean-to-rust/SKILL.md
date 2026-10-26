@@ -26,9 +26,9 @@ for the Lean side, translate the definition you were given.
 
 The checklist is a dial, not a doctrine: it moves on ledger evidence of proof
 effort — how hard the equivalence proofs turn out to be — not on taste. This
-repository's `logs/ledger.jsonl` is empty, so the dial starts where
-AeneasCompPoly's proof-effort evidence left it; the first campaigns here are
-what will move it.
+repository's `logs/ledger.jsonl` now holds the Stage 5–6 campaign rows, which
+are the first proof-effort evidence measured here; until they are read for
+that purpose the dial stays where AeneasCompPoly's evidence left it.
 
 ## The field layer is a dependency, not a translation target
 

@@ -13,7 +13,9 @@ decision). Stages, each owned by its own skill: `arklib-analyze` → `lean-opt`
 the accepted champion owes one extraction check before landing, and the proofs
 belong to the outer pass (`verify-campaign`).
 
-The natural first target here is `hachi::ring::Rq::mul` — the schoolbook
+(Historical example: since the NTT merge `Rq::mul` runs on the verified
+auxiliary-prime NTT at `N = 1024`; see `INSTRUCTIONS.md` on worked examples.)
+The natural first target here was `hachi::ring::Rq::mul` — the schoolbook
 `O(N²)` negacyclic convolution at `N = 64`. `hachi/benches/ring.rs` frames it
 as "the operation an NTT would replace", whose reading is therefore "the
 baseline any such optimization has to beat *and* carry an equivalence proof

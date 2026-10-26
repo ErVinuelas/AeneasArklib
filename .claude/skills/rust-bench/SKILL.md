@@ -322,8 +322,8 @@ verdict; neither is "this could theoretically be optimized away".
 ### Lens A · dead work — is any of it being deleted?
 
 * **Scaling.** Temporarily add a second size and check the ratio against the
-  documented complexity: `Rq::add` is `O(N)` and doubles, `Rq::mul` is the
-  schoolbook `O(N²)` negacyclic convolution and quadruples, `mat_vec_mul` is
+  documented complexity: `Rq::add` is `O(N)` and doubles, `Rq::mul` (now the
+  NTT) is `O(N log N)` and slightly more than doubles, `mat_vec_mul` is
   `rows · cols` ring multiplies. A flat curve where the complexity says
   otherwise means the work is gone or the input is degenerate.
 * **First-principles floor.** Count the field operations the case must perform

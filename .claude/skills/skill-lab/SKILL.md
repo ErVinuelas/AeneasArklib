@@ -210,7 +210,8 @@ can state what staying inside the ceiling cost.
   a like target; a campaign whose retries concentrate in one stage across
   campaigns; a translation gate that keeps needing the same manual repair.
   The suspect sentence in the skill is named before the variant is written.
-* **This ledger is empty, so there is no trigger yet.** A suspicion inherited
+* **No row here has diverged by skill version yet, so there is no trigger.** A
+  suspicion inherited
   from AeneasCompPoly is not an A/B: make the edit, attribute the reason in
   the skill, and let this repository's rows accumulate. The first honest A/B
   here is one whose divergence appears in rows written here.

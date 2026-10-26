@@ -1,5 +1,13 @@
 # Reference-implementation benchmarks (the paper's `hachi-pcs`)
 
+> **Dated record (2026-08-28).** The "What maps onto what" table below describes
+> this crate as it was then: a schoolbook `Rq::mul` and no prover. Both have
+> since changed: the parameter flip landed, `ring::mul` runs on the verified
+> NTT, and the full honest prover and verifier are in `chain.rs`. For a paired
+> end-to-end comparison on today's tree, use
+> [`benchmarks/paper-compare/`](../../benchmarks/paper-compare/README.md); the
+> reference timings here remain valid as a record of the reference itself.
+
 Measured timings of the **paper's own prototype** —
 [georgeorourke/hachi-pcs](https://github.com/georgeorourke/hachi-pcs) — run on
 this machine at the parameter set this repo adopted from [NOZ26] Fig. 9
